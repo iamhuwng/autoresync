@@ -11,7 +11,16 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigation } from '../../hooks/useNavigation';
+import { storage } from '../../core/platform/storage';
+import { useMobileExamMode } from '../../core/platform/hooks/useMobileExamMode';
+import { MobileReadingExamScaffold } from '../test/mobile/MobileReadingExamScaffold';
+import { MobileStartScreen } from '../test/mobile/MobileStartScreen';
+import {
+    getReadingTextSizeStorageKey,
+    hydrateMobileReadingState,
+    serializeMobileReadingState,
+} from '../test/mobile/mobileReadingState';
 import { useAuth } from '../../hooks/useAuth';
 import { useSoloTestData } from '../../hooks/solo/useSoloTestData';
 import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
@@ -23,15 +32,18 @@ import { useAntiCopyPaste } from '../../hooks/test/useAntiCopyPaste';
 import { useFullscreenMode } from '../../hooks/test/useFullscreenMode';
 import { useTestCompletionCheck } from '../../hooks/test/useTestCompletionCheck';
 import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { SoloSettingsModal } from '../test/SoloSettingsModal';
 import { SoloResumeModal } from '../test/SoloResumeModal';
-import type { ResolvedPracticeSettings, StudentSoloPreferences } from '../../types/practice.types';
+import type { ResolvedPracticeSettings, SavedMobileState, StudentSoloPreferences } from '../../types/practice.types';
 import { DEFAULT_STUDENT_PREFS } from '../../types/practice.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { getHomeworkById } from '../../services/homeworkManager';
 import { toast } from '../modern/ToastNotification';
 import { toHomeworkIntegrity } from '../../utils/integrityUtils';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { studentResumeService } from '../../services/studentResume.service';
 
 // Reuse existing live-test UI components
 // @ts-ignore
@@ -66,6 +78,7 @@ export interface IELTSPracticeViewProps {
     materialId: string;
     resolvedSettings: ResolvedPracticeSettings;
     practiceContext: PracticeContext;
+    autoResume?: boolean;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -180,30 +193,47 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     materialId,
     resolvedSettings,
     practiceContext,
+    autoResume = false,
 }) => {
-    const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
+    const { isMobileExamMode } = useMobileExamMode();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
     const { user, profile } = useAuth();
+    const autosaveErrorToastRef = useRef<string | null>(null);
+    const mobileStateDirtyRef = useRef(false);
+    const mobileHydrationCompleteRef = useRef(false);
+    const prevQuestionSheetOpenRef = useRef(false);
+    const prevReviewSummaryOpenRef = useRef(false);
+    const skipNextQuestionSheetHistoryPushRef = useRef(false);
+    const restoreQuestionSheetOnReviewBackRef = useRef(false);
 
-    // ── Student Preferences (persisted to localStorage) ──────────────────────
-    const [studentPrefs, setStudentPrefs] = useState<StudentSoloPreferences>(() => {
-        try {
-            const stored = localStorage.getItem(`solo_student_prefs_${user?.uid}`);
-            return stored ? { ...DEFAULT_STUDENT_PREFS, ...JSON.parse(stored) } : DEFAULT_STUDENT_PREFS;
-        } catch {
-            return DEFAULT_STUDENT_PREFS;
-        }
-    });
+    // ── Student Preferences (persisted to platform storage) ──────────────────
+    const [studentPrefs, setStudentPrefs] = useState<StudentSoloPreferences>(DEFAULT_STUDENT_PREFS);
+
+    // Load saved preferences asynchronously on mount
+    useEffect(() => {
+        if (!user?.uid) return;
+        const loadPrefs = async () => {
+            try {
+                const stored = await storage.get<StudentSoloPreferences>(`solo_student_prefs_${user.uid}`);
+                if (stored) {
+                    setStudentPrefs({ ...DEFAULT_STUDENT_PREFS, ...stored });
+                }
+            } catch {
+                // Silently fall back to defaults
+            }
+        };
+        loadPrefs();
+    }, [user?.uid]);
 
     const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
     const handlePrefsChange = useCallback((newPrefs: StudentSoloPreferences) => {
         setStudentPrefs(newPrefs);
         if (user?.uid) {
-            try {
-                localStorage.setItem(`solo_student_prefs_${user.uid}`, JSON.stringify(newPrefs));
-            } catch (err) {
+            storage.set(`solo_student_prefs_${user.uid}`, newPrefs).catch((err: unknown) => {
                 console.warn('Failed to persist student preferences:', err);
-            }
+            });
         }
     }, [user?.uid]);
 
@@ -228,6 +258,18 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     const [resumeDecision, setResumeDecision] = useState<'pending' | 'resume' | 'fresh'>('pending');
     const showResumeModal = !checking && savedProgress !== null && resumeDecision === 'pending';
 
+    // Homework resumes are restart-restricted, so skip the generic solo resume modal.
+    useEffect(() => {
+        if (
+            !checking
+            && savedProgress !== null
+            && (practiceContext.type === 'homework' || autoResume)
+            && resumeDecision === 'pending'
+        ) {
+            setResumeDecision('resume');
+        }
+    }, [autoResume, checking, practiceContext.type, resumeDecision, savedProgress]);
+
     // Auto-resolve: when no saved progress exists, skip the modal
     useEffect(() => {
         if (!checking && savedProgress === null && resumeDecision === 'pending') {
@@ -238,6 +280,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     // ── Answer State ─────────────────────────────────────────────────────────
     const [answers, setAnswers] = useState<Record<number, any>>({});
     const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
+    const [autoSaveMobileState, setAutoSaveMobileState] = useState<SavedMobileState | undefined>(undefined);
     const [currentListeningAudioIndex, setCurrentListeningAudioIndex] = useState(0);
     const [isListeningAudioPlaying, setIsListeningAudioPlaying] = useState(false);
     const [listeningVolume, setListeningVolume] = useState(0.8);
@@ -342,7 +385,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     });
 
     useFullscreenMode({
-        enabled: isHomework && (antiCheatConfig?.requireFullscreen || false),
+        enabled: isHomework && !isMobileExamMode && (antiCheatConfig?.requireFullscreen || false),
         onFullscreenExit: addEvent,
     });
 
@@ -378,6 +421,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         integrity: isHomework && antiCheatConfig
             ? toHomeworkIntegrity(getIntegrityReport())
             : undefined,
+        skipConfirm: isMobileExamMode,
         attemptsNullified:
             isHomework &&
             Boolean(antiCheatConfig?.nullifyRemainingAttempts) &&
@@ -404,12 +448,13 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         }
     }, [timeRemaining, hasTimer, resolvedSettings?.timerMinutes]);
 
-    useSoloAutoSave({
+    const autoSaveStatus = useSoloAutoSave({
         materialId,
         studentId: user?.uid,
         answers,
         currentQuestion: currentQuestionNumber,
         timeElapsed: timeElapsedRef.current,
+        mobileState: autoSaveMobileState,
         enabled: !testSubmitted && resumeDecision !== 'pending',
     });
 
@@ -419,13 +464,17 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     const [highlighterActive, setHighlighterActive] = useState(studentPrefs.highlighterEnabled);
     const [highlightColor, setHighlightColor] = useState('#ffeb3b');
     const [clearHighlightsTrigger, setClearHighlightsTrigger] = useState(0);
+    const [mobileStateHydrated, setMobileStateHydrated] = useState(!isMobileExamMode);
 
     // Sync from SoloSettingsModal prefs changes
     useEffect(() => {
+        if (isMobileExamMode && mobileStateHydrated) {
+            return;
+        }
         setFontSize(studentPrefs.fontSize);
         setLineSpacing(studentPrefs.lineSpacing);
         setHighlighterActive(studentPrefs.highlighterEnabled);
-    }, [studentPrefs.fontSize, studentPrefs.lineSpacing, studentPrefs.highlighterEnabled]);
+    }, [isMobileExamMode, mobileStateHydrated, studentPrefs.fontSize, studentPrefs.lineSpacing, studentPrefs.highlighterEnabled]);
 
     const handleAnswerChange = useCallback((questionNumber: number, answer: any) => {
         if (isLocked || submissionLocked || testSubmitted) return;
@@ -578,10 +627,15 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
             const question = testData.questions.find(q => q.number === questionNumber);
             if (question) {
                 const targetPassageId = (question as any).resourceId || question.passageId;
-                if (targetPassageId) setActivePassageId(targetPassageId);
+                if (targetPassageId) {
+                    if (isMobileExamMode) {
+                        mobileStateDirtyRef.current = true;
+                    }
+                    setActivePassageId(targetPassageId);
+                }
             }
         }
-    }, [testData, setActivePassageId]);
+    }, [isMobileExamMode, testData, setActivePassageId]);
 
     const goToListeningQuestion = useCallback((questionNumber: number) => {
         setCurrentQuestionNumber(questionNumber);
@@ -627,19 +681,38 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
     }, []);
 
     const handleManualSubmit = useCallback(() => {
+        trackAction('finishTest', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: isMobileExamMode ? 'mobile' : 'standard',
+        });
         submitTestRef.current?.(false);
-    }, []);
+    }, [isHomework, isMobileExamMode, trackAction]);
+
+    const handleAutoSubmit = useCallback(() => {
+        trackAction('timeOut', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile',
+        });
+        void submitTestRef.current?.(true);
+    }, [isHomework, trackAction]);
 
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
+        void studentResumeService.clearResume();
         if (practiceContext.type === 'homework') {
-            navigate('/student/homework');
+            navigateTo('STUDENT_HOMEWORK');
         } else if (practiceContext.courseId) {
-            navigate(`/student/courses/${practiceContext.courseId}`);
+            navigateTo('STUDENT_COURSE_DETAIL', { courseId: practiceContext.courseId });
         } else {
-            navigate('/student/library');
+            navigateTo('STUDENT_LIBRARY');
         }
-    }, [navigate, practiceContext]);
+    }, [navigateTo, practiceContext]);
+
+    useEffect(() => {
+        if (error) {
+            void studentResumeService.clearResume();
+        }
+    }, [error]);
 
     // ── Warn on page leave ────────────────────────────────────────────────────
     useBeforeUnloadWarning({
@@ -663,8 +736,373 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
         });
     }, [shouldAutoSubmit]);
 
-    // ── Loading state ─────────────────────────────────────────────────────────
-    if (testLoading || checking) {
+    // ═══════════════════════════════════════════════════════════════
+    // MOBILE SHELL STATE — must be declared before conditional returns
+    // to satisfy React Rules of Hooks (PRD-0043 Section 7.3, Task 3.8)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Host-owned mobile shell state (PRD-0043 Section 7.3, Task 3.8)
+    const [questionSheetOpen, setQuestionSheetOpen] = React.useState(false);
+    const [reviewSummaryOpen, setReviewSummaryOpen] = React.useState(false);
+    const [overflowMenuOpen, setOverflowMenuOpen] = React.useState(false);
+    const [textSizeControlOpen, setTextSizeControlOpen] = React.useState(false);
+    const [instructionsOpen, setInstructionsOpen] = React.useState(false);
+    const [passageScrollByPassage, setPassageScrollByPassage] = React.useState<Record<string, number>>({});
+
+    const markMobileStateDirty = React.useCallback(() => {
+        mobileStateDirtyRef.current = true;
+    }, []);
+    const handleMobilePassageChange = React.useCallback((passageId: string) => {
+        markMobileStateDirty();
+        setActivePassageId(passageId);
+    }, [markMobileStateDirty, setActivePassageId]);
+    const handleOpenQuestionSheet = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('openQuestionSheet', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_fab',
+        });
+        setOverflowMenuOpen(false);
+        setTextSizeControlOpen(false);
+        setInstructionsOpen(false);
+        setQuestionSheetOpen(true);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleCloseQuestionSheet = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('closeQuestionSheet', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_sheet',
+        });
+        setQuestionSheetOpen(false);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleOpenReviewSummary = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('openReviewSummary', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: overflowMenuOpen ? 'mobile_overflow_menu' : 'mobile_header_submit',
+        });
+        restoreQuestionSheetOnReviewBackRef.current = questionSheetOpen;
+        setQuestionSheetOpen(false);
+        setOverflowMenuOpen(false);
+        setTextSizeControlOpen(false);
+        setInstructionsOpen(false);
+        setReviewSummaryOpen(true);
+    }, [isHomework, markMobileStateDirty, overflowMenuOpen, questionSheetOpen, trackAction]);
+    const handleCloseReviewSummary = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('closeReviewSummary', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_review_summary',
+        });
+        restoreQuestionSheetOnReviewBackRef.current = false;
+        setReviewSummaryOpen(false);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleOpenOverflowMenu = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('openOverflowMenu', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_header',
+        });
+        setOverflowMenuOpen(true);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleCloseOverflowMenu = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('closeOverflowMenu', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_overflow_menu',
+        });
+        setOverflowMenuOpen(false);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleOpenTextSizeControl = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('openTextSizeControl', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_overflow_menu',
+        });
+        setOverflowMenuOpen(false);
+        setInstructionsOpen(false);
+        setTextSizeControlOpen(true);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleCloseTextSizeControl = React.useCallback(() => {
+        markMobileStateDirty();
+        setTextSizeControlOpen(false);
+    }, [markMobileStateDirty]);
+    const handleOpenInstructions = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('openInstructions', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_overflow_menu',
+        });
+        setOverflowMenuOpen(false);
+        setTextSizeControlOpen(false);
+        setInstructionsOpen(true);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleCloseInstructions = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('closeInstructions', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_instructions_modal',
+        });
+        setInstructionsOpen(false);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleTextSizeChange = React.useCallback((size: number) => {
+        markMobileStateDirty();
+        trackAction('adjustTextSize', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_text_size_control',
+            size,
+        });
+        setFontSize(size);
+    }, [isHomework, markMobileStateDirty, trackAction]);
+    const handleLeaveTest = React.useCallback(() => {
+        markMobileStateDirty();
+        trackAction('leaveTest', {
+            mode: isHomework ? 'homework' : 'solo',
+            surface: 'mobile_overflow_menu',
+        });
+        setOverflowMenuOpen(false);
+        handleBack();
+    }, [handleBack, isHomework, markMobileStateDirty, trackAction]);
+    const handlePassageScroll = React.useCallback((passageId: string, scrollTop: number) => {
+        markMobileStateDirty();
+        setPassageScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
+    }, [markMobileStateDirty]);
+
+    // Host-owned per-passage question group memory (PRD-0043 Task 4.6)
+    const [activeQuestionGroupByPassage, setActiveQuestionGroupByPassage] = React.useState<Record<string, number>>({});
+    const [questionSheetScrollByPassage, setQuestionSheetScrollByPassage] = React.useState<Record<string, number>>({});
+    const handleActiveQuestionGroupChange = React.useCallback((passageId: string, questionGroupStart: number) => {
+        markMobileStateDirty();
+        setActiveQuestionGroupByPassage(prev => ({ ...prev, [passageId]: questionGroupStart }));
+    }, [markMobileStateDirty]);
+    const handleQuestionSheetScroll = React.useCallback((passageId: string, scrollTop: number) => {
+        markMobileStateDirty();
+        setQuestionSheetScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
+    }, [markMobileStateDirty]);
+
+    // Host-owned flagging state (PRD-0043 Task 4.4)
+    // Mobile Start Screen state (PRD-0043 Task 2A.3)
+    const [mobileTestStarted, setMobileTestStarted] = React.useState(false);
+
+    // Auto-skip start screen when resuming a saved session
+    React.useEffect(() => {
+        if (isMobileExamMode && resumeDecision === 'resume') {
+            setMobileTestStarted(true);
+        }
+    }, [isMobileExamMode, resumeDecision]);
+
+    const serializedMobileState = useMemo(() => serializeMobileReadingState({
+        activePassageId,
+        questionSheetOpen,
+        reviewSummaryOpen,
+        passageScrollByPassage,
+        activeQuestionGroupByPassage,
+        questionSheetScrollByPassage,
+        textSize: fontSize,
+    }), [
+        activePassageId,
+        questionSheetOpen,
+        reviewSummaryOpen,
+        passageScrollByPassage,
+        activeQuestionGroupByPassage,
+        questionSheetScrollByPassage,
+        fontSize,
+    ]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const shouldSkipHydration = mobileStateDirtyRef.current && mobileHydrationCompleteRef.current;
+
+        if (!isMobileExamMode) {
+            setMobileStateHydrated(true);
+            mobileHydrationCompleteRef.current = false;
+            mobileStateDirtyRef.current = false;
+            return undefined;
+        }
+
+        if (resumeDecision === 'pending' || !testData) {
+            return undefined;
+        }
+
+        if (shouldSkipHydration) {
+            return undefined;
+        }
+
+        const hydrateState = async () => {
+            try {
+                const persistedTextSize = user?.uid
+                    ? await storage.get<number>(getReadingTextSizeStorageKey(user.uid))
+                    : undefined;
+
+                if (cancelled || (mobileStateDirtyRef.current && mobileHydrationCompleteRef.current)) {
+                    return;
+                }
+
+                const hydratedState = hydrateMobileReadingState(
+                    resumeDecision === 'resume' ? savedProgress?.mobileState : null,
+                    typeof persistedTextSize === 'number' ? persistedTextSize : studentPrefs.fontSize,
+                );
+
+                if (
+                    hydratedState.activePassageId
+                    && testData.passages?.some((passage: any) => passage.id === hydratedState.activePassageId)
+                ) {
+                    setActivePassageId(hydratedState.activePassageId);
+                }
+
+                setQuestionSheetOpen(hydratedState.questionSheetOpen);
+                setReviewSummaryOpen(hydratedState.reviewSummaryOpen);
+                setPassageScrollByPassage(hydratedState.passageScrollByPassage);
+                setActiveQuestionGroupByPassage(hydratedState.activeQuestionGroupByPassage);
+                setQuestionSheetScrollByPassage(hydratedState.questionSheetScrollByPassage);
+                setFontSize(hydratedState.textSize);
+                mobileStateDirtyRef.current = false;
+                mobileHydrationCompleteRef.current = true;
+            } catch (error) {
+                console.warn('Failed to hydrate practice mobile reading state:', error);
+                mobileStateDirtyRef.current = false;
+                mobileHydrationCompleteRef.current = true;
+            } finally {
+                if (!cancelled) {
+                    setMobileStateHydrated(true);
+                }
+            }
+        };
+
+        setMobileStateHydrated(false);
+        void hydrateState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        isMobileExamMode,
+        resumeDecision,
+        savedProgress?.mobileState,
+        setActivePassageId,
+        studentPrefs.fontSize,
+        testData,
+        user?.uid,
+    ]);
+
+    useEffect(() => {
+        if (!isMobileExamMode || !user?.uid || !mobileStateHydrated) {
+            return;
+        }
+
+        storage.set(getReadingTextSizeStorageKey(user.uid), fontSize).catch((err: unknown) => {
+            console.warn('Failed to persist practice reading text size fallback:', err);
+        });
+    }, [fontSize, isMobileExamMode, mobileStateHydrated, user?.uid]);
+
+    useEffect(() => {
+        setAutoSaveMobileState(isMobileExamMode && mobileStateHydrated ? serializedMobileState : undefined);
+    }, [isMobileExamMode, mobileStateHydrated, serializedMobileState]);
+
+    useEffect(() => {
+        if (autoSaveStatus.status === 'saved') {
+            autosaveErrorToastRef.current = null;
+            return;
+        }
+
+        if (autoSaveStatus.status === 'error' && autoSaveStatus.error && autosaveErrorToastRef.current !== autoSaveStatus.error) {
+            autosaveErrorToastRef.current = autoSaveStatus.error;
+            toast.error(autoSaveStatus.error);
+        }
+    }, [autoSaveStatus.error, autoSaveStatus.status]);
+
+    useEffect(() => {
+        if (!isMobileExamMode) {
+            return;
+        }
+
+        if (
+            (testSubmitted || showTimeUpOverlay || isPaused)
+            && (questionSheetOpen || reviewSummaryOpen || overflowMenuOpen || textSizeControlOpen || instructionsOpen)
+        ) {
+            mobileStateDirtyRef.current = true;
+            setQuestionSheetOpen(false);
+            setReviewSummaryOpen(false);
+            setOverflowMenuOpen(false);
+            setTextSizeControlOpen(false);
+            setInstructionsOpen(false);
+        }
+    }, [
+        instructionsOpen,
+        isMobileExamMode,
+        isPaused,
+        overflowMenuOpen,
+        questionSheetOpen,
+        reviewSummaryOpen,
+        showTimeUpOverlay,
+        testSubmitted,
+        textSizeControlOpen,
+    ]);
+
+    useEffect(() => {
+        if (!isMobileExamMode) {
+            prevQuestionSheetOpenRef.current = questionSheetOpen;
+            return;
+        }
+
+        const wasOpen = prevQuestionSheetOpenRef.current;
+        if (!wasOpen && questionSheetOpen) {
+            if (skipNextQuestionSheetHistoryPushRef.current) {
+                skipNextQuestionSheetHistoryPushRef.current = false;
+            } else {
+                window.history.pushState(null, '', window.location.href);
+            }
+        }
+
+        prevQuestionSheetOpenRef.current = questionSheetOpen;
+    }, [isMobileExamMode, questionSheetOpen]);
+
+    useEffect(() => {
+        if (!isMobileExamMode) {
+            prevReviewSummaryOpenRef.current = reviewSummaryOpen;
+            return;
+        }
+
+        const wasOpen = prevReviewSummaryOpenRef.current;
+        if (!wasOpen && reviewSummaryOpen) {
+            window.history.pushState(null, '', window.location.href);
+        }
+
+        prevReviewSummaryOpenRef.current = reviewSummaryOpen;
+    }, [isMobileExamMode, reviewSummaryOpen]);
+
+    useEffect(() => {
+        if (!isMobileExamMode) {
+            return;
+        }
+
+        const handlePopState = () => {
+            if (reviewSummaryOpen) {
+                mobileStateDirtyRef.current = true;
+                const restoreQuestionSheet = restoreQuestionSheetOnReviewBackRef.current;
+                restoreQuestionSheetOnReviewBackRef.current = false;
+                setReviewSummaryOpen(false);
+                if (restoreQuestionSheet) {
+                    skipNextQuestionSheetHistoryPushRef.current = true;
+                    setQuestionSheetOpen(true);
+                }
+                return;
+            }
+
+            if (questionSheetOpen) {
+                mobileStateDirtyRef.current = true;
+                setQuestionSheetOpen(false);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [isMobileExamMode, questionSheetOpen, reviewSummaryOpen]);
+
+    // ── Loading state ─────────────────────────────────────────────────────
+    if (testLoading || checking || (isMobileExamMode && resumeDecision !== 'pending' && !mobileStateHydrated)) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -686,7 +1124,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                     <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>Test Not Found</div>
                     <div style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error || 'Unable to load this material.'}</div>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={handleBack}
                         style={{ padding: '0.75rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
                     >
                         Go Back
@@ -883,6 +1321,141 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
             </div>
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0043)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (isMobileExamMode) {
+        return (
+            <>
+                {/* Resume Modal (responsive, works on mobile) */}
+                {showResumeModal && savedProgress && (
+                    <SoloResumeModal
+                        opened={showResumeModal}
+                        onResume={() => setResumeDecision('resume')}
+                        onStartNew={() => { discardProgress(); setResumeDecision('fresh'); }}
+                        onClose={() => setResumeDecision('fresh')}
+                        savedProgress={savedProgress}
+                        totalQuestions={testData.questionCount || 0}
+                    />
+                )}
+
+                {/* Mobile Start Screen (PRD-0043 Task 2A.3) */}
+                {!mobileTestStarted && resumeDecision !== 'pending' ? (
+                    <MobileStartScreen
+                        mode={isHomework ? 'homework' : 'solo'}
+                        testTitle={testData.title || 'Reading Test'}
+                        testSkill={testData.skill || 'Reading'}
+                        passageCount={testData.passages?.length || 0}
+                        questionCount={testData.questionCount || displayQuestions.length}
+                        timeLimit={resolvedSettings?.timerMinutes ?? null}
+                        onStart={() => {
+                            trackAction('startTest', {
+                                mode: isHomework ? 'homework' : 'solo',
+                                surface: 'mobile_start_screen',
+                            });
+                            setMobileTestStarted(true);
+                        }}
+                        showStartButton={true}
+                        practiceContext={practiceContext}
+                        resolvedSettings={resolvedSettings}
+                    />
+                ) : (
+                    <>
+                        {/* Pause Overlay */}
+                        {isPaused && !testSubmitted && (
+                            <div style={{
+                                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
+                            }}>
+                                <div style={{ background: 'white', borderRadius: 16, padding: '2rem 3rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: 12 }}>⏸️</div>
+                                    <h2 style={{ fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Test Paused</h2>
+                                    <p style={{ color: '#6b7280', margin: '0 0 24px' }}>Your progress is saved. Click Resume to continue.</p>
+                                    <button
+                                        onClick={togglePause}
+                                        style={{ padding: '10px 28px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: 999, fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
+                                    >
+                                        Resume
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile Reading Exam Scaffold */}
+                        <MobileReadingExamScaffold
+                            mode={isHomework ? 'homework' : 'solo'}
+                            passages={(testData.passages || []).map((p: any, i: number) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
+                            questions={displayQuestions}
+                            totalQuestions={testData.questionCount || displayQuestions.length}
+                            activePassageId={activePassageId || ''}
+                            onPassageChange={handleMobilePassageChange}
+                            currentPassage={currentPassage}
+                            PassageRendererComponent={PassageRenderer}
+                            answers={answers}
+                            onAnswerChange={inputsDisabled ? () => {} : handleAnswerChange}
+                            activeQuestionNumber={currentQuestionNumber}
+                            onQuestionClick={goToQuestion}
+                            timeRemaining={isFinite(timeRemaining) ? timeRemaining : Infinity}
+                            formatTime={formatTime}
+                            testSubmitted={testSubmitted}
+                            isSubmitting={isSubmitting}
+                            questionResults={testResults?.questionResults || {}}
+                            onManualSubmit={handleManualSubmit}
+                            onAutoSubmit={handleAutoSubmit}
+                            isConnected={true}
+                            sessionStatus={'in-progress'}
+                            isPaused={isPaused}
+                            fontSize={fontSize}
+                            lineSpacing={1.6}
+                            highlighterActive={false}
+                            highlightColor={highlightColor}
+                            clearHighlightsTrigger={clearHighlightsTrigger}
+                            questionSheetOpen={questionSheetOpen}
+                            onOpenQuestionSheet={handleOpenQuestionSheet}
+                            onCloseQuestionSheet={handleCloseQuestionSheet}
+                            reviewSummaryOpen={reviewSummaryOpen}
+                            onOpenReviewSummary={handleOpenReviewSummary}
+                            onCloseReviewSummary={handleCloseReviewSummary}
+                            overflowMenuOpen={overflowMenuOpen}
+                            onOpenOverflowMenu={handleOpenOverflowMenu}
+                            onCloseOverflowMenu={handleCloseOverflowMenu}
+                            textSizeControlOpen={textSizeControlOpen}
+                            onOpenTextSizeControl={handleOpenTextSizeControl}
+                            onCloseTextSizeControl={handleCloseTextSizeControl}
+                            instructionsOpen={instructionsOpen}
+                            onOpenInstructions={handleOpenInstructions}
+                            onCloseInstructions={handleCloseInstructions}
+                            onTextSizeChange={handleTextSizeChange}
+                            onLeaveTest={handleLeaveTest}
+                            practiceContext={practiceContext}
+                            resolvedSettings={resolvedSettings}
+                            antiSelectClass={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+                            passageScrollByPassage={passageScrollByPassage}
+                            onPassageScroll={handlePassageScroll}
+                            activeQuestionGroupByPassage={activeQuestionGroupByPassage}
+                            onActiveQuestionGroupChange={handleActiveQuestionGroupChange}
+                            questionSheetScrollByPassage={questionSheetScrollByPassage}
+                            onQuestionSheetScroll={handleQuestionSheetScroll}
+                        />
+
+                        {/* Time Up Overlay */}
+                        {showTimeUpOverlay && (
+                            <TimeUpOverlay
+                                onComplete={() => console.log('⏰ [Practice] Grace period complete')}
+                                countdownSeconds={gracePeriodRemaining}
+                            />
+                        )}
+                    </>
+                )}
+            </>
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DESKTOP/TABLET UI RENDER (existing layout)
+    // ═══════════════════════════════════════════════════════════════
 
     return (
         <div

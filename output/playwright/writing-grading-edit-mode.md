@@ -1,0 +1,149 @@
+- generic [ref=e295]:
+  - generic [ref=e297]:
+    - heading "Writing Grading" [level=1] [ref=e299]
+    - generic [ref=e301]:
+      - button "Materials" [ref=e302] [cursor=pointer]:
+        - generic [ref=e303]: Materials
+      - generic [ref=e305]:
+        - button "Students" [ref=e306] [cursor=pointer]:
+          - generic [ref=e307]: Students
+        - button "Classes" [ref=e308] [cursor=pointer]:
+          - generic [ref=e309]: Classes
+        - button "Courses" [ref=e310] [cursor=pointer]:
+          - generic [ref=e311]: Courses
+        - button "Homework" [ref=e312] [cursor=pointer]:
+          - generic [ref=e313]: Homework
+        - button "Grading" [ref=e314] [cursor=pointer]:
+          - generic [ref=e315]: Grading
+      - button "Sessions" [ref=e317] [cursor=pointer]:
+        - generic [ref=e318]: Sessions
+      - generic [ref=e320]:
+        - button "Notifications" [ref=e324] [cursor=pointer]:
+          - img [ref=e325]
+        - button "Open profile menu" [ref=e329] [cursor=pointer]:
+          - img "Teacher Test" [ref=e331]
+          - generic [ref=e332]: Teacher Test
+  - generic [ref=e335]:
+    - banner [ref=e336]:
+      - generic [ref=e337]:
+        - button "Back to Queue" [ref=e338] [cursor=pointer]:
+          - img [ref=e340]
+          - generic [ref=e343]: Back to Queue
+        - generic [ref=e345]:
+          - generic [ref=e346]:
+            - generic [ref=e347]: student@test.com
+            - generic [ref=e348]: "ID: Bk62"
+          - generic [ref=e349]: EDITING
+      - generic [ref=e350]:
+        - button "Save Draft" [ref=e414] [cursor=pointer]
+        - button "Submit Grading" [disabled] [ref=e415]
+    - main [ref=e352]:
+      - generic [ref=e353]:
+        - generic [ref=e355]:
+          - button "Marked" [ref=e356] [cursor=pointer]
+          - button "Original" [ref=e357] [cursor=pointer]
+        - generic [ref=e359]:
+          - generic [ref=e361]:
+            - generic [ref=e416]:
+              - button "Undo" [disabled] [ref=e417]:
+                - img [ref=e418]
+              - button "Redo" [disabled] [ref=e421]:
+                - img [ref=e422]
+              - button "Add comment" [disabled] [ref=e426]:
+                - img [ref=e427]
+                - generic [ref=e429]: Comment
+              - button "Add correction" [disabled] [ref=e430]:
+                - img [ref=e431]
+                - generic [ref=e434]: Correction
+            - generic [ref=e362]:
+              - generic [ref=e363]:
+                - generic "Go to comment" [ref=e364] [cursor=pointer]
+                - generic "Go to comment" [ref=e365] [cursor=pointer]
+              - generic [ref=e368]:
+                - paragraph [ref=e369]:
+                  - generic [ref=e370]: The cha -> The chart
+                  - text: t illustrates the amount of greenhouse emission from three sources such as Oil, Coal and gas from the country of United Kingdom in a period of twenty years Started from 1990.
+                - paragraph [ref=e371]: Overview There is A downward trend Witnesses to the amounts of greenhouse gases. Output from oil and coal. The opposite was true for gas. Besides the amount of CO2 Stan at first place in every year except for the year of nineteen ninety
+                - paragraph [ref=e372]:
+                  - text: in the year of 1990, coal Is release the largest amount of CO2 at 310 million tons. followed by oil 270 million tons. Gas was the smallest output in
+                  - generic [ref=e373]:
+                    - generic [ref=e374]: the beginning of the period
+                    - text: "-> moew"
+                  - text: on the rich 220 million tons.
+          - button "Quick Comments" [ref=e436] [cursor=pointer]:
+            - img [ref=e437]
+            - generic [ref=e439]: Quick Comments
+      - complementary [ref=e375]:
+        - generic [ref=e376]:
+          - button "Prompt" [ref=e377] [cursor=pointer]
+          - button "Comments" [ref=e378] [cursor=pointer]
+          - button "Suggestions" [ref=e379] [cursor=pointer]
+          - button "Scoring" [ref=e380] [cursor=pointer]
+        - generic [ref=e382]:
+          - generic [ref=e383]:
+            - button "All (2)" [ref=e384] [cursor=pointer]
+            - button "Open (2)" [ref=e385] [cursor=pointer]
+            - button "Resolved (0)" [ref=e386] [cursor=pointer]
+            - button "Deleted (0)" [ref=e387] [cursor=pointer]
+          - generic [ref=e391]:
+            - generic [ref=e393] [cursor=pointer]:
+              - generic [ref=e394]:
+                - generic [ref=e397]: LR
+                - generic [ref=e398]:
+                  - generic [ref=e399]: 3d
+                  - button "×" [ref=e440]
+              - generic [ref=e400]: "\"the amount of greenhouse emission from three sources such as Oil, Coal and gas\""
+              - generic [ref=e401]: While 'amount' can be used for uncountable nouns, 'emissions' are often treated as measurable in specific units, making 'level' or simply 'emissions' more precise. Also, 'such as' is typically followed by examples, while 'including' is better for a comprehensive list of sources.
+            - generic [ref=e442]:
+              - generic [ref=e443]: New comment
+              - generic [ref=e444]:
+                - generic [ref=e445]:
+                  - generic [ref=e446]:
+                    - generic [ref=e447]: Selected Text
+                    - generic [ref=e449]: "\"coal\""
+                  - generic [ref=e450]:
+                    - generic [ref=e451]: Category
+                    - combobox "Category" [ref=e452]:
+                      - option "TA"
+                      - option "CC"
+                      - option "LR"
+                      - option "GRA"
+                      - option "General" [selected]
+                - generic [ref=e453]:
+                  - button "B" [ref=e454] [cursor=pointer]:
+                    - strong [ref=e455]: B
+                  - button "I" [ref=e456] [cursor=pointer]:
+                    - emphasis [ref=e457]: I
+                  - button "U" [ref=e458] [cursor=pointer]
+                  - button "•" [ref=e460] [cursor=pointer]
+                  - button "1." [ref=e461] [cursor=pointer]
+                - textbox [active] [ref=e464]:
+                  - paragraph [ref=e465]
+                - generic [ref=e466]:
+                  - button "Cancel" [ref=e467] [cursor=pointer]
+                  - button "Save Comment" [disabled] [ref=e468]
+            - generic [ref=e403] [cursor=pointer]:
+              - generic [ref=e404]:
+                - generic [ref=e407]: General
+                - generic [ref=e408]:
+                  - generic [ref=e409]: 8h
+                  - button "×" [ref=e469]
+              - generic [ref=e410]: "\"the beginning of the period\""
+              - generic [ref=e411]: moa
+        - generic [ref=e470]:
+          - generic [ref=e471]:
+            - img [ref=e472]
+            - text: Readiness
+          - generic [ref=e475]:
+            - generic [ref=e476]:
+              - generic [ref=e477]: Scores Set
+              - img [ref=e479]
+            - generic [ref=e481]:
+              - generic [ref=e482]: Summary Required
+              - img [ref=e484]
+            - generic [ref=e486]:
+              - generic [ref=e487]: Draft Comments
+              - img [ref=e489]
+        - generic [ref=e412]:
+          - button "Review AI Suggestions" [ref=e413] [cursor=pointer]
+          - button "🚫 Void Task 1" [ref=e492] [cursor=pointer]

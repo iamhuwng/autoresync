@@ -66,6 +66,8 @@ const retryButtonStyle: React.CSSProperties = {
     border: '1px solid rgba(245,158,11,0.3)',
     borderRadius: '0.5rem',
     padding: '0.375rem 0.75rem',
+    minWidth: 44,
+    minHeight: 44,
     color: '#92400e',
     fontWeight: 600,
     fontSize: '0.8rem',
@@ -81,9 +83,11 @@ const dismissButtonStyle: React.CSSProperties = {
     right: '0.75rem',
     background: 'none',
     border: 'none',
+    minWidth: 44,
+    minHeight: 44,
     color: '#b45309',
     cursor: 'pointer',
-    fontSize: '1.1rem',
+    fontSize: '1rem',
     padding: '0.25rem',
     opacity: 0.6,
     lineHeight: 1,
@@ -196,7 +200,7 @@ const AIMaintenanceBanner: React.FC<AIMaintenanceBannerProps> = ({
                 aria-label="Dismiss banner"
                 title="Dismiss"
             >
-                ×
+                X
             </button>
         </div>
     );

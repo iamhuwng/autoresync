@@ -15,6 +15,13 @@ import { lazy, ComponentType } from 'react';
  */
 
 const RETRY_KEY = 'chunk-reload-retry';
+function getRetryScope(): string {
+    if (typeof window === 'undefined') {
+        return 'server';
+    }
+
+    return window.location.pathname || window.location.href;
+}
 const RETRY_EXPIRY_MS = 30_000; // 30 seconds — prevents stale retry flags
 
 function isChunkLoadError(error: unknown): boolean {
@@ -44,9 +51,10 @@ export function lazyWithRetry<T extends ComponentType<any>>(
 
             // Check if we already retried recently (prevent infinite reload loop)
             const retryData = sessionStorage.getItem(RETRY_KEY);
+            const retryScope = getRetryScope();
             if (retryData) {
-                const { timestamp } = JSON.parse(retryData);
-                if (Date.now() - timestamp < RETRY_EXPIRY_MS) {
+                const { timestamp, scope } = JSON.parse(retryData);
+                if (scope === retryScope && Date.now() - timestamp < RETRY_EXPIRY_MS) {
                     console.error('[lazyWithRetry] Already retried recently. Showing error instead of reloading.');
                     throw error; // Let the ErrorBoundary handle it
                 }
@@ -55,6 +63,7 @@ export function lazyWithRetry<T extends ComponentType<any>>(
             // Mark that we're retrying, then force reload
             sessionStorage.setItem(RETRY_KEY, JSON.stringify({
                 timestamp: Date.now(),
+                scope: retryScope,
                 url: window.location.href,
             }));
 

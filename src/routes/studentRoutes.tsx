@@ -77,8 +77,20 @@ export const studentRoutes: RouteObject[] = [
         element: asStudentPage(<StudentHomeworkListPage />, 'homework'),
       },
       {
+        path: 'homework/:homeworkId',
+        element: asStudentPage(<StudentHomeworkDetailPage />, 'homework'),
+      },
+      {
+        path: 'homework/:homeworkId/test',
+        element: asStudentPage(<StudentPracticePage />, 'testTaking'),
+      },
+      {
         path: 'academic-record',
         element: asStudentPage(<AcademicRecordPage />, 'academicRecords'),
+      },
+      {
+        path: 'results/:sessionCode',
+        element: asStudentPage(<StudentTestResultsPage />, 'results'),
       },
     ],
   },
@@ -107,23 +119,11 @@ export const studentRoutes: RouteObject[] = [
     element: asStudentPage(<StudentResultsPage />, 'results'),
   },
   {
-    path: '/student/results/:sessionCode',
-    element: asStudentPage(<StudentTestResultsPage />, 'results'),
-  },
-  {
     path: '/student/practice/:materialId',
     element: asStudentPage(<StudentPracticePage />, 'testTaking'),
   },
   {
     path: '/student/solo-test/:materialId',
-    element: asStudentPage(<StudentPracticePage />, 'testTaking'),
-  },
-  {
-    path: '/student/homework/:homeworkId',
-    element: asStudentPage(<StudentHomeworkDetailPage />, 'homework'),
-  },
-  {
-    path: '/student/homework/:homeworkId/test',
     element: asStudentPage(<StudentPracticePage />, 'testTaking'),
   },
   {

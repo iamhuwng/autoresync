@@ -1,12 +1,14 @@
 // TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
 // Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
-import React, { useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { Suspense, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
-import { buildRoute } from '../constants/routes';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { AppShell } from '@mantine/core';
-import { Card, CardBody, Button, Input } from '../components/modern';
+import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
+import { Card, CardBody } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 
 // Extracted hooks
@@ -28,66 +30,52 @@ import UseAsIsModal from '../components/UseAsIsModal';
 
 // Modals kept as direct imports (heavy components)
 // NOTE: QuizEditor removed — no legacy quiz items remain (PRD-0033 Task 2)
-import TestEditor from '../components/TestEditor.tsx';
-import TestCreationModal from '../components/test-creation/TestCreationModal';
-import { THCSHomeworkAssignDialog } from '../components/thcs-editor/THCSHomeworkAssignDialog';
-import THCSTestEditorModal from '../components/thcs-editor/THCSTestEditorModal';
+const TestEditor = lazyWithRetry(() => import('../components/TestEditor.tsx'));
+const TestCreationModal = lazyWithRetry(() => import('../components/test-creation/TestCreationModal'));
+const THCSTestEditorModal = lazyWithRetry(() => import('../components/thcs-editor/THCSTestEditorModal'));
+const WritingTestEditModal = lazyWithRetry(() => import('../components/writing/WritingTestEditModal'));
 
-const DEFAULT_WRITING_TASK1 = {
-  taskType: 'line-graph',
-  promptText: '',
-  wordMinimum: 150,
-  recommendedTimeMinutes: 20,
-  showModelAnswerToStudent: false,
+const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
+
+const overlayFallbackStyle = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 2200,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '1.5rem',
+  background: 'rgba(15, 23, 42, 0.55)',
+  backdropFilter: 'blur(8px)',
 };
 
-const DEFAULT_WRITING_TASK2 = {
-  taskType: 'opinion',
-  promptText: '',
-  wordMinimum: 250,
-  recommendedTimeMinutes: 40,
-  showModelAnswerToStudent: false,
+const overlayCardStyle = {
+  width: 'min(420px, 100%)',
+  padding: '1.5rem',
+  borderRadius: '1.25rem',
+  background: 'rgba(255, 255, 255, 0.98)',
+  border: '1px solid rgba(226, 232, 240, 0.9)',
+  boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+  textAlign: 'center',
+  color: '#334155',
+  fontWeight: 600,
 };
 
-function buildWritingModalState(draft) {
-  const task1 = draft?.tasks?.find((task) => task.taskNumber === 1);
-  const task2 = draft?.tasks?.find((task) => task.taskNumber === 2);
-  const hasTaskContent = Boolean(task1?.promptText || task2?.promptText);
-
-  return {
-    initialStep: hasTaskContent ? 'writing-content' : 'writing-metadata',
-    initialData: {
-      testType: 'IELTS',
-      skillType: 'writing',
-      writingMetadata: {
-        title: draft?.metadata?.title || '',
-        description: draft?.metadata?.description,
-        duration: draft?.metadata?.duration || 60,
-        difficulty: draft?.metadata?.difficulty,
-        targetBand: draft?.metadata?.targetBand,
-        tags: Array.isArray(draft?.metadata?.tags) ? draft.metadata.tags : [],
-      },
-      writingFormat: draft?.metadata?.format || 'full-test',
-      writingTasks: {
-        task1: {
-          ...DEFAULT_WRITING_TASK1,
-          ...(task1 || {}),
-        },
-        task2: {
-          ...DEFAULT_WRITING_TASK2,
-          ...(task2 || {}),
-        },
-      },
-    },
-    initialWritingDraftId: draft?.id,
-  };
+function OverlayLoader({ label }) {
+  return (
+    <div style={overlayFallbackStyle}>
+      <div style={overlayCardStyle}>
+        {label}
+      </div>
+    </div>
+  );
 }
 
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
   const { user, profile, logout } = useAuth();
-  const navigate = useNavigate();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
   // ---------- Local UI State ----------
   const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts'
@@ -95,14 +83,12 @@ const TeacherLobbyPage = () => {
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
-  const [testCreationInitialStep, setTestCreationInitialStep] = useState('type');
-  const [testCreationInitialData, setTestCreationInitialData] = useState(undefined);
-  const [testCreationInitialWritingDraftId, setTestCreationInitialWritingDraftId] = useState(undefined);
+  const [editingWritingDraft, setEditingWritingDraft] = useState(null);
 
   // ---------- Hooks ----------
   const modals = useModalManager();
-  const { tests, loading: contentLoading, deleteTest, togglePublic } = useTeacherTests();
-  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft } = useTeacherDrafts({
+  const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests();
+  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts } = useTeacherDrafts({
     userId: user?.uid || '',
     enabled: contentFilter === 'drafts',
   });
@@ -125,29 +111,29 @@ const TeacherLobbyPage = () => {
     thcsExamTypeFilter,
   });
 
-  const resetTestCreationOverrides = useCallback(() => {
-    setTestCreationInitialStep('type');
-    setTestCreationInitialData(undefined);
-    setTestCreationInitialWritingDraftId(undefined);
-  }, []);
-
   const handleOpenTestCreation = useCallback(() => {
-    resetTestCreationOverrides();
+    trackAction('createTest', { source: 'teacher_lobby' });
     modals.openTestCreation();
-  }, [modals.openTestCreation, resetTestCreationOverrides]);
+  }, [modals.openTestCreation, trackAction]);
 
   const handleCloseTestCreation = useCallback(() => {
-    resetTestCreationOverrides();
     modals.closeTestCreation();
-  }, [modals.closeTestCreation, resetTestCreationOverrides]);
+  }, [modals.closeTestCreation]);
 
-  const openWritingDraftInModal = useCallback((draft) => {
-    const modalState = buildWritingModalState(draft);
-    setTestCreationInitialStep(modalState.initialStep);
-    setTestCreationInitialData(modalState.initialData);
-    setTestCreationInitialWritingDraftId(modalState.initialWritingDraftId);
-    modals.openTestCreation();
-  }, [modals.openTestCreation]);
+  const openWritingDraftEditor = useCallback((draft, source) => {
+    trackAction('editTest', {
+      source,
+      skill: 'writing',
+      draftId: draft?.id || null,
+      publishedTestId: draft?.publishedTestId || null,
+      status: draft?.status || null,
+    });
+    setEditingWritingDraft(draft);
+  }, [trackAction]);
+
+  const closeWritingDraftEditor = useCallback(() => {
+    setEditingWritingDraft(null);
+  }, []);
 
   // ---------- Handlers ----------
   const handleLogout = async () => {
@@ -163,6 +149,11 @@ const TeacherLobbyPage = () => {
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
 
     if (test.testType === 'THCS-THPT') {
+      trackAction('editTest', {
+        source: 'teacher_lobby_test_card',
+        skill: 'thcs',
+        testId: test.id,
+      });
       modals.openEditThcsTest(test);
       return;
     }
@@ -185,7 +176,7 @@ const TeacherLobbyPage = () => {
             throw new Error(draftResult.error || 'Failed to load writing draft');
           }
 
-          openWritingDraftInModal(draftResult.data);
+          openWritingDraftEditor(draftResult.data, 'teacher_lobby_test_card');
         })
         .catch((error) => {
           console.error('Failed to open writing editor:', error);
@@ -194,8 +185,13 @@ const TeacherLobbyPage = () => {
       return;
     }
 
+    trackAction('editTest', {
+      source: 'teacher_lobby_test_card',
+      skill: String(test?.skill || '').toLowerCase() || null,
+      testId: test.id,
+    });
     modals.openEditTest(test);
-  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftInModal, user?.uid]);
+  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftEditor, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
     const isThcs = test.testType === 'THCS-THPT';
@@ -221,7 +217,7 @@ const TeacherLobbyPage = () => {
       const { cloneFromPublicTest } = await import('../services/thcsDraftService');
       const result = await cloneFromPublicTest(test.id, user.uid);
       if (result.success && result.data) {
-        navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: result.data.draftId }));
+        navigateTo('TEACHER_THCS_EDIT', { draftId: result.data.draftId }, { reason: 'teacher_lobby_clone_public_test' });
       } else {
         alert('Failed to clone test: ' + (result.error || 'Unknown error'));
       }
@@ -229,7 +225,7 @@ const TeacherLobbyPage = () => {
       console.error('Clone failed:', err);
       alert('Failed to clone test. Please try again.');
     }
-  }, [user?.uid, navigate]);
+  }, [navigateTo, user?.uid]);
 
   const handleUseAsIsStartLive = useCallback((test) => {
     modals.closeUseAsIs();
@@ -368,10 +364,10 @@ const TeacherLobbyPage = () => {
                           index={index}
                           onResume={(draftToResume) => {
                             if (draftToResume?.draftKind === 'writing') {
-                              openWritingDraftInModal(draftToResume);
+                              openWritingDraftEditor(draftToResume, 'teacher_lobby_draft_card');
                               return;
                             }
-                            navigate(buildRoute('TEACHER_THCS_EDIT', { draftId: draftToResume.id }));
+                            navigateTo('TEACHER_THCS_EDIT', { draftId: draftToResume.id }, { reason: 'teacher_lobby_resume_thcs_draft' });
                           }}
                           onDelete={handleDeleteDraft}
                         />
@@ -500,46 +496,70 @@ const TeacherLobbyPage = () => {
 
         {/* IELTS Test Editor — QuizEditor removed (no legacy quiz items, PRD-0033) */}
         {modals.state.editTest.show && modals.state.editTest.test && (
-          <TestEditor
-            show={modals.state.editTest.show}
-            handleClose={modals.closeEditTest}
-            test={modals.state.editTest.test}
-          />
+          <Suspense fallback={<OverlayLoader label="Loading IELTS editor..." />}>
+            <TestEditor
+              show={modals.state.editTest.show}
+              handleClose={modals.closeEditTest}
+              test={modals.state.editTest.test}
+            />
+          </Suspense>
         )}
 
         {/* THCS Test Editor */}
         {modals.state.editThcsTest.show && modals.state.editThcsTest.test && (
-          <THCSTestEditorModal
-            show={modals.state.editThcsTest.show}
-            handleClose={modals.closeEditThcsTest}
-            test={modals.state.editThcsTest.test}
-          />
+          <Suspense fallback={<OverlayLoader label="Loading THCS editor..." />}>
+            <THCSTestEditorModal
+              show={modals.state.editThcsTest.show}
+              handleClose={modals.closeEditThcsTest}
+              test={modals.state.editThcsTest.test}
+            />
+          </Suspense>
         )}
 
         {/* Test Creation Modal */}
-        <TestCreationModal
-          opened={modals.state.testCreation.show}
-          onClose={handleCloseTestCreation}
-          onComplete={(draftId) => {
-            handleCloseTestCreation();
-            navigate(`/teacher/test/review/${draftId}`);
-          }}
-          initialStep={testCreationInitialStep}
-          initialData={testCreationInitialData}
-          initialWritingDraftId={testCreationInitialWritingDraftId}
-        />
+        {modals.state.testCreation.show && (
+          <Suspense fallback={<OverlayLoader label="Loading test creation..." />}>
+            <TestCreationModal
+              opened={modals.state.testCreation.show}
+              onClose={handleCloseTestCreation}
+              onComplete={(draftId) => {
+                handleCloseTestCreation();
+                navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
+              }}
+            />
+          </Suspense>
+        )}
+
+        {editingWritingDraft && (
+          <Suspense fallback={<OverlayLoader label="Loading writing editor..." />}>
+            <WritingTestEditModal
+              draft={editingWritingDraft}
+              isOpen={Boolean(editingWritingDraft)}
+              onClose={closeWritingDraftEditor}
+              onSaved={() => {
+                void refreshDrafts();
+              }}
+              onPublished={() => {
+                void refreshDrafts();
+                void refreshTests();
+              }}
+            />
+          </Suspense>
+        )}
 
         {/* THCS Homework Dialog */}
         {modals.state.hwDialog.show && modals.state.hwDialog.test && (
-          <THCSHomeworkAssignDialog
-            isOpen={true}
-            onClose={modals.closeHwDialog}
-            onSuccess={modals.closeHwDialog}
-            testId={modals.state.hwDialog.test.id}
-            testTitle={modals.state.hwDialog.test.metadata?.title || 'Untitled THCS Test'}
-            versionKey={modals.state.hwDialog.test._changelog ? Object.keys(modals.state.hwDialog.test._changelog).pop() : undefined}
-            testMetadata={modals.state.hwDialog.test.metadata}
-          />
+          <Suspense fallback={<OverlayLoader label="Loading homework assignment dialog..." />}>
+            <THCSHomeworkAssignDialog
+              isOpen={true}
+              onClose={modals.closeHwDialog}
+              onSuccess={modals.closeHwDialog}
+              testId={modals.state.hwDialog.test.id}
+              testTitle={modals.state.hwDialog.test.metadata?.title || 'Untitled THCS Test'}
+              versionKey={modals.state.hwDialog.test._changelog ? Object.keys(modals.state.hwDialog.test._changelog).pop() : undefined}
+              testMetadata={modals.state.hwDialog.test.metadata}
+            />
+          </Suspense>
         )}
 
         {/* Use-as-is Modal */}

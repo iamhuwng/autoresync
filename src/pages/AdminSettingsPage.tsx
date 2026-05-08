@@ -708,13 +708,6 @@ const AdminSettingsPage: React.FC = () => {
                     geminiKeys.push(key);
                 }
             }
-            // Legacy key
-            if (env.VITE_GOOGLE_API_KEY && !env.VITE_GOOGLE_API_KEY.includes('your_')) {
-                if (!geminiKeys.includes(env.VITE_GOOGLE_API_KEY)) {
-                    geminiKeys.push(env.VITE_GOOGLE_API_KEY);
-                }
-            }
-
             // Check Groq key from .env
             if (env.VITE_GROQ_API_KEY && !env.VITE_GROQ_API_KEY.includes('your_')) {
                 groqKeys.push(env.VITE_GROQ_API_KEY);

@@ -2,7 +2,7 @@
 title: Solo Study Homework System
 description: Architecture and implementation docs for solo study and homework system
 createdAt: '2026-02-27T15:25:43.328Z'
-updatedAt: '2026-04-01T03:39:50.631Z'
+updatedAt: '2026-04-08T17:36:17.610Z'
 tags:
   - solo
   - homework
@@ -333,3 +333,24 @@ Current guardrails:
 - `startedAt` from the existing attempt is the canonical countdown anchor for resume flows
 - single-attempt homework must auto-resume saved progress and must not offer restart
 - timer expiry in homework mode must auto-submit the homework attempt
+
+## 2026-04-02 Amendment - Reading Highlight Delivery Contract
+
+For Reading solo practice and homework surfaces:
+- shared highlight behavior is owned by `src/skills/reading/components/PassageRenderer.tsx`
+- `src/components/PassageRenderer_v2.jsx` is wrapper-only compatibility code
+- new solo preference records default the highlighter off (`highlighterEnabled: false`)
+- highlight selections must map back to full passage source offsets so cross-paragraph selections persist correctly
+
+See @doc/architecture/reading-passage-highlighting-architecture.
+
+## 2026-04-09 Amendment — Mobile IELTS Reading Homework Launch Integrity
+
+Shared homework-to-practice route handoff rules for mobile IELTS Reading:
+- homework launch must provide a non-empty `studentName`
+- homework launch must preserve `timerMinutes` and `maxAttempts`
+- resumed mobile Reading homework must restore the canonical timed/attempt-limited state instead of falling back to untimed solo defaults
+
+Related architecture:
+- @doc/architecture/mobile-ielts-reading-test-taking
+- @doc/architecture/homework-solo-practice-architecture

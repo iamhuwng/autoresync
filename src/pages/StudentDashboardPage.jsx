@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { enrollStudent } from '../services/classManager';
 import { getPaginatedUserNotifications, markNotificationAsRead, subscribeToNewNotifications } from '../services/notificationService';
 import { sessionService } from '../services/sessionService';
+import { getStudentResults } from '../services/testResults.service';
 import { useNavigation } from '../hooks/useNavigation';
+import { extractParams } from '../constants/routes';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useResolvedStudentShellData } from '../context/StudentShellDataContext';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import StudentDashboardFeedView from '../components/dashboard/StudentDashboardFeedView';
 import PendingReviewsWidget from '../components/dashboard/PendingReviewsWidget';
 
@@ -198,7 +200,10 @@ function resolveNotificationResultId(notification) {
             return null;
         }
 
-        const url = new URL(notification.link, 'https://student.local');
+        const url = parseNotificationLink(notification.link);
+        if (!url) {
+            return null;
+        }
         const queryResultId = url.searchParams.get('result');
 
         if (queryResultId) {
@@ -216,12 +221,75 @@ function resolveNotificationResultId(notification) {
     }
 }
 
+const INTERNAL_NOTIFICATION_ROUTE_NAMES = [
+    'LOGIN',
+    'PROFILE',
+    'STUDENT_DASHBOARD',
+    'STUDENT_COURSES',
+    'STUDENT_COURSE_DETAIL',
+    'STUDENT_CLASS_DETAIL',
+    'STUDENT_WAITING',
+    'STUDENT_TEST',
+    'STUDENT_TEST_RESULTS',
+    'STUDENT_QUIZ',
+    'STUDENT_FEEDBACK',
+    'STUDENT_RESULTS',
+    'STUDENT_HOMEWORK',
+    'STUDENT_HOMEWORK_DETAIL',
+    'STUDENT_LIBRARY',
+    'STUDENT_ACADEMIC_RECORD',
+    'STUDENT_PRACTICE',
+    'RESULT_DETAIL',
+];
+
+function parseNotificationLink(notificationLink) {
+    if (!notificationLink) {
+        return null;
+    }
+
+    try {
+        return new URL(notificationLink, 'https://student.local');
+    } catch (_) {
+        return null;
+    }
+}
+
+function resolveNotificationLinkTarget(notificationLink) {
+    const url = parseNotificationLink(notificationLink);
+    if (!url) {
+        return null;
+    }
+
+    const hasExplicitProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(notificationLink);
+    const currentOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : null;
+
+    if (hasExplicitProtocol && currentOrigin && url.origin !== currentOrigin) {
+        return { kind: 'external', href: url.toString() };
+    }
+
+    for (const routeName of INTERNAL_NOTIFICATION_ROUTE_NAMES) {
+        const params = extractParams(routeName, url.pathname);
+
+        if (params) {
+            return { kind: 'internal', destination: routeName, params };
+        }
+    }
+
+    return hasExplicitProtocol ? { kind: 'external', href: url.toString() } : null;
+}
+
+function openExternalNotificationLink(href) {
+    if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(href, '_blank', 'noopener,noreferrer');
+    }
+}
+
 const StudentDashboardPage = () => {
     const { user, profile } = useAuth();
-    const navigate = useNavigate();
     const { navigateTo } = useNavigation('student');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.studentDashboard);
-    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
+    const { enrolledClasses, classLiveSessions, notStarted, sortedAssignments, completed, refreshClasses, refreshHomeworkData } = useResolvedStudentShellData();
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
     const [classCode, setClassCode] = useState('');
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -237,6 +305,9 @@ const StudentDashboardPage = () => {
     const [joinSuccessMessage, setJoinSuccessMessage] = useState('');
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [selectedResultId, setSelectedResultId] = useState(null);
+    const [proficiencyLevel, setProficiencyLevel] = useState(null);
+    const [weeklyTestCount, setWeeklyTestCount] = useState(0);
+    const [allTestResults, setAllTestResults] = useState([]);
 
     useEffect(() => {
         const loadDashboard = async () => {
@@ -260,6 +331,55 @@ const StudentDashboardPage = () => {
             cleanupExpiredProgress();
             loadDashboard();
         }
+    }, [user?.uid]);
+
+    // ── Proficiency estimation from recent 25 tests ──
+    useEffect(() => {
+        if (!user?.uid) return;
+        let cancelled = false;
+
+        const estimateProficiency = async () => {
+            try {
+                const results = await getStudentResults(user.uid);
+                if (cancelled) return;
+                setAllTestResults(results);
+
+                // Sort by submittedAt descending, take last 25
+                const sorted = [...results]
+                    .filter(r => typeof r.percentage === 'number')
+                    .sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0))
+                    .slice(0, 25);
+
+                if (sorted.length === 0) {
+                    setProficiencyLevel(null);
+                } else {
+                    const avgPct = sorted.reduce((sum, r) => sum + r.percentage, 0) / sorted.length;
+                    const level = avgPct >= 95 ? 'C2'
+                        : avgPct >= 85 ? 'C1'
+                        : avgPct >= 72 ? 'B2'
+                        : avgPct >= 55 ? 'B1'
+                        : avgPct >= 35 ? 'A2'
+                        : 'A1';
+                    setProficiencyLevel(level);
+                }
+
+                // Count tests taken this week
+                const now = new Date();
+                const dayOfWeek = now.getDay();
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                weekStart.setHours(0, 0, 0, 0);
+                const weekStartMs = weekStart.getTime();
+
+                const thisWeekTests = results.filter(r => (r.submittedAt || 0) >= weekStartMs);
+                setWeeklyTestCount(thisWeekTests.length);
+            } catch (err) {
+                console.warn('Proficiency estimation failed:', err);
+            }
+        };
+
+        estimateProficiency();
+        return () => { cancelled = true; };
     }, [user?.uid]);
 
     useEffect(() => {
@@ -352,11 +472,10 @@ const StudentDashboardPage = () => {
                 return;
             }
 
-            trackAction('submitJoinClass', { outcome: 'success', code: normalizedCode });
-            setJoinSuccessMessage(`Successfully joined ${normalizedCode}.`);
+            trackAction('submitJoinClass', { outcome: 'success', code: normalizedCode, approvalState: 'pending' });
+            setJoinSuccessMessage(`Join request sent for ${normalizedCode}. Waiting for teacher approval.`);
             setClassCode('');
             await refreshClasses();
-            await refreshHomeworkData();
             setTimeout(() => {
                 setJoinSuccessMessage('');
                 closeJoinModal('auto_success');
@@ -422,7 +541,20 @@ const StudentDashboardPage = () => {
 
         if (notification.link) {
             trackAction('openFeedLink', { link: notification.link, category: getFeedKind(notification) });
-            navigate(notification.link);
+
+            const linkTarget = resolveNotificationLinkTarget(notification.link);
+
+            if (linkTarget?.kind === 'internal') {
+                navigateTo(linkTarget.destination, linkTarget.params, { reason: 'dashboard_notification_link' });
+                return;
+            }
+
+            if (linkTarget?.kind === 'external') {
+                openExternalNotificationLink(linkTarget.href);
+                return;
+            }
+
+            console.warn('Unsupported dashboard notification link:', notification.link);
         }
     };
 
@@ -439,7 +571,7 @@ const StudentDashboardPage = () => {
 
     const handleOpenAcademicHistory = () => {
         trackAction('openAcademicHistory', { source: 'dashboard_topbar' });
-        navigate('/student/academic-record');
+        navigateTo('STUDENT_ACADEMIC_RECORD', undefined, { reason: 'dashboard_open_academic_history' });
     };
 
     const feedRows = useMemo(
@@ -463,29 +595,159 @@ const StudentDashboardPage = () => {
         [filteredNotifications],
     );
 
-    const feedSummaryCards = useMemo(
-        () => [
-            {
-                label: 'Activity',
-                value: allNotifications.length,
-                meta: `${filteredNotifications.length} in current view`,
-                color: studentTokens.textPrimary,
-            },
-            {
-                label: 'Homework Due',
-                value: sortedAssignments.length,
-                meta: notStarted.length > 0 ? `${notStarted.length} not started` : 'No pending start',
-                color: '#9a6427',
-            },
-            {
-                label: 'Live Now',
-                value: classLiveSessions.length,
-                meta: classLiveSessions.length > 0 ? `${classLiveSessions.length} class sessions active` : 'No active class sessions',
-                color: studentTokens.accent,
-            },
-        ],
-        [allNotifications.length, filteredNotifications.length, sortedAssignments.length, notStarted.length, classLiveSessions.length],
-    );
+    // ── This Week Assignments module ──
+    const thisWeekAssignments = useMemo(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        const startMs = weekStart.getTime();
+        const endMs = weekEnd.getTime();
+
+        return sortedAssignments.filter(item => {
+            const dueDate = item.homework?.scheduling?.dueDate;
+            return dueDate && dueDate >= startMs && dueDate < endMs;
+        });
+    }, [sortedAssignments]);
+
+    const weeklyCompletedCount = useMemo(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        weekStart.setHours(0, 0, 0, 0);
+        const startMs = weekStart.getTime();
+
+        const completedThisWeek = completed.filter(item => {
+            const sub = item.latestSubmission;
+            return sub?.submittedAt && sub.submittedAt >= startMs;
+        }).length;
+
+        return completedThisWeek + weeklyTestCount;
+    }, [completed, weeklyTestCount]);
+
+    const feedSummaryCards = useMemo(() => {
+        const N = thisWeekAssignments.length;
+
+        const formatDue = (dueDate) => {
+            const d = new Date(dueDate);
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+        };
+
+        const makeAssignmentCard = (item) => {
+            const hw = item.homework;
+            const title = hw?.title || hw?.materialTitle || 'Assignment';
+            const dueLabel = hw?.scheduling?.dueDate ? `DUE ${formatDue(hw.scheduling.dueDate)}` : 'ASSIGNMENT';
+            const statusLabel = item.status === 'not_started' ? 'Not started'
+                : item.status === 'in_progress' ? 'In progress'
+                : item.status === 'overdue' ? 'Overdue'
+                : item.status;
+            const className = hw?.target?.className || hw?.target?.courseName || '';
+            return {
+                label: dueLabel,
+                value: title.length > 30 ? title.slice(0, 27) + '…' : title,
+                meta: className ? `${statusLabel} · ${className}` : statusLabel,
+                color: item.isOverdue ? '#b94a48' : studentTokens.textPrimary,
+                variant: 'assignment',
+            };
+        };
+
+        const proficiencyCard = {
+            label: 'Proficiency Level',
+            value: proficiencyLevel || '—',
+            meta: proficiencyLevel ? 'Based on recent 25 tests' : 'No test data yet',
+            color: studentTokens.accent,
+            variant: 'metric',
+        };
+
+        const weeklyTotalCard = {
+            label: 'Completed This Week',
+            value: weeklyCompletedCount,
+            meta: 'tests, homework & practice',
+            color: '#4c5458',
+            variant: 'metric',
+        };
+
+        // Build cards ensuring 3 or 6 are always populated
+        const assignmentCards = thisWeekAssignments.slice(0, 6).map(makeAssignmentCard);
+
+        if (N === 0) {
+            return [proficiencyCard, weeklyTotalCard, { label: 'This Week', value: '0', meta: 'No assignments due', color: studentTokens.textMuted, variant: 'metric' }];
+        }
+        if (N === 1) {
+            return [assignmentCards[0], weeklyTotalCard, proficiencyCard];
+        }
+        if (N === 2) {
+            return [proficiencyCard, assignmentCards[0], assignmentCards[1]];
+        }
+        if (N === 3) {
+            return [assignmentCards[0], assignmentCards[1], assignmentCards[2]];
+        }
+        if (N === 4) {
+            return [proficiencyCard, weeklyTotalCard, assignmentCards[0], assignmentCards[1], assignmentCards[2], assignmentCards[3]];
+        }
+        if (N === 5) {
+            return [proficiencyCard, assignmentCards[0], assignmentCards[1], assignmentCards[2], assignmentCards[3], assignmentCards[4]];
+        }
+        // N >= 6
+        return assignmentCards.slice(0, 6);
+    }, [thisWeekAssignments, proficiencyLevel, weeklyCompletedCount]);
+
+    // ── Grade chart data from test results ──
+    const gradeChartData = useMemo(() => {
+        if (!allTestResults || allTestResults.length === 0) return null;
+
+        const validResults = allTestResults.filter(
+            r => typeof r.percentage === 'number' && typeof r.submittedAt === 'number'
+        );
+
+        if (validResults.length === 0) return null;
+
+        // Resolve testType to category key
+        const resolveTypeCategory = (testType) => {
+            if (!testType) return 'ielts';
+            const t = testType.toLowerCase();
+            if (t === 'thcs-thpt' || t === 'thcs' || t === 'practice_thcs') return 'thcs';
+            return 'ielts';
+        };
+
+        // Collect available type categories
+        const categorySet = new Set();
+        validResults.forEach(r => {
+            categorySet.add(resolveTypeCategory(r.testType));
+        });
+
+        // Build category list (only include if data exists)
+        const categories = [];
+        if (categorySet.has('ielts')) categories.push('ielts');
+        if (categorySet.has('thcs')) categories.push('thcs');
+
+        // Determine the most recently practiced type
+        const mostRecent = validResults.reduce((latest, r) =>
+            r.submittedAt > (latest?.submittedAt || 0) ? r : latest
+        , null);
+        const defaultCategory = mostRecent ? resolveTypeCategory(mostRecent.testType) : (categories[0] || 'ielts');
+
+        // Map results to simplified records for the chart
+        const testResults = validResults.map(r => ({
+            percentage: r.percentage,
+            submittedAt: r.submittedAt,
+            testTitle: r.testTitle || 'Test',
+            testSkill: r.testSkill || '',
+            testType: r.testType || '',
+            typeCategory: resolveTypeCategory(r.testType),
+            contextType: r.context?.type || '',
+        }));
+
+        return {
+            testResults,
+            availableCategories: categories,
+            defaultCategory,
+        };
+    }, [allTestResults]);
 
     const rightPanel = useMemo(() => <PendingReviewsWidget onResultSelect={setSelectedResultId} />, []);
 
@@ -532,7 +794,7 @@ const StudentDashboardPage = () => {
                 <StudentDashboardFeedView
                     mode="feed"
                     title="Dashboard"
-                    subtitle="Review your latest academic activity and upcoming milestones."
+                    isMobile={isMobile}
                     searchValue={searchQuery}
                     onSearchChange={setSearchQuery}
                     onSearchBlur={handleSearchBlur}
@@ -556,6 +818,7 @@ const StudentDashboardPage = () => {
                     hasMore={hasMoreNotifs}
                     loadingMore={isLoadingMore}
                     onLoadMore={handleLoadMore}
+                    gradeChartData={gradeChartData}
                 />
             </StudentLayout>
 
@@ -588,7 +851,27 @@ const StudentDashboardPage = () => {
             {showJoinModal ? (
                 <>
                     <div style={S.backdrop} onClick={() => closeJoinModal('backdrop')} />
-                    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: studentTokens.bgSurface, borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw', zIndex: 1001, boxShadow: '0 20px 60px rgba(43, 52, 55, 0.15)', border: `1px solid ${studentTokens.borderWhisper}` }}>
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            background: studentTokens.bgSurface,
+                            borderRadius: 16,
+                            padding: isMobile ? 16 : 24,
+                            width: 400,
+                            maxWidth: '90vw',
+                            zIndex: 1001,
+                            boxShadow: '0 20px 60px rgba(43, 52, 55, 0.15)',
+                            border: `1px solid ${studentTokens.borderWhisper}`,
+                            ...(isMobile ? {
+                                maxHeight: '80vh',
+                                overflowY: 'auto',
+                                WebkitOverflowScrolling: 'touch',
+                            } : {}),
+                        }}
+                    >
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: studentTokens.textPrimary }}>Join a Class</h2>
                         <form onSubmit={handleJoinClass}>
                             <input
@@ -600,12 +883,27 @@ const StudentDashboardPage = () => {
                             />
                             {joinSuccessMessage ? <p style={{ color: '#4c5458', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{joinSuccessMessage}</p> : null}
                             {enrollError ? <p style={{ color: '#9e3f4e', fontSize: '0.875rem', marginTop: 8, fontWeight: 500 }}>{enrollError}</p> : null}
-                            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                                <button type="button" onClick={() => closeJoinModal('cancel_button')} style={localStyles.actionButtonLight}>Cancel</button>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexDirection: isMobile ? 'column' : 'row' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => closeJoinModal('cancel_button')}
+                                    style={{
+                                        ...localStyles.actionButtonLight,
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     type="submit"
                                     disabled={isEnrolling || !classCode.trim()}
-                                    style={{ ...localStyles.actionButtonDark, background: classCode.trim() ? studentTokens.accent : studentTokens.bgSurfaceStrong, color: classCode.trim() ? '#faf6ff' : studentTokens.textDim, cursor: classCode.trim() ? 'pointer' : 'default' }}
+                                    style={{
+                                        ...localStyles.actionButtonDark,
+                                        background: classCode.trim() ? studentTokens.accent : studentTokens.bgSurfaceStrong,
+                                        color: classCode.trim() ? '#faf6ff' : studentTokens.textDim,
+                                        cursor: classCode.trim() ? 'pointer' : 'default',
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
                                 >
                                     {isEnrolling ? 'Joining...' : 'Join Class'}
                                 </button>

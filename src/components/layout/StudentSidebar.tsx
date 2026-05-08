@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { S, studentTokens } from './studentLayoutStyles';
+import { useNavigation } from '../../hooks/useNavigation';
+import type { RouteName } from '../../constants/routes';
+import { mobileStyles, S, studentTokens } from './studentLayoutStyles';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import {
     IconHome,
     IconHomework,
@@ -107,8 +109,9 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     onJoinClass,
     pendingHomeworkCount,
 }) => {
-    const navigate = useNavigate();
     const { user, profile, logout } = useAuth();
+    const { navigateTo } = useNavigation('student');
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const displayName = profile?.displayName || user?.displayName || 'Student';
     const email = profile?.email || user?.email || '';
     const avatarSrc = profile?.avatarUrl || user?.photoURL || null;
@@ -214,35 +217,47 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
     }, []);
 
     useEffect(() => {
-        if (menuOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
+        const doc = typeof document !== 'undefined' ? document : null;
+
+        if (!doc) {
+            return undefined;
         }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+
+        if (menuOpen) {
+            doc.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => doc.removeEventListener('mousedown', handleClickOutside);
     }, [menuOpen, handleClickOutside]);
 
     useEffect(() => {
+        const doc = typeof document !== 'undefined' ? document : null;
+
+        if (!doc) {
+            return undefined;
+        }
+
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setMenuOpen(false);
         };
         if (menuOpen) {
-            document.addEventListener('keydown', handleEscape);
+            doc.addEventListener('keydown', handleEscape);
         }
-        return () => document.removeEventListener('keydown', handleEscape);
+        return () => doc.removeEventListener('keydown', handleEscape);
     }, [menuOpen]);
 
     const group1 = [
-        { id: 'feed', route: '/student/dashboard', label: 'Feed', icon: <IconHome /> },
+        { id: 'feed', destination: 'STUDENT_DASHBOARD', label: 'Dashboard', icon: <IconHome /> },
     ];
 
     const group2 = [
-        { id: 'homework', route: '/student/homework', label: 'Homework', icon: <IconHomework />, badge: (pendingHomeworkCount ?? 0) > 0 ? pendingHomeworkCount : null },
-        { id: 'courses', route: '/student/courses', label: 'Courses', icon: <IconCourses /> },
-        { id: 'library', route: '/student/library', label: 'Library', icon: <IconLibrary /> },
-        { id: 'records', route: '/student/academic-record', label: 'Records', icon: <IconRecord /> },
-        { id: 'profile', route: '/profile', label: 'Profile', icon: <IconProfile /> },
+        { id: 'homework', destination: 'STUDENT_HOMEWORK', label: 'Homework', icon: <IconHomework />, badge: (pendingHomeworkCount ?? 0) > 0 ? pendingHomeworkCount : null },
+        { id: 'courses', destination: 'STUDENT_COURSES', label: 'Courses', icon: <IconCourses /> },
+        { id: 'library', destination: 'STUDENT_LIBRARY', label: 'Library', icon: <IconLibrary /> },
+        { id: 'records', destination: 'STUDENT_ACADEMIC_RECORD', label: 'Records', icon: <IconRecord /> },
+        { id: 'profile', destination: 'PROFILE', label: 'Profile', icon: <IconProfile /> },
     ];
 
-    const handleNavClick = (item: { id: string; route: string }) => {
+    const handleNavClick = (item: { id: string; destination: RouteName }) => {
         if (item.id === 'feed' && onViewSwitch) {
             onViewSwitch(item.id);
             return;
@@ -250,38 +265,42 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
 
         if (item.id === activePage) {
             if (item.id === 'records') {
-                navigate(item.route, { state: { resetRecordsView: true } });
+                navigateTo(item.destination, undefined, {
+                    force: true,
+                    reason: 'student_sidebar_reset_records_view',
+                    state: { resetRecordsView: true },
+                });
             }
             return;
         }
 
-        navigate(item.route);
+        navigateTo(item.destination, undefined, { reason: `student_sidebar_${item.id}` });
     };
 
     const handleJoinClassClick = () => {
         if (onJoinClass) {
             onJoinClass();
         } else {
-            navigate('/student/dashboard');
+            navigateTo('STUDENT_DASHBOARD', undefined, { reason: 'student_sidebar_join_class_fallback' });
         }
     };
 
     const handleSettingsClick = () => {
         setMenuOpen(false);
-        navigate('/profile');
+        navigateTo('PROFILE', undefined, { reason: 'student_sidebar_open_profile' });
     };
 
     const handleSignOut = async () => {
         setMenuOpen(false);
         try {
             await logout();
-            navigate('/login');
+            navigateTo('LOGIN', undefined, { reason: 'student_sidebar_logout', replace: true });
         } catch (err) {
             console.error('Sign out failed:', err);
         }
     };
 
-    const renderNavButton = (item: { id: string; route: string; label: string; icon: React.ReactNode; badge?: number | null }) => {
+    const renderNavButton = (item: { id: string; destination: RouteName; label: string; icon: React.ReactNode; badge?: number | null }) => {
         const isActive = activePage === item.id;
         const isHovered = hoveredNav === item.id && !isActive;
 
@@ -299,13 +318,13 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                     borderLeft: isActive ? `2px solid ${studentTokens.accent}` : '2px solid transparent',
                     color: isActive ? studentTokens.accent : studentTokens.textMuted,
                     outline: 'none',
-                    padding: '8px 10px 8px 12px',
                     borderRadius: 0,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     fontSize: '0.625rem',
                     fontWeight: 600,
-                    minHeight: 36,
+                    minHeight: isMobile ? mobileStyles.touchTarget.minHeight : 36,
+                    padding: isMobile ? '10px 10px 10px 12px' : '8px 10px 8px 12px',
                 }}
             >
                 {item.icon}

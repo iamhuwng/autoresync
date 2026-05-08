@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/class-code-join-approval-gating",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/class-code-join-approval-gating",
+      "version": 1,
+      "timestamp": "2026-04-09T07:59:09.7546304Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Class-Code Join Approval Gating"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Defines the pending-approval versus active enrollment contract for class-code joins, teacher approval actions, student shell visibility, and linked class-course inheritance."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "enrollment",
+            "class-code",
+            "teacher-approval",
+            "student-shell"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Class-Code Join Approval Gating\n\n## Purpose\n\nThis document defines the current contract for authenticated students joining a class by class code.\n\nIt exists because the join flow now has two distinct enrollment modes:\n- self-service join by class code, which is teacher-approved\n- teacher/admin direct add-to-class, which is immediately active\n\nThe two modes share `enrollStudent()` but must not grant the same student-facing access at the same time.\n\n## Enrollment Modes\n\n### 1. Self-Service Join By Class Code\n\nCurrent flow:\n1. Student submits a class code from `StudentDashboardPage.jsx`.\n2. `classManager.enrollStudent()` writes class membership with `status: 'pending_approval'`.\n3. The membership projection under `student_classes/{studentId}/{classId}` is also written as `pending_approval`.\n4. The dashboard shows a request-submitted message instead of an active-join success message.\n5. The student remains blocked from student shell class visibility and class-linked course access until approval.\n\nRequired rules:\n- pending self-joins must not appear in `getStudentClasses()`\n- pending self-joins must not trigger class-linked course auto-enrollment\n- pending self-joins must not refresh homework or other shell-owned coursework surfaces as if the class were active\n\n### 2. Teacher/Admin Direct Add To Class\n\nCurrent flow:\n1. Teacher or admin selects a student and adds them to a class.\n2. `classManager.enrollStudent()` is called with `approvalMode: 'active'`.\n3. The roster entry is written as `status: 'active'`.\n4. The student class projection is immediately student-visible.\n5. Linked class-course inheritance is applied immediately.\n\nRequired rule:\n- direct staff-driven add-to-class remains an immediate enrollment path and must not be forced through the pending approval gate\n\n## Status Contract\n\nThe class membership record and the `student_classes` projection must use the same visibility contract.\n\nSupported statuses:\n- `active` — student-visible and eligible for linked class-course inheritance\n- `pending_approval` — teacher-visible only, hidden from student shell reads\n- `removed` — not student-visible and not eligible for inheritance\n\nStudent-facing readers must treat only `active` memberships as visible.\n\n## Data Path Ownership\n\nPrimary paths:\n- `classes/{classId}/students/{studentId}`\n- `student_classes/{studentId}/{classId}`\n- class-linked course enrollment records created by `autoEnrollStudentInClassCourses()`\n\nRequired rules:\n- `classes/.../students` is the roster source of truth\n- `student_classes/...` is the student shell projection and must mirror membership visibility\n- class-linked course enrollment inheritance only activates from an `active` class membership\n- reject and remove flows must clean up stale class-based course enrollments if they exist\n\n## Teacher Approval Actions\n\nTeacher class management owns the transition out of `pending_approval`.\n\n### Approve\n\n`approveClassStudent()` must:\n- flip the roster membership to `active`\n- promote the `student_classes` projection to `active`\n- create the student-teacher assignment if needed\n- trigger linked class-course inheritance at approval time\n\n### Reject\n\n`rejectClassStudent()` must:\n- remove the pending roster member\n- remove the projection entry\n- clean up any stale class-based course inheritance\n\n### Remove\n\n`removeStudentFromClass()` must:\n- remove active or pending membership records\n- remove the projection entry\n- clean up class-based course inheritance\n\n## Student Shell Read Contract\n\nStudent shell pages consume class membership through the shared shell owner.\n\nRequired rules:\n- shell-owned enrolled class summaries must exclude `pending_approval`\n- fallback legacy scans must also exclude `pending_approval`\n- helper services that enrich data from shell-owned class summaries must not treat pending membership as active access\n\nCurrent repo anchors:\n- `src/services/classManager.ts`\n- `src/hooks/useStudentShellData.ts`\n- `src/services/enrollmentManager.ts`\n\n## Observability\n\nTeacher class-management approval actions are tracked under the `classes` feature.\n\nTracked actions:\n- `approveStudent`\n- `rejectStudent`\n- `removeStudent`\n\n## Verification Anchors\n\nCurrent regression anchors:\n- `src/__tests__/services/classManager.test.ts`\n- `src/hooks/useStudentShellData.test.ts`\n- `src/services/enrollmentInheritance.test.ts`\n- `src/pages/StudentDashboardPage.teachers.test.jsx`\n- `src/pages/TeacherClassDetailPage.test.tsx`\n\n## Related Docs\n\n- @doc/architecture/course-class-management\n- @doc/architecture/student-shell-data-loading-architecture\n- @doc/architecture/architecture-student-teacher-assignment-class-enrollment",
+        "description": "Defines the pending-approval versus active enrollment contract for class-code joins, teacher approval actions, student shell visibility, and linked class-course inheritance.",
+        "tags": [
+          "architecture",
+          "enrollment",
+          "class-code",
+          "teacher-approval",
+          "student-shell"
+        ],
+        "title": "Class-Code Join Approval Gating"
+      }
+    }
+  ]
+}

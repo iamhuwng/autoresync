@@ -17,6 +17,7 @@ Rules:
 - use the dashboard Stitch export for dashboard-specific anatomy
 - use Academic Record as the tonal and spacing anchor for the wider student family
 - use the `e5ba2064` structure as the implementation anchor for title position, summary-strip order, and dashboard-specific spacing
+- use the shared student shell title contract for browser-tab ownership; dashboard should render `Feed | MySTUdent Workspace` through `StudentLayout` instead of setting `document.title` inside dashboard-only components
 - preserve the real route structure, product information architecture, and live behaviors from the app
 - do not literal-copy placeholder labels, routes, or fake content from Stitch
 
@@ -33,6 +34,9 @@ Center-canvas surface:
 Supplemental dashboard widget:
 - `src/components/dashboard/PendingReviewsWidget.tsx`
 
+Inline dashboard visualization:
+- `src/components/dashboard/RecentGradesChart.jsx` — canvas-based line chart for recent test performance
+
 Sidebar parity is also part of dashboard feel:
 - `src/components/layout/StudentSidebar.tsx`
 
@@ -42,6 +46,7 @@ Historical note:
 Ownership rules:
 - `StudentDashboardPage.jsx` owns dashboard data loading, derived dashboard view models, and interaction state
 - `StudentDashboardFeedView.jsx` renders the center canvas only
+- `RecentGradesChart.jsx` owns its own dropdown filter state and canvas rendering; data flows in via `testResults` and `availableCategories` props
 - `PendingReviewsWidget.tsx` owns only its narrow writing-queue query and renders as supplemental right-rail content
 - presentational components must not reacquire shell-owned or page-owned data on their own
 
@@ -49,9 +54,10 @@ Ownership rules:
 
 The required order for the center canvas is:
 1. sticky masthead with light utilities
-2. frameless metric strip
-3. slim editorial tab row
-4. vertical timeline feed
+2. frameless metric strip (`This Week Assignments` — 3-column, up to 2-row, 6 cards max; includes proficiency estimation and weekly activity counts as filler cards)
+3. recent grades chart (canvas-based line chart with category dropdown filter)
+4. slim editorial tab row
+5. vertical timeline feed
 
 Interpretation rules:
 - search, unread filter, and academic-history action stay visually light
@@ -68,6 +74,18 @@ Disallowed regressions:
 - boxed KPI cards above the feed
 - nested CTA cards inside feed rows
 - moving dashboard onto the generic shell page-header rhythm if that changes the screenshot-era title position
+
+## Mobile Dashboard Contract
+
+Dashboard mobile behavior is a compressed form of the same dashboard, not a separate feed product.
+
+Required mobile rules:
+- reuse the shared shell feed inset of `16px 12px 24px`
+- keep the same center-canvas order as desktop; mobile may stack or tighten spacing, but must not reorder the dashboard structure
+- the editorial tab row may scroll horizontally on narrow widths, but it must use the shared hidden-scrollbar treatment and keep `44px` touch targets
+- feed row actions, chart selectors, review rows, and load-more controls must remain at or above the shared `44px` target floor
+- the Join a Class modal must remain scroll-safe on mobile instead of assuming a desktop-height centered dialog
+- dashboard mobile work must keep `PendingReviewsWidget` inside the shared shell right-rail drawer rather than recreating that queue inside the center column
 
 ## Feed Row Variants
 
@@ -110,7 +128,7 @@ Rules:
 - `PendingReviewsWidget` is supplemental only and must not replace or duplicate the shell-owned rail modules
 - `PendingReviewsWidget` must use the open-section editorial layout (section header + item list), not a bordered card or warm-background wrapper — it must visually match shell-owned sections
 - `Up Next` must not be recreated inside the center column
-- do not reintroduce `Feed Snapshot`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
+- do not reintroduce `Your Updates`, `Weekly Focus`, or other dashboard-only override sections on the live route without a new approved architecture update
 - all rail sections must use v2 editorial tokens — do not reintroduce legacy `localStyles`, `CLASS_COLORS`, or date-badge patterns in the shell rail
 - keep the rail quieter than the center canvas
 
@@ -133,6 +151,13 @@ Dashboard-owned state:
 - join-class modal state
 - selected result panel state
 - session unavailable toast message (for stale notification feedback)
+- proficiency level (CEFR A1-C2, estimated from last 25 test results)
+- weekly test count (count of tests submitted in the current Mon-Sun week)
+- all test results (full `TestResultRecord[]` from `getStudentResults`, used for grade chart)
+
+Dashboard-owned derived view models:
+- `feedSummaryCards` — the 3-or-6 card array for the metric strip
+- `gradeChartData` — `{ testResults, availableCategories }` projected from `allTestResults` for the grade history chart
 
 Dashboard-owned datasets:
 - paginated notifications
@@ -179,10 +204,13 @@ Verification checklist:
 - result notifications open the local slide panel from dashboard
 - no duplicate shell data ownership is introduced
 - no placeholder Stitch IA replaces real app structure
+- mobile checks at `375px` and `320px` keep hidden-scrollbar tabs, `44px` controls, a readable right-rail drawer, and no horizontal overflow
 
 ## Related Docs
 
 - `documentation/design/student-view-design-standard.md`
+- `documentation/architecture/student-mobile-responsiveness-architecture.md`
 - `documentation/architecture/student-experience-architecture.md`
+- `documentation/architecture/browser-document-title-architecture.md`
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`

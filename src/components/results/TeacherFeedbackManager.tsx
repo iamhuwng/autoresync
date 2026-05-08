@@ -44,6 +44,8 @@ export interface TeacherFeedbackManagerProps {
     teacherName?: string;
     /** Course ID for permission checking */
     courseId?: string;
+    /** Whether to notify the student after a successful feedback save */
+    notifyStudentOnSave?: boolean;
 }
 
 export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
@@ -54,7 +56,8 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
     questions,
     teacherId,
     teacherName,
-    courseId
+    courseId: _courseId,
+    notifyStudentOnSave = false,
 }) => {
     const [loading, setLoading] = useState(true);
     const [canEdit, setCanEdit] = useState(false);
@@ -114,12 +117,14 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
             );
 
             // Send notification to student
-            await sendFeedbackNotification(
-                studentId,
-                resultId,
-                testName,
-                teacherName
-            );
+            if (notifyStudentOnSave) {
+                await sendFeedbackNotification(
+                    studentId,
+                    resultId,
+                    testName,
+                    teacherName
+                );
+            }
 
             // Reload feedback to get updated data
             const updatedFeedback = await getAllQuestionFeedback(resultId);
@@ -145,12 +150,14 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
             );
 
             // Send notification to student
-            await sendFeedbackNotification(
-                studentId,
-                resultId,
-                testName,
-                teacherName
-            );
+            if (notifyStudentOnSave) {
+                await sendFeedbackNotification(
+                    studentId,
+                    resultId,
+                    testName,
+                    teacherName
+                );
+            }
 
             // Reload feedback to get updated data
             const updatedFeedback = await getOverallFeedback(resultId);

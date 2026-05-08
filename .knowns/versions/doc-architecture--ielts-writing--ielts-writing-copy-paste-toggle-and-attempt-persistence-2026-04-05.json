@@ -1,0 +1,74 @@
+{
+  "docPath": "architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05",
+      "version": 1,
+      "timestamp": "2026-04-05T03:52:04.8275356Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "IELTS Writing Copy Paste Toggle And Attempt Persistence 2026-04-05"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Architecture note for the live-session and homework IELTS Writing copy/paste toggle, shared editor ownership, and paste-attempt persistence contract."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "writing",
+            "anti-cheat",
+            "homework",
+            "live-session"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Architecture note for the live-session and homework IELTS Writing copy/paste toggle, shared editor ownership, and paste-attempt persistence contract.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "anti-cheat",
+          "homework",
+          "live-session"
+        ],
+        "title": "IELTS Writing Copy Paste Toggle And Attempt Persistence 2026-04-05"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05",
+      "version": 2,
+      "timestamp": "2026-04-05T03:52:23.1111603Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# IELTS Writing Copy Paste Toggle And Attempt Persistence 2026-04-05\n\n## Purpose\n\nThis note defines the current contract for enabling or disabling writing anti-copy/paste in live IELTS Writing sessions and writing homework while preserving paste-attempt evidence through submit and review.\n\n## Control source\n\nWriting must reuse the existing teacher anti-cheat toggle instead of adding a Writing-only metadata flag.\n\nLive-session source:\n- `game_sessions/{sessionCode}.antiCheatConfig.detectCopyPaste`\n- configured through the live start modal\n\nHomework source:\n- `homework_assignments/{homeworkId}.antiCheatConfig.detectCopyPaste`\n- configured through the homework anti-cheat section\n\nRules:\n- missing config means copy/paste prevention is off for live Writing and homework Writing\n- there is no separate `WritingTestMetadata` or draft-level toggle for this behavior\n- the teacher-facing controls remain the existing anti-cheat surfaces\n\n## Enforcement model\n\nThe Writing domain still uses the specialized `useExternalPastePrevention(...)` hook rather than the generic PRD-0036 container-wide anti-copy stack.\n\nWhen enabled:\n- external paste into the essay textarea is blocked\n- drag and drop into the essay textarea is blocked\n- suspicious bulk insertion is reverted\n- recent internal copy/cut from the same textarea is still allowed for normal essay editing\n\nOwnership rule:\n- `WritingEditor` is a thin textarea wrapper only\n- the parent delivery surface owns one shared hook instance and passes `attachToTextarea` into the editor\n- the editor must not own `pasteAttemptCount`\n\n## Live-session contract\n\n`WritingTestPage` is the live Writing owner.\n\nRequired behavior:\n- derive `detectCopyPaste` from the session root\n- initialize the shared hook with that enable flag\n- hydrate `pasteAttemptCount` from RTDB saved writing state when present\n- sync updated `pasteAttemptCount` back to `game_sessions/{sessionCode}/students/{studentUid}/writing/pasteAttemptCount`\n- flush the latest count to RTDB before submit so `autoSubmitFromRTDB()` snapshots the current value\n\nBridge rule:\n- `autoSubmitFromRTDB()` remains the only canonical promotion path from RTDB draft state into Firestore `writing_submissions/{submissionId}`\n- that bridge must continue materializing the RTDB `pasteAttemptCount` into the canonical submission record\n\n## Homework contract\n\n`WritingPracticeView` is the homework Writing owner.\n\nRequired behavior:\n- load the homework document via `getHomeworkById(homeworkId)`\n- derive the enable flag from `homework.antiCheatConfig?.detectCopyPaste`\n- persist `pasteAttemptCount` in saved local homework Writing state together with essays, active task, and timer anchor state\n- restore `pasteAttemptCount` on resume before submission materialization\n\nSubmission rule:\n- homework Writing submit must use the shared hook's `pasteAttemptCount` when building the canonical submission payload\n\n## Scope boundary\n\nThis implementation pass intentionally does not:\n- add a new Writing-specific builder setting\n- move Writing onto the generic anti-cheat container stack\n- change solo Writing practice behavior\n\n## Repo anchors\n\nImplementation anchors:\n- `src/hooks/useExternalPastePrevention.ts`\n- `src/components/writing-student/WritingEditor.tsx`\n- `src/components/writing-student/WritingTestPage.tsx`\n- `src/hooks/useWritingAutoSave.ts`\n- `src/components/writing-practice/WritingPracticeView.tsx`\n\nCoverage anchors:\n- `src/hooks/useExternalPastePrevention.test.ts`\n- `src/components/writing-student/WritingTestPage.test.tsx`\n- `src/components/writing-practice/WritingPracticeView.test.tsx`\n- `src/services/writingSubmissionService.test.ts`\n\n## Related docs\n\n- @doc/architecture/scheme/ielts-writing-current-state-scheme\n- @doc/architecture/homework-solo-practice-architecture\n- @doc/prd/ielts-writing-test-system-prd\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# IELTS Writing Copy Paste Toggle And Attempt Persistence 2026-04-05\n\n## Purpose\n\nThis note defines the current contract for enabling or disabling writing anti-copy/paste in live IELTS Writing sessions and writing homework while preserving paste-attempt evidence through submit and review.\n\n## Control source\n\nWriting must reuse the existing teacher anti-cheat toggle instead of adding a Writing-only metadata flag.\n\nLive-session source:\n- `game_sessions/{sessionCode}.antiCheatConfig.detectCopyPaste`\n- configured through the live start modal\n\nHomework source:\n- `homework_assignments/{homeworkId}.antiCheatConfig.detectCopyPaste`\n- configured through the homework anti-cheat section\n\nRules:\n- missing config means copy/paste prevention is off for live Writing and homework Writing\n- there is no separate `WritingTestMetadata` or draft-level toggle for this behavior\n- the teacher-facing controls remain the existing anti-cheat surfaces\n\n## Enforcement model\n\nThe Writing domain still uses the specialized `useExternalPastePrevention(...)` hook rather than the generic PRD-0036 container-wide anti-copy stack.\n\nWhen enabled:\n- external paste into the essay textarea is blocked\n- drag and drop into the essay textarea is blocked\n- suspicious bulk insertion is reverted\n- recent internal copy/cut from the same textarea is still allowed for normal essay editing\n\nOwnership rule:\n- `WritingEditor` is a thin textarea wrapper only\n- the parent delivery surface owns one shared hook instance and passes `attachToTextarea` into the editor\n- the editor must not own `pasteAttemptCount`\n\n## Live-session contract\n\n`WritingTestPage` is the live Writing owner.\n\nRequired behavior:\n- derive `detectCopyPaste` from the session root\n- initialize the shared hook with that enable flag\n- hydrate `pasteAttemptCount` from RTDB saved writing state when present\n- sync updated `pasteAttemptCount` back to `game_sessions/{sessionCode}/students/{studentUid}/writing/pasteAttemptCount`\n- flush the latest count to RTDB before submit so `autoSubmitFromRTDB()` snapshots the current value\n\nBridge rule:\n- `autoSubmitFromRTDB()` remains the only canonical promotion path from RTDB draft state into Firestore `writing_submissions/{submissionId}`\n- that bridge must continue materializing the RTDB `pasteAttemptCount` into the canonical submission record\n\n## Homework contract\n\n`WritingPracticeView` is the homework Writing owner.\n\nRequired behavior:\n- load the homework document via `getHomeworkById(homeworkId)`\n- derive the enable flag from `homework.antiCheatConfig?.detectCopyPaste`\n- persist `pasteAttemptCount` in saved local homework Writing state together with essays, active task, and timer anchor state\n- restore `pasteAttemptCount` on resume before submission materialization\n\nSubmission rule:\n- homework Writing submit must use the shared hook's `pasteAttemptCount` when building the canonical submission payload\n\n## Scope boundary\n\nThis implementation pass intentionally does not:\n- add a new Writing-specific builder setting\n- move Writing onto the generic anti-cheat container stack\n- change solo Writing practice behavior\n\n## Repo anchors\n\nImplementation anchors:\n- `src/hooks/useExternalPastePrevention.ts`\n- `src/components/writing-student/WritingEditor.tsx`\n- `src/components/writing-student/WritingTestPage.tsx`\n- `src/hooks/useWritingAutoSave.ts`\n- `src/components/writing-practice/WritingPracticeView.tsx`\n\nCoverage anchors:\n- `src/hooks/useExternalPastePrevention.test.ts`\n- `src/components/writing-student/WritingTestPage.test.tsx`\n- `src/components/writing-practice/WritingPracticeView.test.tsx`\n- `src/services/writingSubmissionService.test.ts`\n\n## Related docs\n\n- @doc/architecture/scheme/ielts-writing-current-state-scheme\n- @doc/architecture/homework-solo-practice-architecture\n- @doc/prd/ielts-writing-test-system-prd\n",
+        "description": "Architecture note for the live-session and homework IELTS Writing copy/paste toggle, shared editor ownership, and paste-attempt persistence contract.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "writing",
+          "anti-cheat",
+          "homework",
+          "live-session"
+        ],
+        "title": "IELTS Writing Copy Paste Toggle And Attempt Persistence 2026-04-05"
+      }
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RichContent } from '../../core/components/RichContent';
 import GradingAuditTrail from '../writing-grading/GradingAuditTrail';
 import AnnotatedEssayReadOnly from './AnnotatedEssayReadOnly';
+import PublishedFeedbackPanel from './PublishedFeedbackPanel';
 import WritingPublishedMarkupViewer from './WritingPublishedMarkupViewer';
 import type { WritingSubmission } from '../../types/ielts-writing.types';
 import type { WritingResultSurfaceData } from './writingResultSurface';
@@ -34,6 +35,28 @@ export default function WritingTeacherResultSurface({
 }: WritingTeacherResultSurfaceProps) {
     const isActionable = data.viewerMode === 'teacher-actionable';
     const hasDraft = data.phase === 'pending-review' && Boolean(data.draftOwnerTeacherId);
+    const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+    const [selectedFeedbackAnchorViewportTop, setSelectedFeedbackAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackRequestKey, setSelectedFeedbackRequestKey] = useState(0);
+    const publishedFeedbackIds = useMemo(
+        () => new Set(data.tasks.flatMap((task) => [...task.comments, ...task.corrections].map((item) => item.id))),
+        [data.tasks],
+    );
+
+    useEffect(() => {
+        if (!selectedFeedbackId || publishedFeedbackIds.has(selectedFeedbackId)) {
+            return;
+        }
+
+        setSelectedFeedbackId(null);
+        setSelectedFeedbackAnchorViewportTop(null);
+    }, [publishedFeedbackIds, selectedFeedbackId]);
+
+    const handleEssayFeedbackSelect = (feedbackId: string, anchorViewportTop: number | null) => {
+        setSelectedFeedbackId(feedbackId);
+        setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
+        setSelectedFeedbackRequestKey((current) => current + 1);
+    };
 
     return (
         <div style={{ display: 'grid', gap: '1rem', fontFamily: "'Inter', sans-serif" }}>
@@ -143,15 +166,21 @@ export default function WritingTeacherResultSurface({
 
                             <div style={{ marginTop: '1rem' }}>
                                 {data.phase === 'published' ? (
-                                    task.markedContent || task.comments.length > 0 ? (
+                                    task.fallbackAnnotations.length > 0 && !task.markedContent ? (
+                                        <AnnotatedEssayReadOnly
+                                            essayText={task.essayText}
+                                            annotations={task.fallbackAnnotations}
+                                            onFeedbackSelect={handleEssayFeedbackSelect}
+                                        />
+                                    ) : task.markedContent || task.comments.length > 0 || task.corrections.length > 0 ? (
                                         <WritingPublishedMarkupViewer
                                             originalEssayText={task.essayText}
                                             markedContent={task.markedContent}
                                             comments={task.comments}
+                                            corrections={task.corrections}
                                             onViewModeChange={(mode) => onMarkupViewChange?.(task.taskNumber, mode)}
+                                            onFeedbackSelect={handleEssayFeedbackSelect}
                                         />
-                                    ) : task.fallbackAnnotations.length > 0 ? (
-                                        <AnnotatedEssayReadOnly essayText={task.essayText} annotations={task.fallbackAnnotations} />
                                     ) : (
                                         <PlainEssayCard essayText={task.essayText} />
                                     )
@@ -187,6 +216,31 @@ export default function WritingTeacherResultSurface({
                                             ) : (
                                                 <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>No published summary.</div>
                                             )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section style={surfaceCardStyle()}>
+                                <div style={eyebrowStyle()}>Published Feedback</div>
+                                <h3 style={{ margin: '0.2rem 0 0', fontSize: '1.02rem', fontWeight: 800, color: '#0f172a' }}>
+                                    Comments & Corrections
+                                </h3>
+                                <div style={{ display: 'grid', gap: '0.95rem', marginTop: '0.95rem' }}>
+                                    {data.tasks.map((task) => (
+                                        <div key={`feedback-${task.taskNumber}`} style={{ padding: '0.95rem', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#111827', marginBottom: '0.7rem' }}>
+                                                Task {task.taskNumber}
+                                            </div>
+                                            <PublishedFeedbackPanel
+                                                comments={task.comments}
+                                                corrections={task.corrections}
+                                                selectedFeedbackId={selectedFeedbackId}
+                                                selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                                                selectionRequestKey={selectedFeedbackRequestKey}
+                                                alignToEssay
+                                                maxHeight="min(52vh, 560px)"
+                                            />
                                         </div>
                                     ))}
                                 </div>

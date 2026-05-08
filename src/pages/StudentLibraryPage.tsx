@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useMaterialLibrary, preloadMaterialLibraryData } from '../hooks/useMaterialLibrary';
 import { useAuth } from '../hooks/useAuth';
 
 import { clearSoloProgress } from '../hooks/solo/useSoloAutoSave';
 import { SoloResumeModal } from '../components/test/SoloResumeModal';
 import type { LibrarySource } from '../types/solo.types';
+import type { SoloSessionProgress } from '../types/practice.types';
 
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useNavigation } from '../hooks/useNavigation';
+import { storage } from '../core/platform/storage';
 
 /* ── Inline SVG Icons (24×24, currentColor) ─────────────────────── */
 const SvgBook = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
@@ -62,13 +65,15 @@ const FILTER_TABS = [
 
 export const StudentLibraryPage: React.FC = () => {
     const { user, profile } = useAuth();
-    const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const { notStarted = [] } = useResolvedStudentHomeworkList(user?.uid || '');
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const [activeTab, setActiveTab] = useState<LibrarySource>('my_courses');
     const [showFilters, setShowFilters] = useState(false);
 
     const [resumeModalOpen, setResumeModalOpen] = useState(false);
     const [pendingMaterial, setPendingMaterial] = useState<{ id: string; title: string } | null>(null);
+    const [pendingProgress, setPendingProgress] = useState<SoloSessionProgress | null>(null);
 
     const {
         paginatedMaterials,
@@ -96,22 +101,32 @@ export const StudentLibraryPage: React.FC = () => {
         fetchBySource(value as LibrarySource);
     };
 
-    const handlePractice = (materialId: string, title?: string) => {
+    const navigateToLibraryPractice = (materialId: string, title: string, resumeFrom?: SoloSessionProgress) => {
+        navigateTo('STUDENT_PRACTICE', {
+            materialId,
+        }, {
+            reason: resumeFrom ? 'student_library_resume_practice' : 'student_library_start_practice',
+            state: {
+                context: { type: 'self_study', source: { type: 'library', id: materialId, name: title } },
+                ...(resumeFrom ? { resumeFrom } : {}),
+            },
+        });
+    };
+
+    const handlePractice = async (materialId: string, title?: string) => {
         const studentId = user?.uid || '';
         const key = `solo_progress_${materialId}_${studentId}`;
-        const saved = localStorage.getItem(key);
+        const materialTitle = title || '';
+        const saved = await storage.get<SoloSessionProgress>(key);
 
         if (saved) {
-            setPendingMaterial({ id: materialId, title: title || '' });
+            setPendingMaterial({ id: materialId, title: materialTitle });
+            setPendingProgress(saved);
             setResumeModalOpen(true);
             return;
         }
 
-        navigate(`/student/practice/${materialId}`, {
-            state: {
-                context: { type: 'self_study', source: { type: 'library', id: materialId, name: title || '' } }
-            }
-        });
+        navigateToLibraryPractice(materialId, materialTitle);
     };
 
     const renderMaterialCard = (material: any, index: number) => {
@@ -129,7 +144,7 @@ export const StudentLibraryPage: React.FC = () => {
             >
                 <div style={localStyles.cardBody}>
                     <div>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{material.title}</h3>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{material.title}</h3>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ ...localStyles.badge, background: material.skill === 'writing' ? studentTokens.accentSoft : '#edf5f9', color: material.skill === 'writing' ? studentTokens.accentHover : '#4c5458' }}>
                                 {material.skill}
@@ -177,8 +192,8 @@ export const StudentLibraryPage: React.FC = () => {
 
                 <div style={localStyles.cardFooter}>
                     <button
-                        onClick={() => handlePractice(material.id, material.title)}
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: studentTokens.radiusSoft, border: 'none', background: hasAttempted ? studentTokens.bgSurfaceStrong : studentTokens.accent, color: hasAttempted ? studentTokens.textPrimary : '#faf6ff', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, transition: 'background 0.2s' }}
+                        onClick={() => void handlePractice(material.id, material.title)}
+                        style={{ width: '100%', minHeight: isMobile ? 44 : undefined, padding: '10px 14px', borderRadius: studentTokens.radiusSoft, border: 'none', background: hasAttempted ? studentTokens.bgSurfaceStrong : studentTokens.accent, color: hasAttempted ? studentTokens.textPrimary : '#faf6ff', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, transition: 'background 0.2s' }}
                         onMouseEnter={e => e.currentTarget.style.background = hasAttempted ? studentTokens.bgSurfaceAlt : studentTokens.accentHover}
                         onMouseLeave={e => e.currentTarget.style.background = hasAttempted ? studentTokens.bgSurfaceStrong : studentTokens.accent}
                     >
@@ -208,17 +223,20 @@ export const StudentLibraryPage: React.FC = () => {
             `}</style>
             <div style={S.feedHeader}>
                 <div style={S.feedHeaderText}>
-                    <h2 style={S.feedHeaderTitle}>Practice Library</h2>
-                    <p style={S.feedHeaderSubtitle}>Browse course materials, public resources, and recent practice using the same restrained academic visual language.</p>
+                    <h2 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>Practice Library</h2>
+                    <p style={{ ...S.feedHeaderSubtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>Browse course materials, public resources, and recent practice using the same restrained academic visual language.</p>
                 </div>
             </div>
 
-            <div style={S.filterBar}>
+            <div
+                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                style={{ ...S.filterBar, ...(isMobile ? { gap: 16 } : {}) }}
+            >
                 {FILTER_TABS.map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => handleTabChange(tab.key)}
-                        style={{ ...S.filterTab, ...(activeTab === tab.key ? S.filterTabActive : {}) }}
+                        style={{ ...S.filterTab, ...(isMobile ? mobileStyles.touchTarget : {}), ...(activeTab === tab.key ? S.filterTabActive : {}) }}
                     >
                         {tab.label}
                     </button>
@@ -226,9 +244,9 @@ export const StudentLibraryPage: React.FC = () => {
             </div>
 
             <div style={{ padding: '18px 0 0', animation: 'dashFadeIn 200ms ease-out forwards' }}>
-                <div style={{ background: studentTokens.bgSurface, borderRadius: 12, padding: '16px 20px', border: `1px solid ${studentTokens.borderWhisper}`, marginBottom: 24 }}>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                        <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ background: studentTokens.bgSurface, borderRadius: 12, padding: isMobile ? '16px' : '16px 20px', border: `1px solid ${studentTokens.borderWhisper}`, marginBottom: 24 }}>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', ...(isMobile ? mobileStyles.stackVertical : {}) }}>
+                        <div style={{ flex: isMobile ? '1 1 100%' : '1 1 300px', width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Search</label>
                             <div style={{ position: 'relative', background: studentTokens.bgShell, borderRadius: 12, display: 'flex', alignItems: 'center', border: `1px solid ${studentTokens.borderWhisper}` }}>
                                 <div style={{ paddingLeft: 16, color: studentTokens.textMuted, display: 'flex' }}><SvgSearch /></div>
@@ -243,7 +261,7 @@ export const StudentLibraryPage: React.FC = () => {
 
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: showFilters ? studentTokens.bgShell : studentTokens.bgSurface, color: studentTokens.textPrimary, fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'background 0.2s' }}
+                            style={{ width: isMobile ? '100%' : undefined, minHeight: isMobile ? 44 : undefined, padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: showFilters ? studentTokens.bgShell : studentTokens.bgSurface, color: studentTokens.textPrimary, fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'background 0.2s' }}
                             onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgShell}
                             onMouseLeave={e => e.currentTarget.style.background = showFilters ? studentTokens.bgShell : studentTokens.bgSurface}
                         >
@@ -253,7 +271,7 @@ export const StudentLibraryPage: React.FC = () => {
                         {(searchQuery || filters.skill || filters.type || filters.difficulty) && (
                             <button
                                 onClick={clearFilters}
-                                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9e3f4e', fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
+                                style={{ width: isMobile ? '100%' : undefined, minHeight: isMobile ? 44 : undefined, padding: '10px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9e3f4e', fontWeight: 700, cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                             >
                                 <SvgX /> Clear
                             </button>
@@ -261,8 +279,8 @@ export const StudentLibraryPage: React.FC = () => {
                     </div>
 
                     {showFilters && (
-                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, paddingTop: 16, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
-                            <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, paddingTop: 16, borderTop: `1px solid ${studentTokens.borderWhisper}`, ...(isMobile ? mobileStyles.stackVertical : {}) }}>
+                            <div style={{ flex: isMobile ? '1 1 100%' : '1 1 200px', width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Skill</label>
                                 <select value={filters.skill || ''} onChange={e => updateFilter('skill', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Skills</option>
@@ -273,7 +291,7 @@ export const StudentLibraryPage: React.FC = () => {
                                 </select>
                             </div>
 
-                            <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ flex: isMobile ? '1 1 100%' : '1 1 200px', width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Type</label>
                                 <select value={filters.type || ''} onChange={e => updateFilter('type', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Types</option>
@@ -282,7 +300,7 @@ export const StudentLibraryPage: React.FC = () => {
                                 </select>
                             </div>
 
-                            <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ flex: isMobile ? '1 1 100%' : '1 1 200px', width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Difficulty</label>
                                 <select value={filters.difficulty || ''} onChange={e => updateFilter('difficulty', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Difficulties</option>
@@ -337,16 +355,16 @@ export const StudentLibraryPage: React.FC = () => {
 
                 {!isLoading && !error && paginatedMaterials.length > 0 && (
                     <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', ...(isMobile ? mobileStyles.singleColumnGrid : {}), gap: isMobile ? '16px' : '24px' }}>
                             {paginatedMaterials.map((material, index) => renderMaterialCard(material, index))}
                         </div>
 
                         {totalPages > 1 && (
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 40, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 40, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <button
                                     onClick={prevPage}
                                     disabled={currentPage === 1}
-                                    style={{ padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === 1 ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === 1 ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
+                                    style={{ minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === 1 ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === 1 ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                                 >
                                     Previous
                                 </button>
@@ -356,7 +374,7 @@ export const StudentLibraryPage: React.FC = () => {
                                 <button
                                     onClick={nextPage}
                                     disabled={currentPage === totalPages}
-                                    style={{ padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === totalPages ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === totalPages ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
+                                    style={{ minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, padding: '8px 20px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: currentPage === totalPages ? studentTokens.textDim : studentTokens.textPrimary, fontWeight: 700, cursor: currentPage === totalPages ? 'default' : 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                                 >
                                     Next
                                 </button>
@@ -366,30 +384,21 @@ export const StudentLibraryPage: React.FC = () => {
                 )}
             </div>
 
-            {pendingMaterial && (
+            {pendingMaterial && pendingProgress && (
                 <SoloResumeModal
                     opened={resumeModalOpen}
-                    onClose={() => { setResumeModalOpen(false); setPendingMaterial(null); }}
+                    onClose={() => { setResumeModalOpen(false); setPendingMaterial(null); setPendingProgress(null); }}
                     onResume={() => {
                         setResumeModalOpen(false);
-                        const saved = JSON.parse(localStorage.getItem(`solo_progress_${pendingMaterial.id}_${user?.uid}`) || '{}');
-                        navigate(`/student/practice/${pendingMaterial.id}`, {
-                            state: {
-                                context: { type: 'self_study', source: { type: 'library', id: pendingMaterial.id, name: pendingMaterial.title } },
-                                resumeFrom: saved,
-                            }
-                        });
+                        navigateToLibraryPractice(pendingMaterial.id, pendingMaterial.title, pendingProgress);
                     }}
                     onStartNew={() => {
                         clearSoloProgress(pendingMaterial.id, user?.uid || '');
                         setResumeModalOpen(false);
-                        navigate(`/student/practice/${pendingMaterial.id}`, {
-                            state: {
-                                context: { type: 'self_study', source: { type: 'library', id: pendingMaterial.id, name: pendingMaterial.title } }
-                            }
-                        });
+                        setPendingProgress(null);
+                        navigateToLibraryPractice(pendingMaterial.id, pendingMaterial.title);
                     }}
-                    savedProgress={JSON.parse(localStorage.getItem(`solo_progress_${pendingMaterial.id}_${user?.uid}`) || '{}')}
+                    savedProgress={pendingProgress}
                     totalQuestions={0} // Filled after load on the test side
                 />
             )}

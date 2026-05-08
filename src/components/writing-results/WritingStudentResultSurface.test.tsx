@@ -5,9 +5,23 @@ import type { WritingResultSurfaceData } from './writingResultSurface';
 
 vi.mock('./WritingPublishedMarkupViewer', () => ({
   __esModule: true,
-  default: ({ onCommentSelect }: { onCommentSelect?: (commentId: string, anchorViewportTop: number | null) => void }) => (
-    <button type="button" onClick={() => onCommentSelect?.('comment-2', 180)}>
-      Focus comment 2
+  default: ({ onFeedbackSelect }: { onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void }) => (
+    <>
+      <button type="button" onClick={() => onFeedbackSelect?.('comment-2', 180)}>
+        Focus comment 2
+      </button>
+      <button type="button" onClick={() => onFeedbackSelect?.('correction-1', 210)}>
+        Focus correction 1
+      </button>
+    </>
+  ),
+}));
+
+vi.mock('./AnnotatedEssayReadOnly', () => ({
+  __esModule: true,
+  default: ({ onFeedbackSelect }: { onFeedbackSelect?: (feedbackId: string, anchorViewportTop: number | null) => void }) => (
+    <button type="button" onClick={() => onFeedbackSelect?.('comment-legacy', 150)}>
+      Focus fallback comment
     </button>
   ),
 }));
@@ -60,6 +74,7 @@ const surfaceData: WritingResultSurfaceData = {
       markedContent: { type: 'doc', content: [] },
       comments: [
         {
+          kind: 'comment',
           id: 'comment-1',
           text: '<p>First comment</p>',
           color: '#4f46e5',
@@ -70,6 +85,7 @@ const surfaceData: WritingResultSurfaceData = {
           categoryLabel: 'Task Response',
         },
         {
+          kind: 'comment',
           id: 'comment-2',
           text: '<p>Second comment</p>',
           color: '#4f46e5',
@@ -78,6 +94,17 @@ const surfaceData: WritingResultSurfaceData = {
           to: 10,
           status: 'active',
           categoryLabel: 'Grammar',
+        },
+      ],
+      corrections: [
+        {
+          kind: 'correction',
+          id: 'correction-1',
+          anchorText: 'wrong phrase',
+          correctionText: 'improved phrase',
+          from: 11,
+          to: 22,
+          label: 'Correction',
         },
       ],
       fallbackAnnotations: [],
@@ -98,6 +125,7 @@ const surfaceData: WritingResultSurfaceData = {
       criteriaFeedback: { TR: '<p>TR feedback</p>' },
       markedContent: null,
       comments: [],
+      corrections: [],
       fallbackAnnotations: [],
       usesLegacyProjection: false,
     },
@@ -115,7 +143,7 @@ describe('WritingStudentResultSurface', () => {
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
       configurable: true,
       get() {
-        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-header-id') === 'comment-2') {
           return 20;
         }
         return 80;
@@ -129,7 +157,7 @@ describe('WritingStudentResultSurface', () => {
     Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
       configurable: true,
       value() {
-        if (this?.getAttribute?.('data-comments-viewport') === 'true') {
+        if (this?.getAttribute?.('data-feedback-viewport') === 'true') {
           return {
             x: 0,
             y: 100,
@@ -145,7 +173,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comments-stack') === 'true') {
+        if (this?.getAttribute?.('data-feedback-stack') === 'true') {
           return {
             x: 0,
             y: 140,
@@ -161,7 +189,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-header-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-header-id') === 'comment-2') {
           return {
             x: 0,
             y: 260,
@@ -177,7 +205,7 @@ describe('WritingStudentResultSurface', () => {
           };
         }
 
-        if (this?.getAttribute?.('data-comment-card-id') === 'comment-2') {
+        if (this?.getAttribute?.('data-feedback-card-id') === 'comment-2') {
           return {
             x: 0,
             y: 244,
@@ -187,6 +215,38 @@ describe('WritingStudentResultSurface', () => {
             left: 20,
             right: 460,
             bottom: 340,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-feedback-header-id') === 'correction-1') {
+          return {
+            x: 0,
+            y: 300,
+            width: 420,
+            height: 20,
+            top: 300,
+            left: 24,
+            right: 444,
+            bottom: 320,
+            toJSON() {
+              return this;
+            },
+          };
+        }
+
+        if (this?.getAttribute?.('data-feedback-card-id') === 'correction-1') {
+          return {
+            x: 0,
+            y: 284,
+            width: 440,
+            height: 96,
+            top: 284,
+            left: 20,
+            right: 460,
+            bottom: 380,
             toJSON() {
               return this;
             },
@@ -210,7 +270,7 @@ describe('WritingStudentResultSurface', () => {
     });
   });
 
-  it('opens the comments tab and highlights the matching comment when essay markup is clicked', async () => {
+  it('opens the feedback tab and highlights the matching comment when essay markup is clicked', async () => {
     render(
       <WritingStudentResultSurface
         data={surfaceData}
@@ -226,21 +286,95 @@ describe('WritingStudentResultSurface', () => {
 
     const highlightedComment = await screen.findByText('Second comment');
     const highlightedCard = highlightedComment.closest('article');
-    const shiftedCommentsStack = highlightedCard?.parentElement;
+    const shiftedFeedbackStack = highlightedCard?.closest('[data-feedback-stack="true"]');
 
-    expect(screen.getByRole('button', { name: 'Comments' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
     expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
     expect(highlightedCard).toHaveStyle({
       background: '#eef2ff',
       border: '1px solid #818cf8',
     });
-    expect(shiftedCommentsStack).toHaveAttribute('data-comments-shifted', 'true');
+    expect(shiftedFeedbackStack).toHaveAttribute('data-feedback-shifted', 'true');
 
     await waitFor(() => {
-      expect(shiftedCommentsStack).toHaveStyle({
-        transform: 'translateY(-40px)',
+      expect(shiftedFeedbackStack).toHaveStyle({
+        transform: 'translateY(-52px)',
       });
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
+  });
+
+  it('opens the feedback tab and highlights the matching correction when essay markup is clicked', async () => {
+    render(
+      <WritingStudentResultSurface
+        data={surfaceData}
+        variant="panel"
+        forceWidePanelLayout
+      />,
+    );
+
+    expect(screen.queryByText('improved phrase')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus correction 1' }));
+
+    const correctionText = await screen.findByText('improved phrase');
+    const highlightedCard = correctionText.closest('article');
+    const shiftedFeedbackStack = highlightedCard?.closest('[data-feedback-stack="true"]');
+
+    expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
+    expect(highlightedCard).toHaveTextContent('Correction');
+    expect(highlightedCard).toHaveTextContent('wrong phrase');
+
+    await waitFor(() => {
+      expect(shiftedFeedbackStack).toHaveStyle({
+        transform: 'translateY(-62px)',
+      });
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('keeps legacy fallback annotations on the shared feedback rail contract', async () => {
+    render(
+      <WritingStudentResultSurface
+        data={{
+          ...surfaceData,
+          tasks: [{
+            ...surfaceData.tasks[0],
+            markedContent: null,
+            comments: [{
+              kind: 'comment',
+              id: 'comment-legacy',
+              text: '<p>Legacy fallback comment</p>',
+              color: '#4f46e5',
+              anchorText: 'legacy phrase',
+              from: 1,
+              to: 5,
+              status: 'active',
+              categoryLabel: 'Grammar',
+            }],
+            corrections: [],
+            fallbackAnnotations: [{
+              id: 'comment-legacy',
+              taskNumber: 1,
+              type: 'comment',
+              startOffset: 1,
+              endOffset: 5,
+              color: '#4f46e5',
+              categoryId: 'gra',
+              categoryLabel: 'Grammar',
+              commentText: '<p>Legacy fallback comment</p>',
+              createdAt: 100,
+            }],
+          }, surfaceData.tasks[1]],
+        }}
+        variant="panel"
+        forceWidePanelLayout
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus fallback comment' }));
+
+    const highlightedComment = await screen.findByText('Legacy fallback comment');
+    expect(highlightedComment.closest('article')).toHaveAttribute('data-highlighted', 'true');
   });
 });

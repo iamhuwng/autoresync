@@ -89,6 +89,12 @@ function formatFeedbackDate(timestamp: number): string {
   });
 }
 
+function getFeedbackTeacherName(result: TestResultRecord): string {
+  return (result as any).feedbackUpdatedByTeacherName
+    || (result as any).feedbackUpdatedBy
+    || 'Your Teacher';
+}
+
 /* ─── Sub-components (vanilla, no Mantine) ───────────────────────────────── */
 
 /**
@@ -203,7 +209,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
         <div data-testid="ssrc-teacher-overall-feedback">
           <TeacherFeedbackCard
             feedback={result.overallFeedback}
-            teacherName={(result as any).feedbackUpdatedBy || 'Your Teacher'}
+            teacherName={getFeedbackTeacherName(result)}
             updatedAt={(result as any).feedbackUpdatedAt || Date.now()}
             isOverall
           />
@@ -228,7 +234,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
               <TeacherFeedbackCard
                 key={qr.questionNumber}
                 feedback={qr.teacherFeedback}
-                teacherName={(result as any).feedbackUpdatedBy || 'Your Teacher'}
+                teacherName={getFeedbackTeacherName(result)}
                 updatedAt={(result as any).feedbackUpdatedAt || Date.now()}
                 questionNumber={qr.questionNumber}
               />

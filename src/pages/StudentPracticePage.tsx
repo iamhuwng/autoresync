@@ -25,11 +25,13 @@ import { database } from '../services/firebase';
 import { resolvePracticeSettings } from '../services/practiceSettingsResolver';
 import { DEFAULT_PRACTICE_SETTINGS } from '../types/practice.types';
 import type { ResolvedPracticeSettings } from '../types/practice.types';
+import { useAuth } from '../hooks/useAuth';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { IELTSPracticeView } from '../components/practice/IELTSPracticeView';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import type { PracticeContext } from '../components/practice/IELTSPracticeView';
 import type { IELTSWritingTest } from '../types/ielts-writing.types';
+import { studentResumeService } from '../services/studentResume.service';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -54,6 +56,8 @@ interface PracticeLocationState {
     startedAt?: number;
     // Resume hint
     resumeFrom?: any;
+    autoResume?: boolean;
+    supportsAutoResume?: boolean;
     // Generic context (from library/course entry points)
     context?: {
         type: string;
@@ -67,6 +71,7 @@ const StudentPracticePageContent: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
     const location = useLocation();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     const locationState = (location.state || {}) as PracticeLocationState;
 
@@ -129,8 +134,11 @@ const StudentPracticePageContent: React.FC = () => {
                     );
                     setResolvedSettings(settings);
                 } else if (locationState.isHomework) {
-                    // Homework mode: use default settings (homework has its own timer/config)
-                    setResolvedSettings(DEFAULT_PRACTICE_SETTINGS);
+                    setResolvedSettings({
+                        ...DEFAULT_PRACTICE_SETTINGS,
+                        timerMinutes: locationState.timerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
+                        maxAttempts: locationState.maxAttempts ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
+                    });
                 } else {
                     // Self-study: default settings
                     setResolvedSettings(DEFAULT_PRACTICE_SETTINGS);
@@ -146,6 +154,36 @@ const StudentPracticePageContent: React.FC = () => {
         initialize();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [materialId]);
+
+    useEffect(() => {
+        if (!materialId || !user?.uid || loading || error) {
+            return;
+        }
+
+        const canResumePractice = testType === 'IELTS'
+            || (testType === 'THCS' && locationState.isHomework && Boolean(locationState.submissionId));
+
+        if (!canResumePractice) {
+            return;
+        }
+
+        void studentResumeService.savePracticeResume({
+            studentId: user.uid,
+            materialId,
+            locationState: {
+                ...locationState,
+                supportsAutoResume: testType === 'IELTS',
+            },
+        });
+    }, [error, loading, locationState, materialId, testType, user?.uid]);
+
+    useEffect(() => {
+        if (!error) {
+            return;
+        }
+
+        void studentResumeService.clearResume();
+    }, [error]);
 
     // ── Build practice context ─────────────────────────────────────────────────
     const practiceContext: PracticeContext = {
@@ -182,7 +220,10 @@ const StudentPracticePageContent: React.FC = () => {
                     <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>Error Loading Test</div>
                     <div style={{ color: '#64748b', marginBottom: '1.5rem' }}>{error || 'Something went wrong'}</div>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => {
+                            void studentResumeService.clearResume();
+                            navigate(-1);
+                        }}
                         style={{ padding: '0.75rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
                     >
                         Go Back
@@ -209,6 +250,7 @@ const StudentPracticePageContent: React.FC = () => {
                 <WritingPracticeView
                     materialId={materialId}
                     testData={writingTestData}
+                    autoResume={locationState.autoResume === true}
                     homeworkContext={locationState.isHomework ? {
                         homeworkId: locationState.homeworkId || '',
                         submissionId: locationState.submissionId || '',
@@ -232,6 +274,7 @@ const StudentPracticePageContent: React.FC = () => {
                     materialId={materialId}
                     resolvedSettings={resolvedSettings}
                     practiceContext={practiceContext}
+                    autoResume={locationState.autoResume === true}
                 />
             );
 
@@ -249,6 +292,7 @@ const StudentPracticePageContent: React.FC = () => {
                     materialId={materialId}
                     resolvedSettings={resolvedSettings}
                     practiceContext={practiceContext}
+                    autoResume={locationState.autoResume === true}
                 />
             );
     }

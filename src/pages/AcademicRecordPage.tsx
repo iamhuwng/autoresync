@@ -13,13 +13,14 @@ import type { EnhancedTestResultRecord } from '@/types/results.types';
 import type { AcademicRecordFilters, ProgressiveFeedbackRecord } from '@/types/academicRecord.types';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import { IconAlertCircle } from '../components/layout/StudentIcons';
 import { getProgressiveFeedback, refreshProgressiveFeedback } from '../services/progressiveFeedback.service';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 import { useAIStatus } from '../hooks/useAIStatus';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const MAIN_VIEW_OPTIONS = [
     { value: 'overview', label: 'Overview' },
@@ -165,7 +166,7 @@ const localStyles: Record<string, React.CSSProperties> = {
         borderLeft: `4px solid ${studentTokens.accent}`,
     },
     feedSection: {
-        padding: '32px 0 0',
+        padding: '48px 0 0',
         animation: 'dashFadeIn 200ms ease-out forwards',
         display: 'flex',
         flexDirection: 'column',
@@ -351,6 +352,7 @@ export const AcademicRecordPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const { trackAction } = useFeatureTracking('academicRecords');
     const [{ maintenance: aiMaintenance, loaded: aiStatusLoaded }] = useAIStatus();
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const initialResultsCache = user?.uid
         ? academicRecordResultsCache.get(getAcademicRecordResultsCacheKey(user.uid, 'all')) ?? null
         : null;
@@ -621,21 +623,21 @@ export const AcademicRecordPage: React.FC = () => {
 
         return (
             <>
-                <div style={localStyles.statsGrid}>
-                    <div style={localStyles.statCard}>
+                <div style={{ ...localStyles.statsGrid, ...(isMobile ? mobileStyles.singleColumnGrid : {}) }}>
+                    <div style={{ ...localStyles.statCard, ...(isMobile ? { padding: '20px 18px' } : {}) }}>
                         <div style={localStyles.statLabel}>Total Tests</div>
                         <div style={localStyles.statValueRow}>
                             <span style={localStyles.statValue}>{results.length}</span>
                             <span style={localStyles.statHint}>Recorded</span>
                         </div>
                     </div>
-                    <div style={localStyles.statCard}>
+                    <div style={{ ...localStyles.statCard, ...(isMobile ? { padding: '20px 18px' } : {}) }}>
                         <div style={localStyles.statLabel}>Average Score</div>
                         <div style={localStyles.statValueRow}>
                             <span style={{ ...localStyles.statValue, color: studentTokens.accent }}>{averageScore}%</span>
                         </div>
                     </div>
-                    <div style={localStyles.statCard}>
+                    <div style={{ ...localStyles.statCard, ...(isMobile ? { padding: '20px 18px' } : {}) }}>
                         <div style={localStyles.statLabel}>Best Score</div>
                         <div style={localStyles.statValueRow}>
                             <span style={{ ...localStyles.statValue, color: '#4c5458' }}>{bestScore}%</span>
@@ -643,8 +645,8 @@ export const AcademicRecordPage: React.FC = () => {
                     </div>
                 </div>
 
-                <div style={localStyles.feedbackCard}>
-                    <div style={localStyles.feedbackTop}>
+                <div style={{ ...localStyles.feedbackCard, ...(isMobile ? { padding: '24px 20px' } : {}) }}>
+                    <div style={{ ...localStyles.feedbackTop, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
                         <div style={localStyles.feedbackTitleWrap}>
                             <span style={localStyles.feedbackEyebrow}>Progressive Feedback</span>
                             <h2 style={localStyles.feedbackTitle}>Recent Progress Synthesis</h2>
@@ -654,6 +656,7 @@ export const AcademicRecordPage: React.FC = () => {
                             onClick={handleRefreshProgressiveFeedback}
                             style={{
                                 ...localStyles.refreshButton,
+                                ...(isMobile ? mobileStyles.fullWidthButton : {}),
                                 ...(isProgressiveFeedbackRefreshDisabled ? localStyles.refreshButtonDisabled : {}),
                             }}
                             disabled={isProgressiveFeedbackRefreshDisabled}
@@ -716,7 +719,7 @@ export const AcademicRecordPage: React.FC = () => {
                     <h2 style={localStyles.sectionTitle}>IELTS Progress</h2>
                 </div>
                 <div style={localStyles.sectionBody}>
-                    <ResultsBySkill results={ieltsResults} onResultClick={handleOpenResult} />
+                    <ResultsBySkill results={ieltsResults} isMobile={isMobile} onResultClick={handleOpenResult} />
                 </div>
             </section>
         );
@@ -735,6 +738,7 @@ export const AcademicRecordPage: React.FC = () => {
                 <div style={localStyles.sectionBody}>
                     <THCSProgressTab
                         data={thcsProgress}
+                        isMobile={isMobile}
                         loading={thcsLoading}
                         onResultClick={handleThcsHistoryClick}
                     />
@@ -754,7 +758,7 @@ export const AcademicRecordPage: React.FC = () => {
                     <h2 style={localStyles.sectionTitle}>Course Results</h2>
                 </div>
                 <div style={localStyles.sectionBody}>
-                    <ResultsByCourse results={latestResults} onResultClick={handleOpenResult} />
+                    <ResultsByCourse results={latestResults} isMobile={isMobile} onResultClick={handleOpenResult} />
                 </div>
             </section>
         );
@@ -766,15 +770,23 @@ export const AcademicRecordPage: React.FC = () => {
 
     return (
         <StudentLayout mobileTitle={mobileTitle} sidebar={renderSidebar()} rightRailVariant="academic-record">
-            <div style={localStyles.headerRow}>
+            <div style={{ ...localStyles.headerRow, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16 } : {}) }}>
                 <div style={{ ...S.feedHeaderText, flex: 1 }}>
-                    <h1 style={S.feedHeaderTitle}>Academic Record</h1>
-                    <p style={{ ...S.feedHeaderSubtitle, maxWidth: 420 }}>
+                    <h1 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>Academic Record</h1>
+                    <p style={{ ...S.feedHeaderSubtitle, maxWidth: 420, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>
                         Holistic performance tracking and feedback synthesis.
                     </p>
                 </div>
-                <div style={localStyles.controlsRow}>
-                    <div style={localStyles.datePillGroup} aria-label="Filter by time period" role="tablist">
+                <div style={{ ...localStyles.controlsRow, ...(isMobile ? { justifyContent: 'flex-start', width: '100%' } : {}) }}>
+                    <div
+                        style={{
+                            ...localStyles.datePillGroup,
+                            ...(isMobile ? { display: 'flex', width: '100%', overflowX: 'auto' } : {}),
+                        }}
+                        className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                        aria-label="Filter by time period"
+                        role="tablist"
+                    >
                         {DATE_RANGE_OPTIONS.map((option) => (
                             <button
                                 key={option.value}
@@ -782,6 +794,7 @@ export const AcademicRecordPage: React.FC = () => {
                                 onClick={() => setDateRange(option.value)}
                                 style={{
                                     ...localStyles.dateRangeButton,
+                                    ...(isMobile ? { ...mobileStyles.touchTarget, flex: '1 0 auto', padding: '8px 12px' } : {}),
                                     ...(dateRange === option.value ? localStyles.dateRangeButtonActive : {}),
                                 }}
                                 aria-pressed={dateRange === option.value}
@@ -794,15 +807,20 @@ export const AcademicRecordPage: React.FC = () => {
             </div>
 
             {error && (
-                <div style={localStyles.alertBox}>
+                <div style={{ ...localStyles.alertBox, ...(isMobile ? { padding: '16px', gap: 12 } : {}) }}>
                     <IconAlertCircle />
                     <span>{error}</span>
                 </div>
             )}
 
-            <AIMaintenanceBanner />
+            <AIMaintenanceBanner
+                style={isMobile ? { padding: '0.875rem 1rem', gap: '0.75rem' } : undefined}
+            />
 
-            <div style={localStyles.pageTabBar}>
+            <div
+                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                style={{ ...localStyles.pageTabBar, ...(isMobile ? { gap: 16, marginTop: 24 } : {}) }}
+            >
                 {MAIN_VIEW_OPTIONS.map((option) => (
                     <button
                         key={option.value}
@@ -813,6 +831,7 @@ export const AcademicRecordPage: React.FC = () => {
                         }}
                         style={{
                             ...localStyles.pageTab,
+                            ...(isMobile ? mobileStyles.touchTarget : {}),
                             ...(activeView === option.value ? localStyles.pageTabActive : {}),
                         }}
                         aria-pressed={activeView === option.value}
@@ -822,7 +841,7 @@ export const AcademicRecordPage: React.FC = () => {
                 ))}
             </div>
 
-            <div style={localStyles.feedSection}>
+            <div style={{ ...localStyles.feedSection, ...(isMobile ? { gap: 24, paddingTop: 32 } : {}) }}>
                 {activeView === 'overview' && renderOverviewView()}
                 {activeView === 'thcs' && renderThcsView()}
                 {activeView === 'ielts' && renderIeltsView()}

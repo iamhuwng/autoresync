@@ -73,7 +73,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 
 - **Dual Provider** — Google Gemini 2.5 Flash (primary) + Groq Llama 3.1 70B (fallback)
 - **Document Extraction** — PDF, DOCX, and image parsing via `pdfjs-dist` and `mammoth`
-- **Smart Chunking** — Adaptive text chunking for large documents
+- **AI-First Reading Parsing** — Staged Gemini/Groq extraction for teacher reading creation; legacy chunking utilities are isolated from the live env contract
 - **Type Classification** — Automatic IELTS question type detection
 - **THCS Regex Parser** — Pattern-based extraction for Vietnamese test formats
 
@@ -307,12 +307,18 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Script | Purpose |
 |--------|---------|
 | `npm run dev` | Start Vite dev server |
-| `npm run build` | Production build |
+| `npm run build` | Direct Vite production build plus bundle-budget check |
+| `npm run deploy:hosting` | Run `npm run build`, then deploy Hosting target `kahut1` |
 | `npm test` | Run Vitest unit tests |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run lint` | ESLint check |
 | `npm run enforce` | Pre-commit rule enforcement |
 | `npm run enforce:check` | Dry-run enforcement check |
+
+Deployment note:
+- `npm run build` now uses the direct Vite build path and then runs `scripts/check-bundle-budget.mjs`
+- `npm run deploy:hosting` builds once and uploads the resulting `dist` with `firebase deploy --only hosting:kahut1`
+- if Windows file locking breaks the build, set `TMPDIR`, `TEMP`, and `TMP` to a writable temp folder in that shell before rerunning the command
 
 ---
 

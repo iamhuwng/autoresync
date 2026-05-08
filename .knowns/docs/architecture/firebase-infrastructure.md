@@ -2,7 +2,7 @@
 title: Firebase Infrastructure
 description: Firebase RTDB schema, deployment, backup/restore, error handling patterns, development workflows.
 createdAt: '2026-02-27T16:33:56.072Z'
-updatedAt: '2026-03-29T08:35:07.732Z'
+updatedAt: '2026-04-05T14:27:51.551Z'
 tags:
   - architecture
   - firebase
@@ -52,13 +52,24 @@ Firebase Realtime Database is the primary backend. The application uses Firebase
 ## Deployment
 
 ```bash
-# Build + Deploy
+# Build only
 npm run build
+
+# Recommended direct hosting release
+npm run deploy:hosting
+
+# Upload an already-built dist without rebuilding
 firebase deploy --only hosting:kahut1
 
 # Deploy rules only
 firebase deploy --only database
 ```
+
+`npm run build` now runs the direct Vite production build and then `scripts/check-bundle-budget.mjs`.
+
+`npm run deploy:hosting` is the canonical light hosting release path. It runs `npm run build` and then uploads the resulting `dist` to Hosting target `kahut1`.
+
+Use raw `firebase deploy --only hosting:kahut1` only when you already have a verified `dist` and want an upload-only step.
 
 **Live URL:** https://kahut1.web.app
 
@@ -101,7 +112,7 @@ See @doc/conventions for full rules.
 | Unit tests | `npm test` (Vitest) |
 | E2E tests | `npm run test:e2e` (Playwright) |
 | Build | `npm run build` |
-| Deploy | `firebase deploy --only hosting:kahut1` |
+| Deploy | `npm run deploy:hosting` |
 | Lint | `npm run lint` |
 
 ### Debugging
@@ -120,7 +131,6 @@ See @doc/conventions for full rules.
 - @doc/guides/cloudflare-setup-guide — Cloudflare Worker setup
 - @doc/conventions — Integration safety rules
 - @doc/architecture/auth-rbac-architecture — Auth system (cross-ref)
-
 
 ## Firestore Rules Deployment Verification
 
@@ -146,7 +156,6 @@ Operational lesson:
 - Hosted verification should distinguish between frontend deploy requirements and rules-only deploy requirements. A Firestore permission fix can require no hosting deploy if the failing surface is purely rules-gated.
 
 Related incident: @doc/sop/ielts-writing-grading-permission-runtime-state
-
 
 ## 2026-03-29 Amendment — RTDB Result Fan-Out Ordering for Teacher Materialization
 

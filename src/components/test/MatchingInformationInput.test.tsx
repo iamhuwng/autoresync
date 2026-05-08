@@ -54,4 +54,37 @@ describe('MatchingInformationInput', () => {
 
         expect(onAnswerChange).toHaveBeenCalledWith(14, 'B');
     });
+
+    it('applies mobile preview sizing to question text without resizing answer chips', () => {
+        render(
+            <MatchingInformationInput
+                questions={buildQuestions()}
+                answers={{}}
+                onAnswerChange={() => {}}
+                fontSize={22}
+                lineSpacing={1.6}
+            />,
+        );
+
+        const questionText = screen.getByText('An early example of industrial migration');
+        expect(questionText).toHaveStyle({ fontSize: '22px', lineHeight: '1.6' });
+
+        const answerChip = screen.getAllByRole('button', { name: 'A' })[0];
+        expect(answerChip).toHaveStyle({ fontSize: '15px' });
+    });
+
+    it('registers each question row for exact navigator scroll targeting', () => {
+        const onQuestionRefChange = vi.fn();
+
+        render(
+            <MatchingInformationInput
+                questions={buildQuestions()}
+                answers={{}}
+                onAnswerChange={() => {}}
+                onQuestionRefChange={onQuestionRefChange}
+            />,
+        );
+
+        expect(onQuestionRefChange).toHaveBeenCalledWith(14, expect.any(HTMLDivElement));
+    });
 });

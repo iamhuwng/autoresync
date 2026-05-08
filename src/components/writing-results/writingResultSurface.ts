@@ -6,6 +6,7 @@ import type {
     WritingTaskMarkupState,
 } from '../../types/ielts-writing.types';
 import type { TestResultRecord } from '../../services/testResults.service';
+import { normalizeTaskCorrections } from '../../utils/writingCorrections';
 
 export type WritingResultPhase = 'pending-review' | 'published';
 export type WritingResultViewerMode = 'student' | 'teacher-actionable' | 'teacher-read-only';
@@ -35,11 +36,13 @@ export interface WritingResultTaskData {
     criteriaFeedback: WritingCriteriaFeedbackMap;
     markedContent: Record<string, any> | null;
     comments: PublishedCommentData[];
+    corrections: PublishedCorrectionData[];
     fallbackAnnotations: WritingAnnotation[];
     usesLegacyProjection: boolean;
 }
 
 export interface PublishedCommentData {
+    kind: 'comment';
     id: string;
     text: string;
     color: string;
@@ -49,6 +52,18 @@ export interface PublishedCommentData {
     status: 'active' | 'resolved' | 'deleted';
     categoryLabel: string;
 }
+
+export interface PublishedCorrectionData {
+    kind: 'correction';
+    id: string;
+    anchorText: string;
+    correctionText: string;
+    from: number;
+    to: number;
+    label: string;
+}
+
+export type PublishedFeedbackItem = PublishedCommentData | PublishedCorrectionData;
 
 export interface WritingBandSummaryItem {
     key: string;
@@ -126,7 +141,7 @@ export function buildWritingResultSurfaceData(
         : null;
     const bandSummaryItems = buildBandSummaryItems(overallBand, activeTasks);
     const hasPublishedMarkup = hasVisiblePublishedData
-        && tasks.some((task) => Boolean(task.markedContent) || task.fallbackAnnotations.length > 0 || task.comments.length > 0);
+        && tasks.some((task) => Boolean(task.markedContent) || task.fallbackAnnotations.length > 0 || task.comments.length > 0 || task.corrections.length > 0);
     const hasAnyFeedback = hasVisiblePublishedData
         && (Boolean(stripHtml(overallSummary)) || tasks.some((task) => hasTaskFeedback(task)));
 
@@ -182,7 +197,7 @@ export function buildWritingSubmissionFallbackFromResult(
             activeTimeSeconds: typeof result.timeElapsed === 'number' ? result.timeElapsed : 0,
         }];
 
-    const format = normalizeWritingFormat(indexedTasks.length);
+    const format = normalizeWritingFormat(indexedTasks);
     const markingStatus = normalizeWritingMarkingStatus(result.markingStatus ?? writingData?.markingStatus);
     const fallbackTasks = indexedTasks
         .map((task: any, index: number) => {
@@ -213,8 +228,8 @@ export function buildWritingSubmissionFallbackFromResult(
         : (typeof result.bandScore === 'number' && result.bandScore > 0 ? result.bandScore : null);
     const fallbackGrading = markingStatus === 'graded'
         ? {
-            teacherId: typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : '',
-            teacherName: typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : 'Teacher',
+            teacherId: getResultFeedbackTeacherId(result),
+            teacherName: getResultFeedbackTeacherName(result),
             gradedAt: typeof result.feedbackUpdatedAt === 'number'
                 ? result.feedbackUpdatedAt
                 : (typeof result.updatedAt === 'number' ? result.updatedAt : result.submittedAt),
@@ -265,9 +280,16 @@ function buildTaskData(
 ): WritingResultTaskData {
     const publishedTask = published?.perTask?.[task.taskNumber] ?? null;
     const legacyTask = legacy?.perTask?.find((entry) => entry.taskNumber === task.taskNumber) ?? null;
+    const markedContent = publishedTask?.markedContent ?? null;
     const fallbackAnnotations = publishedTask
         ? []
         : (submission.annotations || []).filter((annotation) => annotation.taskNumber === task.taskNumber);
+    const fallbackComments = publishedTask
+        ? []
+        : buildPublishedCommentsFromFallbackAnnotations(task.essayText, fallbackAnnotations);
+    const fallbackCorrections = publishedTask
+        ? []
+        : buildPublishedCorrectionsFromFallbackAnnotations(task.essayText, fallbackAnnotations);
 
     return {
         taskNumber: task.taskNumber,
@@ -286,14 +308,84 @@ function buildTaskData(
         criteriaFeedback: publishedTask
             ? publishedTask.perCriteriaFeedback
             : buildLegacyCriteriaFeedback(task.taskNumber, legacy),
-        markedContent: publishedTask?.markedContent ?? null,
-        comments: (publishedTask?.comments ?? [])
-            .filter((comment) => comment.status === 'active')
-            .slice()
-            .sort((left, right) => left.from - right.from),
+        markedContent,
+        comments: publishedTask
+            ? (publishedTask.comments ?? [])
+                .filter((comment) => comment.status === 'active')
+                .slice()
+                .map((comment) => ({
+                    kind: 'comment' as const,
+                    ...comment,
+                }))
+                .sort((left, right) => left.from - right.from)
+            : fallbackComments,
+        corrections: publishedTask
+            ? normalizeTaskCorrections({
+                taskNumber: task.taskNumber,
+                markedContent,
+                corrections: publishedTask.corrections,
+                fallbackTimestamp: published?.updatedAt ?? published?.gradedAt ?? submission.submittedAt,
+            }).map((correction) => ({
+                kind: 'correction' as const,
+                id: correction.id,
+                anchorText: correction.anchorText,
+                correctionText: correction.correctionText,
+                from: correction.from,
+                to: correction.to,
+                label: 'Correction',
+            }))
+            : fallbackCorrections,
         fallbackAnnotations,
         usesLegacyProjection: Boolean(!publishedTask && legacyTask),
     };
+}
+
+function buildPublishedCommentsFromFallbackAnnotations(
+    essayText: string,
+    annotations: WritingAnnotation[],
+): PublishedCommentData[] {
+    return annotations
+        .filter((annotation) => annotation.type === 'comment' && typeof annotation.commentText === 'string' && annotation.commentText.trim())
+        .map((annotation) => ({
+            kind: 'comment' as const,
+            id: annotation.id,
+            text: annotation.commentText || '',
+            color: annotation.color,
+            anchorText: getAnnotationAnchorText(essayText, annotation.startOffset, annotation.endOffset),
+            from: annotation.startOffset,
+            to: annotation.endOffset,
+            status: 'active' as const,
+            categoryLabel: annotation.categoryLabel || 'Comment',
+        }))
+        .sort((left, right) => left.from - right.from);
+}
+
+function buildPublishedCorrectionsFromFallbackAnnotations(
+    essayText: string,
+    annotations: WritingAnnotation[],
+): PublishedCorrectionData[] {
+    return annotations
+        .filter((annotation) => annotation.type === 'correction' && typeof annotation.correctionText === 'string' && annotation.correctionText.trim())
+        .map((annotation) => ({
+            kind: 'correction' as const,
+            id: annotation.id,
+            anchorText: getAnnotationAnchorText(essayText, annotation.startOffset, annotation.endOffset),
+            correctionText: annotation.correctionText || '',
+            from: annotation.startOffset,
+            to: annotation.endOffset,
+            label: annotation.categoryLabel || 'Correction',
+        }))
+        .sort((left, right) => left.from - right.from);
+}
+
+function getAnnotationAnchorText(
+    essayText: string,
+    startOffset: number,
+    endOffset: number,
+): string {
+    const anchorText = essayText.slice(Math.max(0, startOffset), Math.max(startOffset, endOffset)).trim();
+
+    return anchorText || 'Selection unavailable';
 }
 
 function buildLegacyCriteriaFeedback(
@@ -457,16 +549,16 @@ function normalizeWritingDuration(result: TestResultRecord, taskCount: number) {
     return taskCount > 1 ? 60 : 20;
 }
 
-function normalizeWritingFormat(taskCount: number): WritingSubmission['testMeta']['format'] {
-    if (taskCount <= 1) {
-        return 'task1-only';
+function normalizeWritingFormat(tasks: Array<{ taskNumber?: number }> | number): WritingSubmission['testMeta']['format'] {
+    if (typeof tasks === 'number') {
+        return tasks >= 2 ? 'full-test' : 'task1-only';
     }
 
-    if (taskCount >= 2) {
+    if (tasks.length >= 2) {
         return 'full-test';
     }
 
-    return 'task1-only';
+    return normalizeTaskNumber(tasks[0]?.taskNumber) === 2 ? 'task2-only' : 'task1-only';
 }
 
 function normalizeWritingMarkingStatus(
@@ -505,4 +597,24 @@ function extractTaskEssayText(previewText: unknown, taskNumber: 1 | 2, totalTask
     }
 
     return normalizedText;
+}
+
+function getResultFeedbackTeacherId(result: TestResultRecord) {
+    if (typeof (result as any).feedbackUpdatedByTeacherId === 'string' && (result as any).feedbackUpdatedByTeacherId.trim()) {
+        return (result as any).feedbackUpdatedByTeacherId;
+    }
+
+    return typeof result.feedbackUpdatedBy === 'string' ? result.feedbackUpdatedBy : '';
+}
+
+function getResultFeedbackTeacherName(result: TestResultRecord) {
+    if (typeof (result as any).feedbackUpdatedByTeacherName === 'string' && (result as any).feedbackUpdatedByTeacherName.trim()) {
+        return (result as any).feedbackUpdatedByTeacherName;
+    }
+
+    if (typeof result.feedbackUpdatedBy === 'string' && result.feedbackUpdatedBy.trim()) {
+        return result.feedbackUpdatedBy;
+    }
+
+    return 'Teacher';
 }

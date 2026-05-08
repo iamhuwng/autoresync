@@ -30,6 +30,10 @@ Writing lifecycle keys:
 - `result`
 - `alternate/dormant`
 
+## PRD-0049 Reconciliation Note
+
+PRD-0049 reconciles the live-parity local `main` history back into `origin/main`. The result-related files entering `origin/main` through that reconciliation preserve the existing surface map below; no new result shell, route owner, or lifecycle role is introduced by the reconcile itself.
+
 ## Surface Inventory
 
 | Surface | Status | Domain | Writing lifecycle | Route / host | Primary data path | Owner / host contract | Coverage anchor | Resolution disposition | Notes |

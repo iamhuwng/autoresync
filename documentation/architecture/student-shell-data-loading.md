@@ -24,22 +24,22 @@ This was not primarily a database-size problem. It was an ownership and read-pat
 
 ## Scope
 
-This architecture applies to student shell routes rendered inside the shared student layout:
+This architecture applies to student shell routes rendered inside the shared shell owner:
 - `/student`
 - `/student/dashboard`
 - `/student/homework`
+- `/student/homework/:homeworkId`
 - `/student/courses`
 - `/student/courses/:courseId`
 - `/student/classes/:classId`
 - `/student/library`
 - `/student/academic-record`
+- `/student/results/:sessionCode`
 
-This architecture does not automatically apply to routes outside the shared shell host, such as:
-- course catalog
-- homework detail and test-taking flows
-- practice and session routes
+This architecture also informs layout-hosted student routes that preserve the shell language without living inside `StudentShellRoute`, such as:
+- `/student-test-results/:sessionCode`
 
-Those routes may use different loading owners because they are different host surfaces.
+Standalone delivery routes still sit outside this contract unless they explicitly adopt the shared shell owner.
 
 ## Canonical Ownership Model
 
@@ -59,6 +59,10 @@ The shared shell owner is responsible for:
 - enrolled class membership summaries
 - active live-session summaries derived from enrolled classes
 - homework summary groups used by shell widgets and badge-like page widgets
+
+Visibility rule:
+- shell-owned enrolled class membership summaries must include only student-visible memberships
+- `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
 
 Right-rail upcoming, live-session, and class summary projections remain shell-owned even when dashboard-specific components restate them in a page-shaped composition.
 
@@ -101,6 +105,10 @@ Current repo anchor:
 
 This prevents enrollment surfaces from rereading `getStudentClasses(studentId)` after the shell already resolved the same membership set.
 
+Class-approval rule:
+- helper services receiving shell-owned class summaries must treat them as already approval-filtered
+- self-service join requests must not trigger downstream coursework visibility before teacher approval
+
 ## Academic Record Boundary
 
 Academic Record is page-owned for its center-column record dataset.
@@ -132,6 +140,10 @@ Dashboard must consume shell-owned summaries instead of recreating them:
 - class live-session summaries
 - homework summary groups used for dashboard metrics and urgency queues
 
+Join-class approval rule:
+- a successful class-code submission may update dashboard-local join request state, but it must not be treated as active shell membership
+- dashboard should not force homework refresh or equivalent coursework refresh while the join remains `pending_approval`
+
 Derived view models should be assembled in the page host before being passed down.
 
 This yields the intended split:
@@ -147,7 +159,29 @@ Homework list and related shell pages may read homework summaries from the share
 - sidebar counters
 - urgency selectors used outside the dedicated homework center-column host
 
-The detailed homework page host may still own additional page-specific detail loads that the shell does not need.
+`/student/homework/:homeworkId` now lives inside the shell route tree, so the homework detail page consumes the shared shell owner for shell chrome and shared summaries while still owning its page-specific homework-detail dataset and start/resume workflow state.
+
+## Results Boundary
+
+Student results now use two hosting shapes with one user-facing contract.
+
+### Shell-hosted legacy alias
+
+The compatibility alias `/student/results/:sessionCode` lives inside `StudentShellRoute`.
+
+Implications:
+- it consumes the shared shell provider for shell summaries and right-rail composition
+- it still owns the page-primary result/session dataset locally
+- it must preserve the same semantics as the canonical results route when given a real session code
+
+### Layout-hosted canonical route
+
+The canonical route `/student-test-results/:sessionCode` remains outside the shared shell route tree.
+
+Implications:
+- it may render `StudentLayout` while self-providing shell-like dependencies at the layout boundary
+- it must not turn itself into a second long-lived shell owner
+- its page-primary results/session dataset remains page-owned
 
 ## Future Growth Rules
 
@@ -168,6 +202,7 @@ The minimum pass condition for sibling shell navigation is:
 - no repeated expired-session hydration noise from tab changes
 - no new shell-level listeners started by pages that only consume shell-owned summaries
 - dashboard parity refactors do not reintroduce duplicate reads for the right rail or metric strip
+- route-hosting changes for homework detail or results do not accidentally create a second shell owner
 
 For startup-sensitive changes on the student path, also verify:
 - first authenticated student entry does not fetch optional heavy bundles before explicit navigation
@@ -175,10 +210,12 @@ For startup-sensitive changes on the student path, also verify:
 
 ## Related Docs
 
+- `documentation/architecture/student-mobile-responsiveness-architecture.md`
 - `documentation/architecture/student-dashboard-architecture.md`
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-startup-bundle-segmentation.md`
 - `documentation/architecture/academic-record/page-architecture.md`
+- `documentation/architecture/class-code-join-approval-gating.md`
 - `documentation/architecture/course-class-management.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/rules/student-data-loading.md`

@@ -41,8 +41,10 @@ export const S: Record<string, React.CSSProperties> = {
     mobileBtn: {
         background: 'transparent',
         border: 'none',
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
+        minWidth: 44,
+        minHeight: 44,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -273,4 +275,25 @@ export const S: Record<string, React.CSSProperties> = {
         margin: '0 0 18px 0',
         color: studentTokens.textMuted,
     },
+};
+
+/** Reusable mobile style primitives for student pages (PRD-0044). */
+export const mobileStyles = {
+    /** Standard mobile content padding: 16px top, 12px sides, 24px bottom */
+    feedPadding: { padding: '16px 12px 24px' } as React.CSSProperties,
+    /** Full-width button with 44px touch target */
+    fullWidthButton: { width: '100%', minHeight: 44 } as React.CSSProperties,
+    /** Single-column grid for mobile card layouts */
+    singleColumnGrid: { gridTemplateColumns: '1fr' } as React.CSSProperties,
+    /** Flex direction column for vertical stacking */
+    stackVertical: { flexDirection: 'column' as const } as React.CSSProperties,
+    /** Minimum 44px touch target for interactive elements */
+    touchTarget: { minHeight: 44, minWidth: 44 } as React.CSSProperties,
+    /** Hide scrollbar for horizontal-scroll filter bars */
+    hiddenScrollbar: {
+        scrollbarWidth: 'none' as const,
+        msOverflowStyle: 'none' as const,
+    } as React.CSSProperties,
+    /** Hide feed subtitle on mobile (duplicated in mobile header) */
+    feedSubtitleHidden: { display: 'none' } as React.CSSProperties,
 };

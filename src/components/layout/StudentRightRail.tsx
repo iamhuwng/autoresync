@@ -187,10 +187,13 @@ const v2 = {
     } as React.CSSProperties,
     /* CTA button */
     cta: {
-        display: 'block',
+        display: 'flex',
         width: '100%',
         marginTop: 32,
+        minHeight: 44,
         padding: '12px 0',
+        alignItems: 'center',
+        justifyContent: 'center',
         fontSize: 9,
         fontWeight: 700,
         textTransform: 'uppercase' as const,
@@ -366,15 +369,15 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
         return (
             <>
                 {renderLiveNowBanner()}
-                {/* ━━━━━ Section 1: FEED SNAPSHOT ━━━━━ */}
+                {/* ━━━━━ Section 1: YOUR UPDATES ━━━━━ */}
                 <section style={{ marginBottom: 48 }}>
                     <header style={v2.sectionHeader}>
-                        <h4 style={v2.sectionTitle}>Feed Snapshot</h4>
+                        <h4 style={v2.sectionTitle}>Your Updates</h4>
                     </header>
 
-                    {/* Card: Up Next — "Upcoming" dot-list format */}
+                    {/* Card: Deadlines — "Upcoming" dot-list format */}
                     <div style={v2.card}>
-                        <span style={v2.cardLabel}>Up Next</span>
+                        <span style={v2.cardLabel}>Deadlines</span>
                         {sortedAssignments.length === 0 ? (
                             <p style={v2.emptyText}>No upcoming deadlines.</p>
                         ) : (
@@ -430,7 +433,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                                         {THUMB_EMOJIS[(idx + 2) % THUMB_EMOJIS.length]}
                                     </div>
                                     <div style={v2.sessionInfo}>
-                                        <p style={v2.sessionName}>{cls.classCode || cls.name}</p>
+                                        <p style={v2.sessionName}>{cls.name || cls.classCode}</p>
                                         <p style={v2.sessionMeta}>
                                             {cls.studentCount || 0} Students · {cls.activeAssignments || 0} Active
                                         </p>
@@ -461,7 +464,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
        Shared v2 Sections — used by default + academic-record variants
        ═══════════════════════════════════════════════════════════════════ */
     const renderUpcomingDeadlines = () => {
-        const sectionLabel = variant === 'academic-record' ? 'Upcoming Deadlines' : 'Up Next';
+        const sectionLabel = variant === 'academic-record' ? 'Upcoming Deadlines' : 'Deadlines';
         const isDueTomorrow = (dateValue?: number | string) => {
             if (!dateValue) return false;
             const d = new Date(dateValue);
@@ -525,7 +528,7 @@ export const StudentRightRail: React.FC<StudentRightRailProps> = ({ shellData, s
                                 {THUMB_EMOJIS[(idx + 2) % THUMB_EMOJIS.length]}
                             </div>
                             <div style={v2.sessionInfo}>
-                                <p style={v2.sessionName}>{cls.classCode || cls.name}</p>
+                                <p style={v2.sessionName}>{cls.name || cls.classCode}</p>
                                 <p style={v2.sessionMeta}>
                                     {cls.studentCount || 0} Students · {cls.activeAssignments || 0} Active
                                 </p>

@@ -1,0 +1,69 @@
+{
+  "docPath": "architecture/reading-staged-parse-job",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/reading-staged-parse-job",
+      "version": 1,
+      "timestamp": "2026-04-10T09:07:00.764122Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Reading Staged Parse Job"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Internal staged parse-job model for teacher IELTS Reading creation, including artifact boundaries, compatibility rules, and future extension points."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts-reading",
+            "test-creation",
+            "ai-parser"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Reading Staged Parse Job\n\n## Overview\nThe teacher IELTS Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts`.\n\nThe public contract stays stable:\n- `parseDocument()` / `parseText()` still return `documentText`\n- `passages[]` still carry full passage content\n- `validationResult.mergedQuestions[]` remains the modal-facing question source\n- parse success still fails closed when zero merged questions are produced\n\n## Stages\n1. `normalized-source`\n2. `extraction`\n3. `classification`\n4. `validation`\n5. `review-draft`\n\n## Artifact Boundaries\n### Normalized Source\nHolds the converted `documentText`, filename, MIME type, and optional document hash.\n\n### Extraction\nHolds the chosen extraction source, AI/offline raw outputs, normalized passages, and canonical AI-question inputs for validation.\n\n### Classification\nHolds the independent rules results and validator-ready `RulesQuestionResult[]`.\n\n### Validation\nHolds the merged validation result produced by `compareAIvsRules()`.\n\n### Review Draft\nHolds the final reviewable passage/question payload and `sectionInstructions` object expected at the draft boundary.\n\n## Compatibility Rules\n- The modal must continue to treat parse success as \"review payload exists and draft save succeeds\".\n- Draft persistence remains the success gate before review navigation.\n- Canonical Reading question fields such as `labeledOptions`, `optionLabelFormat`, `sectionReferences`, `answer`, `passageId`, and `wordLimit` must survive the staged pipeline.\n- Internal artifact changes must not force the review page or draft service to consume provider-specific shapes.\n\n## Why This Exists\nThis staged model creates clean extension points for:\n- stage-local retries and recovery\n- richer diagnostics and telemetry\n- resumable parsing for long documents\n- future provider-specific repair steps\n\n## Related Docs\n- @doc/architecture/ai-parsing-extraction\n- @doc/architecture/test-system-architecture\n- @doc/specs/ai-pipeline-redesign\n",
+        "description": "Internal staged parse-job model for teacher IELTS Reading creation, including artifact boundaries, compatibility rules, and future extension points.",
+        "tags": [
+          "architecture",
+          "ielts-reading",
+          "test-creation",
+          "ai-parser"
+        ],
+        "title": "Reading Staged Parse Job"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/reading-staged-parse-job",
+      "version": 2,
+      "timestamp": "2026-04-12T00:39:47.8980714Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "# Reading Staged Parse Job\n\n## Overview\nThe teacher IELTS Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts`.\n\nThe public contract stays stable:\n- `parseDocument()` / `parseText()` still return `documentText`\n- `passages[]` still carry full passage content\n- `validationResult.mergedQuestions[]` remains the modal-facing question source\n- parse success still fails closed when zero merged questions are produced\n\n## Stages\n1. `normalized-source`\n2. `extraction`\n3. `classification`\n4. `validation`\n5. `review-draft`\n\n## Artifact Boundaries\n### Normalized Source\nHolds the converted `documentText`, filename, MIME type, and optional document hash.\n\n### Extraction\nHolds the chosen extraction source, AI/offline raw outputs, normalized passages, and canonical AI-question inputs for validation.\n\n### Classification\nHolds the independent rules results and validator-ready `RulesQuestionResult[]`.\n\n### Validation\nHolds the merged validation result produced by `compareAIvsRules()`.\n\n### Review Draft\nHolds the final reviewable passage/question payload and `sectionInstructions` object expected at the draft boundary.\n\n## Compatibility Rules\n- The modal must continue to treat parse success as \"review payload exists and draft save succeeds\".\n- Draft persistence remains the success gate before review navigation.\n- Canonical Reading question fields such as `labeledOptions`, `optionLabelFormat`, `sectionReferences`, `answer`, `passageId`, and `wordLimit` must survive the staged pipeline.\n- Internal artifact changes must not force the review page or draft service to consume provider-specific shapes.\n\n## Why This Exists\nThis staged model creates clean extension points for:\n- stage-local retries and recovery\n- richer diagnostics and telemetry\n- resumable parsing for long documents\n- future provider-specific repair steps\n\n## Related Docs\n- @doc/architecture/ai-parsing-extraction\n- @doc/architecture/test-system-architecture\n- @doc/specs/ai-pipeline-redesign",
+          "newValue": "# Reading Staged Parse Job\n\n## Overview\nThe teacher IELTS Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts`.\n\nThe public contract stays stable:\n- `parseDocument()` / `parseText()` still return `documentText`\n- `passages[]` still carry full passage content\n- `validationResult.mergedQuestions[]` remains the modal-facing question source\n- parse success still fails closed when zero merged questions are produced\n\n## Stages\n1. `normalized-source`\n2. `extraction`\n3. `classification`\n4. `validation`\n5. `review-draft`\n\n## Artifact Boundaries\n### Normalized Source\nHolds the converted `documentText`, filename, MIME type, and optional document hash.\n\n### Extraction\nHolds the chosen extraction source, AI/offline raw outputs, normalized passages, and canonical AI-question inputs for validation.\n\n### Classification\nHolds the independent rules results and validator-ready `RulesQuestionResult[]`.\n\n### Validation\nHolds the merged validation result produced by `compareAIvsRules()`.\n\n### Review Draft\nHolds the final reviewable passage/question payload and `sectionInstructions` object expected at the draft boundary.\n\n## Compatibility Rules\n- The modal must continue to treat parse success as \"review payload exists and draft save succeeds\".\n- Draft persistence remains the success gate before review navigation.\n- Canonical Reading question fields such as `labeledOptions`, `optionLabelFormat`, `sectionReferences`, `answer`, `passageId`, and `wordLimit` must survive the staged pipeline.\n- Internal artifact changes must not force the review page or draft service to consume provider-specific shapes.\n\n## Why This Exists\nThis staged model creates clean extension points for:\n- stage-local retries and recovery\n- richer diagnostics and telemetry\n- resumable parsing for long documents\n- future provider-specific repair steps\n\n## Related Docs\n- @doc/architecture/ai-parsing-extraction\n- @doc/architecture/test-system-architecture\n- @doc/specs/ai-pipeline-redesign\n\n## 2026-04-12 Amendment - Legacy Chunking Config Retirement\nThe live teacher IELTS Reading creation path no longer exposes chunk sizing through the shared Vite environment contract.\n\nCurrent runtime rule:\n- the staged parse job MUST not read `VITE_CHUNK_SIZE`, `VITE_CHUNK_OVERLAP`, or `VITE_MAX_DOCUMENT_SIZE`\n- any surviving chunking helpers are legacy internals and must carry local defaults instead of extending app setup\n- future parser work must restore and document a real runtime consumer before reintroducing chunking env keys\n\nOperational consequence:\n- removing the chunking env keys does not change the live teacher Reading creation flow\n- cleanup can continue pruning legacy chunking utilities without changing teacher setup requirements\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Reading Staged Parse Job\n\n## Overview\nThe teacher IELTS Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts`.\n\nThe public contract stays stable:\n- `parseDocument()` / `parseText()` still return `documentText`\n- `passages[]` still carry full passage content\n- `validationResult.mergedQuestions[]` remains the modal-facing question source\n- parse success still fails closed when zero merged questions are produced\n\n## Stages\n1. `normalized-source`\n2. `extraction`\n3. `classification`\n4. `validation`\n5. `review-draft`\n\n## Artifact Boundaries\n### Normalized Source\nHolds the converted `documentText`, filename, MIME type, and optional document hash.\n\n### Extraction\nHolds the chosen extraction source, AI/offline raw outputs, normalized passages, and canonical AI-question inputs for validation.\n\n### Classification\nHolds the independent rules results and validator-ready `RulesQuestionResult[]`.\n\n### Validation\nHolds the merged validation result produced by `compareAIvsRules()`.\n\n### Review Draft\nHolds the final reviewable passage/question payload and `sectionInstructions` object expected at the draft boundary.\n\n## Compatibility Rules\n- The modal must continue to treat parse success as \"review payload exists and draft save succeeds\".\n- Draft persistence remains the success gate before review navigation.\n- Canonical Reading question fields such as `labeledOptions`, `optionLabelFormat`, `sectionReferences`, `answer`, `passageId`, and `wordLimit` must survive the staged pipeline.\n- Internal artifact changes must not force the review page or draft service to consume provider-specific shapes.\n\n## Why This Exists\nThis staged model creates clean extension points for:\n- stage-local retries and recovery\n- richer diagnostics and telemetry\n- resumable parsing for long documents\n- future provider-specific repair steps\n\n## Related Docs\n- @doc/architecture/ai-parsing-extraction\n- @doc/architecture/test-system-architecture\n- @doc/specs/ai-pipeline-redesign\n\n## 2026-04-12 Amendment - Legacy Chunking Config Retirement\nThe live teacher IELTS Reading creation path no longer exposes chunk sizing through the shared Vite environment contract.\n\nCurrent runtime rule:\n- the staged parse job MUST not read `VITE_CHUNK_SIZE`, `VITE_CHUNK_OVERLAP`, or `VITE_MAX_DOCUMENT_SIZE`\n- any surviving chunking helpers are legacy internals and must carry local defaults instead of extending app setup\n- future parser work must restore and document a real runtime consumer before reintroducing chunking env keys\n\nOperational consequence:\n- removing the chunking env keys does not change the live teacher Reading creation flow\n- cleanup can continue pruning legacy chunking utilities without changing teacher setup requirements\n",
+        "description": "Internal staged parse-job model for teacher IELTS Reading creation, including artifact boundaries, compatibility rules, and future extension points.",
+        "tags": [
+          "architecture",
+          "ielts-reading",
+          "test-creation",
+          "ai-parser"
+        ],
+        "title": "Reading Staged Parse Job"
+      }
+    }
+  ]
+}

@@ -100,7 +100,7 @@ describe('StudentLayout', () => {
         expect(screen.getByTestId('student-layout-container')).toBeInTheDocument();
         expect(screen.getByText('Live Now')).toBeInTheDocument();
         expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText('Reading Practice')).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('Supplemental Widget')).toBeInTheDocument();
@@ -123,8 +123,8 @@ describe('StudentLayout', () => {
             </StudentLayout>,
         );
 
-        expect(screen.getAllByText('A5')).toHaveLength(2);
-        expect(screen.getByText('8 students - 2 active')).toBeInTheDocument();
+        expect(screen.getByText('IELTS Class 5')).toBeInTheDocument();
+        expect(screen.getByText('8 Students · 2 Active')).toBeInTheDocument();
     });
 
     it('uses the shared live and up-next module pattern for the dashboard right rail', () => {
@@ -162,7 +162,7 @@ describe('StudentLayout', () => {
 
         expect(screen.getByText('Live Now')).toBeInTheDocument();
         expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText('Reading Practice')).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('Supplemental Widget')).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('StudentLayout', () => {
         );
 
         expect(screen.queryByText('Live Now')).not.toBeInTheDocument();
-        expect(screen.getByText('Up Next')).toBeInTheDocument();
+        expect(screen.getByText('Deadlines')).toBeInTheDocument();
         expect(screen.getByText(/No upcoming deadlines/i)).toBeInTheDocument();
         expect(screen.getByText('My Classes')).toBeInTheDocument();
         expect(screen.getByText('No classes joined yet.')).toBeInTheDocument();
@@ -246,7 +246,10 @@ describe('StudentLayout', () => {
         );
 
         const rightRail = screen.getByTestId('student-layout-right-rail');
+        const mainContent = screen.getByText('Main Content').closest('main');
         expect(rightRail).toHaveStyle({ transform: 'translateX(100%)' });
+        expect(mainContent).toHaveStyle({ padding: '16px 12px 24px' });
+        expect(rightRail).toHaveStyle({ width: 'min(320px, 85vw)', maxWidth: '85vw' });
 
         fireEvent.click(screen.getByRole('button', { name: /open right rail/i }));
 

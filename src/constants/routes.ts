@@ -91,6 +91,7 @@ export const ROUTES = {
   STUDENT_HOMEWORK: '/student/homework',
   STUDENT_HOMEWORK_DETAIL: '/student/homework/:homeworkId',
   STUDENT_LIBRARY: '/student/library',
+  STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
   RESULT_DETAIL: '/result/:resultId',
 } as const;

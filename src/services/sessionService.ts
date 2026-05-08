@@ -4,6 +4,8 @@
  * Provides type-safe access to session data
  */
 
+import { studentResumeService } from './studentResume.service';
+
 export interface SessionData {
   playerId: string | null;
   playerName: string | null;
@@ -82,6 +84,12 @@ class SessionService {
     this.setPlayerId(playerId);
     this.setPlayerName(playerName);
     this.setSessionCode(sessionCode);
+    void studentResumeService.saveLiveSessionResume({
+      studentId: playerId,
+      playerId,
+      playerName,
+      sessionCode,
+    });
   }
 
   /**
@@ -125,6 +133,7 @@ class SessionService {
     sessionStorage.removeItem('playerName');
     sessionStorage.removeItem('sessionCode');
     sessionStorage.removeItem('testSubmission');
+    void studentResumeService.clearResume();
   }
 
   /**

@@ -11,9 +11,11 @@
 
 // Storage
 export { storage, sessionStore } from './storage';
+export { APP_DOCUMENT_TITLE, formatDocumentTitle } from './documentTitle';
 
 // Hooks
 export { useScreenSize } from './hooks/useScreenSize';
 export type { ScreenSize } from './hooks/useScreenSize';
 export { useOnlineStatus } from './hooks/useOnlineStatus';
 export { useAppLifecycle } from './hooks/useAppLifecycle';
+export { useDocumentTitle } from './hooks/useDocumentTitle';

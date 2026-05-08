@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import StudentDashboardPage from './StudentDashboardPage';
@@ -7,10 +7,11 @@ import * as notificationService from '../services/notificationService';
 import * as studentShellHooks from '../hooks/useStudentShellData';
 import * as classManager from '../services/classManager';
 
-const { mockNavigateTo, mockRefreshClasses, mockRefreshHomeworkData } = vi.hoisted(() => ({
+const { mockNavigateTo, mockRefreshClasses, mockRefreshHomeworkData, useMediaQueryMock } = vi.hoisted(() => ({
     mockNavigateTo: vi.fn(),
     mockRefreshClasses: vi.fn(),
     mockRefreshHomeworkData: vi.fn(),
+    useMediaQueryMock: vi.fn(),
 }));
 
 const renderWithProviders = (ui) => render(
@@ -43,7 +44,7 @@ vi.mock('../hooks/useStudentShellData', () => ({
 }));
 
 vi.mock('../hooks/useMediaQuery', () => ({
-    useMediaQuery: vi.fn(() => false),
+    useMediaQuery: (...args) => useMediaQueryMock(...args),
 }));
 
 vi.mock('../components/dashboard/PendingReviewsWidget', () => ({
@@ -81,6 +82,7 @@ const makeShellData = (overrides = {}) => ({
     classLiveSessions: [],
     notStarted: [],
     inProgress: [],
+    completed: [],
     overdue: [],
     sortedAssignments: [],
     isClassesLoading: false,
@@ -92,6 +94,7 @@ const makeShellData = (overrides = {}) => ({
 describe('StudentDashboardPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        useMediaQueryMock.mockReturnValue(false);
         mockRefreshClasses.mockResolvedValue(undefined);
         mockRefreshHomeworkData.mockResolvedValue(undefined);
         studentShellHooks.useStudentShellData.mockReturnValue(makeShellData());
@@ -108,8 +111,7 @@ describe('StudentDashboardPage', () => {
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Feed')).toBeInTheDocument();
-            expect(screen.getByText('Dashboard')).toBeInTheDocument();
+            expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
             expect(screen.getByText('Your workspace is ready.')).toBeInTheDocument();
             expect(screen.getByText('Join a class to unlock live sessions, coursework, and result tracking in this academic shell.')).toBeInTheDocument();
         });
@@ -135,16 +137,11 @@ describe('StudentDashboardPage', () => {
         renderWithProviders(<StudentDashboardPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Activity')).toBeInTheDocument();
-            expect(screen.getByText('Homework Due')).toBeInTheDocument();
-            expect(screen.getByText('0 in current view')).toBeInTheDocument();
-            expect(screen.getByText('No pending start')).toBeInTheDocument();
-            expect(screen.getAllByText('Up Next')).toHaveLength(1);
-            expect(screen.getByText('Reading Practice')).toBeInTheDocument();
+            expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('Reading Practice').length).toBeGreaterThan(0);
             expect(screen.getByText('My Classes')).toBeInTheDocument();
-            expect(screen.getAllByText('AB').length).toBeGreaterThan(0);
-            expect(screen.getAllByText('CD').length).toBeGreaterThan(0);
-            expect(screen.queryByText('Feed Snapshot')).not.toBeInTheDocument();
+            expect(screen.getByText('IELTS Class')).toBeInTheDocument();
+            expect(screen.getByText('THCS Class')).toBeInTheDocument();
         });
     });
 
@@ -176,8 +173,8 @@ describe('StudentDashboardPage', () => {
         await waitFor(() => {
             expect(screen.getAllByText('Live Now').length).toBeGreaterThan(0);
             expect(screen.getByText('Live IELTS Reading')).toBeInTheDocument();
-            expect(screen.getByText('Up Next')).toBeInTheDocument();
-            expect(screen.getByText('Reading Practice')).toBeInTheDocument();
+            expect(screen.getByText('Deadlines')).toBeInTheDocument();
+            expect(screen.getAllByText('Reading Practice').length).toBeGreaterThan(0);
             expect(screen.getByText('My Classes')).toBeInTheDocument();
             expect(screen.getByTestId('pending-reviews-widget')).toBeInTheDocument();
             expect(screen.queryByText('Public Sessions')).not.toBeInTheDocument();
@@ -194,7 +191,7 @@ describe('StudentDashboardPage', () => {
         });
     });
 
-    it('refreshes homework after a successful class join', async () => {
+    it('keeps the join flow pending until teacher approval', async () => {
         renderWithProviders(<StudentDashboardPage />);
 
         fireEvent.click(await screen.findByText('Join a Class'));
@@ -213,7 +210,8 @@ describe('StudentDashboardPage', () => {
                 'student@test.com',
             );
             expect(mockRefreshClasses).toHaveBeenCalledTimes(1);
-            expect(mockRefreshHomeworkData).toHaveBeenCalledTimes(1);
+            expect(mockRefreshHomeworkData).not.toHaveBeenCalled();
+            expect(screen.getByText('Join request sent for ABC123. Waiting for teacher approval.')).toBeInTheDocument();
         });
     });
 
@@ -299,5 +297,26 @@ describe('StudentDashboardPage', () => {
         await waitFor(() => {
             expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'submission-123');
         });
+    });
+
+    it('stacks the join class modal actions and touch targets on mobile', async () => {
+        useMediaQueryMock.mockReturnValue(true);
+
+        renderWithProviders(<StudentDashboardPage />);
+
+        fireEvent.click(await screen.findByText('Join a Class'));
+
+        const modalHeading = await screen.findByRole('heading', { name: 'Join a Class' });
+        const modalCard = modalHeading.parentElement;
+        const actionRow = screen.getByRole('button', { name: 'Cancel' }).parentElement;
+
+        expect(modalCard).toHaveStyle({
+            padding: '16px',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+        });
+        expect(actionRow).toHaveStyle({ flexDirection: 'column' });
+        expect(screen.getByRole('button', { name: 'Cancel' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+        expect(within(modalCard).getByRole('button', { name: 'Join Class' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     });
 });

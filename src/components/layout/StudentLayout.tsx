@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { ConnectedStudentRightRail, StudentRightRail, type StudentRightRailShellData } from './StudentRightRail';
 import { S } from './studentLayoutStyles';
+import { useDocumentTitle } from '../../core/platform';
 
 export interface StudentLayoutProps {
     children: React.ReactNode;
@@ -24,6 +25,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
 }) => {
     const [showMobileLeft, setShowMobileLeft] = useState(false);
     const [showMobileRight, setShowMobileRight] = useState(false);
+    useDocumentTitle(mobileTitle);
 
     const isMobile = useMediaQuery('(max-width: 768px)');
     const isTablet = useMediaQuery('(max-width: 1024px)');
@@ -60,7 +62,13 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
     };
 
     return (
-        <div className="student-view-root" style={S.root}>
+        <div
+            className="student-view-root"
+            style={{
+                ...S.root,
+                ...((isMobile || isTablet) ? { overflowX: 'hidden' } : {}),
+            }}
+        >
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
             <style>{`
         * { box-sizing: border-box; }
@@ -78,6 +86,8 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(0.85); }
         }
+        .student-mobile-scrollbar-hidden::-webkit-scrollbar { display: none; }
+        .student-mobile-scrollbar-hidden { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
 
             {(isMobile || isTablet) && (
@@ -85,7 +95,21 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                     <button type="button" style={S.mobileBtn} onClick={toggleLeft} aria-label="Open navigation">
                         {defaultMobileLeftAction}
                     </button>
-                    <span style={{ fontWeight: 700, fontSize: '1rem', color: '#2b3437', letterSpacing: '-0.02em' }}>
+                    <span
+                        style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: '0 8px',
+                            textAlign: 'center',
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            color: '#2b3437',
+                            letterSpacing: '-0.02em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
                         {mobileTitle}
                     </span>
                     <button type="button" style={S.mobileBtn} onClick={toggleRight} aria-label="Open right rail">
@@ -126,6 +150,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                 transform: showMobileLeft ? 'translateX(0)' : 'translateX(-100%)',
                                 transition: 'transform 0.3s ease-in-out',
                                 boxShadow: showMobileLeft ? '12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
+                                pointerEvents: showMobileLeft ? 'auto' : 'none',
                             }
                             : {}),
                     }}
@@ -154,6 +179,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     maxWidth: '100%',
                                     width: '100%',
                                     boxShadow: 'none',
+                                    padding: '16px 12px 24px',
                                 }
                                 : {}),
                         }}
@@ -177,8 +203,9 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     position: 'fixed',
                                     top: 0,
                                     right: 0,
-                                    width: 320,
-                                    minWidth: 320,
+                                    width: 'min(320px, 85vw)',
+                                    minWidth: 0,
+                                    maxWidth: '85vw',
                                     height: '100vh',
                                     background: '#f1f4f6',
                                     zIndex: 1000,
@@ -187,6 +214,7 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({
                                     transform: showMobileRight ? 'translateX(0)' : 'translateX(100%)',
                                     transition: 'transform 0.3s ease-in-out',
                                     boxShadow: showMobileRight ? '-12px 0 32px rgba(43, 52, 55, 0.12)' : 'none',
+                                    pointerEvents: showMobileRight ? 'auto' : 'none',
                                 }
                                 : {}),
                         }}

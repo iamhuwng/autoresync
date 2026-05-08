@@ -1,5 +1,6 @@
 import { ref, set, get, update, push } from 'firebase/database';
 import { database } from '@/services/firebase';
+import { classifyTeacherResultVisibility } from './resultVisibility.service';
 
 /**
  * Teacher Feedback Service
@@ -15,6 +16,8 @@ export interface QuestionFeedback {
     feedback: string;
     updatedAt: number;
     updatedBy: string; // teacherId
+    updatedById?: string;
+    updatedByName?: string;
     teacherName?: string;
 }
 
@@ -22,6 +25,8 @@ export interface OverallFeedback {
     feedback: string;
     updatedAt: number;
     updatedBy: string; // teacherId
+    updatedById?: string;
+    updatedByName?: string;
     teacherName?: string;
 }
 
@@ -46,16 +51,96 @@ type CanonicalResultRecord = {
     overallFeedback?: string | null;
     feedbackUpdatedAt?: number | null;
     feedbackUpdatedBy?: string | null;
+    feedbackUpdatedByTeacherId?: string | null;
+    feedbackUpdatedByTeacherName?: string | null;
     hasFeedback?: boolean;
+    teacherId?: string | null;
+    visibility?: any;
+    courseId?: string | null;
 };
 
 function normalizeFeedbackKey(value: string | number | null | undefined): string {
     return String(value ?? '').trim();
 }
 
-function resolveTeacherLabel(teacherId: string, teacherName?: string): string {
-    const normalizedTeacherName = teacherName?.trim();
-    return normalizedTeacherName || teacherId;
+function resolveTeacherIdentity(teacherId: string, teacherName?: string) {
+    const updatedByName = teacherName?.trim() || null;
+
+    return {
+        updatedById: teacherId,
+        updatedByName,
+        compatibilityLabel: updatedByName || teacherId,
+    };
+}
+
+function getTeacherIdentityFromCanonicalResult(result: CanonicalResultRecord | null | undefined) {
+    const updatedById = result?.feedbackUpdatedByTeacherId?.trim() || '';
+    const updatedByName = result?.feedbackUpdatedByTeacherName?.trim() || '';
+    const compatibilityUpdatedBy = result?.feedbackUpdatedBy?.trim() || '';
+
+    return {
+        updatedById: updatedById || compatibilityUpdatedBy,
+        updatedByName: updatedByName || compatibilityUpdatedBy || undefined,
+        compatibilityUpdatedBy: compatibilityUpdatedBy || updatedById || '',
+    };
+}
+
+function buildQuestionFeedbackResponse(
+    questionId: string,
+    feedback: string,
+    updatedAt: number,
+    teacherIdentity: ReturnType<typeof getTeacherIdentityFromCanonicalResult>,
+): QuestionFeedback {
+    return {
+        questionId,
+        feedback,
+        updatedAt,
+        updatedBy: teacherIdentity.compatibilityUpdatedBy,
+        updatedById: teacherIdentity.updatedById || undefined,
+        updatedByName: teacherIdentity.updatedByName,
+        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {}),
+    };
+}
+
+function buildOverallFeedbackResponse(
+    feedback: string,
+    updatedAt: number,
+    teacherIdentity: ReturnType<typeof getTeacherIdentityFromCanonicalResult>,
+): OverallFeedback {
+    return {
+        feedback,
+        updatedAt,
+        updatedBy: teacherIdentity.compatibilityUpdatedBy,
+        updatedById: teacherIdentity.updatedById || undefined,
+        updatedByName: teacherIdentity.updatedByName,
+        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {}),
+    };
+}
+
+function normalizeStoredQuestionFeedback(value: QuestionFeedback): QuestionFeedback {
+    const updatedBy = value.updatedById || value.updatedBy || '';
+    const updatedByName = value.updatedByName || value.teacherName || (value.updatedBy && value.updatedBy !== updatedBy ? value.updatedBy : undefined);
+
+    return {
+        ...value,
+        updatedBy,
+        ...(updatedBy ? { updatedById: updatedBy } : {}),
+        ...(updatedByName ? { updatedByName } : {}),
+        ...(updatedByName ? { teacherName: updatedByName } : {}),
+    };
+}
+
+function normalizeStoredOverallFeedback(value: OverallFeedback): OverallFeedback {
+    const updatedBy = value.updatedById || value.updatedBy || '';
+    const updatedByName = value.updatedByName || value.teacherName || (value.updatedBy && value.updatedBy !== updatedBy ? value.updatedBy : undefined);
+
+    return {
+        ...value,
+        updatedBy,
+        ...(updatedBy ? { updatedById: updatedBy } : {}),
+        ...(updatedByName ? { updatedByName } : {}),
+        ...(updatedByName ? { teacherName: updatedByName } : {}),
+    };
 }
 
 async function getCanonicalResult(resultId: string): Promise<CanonicalResultRecord | null> {
@@ -104,6 +189,7 @@ async function syncCanonicalQuestionFeedback(
     try {
         const canonicalResult = await getCanonicalResult(resultId);
         const questionIndex = findQuestionResultIndex(canonicalResult, questionId);
+        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
 
         if (questionIndex === -1) {
             return;
@@ -113,7 +199,9 @@ async function syncCanonicalQuestionFeedback(
         await update(resultRef, {
             [`questionResults/${questionIndex}/teacherFeedback`]: feedback,
             feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: resolveTeacherLabel(teacherId, teacherName),
+            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
+            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
+            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
             hasFeedback: true
         });
     } catch (error) {
@@ -130,10 +218,13 @@ async function syncCanonicalOverallFeedback(
 ): Promise<void> {
     try {
         const resultRef = ref(database, `test_results/${resultId}`);
+        const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
         await update(resultRef, {
             overallFeedback: feedback,
             feedbackUpdatedAt: updatedAt ?? Date.now(),
-            feedbackUpdatedBy: resolveTeacherLabel(teacherId, teacherName),
+            feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
+            feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
+            feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
             hasFeedback: true
         });
     } catch (error) {
@@ -167,6 +258,8 @@ async function clearCanonicalQuestionFeedback(resultId: string, questionId: stri
         if (!hasFeedback) {
             updateData.feedbackUpdatedAt = null;
             updateData.feedbackUpdatedBy = null;
+            updateData.feedbackUpdatedByTeacherId = null;
+            updateData.feedbackUpdatedByTeacherName = null;
         }
 
         const resultRef = ref(database, `test_results/${resultId}`);
@@ -192,6 +285,8 @@ async function clearCanonicalOverallFeedback(resultId: string): Promise<void> {
         if (!hasFeedback) {
             updateData.feedbackUpdatedAt = null;
             updateData.feedbackUpdatedBy = null;
+            updateData.feedbackUpdatedByTeacherId = null;
+            updateData.feedbackUpdatedByTeacherName = null;
         }
 
         const resultRef = ref(database, `test_results/${resultId}`);
@@ -223,12 +318,15 @@ export async function saveQuestionFeedback(
     }
 
     const normalizedFeedback = feedback.trim();
+    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
     const feedbackData: QuestionFeedback = {
         questionId,
         feedback: normalizedFeedback,
         updatedAt: Date.now(),
-        updatedBy: teacherId,
-        ...(teacherName && { teacherName })
+        updatedBy: teacherIdentity.compatibilityLabel,
+        updatedById: teacherIdentity.updatedById,
+        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
+        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
     };
 
     // Save to test_results/{resultId}/questionFeedback/{questionId}
@@ -274,7 +372,7 @@ export async function getQuestionFeedback(
     const snapshot = await get(feedbackRef);
 
     if (snapshot.exists()) {
-        return snapshot.val();
+        return normalizeStoredQuestionFeedback(snapshot.val());
     }
 
     const canonicalResult = await getCanonicalResult(resultId);
@@ -289,13 +387,12 @@ export async function getQuestionFeedback(
         return null;
     }
 
-    return {
+    return buildQuestionFeedbackResponse(
         questionId,
-        feedback: questionFeedback,
-        updatedAt: canonicalResult?.feedbackUpdatedAt ?? Date.now(),
-        updatedBy: canonicalResult?.feedbackUpdatedBy ?? '',
-        ...(canonicalResult?.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
-    };
+        questionFeedback,
+        canonicalResult?.feedbackUpdatedAt ?? Date.now(),
+        getTeacherIdentityFromCanonicalResult(canonicalResult),
+    );
 }
 
 /**
@@ -315,7 +412,10 @@ export async function getAllQuestionFeedback(
     const snapshot = await get(feedbackRef);
 
     if (snapshot.exists()) {
-        return snapshot.val();
+        const storedFeedback = snapshot.val() as Record<string, QuestionFeedback>;
+        return Object.fromEntries(
+            Object.entries(storedFeedback).map(([questionId, value]) => [questionId, normalizeStoredQuestionFeedback(value)]),
+        );
     }
 
     const canonicalResult = await getCanonicalResult(resultId);
@@ -335,13 +435,12 @@ export async function getAllQuestionFeedback(
             return;
         }
 
-        fallbackFeedback[fallbackQuestionId] = {
-            questionId: fallbackQuestionId,
-            feedback: questionResult.teacherFeedback,
-            updatedAt: canonicalResult.feedbackUpdatedAt ?? Date.now(),
-            updatedBy: canonicalResult.feedbackUpdatedBy ?? '',
-            ...(canonicalResult.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
-        };
+        fallbackFeedback[fallbackQuestionId] = buildQuestionFeedbackResponse(
+            fallbackQuestionId,
+            questionResult.teacherFeedback,
+            canonicalResult.feedbackUpdatedAt ?? Date.now(),
+            getTeacherIdentityFromCanonicalResult(canonicalResult),
+        );
     });
 
     return fallbackFeedback;
@@ -367,11 +466,14 @@ export async function saveOverallFeedback(
     }
 
     const normalizedFeedback = feedback.trim();
+    const teacherIdentity = resolveTeacherIdentity(teacherId, teacherName);
     const feedbackData: OverallFeedback = {
         feedback: normalizedFeedback,
         updatedAt: Date.now(),
-        updatedBy: teacherId,
-        ...(teacherName && { teacherName })
+        updatedBy: teacherIdentity.compatibilityLabel,
+        updatedById: teacherIdentity.updatedById,
+        ...(teacherIdentity.updatedByName ? { updatedByName: teacherIdentity.updatedByName } : {}),
+        ...(teacherIdentity.updatedByName ? { teacherName: teacherIdentity.updatedByName } : {})
     };
 
     // Save to test_results/{resultId}/overallFeedback
@@ -382,7 +484,9 @@ export async function saveOverallFeedback(
     const resultRef = ref(database, `test_results/${resultId}`);
     await update(resultRef, {
         feedbackUpdatedAt: feedbackData.updatedAt,
-        feedbackUpdatedBy: teacherId,
+        feedbackUpdatedBy: teacherIdentity.compatibilityLabel,
+        feedbackUpdatedByTeacherId: teacherIdentity.updatedById,
+        feedbackUpdatedByTeacherName: teacherIdentity.updatedByName,
         hasFeedback: true
     });
 
@@ -421,7 +525,7 @@ export async function getOverallFeedback(
     const snapshot = await get(feedbackRef);
 
     if (snapshot.exists()) {
-        return snapshot.val();
+        return normalizeStoredOverallFeedback(snapshot.val());
     }
 
     const canonicalResult = await getCanonicalResult(resultId);
@@ -429,12 +533,11 @@ export async function getOverallFeedback(
         return null;
     }
 
-    return {
-        feedback: canonicalResult.overallFeedback,
-        updatedAt: canonicalResult.feedbackUpdatedAt ?? Date.now(),
-        updatedBy: canonicalResult.feedbackUpdatedBy ?? '',
-        ...(canonicalResult.feedbackUpdatedBy && { teacherName: canonicalResult.feedbackUpdatedBy })
-    };
+    return buildOverallFeedbackResponse(
+        canonicalResult.overallFeedback,
+        canonicalResult.feedbackUpdatedAt ?? Date.now(),
+        getTeacherIdentityFromCanonicalResult(canonicalResult),
+    );
 }
 
 /**
@@ -528,7 +631,9 @@ export async function deleteOverallFeedback(
         hasFeedback: hasQuestionFeedback,
         ...(hasQuestionFeedback ? {} : {
             feedbackUpdatedAt: null,
-            feedbackUpdatedBy: null
+            feedbackUpdatedBy: null,
+            feedbackUpdatedByTeacherId: null,
+            feedbackUpdatedByTeacherName: null,
         })
     });
 
@@ -562,6 +667,18 @@ export async function canTeacherEditFeedback(
 
         const result = resultSnapshot.val();
         const courseId = result.courseId;
+
+        if (result.visibility) {
+            return classifyTeacherResultVisibility({
+                result,
+                teacherId,
+                hasAssignmentAccess: true,
+            }).shouldAllowTeacherActions;
+        }
+
+        if (result.teacherId && result.teacherId === teacherId) {
+            return true;
+        }
 
         // If no courseId, allow any teacher (for backward compatibility)
         if (!courseId) {

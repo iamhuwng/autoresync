@@ -485,4 +485,64 @@ describe('useTestSubmission', () => {
       }),
     );
   });
+
+  it('bypasses the unanswered-questions confirm when skipConfirm is true', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const { result } = renderHook(() =>
+      useTestSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          skill: 'Reading',
+          questionCount: 2,
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              answer: 'A',
+              passageId: 'p1',
+              points: 1,
+            },
+            {
+              number: 2,
+              type: 'multiple-choice',
+              question: 'Q2',
+              options: ['A', 'B'],
+              answer: 'B',
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        session: {
+          testId: 'test-1',
+          sessionCode: 'SESSION123',
+          studentName: 'Guest Student',
+          startTime: 1,
+          answers: {},
+          isSubmitted: false,
+        },
+        sessionCode: 'SESSION123',
+        answers: {
+          1: 'A',
+        },
+        timeRemaining: 3000,
+        skipConfirm: true,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    await waitFor(() => {
+      expect(saveTestResult).toHaveBeenCalled();
+    });
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
 });

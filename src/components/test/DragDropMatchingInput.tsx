@@ -40,9 +40,12 @@ interface DragDropMatchingInputProps {
     questions: Question[];
     answers: Record<number, string>;
     onAnswerChange: (questionNumber: number, answer: string) => void;
+    onQuestionRefChange?: (questionNumber: number, element: HTMLDivElement | null) => void;
     disabled?: boolean;
     labelType?: 'roman' | 'letter';
     listTitle?: string;
+    fontSize?: number;
+    lineSpacing?: number;
 }
 
 const primaryBlue = 'rgb(65, 142, 200)';
@@ -124,13 +127,19 @@ const QuestionDropZone = ({
     label,
     currentAnswer,
     onRemove,
+    onQuestionRefChange,
     disabled,
+    fontSize,
+    lineSpacing,
 }: {
     questionNumber: number;
     label: string;
     currentAnswer: string | null;
     onRemove: () => void;
+    onQuestionRefChange?: (questionNumber: number, element: HTMLDivElement | null) => void;
     disabled: boolean;
+    fontSize?: number;
+    lineSpacing?: number;
 }) => {
     const { isOver, setNodeRef } = useDroppable({
         id: `q-${questionNumber}`,
@@ -139,7 +148,10 @@ const QuestionDropZone = ({
 
     return (
         <div
-            ref={setNodeRef}
+            ref={(element) => {
+                setNodeRef(element);
+                onQuestionRefChange?.(questionNumber, element);
+            }}
             aria-label={`Drop zone for question ${questionNumber}: ${label}`}
             style={{
                 display: 'flex',
@@ -156,7 +168,13 @@ const QuestionDropZone = ({
             </div>
 
             <div style={{ flex: 1, fontSize: '16px', color: '#000', fontFamily: 'Arial, sans-serif' }}>
-                {label}
+                {/*
+                  Match the mobile preview control for question text only.
+                  Interactive tiles and buttons stay at their fixed sizes.
+                */}
+                <div style={{ fontSize: fontSize ? `${fontSize}px` : '16px', lineHeight: lineSpacing ?? 1.5 }}>
+                    {label}
+                </div>
             </div>
 
             <div style={{
@@ -212,9 +230,12 @@ export const DragDropMatchingInput: React.FC<DragDropMatchingInputProps> = ({
     questions,
     answers,
     onAnswerChange,
+    onQuestionRefChange,
     disabled = false,
     labelType = 'roman',
     listTitle = 'List of Headings',
+    fontSize,
+    lineSpacing,
 }) => {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeText, setActiveText] = useState<string | null>(null);
@@ -372,7 +393,10 @@ export const DragDropMatchingInput: React.FC<DragDropMatchingInputProps> = ({
                             label={q.question}
                             currentAnswer={answers[q.number] || null}
                             onRemove={() => handleRemove(q.number)}
+                            onQuestionRefChange={onQuestionRefChange}
                             disabled={disabled}
+                            fontSize={fontSize}
+                            lineSpacing={lineSpacing}
                         />
                     ))}
                 </div>

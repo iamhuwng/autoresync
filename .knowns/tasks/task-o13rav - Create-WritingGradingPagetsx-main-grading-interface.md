@@ -15,7 +15,7 @@ labels:
   - gap-16
   - safety-rule-6
 createdAt: '2026-02-27T20:03:42.208Z'
-updatedAt: '2026-02-27T22:31:06.261Z'
+updatedAt: '2026-04-02T07:19:32.567Z'
 timeSpent: 0
 parent: jtjism
 ---
@@ -47,5 +47,6 @@ Create WritingGradingPage.tsx  main grading interface. Side-by-side: essay 60% l
 
 <!-- SECTION:NOTES:BEGIN -->
 GAP-15: beforeunload when state changed. GAP-16: localStorage cleared after submit. Re-grading: grading field exists. Safety Rule 6: auto-save timer in useRef.
+2026-04-02 follow-up stabilization: normalized active-task hydration so task2-only submissions open correctly; replaced binary browser confirm/prompt flows with explicit leave/regrade/takeover dialogs; task switching now clears task-scoped transient state and forces editor rehydration boundaries; pending comment drafts now participate in save payload + unsaved-work detection; save/version-conflict handling hardened to reload latest grading state instead of leaving the page stuck.
 <!-- SECTION:NOTES:END -->
 

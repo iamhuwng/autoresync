@@ -2,7 +2,7 @@
 title: Homework Solo Practice Architecture
 description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-04-01T03:39:50.597Z'
+updatedAt: '2026-04-08T17:36:17.507Z'
 tags:
   - architecture
   - homework
@@ -170,3 +170,44 @@ Resume rules:
 
 Timeout rule:
 - homework Writing timer expiry must auto-submit the homework attempt instead of leaving only a local draft
+
+## 2026-04-02 Amendment - Reading Passage Highlight Contract
+
+Solo practice and homework Reading flows now share one source-of-truth renderer contract:
+- `src/skills/reading/components/PassageRenderer.tsx` is the owning implementation for passage highlighting behavior.
+- `src/components/PassageRenderer_v2.jsx` is a compatibility wrapper only and must delegate to the skill-owned renderer instead of reimplementing highlight logic.
+- Highlight persistence must be based on source passage offsets, not per-paragraph DOM offsets.
+- Selections that start in one rendered paragraph and end in the next are valid and must save as one logical highlight.
+- New solo student preferences must default `highlighterEnabled` to `false`, so the tool stays off until the student explicitly enables it.
+
+See @doc/architecture/reading-passage-highlighting-architecture.
+
+## 2026-04-05 Amendment — IELTS Writing Homework Copy Paste Toggle And Persistence Contract
+
+IELTS Writing homework now honors the homework anti-cheat copy/paste flag instead of running as an always-on exception.
+
+Homework Writing rules:
+- `WritingPracticeView` must load `homework_assignments/{homeworkId}` and derive the enable flag from `homework.antiCheatConfig?.detectCopyPaste`.
+- missing homework anti-cheat config means copy/paste prevention is off for homework Writing.
+- the homework delivery surface owns the shared writing paste-prevention hook and passes its attachment callback into `WritingEditor`.
+- homework saved local progress must persist `pasteAttemptCount` together with essays, active task, and timer anchor state.
+- homework resume must restore that persisted `pasteAttemptCount` before the submission flow materializes the Writing payload.
+
+Scope boundary:
+- this contract changes homework Writing only; solo Writing behavior remains unchanged in the same implementation pass.
+
+Detailed reference:
+- @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05
+
+## 2026-04-09 Amendment - Mobile IELTS Reading Homework Launch Integrity
+
+Homework mobile Reading now depends on two additional launch rules:
+- homework launchers must pass a non-empty `studentName` into the shared practice surface so submission creation never writes `undefined` into Firestore payloads
+- `StudentPracticePage.tsx` must preserve homework `timerMinutes` and `maxAttempts` from route state when handing off to the shared Reading practice host
+
+Why this matters:
+- mobile homework resume depends on the canonical launch state staying intact after navigation from the student homework detail surface
+- the resumed phone Reading route must restore the correct timed/attempt-limited behavior instead of silently degrading to the untimed solo default
+
+Reference:
+- @doc/architecture/mobile-ielts-reading-test-taking

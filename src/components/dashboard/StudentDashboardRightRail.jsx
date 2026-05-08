@@ -561,7 +561,7 @@ function renderLiveSession(session, index, onJoinClassSession) {
  * - `onJoinPublicSession`: fallback join callback that receives `sessionCode`
  */
 export function StudentDashboardRightRail({
-    upNextTitle = 'Up Next',
+    upNextTitle = 'Deadlines',
     upNextSubtitle = null,
     upNextItems = [],
     onOpenHomework,

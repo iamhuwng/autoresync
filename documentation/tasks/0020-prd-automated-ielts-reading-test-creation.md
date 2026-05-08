@@ -314,6 +314,23 @@ Current system has inconsistent progress reporting:
 | FR-11 | System MUST auto-retry 3 times on transient failures before aborting |
 | FR-12 | System MUST complete parsing within 2 minutes for full IELTS test |
 
+#### 2026-04-09 Reliability Amendment
+
+- Non-throwing AI extraction failures MUST be treated as failed extraction and enter the same offline fallback path as thrown provider errors.
+- Rules-only and offline fallback output MUST be mapped into the same review payload shape used by the AI path.
+- System MUST reject zero-question parse results before draft save and review navigation.
+- Provider errors such as Gemini referrer `403` responses or downstream Groq `429` responses MUST NOT lead to a blank review draft.
+
+#### 2026-04-10 Runtime Resilience Amendment
+
+- System MUST treat Gemini `503` / `high demand` responses during reading extraction as transient availability failures and retry across the remaining Gemini keys before falling back to Groq.
+- System MUST treat Groq `413` / `request too large` responses during question extraction as prompt-budget failures, not exhausted-key failures.
+- When Groq question extraction is oversized, the system MUST retry with a reduced output budget before it benches or rotates the current Groq key.
+- Offline fallback MUST recognize markdown-numbered IELTS question text such as `**35.**`, bullet-prefixed numbered lines, and `Question 35.` so pasted markdown can still produce reviewable questions.
+
+Reference:
+- `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+
 ### 4.3 Question Type Detection
 
 | ID | Requirement |
@@ -548,6 +565,29 @@ Parsing patterns optimized for Cambridge IELTS book format:
 ---
 
 ## Appendix B: Design Decisions Summary
+
+---
+
+## 2026-04-09 Amendment - Parser Fallback And Blank Review Guard
+
+### Failure-handling contract
+
+- A non-success result from the AI extraction layer is a real parsing failure and MUST enter the offline/rules fallback path.
+- The fallback path MUST return reviewable passages and questions, not only background rule classifications.
+- A parse that ends with zero questions is a hard failure. The system MUST NOT treat blank review content as a partial success.
+
+### Reviewability contract
+
+- Teacher review requires non-empty question content.
+- Passage extraction alone is not sufficient to open the review flow.
+- Provider outages such as Gemini `403` referrer blocks or Groq `429` rate limits are upstream availability issues; the parser contract is to fail closed or return a genuine offline fallback result.
+
+### Implementation note
+
+This amendment reflects the current `src/services/test-creation/index.ts` contract:
+- non-success AI extraction triggers offline fallback
+- offline fallback is mapped into validator-ready questions and reviewable passages
+- zero-question output throws before the draft can move forward
 
 | Question | Choice | Rationale |
 |----------|--------|-----------|

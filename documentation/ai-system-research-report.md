@@ -183,3 +183,31 @@ User triggers AI action
   → Disables AI action buttons
   → Auto-recovers when keys become available again
 ```
+
+---
+
+## 5. 2026-04-09 Reading Creator Mitigation
+
+The teacher IELTS Reading creator now fails closed when provider issues prevent complete extraction.
+
+Current mitigation:
+- Gemini referrer-blocked `403` responses and Groq `429` exhaustion can still happen upstream.
+- `src/services/test-creation/index.ts` now treats non-success AI extraction as a real failure and routes to offline/rules fallback instead of silently continuing with empty AI output.
+- Offline fallback is only considered successful when it produces reviewable question content.
+- A zero-question parse now surfaces an error instead of opening a blank review draft.
+- `TestCreationModal` now checks `saveParsedContent()` and blocks navigation if draft persistence fails.
+
+This does not solve provider availability by itself; it prevents provider failures from degrading into silent blank-review drafts.
+
+## 6. 2026-04-10 Reading Creator Resilience Follow-Up
+
+The Reading creator now has stage-specific retry behavior for question extraction instead of relying only on fail-closed handling.
+
+Current runtime rules:
+- Gemini `503` / `high demand` failures during passage or question extraction are treated as transient availability failures and retried across the remaining Gemini keys.
+- Groq question-extraction failures that return `413` / `request too large` are treated as prompt-budget failures. The provider retries with smaller `max_tokens` budgets before it benches any key.
+- The local offline parser now recognizes markdown-numbered IELTS questions such as `**35.** Question text`, so a markdown paste can still produce reviewable questions if AI providers fail.
+
+Implication:
+- provider outages still matter, but a single transient Gemini spike or one oversized Groq request should no longer collapse immediately into a zero-question parse.
+- the remaining structural gap is architectural rather than operational: the system still uses a provider-first extraction chain instead of a staged parse job with explicit artifacts for normalized source, passages, questions, and review draft.

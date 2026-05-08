@@ -28,6 +28,18 @@ const QuickCommentsDialog: React.FC<QuickCommentsDialogProps> = ({
     const fabRef = useRef<HTMLButtonElement>(null);
     const tooltipTimeoutRef = useRef<number | null>(null);
 
+    const remapTaskSpecificCategory = useCallback((categoryId: CommentCategoryId): CommentCategoryId => {
+        if (taskNumber === 1 && categoryId === 'tr') {
+            return 'ta';
+        }
+
+        if (taskNumber === 2 && categoryId === 'ta') {
+            return 'tr';
+        }
+
+        return categoryId;
+    }, [taskNumber]);
+
     const handleFabClick = useCallback(() => {
         if (!hasSelection) {
             setShowTooltip(true);
@@ -73,16 +85,17 @@ const QuickCommentsDialog: React.FC<QuickCommentsDialogProps> = ({
     }, [isOpen]);
 
     const handlePresetClick = useCallback((preset: QuickCommentPreset) => {
-        const adjustedPreset = { ...preset };
-        if (preset.categoryId === 'ta' && taskNumber === 2) {
-            adjustedPreset.categoryId = 'tr';
-            adjustedPreset.categoryLabel = 'TR';
-            adjustedPreset.color = COMMENT_CATEGORIES.tr.color;
-        }
+        const adjustedCategoryId = remapTaskSpecificCategory(preset.categoryId);
+        const adjustedPreset = {
+            ...preset,
+            categoryId: adjustedCategoryId,
+            categoryLabel: COMMENT_CATEGORIES[adjustedCategoryId].label,
+            color: COMMENT_CATEGORIES[adjustedCategoryId].color,
+        };
 
         onSelectPreset(adjustedPreset);
         setIsOpen(false);
-    }, [onSelectPreset, taskNumber]);
+    }, [onSelectPreset, remapTaskSpecificCategory]);
 
     const handleAddPreset = useCallback(() => {
         if (!newPresetText.trim()) {

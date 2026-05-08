@@ -1,8 +1,14 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RichContent } from '../../core/components/RichContent';
 import AnnotatedEssayReadOnly from './AnnotatedEssayReadOnly';
+import PublishedFeedbackPanel from './PublishedFeedbackPanel';
 import WritingPublishedMarkupViewer from './WritingPublishedMarkupViewer';
-import type { WritingResultSurfaceData, WritingResultTaskData } from './writingResultSurface';
+import type {
+    PublishedCommentData,
+    PublishedCorrectionData,
+    WritingResultSurfaceData,
+    WritingResultTaskData,
+} from './writingResultSurface';
 import { formatElapsedTime, getVisibleCriteriaEntries } from './writingResultSurface';
 
 interface WritingStudentResultSurfaceProps {
@@ -18,7 +24,7 @@ interface WritingStudentResultSurfaceProps {
     onCriteriaToggle?: (expanded: boolean) => void;
 }
 
-type StudentPanelTab = 'prompt' | 'comments' | 'scoring';
+type StudentPanelTab = 'prompt' | 'feedback' | 'scoring';
 
 const CRITERIA_LABELS: Record<string, string> = {
     TA: 'Task Achievement',
@@ -39,8 +45,9 @@ export default function WritingStudentResultSurface({
     const [criteriaExpanded, setCriteriaExpanded] = useState(false);
     const [activeTaskNumber, setActiveTaskNumber] = useState<1 | 2>(data.tasks[0]?.taskNumber ?? 1);
     const [panelTab, setPanelTab] = useState<StudentPanelTab>('prompt');
-    const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
-    const [selectedCommentAnchorViewportTop, setSelectedCommentAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+    const [selectedFeedbackAnchorViewportTop, setSelectedFeedbackAnchorViewportTop] = useState<number | null>(null);
+    const [selectedFeedbackRequestKey, setSelectedFeedbackRequestKey] = useState(0);
     const isPanel = variant === 'panel';
     const useSplitLayout = variant === 'page' || forceWidePanelLayout;
     const bandColumnCount = data.bandSummaryItems.length >= 3 ? 3 : Math.max(1, data.bandSummaryItems.length);
@@ -52,9 +59,14 @@ export default function WritingStudentResultSurface({
         () => (activeTask ? getVisibleCriteriaEntries(activeTask) : []),
         [activeTask],
     );
-    const activeComments = activeTask?.comments ?? [];
+    const activeFeedbackItems = useMemo(
+        () => activeTask
+            ? [...activeTask.comments, ...activeTask.corrections].sort((left, right) => left.from - right.from)
+            : [],
+        [activeTask],
+    );
     const scoringLocked = data.phase !== 'published';
-    const commentsLocked = data.phase !== 'published';
+    const feedbackLocked = data.phase !== 'published';
 
     useEffect(() => {
         if (!activeTask) {
@@ -67,21 +79,21 @@ export default function WritingStudentResultSurface({
     }, [activeTask, activeTaskNumber, data.tasks]);
 
     useEffect(() => {
-        if ((panelTab === 'comments' && commentsLocked) || (panelTab === 'scoring' && scoringLocked)) {
+        if ((panelTab === 'feedback' && feedbackLocked) || (panelTab === 'scoring' && scoringLocked)) {
             setPanelTab('prompt');
         }
-    }, [commentsLocked, panelTab, scoringLocked]);
+    }, [feedbackLocked, panelTab, scoringLocked]);
 
     useEffect(() => {
-        if (!selectedCommentId) {
+        if (!selectedFeedbackId) {
             return;
         }
 
-        if (!activeComments.some((comment) => comment.id === selectedCommentId)) {
-            setSelectedCommentId(null);
-            setSelectedCommentAnchorViewportTop(null);
+        if (!activeFeedbackItems.some((item) => item.id === selectedFeedbackId)) {
+            setSelectedFeedbackId(null);
+            setSelectedFeedbackAnchorViewportTop(null);
         }
-    }, [activeComments, selectedCommentId]);
+    }, [activeFeedbackItems, selectedFeedbackId]);
 
     const handleCriteriaToggle = () => {
         const nextExpanded = !criteriaExpanded;
@@ -89,14 +101,15 @@ export default function WritingStudentResultSurface({
         onCriteriaToggle?.(nextExpanded);
     };
 
-    const handleEssayCommentSelect = (commentId: string, anchorViewportTop: number | null) => {
-        if (commentsLocked) {
+    const handleEssayFeedbackSelect = (feedbackId: string, anchorViewportTop: number | null) => {
+        if (feedbackLocked) {
             return;
         }
 
-        setPanelTab('comments');
-        setSelectedCommentId(commentId);
-        setSelectedCommentAnchorViewportTop(anchorViewportTop);
+        setPanelTab('feedback');
+        setSelectedFeedbackId(feedbackId);
+        setSelectedFeedbackAnchorViewportTop(anchorViewportTop);
+        setSelectedFeedbackRequestKey((current) => current + 1);
     };
 
     if (!activeTask) {
@@ -220,17 +233,22 @@ export default function WritingStudentResultSurface({
 
                         <div style={{ marginTop: '1rem' }}>
                             {data.phase === 'published' ? (
-                                activeTask.markedContent || activeTask.comments.length > 0 ? (
+                                activeTask.fallbackAnnotations.length > 0 && !activeTask.markedContent ? (
+                                    <AnnotatedEssayReadOnly
+                                        essayText={activeTask.essayText}
+                                        annotations={activeTask.fallbackAnnotations}
+                                        onFeedbackSelect={handleEssayFeedbackSelect}
+                                    />
+                                ) : activeTask.markedContent || activeFeedbackItems.length > 0 ? (
                                     <WritingPublishedMarkupViewer
                                         originalEssayText={activeTask.essayText}
                                         markedContent={activeTask.markedContent}
                                         comments={activeTask.comments}
+                                        corrections={activeTask.corrections}
                                         compact={isPanel}
                                         onViewModeChange={(mode) => onMarkupViewChange?.(activeTask.taskNumber, mode)}
-                                        onCommentSelect={handleEssayCommentSelect}
+                                        onFeedbackSelect={handleEssayFeedbackSelect}
                                     />
-                                ) : activeTask.fallbackAnnotations.length > 0 ? (
-                                    <AnnotatedEssayReadOnly essayText={activeTask.essayText} annotations={activeTask.fallbackAnnotations} />
                                 ) : (
                                     <PlainEssayCard essayText={activeTask.essayText} />
                                 )
@@ -253,11 +271,11 @@ export default function WritingStudentResultSurface({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => !commentsLocked && setPanelTab('comments')}
-                                style={panelTabButtonStyle(panelTab === 'comments', commentsLocked)}
-                                disabled={commentsLocked}
+                                onClick={() => !feedbackLocked && setPanelTab('feedback')}
+                                style={panelTabButtonStyle(panelTab === 'feedback', feedbackLocked)}
+                                disabled={feedbackLocked}
                             >
-                                Comments
+                                Feedback
                             </button>
                             <button
                                 type="button"
@@ -274,12 +292,14 @@ export default function WritingStudentResultSurface({
                                 <PromptTab task={activeTask} phase={data.phase} />
                             )}
 
-                            {panelTab === 'comments' && (
-                                <CommentsTab
-                                    comments={activeComments}
+                            {panelTab === 'feedback' && (
+                                <FeedbackTab
+                                    comments={activeTask.comments}
+                                    corrections={activeTask.corrections}
                                     taskNumber={activeTask.taskNumber}
-                                    selectedCommentId={selectedCommentId}
-                                    selectedCommentAnchorViewportTop={selectedCommentAnchorViewportTop}
+                                    selectedFeedbackId={selectedFeedbackId}
+                                    selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                                    selectedFeedbackRequestKey={selectedFeedbackRequestKey}
                                     alignToEssay={useSplitLayout}
                                 />
                             )}
@@ -345,8 +365,8 @@ function PromptTab({
                     </div>
                     <div style={{ display: 'grid', gap: '0.7rem', color: '#4b5563', fontSize: '0.88rem', lineHeight: 1.6 }}>
                         <div>Your teacher will grade this submission in the Writing grading tool.</div>
-                        <div>Comments and scores stay hidden until that feedback is published.</div>
-                        <div>Once published, this panel will show the same prompt, comments, and scoring structure in read-only form.</div>
+                        <div>Comments, corrections, and scores stay hidden until that feedback is published.</div>
+                        <div>Once published, this panel will show the same prompt, feedback, and scoring structure in read-only form.</div>
                     </div>
                 </div>
             )}
@@ -354,139 +374,40 @@ function PromptTab({
     );
 }
 
-function CommentsTab({
+function FeedbackTab({
     comments,
+    corrections,
     taskNumber,
-    selectedCommentId,
-    selectedCommentAnchorViewportTop,
+    selectedFeedbackId,
+    selectedFeedbackAnchorViewportTop,
+    selectedFeedbackRequestKey,
     alignToEssay,
 }: {
-    comments: WritingResultTaskData['comments'];
+    comments: PublishedCommentData[];
+    corrections: PublishedCorrectionData[];
     taskNumber: 1 | 2;
-    selectedCommentId: string | null;
-    selectedCommentAnchorViewportTop: number | null;
+    selectedFeedbackId: string | null;
+    selectedFeedbackAnchorViewportTop: number | null;
+    selectedFeedbackRequestKey: number;
     alignToEssay: boolean;
 }) {
-    const commentRefs = useRef<Record<string, HTMLElement | null>>({});
-    const commentHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const viewportRef = useRef<HTMLDivElement | null>(null);
-    const stackRef = useRef<HTMLDivElement | null>(null);
-    const [commentsStackTranslateY, setCommentsStackTranslateY] = useState(0);
-
-    useLayoutEffect(() => {
-        if (!selectedCommentId) {
-            setCommentsStackTranslateY(0);
-            return;
-        }
-
-        const viewportElement = viewportRef.current;
-        const stackElement = stackRef.current;
-        const selectedCommentElement = commentRefs.current[selectedCommentId];
-        const selectedCommentHeaderElement = commentHeaderRefs.current[selectedCommentId] ?? null;
-
-        if (!selectedCommentElement || !stackElement || !selectedCommentHeaderElement) {
-            setCommentsStackTranslateY(0);
-            return;
-        }
-
-        if (alignToEssay && viewportElement && selectedCommentAnchorViewportTop !== null) {
-            const measuredViewportRect = viewportElement.getBoundingClientRect();
-            const measuredStackRect = stackElement.getBoundingClientRect();
-            const measuredHeaderRect = selectedCommentHeaderElement.getBoundingClientRect();
-            const headerHeight = measuredHeaderRect.height || selectedCommentHeaderElement.offsetHeight || 0;
-            const railPadding = 12;
-            const desiredHeaderTop = Math.min(
-                Math.max(selectedCommentAnchorViewportTop, measuredViewportRect.top + railPadding),
-                measuredViewportRect.bottom - railPadding - headerHeight,
-            );
-            const headerOffsetWithinStack = measuredHeaderRect.top - measuredStackRect.top;
-            const desiredHeaderTopWithinViewport = desiredHeaderTop - measuredViewportRect.top;
-            setCommentsStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinStack);
-            return;
-        }
-
-        if (alignToEssay) {
-            return;
-        }
-
-        setCommentsStackTranslateY(0);
-        selectedCommentElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-        });
-    }, [alignToEssay, selectedCommentAnchorViewportTop, selectedCommentId]);
-
     return (
         <div style={{ display: 'grid', gap: '1rem' }}>
             <div>
                 <div style={eyebrowStyle()}>Task {taskNumber}</div>
                 <h3 style={{ margin: '0.2rem 0 0', fontSize: '1.04rem', fontWeight: 800, color: '#111827' }}>
-                    Published Comments
+                    Published Feedback
                 </h3>
             </div>
 
-            {comments.length > 0 ? (
-                <div
-                    ref={viewportRef}
-                    data-comments-viewport="true"
-                    style={{
-                        maxHeight: alignToEssay ? 'min(68vh, 720px)' : undefined,
-                        overflowY: alignToEssay ? 'auto' : undefined,
-                        paddingRight: alignToEssay ? '0.25rem' : undefined,
-                    }}
-                >
-                    <div
-                        ref={stackRef}
-                        data-comments-shifted={alignToEssay && selectedCommentId && selectedCommentAnchorViewportTop !== null ? 'true' : 'false'}
-                        data-comments-stack="true"
-                        style={{
-                            display: 'grid',
-                            gap: '0.8rem',
-                            transform: alignToEssay ? `translateY(${commentsStackTranslateY}px)` : 'none',
-                            transition: 'transform 0.22s ease',
-                        }}
-                    >
-                        {comments.map((comment) => {
-                            const selected = selectedCommentId === comment.id;
-                            return (
-                                <article
-                                    key={comment.id}
-                                    ref={(node) => {
-                                        commentRefs.current[comment.id] = node;
-                                    }}
-                                    data-comment-card-id={comment.id}
-                                    data-highlighted={selected ? 'true' : 'false'}
-                                    style={{
-                                        ...mutedPanelStyle(),
-                                        border: selected ? '1px solid #818cf8' : '1px solid #e5e7eb',
-                                        background: selected ? '#eef2ff' : '#f9fafb',
-                                        boxShadow: selected ? '0 0 0 3px rgba(99, 102, 241, 0.18), 0 16px 32px rgba(79, 70, 229, 0.12)' : 'none',
-                                        transition: 'border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease',
-                                    }}
-                                >
-                                    <div
-                                        ref={(node) => {
-                                            commentHeaderRefs.current[comment.id] = node;
-                                        }}
-                                        data-comment-header-id={comment.id}
-                                        style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', marginBottom: '0.35rem', flexWrap: 'wrap' }}
-                                    >
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#4f46e5' }}>
-                                            {comment.categoryLabel}
-                                        </span>
-                                        {comment.anchorText ? (
-                                            <span style={{ fontSize: '0.76rem', color: '#6b7280' }}>{comment.anchorText}</span>
-                                        ) : null}
-                                    </div>
-                                    <RichContent content={comment.text} style={{ color: '#374151', lineHeight: 1.55, fontSize: '0.86rem' }} />
-                                </article>
-                            );
-                        })}
-                    </div>
-                </div>
-            ) : (
-                <EmptyPanelMessage message="No published comments for this task." />
-            )}
+            <PublishedFeedbackPanel
+                comments={comments}
+                corrections={corrections}
+                selectedFeedbackId={selectedFeedbackId}
+                selectedFeedbackAnchorViewportTop={selectedFeedbackAnchorViewportTop}
+                selectionRequestKey={selectedFeedbackRequestKey}
+                alignToEssay={alignToEssay}
+            />
         </div>
     );
 }

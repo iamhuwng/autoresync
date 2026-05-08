@@ -1,5 +1,7 @@
 import type { Chunk } from '../../types/document.types';
-import { getChunkConfig } from '../../config/env.config';
+
+const DEFAULT_CHUNK_SIZE = 1000;
+const DEFAULT_CHUNK_OVERLAP = 50;
 
 /**
  * Basic Chunking Service (AI-Only)
@@ -11,9 +13,8 @@ class BasicChunkingService {
   private readonly overlap: number;
 
   constructor() {
-    const config = getChunkConfig();
-    this.chunkSize = config.chunkSize;
-    this.overlap = config.chunkOverlap;
+    this.chunkSize = DEFAULT_CHUNK_SIZE;
+    this.overlap = DEFAULT_CHUNK_OVERLAP;
   }
 
   /**

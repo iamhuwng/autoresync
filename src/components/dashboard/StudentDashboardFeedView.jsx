@@ -1,6 +1,7 @@
 import React from 'react';
-import { studentTokens } from '../layout/studentLayoutStyles';
+import { mobileStyles, studentTokens } from '../layout/studentLayoutStyles';
 import { IconBriefcase, IconCheck, IconHomework, IconHistory, IconSearch } from '../layout/StudentIcons';
+import RecentGradesChart from './RecentGradesChart';
 
 function stripEmoji(text) {
     if (!text) return text;
@@ -85,7 +86,7 @@ const styles = {
         zIndex: 3,
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 22,
         padding: '34px 0 18px',
         background: studentTokens.bgPage,
@@ -96,6 +97,7 @@ const styles = {
         flexDirection: 'column',
         gap: 8,
         minWidth: 0,
+        flexShrink: 0,
     },
     pageTitle: {
         margin: 0,
@@ -173,6 +175,7 @@ const styles = {
     },
     tabs: {
         display: 'flex',
+        justifyContent: 'center',
         gap: 28,
         overflowX: 'auto',
         padding: '0 0 18px',
@@ -226,6 +229,18 @@ const styles = {
         lineHeight: 1,
         color: studentTokens.textPrimary,
     },
+    assignmentSummaryValue: {
+        margin: 0,
+        maxWidth: '100%',
+        overflow: 'hidden',
+        fontSize: '1rem',
+        fontWeight: 500,
+        lineHeight: 1.25,
+        letterSpacing: '-0.01em',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        color: studentTokens.textPrimary,
+    },
     summaryMeta: {
         margin: 0,
         maxWidth: 240,
@@ -234,6 +249,7 @@ const styles = {
         color: studentTokens.textBody,
     },
     tabsWrap: {
+        marginTop: 16,
         marginBottom: 40,
         borderBottom: `1px solid ${studentTokens.borderWhisper}`,
     },
@@ -473,7 +489,8 @@ const styles = {
 export default function StudentDashboardFeedView({
     mode = 'feed',
     title = 'Dashboard',
-    subtitle = 'Review your latest academic activity and upcoming milestones.',
+    subtitle,
+    isMobile = false,
     searchValue = '',
     onSearchChange,
     onSearchBlur,
@@ -498,6 +515,7 @@ export default function StudentDashboardFeedView({
     classItems = [],
     onClassSelect,
     onJoinClass,
+    gradeChartData = null,
 }) {
     const feedTabs = filterTabs.length > 0 ? filterTabs : [];
     const showFeed = mode === 'feed';
@@ -509,8 +527,8 @@ export default function StudentDashboardFeedView({
             <section style={styles.root} aria-label="Student dashboard feed">
                 <header style={styles.topBar}>
                     <div style={styles.titleWrap}>
-                        <h2 style={styles.pageTitle}>{title}</h2>
-                        <p style={styles.subtitle}>{subtitle}</p>
+                        <h2 style={{ ...styles.pageTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>{title}</h2>
+                        {subtitle ? <p style={{ ...styles.subtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>{subtitle}</p> : null}
                     </div>
 
                     {showFeed ? (
@@ -520,7 +538,7 @@ export default function StudentDashboardFeedView({
                                 <input
                                     type="search"
                                     value={searchValue}
-                                    placeholder="RESEARCH FEED"
+                                    placeholder="SEARCH FEED"
                                     onChange={event => onSearchChange?.(event.target.value)}
                                     onBlur={onSearchBlur}
                                     style={styles.searchInput}
@@ -529,7 +547,11 @@ export default function StudentDashboardFeedView({
 
                             <button
                                 type="button"
-                                style={{ ...styles.utilityButton, ...(showUnreadOnly ? styles.utilityButtonActive : {}) }}
+                                style={{
+                                    ...styles.utilityButton,
+                                    ...(showUnreadOnly ? styles.utilityButtonActive : {}),
+                                    ...(isMobile ? mobileStyles.touchTarget : {}),
+                                }}
                                 onClick={() => onToggleUnreadOnly?.()}
                                 aria-pressed={showUnreadOnly}
                                 title="Toggle unread feed items"
@@ -538,7 +560,12 @@ export default function StudentDashboardFeedView({
                                 {unreadCount > 0 ? <span style={styles.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                             </button>
 
-                            <button type="button" style={styles.utilityButton} onClick={() => onOpenAcademicHistory?.()} title="Open academic history">
+                            <button
+                                type="button"
+                                style={{ ...styles.utilityButton, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                onClick={() => onOpenAcademicHistory?.()}
+                                title="Open academic history"
+                            >
                                 <IconHistory />
                             </button>
                         </div>
@@ -546,33 +573,71 @@ export default function StudentDashboardFeedView({
                 </header>
 
                 {summaryCards.length > 0 ? (
-                    <div style={styles.summary} aria-label="Dashboard summary metrics">
-                        {summaryCards.map((card, index) => (
-                            <div
-                                key={card.label}
-                                style={{
-                                    ...styles.summaryCell,
-                                    ...(index > 0 ? { paddingLeft: 32 } : {}),
-                                    borderRight: index < summaryCards.length - 1 ? `1px solid ${studentTokens.borderWhisper}` : 'none',
-                                }}
-                            >
-                                <p style={styles.summaryLabel}>{card.label}</p>
-                                <p style={{ ...styles.summaryValue, color: card.color || studentTokens.textPrimary }}>{card.value}</p>
-                                <p style={styles.summaryMeta}>{card.meta}</p>
-                            </div>
-                        ))}
+                    <div style={styles.summary} aria-label="This week assignments">
+                        {summaryCards.map((card, index) => {
+                            const col = index % 3;
+                            const row = Math.floor(index / 3);
+                            const isLastCol = col === 2;
+                            const isFirstCol = col === 0;
+                            const isSecondRow = row === 1;
+                            return (
+                                <div
+                                    key={card.label + '-' + index}
+                                    style={{
+                                        ...styles.summaryCell,
+                                        ...(!isFirstCol ? { paddingLeft: 32 } : {}),
+                                        borderRight: !isLastCol ? `1px solid ${studentTokens.borderWhisper}` : 'none',
+                                        ...(isSecondRow ? { paddingTop: 24, borderTop: `1px solid ${studentTokens.borderWhisper}`, marginTop: 4 } : {}),
+                                    }}
+                                >
+                                    <p style={styles.summaryLabel}>{card.label}</p>
+                                    <p
+                                        style={{
+                                            ...(card.variant === 'assignment' ? styles.assignmentSummaryValue : styles.summaryValue),
+                                            color: card.color || studentTokens.textPrimary,
+                                        }}
+                                    >
+                                        {card.value}
+                                    </p>
+                                    <p style={styles.summaryMeta}>{card.meta}</p>
+                                </div>
+                            );
+                        })}
                     </div>
+                ) : null}
+
+                {gradeChartData && gradeChartData.testResults && gradeChartData.testResults.length > 0 ? (
+                    <RecentGradesChart
+                        testResults={gradeChartData.testResults}
+                        availableCategories={gradeChartData.availableCategories || []}
+                        defaultCategory={gradeChartData.defaultCategory}
+                    />
                 ) : null}
 
                 {showFeed && feedTabs.length > 0 ? (
                     <div style={styles.tabsWrap}>
-                        <nav style={styles.tabs} aria-label="Dashboard feed filters">
+                        <nav
+                            style={{
+                                ...styles.tabs,
+                                ...(isMobile ? {
+                                    gap: 16,
+                                    justifyContent: 'flex-start',
+                                    paddingBottom: 16,
+                                } : {}),
+                            }}
+                            className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                            aria-label="Dashboard feed filters"
+                        >
                             {feedTabs.map(tab => (
                                 <button
                                     key={tab.key}
                                     type="button"
                                     onClick={() => onFilterChange?.(tab.key)}
-                                    style={{ ...styles.tab, ...(activeFilter === tab.key ? styles.tabActive : {}) }}
+                                    style={{
+                                        ...styles.tab,
+                                        ...(activeFilter === tab.key ? styles.tabActive : {}),
+                                        ...(isMobile ? mobileStyles.touchTarget : {}),
+                                    }}
                                 >
                                     {tab.label}
                                 </button>
@@ -593,7 +658,11 @@ export default function StudentDashboardFeedView({
                         <h3 style={styles.emptyTitle}>{emptyTitle}</h3>
                         <p style={styles.emptyBody}>{emptyBody}</p>
                         {onEmptyAction ? (
-                            <button type="button" style={styles.emptyAction} onClick={() => onEmptyAction?.()}>
+                            <button
+                                type="button"
+                                style={{ ...styles.emptyAction, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                onClick={() => onEmptyAction?.()}
+                            >
                                 {emptyActionLabel}
                             </button>
                         ) : null}
@@ -641,7 +710,12 @@ export default function StudentDashboardFeedView({
                                                     <p style={styles.body}>{row.body}</p>
                                                 )
                                             ) : row.kind === 'homework' ? (
-                                                <div style={styles.inset}>
+                                                <div
+                                                    style={{
+                                                        ...styles.inset,
+                                                        ...(isMobile ? { padding: '12px 12px 16px' } : {}),
+                                                    }}
+                                                >
                                                     <p style={styles.quote}>{row.body}</p>
                                                     {row.tags?.length ? (
                                                         <p style={{ ...styles.body, margin: 0, fontSize: '0.6875rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: studentTokens.textMuted }}>
@@ -655,7 +729,7 @@ export default function StudentDashboardFeedView({
                                                     {row.actionLabel || row.onAction ? (
                                                         <button
                                                             type="button"
-                                                            style={styles.linkBtn}
+                                                            style={{ ...styles.linkBtn, ...(isMobile ? mobileStyles.touchTarget : {}) }}
                                                             onClick={event => {
                                                                 event.stopPropagation();
                                                                 row.onAction?.();
@@ -690,7 +764,11 @@ export default function StudentDashboardFeedView({
                             <h3 style={styles.emptyTitle}>No classes yet.</h3>
                             <p style={styles.emptyBody}>Join a class to see its roster, sessions, and assigned work.</p>
                             {onJoinClass ? (
-                                <button type="button" style={styles.emptyAction} onClick={() => onJoinClass?.()}>
+                                <button
+                                    type="button"
+                                    style={{ ...styles.emptyAction, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                                    onClick={() => onJoinClass?.()}
+                                >
                                     Join a Class
                                 </button>
                             ) : null}
@@ -727,7 +805,12 @@ export default function StudentDashboardFeedView({
 
                 {showFeed && hasMore ? (
                 <div style={styles.loadMoreWrap}>
-                    <button type="button" style={styles.loadMoreButton} onClick={() => onLoadMore?.()} disabled={loadingMore}>
+                    <button
+                        type="button"
+                        style={{ ...styles.loadMoreButton, ...(isMobile ? mobileStyles.touchTarget : {}) }}
+                        onClick={() => onLoadMore?.()}
+                        disabled={loadingMore}
+                    >
                         {loadingMore ? 'Loading...' : 'Load More Activities'}
                     </button>
                 </div>

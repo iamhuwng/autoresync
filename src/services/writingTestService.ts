@@ -70,6 +70,7 @@ async function buildWritingDraftDocument(
             tags: Array.isArray(draft.metadata?.tags) ? draft.metadata.tags : [],
         },
         tasks: Array.isArray(draft.tasks) ? draft.tasks : [],
+        isPublic: typeof draft.isPublic === 'boolean' ? draft.isPublic : Boolean(existingData?.isPublic),
         status: draft.status || existingData?.status || 'editing',
         publishedTestId: draft.publishedTestId || existingData?.publishedTestId,
         createdAt: toDateOrFallback(existingData?.createdAt, fallbackCreatedAt),
@@ -142,6 +143,7 @@ export async function getWritingDraft(
                 tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : [],
             },
             tasks: Array.isArray(data.tasks) ? data.tasks : [],
+            isPublic: Boolean(data.isPublic),
             createdAt: data.createdAt instanceof Timestamp
                 ? data.createdAt.toDate()
                 : new Date(data.createdAt),
@@ -238,6 +240,7 @@ export async function getUserWritingDrafts(
                     tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : [],
                 },
                 tasks: Array.isArray(data.tasks) ? data.tasks : [],
+                isPublic: Boolean(data.isPublic),
                 createdAt: data.createdAt instanceof Timestamp
                     ? data.createdAt.toDate()
                     : new Date(data.createdAt),
@@ -293,6 +296,9 @@ export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: 
         };
         const normalizedTasks = Array.isArray(draft.tasks) ? draft.tasks : [];
         const ownerId = existingDraftData?.userId || draft.userId;
+        const isPublic = typeof draft.isPublic === 'boolean'
+            ? draft.isPublic
+            : Boolean(existingDraftData?.isPublic);
         const testData: IELTSWritingTest = {
             id: testId,
             type: 'IELTS',
@@ -306,7 +312,7 @@ export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: 
             createdBy: ownerId,
             ownerId,
             sourceDraftId,
-            isPublic: false,
+            isPublic,
             createdAt: existingDraftData?.publishedTestId
                 ? toDateOrFallback(existingDraftData?.createdAt, new Date()).getTime()
                 : Date.now(),
@@ -322,6 +328,7 @@ export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: 
             const draftDoc = await buildWritingDraftDocument(sourceDraftId, ownerId, {
                 ...draft,
                 id: sourceDraftId,
+                isPublic,
                 status: 'published',
                 publishedTestId: testId,
             }, existingDraftData);
@@ -361,6 +368,7 @@ export const ensureWritingEditableDraft = withRestoreGuard<{ success: boolean; d
                 skill: 'Writing',
                 metadata: test.metadata,
                 tasks: test.tasks,
+                isPublic: Boolean(test.isPublic),
                 status: 'published',
                 publishedTestId: test.id,
                 createdAt: toDateOrFallback(test.createdAt, new Date()),

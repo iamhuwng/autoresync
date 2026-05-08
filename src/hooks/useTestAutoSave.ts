@@ -14,6 +14,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { ref, update, serverTimestamp } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations (TODO: convert to TypeScript)
 import { database } from '../services/firebase';
+import type { SavedMobileState } from '../types/practice.types';
 
 export interface StudentAnswers {
   [questionNumber: number]: string | string[] | Record<string, string>;
@@ -40,6 +41,11 @@ interface UseTestAutoSaveOptions {
    * Current student answers
    */
   answers: StudentAnswers;
+
+  /**
+   * Optional mobile Reading shell state to persist alongside answers.
+   */
+  mobileState?: SavedMobileState;
   
   /**
    * Auto-save interval in milliseconds (default: 30000 = 30 seconds)
@@ -61,6 +67,7 @@ export const useTestAutoSave = ({
   sessionCode,
   studentId,
   answers,
+  mobileState,
   autoSaveInterval = 30000, // 30 seconds
   debounceDelay = 2000, // 2 seconds
   enabled = true,
@@ -72,9 +79,98 @@ export const useTestAutoSave = ({
   
   // Refs to track state without causing re-renders
   const lastSavedAnswersRef = useRef<string>('');
+  const lastSavedMobileStateRef = useRef<string>('');
+  const lastSavedScrollStateRef = useRef<string>('');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef<boolean>(false);
+  const mobileStateRef = useRef<SavedMobileState | undefined>(mobileState);
+
+  const scrollStateString = JSON.stringify({
+    passageScrollByPassage: mobileState?.passageScrollByPassage ?? {},
+    questionSheetScrollByPassage: mobileState?.questionSheetScrollByPassage ?? {},
+  });
+
+  const mobileStateWithoutScrollString = JSON.stringify(
+    mobileState
+      ? {
+        ...mobileState,
+        passageScrollByPassage: {},
+        questionSheetScrollByPassage: {},
+      }
+      : null,
+  );
+
+  useEffect(() => {
+    mobileStateRef.current = mobileState;
+  }, [mobileState, mobileStateWithoutScrollString, scrollStateString]);
+
+  const clearStatusResetTimer = useCallback(() => {
+    if (statusResetTimeoutRef.current) {
+      clearTimeout(statusResetTimeoutRef.current);
+      statusResetTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleStatusReset = useCallback((delayMs: number, clearError = false) => {
+    clearStatusResetTimer();
+    statusResetTimeoutRef.current = setTimeout(() => {
+      setStatus('idle');
+      if (clearError) {
+        setError(null);
+      }
+      statusResetTimeoutRef.current = null;
+    }, delayMs);
+  }, [clearStatusResetTimer]);
+
+  const buildTransformedAnswers = useCallback(() => {
+    const transformedAnswers: Record<string, any> = {};
+    Object.entries(answers).forEach(([questionNum, answer]) => {
+      transformedAnswers[questionNum] = {
+        answer,
+        timestamp: Date.now(),
+      };
+    });
+    return transformedAnswers;
+  }, [answers]);
+
+  const persistUpdate = useCallback(async (payload: Record<string, unknown>) => {
+    if (!enabled || !sessionCode || !studentId) {
+      return false;
+    }
+
+    if (isSavingRef.current) {
+      console.log('📝 [AutoSave] Save already in progress, skipping');
+      return false;
+    }
+
+    try {
+      isSavingRef.current = true;
+      clearStatusResetTimer();
+      setStatus('saving');
+      setError(null);
+
+      const studentRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
+      await update(studentRef, payload);
+
+      const now = Date.now();
+      setLastSaved(now);
+      setStatus('saved');
+      scheduleStatusReset(2000);
+      return true;
+    } catch (err) {
+      console.error('❌ [AutoSave] Failed to save answers:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMsg);
+      setStatus('error');
+      scheduleStatusReset(5000, true);
+      throw err;
+    } finally {
+      isSavingRef.current = false;
+    }
+  }, [clearStatusResetTimer, enabled, scheduleStatusReset, sessionCode, studentId]);
   
   /**
    * Save answers to Firebase
@@ -83,76 +179,85 @@ export const useTestAutoSave = ({
     if (!enabled || !sessionCode || !studentId) {
       return;
     }
+    const currentMobileState = mobileStateRef.current;
     
     // Serialize current answers for comparison
     const currentAnswersStr = JSON.stringify(answers);
+    const currentMobileStateStr = mobileStateWithoutScrollString;
     
     // Skip if no changes since last save
-    if (currentAnswersStr === lastSavedAnswersRef.current) {
+    if (
+      currentAnswersStr === lastSavedAnswersRef.current
+      && currentMobileStateStr === lastSavedMobileStateRef.current
+    ) {
       console.log('📝 [AutoSave] No changes detected, skipping save');
       return;
     }
-    
-    // Skip if already saving
-    if (isSavingRef.current) {
-      console.log('📝 [AutoSave] Save already in progress, skipping');
+
+    console.log(`📝 [AutoSave] Saving ${Object.keys(answers).length} answers to Firebase...`);
+
+    const persisted = await persistUpdate({
+      answers: buildTransformedAnswers(),
+      ...(currentMobileState ? { mobileState: currentMobileState } : {}),
+      lastAnswerUpdate: serverTimestamp(),
+      lastActivity: Date.now(),
+    });
+
+    if (!persisted) {
       return;
     }
-    
-    try {
-      isSavingRef.current = true;
-      setStatus('saving');
-      setError(null);
-      
-      console.log(`📝 [AutoSave] Saving ${Object.keys(answers).length} answers to Firebase...`);
-      
-      // Transform answers to include metadata for teacher view
-      const transformedAnswers: Record<string, any> = {};
-      Object.entries(answers).forEach(([questionNum, answer]) => {
-        transformedAnswers[questionNum] = {
-          answer: answer,
-          timestamp: Date.now(),
-          // timeSpent will be calculated by test submission
-        };
-      });
-      
-      // Update Firebase
-      const studentRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
-      await update(studentRef, {
-        answers: transformedAnswers,
-        lastAnswerUpdate: serverTimestamp(),
-        lastActivity: Date.now(),
-      });
-      
-      // Update refs and state
-      lastSavedAnswersRef.current = currentAnswersStr;
-      const now = Date.now();
-      setLastSaved(now);
-      setStatus('saved');
-      
-      console.log(`✅ [AutoSave] Successfully saved at ${new Date(now).toLocaleTimeString()}`);
-      
-      // Reset status to idle after 2 seconds
-      setTimeout(() => {
-        setStatus('idle');
-      }, 2000);
-      
-    } catch (err) {
-      console.error('❌ [AutoSave] Failed to save answers:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMsg);
-      setStatus('error');
-      
-      // Reset error status after 5 seconds
-      setTimeout(() => {
-        setStatus('idle');
-        setError(null);
-      }, 5000);
-      
-    } finally {
-      isSavingRef.current = false;
+
+    // Update refs after the save succeeds
+    lastSavedAnswersRef.current = currentAnswersStr;
+    lastSavedMobileStateRef.current = currentMobileStateStr;
+    if (currentMobileState) {
+      lastSavedScrollStateRef.current = scrollStateString;
     }
-  }, [enabled, sessionCode, studentId, answers]);
+  }, [
+    answers,
+    buildTransformedAnswers,
+    enabled,
+    mobileStateWithoutScrollString,
+    persistUpdate,
+    scrollStateString,
+    sessionCode,
+    studentId,
+  ]);
+
+  const saveMobileScrollState = useCallback(async () => {
+    const currentMobileState = mobileStateRef.current;
+
+    if (!enabled || !sessionCode || !studentId || !currentMobileState) {
+      return;
+    }
+
+    const currentScrollState = scrollStateString;
+    if (currentScrollState === lastSavedScrollStateRef.current) {
+      return;
+    }
+
+    console.log('📝 [AutoSave] Saving debounced mobile scroll state...');
+
+    const persisted = await persistUpdate({
+      mobileState: currentMobileState,
+      lastMobileStateUpdate: serverTimestamp(),
+      lastActivity: Date.now(),
+    });
+
+    if (!persisted) {
+      return;
+    }
+
+    lastSavedMobileStateRef.current = mobileStateWithoutScrollString;
+    lastSavedScrollStateRef.current = currentScrollState;
+  }, [
+    enabled,
+    mobileStateWithoutScrollString,
+    persistUpdate,
+    scrollStateString,
+    sessionCode,
+    studentId,
+  ]);
   
   /**
    * Debounced save on answer changes
@@ -176,7 +281,29 @@ export const useTestAutoSave = ({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [answers, enabled, debounceDelay, saveAnswers]);
+  }, [answers, mobileStateWithoutScrollString, enabled, debounceDelay, saveAnswers]);
+
+  /**
+   * Debounced mobile scroll persistence.
+   * Scroll maps change frequently, so persist them on their own cadence.
+   */
+  useEffect(() => {
+    if (!enabled || !mobileState) return;
+
+    if (scrollSaveTimeoutRef.current) {
+      clearTimeout(scrollSaveTimeoutRef.current);
+    }
+
+    scrollSaveTimeoutRef.current = setTimeout(() => {
+      void saveMobileScrollState();
+    }, 500);
+
+    return () => {
+      if (scrollSaveTimeoutRef.current) {
+        clearTimeout(scrollSaveTimeoutRef.current);
+      }
+    };
+  }, [enabled, mobileStateWithoutScrollString, saveMobileScrollState, scrollStateString]);
   
   /**
    * Periodic auto-save interval
@@ -245,6 +372,15 @@ export const useTestAutoSave = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [enabled, saveAnswers]);
+
+  useEffect(() => {
+    return () => {
+      clearStatusResetTimer();
+      if (scrollSaveTimeoutRef.current) {
+        clearTimeout(scrollSaveTimeoutRef.current);
+      }
+    };
+  }, [clearStatusResetTimer]);
   
   return {
     status,

@@ -111,7 +111,7 @@ export default function CommentComposer({
             return;
         }
 
-        editor.commands.focus('end');
+        editor.commands.focus('end', { scrollIntoView: false });
     }, [autoFocus, editor]);
 
     const handleSave = () => {

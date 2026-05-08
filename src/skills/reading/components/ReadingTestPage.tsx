@@ -7,6 +7,17 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
+// Mobile Exam Mode
+import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
+import { storage } from '../../../core/platform/storage';
+import { MobileReadingExamScaffold } from '../../../components/test/mobile/MobileReadingExamScaffold';
+import { MobileStartScreen } from '../../../components/test/mobile/MobileStartScreen';
+import {
+  getReadingTextSizeStorageKey,
+  hydrateMobileReadingState,
+  serializeMobileReadingState,
+} from '../../../components/test/mobile/mobileReadingState';
+
 // Generic Test Components (shared across all skills)
 import { IELTSQuestionsPanel } from '../../../components/test/IELTSQuestionsPanel';
 import { TwoColumnLayout } from '../../../components/test/TwoColumnLayout';
@@ -37,8 +48,11 @@ import { useIntegrityRefreshRequest } from '../../../hooks/test/useIntegrityRefr
 import { useTestIntegrity } from '../../../hooks/test/useTestIntegrity';
 import { useAntiCopyPaste } from '../../../hooks/test/useAntiCopyPaste';
 import { useFullscreenMode } from '../../../hooks/test/useFullscreenMode';
+import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
+import type { SavedMobileState } from '../../../types/practice.types';
 import { toast } from '../../../components/modern/ToastNotification';
 import { getIELTSQuestionsForStudent } from '../../../utils/thcsShuffle';
+import { FEATURE_IDS } from '../../../config/featureRegistry';
 
 // Services
 import { sessionService } from '../../../services/sessionService';
@@ -50,12 +64,22 @@ import { sessionService } from '../../../services/sessionService';
 const ReadingTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
+  const { isMobileExamMode } = useMobileExamMode();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
   const submitTestRef = useRef<
     ((isAutoSubmit?: boolean) => Promise<void>) | null
   >(null);
   const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const autosaveErrorToastRef = useRef<string | null>(null);
+  const mobileStateDirtyRef = useRef(false);
+  const mobileHydrationCompleteRef = useRef(false);
+  const prevQuestionSheetOpenRef = useRef(false);
+  const prevReviewSummaryOpenRef = useRef(false);
+  const skipNextQuestionSheetHistoryPushRef = useRef(false);
+  const restoreQuestionSheetOnReviewBackRef = useRef(false);
+  const readingStudentId = sessionService.getPlayerId() || '';
 
   // ═══════════════════════════════════════════════════════════════
   // CORE TEST STATE (Phase 1 Abstractions)
@@ -90,6 +114,7 @@ const ReadingTestPageContent: React.FC = () => {
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
   const hasInitializedQuestionRef = useRef(false);
+  const [autoSaveMobileState, setAutoSaveMobileState] = useState<SavedMobileState | undefined>(undefined);
 
   // Test submission state (must be declared before useTestSession)
   const [testSubmitted, setTestSubmitted] = useState(false);
@@ -108,6 +133,7 @@ const ReadingTestPageContent: React.FC = () => {
     isConnected,
     antiCheatConfig,
     integrityRefreshRequestedAt,
+    mobileState: savedMobileState,
   } = useTestSession({
     sessionCode,
     testData,
@@ -151,7 +177,7 @@ const ReadingTestPageContent: React.FC = () => {
     context: 'session',
     surface: 'reading_test',
     sessionCode: sessionCode || '',
-    studentId: sessionService.getPlayerId() || '',
+    studentId: readingStudentId,
     testId: testData?.id || '',
   });
 
@@ -244,6 +270,7 @@ const ReadingTestPageContent: React.FC = () => {
 
   // Test submission - receives correct timeRemaining from timer
   const {
+    isSubmitting,
     testSubmitted: submissionTestSubmitted,
     testResults,
     loadedAnswers,
@@ -256,6 +283,7 @@ const ReadingTestPageContent: React.FC = () => {
     sessionCode,
     answers,
     timeRemaining,
+    skipConfirm: isMobileExamMode,
     integrityReport: antiCheatConfig ? getIntegrityReport() : null,
     questionsWithAnswersRef,
   });
@@ -353,19 +381,21 @@ const ReadingTestPageContent: React.FC = () => {
   // Auto-save answers to Firebase in real-time
   const autoSaveStatus = useTestAutoSave({
     sessionCode: sessionCode || '',
-    studentId: sessionService.getPlayerId() || '',
+    studentId: readingStudentId,
     answers,
+    mobileState: autoSaveMobileState,
     enabled: !testSubmitted && sessionStatus === 'in-progress',
   });
 
   // Log auto-save status for debugging
   useEffect(() => {
     if (autoSaveStatus.status === 'saved') {
+      autosaveErrorToastRef.current = null;
       console.log('✅ [ReadingTestPage] Answers auto-saved at', new Date(autoSaveStatus.lastSaved || Date.now()).toLocaleTimeString());
     } else if (autoSaveStatus.status === 'error') {
       console.error('❌ [ReadingTestPage] Auto-save error:', autoSaveStatus.error);
     }
-  }, [autoSaveStatus]);
+  }, [autoSaveStatus.error, autoSaveStatus.lastSaved, autoSaveStatus.status]);
 
   // ═══════════════════════════════════════════════════════════════
   // READING-SPECIFIC STATE
@@ -377,6 +407,7 @@ const ReadingTestPageContent: React.FC = () => {
   const [highlighterActive, setHighlighterActive] = useState(false);
   const [highlightColor, setHighlightColor] = useState('#ffeb3b');
   const [clearHighlightsTrigger, setClearHighlightsTrigger] = useState(0);
+  const [mobileStateHydrated, setMobileStateHydrated] = useState(!isMobileExamMode);
 
   // ═══════════════════════════════════════════════════════════════
   // EVENT HANDLERS
@@ -405,20 +436,35 @@ const ReadingTestPageContent: React.FC = () => {
     if (testData) {
       const question = testData.questions.find(q => q.number === questionNumber);
       if (question && question.passageId) {
+        if (isMobileExamMode) {
+          mobileStateDirtyRef.current = true;
+        }
         setActivePassageId(question.passageId);
       }
     }
-  }, [testData, setActivePassageId]);
+  }, [isMobileExamMode, testData, setActivePassageId]);
 
   /**
    * Handle test submission (wrapper for hook's handleSubmit)
    */
   const handleSubmit = useCallback(() => {
+    trackAction('finishTest', {
+      mode: 'live',
+      surface: isMobileExamMode ? 'mobile' : 'standard',
+    });
     (async () => {
       await flushEvents('manual_submit');
-      await submitTest(false);
+      await submitTestRef.current?.(false);
     })();
-  }, [flushEvents, submitTest]);
+  }, [flushEvents, isMobileExamMode, trackAction]);
+
+  const handleAutoSubmit = useCallback(() => {
+    trackAction('timeOut', {
+      mode: 'live',
+      surface: 'mobile',
+    });
+    void submitTestRef.current?.(true);
+  }, [trackAction]);
 
   /**
    * Clear highlights handler (Reading-specific)
@@ -428,10 +474,335 @@ const ReadingTestPageContent: React.FC = () => {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════
+  // MOBILE SHELL STATE — must be declared before conditional returns
+  // to satisfy React Rules of Hooks (PRD-0043 Section 7.3, Task 3.8)
+  // ═══════════════════════════════════════════════════════════════
+
+  const [questionSheetOpen, setQuestionSheetOpen] = React.useState(false);
+  const [reviewSummaryOpen, setReviewSummaryOpen] = React.useState(false);
+  const [overflowMenuOpen, setOverflowMenuOpen] = React.useState(false);
+  const [textSizeControlOpen, setTextSizeControlOpen] = React.useState(false);
+  const [instructionsOpen, setInstructionsOpen] = React.useState(false);
+  const [passageScrollByPassage, setPassageScrollByPassage] = React.useState<Record<string, number>>({});
+
+  const markMobileStateDirty = React.useCallback(() => {
+    mobileStateDirtyRef.current = true;
+  }, []);
+  const handleMobilePassageChange = React.useCallback((passageId: string) => {
+    markMobileStateDirty();
+    setActivePassageId(passageId);
+  }, [markMobileStateDirty, setActivePassageId]);
+  const handleOpenQuestionSheet = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('openQuestionSheet', { mode: 'live', surface: 'mobile_fab' });
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    setQuestionSheetOpen(true);
+  }, [markMobileStateDirty, trackAction]);
+  const handleCloseQuestionSheet = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('closeQuestionSheet', { mode: 'live', surface: 'mobile_sheet' });
+    setQuestionSheetOpen(false);
+  }, [markMobileStateDirty, trackAction]);
+  const handleOpenReviewSummary = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('openReviewSummary', {
+      mode: 'live',
+      surface: overflowMenuOpen ? 'mobile_overflow_menu' : 'mobile_header_submit',
+    });
+    restoreQuestionSheetOnReviewBackRef.current = questionSheetOpen;
+    setQuestionSheetOpen(false);
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    setReviewSummaryOpen(true);
+  }, [markMobileStateDirty, overflowMenuOpen, questionSheetOpen, trackAction]);
+  const handleCloseReviewSummary = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('closeReviewSummary', { mode: 'live', surface: 'mobile_review_summary' });
+    restoreQuestionSheetOnReviewBackRef.current = false;
+    setReviewSummaryOpen(false);
+  }, [markMobileStateDirty, trackAction]);
+  const handleOpenOverflowMenu = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('openOverflowMenu', { mode: 'live', surface: 'mobile_header' });
+    setOverflowMenuOpen(true);
+  }, [markMobileStateDirty, trackAction]);
+  const handleCloseOverflowMenu = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('closeOverflowMenu', { mode: 'live', surface: 'mobile_overflow_menu' });
+    setOverflowMenuOpen(false);
+  }, [markMobileStateDirty, trackAction]);
+  const handleOpenTextSizeControl = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('openTextSizeControl', { mode: 'live', surface: 'mobile_overflow_menu' });
+    setOverflowMenuOpen(false);
+    setInstructionsOpen(false);
+    setTextSizeControlOpen(true);
+  }, [markMobileStateDirty, trackAction]);
+  const handleCloseTextSizeControl = React.useCallback(() => {
+    markMobileStateDirty();
+    setTextSizeControlOpen(false);
+  }, [markMobileStateDirty]);
+  const handleOpenInstructions = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('openInstructions', { mode: 'live', surface: 'mobile_overflow_menu' });
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(true);
+  }, [markMobileStateDirty, trackAction]);
+  const handleCloseInstructions = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('closeInstructions', { mode: 'live', surface: 'mobile_instructions_modal' });
+    setInstructionsOpen(false);
+  }, [markMobileStateDirty, trackAction]);
+  const handleTextSizeChange = React.useCallback((size: number) => {
+    markMobileStateDirty();
+    trackAction('adjustTextSize', { mode: 'live', surface: 'mobile_text_size_control', size });
+    setFontSize(size);
+  }, [markMobileStateDirty, trackAction]);
+  const handleLeaveTest = React.useCallback(() => {
+    markMobileStateDirty();
+    trackAction('leaveTest', { mode: 'live', surface: 'mobile_overflow_menu' });
+    const leaveHistoryDelta = 1
+      + (questionSheetOpen ? 1 : 0)
+      + (reviewSummaryOpen ? 1 : 0)
+      + (reviewSummaryOpen && restoreQuestionSheetOnReviewBackRef.current ? 1 : 0);
+    setQuestionSheetOpen(false);
+    setReviewSummaryOpen(false);
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    window.history.go(-leaveHistoryDelta);
+  }, [markMobileStateDirty, questionSheetOpen, reviewSummaryOpen, trackAction]);
+  const handlePassageScroll = React.useCallback((passageId: string, scrollTop: number) => {
+    markMobileStateDirty();
+    setPassageScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
+  }, [markMobileStateDirty]);
+
+  // Host-owned per-passage question group memory (PRD-0043 Task 4.6)
+  const [activeQuestionGroupByPassage, setActiveQuestionGroupByPassage] = React.useState<Record<string, number>>({});
+  const [questionSheetScrollByPassage, setQuestionSheetScrollByPassage] = React.useState<Record<string, number>>({});
+  const handleActiveQuestionGroupChange = React.useCallback((passageId: string, questionGroupStart: number) => {
+    markMobileStateDirty();
+    setActiveQuestionGroupByPassage(prev => ({ ...prev, [passageId]: questionGroupStart }));
+  }, [markMobileStateDirty]);
+  const handleQuestionSheetScroll = React.useCallback((passageId: string, scrollTop: number) => {
+    markMobileStateDirty();
+    setQuestionSheetScrollByPassage(prev => ({ ...prev, [passageId]: scrollTop }));
+  }, [markMobileStateDirty]);
+
+  // Host-owned flagging state (PRD-0043 Task 4.4)
+  const serializedMobileState = useMemo(() => serializeMobileReadingState({
+    activePassageId,
+    questionSheetOpen,
+    reviewSummaryOpen,
+    passageScrollByPassage,
+    activeQuestionGroupByPassage,
+    questionSheetScrollByPassage,
+    textSize: fontSize,
+  }), [
+    activePassageId,
+    questionSheetOpen,
+    reviewSummaryOpen,
+    passageScrollByPassage,
+    activeQuestionGroupByPassage,
+    questionSheetScrollByPassage,
+    fontSize,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const shouldSkipHydration = mobileStateDirtyRef.current && mobileHydrationCompleteRef.current;
+
+    if (!isMobileExamMode) {
+      setMobileStateHydrated(true);
+      mobileHydrationCompleteRef.current = false;
+      mobileStateDirtyRef.current = false;
+      return undefined;
+    }
+
+    if (!testData) {
+      return undefined;
+    }
+
+    if (shouldSkipHydration) {
+      return undefined;
+    }
+
+    const hydrateState = async () => {
+      try {
+        const persistedTextSize = readingStudentId
+          ? await storage.get<number>(getReadingTextSizeStorageKey(readingStudentId))
+          : undefined;
+
+        if (cancelled || (mobileStateDirtyRef.current && mobileHydrationCompleteRef.current)) {
+          return;
+        }
+
+        const hydratedState = hydrateMobileReadingState(
+          savedMobileState,
+          typeof persistedTextSize === 'number' ? persistedTextSize : 16,
+        );
+
+        if (
+          hydratedState.activePassageId
+          && testData.passages.some((passage) => passage.id === hydratedState.activePassageId)
+        ) {
+          setActivePassageId(hydratedState.activePassageId);
+        }
+
+        setQuestionSheetOpen(hydratedState.questionSheetOpen);
+        setReviewSummaryOpen(hydratedState.reviewSummaryOpen);
+        setPassageScrollByPassage(hydratedState.passageScrollByPassage);
+        setActiveQuestionGroupByPassage(hydratedState.activeQuestionGroupByPassage);
+        setQuestionSheetScrollByPassage(hydratedState.questionSheetScrollByPassage);
+        setFontSize(hydratedState.textSize);
+        mobileStateDirtyRef.current = false;
+        mobileHydrationCompleteRef.current = true;
+      } catch (error) {
+        console.warn('Failed to hydrate live mobile reading state:', error);
+        mobileStateDirtyRef.current = false;
+        mobileHydrationCompleteRef.current = true;
+      } finally {
+        if (!cancelled) {
+          setMobileStateHydrated(true);
+        }
+      }
+    };
+
+    setMobileStateHydrated(false);
+    void hydrateState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMobileExamMode, readingStudentId, savedMobileState, setActivePassageId, testData]);
+
+  useEffect(() => {
+    if (!isMobileExamMode || !readingStudentId || !mobileStateHydrated) {
+      return;
+    }
+
+    storage.set(getReadingTextSizeStorageKey(readingStudentId), fontSize).catch((err: unknown) => {
+      console.warn('Failed to persist reading text size fallback:', err);
+    });
+  }, [fontSize, isMobileExamMode, mobileStateHydrated, readingStudentId]);
+
+  useEffect(() => {
+    setAutoSaveMobileState(isMobileExamMode && mobileStateHydrated ? serializedMobileState : undefined);
+  }, [isMobileExamMode, mobileStateHydrated, serializedMobileState]);
+
+  useEffect(() => {
+    if (autoSaveStatus.status === 'saved') {
+      autosaveErrorToastRef.current = null;
+      return;
+    }
+
+    if (autoSaveStatus.status === 'error' && autoSaveStatus.error && autosaveErrorToastRef.current !== autoSaveStatus.error) {
+      autosaveErrorToastRef.current = autoSaveStatus.error;
+      toast.error(autoSaveStatus.error);
+    }
+  }, [autoSaveStatus.error, autoSaveStatus.status]);
+
+  useEffect(() => {
+    if (!isMobileExamMode) {
+      return;
+    }
+
+    const hasSessionInterruption = isPaused || sessionStatus !== 'in-progress';
+    if (
+      (testSubmitted || showTimeUpOverlay || hasSessionInterruption)
+      && (questionSheetOpen || reviewSummaryOpen || overflowMenuOpen || textSizeControlOpen || instructionsOpen)
+    ) {
+      mobileStateDirtyRef.current = true;
+      setQuestionSheetOpen(false);
+      setReviewSummaryOpen(false);
+      setOverflowMenuOpen(false);
+      setTextSizeControlOpen(false);
+      setInstructionsOpen(false);
+    }
+  }, [
+    instructionsOpen,
+    isMobileExamMode,
+    isPaused,
+    overflowMenuOpen,
+    questionSheetOpen,
+    reviewSummaryOpen,
+    sessionStatus,
+    showTimeUpOverlay,
+    testSubmitted,
+    textSizeControlOpen,
+  ]);
+
+  useEffect(() => {
+    if (!isMobileExamMode) {
+      prevQuestionSheetOpenRef.current = questionSheetOpen;
+      return;
+    }
+
+    const wasOpen = prevQuestionSheetOpenRef.current;
+    if (!wasOpen && questionSheetOpen) {
+      if (skipNextQuestionSheetHistoryPushRef.current) {
+        skipNextQuestionSheetHistoryPushRef.current = false;
+      } else {
+        window.history.pushState(null, '', window.location.href);
+      }
+    }
+
+    prevQuestionSheetOpenRef.current = questionSheetOpen;
+  }, [isMobileExamMode, questionSheetOpen]);
+
+  useEffect(() => {
+    if (!isMobileExamMode) {
+      prevReviewSummaryOpenRef.current = reviewSummaryOpen;
+      return;
+    }
+
+    const wasOpen = prevReviewSummaryOpenRef.current;
+    if (!wasOpen && reviewSummaryOpen) {
+      window.history.pushState(null, '', window.location.href);
+    }
+
+    prevReviewSummaryOpenRef.current = reviewSummaryOpen;
+  }, [isMobileExamMode, reviewSummaryOpen]);
+
+  useEffect(() => {
+    if (!isMobileExamMode) {
+      return;
+    }
+
+    const handlePopState = () => {
+      if (reviewSummaryOpen) {
+        mobileStateDirtyRef.current = true;
+        const restoreQuestionSheet = restoreQuestionSheetOnReviewBackRef.current;
+        restoreQuestionSheetOnReviewBackRef.current = false;
+        setReviewSummaryOpen(false);
+        if (restoreQuestionSheet) {
+          skipNextQuestionSheetHistoryPushRef.current = true;
+          setQuestionSheetOpen(true);
+        }
+        return;
+      }
+
+      if (questionSheetOpen) {
+        mobileStateDirtyRef.current = true;
+        setQuestionSheetOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isMobileExamMode, questionSheetOpen, reviewSummaryOpen]);
+
+  // ═══════════════════════════════════════════════════════════════
   // LOADING & ERROR STATES
   // ═══════════════════════════════════════════════════════════════
 
-  if (loading) {
+  if (loading || (isMobileExamMode && !mobileStateHydrated)) {
     return (
       <div style={{
         display: 'flex',
@@ -490,7 +861,149 @@ const ReadingTestPageContent: React.FC = () => {
   const currentPassage = testData.passages.find(p => p.id === activePassageId);
 
   // ═══════════════════════════════════════════════════════════════
-  // MAIN UI RENDER
+  // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0043)
+  // ═══════════════════════════════════════════════════════════════
+
+  if (isMobileExamMode) {
+    return (
+      <>
+        {/* Connection Monitor (always active) */}
+        <ConnectionMonitor
+          sessionCode={sessionCode}
+          onConnectionChange={(connected) => {
+            if (!connected && !testSubmitted) {
+              console.log('Connection lost during test');
+            }
+          }}
+        />
+
+        {/* Connection Status Indicator */}
+        {!isConnected && (
+          <div style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 9998,
+            background: '#fef2f2',
+            border: '2px solid #fecaca',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: '600', color: '#dc2626', fontSize: '0.875rem' }}>
+                Connection Issue
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#991b1b' }}>
+                Your answers are being saved locally
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Start Screen behind waiting overlay (PRD-0043 Task 2A.4) */}
+        {sessionStatus === 'waiting' && (
+          <MobileStartScreen
+            mode="live"
+            testTitle={testData.title || 'Reading Test'}
+            testSkill={testData.skill || 'Reading'}
+            passageCount={testData.passages?.length || 0}
+            questionCount={testData.questionCount || displayQuestions.length}
+            timeLimit={testData?.duration || null}
+            onStart={() => {}} // Teacher controls start in live mode
+            showStartButton={false}
+          />
+        )}
+
+        {/* Waiting/Paused Overlay (renders above scaffold) */}
+        <TestWaitingOverlay
+          sessionStatus={sessionStatus}
+          isPaused={isPaused}
+          sessionCode={sessionCode}
+        />
+
+        {/* Mobile Reading Exam Scaffold */}
+        <MobileReadingExamScaffold
+          mode="live"
+          passages={testData.passages.map((p, i) => ({ id: p.id, title: p.title || `Passage ${i + 1}` }))}
+          questions={displayQuestions}
+          totalQuestions={testData.questionCount || displayQuestions.length}
+          activePassageId={activePassageId || ''}
+          onPassageChange={handleMobilePassageChange}
+          currentPassage={currentPassage}
+          PassageRendererComponent={PassageRenderer}
+          answers={answers}
+          onAnswerChange={(testSubmitted || isLocked) ? () => {} : handleAnswerChange}
+          activeQuestionNumber={currentQuestionNumber}
+          onQuestionClick={goToQuestion}
+          timeRemaining={timeRemaining}
+          formatTime={formatTime}
+          testSubmitted={testSubmitted}
+          isSubmitting={isSubmitting}
+          questionResults={mergedQuestionResults}
+          onManualSubmit={handleSubmit}
+          onAutoSubmit={handleAutoSubmit}
+          isConnected={isConnected}
+          sessionStatus={sessionStatus}
+          isPaused={isPaused}
+          fontSize={fontSize}
+          lineSpacing={1.6}
+          highlighterActive={false} // FR-99/100: suppress highlighter on mobile
+          highlightColor={highlightColor}
+          clearHighlightsTrigger={clearHighlightsTrigger}
+          questionSheetOpen={questionSheetOpen}
+          onOpenQuestionSheet={handleOpenQuestionSheet}
+          onCloseQuestionSheet={handleCloseQuestionSheet}
+          reviewSummaryOpen={reviewSummaryOpen}
+          onOpenReviewSummary={handleOpenReviewSummary}
+          onCloseReviewSummary={handleCloseReviewSummary}
+          overflowMenuOpen={overflowMenuOpen}
+          onOpenOverflowMenu={handleOpenOverflowMenu}
+          onCloseOverflowMenu={handleCloseOverflowMenu}
+          textSizeControlOpen={textSizeControlOpen}
+          onOpenTextSizeControl={handleOpenTextSizeControl}
+          onCloseTextSizeControl={handleCloseTextSizeControl}
+          instructionsOpen={instructionsOpen}
+          onOpenInstructions={handleOpenInstructions}
+          onCloseInstructions={handleCloseInstructions}
+          onTextSizeChange={handleTextSizeChange}
+          onLeaveTest={handleLeaveTest}
+          antiSelectClass={antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+          passageScrollByPassage={passageScrollByPassage}
+          onPassageScroll={handlePassageScroll}
+          activeQuestionGroupByPassage={activeQuestionGroupByPassage}
+          onActiveQuestionGroupChange={handleActiveQuestionGroupChange}
+          questionSheetScrollByPassage={questionSheetScrollByPassage}
+          onQuestionSheetScroll={handleQuestionSheetScroll}
+        />
+
+        {/* Re-marking Modal (Generic) */}
+        <ReMarkingModal
+          show={showReMarkModal}
+          reMarkingData={reMarkingData}
+          totalQuestions={testData?.questionCount || 0}
+          onClose={() => setShowReMarkModal(false)}
+        />
+
+        {/* PRD-0019: Time Up Overlay */}
+        {showTimeUpOverlay && (
+          <TimeUpOverlay
+            onComplete={() => {
+              console.log('⏰ [PRD-0019] Grace period complete, auto-submitting...');
+            }}
+            countdownSeconds={gracePeriodRemaining}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DESKTOP/TABLET UI RENDER (existing layout)
   // ═══════════════════════════════════════════════════════════════
 
   return (

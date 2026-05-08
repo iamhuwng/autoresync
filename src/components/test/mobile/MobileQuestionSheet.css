@@ -1,0 +1,112 @@
+/* ─── MobileQuestionSheet ───────────────────────────────────────────────────
+ * Bottom sheet for question navigation with slide animation, backdrop,
+ * swipe-to-dismiss, and near-full-viewport height.
+ *
+ * Close triggers: (a) close button, (b) swipe-down on header, (c) backdrop tap.
+ * Animation: 250ms ease-out slide up/down.
+ *
+ * @see PRD-0043 Task 3.4
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+.mobile-question-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--mobile-reading-layer-sheet-backdrop, 2000);
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 250ms ease-out;
+  pointer-events: none;
+}
+
+.mobile-question-sheet-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-question-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--mobile-reading-layer-sheet, 2001);
+  background: #ffffff;
+  border-radius: 16px 16px 0 0;
+  /* Leave ~48px for the header above */
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(100%);
+  transition: transform 250ms ease-out;
+  will-change: transform;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mobile-question-sheet.open {
+  transform: translateY(0);
+}
+
+/* ─── Sheet Header ──────────────────────────────────────────────────────── */
+
+.mobile-question-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  touch-action: none; /* enable JS swipe handling */
+  cursor: grab;
+}
+
+.mobile-question-sheet-handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #cbd5e1;
+}
+
+.mobile-question-sheet-header-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1e293b;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.mobile-question-sheet-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 50%;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 1.125rem;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.mobile-question-sheet-close-btn:active {
+  background: #e2e8f0;
+}
+
+/* ─── Sheet Body ────────────────────────────────────────────────────────── */
+
+.mobile-question-sheet-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

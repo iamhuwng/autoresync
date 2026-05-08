@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-04-01T05:44:56.018Z'
+updatedAt: '2026-04-12T00:46:37.186Z'
 tags:
   - architecture
   - student
@@ -195,3 +195,34 @@ For startup-sensitive changes on the student path, also verify:
 - @doc/architecture/student-experience-architecture
 - @doc/patterns/pattern-student-shell-single-data-owner
 - @doc/patterns/pattern-summary-first-detail-on-demand
+
+## Approval-Filtered Membership Visibility
+
+Shell-owned student class summaries are approval-filtered, not raw-roster mirrors.
+
+Required rules:
+- shell-owned enrolled class membership summaries must include only student-visible memberships
+- `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
+- helper services receiving shell-owned class summaries must treat them as already approval-filtered
+- self-service join requests must not trigger downstream coursework visibility before teacher approval
+
+Dashboard-specific rule:
+- a successful class-code submission may update dashboard-local join request state, but it must not be treated as active shell membership
+- dashboard should not force homework refresh or equivalent coursework refresh while the join remains `pending_approval`
+
+Related doc:
+- @doc/architecture/class-code-join-approval-gating
+
+## PRD-0044 Hosting Clarification (2026-04-12)
+
+Homework detail and student results no longer fit the old simple split of "shell page" versus "outside shell".
+
+Current contract:
+- `/student/homework/:homeworkId` now lives inside the shell route tree, so it consumes the shared shell owner for shell chrome and summaries while still owning its page-specific detail dataset
+- `/student/results/:sessionCode` is the shell-hosted legacy results alias, so it consumes the shell provider while keeping page-primary result/session data local
+- `/student-test-results/:sessionCode` remains outside `StudentShellRoute`, but it may render `StudentLayout` while self-providing shell-like dependencies at the layout boundary
+
+Rule:
+- route-hosting changes for homework detail or results must not accidentally create a second long-lived shell owner
+
+See @doc/architecture/student-mobile-responsiveness-architecture for the responsive route-hosting contract.

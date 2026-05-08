@@ -12,12 +12,10 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { ref, get, onValue } from 'firebase/database';
 // @ts-ignore
 import { database } from '../services/firebase';
-import { buildRoute } from '../constants/routes';
-import { Center, Loader } from '@mantine/core';
 import { Card, CardBody } from '../components/modern';
 import { Button } from '../components/modern';
 import {
@@ -39,6 +37,11 @@ import type { WritingSubmission } from '../types/ielts-writing.types';
 import { deriveSessionReleaseState, getReleaseVisibility } from '../types/releaseState.types';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { useNavigation } from '../hooks/useNavigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { StudentLayout } from '../components/layout/StudentLayout';
+import { StudentSidebar } from '../components/layout/StudentSidebar';
+import { mobileStyles, studentTokens } from '../components/layout/studentLayoutStyles';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -64,11 +67,78 @@ interface TestData {
   duration: number;
 }
 
+const centerStateStyle: React.CSSProperties = {
+  minHeight: '60vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: '2.5rem',
+  height: '2.5rem',
+  borderRadius: '50%',
+  border: `3px solid ${studentTokens.borderWhisper}`,
+  borderTopColor: studentTokens.accent,
+  display: 'inline-block',
+  animation: 'studentResultsSpin 0.8s linear infinite',
+};
+
+const pagePanelStyle: React.CSSProperties = {
+  background: studentTokens.bgSurface,
+  border: `1px solid ${studentTokens.borderWhisper}`,
+  borderRadius: studentTokens.radiusPanel,
+  boxShadow: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+};
+
+const insetPanelStyle: React.CSSProperties = {
+  background: studentTokens.bgShell,
+  border: `1px solid ${studentTokens.borderWhisper}`,
+  borderRadius: studentTokens.radiusSoft,
+};
+
+const primaryActionStyle: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: studentTokens.radiusSoft,
+  border: `1px solid ${studentTokens.accent}`,
+  background: studentTokens.accent,
+  color: studentTokens.bgSurface,
+  boxShadow: 'none',
+};
+
+const secondaryActionStyle: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: studentTokens.radiusSoft,
+  border: `1px solid ${studentTokens.borderSoft}`,
+  background: studentTokens.bgSurface,
+  color: studentTokens.textBody,
+  boxShadow: 'none',
+};
+
+const microLabelStyle: React.CSSProperties = {
+  fontSize: '0.75rem',
+  color: studentTokens.textMuted,
+  textTransform: 'uppercase',
+  fontWeight: 700,
+  letterSpacing: '0.06em',
+};
+
+const sectionHeadingStyle: React.CSSProperties = {
+  fontSize: '1.5rem',
+  fontWeight: 700,
+  color: studentTokens.textPrimary,
+  marginBottom: '1rem',
+};
+
 export const StudentTestResultsPage: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
+  const { navigateTo } = useNavigation('student');
   const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
+  const sidebar = <StudentSidebar activePage="records" />;
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -195,10 +265,19 @@ export const StudentTestResultsPage: React.FC = () => {
 
       if (isLegacyStudentResultLink) {
         try {
-          const directResult = await getTestResult(sessionCode);
-          if (!cancelled && directResult) {
-            navigate(buildRoute('RESULT_DETAIL', { resultId: sessionCode }), { replace: true });
+          const legacySessionRef = ref(database, `game_sessions/${sessionCode}`);
+          const legacySessionSnap = await get(legacySessionRef);
+
+          if (cancelled) {
             return;
+          }
+
+          if (!legacySessionSnap.exists()) {
+            const directResult = await getTestResult(sessionCode);
+            if (!cancelled && directResult) {
+              navigateTo('RESULT_DETAIL', { resultId: sessionCode }, { replace: true, reason: 'legacy_student_result_redirect' });
+              return;
+            }
           }
         } catch (legacyLookupError) {
           console.warn('[Results] Legacy result link lookup failed, falling back to session loading:', legacyLookupError);
@@ -220,7 +299,7 @@ export const StudentTestResultsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [sessionCode, location.pathname, navigate]);
+  }, [sessionCode, location.pathname, navigateTo]);
 
   const loadResults = async (retryCount = 0) => {
     try {
@@ -496,11 +575,17 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   const toggleQuestion = (questionNumber: number) => {
     const newExpanded = new Set(expandedQuestions);
+    const willExpand = !newExpanded.has(questionNumber);
     if (newExpanded.has(questionNumber)) {
       newExpanded.delete(questionNumber);
     } else {
       newExpanded.add(questionNumber);
     }
+    trackAction('viewQuestion', {
+      source: 'student_test_results_page',
+      questionNumber,
+      expanded: willExpand,
+    });
     setExpandedQuestions(newExpanded);
   };
 
@@ -522,9 +607,15 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   if (loading) {
     return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="xl" />
-      </Center>
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+        <div style={centerStateStyle}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <span aria-label="Loading" style={spinnerStyle} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: studentTokens.textBody }}>Loading results...</span>
+          </div>
+        </div>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -533,15 +624,27 @@ export const StudentTestResultsPage: React.FC = () => {
    */
   if (error || !session || !testData || (!results && !writingSubmission)) {
     return (
-      <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ fontSize: '3rem' }}>⚠️</div>
-        <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
-          {error || 'Failed to load results'}
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+        <div style={centerStateStyle}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', textAlign: 'center' }}>
+            <div style={{ ...microLabelStyle, fontSize: '0.72rem' }}>Results Unavailable</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 600, color: studentTokens.textPrimary }}>
+              {error || 'Failed to load results'}
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                trackAction('returnToDashboard', { source: 'student_results_error_state' });
+                navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_results_error_return' });
+              }}
+              style={primaryActionStyle}
+            >
+              Return to Home
+            </Button>
+          </div>
         </div>
-        <Button variant="primary" onClick={() => navigate('/')}>
-          Return to Home
-        </Button>
-      </Center>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -561,53 +664,52 @@ export const StudentTestResultsPage: React.FC = () => {
   // PRD-0030 Task 6.1.1: Writing test — render WritingResultView
   if (writingSubmission && testData.skill === 'Writing') {
     return (
-      <div className="student-view-root" style={{ background: '#f3f4f6', minHeight: '100vh' }}>
+      <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
         <div
+          className="student-view-root"
           style={{
-            maxWidth: '1280px',
+            maxWidth: '1200px',
             margin: '0 auto',
             display: 'grid',
-            gridTemplateColumns: '256px minmax(0, 980px) 1fr',
-            gap: '24px',
-            padding: '24px 16px 40px',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '256px minmax(0, 980px) 1fr',
+            gap: isMobile ? '16px' : '24px',
+            padding: isMobile ? '16px 0 24px' : '24px 0 40px',
           }}
         >
           <aside
             style={{
-              position: 'sticky',
-              top: 24,
+              position: isMobile ? 'static' : 'sticky',
+              top: isMobile ? 0 : 24,
               alignSelf: 'start',
               display: 'grid',
               gap: '16px',
             }}
           >
-            <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb', padding: '18px' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <div style={{ ...pagePanelStyle, padding: '18px' }}>
+              <div style={{ ...microLabelStyle, fontSize: '0.72rem' }}>
                 Writing Result
               </div>
-              <h1 style={{ margin: '8px 0 0', fontSize: '1.45rem', fontWeight: 800, color: '#111827' }}>
+              <h1 style={{ margin: '8px 0 0', fontSize: '1.45rem', fontWeight: 800, color: studentTokens.textPrimary }}>
                 {testData.title}
               </h1>
-              <div style={{ marginTop: '8px', color: '#6b7280', fontSize: '0.9rem', lineHeight: 1.6 }}>
+              <div style={{ marginTop: '8px', color: studentTokens.textBody, fontSize: '0.9rem', lineHeight: 1.6 }}>
                 Review the published Writing feedback here once your teacher releases it.
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb', padding: '18px', display: 'grid', gap: '10px' }}>
+            <div style={{ ...pagePanelStyle, padding: '18px', display: 'grid', gap: '10px' }}>
               <button
                 type="button"
                 onClick={() => {
                   trackAction('returnToDashboard', { source: 'student_writing_result_page' });
-                  navigate('/');
+                  navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_writing_results_return' });
                 }}
                 style={{
-                  border: 'none',
-                  borderRadius: '999px',
-                  background: '#111827',
-                  color: '#ffffff',
+                  ...primaryActionStyle,
                   padding: '12px 16px',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  ...(isMobile ? mobileStyles.fullWidthButton : {}),
                 }}
               >
                 Return to Home
@@ -622,13 +724,11 @@ export const StudentTestResultsPage: React.FC = () => {
                   window.print();
                 }}
                 style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '999px',
-                  background: '#ffffff',
-                  color: '#374151',
+                  ...secondaryActionStyle,
                   padding: '12px 16px',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  ...(isMobile ? mobileStyles.fullWidthButton : {}),
                 }}
               >
                 Print Result
@@ -642,8 +742,8 @@ export const StudentTestResultsPage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem 0', gap: '0.5rem' }}>
                   <div style={{
                     width: '2rem', height: '2rem',
-                    border: '3px solid #e2e8f0',
-                    borderTop: '3px solid #4f46e5',
+                    border: `3px solid ${studentTokens.borderWhisper}`,
+                    borderTop: `3px solid ${studentTokens.accent}`,
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
@@ -675,9 +775,10 @@ export const StudentTestResultsPage: React.FC = () => {
             </Suspense>
           </main>
 
-          <aside aria-hidden="true" />
+          {!isMobile && <aside aria-hidden="true" />}
         </div>
-      </div>
+        <style>{`@keyframes studentResultsSpin { to { transform: rotate(360deg); } }`}</style>
+      </StudentLayout>
     );
   }
 
@@ -691,132 +792,160 @@ export const StudentTestResultsPage: React.FC = () => {
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, rgba(250, 245, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 50%, rgba(240, 253, 250, 0.95) 100%)',
-        padding: '2rem',
-      }}
-    >
+    <StudentLayout sidebar={sidebar} mobileTitle="Test Results">
+      <div
+        className="student-view-root"
+        style={{
+          minHeight: '100%',
+          background: studentTokens.bgPage,
+          padding: isMobile ? mobileStyles.feedPadding.padding : '2rem',
+        }}
+      >
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
-        <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <div
+          style={{
+            ...pagePanelStyle,
+            marginBottom: '2rem',
+            padding: isMobile ? '1.25rem' : '1.75rem',
+            textAlign: 'center',
+          }}
+        >
+          <div style={microLabelStyle}>Result Summary</div>
           <h1
             style={{
-              margin: 0,
-              fontSize: '2.5rem',
+              margin: '0.5rem 0 0',
+              fontSize: isMobile ? '2rem' : '2.5rem',
               fontWeight: 800,
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              marginBottom: '0.5rem',
+              color: studentTokens.textPrimary,
             }}
           >
             Test Results
           </h1>
-          <div style={{ fontSize: '1.125rem', color: '#64748b', fontWeight: 500 }}>
+          <div style={{ fontSize: '1.125rem', color: studentTokens.textBody, fontWeight: 600, marginTop: '0.5rem' }}>
             {testData.title}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: isMobile ? '0.8125rem' : '0.875rem', color: studentTokens.textMuted, marginTop: '0.25rem' }}>
             {testData.type} - {testData.skill}
           </div>
         </div>
 
         {/* PRD-0040 Task 4.4: Release-state governance banner */}
         {effectiveReleaseState === 'locked-review' && (
-          <div style={{
+          <div
+            className="student-results-release-banner"
+            style={{
             padding: '1rem 1.5rem',
-            background: 'rgba(100, 116, 139, 0.08)',
-            border: '1px solid rgba(100, 116, 139, 0.2)',
-            borderRadius: '0.75rem',
+            ...insetPanelStyle,
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
             gap: '0.75rem',
             marginBottom: '1.5rem',
-          }}>
+            }}
+          >
             <span style={{ fontSize: '1.25rem' }}>🔒</span>
             <div>
-              <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.9375rem' }}>Detailed Review Locked</div>
-              <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>Your teacher will release answers and feedback when ready.</div>
+              <div style={microLabelStyle}>Release Status</div>
+              <div style={{ fontWeight: 700, color: studentTokens.textPrimary, fontSize: '0.9375rem', marginTop: '0.35rem' }}>Detailed Review Locked</div>
+              <div style={{ fontSize: '0.8125rem', color: studentTokens.textBody, marginTop: '0.25rem' }}>Your teacher will release answers and feedback when ready.</div>
             </div>
           </div>
         )}
         {effectiveReleaseState === 'review-released' && (
-          <div style={{
+          <div
+            className="student-results-release-banner"
+            style={{
             padding: '1rem 1.5rem',
-            background: 'rgba(59, 130, 246, 0.06)',
-            border: '1px solid rgba(59, 130, 246, 0.15)',
-            borderRadius: '0.75rem',
+            ...insetPanelStyle,
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
             gap: '0.75rem',
             marginBottom: '1.5rem',
-          }}>
+            }}
+          >
             <span style={{ fontSize: '1.25rem' }}>📋</span>
             <div>
-              <div style={{ fontWeight: 600, color: '#1e40af', fontSize: '0.9375rem' }}>Answers Released</div>
-              <div style={{ fontSize: '0.8125rem', color: '#3b82f6' }}>Correct answers are now available. Detailed feedback will follow.</div>
+              <div style={microLabelStyle}>Release Status</div>
+              <div style={{ fontWeight: 700, color: studentTokens.accent, fontSize: '0.9375rem', marginTop: '0.35rem' }}>Answers Released</div>
+              <div style={{ fontSize: '0.8125rem', color: studentTokens.textBody, marginTop: '0.25rem' }}>Correct answers are now available. Detailed feedback will follow.</div>
             </div>
           </div>
         )}
 
         {/* Score Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: isMobile ? '1rem' : '1.5rem',
+            marginBottom: '2rem',
+          }}
+        >
           {/* Total Score */}
-          <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <Card variant="default" hover={false}>
+            <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
+              <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                 Your Score
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#8b5cf6', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: studentTokens.accent, marginBottom: '0.5rem', wordBreak: 'break-word' }}>
                 {safeResults.totalScore}/{safeResults.maxScore}
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#64748b' }}>
+              <div style={{ fontSize: isMobile ? '1.125rem' : '1.25rem', fontWeight: 700, color: studentTokens.textBody }}>
                 {safeResults.percentage.toFixed(1)}%
               </div>
             </CardBody>
           </Card>
 
           {/* Band Score */}
-          <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <Card variant="default" hover={false}>
+            <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
+              <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                 IELTS Band Score
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#10b981', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: studentTokens.textPrimary, marginBottom: '0.5rem' }}>
                 {bandScore.toFixed(1)}
               </div>
-              <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+              <div style={{ fontSize: '0.875rem', color: studentTokens.textBody }}>
                 Out of 9.0
               </div>
             </CardBody>
           </Card>
 
           {/* Questions Summary */}
-          <Card variant="glass">
-            <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <Card variant="default" hover={false}>
+            <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
+              <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                 Questions
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: isMobile ? '0.75rem' : '1rem',
+                  marginTop: '1rem',
+                }}
+              >
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: studentTokens.textPrimary }}>
                     {safeResults.summary.correct}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Correct</div>
+                  <div style={{ fontSize: '0.75rem', color: studentTokens.textBody }}>Correct</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: studentTokens.textPrimary }}>
                     {safeResults.summary.partialCredit}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Partial</div>
+                  <div style={{ fontSize: '0.75rem', color: studentTokens.textBody }}>Partial</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444' }}>
+                  <div style={{ fontSize: isMobile ? '1.75rem' : '2rem', fontWeight: 800, color: studentTokens.textPrimary }}>
                     {safeResults.summary.incorrect}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Incorrect</div>
+                  <div style={{ fontSize: '0.75rem', color: studentTokens.textBody }}>Incorrect</div>
                 </div>
               </div>
             </CardBody>
@@ -824,18 +953,23 @@ export const StudentTestResultsPage: React.FC = () => {
 
           {/* Course Average Card */}
           {session.courseId && courseAverage !== null && (
-            <Card variant="glass">
-              <CardBody style={{ padding: '2rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+            <Card variant="default" hover={false}>
+              <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1.25rem' : '2rem', textAlign: 'center' }}>
+                <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                   {session.courseName ? `${session.courseName} Avg` : 'Course Average'}
                 </div>
-                <div style={{ fontSize: '3rem', fontWeight: 800, color: '#3b82f6', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: isMobile ? '2.25rem' : '3rem', fontWeight: 800, color: studentTokens.textPrimary, marginBottom: '0.5rem' }}>
                   {courseAverage.toFixed(1)}%
                 </div>
                 <div style={{
                   fontSize: '0.875rem',
-                  color: safeResults.percentage >= courseAverage ? '#10b981' : '#ef4444',
-                  fontWeight: 700
+                  color: safeResults.percentage >= courseAverage ? studentTokens.accent : studentTokens.textBody,
+                  fontWeight: 700,
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isMobile ? '0.25rem' : '0.5rem',
                 }}>
                   {safeResults.percentage >= courseAverage ? 'Above Average' : 'Below Average'}
                 </div>
@@ -846,17 +980,16 @@ export const StudentTestResultsPage: React.FC = () => {
 
         {/* Performance Feedback — gated by release state */}
         {visibility.showAIFeedback && (
-        <Card variant="glass" style={{ marginBottom: '2rem' }}>
-          <CardBody style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ fontSize: '3rem' }}>
-                {safeResults.percentage >= 80 ? '🎉' : safeResults.percentage >= 60 ? '👍' : '📚'}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
+        <Card variant="default" hover={false} style={{ marginBottom: '2rem' }}>
+          <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1.25rem' : '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '1rem' }}>
+              <div aria-hidden="true" style={{ display: 'none' }} />
+              <div style={{ flex: 1, width: '100%' }}>
+                <div style={microLabelStyle}>AI Feedback</div>
+                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, marginBottom: '0.5rem', marginTop: '0.35rem' }}>
                   Performance Feedback
                 </div>
-                <div style={{ fontSize: '1rem', color: '#64748b', lineHeight: 1.6 }}>
+                <div style={{ fontSize: '1rem', color: studentTokens.textBody, lineHeight: 1.6 }}>
                   {feedback}
                 </div>
               </div>
@@ -870,7 +1003,7 @@ export const StudentTestResultsPage: React.FC = () => {
           <div style={{ marginBottom: '2rem' }}>
             <FeedbackDisplay
               feedback={permanentResultRecord.overallFeedback}
-              teacherName={permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
+              teacherName={(permanentResultRecord as any).feedbackUpdatedByTeacherName || permanentResultRecord.feedbackUpdatedBy || 'Your Teacher'}
               updatedAt={permanentResultRecord.feedbackUpdatedAt || Date.now()}
               isOverall={true}
               variant="highlighted"
@@ -880,14 +1013,7 @@ export const StudentTestResultsPage: React.FC = () => {
 
         {/* Question-by-Question Review */}
         <div style={{ marginBottom: '2rem' }}>
-          <h2
-            style={{
-              fontSize: '1.5rem',
-              fontWeight: 700,
-              color: '#1e293b',
-              marginBottom: '1rem',
-            }}
-          >
+          <h2 style={sectionHeadingStyle}>
             Question Review
           </h2>
 
@@ -896,33 +1022,49 @@ export const StudentTestResultsPage: React.FC = () => {
               const isExpanded = expandedQuestions.has(result.questionNumber);
               // PRD-0040 Task 4.4: In locked-review, use neutral styling (no correct/incorrect indicators)
               const statusColor = !visibility.showQuestionScoring
-                ? { bg: 'rgba(100, 116, 139, 0.06)', border: '#cbd5e1', text: '#64748b' }
+                ? { bg: studentTokens.bgShell, border: studentTokens.outlineSoft, text: studentTokens.textBody }
                 : result.isCorrect
-                  ? { bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', text: '#059669' }
+                  ? { bg: studentTokens.accentSoft, border: studentTokens.accent, text: studentTokens.accent }
                   : result.partialCredit
-                    ? { bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b', text: '#d97706' }
-                    : { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#dc2626' };
+                    ? { bg: studentTokens.bgSurfaceAlt, border: studentTokens.outlineSoft, text: studentTokens.textPrimary }
+                    : { bg: studentTokens.bgShell, border: studentTokens.outlineSoft, text: studentTokens.textPrimary };
 
               return (
-                <Card key={result.questionNumber} variant="glass">
-                  <CardBody style={{ padding: '1.5rem' }}>
+                <Card key={result.questionNumber} variant="default" hover={false}>
+                  <CardBody style={{ ...pagePanelStyle, padding: isMobile ? '1rem' : '1.5rem' }}>
                     {/* Question Header */}
-                    <div
+                    <button
+                      type="button"
                       onClick={() => toggleQuestion(result.questionNumber)}
                       style={{
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        width: '100%',
+                        border: 'none',
+                        background: 'transparent',
+                        padding: 0,
+                        textAlign: 'left',
                         cursor: 'pointer',
                         marginBottom: isExpanded ? '1rem' : 0,
+                        ...(isMobile ? mobileStyles.touchTarget : {}),
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: isMobile ? 'column' : 'row',
+                          justifyContent: 'space-between',
+                          alignItems: isMobile ? 'stretch' : 'center',
+                          gap: '1rem',
+                          flex: 1,
+                          width: '100%',
+                          minWidth: 0,
+                        }}
+                      >
                         {/* Question Number */}
                         <div
                           style={{
-                            width: '3rem',
-                            height: '3rem',
+                            width: isMobile ? '2.75rem' : '3rem',
+                            height: isMobile ? '2.75rem' : '3rem',
                             borderRadius: '50%',
                             background: statusColor.bg,
                             border: `2px solid ${statusColor.border}`,
@@ -939,41 +1081,54 @@ export const StudentTestResultsPage: React.FC = () => {
                         </div>
 
                         {/* Question Info */}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.25rem' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '1rem', fontWeight: 600, color: studentTokens.textPrimary, marginBottom: '0.25rem' }}>
                             Question {result.questionNumber}
                           </div>
-                          <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600 }}>
+                          <div aria-hidden="true" style={{ fontSize: 0, color: 'transparent', fontWeight: 600, lineHeight: 0 }}>
                             {visibility.showQuestionScoring
                               ? `${result.isCorrect ? '✓ Correct' : result.partialCredit ? '⚡ Partial Credit' : '✗ Incorrect'} - ${result.score}/${result.maxScore} points`
+                              : 'Tap to view your answer'}
+                          </div>
+                          <div style={{ fontSize: '0.875rem', color: statusColor.text, fontWeight: 600, lineHeight: 1.5 }}>
+                            {visibility.showQuestionScoring
+                              ? `${result.isCorrect ? 'Correct' : result.partialCredit ? 'Partial Credit' : 'Incorrect'} - ${result.score}/${result.maxScore} points`
                               : 'Tap to view your answer'}
                           </div>
                         </div>
 
                         {/* Expand Icon */}
-                        <div style={{ fontSize: '1.5rem', color: '#64748b', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        <div
+                          style={{
+                            fontSize: '1.5rem',
+                            color: studentTokens.textMuted,
+                            transition: 'transform 0.2s',
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            alignSelf: isMobile ? 'flex-end' : 'center',
+                          }}
+                        >
                           ▼
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     {/* Question Details (Expanded) */}
                     {isExpanded && (
-                      <div style={{ paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+                      <div style={{ paddingTop: '1rem', borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
                         {/* Your Answer */}
                         <div style={{ marginBottom: '1rem' }}>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+                          <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                             Your Answer
                           </div>
                           <div
                             style={{
-                              padding: '1rem',
+                              padding: isMobile ? '0.875rem' : '1rem',
                               background: statusColor.bg,
                               border: `1px solid ${statusColor.border}`,
                               borderRadius: '0.5rem',
                               fontSize: '0.9375rem',
                               fontWeight: 500,
-                              color: '#1e293b',
+                              color: studentTokens.textPrimary,
                               fontFamily: 'monospace',
                               whiteSpace: 'pre-wrap',
                               wordBreak: 'break-word',
@@ -986,18 +1141,18 @@ export const StudentTestResultsPage: React.FC = () => {
                         {/* Correct Answer — gated by release state */}
                         {visibility.showCorrectAnswers && !result.isCorrect && (
                           <div style={{ marginBottom: '1rem' }}>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                               Correct Answer
                             </div>
                             <div
                               style={{
-                                padding: '1rem',
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                border: '1px solid #10b981',
+                                padding: isMobile ? '0.875rem' : '1rem',
+                                background: studentTokens.bgShell,
+                                border: `1px solid ${studentTokens.accent}`,
                                 borderRadius: '0.5rem',
                                 fontSize: '0.9375rem',
                                 fontWeight: 600,
-                                color: '#059669',
+                                color: studentTokens.textPrimary,
                                 fontFamily: 'monospace',
                                 whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word',
@@ -1012,11 +1167,11 @@ export const StudentTestResultsPage: React.FC = () => {
                         {visibility.showAIFeedback && (
                         <div
                           style={{
-                            padding: '0.75rem 1rem',
-                            background: 'rgba(248, 250, 252, 0.8)',
+                            padding: isMobile ? '0.875rem' : '0.75rem 1rem',
+                            ...insetPanelStyle,
                             borderRadius: '0.5rem',
                             fontSize: '0.875rem',
-                            color: '#64748b',
+                            color: studentTokens.textBody,
                             fontStyle: 'italic',
                             marginBottom: permanentResultRecord?.questionResults?.find(q => q.questionNumber === result.questionNumber)?.teacherFeedback ? '1rem' : 0,
                           }}
@@ -1035,12 +1190,12 @@ export const StudentTestResultsPage: React.FC = () => {
 
                           return (
                             <div style={{ marginTop: '1rem' }}>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+                              <div style={{ ...microLabelStyle, marginBottom: '0.5rem' }}>
                                 Teacher's Feedback
                               </div>
                               <FeedbackDisplay
                                 feedback={questionFeedback}
-                                teacherName={permanentResultRecord?.feedbackUpdatedBy || 'Your Teacher'}
+                                teacherName={(permanentResultRecord as any)?.feedbackUpdatedByTeacherName || permanentResultRecord?.feedbackUpdatedBy || 'Your Teacher'}
                                 updatedAt={permanentResultRecord?.feedbackUpdatedAt || Date.now()}
                                 questionId={String(result.questionNumber)}
                                 variant="default"
@@ -1058,15 +1213,44 @@ export const StudentTestResultsPage: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-          <Button variant="primary" onClick={() => navigate('/')}>
-            🏠 Return to Home
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
+            gap: '1rem',
+            marginTop: '2rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Button
+            variant="primary"
+            aria-label="Return to Home"
+            onClick={() => {
+              trackAction('returnToDashboard', { source: 'student_test_results_page' });
+              navigateTo('STUDENT_DASHBOARD', {}, { reason: 'student_results_return' });
+            }}
+            style={{
+              ...primaryActionStyle,
+              ...(isMobile ? mobileStyles.fullWidthButton : {}),
+              color: 'transparent',
+              fontSize: 0,
+            }}
+          >
+            <span style={{ fontSize: '0.95rem', color: studentTokens.bgSurface }}>Return to Home</span>
           </Button>
 
           {pdfAvailable && (
             <Button
               variant="primary"
+              aria-label="Download Certificate"
               onClick={async () => {
+                trackAction('exportResultsPdf', {
+                  source: 'student_test_results_page',
+                  sessionCode,
+                  hasPermanentRecord: Boolean(permanentResultRecord),
+                });
                 // Scenario A: Use Permanent Record (Preferred)
                 if (permanentResultRecord) {
                   await generateCertificatePDF(permanentResultRecord);
@@ -1118,19 +1302,41 @@ export const StudentTestResultsPage: React.FC = () => {
 
                 await generateCertificatePDF(resultRecord);
               }}
+              style={{
+                ...primaryActionStyle,
+                ...(isMobile ? mobileStyles.fullWidthButton : {}),
+                color: 'transparent',
+                fontSize: 0,
+              }}
             >
-              📄 Download Certificate
+              <span style={{ fontSize: '0.95rem', color: studentTokens.bgSurface }}>Download Certificate</span>
             </Button>
           )}
 
-          <Button variant="glass" onClick={() => window.print()}>
-            🖨️ Print Results
+          <Button
+            variant="outline"
+            aria-label="Print Results"
+            onClick={() => {
+              trackAction('printResults', {
+                source: 'student_test_results_page',
+                sessionCode,
+              });
+              window.print();
+            }}
+            style={{
+              ...secondaryActionStyle,
+              ...(isMobile ? mobileStyles.fullWidthButton : {}),
+              color: 'transparent',
+              fontSize: 0,
+            }}
+          >
+            <span style={{ fontSize: '0.95rem', color: studentTokens.textBody }}>Print Results</span>
           </Button>
         </div>
 
         {/* Writing/Speaking Placeholder */}
         {(permanentResultRecord?.writingSubmission || permanentResultRecord?.speakingSubmission) && (
-          <div style={{ marginTop: '2rem' }}>
+          <div style={{ marginTop: '2rem', width: '100%', minWidth: 0 }}>
             <WritingSpeakingPlaceholder
               type={permanentResultRecord.testSkill === 'speaking' ? 'speaking' : 'writing'}
               submission={permanentResultRecord.writingSubmission || permanentResultRecord.speakingSubmission}
@@ -1139,7 +1345,12 @@ export const StudentTestResultsPage: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+      <style>{`
+        @keyframes studentResultsSpin { to { transform: rotate(360deg); } }
+        .student-results-release-banner > span { display: none; }
+      `}</style>
+    </StudentLayout>
   );
 };
 

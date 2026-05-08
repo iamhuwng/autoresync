@@ -792,18 +792,6 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    ✅ If 8-11 heading options (i-xi) → **matching-headings**
    ✅ "multiple-choice" = typically 4 options (A-D) per question
 
-**═══════════════════════════════════════════════════════════════**
-**STRUCTURED LABEL CONTRACT**
-**═══════════════════════════════════════════════════════════════**
-
-- For label-bearing Reading option lists, prefer labeledOptions over free-text labels
-- Each labeled option must be shaped like { "label": "A", "text": "Option text" }
-- Set optionLabelFormat to "letter", "roman", or "number" whenever labels exist
-- If you also include options, it must contain TEXT ONLY with no embedded labels
-- Never duplicate a label inside text
-- Never return conflicting shapes like { "label": "B", "text": "A option text" }
-- For unlabeled question types, return labeledOptions: null and optionLabelFormat: null
-
 **OUTPUT (JSON object only, no markdown):**
 {
   "questions": [
@@ -830,36 +818,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "context": null
     },
     {
-      "questionNumber": 19,
-      "questionText": "discovered the vaccination technique",
-      "type": "matching-features",
-      "sectionInstruction": "Look at the following statements and the list of researchers below. Match each statement with the correct researcher, A-C.",
-      "options": ["Louis Pasteur", "Edward Jenner", "Robert Koch"],
-      "labeledOptions": [
-        { "label": "A", "text": "Louis Pasteur" },
-        { "label": "B", "text": "Edward Jenner" },
-        { "label": "C", "text": "Robert Koch" }
-      ],
-      "optionLabelFormat": "letter",
-      "answer": "",
-      "passageId": "passage-2",
-      "confidence": 90,
-      "context": null
-    },
-    {
       "questionNumber": 27,
       "questionText": "People go to art museums because they accept the value of seeing an original work of art. But they do not go to museums to read original manuscripts of novels, perhaps because the availability of novels has depended on ______ for so long, and also because with novels, the ______ are the most important thing.\\n\\nHowever, in historical times artists such as Leonardo were happy to instruct ______ to produce copies of their work.",
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "Complete the summary using the list of words, A-L, below.",
-      "options": ["mechanical", "ideas", "assistants", "colour"],
-      "labeledOptions": [
-        { "label": "A", "text": "mechanical" },
-        { "label": "B", "text": "ideas" },
-        { "label": "C", "text": "assistants" },
-        { "label": "D", "text": "colour" }
-      ],
-      "optionLabelFormat": "letter",
+      "options": ["A. mechanical", "B. ideas", "C. assistants", "D. colour"],
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
@@ -871,14 +835,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "Complete the summary using the list of words, A-L, below.",
-      "options": ["mechanical", "ideas", "assistants", "colour"],
-      "labeledOptions": [
-        { "label": "A", "text": "mechanical" },
-        { "label": "B", "text": "ideas" },
-        { "label": "C", "text": "assistants" },
-        { "label": "D", "text": "colour" }
-      ],
-      "optionLabelFormat": "letter",
+      "options": ["A. mechanical", "B. ideas"],
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,

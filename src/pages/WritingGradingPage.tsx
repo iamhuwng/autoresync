@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { IconArrowLeft, IconChecklist, IconCircleCheckFilled, IconCircleXFilled } from '@tabler/icons-react';
 import { storage } from '../core/platform';
 import { RichContent } from '../core/components/RichContent';
 import { TeacherHeader } from '../components/navigation';
@@ -28,30 +29,48 @@ import {
     getTeacherQuickCommentPresets,
 } from '../services/writingQuickCommentPresetService';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
-import EssayEditor from '../components/writing-grading/EssayEditor';
+import EssayEditor, { type CorrectionMarkSelection, type EssaySelectionState, type EssayEditorHandle } from '../components/writing-grading/EssayEditor';
 import CommentSidebar, { type PendingCommentDraft } from '../components/writing-grading/CommentSidebar';
 import QuickCommentsDialog from '../components/writing-grading/QuickCommentsDialog';
 import CorrectionPopup from '../components/writing-grading/CorrectionPopup';
 import CriteriaScoringPanel from '../components/writing-grading/CriteriaScoringPanel';
+import WritingSuggestionsPanel from '../components/writing-grading/WritingSuggestionsPanel';
+import WritingSuggestionsReviewModal from '../components/writing-grading/WritingSuggestionsReviewModal';
 import TabbedFeedbackEditor, { type FeedbackContent } from '../components/writing-grading/TabbedFeedbackEditor';
 import VoidTaskButton from '../components/writing-grading/VoidTaskButton';
 import GradingAuditTrail from '../components/writing-grading/GradingAuditTrail';
+import { getOrCreateWritingSuggestionCache, updateWritingSuggestionReviewStatus } from '../services/writingSuggestionService';
 import type {
     CommentCategoryId,
     GradingComment,
+    GradingCorrection,
     PublishedWritingGrading,
     QuickCommentPreset,
     WritingGradingDraft,
+    WritingPendingCommentDraft,
     WritingSubmission,
     WritingSubmissionForGrading,
+    WritingSuggestionCacheDoc,
+    WritingSuggestionItem,
     WritingSubmissionTask,
     WritingTaskMarkupState,
 } from '../types/ielts-writing.types';
-import { COMMENT_CATEGORIES } from '../types/ielts-writing.types';
+import { COMMENT_CATEGORIES, COMMENT_HIGHLIGHT_COLOR } from '../types/ielts-writing.types';
 import { calculateTaskBand } from '../utils/ieltsWritingBandCalculator';
+import {
+    normalizeCorrectionSelection,
+    normalizeTaskCorrections,
+    removeCorrectionRecord,
+    upsertCorrectionRecord,
+} from '../utils/writingCorrections';
+import {
+    evaluateWritingSubmissionReadiness,
+    isMeaningfulHtml,
+    type WritingReadinessTaskInput,
+} from '../utils/writingGradingReadiness';
 import './WritingGradingPage.css';
 
-type PanelTab = 'prompt' | 'comments' | 'scoring';
+type PanelTab = 'prompt' | 'comments' | 'suggestions' | 'scoring';
 type PageMode = 'review' | 'editing';
 
 interface TaskScores {
@@ -71,6 +90,7 @@ interface TaskEditorState {
     activeTimeSeconds: number;
     markedContent: Record<string, any> | null;
     comments: GradingComment[];
+    corrections: GradingCorrection[];
     scores: TaskScores;
     feedback: FeedbackContent;
     isVoided: boolean;
@@ -92,21 +112,55 @@ interface CommentAnchorPosition {
     anchorViewportTop: number;
 }
 
-const COMMENT_HIGHLIGHT_COLORS = [
-    '#f59e0b',
-    '#10b981',
-    '#3b82f6',
-    '#8b5cf6',
-    '#ef4444',
-    '#ec4899',
-    '#14b8a6',
-    '#f97316',
-    '#84cc16',
-    '#6366f1',
-] as const;
+interface PendingQuickCommentCommand {
+    taskNumber: 1 | 2;
+    preset: QuickCommentPreset;
+    from: number;
+    to: number;
+    selectedText: string;
+    nonce: number;
+}
+
+interface PendingCorrectionCommand {
+    taskNumber: 1 | 2;
+    action: 'apply' | 'remove';
+    from: number;
+    to: number;
+    correctionId?: string;
+    correctionText?: string;
+    nonce: number;
+}
+
+interface PendingCommentMutationCommand {
+    taskNumber: 1 | 2;
+    action: 'remove' | 'apply';
+    commentId: string;
+    color: string;
+    from: number;
+    to: number;
+    nonce: number;
+}
+
+interface PendingSuggestionFocusCommand {
+    taskNumber: 1 | 2;
+    from: number;
+    to: number;
+    nonce: number;
+}
+
+type PendingLeaveIntent =
+    | { type: 'queue' }
+    | { type: 'route'; route: string; reason: string }
+    | { type: 'logout' };
 
 function createSessionId() {
     return `grading-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function renderReadinessIcon(isReady: boolean) {
+    return isReady
+        ? <IconCircleCheckFilled size={16} stroke={1.8} aria-hidden="true" />
+        : <IconCircleXFilled size={16} stroke={1.8} aria-hidden="true" />;
 }
 
 function getDraftStorageKey(submissionId: string) {
@@ -143,6 +197,12 @@ function buildTaskEditorState(task: WritingSubmissionTask, markup?: WritingTaskM
         activeTimeSeconds: task.activeTimeSeconds,
         markedContent: markup?.markedContent || null,
         comments: markup?.comments ? [...markup.comments] : [],
+        corrections: normalizeTaskCorrections({
+            taskNumber: task.taskNumber,
+            markedContent: markup?.markedContent || null,
+            corrections: markup?.corrections,
+            fallbackTimestamp: Date.now(),
+        }),
         scores: createTaskScores(task.taskNumber, markup),
         feedback: createTaskFeedback(task.taskNumber, markup),
         isVoided: markup?.isVoided || false,
@@ -166,6 +226,7 @@ function buildTaskMarkupState(task: TaskEditorState): WritingTaskMarkupState {
         taskNumber: task.taskNumber,
         markedContent: task.markedContent,
         comments: task.comments,
+        corrections: task.corrections,
         isVoided: task.isVoided,
         voidReason: task.voidReason || undefined,
         criteriaScores: {
@@ -188,7 +249,7 @@ function buildTaskMarkupState(task: TaskEditorState): WritingTaskMarkupState {
 
 function buildDerivedOverallSummary(taskStates: Record<1 | 2, TaskEditorState>) {
     return Object.values(taskStates)
-        .filter((task) => !task.isVoided && isHtmlMeaningful(task.feedback.taskSummary))
+        .filter((task) => !task.isVoided && isMeaningfulHtml(task.feedback.taskSummary))
         .sort((left, right) => left.taskNumber - right.taskNumber)
         .map((task) => `<p><strong>Task ${task.taskNumber} Summary</strong></p>${task.feedback.taskSummary}`)
         .join('');
@@ -199,6 +260,7 @@ function buildDraftFromPageState(
     teacherId: string,
     teacherName: string,
     taskStates: Record<1 | 2, TaskEditorState>,
+    pendingCommentDrafts: Partial<Record<1 | 2, WritingPendingCommentDraft>>,
     previous?: WritingGradingDraft | null,
 ): WritingGradingDraft {
     return {
@@ -214,6 +276,7 @@ function buildDraftFromPageState(
             acc[Number(key) as 1 | 2] = buildTaskMarkupState(task);
             return acc;
         }, {} as Partial<Record<1 | 2, WritingTaskMarkupState>>),
+        pendingCommentDrafts,
     };
 }
 
@@ -236,18 +299,42 @@ function calculateLiveTaskBand(task: TaskEditorState): number | null {
         : calculateTaskBand({ TR: task.scores.ta, CC: task.scores.cc, LR: task.scores.lr, GRA: task.scores.gra });
 }
 
-function isHtmlMeaningful(html: string) {
-    return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().length > 0;
+function createReadinessTaskInput(
+    task: TaskEditorState,
+    hasPendingCommentDraft: boolean,
+): WritingReadinessTaskInput {
+    return {
+        taskNumber: task.taskNumber,
+        isVoided: task.isVoided,
+        responseScore: task.scores.ta,
+        ccScore: task.scores.cc,
+        lrScore: task.scores.lr,
+        graScore: task.scores.gra,
+        summaryHtml: task.feedback.taskSummary,
+        hasPendingCommentDraft,
+    };
 }
 
-function getNextCommentHighlightColor(comments: GradingComment[]) {
-    const usedColors = new Set(comments.map((comment) => comment.color));
-    const unusedColor = COMMENT_HIGHLIGHT_COLORS.find((color) => !usedColors.has(color));
-    if (unusedColor) {
-        return unusedColor;
-    }
+function escapeHtml(value: string) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
-    return COMMENT_HIGHLIGHT_COLORS[comments.length % COMMENT_HIGHLIGHT_COLORS.length] || COMMENT_HIGHLIGHT_COLORS[0];
+function convertPlainTextToCommentHtml(value: string) {
+    return value
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+        .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`)
+        .join('');
+}
+
+function getNextCommentHighlightColor() {
+    return COMMENT_HIGHLIGHT_COLOR;
 }
 
 function formatAbsoluteDate(timestamp?: number) {
@@ -262,6 +349,34 @@ function formatAbsoluteDate(timestamp?: number) {
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+function getInitialActiveWritingTask(submission: WritingSubmission, preferredTask?: 1 | 2 | null): 1 | 2 {
+    const availableTasks = submission.tasks
+        .map((task) => task.taskNumber)
+        .filter((taskNumber): taskNumber is 1 | 2 => taskNumber === 1 || taskNumber === 2)
+        .sort((left, right) => left - right);
+
+    if (preferredTask && availableTasks.includes(preferredTask)) {
+        return preferredTask;
+    }
+
+    return availableTasks[0] || 1;
+}
+
+function isVersionConflictError(errorMessage: string) {
+    return errorMessage.includes('A newer published grading already exists')
+        || errorMessage.includes('A newer grading draft already exists');
+}
+
+function serializePendingCommentDrafts(
+    drafts: Partial<Record<1 | 2, WritingPendingCommentDraft>>,
+) {
+    return JSON.stringify(
+        Object.entries(drafts)
+            .sort(([left], [right]) => Number(left) - Number(right))
+            .map(([taskNumber, draft]) => [taskNumber, draft]),
+    );
 }
 
 export default function WritingGradingPage() {
@@ -280,12 +395,23 @@ export default function WritingGradingPage() {
     const [panelTab, setPanelTab] = useState<PanelTab>('comments');
     const [editorViewMode, setEditorViewMode] = useState<'marked' | 'original'>('marked');
     const [activeTask, setActiveTask] = useState<1 | 2>(1);
+    const [reviewFeedbackTab, setReviewFeedbackTab] = useState<string>('taskSummary');
     const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
+    const [focusedCorrectionId, setFocusedCorrectionId] = useState<string | null>(null);
     const [focusedCommentAnchorViewportTop, setFocusedCommentAnchorViewportTop] = useState<number | null>(null);
+    const [focusedCommentRequestKey, setFocusedCommentRequestKey] = useState(0);
     const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
     const [anchorPositions, setAnchorPositions] = useState<CommentAnchorPosition[]>([]);
     const [editorScrollTop, setEditorScrollTop] = useState(0);
     const [hasSelectionInEditor, setHasSelectionInEditor] = useState(false);
+    const [editorSelectionState, setEditorSelectionState] = useState<EssaySelectionState>({
+        hasSelection: false,
+        from: null,
+        to: null,
+        selectedText: '',
+        containsComment: false,
+        containsCorrection: false,
+    });
     const [quickCommentPresets, setQuickCommentPresets] = useState<QuickCommentPreset[]>(DEFAULT_QUICK_COMMENT_PRESETS);
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -294,22 +420,34 @@ export default function WritingGradingPage() {
     const [lockInfo, setLockInfo] = useState<WritingGradingLock | null>(null);
     const [lockConflict, setLockConflict] = useState<WritingGradingLock | null>(null);
     const [pendingCommentDrafts, setPendingCommentDrafts] = useState<Partial<Record<1 | 2, PendingCommentDraft>>>({});
-    const [pendingQuickComment, setPendingQuickComment] = useState<{ preset: QuickCommentPreset; nonce: number } | null>(null);
-    const [pendingCorrection, setPendingCorrection] = useState<{ from: number; to: number; correctionText: string; nonce: number } | null>(null);
-    const [pendingCommentMutation, setPendingCommentMutation] = useState<{
-        action: 'remove' | 'apply';
-        commentId: string;
-        color: string;
-        from: number;
-        to: number;
-        nonce: number;
-    } | null>(null);
+    const [pendingQuickComment, setPendingQuickComment] = useState<PendingQuickCommentCommand | null>(null);
+    const [pendingCorrection, setPendingCorrection] = useState<PendingCorrectionCommand | null>(null);
+    const [pendingCommentMutation, setPendingCommentMutation] = useState<PendingCommentMutationCommand | null>(null);
+    const [pendingSuggestionFocus, setPendingSuggestionFocus] = useState<PendingSuggestionFocusCommand | null>(null);
+    const [suggestionCache, setSuggestionCache] = useState<WritingSuggestionCacheDoc | null>(null);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    const [suggestionsReloading, setSuggestionsReloading] = useState(false);
+    const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false);
     const [correctionRequest, setCorrectionRequest] = useState<{
+        mode: 'create' | 'edit';
+        correctionId?: string;
         from: number;
         to: number;
         selectedText: string;
+        correctionText: string;
         position: { top: number; left: number };
     } | null>(null);
+    const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+    const [leaveDialogSaving, setLeaveDialogSaving] = useState(false);
+    const [pendingLeaveIntent, setPendingLeaveIntent] = useState<PendingLeaveIntent>({ type: 'queue' });
+    const [takeoverReason, setTakeoverReason] = useState('');
+    const [takeoverDialogOpen, setTakeoverDialogOpen] = useState(false);
+    const [takeoverSubmitting, setTakeoverSubmitting] = useState(false);
+    const [regradeReason, setRegradeReason] = useState('');
+    const [regradeDialogOpen, setRegradeDialogOpen] = useState(false);
+    const [regradeError, setRegradeError] = useState<string | null>(null);
+    const [savedPendingCommentDraftSignature, setSavedPendingCommentDraftSignature] = useState(() => serializePendingCommentDrafts({}));
+    const [editorHydrationNonce, setEditorHydrationNonce] = useState(0);
 
     const pageRef = useRef<HTMLDivElement>(null);
     const sessionIdRef = useRef(createSessionId());
@@ -320,7 +458,11 @@ export default function WritingGradingPage() {
     const mutationNonceRef = useRef(0);
     const quickCommentNonceRef = useRef(0);
     const correctionNonceRef = useRef(0);
+    const suggestionFocusNonceRef = useRef(0);
     const dirtyRef = useRef(false);
+    const hasUnsavedChangesRef = useRef(false);
+    const suggestionGenerationActiveRef = useRef(false);
+    const savedPendingCommentDraftSignatureRef = useRef(savedPendingCommentDraftSignature);
     const modeRef = useRef<PageMode>('review');
     const submissionRef = useRef<WritingSubmission | null>(null);
     const publishedGradingRef = useRef<PublishedWritingGrading | null>(null);
@@ -328,10 +470,30 @@ export default function WritingGradingPage() {
     const taskStatesRef = useRef<Record<1 | 2, TaskEditorState>>({} as Record<1 | 2, TaskEditorState>);
     const lockInfoRef = useRef<WritingGradingLock | null>(null);
     const pendingCommentDraftsRef = useRef<Partial<Record<1 | 2, PendingCommentDraft>>>({});
+    const previousActiveTaskRef = useRef<1 | 2>(activeTask);
+    const essayEditorRef = useRef<EssayEditorHandle>(null);
 
     useEffect(() => {
         dirtyRef.current = dirty;
     }, [dirty]);
+
+    useEffect(() => {
+        savedPendingCommentDraftSignatureRef.current = savedPendingCommentDraftSignature;
+    }, [savedPendingCommentDraftSignature]);
+
+    useEffect(() => {
+        if (previousActiveTaskRef.current === activeTask) {
+            return;
+        }
+
+        previousActiveTaskRef.current = activeTask;
+        setReviewFeedbackTab('taskSummary');
+    }, [activeTask]);
+
+    useEffect(() => {
+        hasUnsavedChangesRef.current = dirty
+            || serializePendingCommentDrafts(pendingCommentDrafts) !== savedPendingCommentDraftSignatureRef.current;
+    }, [dirty, pendingCommentDrafts]);
 
     useEffect(() => {
         modeRef.current = mode;
@@ -378,6 +540,29 @@ export default function WritingGradingPage() {
         }
     }, [logout, navigateTo]);
 
+    const openLeaveWarning = useCallback((
+        source: 'back-to-queue' | 'header-navigation' | 'logout',
+        intent: PendingLeaveIntent,
+    ) => {
+        const hasUnsaved = modeRef.current === 'editing' && hasUnsavedChangesRef.current;
+        const generating = suggestionGenerationActiveRef.current;
+        if (!hasUnsaved && !generating) {
+            return false;
+        }
+
+        trackAction('showSuggestionLeaveWarning', {
+            submissionId,
+            taskNumber: activeTask,
+            reason: generating
+                ? (hasUnsaved ? 'unsaved-and-generating' : 'generating')
+                : 'unsaved-only',
+            source,
+        });
+        setPendingLeaveIntent(intent);
+        setLeaveDialogOpen(true);
+        return true;
+    }, [activeTask, submissionId, trackAction]);
+
     const buildCurrentDraft = useCallback(() => {
         if (!submissionId || !user?.uid) {
             return null;
@@ -388,6 +573,7 @@ export default function WritingGradingPage() {
             user.uid,
             user.displayName || user.email || 'Teacher',
             taskStatesRef.current,
+            pendingCommentDraftsRef.current,
             serverDraftRef.current,
         );
 
@@ -431,33 +617,65 @@ export default function WritingGradingPage() {
     const ownsDraft = Boolean(user?.uid && serverDraft?.ownerTeacherId === user.uid);
     const foreignDraftOwnerId = submission?.gradingDraftMeta?.ownerTeacherId;
     const hasForeignDraft = Boolean(foreignDraftOwnerId && foreignDraftOwnerId !== user?.uid);
-    const hasAnyPendingCommentDraft = Object.keys(pendingCommentDrafts).length > 0;
+    const hasUnsavedPendingCommentDrafts = serializePendingCommentDrafts(pendingCommentDrafts) !== savedPendingCommentDraftSignature;
+    const hasUnsavedChanges = dirty || hasUnsavedPendingCommentDrafts;
     const currentLockIsOwned = Boolean(
         user?.uid
         && lockInfo?.teacherId === user.uid
         && lockInfo.sessionId === sessionIdRef.current
         && lockInfo.expiresAt > Date.now()
     );
-    const hasPublishBlockingError = useMemo(() => {
-        if (!submission) {
-            return true;
-        }
+    const submissionReadiness = useMemo(() => {
+        const readinessTasks = Object.values(taskStates)
+            .map((task) => createReadinessTaskInput(task, Boolean(pendingCommentDrafts[task.taskNumber])));
 
-        return submission.tasks.some((task) => {
-            const state = taskStates[task.taskNumber];
-            if (!state || state.isVoided) {
-                return false;
-            }
+        return evaluateWritingSubmissionReadiness(readinessTasks);
+    }, [pendingCommentDrafts, taskStates]);
+    const activeTaskReadiness = submissionReadiness.tasks[activeTask];
+    const hasAnyPendingCommentDraft = submissionReadiness.hasAnyPendingCommentDraft;
+    const hasPublishBlockingError = !submissionReadiness.canPublish;
+    const suggestionApprovalBlockedReason = mode !== 'editing'
+        ? 'Open the grading session to approve suggestions into comments or corrections.'
+        : hasAnyPendingCommentDraft
+            ? 'Finish or cancel the open comment before approving another suggestion.'
+            : correctionRequest
+                ? 'Finish or cancel the open correction before approving another suggestion.'
+                : null;
+    const suggestionApprovalBlocked = Boolean(suggestionApprovalBlockedReason);
+    const activeSuggestionRunState = suggestionCache?.runStateByTask?.[activeTask] || null;
+    const suggestionGenerationActive = suggestionsLoading || suggestionsReloading || activeSuggestionRunState?.status === 'generating';
+    const suggestionCanGenerateMore = activeSuggestionRunState?.lastRunHasMorePotential === true
+        || (activeSuggestionRunState?.status === 'incomplete' && activeSuggestionRunState?.lastRunHasMorePotential == null);
+    const leaveWarningMode = suggestionGenerationActive
+        ? (hasUnsavedChanges ? 'unsaved-and-generating' : 'generating-only')
+        : 'unsaved-only';
 
-            return (
-                state.scores.ta === null
-                || state.scores.cc === null
-                || state.scores.lr === null
-                || state.scores.gra === null
-                || !isHtmlMeaningful(state.feedback.taskSummary)
-            );
+    useEffect(() => {
+        suggestionGenerationActiveRef.current = suggestionGenerationActive;
+    }, [suggestionGenerationActive]);
+
+    const clearTaskScopedTransientState = useCallback(() => {
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(null);
+        setHoveredCommentId(null);
+        setAnchorPositions([]);
+        setHasSelectionInEditor(false);
+        setEditorSelectionState({
+            hasSelection: false,
+            from: null,
+            to: null,
+            selectedText: '',
+            containsComment: false,
+            containsCorrection: false,
         });
-    }, [submission, taskStates]);
+        setPendingQuickComment(null);
+        setPendingCorrection(null);
+        setPendingCommentMutation(null);
+        setPendingSuggestionFocus(null);
+        setCorrectionRequest(null);
+        setSuggestionReviewOpen(false);
+    }, []);
 
     const resetFromGradingSource = useCallback((
         nextSubmission: WritingSubmission,
@@ -469,11 +687,14 @@ export default function WritingGradingPage() {
         setPublishedGrading(nextPublished);
         setServerDraft(nextDraft);
         setSubmission(nextSubmission);
-        setFocusedCommentId(null);
-        setHoveredCommentId(null);
-        setAnchorPositions([]);
+        setPendingCommentDrafts(nextDraft?.pendingCommentDrafts ?? {});
+        setSavedPendingCommentDraftSignature(serializePendingCommentDrafts(nextDraft?.pendingCommentDrafts ?? {}));
+        setEditorHydrationNonce((current) => current + 1);
+        setActiveTask((current) => getInitialActiveWritingTask(nextSubmission, current));
+        clearTaskScopedTransientState();
+        setEditorViewMode('marked');
         setDirty(false);
-    }, []);
+    }, [clearTaskScopedTransientState]);
 
     useEffect(() => {
         if (!submissionId || !user?.uid) {
@@ -519,7 +740,15 @@ export default function WritingGradingPage() {
 
                 setQuickCommentPresets(presets);
                 resetFromGradingSource(data.submission, published, preferredDraft);
-                setMode(data.submission.markingStatus === 'pending-review' && !nextHasForeignDraft ? 'editing' : 'review');
+                setMode('review');
+                setLockConflict(nextHasForeignDraft ? data.submission.gradingDraftMeta ? {
+                    submissionId: data.submission.id,
+                    teacherId: data.submission.gradingDraftMeta.ownerTeacherId,
+                    teacherName: data.submission.gradingDraftMeta.ownerTeacherName,
+                    sessionId: '',
+                    heartbeatAt: 0,
+                    expiresAt: 0,
+                } : null : null);
             } catch (loadError) {
                 if (!isActive) {
                     return;
@@ -538,6 +767,187 @@ export default function WritingGradingPage() {
             isActive = false;
         };
     }, [resetFromGradingSource, submissionId, user?.uid]);
+
+    const loadSuggestions = useCallback(async (options: { force?: boolean; source?: 'open' | 'force' | 'continue' } = {}) => {
+        const currentSubmission = submissionRef.current;
+        if (!currentSubmission) {
+            return;
+        }
+
+        suggestionGenerationActiveRef.current = true;
+
+        if (options.force) {
+            setSuggestionsReloading(true);
+            trackAction('reloadSuggestions', { submissionId: currentSubmission.id });
+            trackAction(options.source === 'continue' ? 'generateMoreSuggestions' : 'generateSuggestions', {
+                submissionId: currentSubmission.id,
+                source: options.source || 'force',
+                taskNumber: activeTask,
+            });
+        } else {
+            setSuggestionsLoading(true);
+            trackAction('generateSuggestions', {
+                submissionId: currentSubmission.id,
+                source: options.source || 'open',
+                taskNumber: activeTask,
+            });
+        }
+
+        const result = await getOrCreateWritingSuggestionCache(currentSubmission, {
+            taskNumber: activeTask,
+            force: options.force,
+            source: options.source,
+            sessionId: sessionIdRef.current,
+        });
+        if (result.success) {
+            setSuggestionCache(result.data);
+        } else {
+            setSuggestionCache({
+                submissionId: currentSubmission.id,
+                status: 'failed',
+                updatedAt: Date.now(),
+                error: result.error,
+                perTask: {},
+                generatedFromEssayHashByTask: {},
+                reviewStateByTask: {},
+                runStateByTask: {},
+            });
+        }
+
+        if (options.force) {
+            setSuggestionsReloading(false);
+        } else {
+            setSuggestionsLoading(false);
+        }
+        suggestionGenerationActiveRef.current = false;
+    }, [activeTask, trackAction]);
+
+    const persistSuggestionReviewStatus = useCallback(async (
+        suggestion: WritingSuggestionItem,
+        status: 'pending' | 'approved' | 'dismissed',
+        actionName: 'approveSuggestion' | 'dismissSuggestion' | 'restoreSuggestion',
+    ) => {
+        const currentSubmission = submissionRef.current;
+        if (!currentSubmission) {
+            return false;
+        }
+
+        const result = await updateWritingSuggestionReviewStatus(
+            currentSubmission.id,
+            suggestion.taskNumber,
+            suggestion.reviewKey,
+            status,
+        );
+
+        if (!result.success) {
+            showStatus(result.error || 'Failed to update suggestion review state.');
+            return false;
+        }
+
+        setSuggestionCache(result.data);
+        trackAction(actionName, {
+            submissionId: currentSubmission.id,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+            kind: suggestion.kind,
+        });
+        return true;
+    }, [showStatus, trackAction]);
+
+    const openSuggestionReview = useCallback((source: 'tab' | 'summary') => {
+        if (!submissionRef.current) {
+            return;
+        }
+
+        setSuggestionReviewOpen(true);
+        trackAction('openSuggestionReview', {
+            submissionId: submissionRef.current.id,
+            taskNumber: activeTask,
+            source,
+        });
+    }, [activeTask, trackAction]);
+
+    const closeSuggestionReview = useCallback(() => {
+        const currentSubmission = submissionRef.current;
+        if (!suggestionReviewOpen) {
+            return;
+        }
+
+        setSuggestionReviewOpen(false);
+        if (!currentSubmission) {
+            return;
+        }
+
+        trackAction('closeSuggestionReview', {
+            submissionId: currentSubmission.id,
+            taskNumber: activeTask,
+        });
+    }, [activeTask, suggestionReviewOpen, trackAction]);
+
+    useEffect(() => {
+        if (!submission?.id) {
+            setSuggestionCache(null);
+            setSuggestionsLoading(false);
+            setSuggestionsReloading(false);
+            setSuggestionReviewOpen(false);
+            return;
+        }
+
+        let cancelled = false;
+        setSuggestionsLoading(true);
+        suggestionGenerationActiveRef.current = true;
+
+        void getOrCreateWritingSuggestionCache(submission, {
+            taskNumber: activeTask,
+            force: false,
+            source: 'open',
+            sessionId: sessionIdRef.current,
+        }).then((result) => {
+            if (cancelled) {
+                return;
+            }
+
+            if (result.success) {
+                setSuggestionCache(result.data);
+            } else {
+                setSuggestionCache({
+                    submissionId: submission.id,
+                    status: 'failed',
+                    updatedAt: Date.now(),
+                    error: result.error,
+                    perTask: {},
+                    generatedFromEssayHashByTask: {},
+                    reviewStateByTask: {},
+                    runStateByTask: {},
+                });
+            }
+            setSuggestionsLoading(false);
+            suggestionGenerationActiveRef.current = false;
+        });
+
+        return () => {
+            cancelled = true;
+            suggestionGenerationActiveRef.current = false;
+        };
+    }, [activeTask, submission]);
+
+    const reloadLatestGradingState = useCallback(async () => {
+        if (!submissionId || !user?.uid) {
+            return false;
+        }
+
+        const gradingResult = await getWritingSubmissionForGrading(submissionId, user.uid);
+        if (!gradingResult.success || !gradingResult.data) {
+            return false;
+        }
+
+        const data: WritingSubmissionForGrading = gradingResult.data;
+        const published = data.publishedGrading || data.submission.publishedGrading || null;
+        resetFromGradingSource(data.submission, published, data.gradingDraft);
+        setMode('review');
+        showStatus('The grading state changed on another session. Latest data has been reloaded.');
+        return true;
+    }, [resetFromGradingSource, showStatus, submissionId, user?.uid]);
 
     const releaseLock = useCallback(async () => {
         if (!submissionId || !user?.uid || !lockInfoRef.current) {
@@ -602,7 +1012,7 @@ export default function WritingGradingPage() {
                 user.uid,
                 user.displayName || user.email || 'Teacher',
                 nextTaskStates,
-                null,
+                {},
             );
             seededDraft.basedOnPublishedVersion = publishedGrading.auditVersion;
             resetFromGradingSource(submission, publishedGrading, seededDraft);
@@ -626,7 +1036,7 @@ export default function WritingGradingPage() {
     ]);
 
     const saveLocalBackup = useCallback(async () => {
-        if (!submissionId || !user?.uid || !dirtyRef.current) {
+        if (!submissionId || !user?.uid || !hasUnsavedChangesRef.current) {
             return;
         }
 
@@ -649,7 +1059,7 @@ export default function WritingGradingPage() {
     }, []);
 
     const persistDraft = useCallback(async (source: 'manual' | 'autosave') => {
-        if (!submissionId || !submission || !user?.uid || !dirtyRef.current) {
+        if (!submissionId || !submission || !user?.uid || !hasUnsavedChangesRef.current) {
             return true;
         }
 
@@ -668,44 +1078,52 @@ export default function WritingGradingPage() {
 
         return enqueueWrite(async () => {
             setSaving(true);
-            await saveLocalBackup();
+            try {
+                await saveLocalBackup();
 
-            const draft = buildCurrentDraft();
-            if (!draft) {
-                throw new Error('Unable to build draft snapshot');
+                const draft = buildCurrentDraft();
+                if (!draft) {
+                    throw new Error('Unable to build draft snapshot');
+                }
+
+                const response = await saveGradingDraft(submissionId, draft, {
+                    expectedDraftVersion: serverDraftRef.current?.version ?? null,
+                    expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
+                });
+
+                if (!response.success || !response.data) {
+                    const errorMessage = response.error || 'Failed to save draft';
+                    if (isVersionConflictError(errorMessage)) {
+                        await reloadLatestGradingState();
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                setServerDraft(response.data);
+                setSavedPendingCommentDraftSignature(serializePendingCommentDrafts(response.data.pendingCommentDrafts ?? {}));
+                setSubmission((current) => current ? ({
+                    ...current,
+                    gradingDraftMeta: {
+                        ownerTeacherId: response.data!.ownerTeacherId,
+                        ownerTeacherName: response.data!.ownerTeacherName,
+                        version: response.data!.version,
+                        basedOnPublishedVersion: response.data!.basedOnPublishedVersion,
+                        updatedAt: response.data!.updatedAt,
+                    },
+                    markingStatus: current.markingStatus === 'graded' ? 'graded' : 'pending-review',
+                }) : current);
+                setDirty(false);
+                showStatus(source === 'autosave' ? 'Draft autosaved' : 'Draft saved');
+                trackAction('saveDraft', { submissionId, source });
+                return true;
+            } finally {
+                setSaving(false);
             }
-
-            const response = await saveGradingDraft(submissionId, draft, {
-                expectedDraftVersion: serverDraftRef.current?.version ?? null,
-                expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
-            });
-
-            setSaving(false);
-
-            if (!response.success || !response.data) {
-                throw new Error(response.error || 'Failed to save draft');
-            }
-
-            setServerDraft(response.data);
-            setSubmission((current) => current ? ({
-                ...current,
-                gradingDraftMeta: {
-                    ownerTeacherId: response.data!.ownerTeacherId,
-                    ownerTeacherName: response.data!.ownerTeacherName,
-                    version: response.data!.version,
-                    basedOnPublishedVersion: response.data!.basedOnPublishedVersion,
-                    updatedAt: response.data!.updatedAt,
-                },
-                markingStatus: current.markingStatus === 'graded' ? 'graded' : 'pending-review',
-            }) : current);
-            setDirty(false);
-            showStatus(source === 'autosave' ? 'Draft autosaved' : 'Draft saved');
-            trackAction('saveDraft', { submissionId, source });
-            return true;
         });
     }, [
         buildCurrentDraft,
         enqueueWrite,
+        reloadLatestGradingState,
         saveLocalBackup,
         showStatus,
         submission,
@@ -714,7 +1132,7 @@ export default function WritingGradingPage() {
         user?.uid,
     ]);
 
-    const handlePublish = useCallback(async () => {
+    const executePublish = useCallback(async (reason?: string) => {
         if (!submissionId || !submission || !user?.uid) {
             return;
         }
@@ -724,13 +1142,8 @@ export default function WritingGradingPage() {
             return;
         }
 
-        if (hasAnyPendingCommentDraft) {
-            showStatus('Finish or cancel the open comment composer before publishing.');
-            return;
-        }
-
         if (hasPublishBlockingError) {
-            showStatus('Complete all non-voided scores and write a task summary for each active task before publishing');
+            showStatus(submissionReadiness.firstBlockingReason || 'Complete all non-voided scores and summaries before publishing.');
             return;
         }
 
@@ -748,14 +1161,6 @@ export default function WritingGradingPage() {
                     throw new Error('Unable to build draft snapshot');
                 }
 
-                const reason = publishedGradingRef.current
-                    ? (window.prompt('Reason for regrade:') || '').trim()
-                    : '';
-
-                if (publishedGradingRef.current && !reason) {
-                    throw new Error('A regrade reason is required');
-                }
-
                 const response = await publishGrading(submissionId, draft, {
                     expectedDraftVersion: serverDraftRef.current?.version ?? null,
                     expectedPublishedVersion: publishedGradingRef.current?.auditVersion ?? 0,
@@ -763,7 +1168,11 @@ export default function WritingGradingPage() {
                 });
 
                 if (!response.success || !response.data) {
-                    throw new Error(response.error || 'Failed to publish grading');
+                    const errorMessage = response.error || 'Failed to publish grading';
+                    if (isVersionConflictError(errorMessage)) {
+                        await reloadLatestGradingState();
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const nextPublished = response.data;
@@ -791,15 +1200,27 @@ export default function WritingGradingPage() {
         buildCurrentDraft,
         enqueueWrite,
         hasPublishBlockingError,
-        hasAnyPendingCommentDraft,
         currentLockIsOwned,
         releaseLock,
+        reloadLatestGradingState,
         showStatus,
+        submissionReadiness.firstBlockingReason,
         submission,
         submissionId,
         trackAction,
         user?.uid,
     ]);
+
+    const handlePublish = useCallback(async () => {
+        if (publishedGradingRef.current) {
+            setRegradeReason('');
+            setRegradeError(null);
+            setRegradeDialogOpen(true);
+            return;
+        }
+
+        await executePublish();
+    }, [executePublish]);
 
     const handleDiscardTakeover = useCallback(async () => {
         if (!submission || !user?.uid || !submission.gradingDraftMeta?.ownerTeacherId || submission.gradingDraftMeta.ownerTeacherId === user.uid) {
@@ -812,50 +1233,64 @@ export default function WritingGradingPage() {
             showStatus('Another teacher still has an active lock. Takeover is blocked until the lock expires.');
             return;
         }
-
-        const reason = (window.prompt('Reason for discarding the other teacher draft and taking over:') || '').trim();
-        if (!reason) {
-            return;
-        }
-
-        const discardResult = await discardPrivateDraft(submission.id, {
-            actorTeacherId: user.uid,
-            actorTeacherName: user.displayName || user.email || 'Teacher',
-            reason,
-        });
-
-        if (!discardResult.success) {
-            showStatus(discardResult.error || 'Failed to discard the private draft');
-            return;
-        }
-
-        setSubmission((current) => current ? ({ ...current, gradingDraftMeta: null }) : current);
-        trackAction('discardDraftTakeover', { submissionId: submission.id });
-        const locked = await acquireLock();
-        if (!locked) {
-            return;
-        }
-        setMode('editing');
-        showStatus('Private draft discarded. You now own the grading draft.');
+        setTakeoverReason('');
+        setTakeoverDialogOpen(true);
     }, [
         acquireLock,
         showStatus,
         submission,
-        trackAction,
         user?.displayName,
         user?.email,
         user?.uid,
     ]);
 
-    useEffect(() => {
-        if (mode !== 'editing' || !submission || hasForeignDraft) {
+    const confirmDiscardTakeover = useCallback(async () => {
+        if (!submission || !user?.uid) {
             return;
         }
 
-        if (submission.markingStatus === 'pending-review') {
-            void startEditing('pending-review');
+        const reason = takeoverReason.trim();
+        if (!reason) {
+            showStatus('A takeover reason is required.');
+            return;
         }
-    }, [hasForeignDraft, mode, startEditing, submission]);
+
+        setTakeoverSubmitting(true);
+        try {
+            const discardResult = await discardPrivateDraft(submission.id, {
+                actorTeacherId: user.uid,
+                actorTeacherName: user.displayName || user.email || 'Teacher',
+                reason,
+            });
+
+            if (!discardResult.success) {
+                showStatus(discardResult.error || 'Failed to discard the private draft');
+                return;
+            }
+
+            setTakeoverDialogOpen(false);
+            setSubmission((current) => current ? ({ ...current, gradingDraftMeta: null }) : current);
+            trackAction('discardDraftTakeover', { submissionId: submission.id });
+            const locked = await acquireLock();
+            if (!locked) {
+                return;
+            }
+
+            setMode('editing');
+            showStatus('Private draft discarded. You now own the grading draft.');
+        } finally {
+            setTakeoverSubmitting(false);
+        }
+    }, [
+        acquireLock,
+        showStatus,
+        submission,
+        takeoverReason,
+        trackAction,
+        user?.displayName,
+        user?.email,
+        user?.uid,
+    ]);
 
     useEffect(() => {
         if (mode !== 'editing') {
@@ -880,6 +1315,7 @@ export default function WritingGradingPage() {
                 void renewWritingGradingLock(submissionId, user.uid, sessionIdRef.current).then((result) => {
                     if (!result.success || !result.lock) {
                         setLockInfo(null);
+                        setMode('review');
                         trackAction('lockExpired', { submissionId });
                         showStatus(result.error || 'Your grading lock expired');
                         return;
@@ -899,7 +1335,7 @@ export default function WritingGradingPage() {
     }, [mode, showStatus, submissionId, trackAction, user?.uid]);
 
     useEffect(() => {
-        if (mode !== 'editing' || !dirty) {
+        if (mode !== 'editing' || !hasUnsavedChanges) {
             if (autosaveTimerRef.current) {
                 clearTimeout(autosaveTimerRef.current);
                 autosaveTimerRef.current = null;
@@ -919,18 +1355,31 @@ export default function WritingGradingPage() {
                 autosaveTimerRef.current = null;
             }
         };
-    }, [dirty, mode, persistDraft, showStatus]);
+    }, [hasUnsavedChanges, mode, persistDraft, showStatus]);
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-            if (modeRef.current === 'editing' && (dirtyRef.current || Object.keys(pendingCommentDraftsRef.current).length > 0)) {
-                event.preventDefault();
+            const hasUnsaved = modeRef.current === 'editing' && hasUnsavedChangesRef.current;
+            const generatingSuggestions = suggestionGenerationActiveRef.current;
+            if (!hasUnsaved && !generatingSuggestions) {
+                return;
+            }
+
+            event.preventDefault();
+            event.returnValue = '';
+            if (generatingSuggestions) {
+                trackAction('showSuggestionLeaveWarning', {
+                    submissionId,
+                    taskNumber: activeTask,
+                    reason: hasUnsaved ? 'unsaved-and-generating' : 'generating',
+                    source: 'beforeunload',
+                });
             }
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+    }, [activeTask, submissionId, trackAction]);
 
     useEffect(() => () => {
         if (statusTimerRef.current) {
@@ -945,21 +1394,9 @@ export default function WritingGradingPage() {
         void releaseLock();
     }, [releaseLock]);
 
-    useEffect(() => {
-        const handleSelectionChange = () => {
-            const editorContainer = pageRef.current?.querySelector('#essay-editor-container');
-            const selection = document.getSelection();
-            if (!editorContainer || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
-                setHasSelectionInEditor(false);
-                return;
-            }
-
-            const anchorNode = selection.anchorNode;
-            setHasSelectionInEditor(Boolean(anchorNode && editorContainer.contains(anchorNode)));
-        };
-
-        document.addEventListener('selectionchange', handleSelectionChange);
-        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    const handleEditorSelectionStateChange = useCallback((selection: EssaySelectionState) => {
+        setEditorSelectionState(selection);
+        setHasSelectionInEditor(selection.hasSelection);
     }, []);
 
     useEffect(() => {
@@ -971,8 +1408,12 @@ export default function WritingGradingPage() {
         const updatePositions = () => {
             const nextAnchors = (activeTaskState?.comments || [])
                 .filter((comment) => comment.status !== 'deleted')
-                .map((comment) => {
-                    const mark = editorContainer.querySelector(`[data-comment-id="${comment.id}"]`) as HTMLElement | null;
+                .map((comment) => ({
+                    id: comment.id,
+                    selector: `[data-comment-id="${comment.id}"]`,
+                }))
+                .map(({ id, selector }) => {
+                    const mark = editorContainer.querySelector(selector) as HTMLElement | null;
                     if (!mark) {
                         return null;
                     }
@@ -980,7 +1421,7 @@ export default function WritingGradingPage() {
                     const markRect = mark.getBoundingClientRect();
                     const containerRect = editorContainer.getBoundingClientRect();
                     return {
-                        commentId: comment.id,
+                        commentId: id,
                         anchorTop: markRect.top - containerRect.top + editorContainer.scrollTop,
                         anchorRight: markRect.right - containerRect.left,
                         anchorCenterY: (markRect.top - containerRect.top + editorContainer.scrollTop) + (markRect.height / 2),
@@ -1005,24 +1446,72 @@ export default function WritingGradingPage() {
     }, [activeTaskState?.comments, activeTaskState?.markedContent, activeTask, focusedCommentId, hoveredCommentId, mode, panelTab]);
 
     const handleTaskChange = useCallback((taskNumber: 1 | 2) => {
+        if (taskNumber === activeTask) {
+            return;
+        }
+
+        clearTaskScopedTransientState();
         setActiveTask(taskNumber);
-        setFocusedCommentId(null);
-        setFocusedCommentAnchorViewportTop(null);
-        setHoveredCommentId(null);
         trackAction('switchTask', { submissionId, taskNumber });
-    }, [submissionId, trackAction]);
+    }, [activeTask, clearTaskScopedTransientState, submissionId, trackAction]);
 
     const handlePanelTabChange = useCallback((nextTab: PanelTab) => {
         if (nextTab !== panelTab) {
             trackAction('switchTab', { submissionId, tab: nextTab });
+            if (nextTab === 'suggestions') {
+                trackAction('viewSuggestions', { submissionId, taskNumber: activeTask });
+            }
         }
         setPanelTab(nextTab);
-    }, [panelTab, submissionId, trackAction]);
+        if (nextTab === 'suggestions') {
+            openSuggestionReview('tab');
+        }
+    }, [activeTask, openSuggestionReview, panelTab, submissionId, trackAction]);
+
+    const resolveCommentAnchorViewportTop = useCallback((
+        commentId: string | null,
+        explicitAnchorViewportTop?: number | null,
+    ) => {
+        if (!commentId) {
+            return null;
+        }
+
+        if (explicitAnchorViewportTop !== undefined) {
+            return explicitAnchorViewportTop;
+        }
+
+        return anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null;
+    }, [anchorPositions]);
+
+    const focusCommentInRail = useCallback((
+        commentId: string | null,
+        options?: {
+            anchorViewportTop?: number | null;
+            openCommentsTab?: boolean;
+            dismissCorrectionRequest?: boolean;
+        },
+    ) => {
+        setFocusedCommentId(commentId);
+        setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(
+            resolveCommentAnchorViewportTop(commentId, options?.anchorViewportTop),
+        );
+        setFocusedCommentRequestKey((current) => current + 1);
+
+        if (options?.dismissCorrectionRequest !== false) {
+            setCorrectionRequest(null);
+        }
+
+        if (commentId && options?.openCommentsTab !== false) {
+            setPanelTab('comments');
+        }
+    }, [resolveCommentAnchorViewportTop]);
 
     const handleFocusComment = useCallback((commentId: string | null) => {
-        setFocusedCommentId(commentId);
-        setFocusedCommentAnchorViewportTop(null);
-    }, []);
+        focusCommentInRail(commentId, {
+            openCommentsTab: false,
+        });
+    }, [focusCommentInRail]);
 
     const handleViewModeChange = useCallback((viewMode: 'marked' | 'original') => {
         setEditorViewMode(viewMode);
@@ -1050,12 +1539,13 @@ export default function WritingGradingPage() {
         }));
     }, [updateCommentState]);
 
-    const pushCommentMutation = useCallback((comment: GradingComment, action: 'remove' | 'apply', color?: string) => {
+    const pushCommentMutation = useCallback((comment: GradingComment, action: 'remove' | 'apply') => {
         mutationNonceRef.current += 1;
         setPendingCommentMutation({
+            taskNumber: comment.taskNumber,
             action,
             commentId: comment.id,
-            color: color || comment.color,
+            color: COMMENT_HIGHLIGHT_COLOR,
             from: comment.from,
             to: comment.to,
             nonce: mutationNonceRef.current,
@@ -1065,9 +1555,12 @@ export default function WritingGradingPage() {
     const createSavedComment = useCallback((
         draft: PendingCommentDraft,
         html: string,
-        preset?: QuickCommentPreset
+        preset?: QuickCommentPreset,
+        options?: {
+            focusInSidebar?: boolean;
+            source?: 'comment-tool' | 'quick-comment' | 'suggestion' | 'correction-popup';
+        }
     ) => {
-        const taskComments = taskStatesRef.current[draft.taskNumber]?.comments || [];
         const categoryId = preset?.categoryId || draft.categoryId;
         const category = COMMENT_CATEGORIES[categoryId] || COMMENT_CATEGORIES.uncategorized;
         const now = Date.now();
@@ -1077,7 +1570,7 @@ export default function WritingGradingPage() {
             text: html,
             categoryId,
             categoryLabel: preset?.categoryLabel || category.label,
-            color: getNextCommentHighlightColor(taskComments),
+            color: getNextCommentHighlightColor(),
             status: 'active',
             anchorText: draft.anchorText,
             from: draft.from,
@@ -1091,21 +1584,36 @@ export default function WritingGradingPage() {
             comments: [...current.comments, nextComment],
         }));
         setPendingCommentDraft(draft.taskNumber, null);
-        setFocusedCommentId(nextComment.id);
-        setPanelTab('comments');
-        pushCommentMutation(nextComment, 'apply', nextComment.color);
+        if (options?.focusInSidebar === false) {
+            setFocusedCommentId(null);
+            setFocusedCommentAnchorViewportTop(null);
+        } else {
+            focusCommentInRail(nextComment.id, {
+                anchorViewportTop: draft.anchorViewportTop ?? null,
+            });
+        }
+        pushCommentMutation(nextComment, 'apply');
         trackAction('addComment', {
             submissionId,
             taskNumber: draft.taskNumber,
             preset: preset?.id || null,
+            source: options?.source || (preset ? 'quick-comment' : 'comment-tool'),
         });
-    }, [pushCommentMutation, setPendingCommentDraft, setTaskState, submissionId, trackAction]);
+    }, [
+        pushCommentMutation,
+        setPendingCommentDraft,
+        setTaskState,
+        focusCommentInRail,
+        submissionId,
+        trackAction,
+    ]);
 
     const handleAddComment = useCallback((
         selectedText: string,
         from: number,
         to: number,
         commentId: string,
+        anchorViewportTop: number | null,
         preset?: QuickCommentPreset
     ) => {
         const existingPendingDraft = pendingCommentDraftsRef.current[activeTask];
@@ -1122,20 +1630,24 @@ export default function WritingGradingPage() {
                 anchorText: selectedText,
                 from,
                 to,
+                anchorViewportTop,
                 categoryId: preset.categoryId,
                 html: preset.text,
-            }, preset.text, preset);
+            }, preset.text, preset, { source: 'quick-comment' });
             return;
         }
 
         setPanelTab('comments');
         setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(anchorViewportTop);
         setPendingCommentDraft(activeTask, {
             commentId,
             taskNumber: activeTask,
             anchorText: selectedText,
             from,
             to,
+            anchorViewportTop,
             categoryId: 'uncategorized',
             html: '',
         });
@@ -1186,7 +1698,7 @@ export default function WritingGradingPage() {
             resolvedAt: undefined,
             updatedAt: Date.now(),
         }));
-        pushCommentMutation(comment, 'apply', comment.color);
+        pushCommentMutation(comment, 'apply');
         trackAction('recoverComment', { submissionId, taskNumber: activeTask });
     }, [activeTask, activeTaskState?.comments, pushCommentMutation, submissionId, trackAction, updateCommentState]);
 
@@ -1202,7 +1714,7 @@ export default function WritingGradingPage() {
             resolvedAt: undefined,
             updatedAt: Date.now(),
         }));
-        pushCommentMutation(comment, 'apply', comment.color);
+        pushCommentMutation(comment, 'apply');
     }, [activeTaskState?.comments, pushCommentMutation, updateCommentState]);
 
     const handleCategoryChange = useCallback((commentId: string, categoryId: CommentCategoryId) => {
@@ -1216,7 +1728,7 @@ export default function WritingGradingPage() {
 
         const comment = activeTaskState?.comments.find((entry) => entry.id === commentId);
         if (comment) {
-            pushCommentMutation(comment, 'apply', comment.color);
+            pushCommentMutation(comment, 'apply');
         }
     }, [activeTaskState?.comments, pushCommentMutation, updateCommentState]);
 
@@ -1251,7 +1763,7 @@ export default function WritingGradingPage() {
             return;
         }
 
-        if (!isHtmlMeaningful(html)) {
+        if (!isMeaningfulHtml(html)) {
             showStatus('Comment text cannot be empty.');
             return;
         }
@@ -1336,71 +1848,421 @@ export default function WritingGradingPage() {
             return;
         }
 
+        if (!editorSelectionState.hasSelection || editorSelectionState.from === null || editorSelectionState.to === null) {
+            showStatus('Select text in the essay before using a quick comment.');
+            return;
+        }
+
+        if (editorSelectionState.containsCorrection) {
+            showStatus('Remove the correction before adding a quick comment on that text.');
+            return;
+        }
+
         quickCommentNonceRef.current += 1;
-        setPendingQuickComment({ preset, nonce: quickCommentNonceRef.current });
+        setPendingQuickComment({
+            taskNumber: activeTask,
+            preset,
+            from: editorSelectionState.from,
+            to: editorSelectionState.to,
+            selectedText: editorSelectionState.selectedText,
+            nonce: quickCommentNonceRef.current,
+        });
         setFocusedCommentId(null);
         trackAction('useQuickComment', { submissionId, presetId: preset.id });
-    }, [activeTask, showStatus, submissionId, trackAction]);
+    }, [activeTask, editorSelectionState, showStatus, submissionId, trackAction]);
+
+    const getActiveCommentForRange = useCallback((taskNumber: 1 | 2, from: number, to: number) => {
+        const taskState = taskStatesRef.current[taskNumber];
+        return taskState?.comments.find((comment) => (
+            comment.status === 'active'
+            && comment.from === from
+            && comment.to === to
+        )) || null;
+    }, []);
+
+    const upsertTaskCorrection = useCallback((taskNumber: 1 | 2, correction: GradingCorrection) => {
+        setTaskState(taskNumber, (current) => ({
+            ...current,
+            corrections: upsertCorrectionRecord(current.corrections, correction),
+        }));
+    }, [setTaskState]);
+
+    const removeTaskCorrection = useCallback((taskNumber: 1 | 2, correctionId: string) => {
+        setTaskState(taskNumber, (current) => ({
+            ...current,
+            corrections: removeCorrectionRecord(current.corrections, correctionId),
+        }));
+    }, [setTaskState]);
+
+    const getCorrectionPopupPosition = useCallback((anchorViewportTop: number | null, anchorViewportLeft: number | null) => {
+        const fallback = { top: 96, left: 120 };
+
+        if (anchorViewportTop === null || anchorViewportLeft === null) {
+            return fallback;
+        }
+
+        return {
+            top: Math.max(16, anchorViewportTop - 72),
+            left: Math.max(24, anchorViewportLeft),
+        };
+    }, []);
 
     const handleCorrectionRequest = useCallback((from: number, to: number, selectedText: string) => {
         const selection = document.getSelection();
         const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-        const editorContainer = pageRef.current?.querySelector('#essay-editor-container') as HTMLElement | null;
         const rect = range?.getBoundingClientRect();
-        const containerRect = editorContainer?.getBoundingClientRect();
-        const fallback = { top: 24, left: 120 };
 
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(null);
+        setFocusedCommentAnchorViewportTop(null);
         setCorrectionRequest({
+            mode: 'create',
+            correctionId: undefined,
             from,
             to,
             selectedText,
-            position: rect && containerRect
-                ? {
-                    top: rect.top - containerRect.top + (editorContainer?.scrollTop || 0) - 72,
-                    left: Math.max(24, rect.left - containerRect.left),
-                }
-                : fallback,
+            correctionText: '',
+            position: getCorrectionPopupPosition(rect?.top ?? null, rect?.left ?? null),
         });
+    }, [getCorrectionPopupPosition]);
+
+    const handleCorrectionMarkClick = useCallback((selection: CorrectionMarkSelection) => {
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(selection.id);
+        setFocusedCommentAnchorViewportTop(null);
+
+        if (mode !== 'editing') {
+            return;
+        }
+
+        setCorrectionRequest({
+            mode: 'edit',
+            correctionId: selection.id,
+            from: selection.from,
+            to: selection.to,
+            selectedText: selection.selectedText,
+            correctionText: selection.correctionText,
+            position: getCorrectionPopupPosition(selection.anchorViewportTop, selection.anchorViewportLeft),
+        });
+    }, [getCorrectionPopupPosition, mode]);
+
+    const handleCorrectionItemsBackfill = useCallback((corrections: GradingCorrection[]) => {
+        if (corrections.length === 0) {
+            return;
+        }
+
+        setTaskStates((current) => {
+            const activeTaskState = current[activeTask];
+            if (!activeTaskState || activeTaskState.corrections.length > 0) {
+                return current;
+            }
+
+            return {
+                ...current,
+                [activeTask]: {
+                    ...activeTaskState,
+                    corrections: normalizeTaskCorrections({
+                        taskNumber: activeTask,
+                        markedContent: activeTaskState.markedContent,
+                        corrections,
+                        fallbackTimestamp: Date.now(),
+                    }),
+                },
+            };
+        });
+    }, [activeTask]);
+
+    const dismissCorrectionRequest = useCallback(() => {
+        setCorrectionRequest(null);
+        setFocusedCorrectionId(null);
     }, []);
 
-    const applyCorrection = useCallback((correctionText: string) => {
+    const applyCorrection = useCallback((correctionText: string, commentText: string) => {
         if (!correctionRequest) {
             return;
         }
 
-        correctionNonceRef.current += 1;
-        setPendingCorrection({
+        const timestamp = Date.now();
+        const nextCorrectionId = correctionRequest.correctionId || `correction-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const normalizedSelection = normalizeCorrectionSelection({
+            selectedText: correctionRequest.selectedText,
             from: correctionRequest.from,
             to: correctionRequest.to,
+        });
+        const existingCorrection = taskStatesRef.current[activeTask]?.corrections.find((correction) => correction.id === nextCorrectionId) || null;
+
+        upsertTaskCorrection(activeTask, {
+            id: nextCorrectionId,
+            taskNumber: activeTask,
+            anchorText: normalizedSelection.anchorText,
+            correctionText: correctionText.trim(),
+            from: normalizedSelection.from,
+            to: normalizedSelection.to,
+            createdAt: existingCorrection?.createdAt ?? timestamp,
+            updatedAt: timestamp,
+        });
+        correctionNonceRef.current += 1;
+        setPendingCorrection({
+            taskNumber: activeTask,
+            action: 'apply',
+            from: normalizedSelection.from,
+            to: normalizedSelection.to,
+            correctionId: nextCorrectionId,
             correctionText,
             nonce: correctionNonceRef.current,
         });
-        setCorrectionRequest(null);
-    }, [correctionRequest]);
+        setFocusedCommentId(null);
+        setFocusedCorrectionId(nextCorrectionId);
+        trackAction(correctionRequest.mode === 'edit' ? 'editCorrection' : 'addCorrection', {
+            submissionId,
+            taskNumber: activeTask,
+        });
 
-    const handleBackToQueue = useCallback(async () => {
-        if (Object.keys(pendingCommentDraftsRef.current).length > 0) {
-            const discardPending = window.confirm('There is an open comment composer that has not been saved. Leave the grading page and discard it?');
-            if (!discardPending) {
-                return;
-            }
-        }
-
-        if (mode === 'editing' && dirtyRef.current) {
-            const shouldSave = window.confirm('You have unsaved grading changes. Save draft before returning to the queue?');
-            if (shouldSave) {
-                try {
-                    await persistDraft('manual');
-                } catch (saveError) {
-                    showStatus(saveError instanceof Error ? saveError.message : 'Failed to save draft');
-                    return;
+        const trimmedCommentText = commentText.trim();
+        if (trimmedCommentText) {
+            const existingComment = getActiveCommentForRange(activeTask, normalizedSelection.from, normalizedSelection.to);
+            if (existingComment) {
+                showStatus('A comment already exists on this selected text. Edit it from the Comments tab if needed.');
+            } else if (pendingCommentDraftsRef.current[activeTask]) {
+                showStatus('Finish or cancel the open comment before adding another one.');
+            } else {
+                const html = convertPlainTextToCommentHtml(trimmedCommentText);
+                if (isMeaningfulHtml(html)) {
+                    createSavedComment({
+                        commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        taskNumber: activeTask,
+                        anchorText: normalizedSelection.anchorText,
+                        from: normalizedSelection.from,
+                        to: normalizedSelection.to,
+                        categoryId: 'uncategorized',
+                        html,
+                    }, html, undefined, {
+                        focusInSidebar: false,
+                        source: 'correction-popup',
+                    });
                 }
             }
         }
 
+        setCorrectionRequest(null);
+    }, [
+        activeTask,
+        correctionRequest,
+        createSavedComment,
+        getActiveCommentForRange,
+        showStatus,
+        submissionId,
+        trackAction,
+        upsertTaskCorrection,
+    ]);
+
+    const deleteCorrection = useCallback(() => {
+        if (!correctionRequest || correctionRequest.mode !== 'edit') {
+            return;
+        }
+
+        if (correctionRequest.correctionId) {
+            removeTaskCorrection(activeTask, correctionRequest.correctionId);
+        }
+        correctionNonceRef.current += 1;
+        setPendingCorrection({
+            taskNumber: activeTask,
+            action: 'remove',
+            from: correctionRequest.from,
+            to: correctionRequest.to,
+            correctionId: correctionRequest.correctionId,
+            nonce: correctionNonceRef.current,
+        });
+        setFocusedCorrectionId(null);
+        trackAction('deleteCorrection', { submissionId, taskNumber: activeTask });
+        setCorrectionRequest(null);
+    }, [activeTask, correctionRequest, removeTaskCorrection, submissionId, trackAction]);
+
+    const focusSuggestionInEssay = useCallback((suggestion: WritingSuggestionItem) => {
+        suggestionFocusNonceRef.current += 1;
+        setPendingSuggestionFocus({
+            taskNumber: suggestion.taskNumber,
+            from: suggestion.from,
+            to: suggestion.to,
+            nonce: suggestionFocusNonceRef.current,
+        });
+    }, []);
+
+    const createCommentFromSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        if (pendingCommentDraftsRef.current[suggestion.taskNumber]) {
+            setPanelTab('comments');
+            showStatus('Finish or cancel the open comment before approving another suggestion.');
+            return false;
+        }
+
+        const html = convertPlainTextToCommentHtml(suggestion.suggestedCommentText || '');
+        if (!isMeaningfulHtml(html)) {
+            showStatus('This suggestion is missing comment text and cannot be approved automatically.');
+            return false;
+        }
+
+        setFocusedCommentId(null);
+        createSavedComment({
+            commentId: `comment-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            taskNumber: suggestion.taskNumber,
+            anchorText: suggestion.anchorText,
+            from: suggestion.from,
+            to: suggestion.to,
+            categoryId: suggestion.categoryId,
+            html,
+        }, html, undefined, { source: 'suggestion' });
+        focusSuggestionInEssay(suggestion);
+        return true;
+    }, [createSavedComment, focusSuggestionInEssay, showStatus]);
+
+    const applySuggestionCorrection = useCallback((suggestion: WritingSuggestionItem) => {
+        if (correctionRequest) {
+            showStatus('Finish or cancel the open correction before approving another suggestion.');
+            return false;
+        }
+        if (!suggestion.replacementText?.trim()) {
+            showStatus('This suggestion is missing correction text and cannot be approved automatically.');
+            return false;
+        }
+
+        const timestamp = Date.now();
+        const nextCorrectionId = `correction-${timestamp}-${Math.random().toString(36).slice(2)}`;
+        const normalizedSelection = normalizeCorrectionSelection({
+            selectedText: suggestion.anchorText,
+            from: suggestion.from,
+            to: suggestion.to,
+        });
+
+        upsertTaskCorrection(suggestion.taskNumber, {
+            id: nextCorrectionId,
+            taskNumber: suggestion.taskNumber,
+            anchorText: normalizedSelection.anchorText,
+            correctionText: suggestion.replacementText.trim(),
+            from: normalizedSelection.from,
+            to: normalizedSelection.to,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+        });
+        correctionNonceRef.current += 1;
+        focusSuggestionInEssay(suggestion);
+        setPendingCorrection({
+            taskNumber: suggestion.taskNumber,
+            action: 'apply',
+            from: normalizedSelection.from,
+            to: normalizedSelection.to,
+            correctionId: nextCorrectionId,
+            correctionText: suggestion.replacementText,
+            nonce: correctionNonceRef.current,
+        });
+        trackAction('addCorrection', {
+            submissionId,
+            taskNumber: suggestion.taskNumber,
+            focus: suggestion.focus,
+        });
+        return true;
+    }, [correctionRequest, focusSuggestionInEssay, showStatus, submissionId, trackAction, upsertTaskCorrection]);
+
+    const dismissSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        void persistSuggestionReviewStatus(suggestion, 'dismissed', 'dismissSuggestion');
+    }, [persistSuggestionReviewStatus]);
+
+    const restoreSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        void persistSuggestionReviewStatus(suggestion, 'pending', 'restoreSuggestion');
+    }, [persistSuggestionReviewStatus]);
+
+    const approveSuggestion = useCallback((suggestion: WritingSuggestionItem) => {
+        if (suggestionApprovalBlockedReason) {
+            showStatus(suggestionApprovalBlockedReason);
+            return;
+        }
+
+        const started = suggestion.kind === 'comment'
+            ? createCommentFromSuggestion(suggestion)
+            : applySuggestionCorrection(suggestion);
+
+        if (!started) {
+            return;
+        }
+
+        void persistSuggestionReviewStatus(suggestion, 'approved', 'approveSuggestion');
+        setSuggestionReviewOpen(false);
+    }, [
+        applySuggestionCorrection,
+        createCommentFromSuggestion,
+        persistSuggestionReviewStatus,
+        showStatus,
+        suggestionApprovalBlockedReason,
+    ]);
+
+    const handleGenerateMoreSuggestions = useCallback(() => {
+        if (suggestionGenerationActive) {
+            return;
+        }
+
+        void loadSuggestions({ force: true, source: 'continue' });
+    }, [loadSuggestions, suggestionGenerationActive]);
+
+    const confirmRegradePublish = useCallback(async () => {
+        const reason = regradeReason.trim();
+        if (!reason) {
+            setRegradeError('A regrade reason is required.');
+            return;
+        }
+
+        setRegradeError(null);
+        setRegradeDialogOpen(false);
+        await executePublish(reason);
+    }, [executePublish, regradeReason]);
+
+    const executeLeaveIntent = useCallback(async (modeToUse: 'save' | 'discard') => {
+        if (modeToUse === 'save') {
+            setLeaveDialogSaving(true);
+            try {
+                await persistDraft('manual');
+            } catch (saveError) {
+                showStatus(saveError instanceof Error ? saveError.message : 'Failed to save draft');
+                return;
+            } finally {
+                setLeaveDialogSaving(false);
+            }
+        }
+
+        setLeaveDialogOpen(false);
+        const intent = pendingLeaveIntent;
+        await releaseLock();
+        if (intent.type === 'route') {
+            navigateTo(intent.route as never, {}, { reason: intent.reason });
+            return;
+        }
+        if (intent.type === 'logout') {
+            await handleLogout();
+            return;
+        }
+        navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
+    }, [handleLogout, navigateTo, pendingLeaveIntent, persistDraft, releaseLock, showStatus]);
+
+    const handleBackToQueue = useCallback(async () => {
+        if (openLeaveWarning('back-to-queue', { type: 'queue' })) {
+            return;
+        }
+
         await releaseLock();
         navigateTo('TEACHER_GRADING_QUEUE', {}, { reason: 'teacher_grading_back_to_queue' });
-    }, [mode, navigateTo, persistDraft, releaseLock, showStatus]);
+    }, [navigateTo, openLeaveWarning, releaseLock]);
+
+    const handleTeacherShellNavigateAttempt = useCallback((route: string, reason: string) => {
+        if (openLeaveWarning('header-navigation', { type: 'route', route, reason })) {
+            return false;
+        }
+        return true;
+    }, [openLeaveWarning]);
+
+    const handleTeacherShellLogoutAttempt = useCallback(() => {
+        if (openLeaveWarning('logout', { type: 'logout' })) {
+            return false;
+        }
+        return true;
+    }, [openLeaveWarning]);
 
     const renderTeacherShell = useCallback((content: ReactNode) => (
         <div className="wgp-shell">
@@ -1412,6 +2274,8 @@ export default function WritingGradingPage() {
                 userEmail={profile?.email || user?.email}
                 userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
                 onLogout={handleLogout}
+                onNavigateAttempt={handleTeacherShellNavigateAttempt}
+                onLogoutAttempt={handleTeacherShellLogoutAttempt}
             />
             <div className="wgp-shell-content">
                 <div className="wgp-shell-panel">
@@ -1419,7 +2283,7 @@ export default function WritingGradingPage() {
                 </div>
             </div>
         </div>
-    ), [handleLogout, profile?.avatarUrl, profile?.displayName, profile?.email, profile?.photoURL, profile?.role, user?.displayName, user?.email, user?.photoURL, user?.uid]);
+    ), [handleLogout, handleTeacherShellLogoutAttempt, handleTeacherShellNavigateAttempt, profile?.avatarUrl, profile?.displayName, profile?.email, profile?.photoURL, profile?.role, user?.displayName, user?.email, user?.photoURL, user?.uid]);
 
     if (loading) {
         return renderTeacherShell(
@@ -1450,10 +2314,22 @@ export default function WritingGradingPage() {
 
     const promptTask = submission.tasks.find((task) => task.taskNumber === activeTask) ?? submission.tasks[0]!;
     const publishedTask = publishedGrading?.perTask[activeTask] || null;
+    const correctionLinkedComment = correctionRequest
+        ? activeTaskState.comments.find((comment) => (
+            comment.status === 'active'
+            && comment.from === correctionRequest.from
+            && comment.to === correctionRequest.to
+        )) || null
+        : null;
+    const correctionCommentDisabledReason = correctionLinkedComment
+        ? 'An active comment already exists on this selected text. Edit it from the Comments tab if needed.'
+        : activePendingCommentDraft
+            ? 'Finish or cancel the open comment draft before adding another comment here.'
+            : null;
     const commentPositions = anchorPositions
         .map((anchor) => {
             const comment = activeTaskState.comments.find((entry) => entry.id === anchor.commentId);
-            return comment ? { commentId: comment.id, color: comment.color, top: anchor.anchorTop - editorScrollTop } : null;
+            return comment ? { commentId: comment.id, color: COMMENT_HIGHLIGHT_COLOR, top: anchor.anchorTop - editorScrollTop } : null;
         })
         .filter(Boolean) as Array<{ commentId: string; color: string; top: number }>;
     const canStartTakeover = Boolean(
@@ -1467,21 +2343,23 @@ export default function WritingGradingPage() {
 
             <header className="wgp-header">
                 <div className="wgp-header-left">
-                    <button className="wgp-back-btn" onClick={() => void handleBackToQueue()}>
-                        Back to Queue
+                    <button className="wgp-back-link" onClick={() => void handleBackToQueue()}>
+                        <span className="wgp-back-link-icon" aria-hidden="true"><IconArrowLeft size={16} stroke={2} /></span>
+                        <span>Back to Queue</span>
                     </button>
-                    <div>
-                        <div className="wgp-student-name">{submission.studentName}</div>
-                        <div className="wgp-subtitle">
-                            {submission.testMeta.testTitle} | Submitted {formatAbsoluteDate(submission.submittedAt)}
+                    <div style={{ height: '2rem', width: '1px', background: '#a9b4b9', opacity: 0.3 }}></div>
+                    <div className="wgp-header-student">
+                        <div className="wgp-header-student-info">
+                            <span className="wgp-header-student-name">{submission.studentName || 'Student'}</span>
+                            <span className="wgp-header-student-id">ID: {submission.studentId?.slice(-4) || '—'}</span>
                         </div>
+                        <span className={`wgp-status-pill ${mode === 'editing' ? 'editing' : submission.markingStatus === 'graded' ? 'published' : 'pending'}`}>
+                            {mode === 'editing' ? 'EDITING' : submission.markingStatus === 'graded' ? 'GRADED' : 'IN REVIEW'}
+                        </span>
                     </div>
                 </div>
 
                 <div className="wgp-header-actions">
-                    <span className={`wgp-status-pill ${mode === 'editing' ? 'editing' : submission.markingStatus === 'graded' ? 'published' : 'pending'}`}>
-                        {mode === 'editing' ? 'Draft Editing' : submission.markingStatus === 'graded' ? 'Published' : 'Pending Review'}
-                    </span>
                     {statusMessage && <span className="wgp-status-text">{statusMessage}</span>}
 
                     {mode === 'review' ? (
@@ -1504,11 +2382,11 @@ export default function WritingGradingPage() {
                         )
                     ) : (
                         <>
-                            <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !dirty || !currentLockIsOwned}>
-                                {saving ? 'Saving...' : 'Save Draft'}
+                            <button className="wgp-secondary-btn" onClick={() => void persistDraft('manual')} disabled={saving || !hasUnsavedChanges || !currentLockIsOwned}>
+                                {saving ? 'Saving…' : 'Save Draft'}
                             </button>
-                            <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned || hasAnyPendingCommentDraft}>
-                                {publishing ? 'Publishing...' : 'Submit Grading'}
+                            <button className="wgp-primary-btn" onClick={() => void handlePublish()} disabled={publishing || hasPublishBlockingError || !currentLockIsOwned}>
+                                {publishing ? 'Publishing…' : 'Submit Grading'}
                             </button>
                         </>
                     )}
@@ -1561,40 +2439,62 @@ export default function WritingGradingPage() {
 
             <main className="wgp-layout">
                 <section className="wgp-left-column">
-                    <div className={`wgp-editor-card ${mode === 'review' ? 'wgp-editor-card-readonly' : ''}`}>
+                    {/* Marked / Original view toggle */}
+                    <div className="wgp-editor-topbar">
+                        <div className="wgp-panel-tabs wgp-editor-view-tabs">
+                            <button
+                                className={`wgp-panel-tab ${editorViewMode === 'marked' ? 'active' : ''}`}
+                                onClick={() => handleViewModeChange('marked')}
+                            >
+                                Marked
+                            </button>
+                            <button
+                                className={`wgp-panel-tab ${editorViewMode === 'original' ? 'active' : ''}`}
+                                onClick={() => handleViewModeChange('original')}
+                            >
+                                Original
+                            </button>
+                        </div>
+                    </div>
+                    <div className="wgp-editor-card-wrapper">
+                        <div className={`wgp-editor-card ${mode === 'review' ? 'wgp-editor-card-readonly' : ''}`}>
                         <EssayEditor
+                            key={`essay-${submission.id}-${activeTask}-${editorHydrationNonce}`}
                             originalEssayText={activeTaskState.essayText}
                             initialContent={activeTaskState.markedContent}
                             wordCount={activeTaskState.wordCount}
                             activeTimeSeconds={activeTaskState.activeTimeSeconds}
                             taskNumber={activeTask}
+                            viewMode={editorViewMode}
                             onAddComment={handleAddComment}
                             onGutterDotClick={(commentId) => {
-                                setFocusedCommentId(commentId);
-                                setFocusedCommentAnchorViewportTop(
-                                    anchorPositions.find((position) => position.commentId === commentId)?.anchorViewportTop ?? null,
-                                );
-                                setPanelTab('comments');
+                                focusCommentInRail(commentId);
                             }}
                             onCommentMarkClick={(commentId, anchorViewportTop) => {
-                                setFocusedCommentId(commentId);
-                                setFocusedCommentAnchorViewportTop(anchorViewportTop);
-                                setPanelTab('comments');
+                                focusCommentInRail(commentId, {
+                                    anchorViewportTop,
+                                });
                             }}
                             onCommentMarkHover={setHoveredCommentId}
-                            onViewModeChange={handleViewModeChange}
+                            onSelectionStateChange={handleEditorSelectionStateChange}
                             onContentChange={(json) => {
                                 setTaskState(activeTask, (current) => ({ ...current, markedContent: json as Record<string, any> }));
                             }}
+                            onCorrectionItemsChange={handleCorrectionItemsBackfill}
                             onCorrectionRequest={handleCorrectionRequest}
+                            onCorrectionMarkClick={handleCorrectionMarkClick}
                             pendingQuickComment={pendingQuickComment}
                             pendingCorrection={pendingCorrection}
                             pendingCommentMutation={pendingCommentMutation}
+                            pendingCommentDraft={activePendingCommentDraft}
+                            pendingFocusRange={pendingSuggestionFocus}
                             commentPositions={commentPositions}
                             comments={activeTaskState.comments}
                             focusedCommentId={focusedCommentId}
+                            focusedCorrectionId={focusedCorrectionId}
                             hoveredCommentId={hoveredCommentId}
                             readOnly={mode !== 'editing'}
+                            editorRef={essayEditorRef}
                         />
 
                         {mode === 'editing' && (
@@ -1611,14 +2511,22 @@ export default function WritingGradingPage() {
                         <CorrectionPopup
                             isOpen={Boolean(correctionRequest)}
                             selectedText={correctionRequest?.selectedText || ''}
+                            initialValue={correctionRequest?.correctionText || ''}
                             position={correctionRequest?.position || { top: 24, left: 24 }}
+                            mode={correctionRequest?.mode || 'create'}
+                            commentDisabledReason={correctionCommentDisabledReason}
                             onApply={applyCorrection}
-                            onDismiss={() => setCorrectionRequest(null)}
+                            onDelete={correctionRequest?.mode === 'edit' ? deleteCorrection : undefined}
+                            onDismiss={dismissCorrectionRequest}
                         />
                     </div>
+                    </div>{/* end wgp-editor-card-wrapper */}
+
+                    {/* Score strip removed — scoring is in sidebar per mockup */}
                 </section>
 
                 <aside className="wgp-right-column">
+                    {/* Plain Text Panel Tabs — matches mockup */}
                     <div className="wgp-panel-tabs">
                         <button className={`wgp-panel-tab ${panelTab === 'prompt' ? 'active' : ''}`} onClick={() => handlePanelTabChange('prompt')}>
                             Prompt
@@ -1630,13 +2538,16 @@ export default function WritingGradingPage() {
                         >
                             Comments
                         </button>
+                        <button className={`wgp-panel-tab ${panelTab === 'suggestions' ? 'active' : ''}`} onClick={() => handlePanelTabChange('suggestions')}>
+                            Suggestions
+                        </button>
                         <button className={`wgp-panel-tab ${panelTab === 'scoring' ? 'active' : ''}`} onClick={() => handlePanelTabChange('scoring')}>
                             Scoring
                         </button>
                     </div>
 
                     {panelTab === 'prompt' && (
-                        <div className="wgp-panel-card">
+                        <div className="wgp-panel-card wgp-panel-card--seamless">
                             <div className="wgp-card-title">Task {activeTask} Prompt</div>
                             {promptTask.promptImageUrl && (
                                 <img className="wgp-prompt-image" src={promptTask.promptImageUrl} alt={`Task ${activeTask} prompt`} />
@@ -1658,6 +2569,7 @@ export default function WritingGradingPage() {
                                 taskNumber={activeTask}
                                 focusedCommentId={focusedCommentId}
                                 focusedCommentAnchorViewportTop={focusedCommentAnchorViewportTop}
+                                focusedCommentRequestKey={focusedCommentRequestKey}
                                 hoveredCommentId={hoveredCommentId}
                                 anchorPositions={anchorPositions}
                                 editorScrollTop={editorScrollTop}
@@ -1679,76 +2591,98 @@ export default function WritingGradingPage() {
                         </div>
                     )}
 
+                    {panelTab === 'suggestions' && (
+                        <WritingSuggestionsPanel
+                            cache={suggestionCache}
+                            taskNumber={activeTask}
+                            loading={suggestionsLoading}
+                            reloading={suggestionsReloading}
+                            runState={activeSuggestionRunState}
+                            canApprove={mode === 'editing'}
+                            canGenerateMore={suggestionCanGenerateMore}
+                            approvalBlockedReason={suggestionApprovalBlockedReason}
+                            onReload={() => void loadSuggestions({ force: true, source: 'force' })}
+                            onGenerateMore={handleGenerateMoreSuggestions}
+                            onOpenReview={() => openSuggestionReview('summary')}
+                        />
+                    )}
+
                     {panelTab === 'scoring' && (
                         <div className="wgp-panel-stack">
                             {mode === 'editing' ? (
                                 <>
-                                    <div className="wgp-panel-card">
-                                        <CriteriaScoringPanel
-                                            taskNumber={activeTask}
-                                            scores={activeTaskState.scores}
-                                            onChange={(scores) => handleTaskScoresChange(activeTask, scores)}
-                                            isVoided={activeTaskState.isVoided}
-                                        />
-                                    </div>
+                                    <CriteriaScoringPanel
+                                        taskNumber={activeTask}
+                                        scores={activeTaskState.scores}
+                                        onChange={(scores) => handleTaskScoresChange(activeTask, scores)}
+                                        isVoided={activeTaskState.isVoided}
+                                    />
 
-                                    <div className="wgp-panel-card">
-                                        <div className="wgp-card-title">Task {activeTask} Feedback</div>
-                                        <TabbedFeedbackEditor
-                                            taskNumber={activeTask}
-                                            feedback={activeTaskState.feedback}
-                                            onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
-                                            onTabChange={(tab) => trackAction('switchTab', { submissionId, tab: `feedback-${tab}` })}
-                                        />
-                                    </div>
-
-                                    <div className="wgp-panel-card">
-                                        <VoidTaskButton
-                                            taskNumber={activeTask}
-                                            isVoided={activeTaskState.isVoided}
-                                            voidReason={activeTaskState.voidReason}
-                                            onVoid={(reason) => handleVoidTask(activeTask, reason)}
-                                            onUnvoid={() => handleUnvoidTask(activeTask)}
-                                        />
-                                    </div>
+                                    <TabbedFeedbackEditor
+                                        key={`feedback-${submission.id}-${activeTask}-${editorHydrationNonce}`}
+                                        taskNumber={activeTask}
+                                        feedback={activeTaskState.feedback}
+                                        onChange={(feedback) => handleTaskFeedbackChange(activeTask, feedback)}
+                                        onTabChange={(tab) => trackAction('switchTab', { submissionId, tab: `feedback-${tab}` })}
+                                        onEditorAction={(action, tab) => trackAction('formatFeedback', {
+                                            submissionId,
+                                            taskNumber: activeTask,
+                                            tab: `feedback-${tab}`,
+                                            action,
+                                        })}
+                                    />
                                 </>
                             ) : (
                                 <>
-                                    <div className="wgp-panel-card">
+                                    <div className="wgp-panel-card--flat">
                                         <div className="wgp-card-title">Published Scores</div>
                                         <div className="wgp-score-grid">
-                                            <div><span>{activeTask === 1 ? 'TA' : 'TR'}</span><strong>{publishedTask?.criteriaScores?.[activeTask === 1 ? 'TA' : 'TR'] ?? '-'}</strong></div>
-                                            <div><span>CC</span><strong>{publishedTask?.criteriaScores?.CC ?? '-'}</strong></div>
-                                            <div><span>LR</span><strong>{publishedTask?.criteriaScores?.LR ?? '-'}</strong></div>
-                                            <div><span>GRA</span><strong>{publishedTask?.criteriaScores?.GRA ?? '-'}</strong></div>
+                                            <div><span>{activeTask === 1 ? 'Task Achievement' : 'Task Response'}</span><strong>{publishedTask?.criteriaScores?.[activeTask === 1 ? 'TA' : 'TR'] ?? '-'}</strong></div>
+                                            <div><span>Coherence & Cohesion</span><strong>{publishedTask?.criteriaScores?.CC ?? '-'}</strong></div>
+                                            <div><span>Lexical Resource</span><strong>{publishedTask?.criteriaScores?.LR ?? '-'}</strong></div>
+                                            <div><span>Grammatical Range</span><strong>{publishedTask?.criteriaScores?.GRA ?? '-'}</strong></div>
                                             <div><span>Task Band</span><strong>{publishedTask?.isVoided ? 'Voided' : publishedTask?.taskBand ?? '-'}</strong></div>
                                             <div><span>Overall Band</span><strong>{publishedGrading?.overallBand ?? '-'}</strong></div>
                                         </div>
+                                        {/* ── Task Feedback (tabbed, same design as edit mode) ── */}
+                                        {(() => {
+                                            const feedbackTabs = [
+                                                { id: 'taskSummary', label: 'Task Summary' },
+                                                { id: activeTask === 1 ? 'TA' : 'TR', label: activeTask === 1 ? 'TA' : 'TR' },
+                                                { id: 'CC', label: 'CC' },
+                                                { id: 'LR', label: 'LR' },
+                                                { id: 'GRA', label: 'GRA' },
+                                            ];
+                                            const feedbackData: Record<string, string> = {
+                                                taskSummary: publishedTask?.taskSummary || activeTaskState.feedback.taskSummary || '',
+                                                [activeTask === 1 ? 'TA' : 'TR']: activeTask === 1
+                                                    ? (publishedTask?.perCriteriaFeedback?.TA || '')
+                                                    : (publishedTask?.perCriteriaFeedback?.TR || ''),
+                                                CC: publishedTask?.perCriteriaFeedback?.CC || '',
+                                                LR: publishedTask?.perCriteriaFeedback?.LR || '',
+                                                GRA: publishedTask?.perCriteriaFeedback?.GRA || '',
+                                            };
+                                            return (
+                                                <div className="tabbed-feedback-editor" id="review-feedback-viewer">
+                                                    <div className="feedback-tabs" id="review-feedback-tabs">
+                                                        {feedbackTabs.map(tab => (
+                                                            <button
+                                                                key={tab.id}
+                                                                className={`feedback-tab ${reviewFeedbackTab === tab.id ? 'active' : ''}`}
+                                                                onClick={() => setReviewFeedbackTab(tab.id)}
+                                                                id={`review-feedback-tab-${tab.id}`}
+                                                            >
+                                                                {tab.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="feedback-editor-content">
+                                                        <RichContent className="wgp-rich-copy" content={feedbackData[reviewFeedbackTab] || ''} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
-
-                                    <div className="wgp-panel-card">
-                                        <div className="wgp-card-title">Task Summary</div>
-                                        <RichContent className="wgp-rich-copy" content={publishedTask?.taskSummary || activeTaskState.feedback.taskSummary} />
-                                        <div className="wgp-feedback-columns">
-                                            <div>
-                                                <span>{activeTask === 1 ? 'Task Achievement' : 'Task Response'}</span>
-                                                <RichContent className="wgp-rich-copy" content={activeTask === 1 ? (publishedTask?.perCriteriaFeedback.TA || '') : (publishedTask?.perCriteriaFeedback.TR || '')} />
-                                            </div>
-                                            <div>
-                                                <span>Coherence & Cohesion</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.CC || ''} />
-                                            </div>
-                                            <div>
-                                                <span>Lexical Resource</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.LR || ''} />
-                                            </div>
-                                            <div>
-                                                <span>Grammatical Range & Accuracy</span>
-                                                <RichContent className="wgp-rich-copy" content={publishedTask?.perCriteriaFeedback.GRA || ''} />
-                                            </div>
-                                        </div>
-                                    </div>
-
                                 </>
                             )}
 
@@ -1759,8 +2693,223 @@ export default function WritingGradingPage() {
                             )}
                         </div>
                     )}
+
+                    {/* Readiness Checklist — matches mockup */}
+                    {mode === 'editing' && (
+                        <div className="wgp-readiness-checklist">
+                            <div className="wgp-readiness-title">
+                                <IconChecklist size={14} stroke={1.8} aria-hidden="true" />
+                                Readiness
+                            </div>
+                            <div className="wgp-readiness-items">
+                                <div className="wgp-readiness-item">
+                                    <span>Scores Set</span>
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.scoresReady ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.scoresReady))}
+                                    </span>
+                                </div>
+                                <div className="wgp-readiness-item">
+                                    <span>Summary Required</span>
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.summaryReady ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.summaryReady))}
+                                    </span>
+                                </div>
+                                <div className="wgp-readiness-item">
+                                    <span>Comment Draft Clear</span>
+                                    <span className={`wgp-readiness-indicator ${activeTaskReadiness?.commentDraftClear ? 'ready' : 'not-ready'}`}>
+                                        {renderReadinessIcon(Boolean(activeTaskReadiness?.commentDraftClear))}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className={`wgp-readiness-summary ${submissionReadiness.canPublish ? 'ready' : 'not-ready'}`}>
+                                <span>Ready to Submit</span>
+                                <span>
+                                    {submissionReadiness.readyTaskCount}/{submissionReadiness.activeTaskCount} tasks ready
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bottom Utility Links — matches mockup */}
+                    <div className="wgp-utility-links">
+                        <button className="wgp-utility-link" onClick={() => { handlePanelTabChange('suggestions'); openSuggestionReview('summary'); }}>
+                            Review AI Suggestions
+                        </button>
+                        {Boolean(submission.auditTrail?.length) && (
+                            <button className="wgp-utility-link" onClick={() => handlePanelTabChange('scoring')}>
+                                Audit Trail
+                            </button>
+                        )}
+                        {mode === 'editing' && (
+                            <div className="wgp-utility-void-wrapper">
+                                <VoidTaskButton
+                                    taskNumber={activeTask}
+                                    isVoided={activeTaskState.isVoided}
+                                    voidReason={activeTaskState.voidReason}
+                                    onVoid={(reason) => handleVoidTask(activeTask, reason)}
+                                    onUnvoid={() => handleUnvoidTask(activeTask)}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </aside>
             </main>
+
+            <WritingSuggestionsReviewModal
+                open={suggestionReviewOpen}
+                cache={suggestionCache}
+                taskNumber={activeTask}
+                loading={suggestionsLoading}
+                reloading={suggestionsReloading}
+                runState={activeSuggestionRunState}
+                canApprove={mode === 'editing'}
+                canGenerateMore={suggestionCanGenerateMore}
+                approvalBlocked={suggestionApprovalBlocked}
+                approvalBlockedReason={suggestionApprovalBlockedReason}
+                onClose={closeSuggestionReview}
+                onReload={() => void loadSuggestions({ force: true, source: 'force' })}
+                onGenerateMore={handleGenerateMoreSuggestions}
+                onApproveSuggestion={approveSuggestion}
+                onDismissSuggestion={dismissSuggestion}
+                onRestoreSuggestion={restoreSuggestion}
+            />
+
+            {leaveDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-leave-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-leave-dialog-title">Leave grading page?</h2>
+                        <p className="wgp-modal-copy">
+                            {leaveWarningMode === 'unsaved-and-generating'
+                                ? 'Writing suggestion generation is still running in this browser, and you also have unsaved grading changes. Leaving now may cancel the AI run and lose unsaved grading work unless you save first.'
+                                : leaveWarningMode === 'generating-only'
+                                    ? 'Writing suggestion generation is still running in this browser. Leaving now may cancel the AI run and require another paid generation later.'
+                                    : hasAnyPendingCommentDraft
+                                        ? 'Open comment composers and unsaved grading changes will be lost unless you save a draft first.'
+                                        : 'You have unsaved grading changes. Save a draft before returning to the queue?'}
+                        </p>
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelLeave', { submissionId, source: 'grading_dialog' });
+                                    setLeaveDialogOpen(false);
+                                    setPendingLeaveIntent({ type: 'queue' });
+                                }}
+                                disabled={leaveDialogSaving}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('discardChanges', { submissionId, source: 'grading_dialog' });
+                                    void executeLeaveIntent('discard');
+                                }}
+                                disabled={leaveDialogSaving}
+                            >
+                                {leaveWarningMode === 'generating-only' ? 'Leave Anyway' : 'Discard and Leave'}
+                            </button>
+                            {leaveWarningMode !== 'generating-only' && (
+                                <button
+                                    className="wgp-primary-btn"
+                                    type="button"
+                                    onClick={() => void executeLeaveIntent('save')}
+                                    disabled={leaveDialogSaving}
+                                >
+                                    {leaveDialogSaving ? 'Saving...' : 'Save Draft and Leave'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {takeoverDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-takeover-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-takeover-dialog-title">Discard private draft and take over?</h2>
+                        <p className="wgp-modal-copy">
+                            This will permanently remove the other teacher&apos;s unpublished draft. A takeover reason is required for the audit trail.
+                        </p>
+                        <textarea
+                            className="wgp-modal-textarea"
+                            value={takeoverReason}
+                            onChange={(event) => setTakeoverReason(event.target.value)}
+                            placeholder="Explain why this private draft is being discarded..."
+                            rows={4}
+                        />
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelDraftTakeover', { submissionId, source: 'grading_dialog' });
+                                    setTakeoverDialogOpen(false);
+                                }}
+                                disabled={takeoverSubmitting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-primary-btn"
+                                type="button"
+                                onClick={() => void confirmDiscardTakeover()}
+                                disabled={takeoverSubmitting}
+                            >
+                                {takeoverSubmitting ? 'Taking Over...' : 'Discard Draft and Take Over'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {regradeDialogOpen && (
+                <div className="wgp-modal-backdrop" role="presentation">
+                    <div className="wgp-modal-card" role="dialog" aria-modal="true" aria-labelledby="wgp-regrade-dialog-title">
+                        <h2 className="wgp-modal-title" id="wgp-regrade-dialog-title">Publish regrade</h2>
+                        <p className="wgp-modal-copy">
+                            A regrade reason is required before updating the published grading.
+                        </p>
+                        <textarea
+                            className="wgp-modal-textarea"
+                            value={regradeReason}
+                            onChange={(event) => {
+                                setRegradeReason(event.target.value);
+                                if (regradeError) {
+                                    setRegradeError(null);
+                                }
+                            }}
+                            placeholder="Explain what changed in this regrade..."
+                            rows={4}
+                        />
+                        {regradeError && <p className="wgp-modal-error">{regradeError}</p>}
+                        <div className="wgp-modal-actions">
+                            <button
+                                className="wgp-secondary-btn"
+                                type="button"
+                                onClick={() => {
+                                    trackAction('cancelRegrade', { submissionId, source: 'grading_dialog' });
+                                    setRegradeDialogOpen(false);
+                                    setRegradeError(null);
+                                }}
+                                disabled={publishing}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="wgp-primary-btn"
+                                type="button"
+                                onClick={() => void confirmRegradePublish()}
+                                disabled={publishing}
+                            >
+                                {publishing ? 'Publishing...' : 'Publish Regrade'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

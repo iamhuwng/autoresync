@@ -18,6 +18,7 @@ interface WritingAutoSaveResult {
         task2Text: string;
         activeTask: number;
         tabSwitches: number;
+        pasteAttemptCount: number;
     } | null>;
     flushPendingSave: () => void;
 }
@@ -91,6 +92,7 @@ export function useWritingAutoSave(
                 task2Text: data.task2?.text || '',
                 activeTask: data.activeTask || 1,
                 tabSwitches: data.tabSwitches || 0,
+                pasteAttemptCount: data.pasteAttemptCount || 0,
             };
         } catch (err) {
             console.error('❌ Failed to load saved state:', err);

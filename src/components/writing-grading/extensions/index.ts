@@ -14,3 +14,6 @@ export type { CorrectionMarkOptions } from './correctionMark';
 
 export { MarksOnlyMode } from './marksOnlyPlugin';
 export type { MarksOnlyModeOptions } from './marksOnlyPlugin';
+
+export { PendingCommentPreview, setPendingCommentPreview } from './pendingCommentPreview';
+export type { PendingCommentPreviewRange } from './pendingCommentPreview';

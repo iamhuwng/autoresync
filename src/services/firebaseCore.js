@@ -15,6 +15,18 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+const missingFirebaseConfigKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value || !String(value).trim())
+  .map(([key]) => key);
+
+if (missingFirebaseConfigKeys.length > 0) {
+  throw new Error(
+    '[Firebase] Missing web config: '
+    + missingFirebaseConfigKeys.join(', ')
+    + '. This build was created without the required VITE_FIREBASE_* environment variables.'
+  );
+}
+
 if (shouldLogFirebaseBootstrap) {
   console.log('[Firebase] Initializing Firebase...');
   console.log('[Firebase] Config check:');

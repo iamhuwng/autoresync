@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { CommentCategoryId, GradingComment } from '../../types/ielts-writing.types';
 import CommentCard from './CommentCard';
 import CommentComposer from './CommentComposer';
+import { getAlignedRailTranslateY, getVisibleRailLaneBounds, revealRailItemInViewport } from './annotationRailPosition';
 import './CommentSidebar.css';
 
 type FilterMode = 'all' | 'open' | 'resolved' | 'deleted';
@@ -20,15 +21,31 @@ export interface PendingCommentDraft {
     anchorText: string;
     from: number;
     to: number;
+    anchorViewportTop?: number | null;
     categoryId: CommentCategoryId;
     html: string;
 }
+
+type CommentRailItem =
+    | {
+        kind: 'comment';
+        key: string;
+        sortPosition: number;
+        comment: GradingComment;
+    }
+    | {
+        kind: 'pending';
+        key: string;
+        sortPosition: number;
+        draft: PendingCommentDraft;
+    };
 
 export interface CommentSidebarProps {
     comments: GradingComment[];
     taskNumber: 1 | 2;
     focusedCommentId: string | null;
     focusedCommentAnchorViewportTop?: number | null;
+    focusedCommentRequestKey?: number;
     hoveredCommentId: string | null;
     anchorPositions: CommentAnchorPosition[];
     editorScrollTop: number;
@@ -53,6 +70,7 @@ export default function CommentSidebar({
     taskNumber,
     focusedCommentId,
     focusedCommentAnchorViewportTop = null,
+    focusedCommentRequestKey = 0,
     hoveredCommentId,
     anchorPositions,
     editorScrollTop: _editorScrollTop,
@@ -76,7 +94,8 @@ export default function CommentSidebar({
     const commentsViewportRef = useRef<HTMLDivElement>(null);
     const commentsRailRef = useRef<HTMLDivElement>(null);
     const commentHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const pendingComposerRef = useRef<HTMLDivElement>(null);
+    const pendingComposerContainerRef = useRef<HTMLDivElement>(null);
+    const pendingComposerHeaderRef = useRef<HTMLDivElement>(null);
     const [commentsStackTranslateY, setCommentsStackTranslateY] = useState(0);
 
     useEffect(() => {
@@ -129,11 +148,43 @@ export default function CommentSidebar({
         }
 
         return [...nextComments].sort((left, right) => {
-            const leftPosition = positionLookup.get(left.id)?.anchorTop ?? left.from;
-            const rightPosition = positionLookup.get(right.id)?.anchorTop ?? right.from;
-            return leftPosition - rightPosition;
+            if (left.from !== right.from) {
+                return left.from - right.from;
+            }
+
+            return left.to - right.to;
         });
-    }, [comments, filter, positionLookup]);
+    }, [comments, filter]);
+
+    const railItems = useMemo<CommentRailItem[]>(() => {
+        const nextItems: CommentRailItem[] = filteredComments.map((comment) => ({
+            kind: 'comment',
+            key: comment.id,
+            sortPosition: comment.from,
+            comment,
+        }));
+
+        if (pendingCommentDraft && !readOnly) {
+            nextItems.push({
+                kind: 'pending',
+                key: `pending-${pendingCommentDraft.commentId}`,
+                sortPosition: pendingCommentDraft.from,
+                draft: pendingCommentDraft,
+            });
+        }
+
+        return nextItems.sort((left, right) => {
+            if (left.sortPosition !== right.sortPosition) {
+                return left.sortPosition - right.sortPosition;
+            }
+
+            if (left.kind === right.kind) {
+                return 0;
+            }
+
+            return left.kind === 'comment' ? -1 : 1;
+        });
+    }, [filteredComments, pendingCommentDraft, readOnly]);
 
     const counts = useMemo(() => ({
         all: comments.filter((comment) => comment.status !== 'deleted').length,
@@ -142,53 +193,106 @@ export default function CommentSidebar({
         deleted: comments.filter((comment) => comment.status === 'deleted').length,
     }), [comments]);
 
+    const activeRailTarget = useMemo(() => {
+        if (focusedCommentId) {
+            return {
+                kind: 'comment' as const,
+                id: focusedCommentId,
+                anchorViewportTop: focusedCommentAnchorViewportTop
+                    ?? positionLookup.get(focusedCommentId)?.anchorViewportTop
+                    ?? null,
+                requestKey: focusedCommentRequestKey,
+            };
+        }
+
+        if (pendingCommentDraft && !readOnly) {
+            return {
+                kind: 'pending' as const,
+                id: pendingCommentDraft.commentId,
+                anchorViewportTop: positionLookup.get(pendingCommentDraft.commentId)?.anchorViewportTop
+                    ?? pendingCommentDraft.anchorViewportTop
+                    ?? null,
+                requestKey: 0,
+            };
+        }
+
+        return null;
+    }, [
+        focusedCommentAnchorViewportTop,
+        focusedCommentId,
+        focusedCommentRequestKey,
+        pendingCommentDraft,
+        positionLookup,
+        readOnly,
+    ]);
+
     useLayoutEffect(() => {
-        if (!focusedCommentId) {
+        if (!activeRailTarget) {
             setCommentsStackTranslateY(0);
             return;
         }
 
         const viewportElement = commentsViewportRef.current;
         const railElement = commentsRailRef.current;
-        const selectedCommentHeaderElement = commentHeaderRefs.current[focusedCommentId] ?? null;
-        const selectedCommentPosition = positionLookup.get(focusedCommentId);
-        const selectedCommentCard = sidebarRef.current?.querySelector(`[data-comment-id="${focusedCommentId}"]`) as HTMLElement | null;
-        const anchorViewportTop = focusedCommentAnchorViewportTop ?? selectedCommentPosition?.anchorViewportTop ?? null;
+        const selectedRailHeaderElement = activeRailTarget.kind === 'pending'
+            ? pendingComposerHeaderRef.current
+            : commentHeaderRefs.current[activeRailTarget.id] ?? null;
+        const selectedRailElement = activeRailTarget.kind === 'pending'
+            ? pendingComposerContainerRef.current
+            : sidebarRef.current?.querySelector(`[data-comment-id="${activeRailTarget.id}"]`) as HTMLElement | null;
 
-        if (!selectedCommentCard) {
+        if (!selectedRailElement) {
             setCommentsStackTranslateY(0);
             return;
         }
 
-        if (viewportElement && railElement && selectedCommentHeaderElement && anchorViewportTop !== null) {
-            const viewportRect = viewportElement.getBoundingClientRect();
-            const railRect = railElement.getBoundingClientRect();
-            const headerRect = selectedCommentHeaderElement.getBoundingClientRect();
-            const headerHeight = headerRect.height || selectedCommentHeaderElement.offsetHeight || 0;
+        if (activeRailTarget.kind === 'pending' && viewportElement) {
             const viewportStyles = window.getComputedStyle(viewportElement);
             const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
             const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
-            const desiredHeaderTop = Math.min(
-                Math.max(anchorViewportTop, viewportRect.top + viewportPaddingTop),
-                viewportRect.bottom - viewportPaddingBottom - headerHeight,
-            );
-            const headerOffsetWithinRail = headerRect.top - railRect.top;
-            const desiredHeaderTopWithinViewport = desiredHeaderTop - viewportRect.top - viewportPaddingTop;
-            setCommentsStackTranslateY(desiredHeaderTopWithinViewport - headerOffsetWithinRail);
+            const { height } = getVisibleRailLaneBounds({
+                viewportElement,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            });
+            if (height > 0) {
+                selectedRailElement.style.maxHeight = `${Math.round(height)}px`;
+            } else {
+                selectedRailElement.style.removeProperty('max-height');
+            }
+        } else if (pendingComposerContainerRef.current) {
+            pendingComposerContainerRef.current.style.removeProperty('max-height');
+        }
+
+        if (viewportElement && railElement && selectedRailHeaderElement && activeRailTarget.anchorViewportTop !== null) {
+            const viewportStyles = window.getComputedStyle(viewportElement);
+            const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
+            const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
+            setCommentsStackTranslateY(getAlignedRailTranslateY({
+                viewportElement,
+                stackElement: railElement,
+                headerElement: selectedRailHeaderElement,
+                fitElement: selectedRailElement,
+                anchorViewportTop: activeRailTarget.anchorViewportTop,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            }));
             return;
         }
 
         setCommentsStackTranslateY(0);
-        selectedCommentCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, [focusedCommentAnchorViewportTop, focusedCommentId, positionLookup]);
-
-    useEffect(() => {
-        if (!pendingCommentDraft || !pendingComposerRef.current) {
-            return;
+        if (viewportElement) {
+            const viewportStyles = window.getComputedStyle(viewportElement);
+            const viewportPaddingTop = Number.parseFloat(viewportStyles.paddingTop || '0') || 0;
+            const viewportPaddingBottom = Number.parseFloat(viewportStyles.paddingBottom || '0') || 0;
+            revealRailItemInViewport({
+                viewportElement,
+                itemElement: selectedRailElement,
+                paddingTop: viewportPaddingTop,
+                paddingBottom: viewportPaddingBottom,
+            });
         }
-
-        pendingComposerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, [pendingCommentDraft]);
+    }, [activeRailTarget, railItems]);
 
     const handleSidebarClick = useCallback((event: React.MouseEvent) => {
         const target = event.target as HTMLElement;
@@ -202,12 +306,43 @@ export default function CommentSidebar({
     }, [onFocusComment]);
 
     return (
-        <div
-            ref={sidebarRef}
-            className="comment-sidebar"
-            onClick={handleSidebarClick}
-            id="comment-sidebar"
-        >
+        <div ref={sidebarRef} className="comment-sidebar" onClick={handleSidebarClick} id="comment-sidebar">
+            {/* Filter pills — outside the white card */}
+            <div className="comment-sidebar-filters" id="comment-sidebar-filters">
+                <button
+                    className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
+                    onClick={() => setFilter('all')}
+                    id="filter-all"
+                    type="button"
+                >
+                    All ({counts.all})
+                </button>
+                <button
+                    className={`filter-pill ${filter === 'open' ? 'active' : ''}`}
+                    onClick={() => setFilter('open')}
+                    id="filter-open"
+                    type="button"
+                >
+                    Open ({counts.open})
+                </button>
+                <button
+                    className={`filter-pill ${filter === 'resolved' ? 'active' : ''}`}
+                    onClick={() => setFilter('resolved')}
+                    id="filter-resolved"
+                    type="button"
+                >
+                    Resolved ({counts.resolved})
+                </button>
+                <button
+                    className={`filter-pill ${filter === 'deleted' ? 'active' : ''}`}
+                    onClick={() => setFilter('deleted')}
+                    id="filter-deleted"
+                    type="button"
+                >
+                    Deleted ({counts.deleted})
+                </button>
+            </div>
+
             <div className="comment-sidebar-cards">
                 <div
                     ref={commentsViewportRef}
@@ -223,43 +358,9 @@ export default function CommentSidebar({
                             transition: 'transform 0.22s ease',
                         }}
                     >
-                        <div className="comment-sidebar-filters" id="comment-sidebar-filters">
-                            <button
-                                className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
-                                onClick={() => setFilter('all')}
-                                id="filter-all"
-                                type="button"
-                            >
-                                All ({counts.all})
-                            </button>
-                            <button
-                                className={`filter-pill ${filter === 'open' ? 'active' : ''}`}
-                                onClick={() => setFilter('open')}
-                                id="filter-open"
-                                type="button"
-                            >
-                                Open ({counts.open})
-                            </button>
-                            <button
-                                className={`filter-pill ${filter === 'resolved' ? 'active' : ''}`}
-                                onClick={() => setFilter('resolved')}
-                                id="filter-resolved"
-                                type="button"
-                            >
-                                Resolved ({counts.resolved})
-                            </button>
-                            <button
-                                className={`filter-pill ${filter === 'deleted' ? 'active' : ''}`}
-                                onClick={() => setFilter('deleted')}
-                                id="filter-deleted"
-                                type="button"
-                            >
-                                Deleted ({counts.deleted})
-                            </button>
-                        </div>
 
                         <div className="comment-sidebar-card-list">
-                            {filteredComments.length === 0 && !pendingCommentDraft ? (
+                            {railItems.length === 0 ? (
                                 <div className="comment-sidebar-empty">
                                     {filter === 'open' && 'No open comments'}
                                     {filter === 'resolved' && 'No resolved comments'}
@@ -267,13 +368,52 @@ export default function CommentSidebar({
                                     {filter === 'all' && 'No comments yet'}
                                 </div>
                             ) : (
-                                filteredComments.map((comment) => {
+                                railItems.map((item) => {
+                                    if (item.kind === 'pending') {
+                                        return (
+                                            <div
+                                                key={item.key}
+                                                ref={pendingComposerContainerRef}
+                                                className="comment-sidebar-card-row comment-sidebar-card-row-pending"
+                                                data-rail-item-id={item.draft.commentId}
+                                                data-rail-item-kind="pending"
+                                                data-pending-comment-id={item.draft.commentId}
+                                            >
+                                                <div className="comment-sidebar-pending">
+                                                    <div
+                                                        ref={pendingComposerHeaderRef}
+                                                        className="comment-sidebar-pending-label"
+                                                        data-pending-comment-header-id={item.draft.commentId}
+                                                    >
+                                                        New comment
+                                                    </div>
+                                                    <CommentComposer
+                                                        value={item.draft.html}
+                                                        anchorText={item.draft.anchorText}
+                                                        taskNumber={taskNumber}
+                                                        categoryId={item.draft.categoryId}
+                                                        autoFocus
+                                                        onChange={onPendingCommentChange}
+                                                        onCategoryChange={onPendingCommentCategoryChange}
+                                                        onCancel={onCancelPendingComment}
+                                                        onSave={(html) => onSavePendingComment?.(html, item.draft.categoryId)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
                                     return (
-                                        <div key={comment.id} className="comment-sidebar-card-row">
+                                        <div
+                                            key={item.key}
+                                            className="comment-sidebar-card-row"
+                                            data-rail-item-id={item.comment.id}
+                                            data-rail-item-kind="comment"
+                                        >
                                             <CommentCard
-                                                comment={comment}
-                                                isFocused={focusedCommentId === comment.id}
-                                                isHovered={hoveredCommentId === comment.id}
+                                                comment={item.comment}
+                                                isFocused={focusedCommentId === item.comment.id}
+                                                isHovered={hoveredCommentId === item.comment.id}
                                                 taskNumber={taskNumber}
                                                 onFocus={onFocusComment}
                                                 onHover={onHoverComment}
@@ -284,33 +424,13 @@ export default function CommentSidebar({
                                                 onRecover={onRecoverComment}
                                                 onCategoryChange={onCategoryChange}
                                                 onHeaderRefChange={(node) => {
-                                                    commentHeaderRefs.current[comment.id] = node;
+                                                    commentHeaderRefs.current[item.comment.id] = node;
                                                 }}
                                                 readOnly={readOnly}
                                             />
                                         </div>
                                     );
                                 })
-                            )}
-
-                            {pendingCommentDraft && !readOnly && (
-                                <div
-                                    ref={pendingComposerRef}
-                                    className="comment-sidebar-pending"
-                                >
-                                    <div className="comment-sidebar-pending-label">New comment</div>
-                                    <CommentComposer
-                                        value={pendingCommentDraft.html}
-                                        anchorText={pendingCommentDraft.anchorText}
-                                        taskNumber={taskNumber}
-                                        categoryId={pendingCommentDraft.categoryId}
-                                        autoFocus
-                                        onChange={onPendingCommentChange}
-                                        onCategoryChange={onPendingCommentCategoryChange}
-                                        onCancel={onCancelPendingComment}
-                                        onSave={(html) => onSavePendingComment?.(html, pendingCommentDraft.categoryId)}
-                                    />
-                                </div>
                             )}
                         </div>
                     </div>

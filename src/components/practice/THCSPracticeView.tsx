@@ -56,6 +56,7 @@ import {
     trackAntiCheatAction,
 } from '../../services/antiCheatReporting';
 import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext';
+import { studentResumeService } from '../../services/studentResume.service';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from './IELTSPracticeView';
@@ -215,6 +216,7 @@ const THCSPracticeInner: React.FC<{
 
     // ── Back navigation (context-aware) ───────────────────────────────────────
     const handleBack = useCallback(() => {
+        void studentResumeService.clearResume();
         if (practiceContext.type === 'homework') {
             navigate('/student/homework');
         } else if (practiceContext.courseId) {
@@ -585,6 +587,7 @@ const THCSPracticeInner: React.FC<{
                 thcsData
             );
 
+            void studentResumeService.clearResume();
             setIsSubmitted(true);
 
             // If homework, update homework_submissions

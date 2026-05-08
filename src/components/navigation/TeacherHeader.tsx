@@ -22,6 +22,7 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { MobileMenu, HamburgerButton } from './MobileMenu';
 import { useNavigationContext } from '../../hooks/useNavigationContext';
 import { ROUTES } from '../../constants/routes';
+import { useDocumentTitle } from '../../core/platform';
 
 export interface TeacherHeaderProps {
     /** Page title to display */
@@ -70,6 +71,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
 }) => {
     const navigate = useNavigate();
     const { isRoot, navigateToParent, breadcrumbs } = useNavigationContext();
+    useDocumentTitle(pageTitle);
 
     // Mobile state
     const [isMobile, setIsMobile] = useState(false);

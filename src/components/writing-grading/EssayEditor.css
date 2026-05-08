@@ -17,153 +17,101 @@
     flex-direction: column;
     height: 100%;
     background: #ffffff;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
+    border-radius: 0;
+    border: none;
     overflow: hidden;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   VIEW MODE TOGGLE (Original / Marked)
-   ═══════════════════════════════════════════════════════════════ */
-
-.essay-editor-view-toggle {
-    display: flex;
-    gap: 2px;
-    padding: 8px 12px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f8fafc;
-}
-
-.view-toggle-btn {
-    padding: 6px 14px;
-    border: none;
-    background: transparent;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.view-toggle-btn:hover {
-    background: #e2e8f0;
-    color: #1e293b;
-}
-
-.view-toggle-btn.active {
-    background: #3b82f6;
-    color: #ffffff;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   FIXED TOOLBAR
-   ═══════════════════════════════════════════════════════════════ */
-
-.essay-editor-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 6px 12px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f8fafc;
-    flex-shrink: 0;
-}
-
-.toolbar-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #475569;
-    transition: all 0.12s ease;
-}
-
-.toolbar-btn:hover:not(:disabled) {
-    background: #e2e8f0;
-    color: #1e293b;
-}
-
-.toolbar-btn.active {
-    background: #dbeafe;
-    color: #2563eb;
-}
-
-.toolbar-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-.toolbar-btn-group {
-    display: flex;
-    align-items: center;
     position: relative;
 }
 
-.toolbar-dropdown-arrow {
-    width: 18px;
-    font-size: 10px;
-    margin-left: -2px;
-    color: #94a3b8;
-}
+/* ═══════════════════════════════════════════════════════════════
+   UNDO / REDO CONTROLS — top-right OUTSIDE the editor white card
+   Positioned relative to .wgp-editor-card (parent adds position:relative)
+   ═══════════════════════════════════════════════════════════════ */
 
-.toolbar-dropdown-arrow:hover {
-    color: #475569;
-}
-
-.toolbar-separator {
-    width: 1px;
-    height: 20px;
-    background: #e2e8f0;
-    margin: 0 6px;
-}
-
-.toolbar-icon {
-    display: inline-flex;
-    padding-bottom: 2px;
-}
-
-/* ─── Toolbar Dropdown ─────────────────────────────────────── */
-
-.toolbar-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 4px;
+.essay-editor-toolbar-shell {
+    position: sticky;
+    top: 0;
+    z-index: 40;
     display: flex;
-    gap: 6px;
-    padding: 8px 10px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 50;
-    flex-wrap: wrap;
-    max-width: 160px;
+    justify-content: center;
+    padding: 0.25rem 0 0.875rem;
+    pointer-events: none;
 }
 
-.color-dot {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 2px solid transparent;
+.essay-editor-toolbar {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.45rem;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(203, 213, 225, 0.78);
+    border-radius: 16px;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+    backdrop-filter: blur(12px);
+}
+
+.essay-toolbar-btn {
+    min-height: 36px;
+    padding: 0 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #334155;
+    border-radius: 10px;
     cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    transition: all 0.18s ease;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
-.color-dot:hover {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+.essay-toolbar-icon {
+    flex-shrink: 0;
 }
+
+.essay-toolbar-btn-icon {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+}
+
+.essay-toolbar-btn:hover {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.2);
+    color: #0f172a;
+}
+
+.essay-toolbar-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.essay-toolbar-btn:disabled:hover {
+    background: transparent;
+    border-color: transparent;
+    color: #334155;
+}
+
+.essay-toolbar-divider {
+    width: 1px;
+    align-self: stretch;
+    margin: 0 0.2rem;
+    background: rgba(148, 163, 184, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW MODE TOGGLE — now lives in WritingGradingPage (wgp-editor-view-tabs)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR — removed; annotation via bubble menu only
+   ═══════════════════════════════════════════════════════════════ */
+
 
 /* ═══════════════════════════════════════════════════════════════
    EDITOR CONTAINER (with gutter)
@@ -174,6 +122,13 @@
     flex: 1;
     overflow-y: auto;
     display: flex;
+    flex-direction: column;
+}
+
+.essay-editor-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
 }
 
 .essay-editor-editable {
@@ -183,16 +138,53 @@
 }
 
 .essay-comment-tooltip {
-    position: absolute;
+    position: fixed;
     width: min(280px, calc(100% - 32px));
+    max-width: min(280px, calc(100vw - 32px));
+    max-height: min(240px, calc(100vh - 32px));
+    overflow: auto;
     padding: 0.8rem 0.9rem;
     border-radius: 14px;
     background: rgba(15, 23, 42, 0.96);
     color: #f8fafc;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
     border: 1px solid rgba(148, 163, 184, 0.28);
-    z-index: 32;
+    z-index: 110;
     pointer-events: none;
+}
+
+.essay-comment-tooltip::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: rgba(15, 23, 42, 0.96);
+    border-inline-start: 1px solid rgba(148, 163, 184, 0.28);
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    transform: rotate(45deg);
+}
+
+.essay-comment-tooltip[data-placement='right']::before {
+    top: calc(50% - 6px);
+    left: -7px;
+}
+
+.essay-comment-tooltip[data-placement='left']::before {
+    top: calc(50% - 6px);
+    right: -7px;
+    transform: rotate(225deg);
+}
+
+.essay-comment-tooltip[data-placement='top']::before {
+    left: calc(50% - 6px);
+    bottom: -7px;
+    transform: rotate(135deg);
+}
+
+.essay-comment-tooltip[data-placement='bottom']::before {
+    left: calc(50% - 6px);
+    top: -7px;
+    transform: rotate(-45deg);
 }
 
 .essay-comment-tooltip-body {
@@ -279,12 +271,14 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .essay-bubble-menu {
+    position: fixed;
     display: flex;
     gap: 2px;
     padding: 4px 6px;
     background: #1e293b;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 115;
 }
 
 .bubble-btn {
@@ -304,6 +298,15 @@
 
 .bubble-btn:hover {
     background: rgba(255, 255, 255, 0.15);
+}
+
+.bubble-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.bubble-btn:disabled:hover {
+    background: transparent;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -333,4 +336,25 @@
     background-color: rgba(59, 130, 246, 0.15) !important;
     border-bottom-width: 3px !important;
     border-bottom-style: dotted !important;
+}
+
+.essay-editor-editable .pending-comment-preview {
+    border-bottom: 2px dotted rgba(250, 204, 21, 0.88);
+    box-shadow:
+        inset 0 -4px 10px -8px rgba(250, 204, 21, 0.95),
+        0 2px 10px -9px rgba(250, 204, 21, 0.9);
+    border-radius: 2px;
+    padding-bottom: 1px;
+}
+
+.essay-editor-editable .correction-mark.correction-focused {
+    background-color: rgba(14, 165, 233, 0.14);
+    outline: 2px solid rgba(14, 165, 233, 0.28);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.essay-editor-editable .correction-mark.correction-hovered {
+    background-color: rgba(14, 165, 233, 0.08);
+    border-radius: 6px;
 }

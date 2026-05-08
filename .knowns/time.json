@@ -1,3 +1,18 @@
 {
-  "active": []
+  "active": [
+    {
+      "taskId": "yyr4gf",
+      "taskTitle": "Fix writing feedback editor list formatting regression",
+      "startedAt": "2026-04-05T07:34:10.104Z",
+      "pausedAt": null,
+      "totalPausedMs": 0
+    },
+    {
+      "taskId": "k2fc17",
+      "taskTitle": "Fix IELTS reading parser fallback blank review flow",
+      "startedAt": "2026-04-09T08:34:58.457Z",
+      "pausedAt": null,
+      "totalPausedMs": 0
+    }
+  ]
 }

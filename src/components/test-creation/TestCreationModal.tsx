@@ -670,12 +670,16 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
             const sectionInstructions: Record<string, string> = {};
 
-            await testDraftService.saveParsedContent(
+            const saveParsedContentResult = await testDraftService.saveParsedContent(
                 createdDraftId,
                 passages,
                 questions,
                 sectionInstructions
             );
+
+            if (!saveParsedContentResult.success) {
+                throw new Error(saveParsedContentResult.error || 'Failed to save parsed content');
+            }
 
             // ── Step 5: Complete! ────────────────────────────────────────
             setParsingStage('complete');

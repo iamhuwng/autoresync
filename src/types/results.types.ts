@@ -182,6 +182,8 @@ export interface EnhancedTestResultRecord {
     overallFeedback?: string | null;
     feedbackUpdatedAt?: number | null;
     feedbackUpdatedBy?: string | null;
+    feedbackUpdatedByTeacherId?: string | null;
+    feedbackUpdatedByTeacherName?: string | null;
 
     // Future-proofing for Writing/Speaking
     writingSubmission?: {

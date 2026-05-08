@@ -8,7 +8,7 @@ labels:
   - from-spec
   - grading-editor
 createdAt: '2026-03-01T06:44:32.735Z'
-updatedAt: '2026-03-29T20:17:34.737Z'
+updatedAt: '2026-04-04T13:54:51.976Z'
 timeSpent: 186
 assignee: '@me'
 spec: specs/grading-editor-redesign
@@ -88,5 +88,11 @@ Build CommentSidebar.tsx, CommentCard.tsx, and ConnectionLines.tsx. Google Docs-
 ### Build: Zero new TS errors"
 
 2026-03-30 note: Historical implementation task only. The finalized teacher writing grading editor interaction contract now lives in @doc/specs/ielts-writing-grading-editor-finalization-2026-03-30. If this task note conflicts with current comment UX, follow the finalization doc.
+2026-04-04 follow-up hardening: corrections now participate in the same comment-tab interaction model as comments, including review-mode focus from essay clicks; sidebar focus logic now tolerates legacy correction markup that predates persisted correction ids; retained stacked card ordering while keeping gutter/essay selectors separated so left-rail navigation does not poison anchor measurement.
+
+2026-04-04 follow-up:
+- documented sidebar parity for comments and corrections, including review-mode linking from essay marks into the shared Comments tab
+- recorded the gutter-dot selector boundary so anchor-position measurement only targets essay marks and never the gutter affordance itself
+- synced the interaction contract into root architecture docs under documentation/architecture/ielts-writing
 <!-- SECTION:NOTES:END -->
 

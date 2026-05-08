@@ -5,6 +5,7 @@ import { studentTokens } from '../layout/studentLayoutStyles';
 
 interface THCSProgressTabProps {
     data: ThcsProgressData | null;
+    isMobile?: boolean;
     loading?: boolean;
     onResultClick?: (resultId: string) => void;
 }
@@ -195,7 +196,7 @@ function getEntryDate(entry: ThcsProgressData['scoreHistory'][number]): number {
     return entry.completedAt ?? entry.date ?? 0;
 }
 
-export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading = false, onResultClick }) => {
+export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, isMobile = false, loading = false, onResultClick }) => {
     const sortedHistory = useMemo(
         () => {
             const raw = data?.scoreHistory || [];
@@ -241,22 +242,22 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
 
     return (
         <div style={styles.stack}>
-            <div style={styles.statsGrid}>
-                <div style={styles.statCard}>
+            <div style={{ ...styles.statsGrid, ...(isMobile ? { flexDirection: 'column', gap: 16 } : {}) }}>
+                <div style={{ ...styles.statCard, ...(isMobile ? { padding: '18px 18px' } : {}) }}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[0].labelColor }}>Tests Completed</p>
                     <div style={styles.statValueRow}>
                         <span style={{ ...styles.statValue, color: statCardVisuals[0].valueColor }}>{data.testsCompleted}</span>
                         <span style={styles.statHint}>Total attempts recorded</span>
                     </div>
                 </div>
-                <div style={styles.statCard}>
+                <div style={{ ...styles.statCard, ...(isMobile ? { padding: '18px 18px' } : {}) }}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[1].labelColor }}>Average Score</p>
                     <div style={styles.statValueRow}>
                         <span style={{ ...styles.statValue, color: statCardVisuals[1].valueColor }}>{data.averageScore.toFixed(1)}<span style={{ fontSize: '0.875rem', fontWeight: 600, opacity: 0.55 }}> / 10</span></span>
                         <span style={styles.statHint}>Mean of all attempts</span>
                     </div>
                 </div>
-                <div style={styles.statCard}>
+                <div style={{ ...styles.statCard, ...(isMobile ? { padding: '18px 18px' } : {}) }}>
                     <p style={{ ...styles.statLabel, color: statCardVisuals[2].labelColor }}>Best Score</p>
                     <div style={styles.statValueRow}>
                         <span style={{ ...styles.statValue, color: statCardVisuals[2].valueColor }}>{maxScore.toFixed(1)}<span style={{ fontSize: '0.875rem', fontWeight: 600, opacity: 0.55 }}> / 10</span></span>
@@ -271,13 +272,13 @@ export const THCSProgressTab: React.FC<THCSProgressTabProps> = ({ data, loading 
                         <h3 style={styles.sectionTitle}>Skill Summary</h3>
                     </div>
                     <div style={styles.sectionBody}>
-                        <div style={styles.skillGrid}>
+                        <div style={{ ...styles.skillGrid, ...(isMobile ? { flexDirection: 'column', gap: 12 } : {}) }}>
                             {skillEntries.map(([skill, summary], index) => {
                                 const percentage = summary.total > 0 ? Math.round((summary.correct / summary.total) * 100) : 0;
                                 const visual = skillVisuals[index % skillVisuals.length] ?? skillVisuals[0];
 
                                 return (
-                                    <div key={skill} style={styles.skillRow}>
+                                    <div key={skill} style={{ ...styles.skillRow, ...(isMobile ? { flex: '1 1 auto' } : {}) }}>
                                         <div style={styles.skillTop}>
                                             <p style={styles.skillLabel}>{skill}</p>
                                             <p style={styles.skillMeta}>{summary.correct}/{summary.total} correct</p>

@@ -5,6 +5,11 @@ Per `process-task-list.md`: ONLY ADD. MUST NOT EDIT, REMOVE, OR COMBINE EXISTING
 
 ---
 
+## Reconciliation Finding (2026-05-08)
+
+### Finding R-2026-05-08-1: PRD-0049 imports existing result-surface history without changing PRD-0040 closure
+PRD-0049 moves the live-parity local `main` history back into `origin/main`. That history includes result-related files, so the PRD-0040 governance gate requires the living docs in the same changeset. Review confirms the reconcile does not introduce a new saved-result shell, does not alter the writing linked-result permission model, and does not change FR closure status. The result-view map, permission matrix, and FR closure matrix were touched only to record this reconciliation context.
+
 ## Reassessment Findings (2026-03-25)
 
 ### Finding R-2026-03-25-1: Phase-4 closure was overstated until saved-result entry points were brought under release governance
@@ -926,4 +931,3 @@ The first remediation round fixed the bad class-result route by requiring canoni
 
 ### Finding R-2026-03-27-5: Result observability and governance matching now include the primary claim-recovery route and class-result producers
 `/profile/complete` is now tracked under the `results` feature in `App.jsx` and `featureRegistry.ts`, closing the main claim-recovery observability gap. The PRD-0040 governance matcher was also widened to cover `StudentClassDetailPage`, `useTestSubmission`, and `class.types`, so future changes to canonical class-result production paths cannot bypass the doc/change-record gate.
-

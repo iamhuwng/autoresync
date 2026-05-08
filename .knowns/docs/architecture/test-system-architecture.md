@@ -2,7 +2,7 @@
 title: Test System Architecture
 description: 'Complete test lifecycle architecture: IELTS + THCS creation, editing, session management, test-taking, grading, results. The single entry point for understanding the test system.'
 createdAt: '2026-02-27T16:15:16.855Z'
-updatedAt: '2026-03-29T08:35:07.616Z'
+updatedAt: '2026-04-12T00:32:08.089Z'
 tags:
   - architecture
   - test
@@ -190,11 +190,13 @@ The test system is the core feature of the platform. It supports two test types 
 - See @doc/sop/test-end-flow-debug-retrospective
 
 ### Test Creation Pipeline (IELTS)
-- Upload → TypeClassifier (confidence scoring) → AI Extractor if <70% → Validation → Review
-- AI uses Gemini primary, Groq fallback
-- Checkpoint/resume for long documents
-- See @doc/system/project-structure-test-creation
-
+- Upload -> document conversion -> AI extraction -> independent rules classification -> validator merge -> review
+- AI uses Gemini primary and Groq fallback for the teacher Reading creator path
+- `extractReadingTest()` returning `success: false` is treated as extraction failure, not as partial success
+- AI extraction failure routes into offline/rules fallback; fallback output must still hydrate reviewable passages and merged questions
+- Parser success requires at least one merged question; blank parse output must fail before draft save or review navigation
+- Checkpoint/resume still applies for long documents
+- See @doc/architecture/ai-parsing-extraction and @doc/system/project-structure-test-creation
 ## Related PRDs
 - @doc/prd/prd-thcs-phase-1 — THCS test system foundation
 - @doc/prd/prd-thcs-phase-2 — THCS live session & monitoring
@@ -477,3 +479,129 @@ The acknowledgement page must not imply auto-grading. It exists to confirm persi
 - @doc/architecture/results-academic-record
 - @doc/architecture/scheme/ielts-writing-current-state-scheme
 - @doc/architecture/firebase-infrastructure
+
+
+## 2026-04-03 Amendment - IELTS Writing Edit Shell And Publish Contract
+
+## 2026-04-03 Amendment - IELTS Writing Edit Shell And Publish Contract
+
+### Current state of the feature
+
+- `TeacherLobbyPage` opens `WritingTestEditModal` for both published Writing material edits and Writing draft resume actions.
+- Writing edit no longer reuses `TestCreationModal`.
+- The Writing editor now sits inside the shared `Modal` plus `EditTestFrame` shell and keeps `questions`, `context`, and `settings` behavior aligned with the other editor surfaces.
+- Published Writing material uses one primary `Save Changes` action.
+- Unpublished Writing drafts keep `Save Draft` plus `Publish Test`.
+- The shared `Settings` tab owns the writing `Public Test` toggle, and `isPublic` must survive draft save, publish, and edit-resume hydration.
+
+### Cross-feature interaction boundary
+
+#### Teacher lobby -> Writing editor
+
+- Lobby owns the decision to open Writing edit directly instead of routing published edits back through creation review.
+- The edit modal is part of the primary materials workflow, not an optional utility dialog.
+
+#### Writing draft -> published RTDB test
+
+- Firestore draft state remains the authoring source.
+- Publish remains the operation that updates the RTDB test record.
+- For published Writing material, the primary save action now runs that publish path directly so the teacher does not see a redundant second publish control.
+
+#### Shared shell -> Writing-specific panes
+
+- `EditTestFrame` owns shell chrome and the `settings` tab.
+- Writing-specific panes own task selection, metadata editing, validation, and right-pane scroll behavior.
+
+### Operational rule going forward
+
+- Do not route Writing edit and resume flows back into `TestCreationModal`.
+- Do not reintroduce a separate `Publish Updates` action for already-published Writing materials.
+- Keep `isPublic` wired through draft hydration, save, publish, and editable-draft recreation.
+- Treat right-pane scroll and full-height layout as part of the edit contract, not a cosmetic detail.
+
+### Related docs
+
+- @doc/architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03
+
+
+## 2026-04-09 Amendment - Teacher Reading Creation Parsing And Review Contract
+
+### Current state of the feature
+
+The teacher reading creation modal now depends on a fail-closed parsing contract before a draft can enter review.
+
+Current operational rules:
+- The parsing flow is `TestCreationModal -> testCreationService -> aiExtractor/offline parser -> validator -> testDraftService.saveParsedContent -> review route`.
+- Review transition requires non-empty merged questions. Blank parse output is not a valid intermediate success state.
+- Draft persistence is part of the success boundary. If `saveParsedContent()` fails, the modal must stay in error/retry state and must not advance to review.
+- Passages may come from AI extraction or offline parsing, but teacher review requires questions first; passage-only success is not enough.
+
+### Cross-feature interaction boundary
+
+#### AI provider failure -> teacher review route
+
+Gemini/Groq provider failures must be resolved before route transition. The modal and parser service must not convert provider outages into blank review drafts.
+
+#### Parser result -> draft persistence
+
+`testDraftService.saveParsedContent()` is the final write gate before review. A failed write must block navigation even if parsing itself succeeded.
+
+### Operational rule going forward
+
+Teacher-side reading creation must fail closed whenever the system cannot produce and persist reviewable question content. Retriable provider failures, offline fallback, and save errors are allowed; empty review drafts are not.
+
+Related implementation anchors:
+- `src/components/test-creation/TestCreationModal.tsx`
+- `src/services/test-creation/index.ts`
+- `src/services/draftCloudService.ts`
+- `src/components/test-creation/TestCreationModal.test.tsx`
+- `src/services/test-creation/index.test.ts`
+
+Source: @task-1bch3u
+
+## 2026-04-10 Amendment - Teacher Reading Question Extraction Resilience
+
+### Current state of the feature
+
+Teacher IELTS Reading creation now retries transient Gemini `503` / `high demand` failures across the remaining Gemini keys before it degrades to Groq. If Groq question extraction fails because the request is too large, the provider retries with smaller output budgets instead of immediately marking the key exhausted. The local offline parser also accepts markdown-numbered IELTS questions so markdown paste input can still produce reviewable question content.
+
+### Cross-feature interaction boundary
+
+#### Provider transient failure -> question extraction stage
+
+A temporary Gemini high-demand response is now a stage-local retry event, not an immediate provider handoff.
+
+#### Provider prompt budget -> fallback path
+
+A Groq `413` oversized request is now treated as a prompt-shaping problem first. Key benching only belongs to actual provider rate-limit exhaustion.
+
+#### Markdown paste -> offline fallback
+
+Markdown numbering is now part of the accepted teacher authoring input shape, so offline fallback can still rescue pasted IELTS reading content when AI parsing fails.
+
+### Operational rule going forward
+
+The reading creator must prefer stage-local recovery before cross-provider fallback, and its non-AI rescue path must understand the markdown formats teachers actually paste into the creation modal.
+
+## 2026-04-10 Amendment - IELTS Reading Staged Parse Job
+The teacher IELTS Reading creation pipeline now keeps the external flow unchanged while splitting internal orchestration into explicit artifacts for normalized source, extraction, classification, validation, and review-draft assembly.
+
+Current runtime rule:
+- modal/review consumers continue to depend on final assembled draft-ready payloads rather than provider-specific intermediate results
+- future parser extensions should attach to stage artifacts, not bypass them
+
+Related docs:
+- @doc/architecture/reading-staged-parse-job
+- @doc/architecture/ai-parsing-extraction
+
+
+## 2026-04-12 Amendment - Reading Chunking Env Retirement
+The teacher IELTS Reading creation system no longer exposes document chunking through the shared Vite environment contract.
+
+Current runtime rule:
+- the live reading-creation path uses staged extraction and validation, not env-driven chunk sizing
+- any remaining chunking utilities are legacy helpers and must carry local defaults instead of extending the app env schema
+
+Related docs:
+- @doc/architecture/ai-parsing-extraction
+- @doc/architecture/reading-staged-parse-job

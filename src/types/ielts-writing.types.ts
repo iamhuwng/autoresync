@@ -131,6 +131,7 @@ export interface WritingTestDraft {
     skill: 'Writing';
     metadata: WritingTestMetadata;
     tasks: WritingTask[];
+    isPublic?: boolean;
     status: 'editing' | 'review' | 'published';
     publishedTestId?: string;
     createdAt: Date;
@@ -287,6 +288,8 @@ export const COMMENT_CATEGORIES: Record<CommentCategoryId, CommentCategoryDefini
     uncategorized: { id: 'uncategorized', label: 'General', color: '#64748b' },
 };
 
+export const COMMENT_HIGHLIGHT_COLOR = '#facc15';
+
 export interface QuickCommentPreset {
     id: string;
     text: string;
@@ -316,10 +319,22 @@ export interface GradingComment {
     deletedAt?: number;
 }
 
+export interface GradingCorrection {
+    id: string;
+    taskNumber: 1 | 2;
+    anchorText: string;
+    correctionText: string;
+    from: number;
+    to: number;
+    createdAt: number;
+    updatedAt: number;
+}
+
 export interface WritingTaskMarkupState {
     taskNumber: 1 | 2;
     markedContent: Record<string, any> | null;
     comments: GradingComment[];
+    corrections: GradingCorrection[];
     isVoided: boolean;
     voidReason?: string;
     criteriaScores: {
@@ -340,6 +355,17 @@ export interface WritingTaskMarkupState {
     };
 }
 
+export interface WritingPendingCommentDraft {
+    commentId: string;
+    taskNumber: 1 | 2;
+    anchorText: string;
+    from: number;
+    to: number;
+    anchorViewportTop?: number | null;
+    categoryId: CommentCategoryId;
+    html: string;
+}
+
 export interface WritingGradingDraft {
     submissionId: string;
     version: number;
@@ -350,6 +376,7 @@ export interface WritingGradingDraft {
     updatedAt: number;
     overallSummary: string;
     perTask: Partial<Record<1 | 2, WritingTaskMarkupState>>;
+    pendingCommentDrafts?: Partial<Record<1 | 2, WritingPendingCommentDraft>>;
 }
 
 export interface WritingGradingDraftMeta {
@@ -375,6 +402,166 @@ export interface WritingSubmissionForGrading {
     submission: WritingSubmission;
     publishedGrading: PublishedWritingGrading | null;
     gradingDraft: WritingGradingDraft | null;
+}
+export type WritingSuggestionCacheStatus = 'generating' | 'ready' | 'failed' | 'incomplete' | 'interrupted';
+
+export type WritingSuggestionFocus = 'grammar' | 'vocabulary-expression';
+
+export type WritingSuggestionKind = 'comment' | 'correction';
+
+export type WritingSuggestionIssueFamily =
+    | 'tense'
+    | 'agreement'
+    | 'article'
+    | 'plural'
+    | 'preposition'
+    | 'punctuation'
+    | 'sentence-structure'
+    | 'capitalization'
+    | 'pronoun'
+    | 'word-choice'
+    | 'collocation'
+    | 'word-form'
+    | 'spelling'
+    | 'register'
+    | 'awkward-phrase'
+    | 'task1-reporting';
+
+export type WritingSuggestionReviewStatus = 'pending' | 'approved' | 'dismissed';
+
+export type WritingSuggestionGenerationSource = 'open' | 'force' | 'continue';
+
+export type WritingSuggestionRunScope =
+    | 'combined'
+    | 'grammar-correction'
+    | 'grammar-improvement'
+    | 'vocabulary-correction'
+    | 'vocabulary-improvement';
+
+export type WritingSuggestionRunStatus = 'idle' | 'generating' | 'complete' | 'incomplete' | 'interrupted' | 'failed';
+
+export type WritingSuggestionReviewStateByTask = Partial<Record<1 | 2, Record<string, WritingSuggestionReviewStatus>>>;
+
+export type WritingSuggestionBucketId =
+    | 'grammar-comments'
+    | 'grammar-corrections'
+    | 'vocabulary-comments'
+    | 'vocabulary-corrections';
+
+export type WritingSuggestionDropReason =
+    | 'invalid-response-shape'
+    | 'missing-required-fields'
+    | 'missing-proposal'
+    | 'anchor-not-found'
+    | 'anchor-ambiguous'
+    | 'duplicate'
+    | 'overlap'
+    | 'cap-reached'
+    | 'cross-bucket-duplicate'
+    | 'covered-by-correction'
+    | 'invalid-issue-family'
+    | 'invalid-focus'
+    | 'invalid-kind';
+
+export interface WritingSuggestionBucketDiagnostic {
+    rawItemCount: number;
+    acceptedItemCount: number;
+    droppedItemCount: number;
+    droppedByReason: Partial<Record<WritingSuggestionDropReason, number>>;
+}
+
+export type WritingSuggestionDiagnosticsByTask = Partial<
+    Record<1 | 2, Partial<Record<WritingSuggestionBucketId, WritingSuggestionBucketDiagnostic>>>
+>;
+
+export interface WritingSuggestionItem {
+    id: string;
+    reviewKey: string;
+    reviewStatus: WritingSuggestionReviewStatus;
+    taskNumber: 1 | 2;
+    kind: WritingSuggestionKind;
+    focus: WritingSuggestionFocus;
+    issueFamily: WritingSuggestionIssueFamily;
+    confidence: number;
+    sentenceIndex: number;
+    anchorText: string;
+    from: number;
+    to: number;
+    title: string;
+    reason: string;
+    suggestedCommentText?: string;
+    replacementText?: string;
+    categoryId: CommentCategoryId;
+}
+
+export interface WritingSuggestionItemSet {
+    comments: WritingSuggestionItem[];
+    corrections: WritingSuggestionItem[];
+}
+
+export interface WritingSuggestionTaskResult {
+    taskNumber: 1 | 2;
+    grammar: WritingSuggestionItemSet;
+    vocabularyExpression: WritingSuggestionItemSet;
+}
+
+export interface WritingSuggestionGenerationLease {
+    runId: string;
+    ownerSessionId: string;
+    startedAt: number;
+    heartbeatAt: number;
+    phase: string;
+}
+
+export interface WritingSuggestionTaskRunState {
+    status: WritingSuggestionRunStatus;
+    updatedAt: number;
+    runId?: string;
+    phase?: string;
+    acceptedCount: number;
+    lastRunSource?: WritingSuggestionGenerationSource;
+    lastRunAcceptedCount?: number;
+    lastRunHasMorePotential?: boolean | null;
+    error?: string;
+    lease?: WritingSuggestionGenerationLease | null;
+}
+
+export type WritingSuggestionRunStateByTask = Partial<Record<1 | 2, WritingSuggestionTaskRunState>>;
+
+export interface WritingSuggestionRunArtifact {
+    taskNumber: 1 | 2;
+    runId: string;
+    attemptId: string;
+    source: WritingSuggestionGenerationSource;
+    scope: WritingSuggestionRunScope;
+    provider?: 'gemini' | 'groq';
+    model?: string;
+    keyLeaseId?: string | null;
+    promptVersion: string;
+    tokenBudget: number;
+    rawPrompt: string;
+    rawResponse: string;
+    repairedParsedJson?: unknown;
+    acceptedFindingsCount: number;
+    droppedByReason?: Partial<Record<WritingSuggestionDropReason, number>>;
+    finishReason?: string | null;
+    usageMetadata?: Record<string, unknown> | null;
+    hasMorePotential?: boolean | null;
+    createdAt: number;
+    expiresAt: number;
+}
+
+export interface WritingSuggestionCacheDoc {
+    submissionId: string;
+    status: WritingSuggestionCacheStatus;
+    generatedAt?: number;
+    updatedAt: number;
+    error?: string;
+    perTask: Partial<Record<1 | 2, WritingSuggestionTaskResult>>;
+    generatedFromEssayHashByTask: Partial<Record<1 | 2, string>>;
+    reviewStateByTask: WritingSuggestionReviewStateByTask;
+    diagnosticsByTask?: WritingSuggestionDiagnosticsByTask;
+    runStateByTask?: WritingSuggestionRunStateByTask;
 }
 
 // ═══════════════════════════════════════════════════════════════

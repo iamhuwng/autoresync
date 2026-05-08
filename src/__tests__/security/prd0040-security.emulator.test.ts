@@ -163,6 +163,40 @@ describe('PRD-0040 security emulator checks', () => {
     );
   });
 
+  it('allows the assigned teacher to create and read writing suggestion cache docs', async () => {
+    const { assignedTeacher } = await makeContexts();
+    const suggestionRef = assignedTeacher.firestore().doc('writing_grading_ai_cache/submission-1');
+
+    await assertSucceeds(
+      suggestionRef.set({
+        submissionId: 'submission-1',
+        status: 'ready',
+        updatedAt: Date.now(),
+        perTask: {},
+        generatedFromEssayHashByTask: {},
+      })
+    );
+
+    await assertSucceeds(suggestionRef.get());
+  });
+
+  it('rejects unrelated teachers and students from reading writing suggestion cache docs', async () => {
+    const { assignedTeacher, teacher, student } = await makeContexts();
+
+    await assertSucceeds(
+      assignedTeacher.firestore().doc('writing_grading_ai_cache/submission-1').set({
+        submissionId: 'submission-1',
+        status: 'ready',
+        updatedAt: Date.now(),
+        perTask: {},
+        generatedFromEssayHashByTask: {},
+      })
+    );
+
+    await assertFails(teacher.firestore().doc('writing_grading_ai_cache/submission-1').get());
+    await assertFails(student.firestore().doc('writing_grading_ai_cache/submission-1').get());
+  });
+
   it('rejects unauthenticated guest-results reads but allows unauthenticated guest-results writes', async () => {
     const { unauthenticated } = await makeContexts();
     const guestRef = unauthenticated.database().ref('guest_results/guest-1');

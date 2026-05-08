@@ -55,12 +55,14 @@ const CommentCard: React.FC<CommentCardProps> = ({
     const [showMenu, setShowMenu] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [draftHtml, setDraftHtml] = useState(comment.text);
+    const [draftCategoryId, setDraftCategoryId] = useState<CommentCategoryId>(comment.categoryId);
     const [isResolving, setIsResolving] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setDraftHtml(comment.text);
-    }, [comment.text]);
+        setDraftCategoryId(comment.categoryId);
+    }, [comment]);
 
     useEffect(() => {
         if (!showMenu) {
@@ -88,7 +90,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
         if (comment.status !== 'deleted') {
             onFocus(comment.id);
         }
-    }, [comment.id, comment.status, onFocus]);
+    }, [comment, onFocus]);
 
     const handleResolve = useCallback(() => {
         setIsResolving(true);
@@ -131,10 +133,12 @@ const CommentCard: React.FC<CommentCardProps> = ({
                         className="category-dot-inline"
                         style={{ backgroundColor: categoryDefinition.color }}
                     />
-                    <span className="category-label">{isEditing ? 'Editing' : comment.categoryLabel}</span>
+                    <span className="category-label">
+                        {isEditing ? 'Editing' : comment.categoryLabel}
+                    </span>
                 </div>
                 <div className="comment-card-header-right">
-                    <span className="comment-card-time">{relativeTime}</span>
+                    {relativeTime ? <span className="comment-card-time">{relativeTime}</span> : null}
                     {isFocused && !readOnly && !isEditing ? (
                         <div className="comment-card-menu-wrapper" ref={menuRef}>
                             <button
@@ -188,7 +192,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                             type="button"
                                         >
                                             Re-open
-                                        </button>
+                                            </button>
                                     )}
                                     {comment.status === 'deleted' && (
                                         <button
@@ -235,14 +239,15 @@ const CommentCard: React.FC<CommentCardProps> = ({
                         value={draftHtml}
                         anchorText={comment.anchorText}
                         taskNumber={taskNumber}
-                        categoryId={comment.categoryId}
+                        categoryId={draftCategoryId}
                         mode="edit"
                         saveLabel="Update Comment"
                         autoFocus
                         onChange={setDraftHtml}
-                        onCategoryChange={(nextCategoryId) => onCategoryChange(comment.id, nextCategoryId)}
+                        onCategoryChange={setDraftCategoryId}
                         onCancel={() => {
                             setDraftHtml(comment.text);
+                            setDraftCategoryId(comment.categoryId);
                             setIsEditing(false);
                         }}
                         onSave={(html) => {
@@ -250,6 +255,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
                                 return;
                             }
 
+                            if (draftCategoryId !== comment.categoryId) {
+                                onCategoryChange(comment.id, draftCategoryId);
+                            }
                             onEdit(comment.id, html);
                             setIsEditing(false);
                         }}

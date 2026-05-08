@@ -10,15 +10,15 @@ import type { HomeworkIntegrity } from '../../types/integrity.types';
 import { submitHomework } from '../../services/homeworkSubmissionService';
 
 const {
-  mockNavigate,
+  mockNavigateTo,
   mockTrackAntiCheatAction,
 } = vi.hoisted(() => ({
-  mockNavigate: vi.fn(),
+  mockNavigateTo: vi.fn(() => ({ success: true })),
   mockTrackAntiCheatAction: vi.fn(),
 }));
 
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
+vi.mock('../useNavigation', () => ({
+  useNavigation: () => ({ navigateTo: mockNavigateTo }),
 }));
 
 vi.mock('../../services/testStorage', () => ({
@@ -152,9 +152,10 @@ describe('useSoloSubmission', () => {
       ]),
     );
     expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1');
-    expect(mockNavigate).toHaveBeenCalledWith('/student/academic-record', {
+    expect(mockNavigateTo).toHaveBeenCalledWith('STUDENT_ACADEMIC_RECORD', undefined, {
       replace: true,
       state: { resultId: 'result-1', showResult: true },
+      reason: 'test_submission_solo',
     });
     expect(saveCall?.[13]).toEqual(
       expect.objectContaining({
@@ -508,5 +509,97 @@ describe('useSoloSubmission', () => {
         ]),
       }),
     );
+  });
+
+  it('bypasses unanswered-questions confirm when skipConfirm is true', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Practice Test',
+          type: 'IELTS',
+          skill: 'Reading',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: {}, // 0 answered out of 1 → triggers unanswered prompt
+        materialId: 'test-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'self_study',
+          source: { type: 'material', id: 'test-1', name: 'Practice Test' },
+        },
+        skipConfirm: true,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(saveTestResult).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('shows unanswered-questions confirm when skipConfirm is false (default)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Practice Test',
+          type: 'IELTS',
+          skill: 'Reading',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: {}, // 0 answered out of 1 → triggers unanswered prompt
+        materialId: 'test-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'self_study',
+          source: { type: 'material', id: 'test-1', name: 'Practice Test' },
+        },
+        // skipConfirm not set → defaults to false
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(saveTestResult).not.toHaveBeenCalled(); // confirm returned false → aborted
+    confirmSpy.mockRestore();
   });
 });

@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './CorrectionPopup.css';
 
 export interface CorrectionPopupProps {
@@ -23,10 +24,18 @@ export interface CorrectionPopupProps {
     isOpen: boolean;
     /** The original selected text being corrected */
     selectedText: string;
+    /** Existing correction text when editing */
+    initialValue?: string;
     /** Position relative to the editor container */
     position: { top: number; left: number };
-    /** Called with correction text when the teacher submits */
-    onApply: (correctionText: string) => void;
+    /** Popup mode */
+    mode?: 'create' | 'edit';
+    /** Optional message shown when comment creation is unavailable for this range */
+    commentDisabledReason?: string | null;
+    /** Called with correction text and optional comment text when the teacher submits */
+    onApply: (correctionText: string, commentText: string) => void;
+    /** Called when the correction should be removed */
+    onDelete?: () => void;
     /** Called when the popup is dismissed without applying */
     onDismiss: () => void;
 }
@@ -34,24 +43,32 @@ export interface CorrectionPopupProps {
 const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
     isOpen,
     selectedText,
+    initialValue = '',
     position,
+    mode = 'create',
+    commentDisabledReason = null,
     onApply,
+    onDelete,
     onDismiss,
 }) => {
     const [correctionText, setCorrectionText] = useState('');
+    const [commentText, setCommentText] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const popupRef = useRef<HTMLDivElement>(null);
+    const portalRoot = typeof document !== 'undefined' ? document.body : null;
+    const fixedPosition = getClampedPopupPosition(position);
 
     // Focus input when popup opens
     useEffect(() => {
         if (isOpen) {
-            setCorrectionText('');
+            setCorrectionText(initialValue.trimEnd());
+            setCommentText('');
             // Small delay to ensure DOM is rendered
             requestAnimationFrame(() => {
                 inputRef.current?.focus();
             });
         }
-    }, [isOpen]);
+    }, [initialValue, isOpen]);
 
     // Click outside to dismiss
     useEffect(() => {
@@ -79,30 +96,30 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
         if (e.key === 'Enter') {
             e.preventDefault();
             if (correctionText.trim()) {
-                onApply(correctionText.trim());
+                onApply(correctionText.trim(), commentText.trim());
             }
         }
         if (e.key === 'Escape') {
             e.preventDefault();
             onDismiss();
         }
-    }, [correctionText, onApply, onDismiss]);
+    }, [commentText, correctionText, onApply, onDismiss]);
 
     const handleApply = useCallback(() => {
         if (correctionText.trim()) {
-            onApply(correctionText.trim());
+            onApply(correctionText.trim(), commentText.trim());
         }
-    }, [correctionText, onApply]);
+    }, [commentText, correctionText, onApply]);
 
     if (!isOpen) return null;
 
-    return (
+    const popup = (
         <div
             ref={popupRef}
             className="correction-popup"
             style={{
-                top: position.top,
-                left: position.left,
+                top: fixedPosition.top,
+                left: fixedPosition.left,
             }}
             id="correction-popup"
         >
@@ -150,11 +167,61 @@ const CorrectionPopup: React.FC<CorrectionPopupProps> = ({
                     disabled={!correctionText.trim()}
                     id="correction-popup-apply"
                 >
-                    Apply
+                    {mode === 'edit' ? 'Save' : 'Apply'}
                 </button>
             </div>
+
+            <div className="correction-popup-comment-block">
+                <label className="correction-popup-comment-label" htmlFor="correction-popup-comment">
+                    Optional comment on the selected text
+                </label>
+                {commentDisabledReason ? (
+                    <div className="correction-popup-comment-note">{commentDisabledReason}</div>
+                ) : (
+                    <textarea
+                        id="correction-popup-comment"
+                        className="correction-popup-comment-input"
+                        value={commentText}
+                        onChange={(event) => setCommentText(event.target.value)}
+                        placeholder="Add a comment anchored to this selected text..."
+                        rows={4}
+                    />
+                )}
+            </div>
+
+            {mode === 'edit' && onDelete && (
+                <div className="correction-popup-actions">
+                    <button
+                        className="correction-popup-delete"
+                        onClick={onDelete}
+                        type="button"
+                        id="correction-popup-delete"
+                    >
+                        Delete Correction
+                    </button>
+                </div>
+            )}
         </div>
     );
+
+    return portalRoot ? createPortal(popup, portalRoot) : popup;
 };
+
+function getClampedPopupPosition(position: { top: number; left: number }) {
+    if (typeof window === 'undefined') {
+        return position;
+    }
+
+    const popupWidth = Math.min(380, window.innerWidth - 24);
+    const popupHeight = 360;
+    const margin = 12;
+    const maxLeft = Math.max(margin, window.innerWidth - popupWidth - margin);
+    const maxTop = Math.max(margin, window.innerHeight - popupHeight - margin);
+
+    return {
+        top: Math.min(Math.max(position.top, margin), maxTop),
+        left: Math.min(Math.max(position.left, margin), maxLeft),
+    };
+}
 
 export default CorrectionPopup;

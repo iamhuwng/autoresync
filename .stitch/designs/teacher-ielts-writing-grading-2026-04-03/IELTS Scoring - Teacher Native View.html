@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Writing Grading - IELTS Assessment</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;family=Newsreader:ital,wght@0,400;0,600;1,400&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-surface": "#0b0f10",
+                      "surface-container": "#e8eff3",
+                      "on-secondary-container": "#505157",
+                      "tertiary-dim": "#53506b",
+                      "on-surface": "#2a3439",
+                      "secondary-fixed-dim": "#d4d4db",
+                      "on-tertiary": "#fcf7ff",
+                      "surface-container-low": "#f0f4f7",
+                      "surface-container-high": "#e1e9ee",
+                      "on-background": "#2a3439",
+                      "on-primary-fixed": "#3a3f4c",
+                      "on-primary-fixed-variant": "#565b69",
+                      "background": "#f7f9fb",
+                      "on-surface-variant": "#566166",
+                      "on-tertiary-fixed-variant": "#504e69",
+                      "error-container": "#fe8983",
+                      "on-secondary-fixed-variant": "#5a5b61",
+                      "on-error": "#fff7f6",
+                      "tertiary-fixed": "#d3ceef",
+                      "on-tertiary-container": "#47445f",
+                      "outline-variant": "#a9b4b9",
+                      "primary-dim": "#4d525f",
+                      "surface-tint": "#595e6c",
+                      "secondary": "#5e5f65",
+                      "primary": "#595e6c",
+                      "tertiary-fixed-dim": "#c5c0e0",
+                      "primary-container": "#dee2f2",
+                      "surface": "#f7f9fb",
+                      "tertiary": "#5f5c78",
+                      "surface-dim": "#cfdce3",
+                      "on-error-container": "#752121",
+                      "outline": "#717c82",
+                      "surface-container-highest": "#d9e4ea",
+                      "surface-variant": "#d9e4ea",
+                      "surface-bright": "#f7f9fb",
+                      "error-dim": "#4e0309",
+                      "on-primary-container": "#4d525f",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-primary": "#e9edfe",
+                      "on-tertiary-fixed": "#34314b",
+                      "error": "#9f403d",
+                      "secondary-container": "#e2e2e9",
+                      "primary-fixed": "#dee2f2",
+                      "on-secondary": "#f9f8ff",
+                      "on-primary": "#f7f7ff",
+                      "inverse-on-surface": "#9a9d9f",
+                      "secondary-fixed": "#e2e2e9",
+                      "secondary-dim": "#515359",
+                      "on-secondary-fixed": "#3e3f45",
+                      "primary-fixed-dim": "#d0d4e4",
+                      "tertiary-container": "#d3ceef"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "fontFamily": {
+                      "headline": ["Work Sans"],
+                      "body": ["Newsreader"],
+                      "label": ["Work Sans"]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Work Sans', sans-serif; background-color: #f7f9fb; }
+        .manuscript-font { font-family: 'Newsreader', serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-8 h-16 fixed top-0 z-50 bg-white dark:bg-slate-900 border-b border-surface-container-high">
+<div class="flex items-center gap-12">
+<span class="text-xl font-semibold text-slate-800 dark:text-slate-100 tracking-tight">Writing Grading</span>
+<nav class="hidden md:flex gap-8 items-center h-full">
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Materials</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Students</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Classes</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Courses</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Homework</a>
+<a class="text-slate-900 dark:text-white font-semibold border-b-2 border-slate-900 dark:border-white pb-1 font-['Work_Sans'] text-sm tracking-tight" href="#">Grading</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-['Work_Sans'] text-sm font-medium tracking-tight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-200" href="#">Sessions</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<img alt="Profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant" data-alt="Teacher professional profile headshot with friendly expression in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdsIFKlALqRhdBXxpWQwUoIS7z-7s4LNYHYzsZaZVSy2vMdxldCGS6lBSRKkOwCGK49KgEkpXMNePa53XmS8ynfRvzRF6u7kZAoHHPine_L5TPjX6hjGT4XMJ6jWwXrg1yT6_8Wwm6xah0HEnBXthLQHYv9HM2wkDOYjTlbcGP08Wyu1oGZ-U-Ui_kHeE7OOB3G4yuKpiU4ThnA9Ndw6xcT0hu_CGMI16E08YYFfuvj9YDXB_FwKixbBuy3BskB3F9oOm1zNiwwPl0"/>
+</div>
+</header>
+<main class="mt-16 p-8 max-w-[1600px] mx-auto">
+<!-- Submission Context Card -->
+<section class="bg-surface-container-low rounded-xl p-4 mb-8 flex justify-between items-center">
+<div class="flex items-center gap-6">
+<button class="flex items-center gap-2 text-primary font-medium hover:opacity-80 transition-all">
+<span class="material-symbols-outlined text-sm">arrow_back</span>
+<span class="text-label-md">Back to Queue</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant opacity-30"></div>
+<div class="flex flex-col">
+<h2 class="text-on-surface font-semibold text-lg leading-tight">Alex Johnson</h2>
+<span class="text-label-md text-on-surface-variant font-medium">ID: 8842</span>
+</div>
+<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-wider">IN REVIEW</span>
+</div>
+<button class="bg-primary hover:bg-primary-dim text-on-primary px-8 py-2.5 rounded-full font-semibold transition-all shadow-sm">
+                Submit Grading
+            </button>
+</section>
+<!-- Main Workspace: 2 Columns -->
+<div class="grid grid-cols-12 gap-8 items-start">
+<!-- Left Column: Manuscript -->
+<div class="col-span-8 bg-surface-container-lowest rounded-xl p-12 shadow-[0_4px_20px_rgba(0,0,0,0.02)] min-h-[800px] relative">
+<div class="max-w-[720px] mx-auto relative pl-8">
+<!-- Marginal Anchor Dots -->
+<div class="absolute left-0 top-[2.4rem] flex flex-col gap-[3.2rem]">
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-300 border-2 border-white shadow-sm"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-blue-300 border-2 border-white shadow-sm"></div>
+</div>
+<h1 class="font-body text-title-lg mb-8 italic">The impact of social media on global communication patterns</h1>
+<div class="manuscript-font text-body-lg leading-[1.8] text-on-surface space-y-8">
+<p>
+                            In recent years, the landscape of global communication has undergone a radical transformation. <span class="bg-yellow-100/60 rounded px-1">Some people argue that social media platforms have significantly enhanced our ability to connect with others across geographical boundaries.</span> While I agree that accessibility has improved, there are underlying issues regarding the quality and depth of these interactions.
+                        </p>
+<p>
+                            Firstly, the speed at which information travels today is unprecedented. Twitter and WhatsApp allow for real-time updates that were previously impossible. However, <span class="bg-blue-100/60 rounded px-1">this immediacy often comes at the expense of grammatical precision and reflective thought,</span> leading to a more fragmented public discourse. Many users prioritize being the first to share news rather than being the most accurate.
+                        </p>
+<p>
+                            Furthermore, the phenomenon of 'echo chambers' has become a significant concern. Algorithms tend to show us content that aligns with our existing beliefs, which limits our exposure to diverse perspectives. This polarization can be detrimental to societal harmony, as it discourages healthy debate.
+                        </p>
+<p>
+                            In conclusion, while social media provides the infrastructure for a more connected world, it simultaneously poses challenges to the integrity of our communication. We must navigate these digital spaces with a critical eye to preserve the nuances of human interaction.
+                        </p>
+</div>
+</div>
+</div>
+<!-- Right Column: Controls & Feedback -->
+<div class="col-span-4 space-y-6">
+<!-- Navigation Tabs -->
+<nav class="flex bg-surface-container rounded-full p-1 w-full">
+<button class="flex-1 py-2 text-label-md font-semibold text-on-surface-variant hover:text-on-surface transition-colors">Prompt</button>
+<button class="flex-1 py-2 text-label-md font-semibold text-on-surface-variant hover:text-on-surface transition-colors">Comments</button>
+<button class="flex-1 py-2 text-label-md font-semibold bg-white text-primary rounded-full shadow-sm">Scoring</button>
+</nav>
+<!-- Scoring Area -->
+<div class="space-y-4">
+<!-- Criteria Card: TA/TR -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex justify-between items-center mb-3">
+<span class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Task Response</span>
+<span class="text-primary font-bold">7.5</span>
+</div>
+<div class="flex justify-between gap-1 mb-3">
+<!-- Score Rail -->
+<div class="flex flex-1 justify-between bg-surface-container-low rounded-full p-0.5">
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white transition-all">6.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white transition-all">6.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white transition-all">7.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold bg-primary text-on-primary shadow-md">7.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white transition-all">8.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white transition-all">8.5</button>
+</div>
+</div>
+<p class="text-[11px] text-on-surface-variant italic leading-tight">Addresses all parts of the task with a clear position throughout the response.</p>
+</div>
+<!-- Criteria Card: CC -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex justify-between items-center mb-3">
+<span class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Coherence &amp; Cohesion</span>
+<span class="text-primary font-bold">6.5</span>
+</div>
+<div class="flex justify-between gap-1 mb-3">
+<div class="flex flex-1 justify-between bg-surface-container-low rounded-full p-0.5">
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white">5.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white">6.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold bg-primary text-on-primary shadow-md">6.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white">7.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white">7.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant hover:bg-white">8.0</button>
+</div>
+</div>
+<p class="text-[11px] text-on-surface-variant italic leading-tight">Information and ideas are logically organized with clear progression.</p>
+</div>
+<!-- Criteria Card: LR -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex justify-between items-center mb-3">
+<span class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Lexical Resource</span>
+<span class="text-primary font-bold">7.0</span>
+</div>
+<div class="flex justify-between gap-1 mb-3">
+<div class="flex flex-1 justify-between bg-surface-container-low rounded-full p-0.5">
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">6.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">6.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold bg-primary text-on-primary shadow-md">7.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">7.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">8.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">8.5</button>
+</div>
+</div>
+<p class="text-[11px] text-on-surface-variant italic leading-tight">Uses a sufficient range of vocabulary to allow some flexibility and precision.</p>
+</div>
+<!-- Criteria Card: GRA -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex justify-between items-center mb-3">
+<span class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider">Grammatical Range</span>
+<span class="text-primary font-bold">6.5</span>
+</div>
+<div class="flex justify-between gap-1 mb-3">
+<div class="flex flex-1 justify-between bg-surface-container-low rounded-full p-0.5">
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">5.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">6.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold bg-primary text-on-primary shadow-md">6.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">7.0</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">7.5</button>
+<button class="w-7 h-7 rounded-full text-[10px] font-bold text-on-surface-variant">8.0</button>
+</div>
+</div>
+<p class="text-[11px] text-on-surface-variant italic leading-tight">Uses a mix of simple and complex structures with frequent error-free sentences.</p>
+</div>
+</div>
+<!-- Task Feedback Editor -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+<div class="flex border-b border-outline-variant/10">
+<button class="flex-1 py-3 text-[10px] font-bold uppercase tracking-tight text-primary border-b-2 border-primary bg-primary-container/20">Summary</button>
+<button class="flex-1 py-3 text-[10px] font-bold uppercase tracking-tight text-on-surface-variant hover:text-primary transition-colors">Strengths</button>
+<button class="flex-1 py-3 text-[10px] font-bold uppercase tracking-tight text-on-surface-variant hover:text-primary transition-colors">Improvements</button>
+</div>
+<div class="p-4">
+<textarea class="w-full min-h-[120px] bg-transparent border-none focus:ring-0 manuscript-font text-body-lg text-on-surface p-0 placeholder:text-on-surface-variant/40" placeholder="Type your summary feedback here..."></textarea>
+</div>
+</div>
+<!-- Readiness Checklist -->
+<div class="bg-surface-container-low rounded-xl p-4 space-y-3">
+<h4 class="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">fact_check</span> Readiness
+                    </h4>
+<div class="space-y-2">
+<div class="flex items-center justify-between text-[11px] font-medium">
+<span class="text-on-surface-variant">Scores Set</span>
+<span class="material-symbols-outlined text-green-500 text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex items-center justify-between text-[11px] font-medium">
+<span class="text-on-surface-variant">Summary Required</span>
+<span class="material-symbols-outlined text-error text-sm" style="font-variation-settings: 'FILL' 1;">cancel</span>
+</div>
+<div class="flex items-center justify-between text-[11px] font-medium">
+<span class="text-on-surface-variant">Draft Comments</span>
+<span class="material-symbols-outlined text-error text-sm" style="font-variation-settings: 'FILL' 1;">cancel</span>
+</div>
+</div>
+</div>
+<!-- Right Column Footer -->
+<div class="flex justify-between items-center px-2">
+<div class="flex gap-4">
+<a class="text-[10px] font-bold text-primary/60 hover:text-primary transition-colors uppercase tracking-tight" href="#">Review AI Suggestions</a>
+<a class="text-[10px] font-bold text-primary/60 hover:text-primary transition-colors uppercase tracking-tight" href="#">Audit Trail</a>
+</div>
+<a class="text-[10px] font-bold text-error/60 hover:text-error transition-colors uppercase tracking-tight" href="#">Void Task</a>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 md:hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-slate-100 dark:border-slate-800 rounded-t-3xl">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Work_Sans'] text-[10px] uppercase font-bold">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">edit_note</span>
+<span class="font-['Work_Sans'] text-[10px] uppercase font-bold">Grading</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="font-['Work_Sans'] text-[10px] uppercase font-bold">Resources</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+<span class="material-symbols-outlined">person</span>
+<span class="font-['Work_Sans'] text-[10px] uppercase font-bold">Profile</span>
+</div>
+</nav>
+</body></html>

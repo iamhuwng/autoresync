@@ -1,0 +1,8 @@
+- generic [ref=e5]:
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - heading "Welcome" [level=1] [ref=e11]
+      - paragraph [ref=e12]: Sign in to access your account
+    - paragraph [ref=e43]: Redirecting...
+  - button "Hide dev quick login" [pressed] [ref=e42] [cursor=pointer]:
+    - img [ref=e20]

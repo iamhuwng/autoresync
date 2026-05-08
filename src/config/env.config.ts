@@ -5,8 +5,7 @@ import { getDecryptedKeys } from '../services/api-keys.service';
  * Environment variable schema
  * Validates all required config at startup
  * 
- * CRITICAL: Must support all environment variables from current wizard
- * for 100% feature parity and backward compatibility
+ * CRITICAL: Must support all environment variables from current wizard.
  */
 const envSchema = z.object({
   // Firebase (required - 7 variables)
@@ -19,7 +18,6 @@ const envSchema = z.object({
   VITE_FIREBASE_APP_ID: z.string().min(1, 'Firebase app ID required'),
 
   // Google Gemini AI (at least one key required)
-  VITE_GOOGLE_API_KEY: z.string().optional(), // Legacy key (backward compatibility)
   VITE_GEMINI_API_KEY_1: z.string().optional(),
   VITE_GEMINI_API_KEY_2: z.string().optional(),
   VITE_GEMINI_API_KEY_3: z.string().optional(),
@@ -31,27 +29,19 @@ const envSchema = z.object({
 
   // Groq fallback (optional)
   VITE_GROQ_API_KEY: z.string().optional(),
-
-  // Chunking configuration
-  VITE_CHUNK_SIZE: z.string().default('1000'),
-  VITE_CHUNK_OVERLAP: z.string().default('50'),
-  VITE_MAX_DOCUMENT_SIZE: z.string().default('10000'),
 }).refine(
   (data) => {
     // At least one Gemini API key must be provided
-    const hasLegacyKey = !!data.VITE_GOOGLE_API_KEY;
-    const hasNewKeys = [
+    return [
       data.VITE_GEMINI_API_KEY_1,
       data.VITE_GEMINI_API_KEY_2,
       data.VITE_GEMINI_API_KEY_3,
       data.VITE_GEMINI_API_KEY_4,
       data.VITE_GEMINI_API_KEY_5,
     ].some(key => !!key);
-
-    return hasLegacyKey || hasNewKeys;
   },
   {
-    message: 'At least one Gemini API key required (VITE_GOOGLE_API_KEY or VITE_GEMINI_API_KEY_1-5)',
+    message: 'At least one Gemini API key required (VITE_GEMINI_API_KEY_1-5)',
   }
 );
 
@@ -73,7 +63,6 @@ export const loadEnv = (): Env => {
     VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
     VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
     VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
-    VITE_GOOGLE_API_KEY: import.meta.env.VITE_GOOGLE_API_KEY,
     VITE_GEMINI_API_KEY_1: import.meta.env.VITE_GEMINI_API_KEY_1,
     VITE_GEMINI_API_KEY_2: import.meta.env.VITE_GEMINI_API_KEY_2,
     VITE_GEMINI_API_KEY_3: import.meta.env.VITE_GEMINI_API_KEY_3,
@@ -81,9 +70,6 @@ export const loadEnv = (): Env => {
     VITE_GEMINI_API_KEY_5: import.meta.env.VITE_GEMINI_API_KEY_5,
     VITE_GOOGLE_DRIVE_CLIENT_ID: import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID,
     VITE_GROQ_API_KEY: import.meta.env.VITE_GROQ_API_KEY,
-    VITE_CHUNK_SIZE: import.meta.env.VITE_CHUNK_SIZE,
-    VITE_CHUNK_OVERLAP: import.meta.env.VITE_CHUNK_OVERLAP,
-    VITE_MAX_DOCUMENT_SIZE: import.meta.env.VITE_MAX_DOCUMENT_SIZE,
   };
 
   const result = envSchema.safeParse(rawEnv);
@@ -116,18 +102,6 @@ export const getEnv = (): Env => {
 };
 
 /**
- * Get chunking configuration
- */
-export const getChunkConfig = () => {
-  const env = getEnv();
-  return {
-    chunkSize: parseInt(env.VITE_CHUNK_SIZE),
-    chunkOverlap: parseInt(env.VITE_CHUNK_OVERLAP),
-    maxDocumentSize: parseInt(env.VITE_MAX_DOCUMENT_SIZE),
-  };
-};
-
-/**
  * Load all Gemini API keys (with rotation support)
  */
 export const loadAllGeminiApiKeys = async (): Promise<string[]> => {
@@ -140,12 +114,6 @@ export const loadAllGeminiApiKeys = async (): Promise<string[]> => {
     if (key && key.trim().length > 0 && !key.includes('your_')) {
       keys.push(key);
     }
-  }
-
-  // Also check legacy VITE_GOOGLE_API_KEY for backward compatibility
-  const legacyKey = env.VITE_GOOGLE_API_KEY;
-  if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !keys.includes(legacyKey)) {
-    keys.push(legacyKey);
   }
 
   // Load from Firestore (encrypted keys)

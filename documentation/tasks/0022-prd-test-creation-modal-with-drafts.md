@@ -575,6 +575,27 @@ This pattern allows future extension for Quiz, Flashcard, and other content type
 - `src/pages/TestCreationPage.tsx` (to be deprecated)
 
 ### C. Glossary
+
+---
+
+## 2026-04-09 Amendment - Parsing Success Boundary
+
+### Current rule
+
+The modal success path now has a stricter boundary:
+- parsing success requires reviewable question content
+- draft persistence must succeed before the modal can transition to the review route
+
+### Required behavior
+
+- If the parser returns zero merged questions, the modal MUST stay in the parsing error/retry state.
+- If AI extraction fails upstream, the modal MAY continue only when the service returns a real offline/rules fallback result with reviewable passages and questions.
+- If `saveParsedContent()` returns `success: false`, the modal MUST treat that as a blocking error and MUST NOT navigate to `/teacher/test/review/:draftId`.
+- Provider failures MUST NOT surface as a blank review page or a `review` draft with empty arrays.
+
+### Why this matters
+
+The draft record is part of the success boundary for this feature. A parse is not complete until the review payload exists and the draft write succeeds.
 | Term | Definition |
 |------|------------|
 | Draft | An in-progress test that has not been published |

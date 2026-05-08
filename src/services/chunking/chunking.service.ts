@@ -1,5 +1,8 @@
 import type { Chunk } from '../../types/document.types';
-import { getChunkConfig } from '../../config/env.config';
+
+const DEFAULT_CHUNK_SIZE = 1000;
+const DEFAULT_CHUNK_OVERLAP = 50;
+const DEFAULT_MAX_DOCUMENT_SIZE = 10000;
 
 /**
  * Chunking service interface
@@ -36,10 +39,9 @@ class ChunkingService implements IChunkingService {
   private readonly maxDocumentSize: number;
 
   constructor() {
-    const config = getChunkConfig();
-    this.chunkSize = config.chunkSize;
-    this.overlap = config.chunkOverlap;
-    this.maxDocumentSize = config.maxDocumentSize;
+    this.chunkSize = DEFAULT_CHUNK_SIZE;
+    this.overlap = DEFAULT_CHUNK_OVERLAP;
+    this.maxDocumentSize = DEFAULT_MAX_DOCUMENT_SIZE;
   }
 
   /**

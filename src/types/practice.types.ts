@@ -60,10 +60,26 @@ export interface ResolvedPracticeSettings {
 export interface StudentSoloPreferences {
     fontSize: number;        // px, default 16
     lineSpacing: number;     // default 1.5
-    highlighterEnabled: boolean;  // default true
+    highlighterEnabled: boolean;  // default false
     showTimer: boolean;      // default true
     darkMode: boolean;       // default false
     audioSpeed: number;      // default 1.0
+}
+
+/**
+ * Persisted mobile Reading shell state.
+ * Must remain JSON-safe because it is stored in RTDB/local storage.
+ */
+export interface SavedMobileState {
+    activePassageId?: string;
+    questionSheetOpen: boolean;
+    reviewSummaryOpen: boolean;
+    /** Legacy field kept optional so older persisted payloads still hydrate safely. */
+    flaggedQuestions?: number[];
+    passageScrollByPassage: Record<string, number>;
+    activeQuestionGroupByPassage: Record<string, number>;
+    questionSheetScrollByPassage: Record<string, number>;
+    textSize?: number;
 }
 
 /**
@@ -77,13 +93,14 @@ export interface SoloSessionProgress {
     timeElapsed: number;  // seconds already spent
     startedAt: number;    // timestamp
     lastSavedAt: number;  // timestamp
+    mobileState?: SavedMobileState;
 }
 
 /** Default student preferences */
 export const DEFAULT_STUDENT_PREFS: StudentSoloPreferences = {
     fontSize: 16,
     lineSpacing: 1.5,
-    highlighterEnabled: true,
+    highlighterEnabled: false,
     showTimer: true,
     darkMode: false,
     audioSpeed: 1.0,

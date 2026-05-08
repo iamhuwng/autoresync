@@ -13,6 +13,14 @@
       "duration": 136
     }
   ],
+  "15t4me": [
+    {
+      "id": "te-1775416483218-15t4me",
+      "startedAt": "2026-04-05T19:06:29.667Z",
+      "endedAt": "2026-04-05T19:14:43.2189765Z",
+      "duration": 493
+    }
+  ],
   "17z24x": [
     {
       "id": "te-1772248285822-17z24x",
@@ -21,12 +29,56 @@
       "duration": 63
     }
   ],
+  "1bch3u": [
+    {
+      "id": "te-1775724017189-1bch3u",
+      "startedAt": "2026-04-09T08:33:25.784Z",
+      "endedAt": "2026-04-09T08:40:17.1895866Z",
+      "duration": 411
+    },
+    {
+      "id": "te-1775756474401-1bch3u",
+      "startedAt": "2026-04-09T17:41:14.4010413Z",
+      "endedAt": "2026-04-09T18:16:14.4010413Z",
+      "duration": 2100,
+      "note": "Legacy Google API key cleanup for Gemini rotation, docs refresh, verification, build, and deploy prep."
+    },
+    {
+      "id": "te-1775756477017-1bch3u",
+      "startedAt": "2026-04-09T17:41:17.0179355Z",
+      "endedAt": "2026-04-09T18:16:17.0179355Z",
+      "duration": 2100,
+      "note": "Removed legacy Google API key from Gemini rotation/admin diagnostics, documented the runtime contract, and reverified build/tests/deploy path."
+    },
+    {
+      "id": "te-1775756478757-1bch3u",
+      "startedAt": "2026-04-09T17:41:18.7575796Z",
+      "endedAt": "2026-04-09T18:26:18.7575796Z",
+      "duration": 2700,
+      "note": "Legacy Gemini key-pool cleanup: excluded VITE_GOOGLE_API_KEY from Gemini rotation/admin counts, preserved Google Drive usage, updated architecture docs, and reverified build/tests."
+    }
+  ],
   "34kty1": [
     {
       "id": "te-1772234492211-34kty1",
       "startedAt": "2026-02-27T23:20:43.871Z",
       "endedAt": "2026-02-27T23:21:32.185Z",
       "duration": 48
+    }
+  ],
+  "4ec4ge": [
+    {
+      "id": "te-1775449852210-4ec4ge",
+      "startedAt": "2026-04-06T04:24:32.805Z",
+      "endedAt": "2026-04-06T04:30:52.2108524Z",
+      "duration": 379
+    },
+    {
+      "id": "te-1775457701944-4ec4ge",
+      "startedAt": "2026-04-06T06:41:41.9447336Z",
+      "endedAt": "2026-04-06T07:16:41.9447336Z",
+      "duration": 2100,
+      "note": "Restore feedback toolbar, track formatting actions, and stabilize scoring-card symmetry in teacher IELTS Writing grading."
     }
   ],
   "4f54n5": [
@@ -49,6 +101,22 @@
       "startedAt": "2026-03-29T06:47:45.997Z",
       "endedAt": "2026-03-29T06:52:03.943693Z",
       "duration": 257
+    }
+  ],
+  "5iqcs6": [
+    {
+      "id": "te-1775459749036-5iqcs6",
+      "startedAt": "2026-04-06T07:14:01.45Z",
+      "endedAt": "2026-04-06T07:15:49.0364914Z",
+      "duration": 107
+    }
+  ],
+  "5nz744": [
+    {
+      "id": "te-1775409815295-5nz744",
+      "startedAt": "2026-04-05T17:07:19.053Z",
+      "endedAt": "2026-04-05T17:23:35.2956295Z",
+      "duration": 976
     }
   ],
   "6emz0n": [
@@ -117,6 +185,14 @@
       "duration": 246
     }
   ],
+  "a2bjxv": [
+    {
+      "id": "te-1775463760460-a2bjxv",
+      "startedAt": "2026-04-06T08:21:07.838Z",
+      "endedAt": "2026-04-06T08:22:40.4603038Z",
+      "duration": 92
+    }
+  ],
   "b5z1at": [
     {
       "id": "te-1774771220724-b5z1at",
@@ -141,6 +217,14 @@
       "duration": 170
     }
   ],
+  "g4ywj5": [
+    {
+      "id": "te-1775810396669-g4ywj5",
+      "startedAt": "2026-04-10T08:35:28.983Z",
+      "endedAt": "2026-04-10T08:39:56.669404Z",
+      "duration": 267
+    }
+  ],
   "g6o3lr": [
     {
       "id": "te-1772248395316-g6o3lr",
@@ -157,12 +241,54 @@
       "duration": 60
     }
   ],
+  "gmr6z8": [
+    {
+      "id": "te-1775125937998-gmr6z8",
+      "startedAt": "2026-04-02T10:32:17.9987716Z",
+      "endedAt": "2026-04-02T10:52:17.9987716Z",
+      "duration": 1200,
+      "note": "Fix feedback-editor list-tool instability, update grading-editor architecture docs, and add controlled rerender regression coverage."
+    }
+  ],
   "hb9gdo": [
     {
       "id": "te-1772234604652-hb9gdo",
       "startedAt": "2026-02-27T23:22:39.502Z",
       "endedAt": "2026-02-27T23:23:24.627Z",
       "duration": 45
+    }
+  ],
+  "hxqarx": [
+    {
+      "id": "te-1775373694532-hxqarx",
+      "startedAt": "2026-04-05T06:57:11.551Z",
+      "endedAt": "2026-04-05T07:21:34.5329174Z",
+      "duration": 1462
+    }
+  ],
+  "j3dtvv": [
+    {
+      "id": "te-1775462690557-j3dtvv",
+      "startedAt": "2026-04-06T07:40:16.719Z",
+      "endedAt": "2026-04-06T08:04:50.5576948Z",
+      "duration": 1473
+    }
+  ],
+  "jc9j30": [
+    {
+      "id": "te-1775469977491-jc9j30",
+      "startedAt": "2026-04-06T09:49:04.668Z",
+      "endedAt": "2026-04-06T10:06:17.491077Z",
+      "duration": 1032
+    }
+  ],
+  "jtjism": [
+    {
+      "id": "te-1775126104348-jtjism",
+      "startedAt": "2026-04-02T00:00:00Z",
+      "endedAt": "2026-04-02T01:30:00Z",
+      "duration": 5400,
+      "note": "Implemented teacher-only IELTS Writing AI suggestions cache, injection workflow, architecture/spec updates, and focused tests."
     }
   ],
   "jxyli5": [
@@ -185,6 +311,14 @@
       "startedAt": "2026-03-04T23:15:03.179Z",
       "endedAt": "2026-03-04T23:16:34.234Z",
       "duration": 91
+    }
+  ],
+  "l0x7tz": [
+    {
+      "id": "te-1775375194635-l0x7tz",
+      "startedAt": "2026-04-05T07:34:04.329Z",
+      "endedAt": "2026-04-05T07:46:34.6352529Z",
+      "duration": 750
     }
   ],
   "le05g6": [
@@ -249,6 +383,14 @@
       "duration": 30
     }
   ],
+  "poykhe": [
+    {
+      "id": "te-1775417639051-poykhe",
+      "startedAt": "2026-04-05T19:23:30.455Z",
+      "endedAt": "2026-04-05T19:33:59.0513937Z",
+      "duration": 628
+    }
+  ],
   "pqr0rq": [
     {
       "id": "te-1772666057653-pqr0rq",
@@ -277,12 +419,50 @@
       "duration": 136
     }
   ],
+  "qaob95": [
+    {
+      "id": "te-1775717166058-qaob95",
+      "startedAt": "2026-04-09T06:30:16.543Z",
+      "endedAt": "2026-04-09T06:46:06.0581538Z",
+      "duration": 949
+    }
+  ],
   "rkow2c": [
     {
       "id": "te-1772247529966-rkow2c",
       "startedAt": "2026-02-28T02:56:50.98Z",
       "endedAt": "2026-02-28T02:58:49.934Z",
       "duration": 118
+    }
+  ],
+  "t6evqo": [
+    {
+      "id": "te-1775118666661-t6evqo",
+      "startedAt": "2026-04-02T08:16:29.368Z",
+      "endedAt": "2026-04-02T08:31:06.6613288Z",
+      "duration": 877
+    },
+    {
+      "id": "te-1775124332557-t6evqo",
+      "startedAt": "2026-04-02T10:05:32.5579718Z",
+      "endedAt": "2026-04-02T10:50:32.5579718Z",
+      "duration": 2700,
+      "note": "Second pass on essay-editor mark composition, regression tests, and architecture doc synchronization."
+    },
+    {
+      "id": "te-1775124476533-t6evqo",
+      "startedAt": "2026-04-02T10:07:56.5338822Z",
+      "endedAt": "2026-04-02T10:17:56.5338822Z",
+      "duration": 600,
+      "note": "Documentation and Knowns consistency pass after the essay-editor second pass."
+    }
+  ],
+  "t7g0vi": [
+    {
+      "id": "te-1775398630782-t7g0vi",
+      "startedAt": "2026-04-05T14:04:10.524Z",
+      "endedAt": "2026-04-05T14:17:10.7826708Z",
+      "duration": 780
     }
   ],
   "ujov0v": [
@@ -299,6 +479,14 @@
       "startedAt": "2026-02-27T23:24:39.088Z",
       "endedAt": "2026-02-27T23:25:23.567Z",
       "duration": 44
+    }
+  ],
+  "vrpbcr": [
+    {
+      "id": "te-1775466705683-vrpbcr",
+      "startedAt": "2026-04-06T09:07:36.053Z",
+      "endedAt": "2026-04-06T09:11:45.6834543Z",
+      "duration": 249
     }
   ],
   "vu13lx": [
@@ -323,6 +511,14 @@
       "duration": 56
     }
   ],
+  "vyydr7": [
+    {
+      "id": "te-1775414431992-vyydr7",
+      "startedAt": "2026-04-05T14:04:20.115Z",
+      "endedAt": "2026-04-05T18:40:31.992879Z",
+      "duration": 16571
+    }
+  ],
   "wei3uc": [
     {
       "id": "te-1772666055745-wei3uc",
@@ -345,6 +541,14 @@
       "duration": 69
     }
   ],
+  "xclv4v": [
+    {
+      "id": "te-1775812086547-xclv4v",
+      "startedAt": "2026-04-10T08:57:56.891Z",
+      "endedAt": "2026-04-10T09:08:06.5475167Z",
+      "duration": 609
+    }
+  ],
   "xi65vf": [
     {
       "id": "te-1772234086169-xi65vf",
@@ -353,12 +557,40 @@
       "duration": 40
     }
   ],
+  "y9hozt": [
+    {
+      "id": "te-1775721834610-y9hozt",
+      "startedAt": "2026-04-09T07:55:11.416Z",
+      "endedAt": "2026-04-09T08:03:54.6107153Z",
+      "duration": 523
+    }
+  ],
   "y9kr8j": [
     {
       "id": "te-1772248593798-y9kr8j",
       "startedAt": "2026-02-28T03:14:45.352Z",
       "endedAt": "2026-02-28T03:16:33.764Z",
       "duration": 108
+    }
+  ],
+  "yqkrxb": [
+    {
+      "id": "te-1775386729697-yqkrxb",
+      "startedAt": "2026-04-05T10:43:25.107Z",
+      "endedAt": "2026-04-05T10:58:49.6970779Z",
+      "duration": 924
+    },
+    {
+      "id": "te-1775393953344-yqkrxb",
+      "startedAt": "2026-04-05T12:39:00.222Z",
+      "endedAt": "2026-04-05T12:59:13.3449842Z",
+      "duration": 1213
+    },
+    {
+      "id": "te-1775396313425-yqkrxb",
+      "startedAt": "2026-04-05T13:22:55.731Z",
+      "endedAt": "2026-04-05T13:38:33.4250271Z",
+      "duration": 937
     }
   ]
 }

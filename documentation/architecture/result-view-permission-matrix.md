@@ -13,6 +13,10 @@ Companion docs:
 - `documentation/rules/result-visibility-review-checklist.md`
 - `documentation/architecture/result-view-fr-closure-matrix.md`
 
+## PRD-0049 Reconciliation Note
+
+PRD-0049 brings the already-verified live-parity local `main` result and writing-surface history into `origin/main`. The reconciliation does not change the permission model in this matrix: teacher access still starts with the outer assignment gate, writing linked results still depend on linked-source ownership, and unresolved rows remain excluded from teacher-owned surfaces.
+
 ## Global Rules
 
 - Teacher access always starts with the outer `student_teacher_assignments` gate.

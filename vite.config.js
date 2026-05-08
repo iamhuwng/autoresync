@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
+const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -26,12 +27,14 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    visualizer({
-      filename: './dist/stats.html',
-      open: false,
-      gzipSize: true,
-      brotliSize: true,
-    }),
+    ...(enableBundleVisualizer
+      ? [visualizer({
+          filename: './dist/stats.html',
+          open: false,
+          gzipSize: true,
+          brotliSize: true,
+        })]
+      : []),
     // Dev-only: warns in browser console when new files have @mantine imports
     ruleEnforcementPlugin(),
   ],

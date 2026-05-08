@@ -2,7 +2,7 @@
 title: IELTS Writing Grading Editor Finalization 2026-03-30
 description: Finalized source of truth for the teacher writing grading editor layout, comment interactions, ordering rules, and containment inside the teacher shell.
 createdAt: '2026-03-29T20:16:53.672Z'
-updatedAt: '2026-03-30T03:30:19.251Z'
+updatedAt: '2026-04-02T10:35:04.319Z'
 tags:
   - spec
   - ielts
@@ -164,3 +164,132 @@ Implementation note:
 - The grading page provides the clicked annotation viewport top from the essay editor into the comments sidebar.
 - The comments sidebar measures the selected comment header within the natural rail and translates the whole rail from that stable offset.
 - The alignment math must not depend on center-based card positioning or temporary floating-card overlays.
+
+## 2026-04-02 Amendment - Selection-Safe Toolbar And Correction Rendering
+
+The teacher grading editor now treats the active essay selection as a durable interaction state for fixed-toolbar actions.
+
+Selection-handling rules:
+- Fixed-toolbar annotation actions that operate on the current essay selection must run from `mousedown` and prevent the default blur behavior so the selection does not collapse before the command executes.
+- Selection-scoped toolbar actions must not rely on `click` when the action depends on the live selection range.
+- If selection geometry cannot be resolved for the floating bubble menu, the menu should hide instead of throwing or destabilizing the editor session.
+
+Correction-rendering rules:
+- Correction markup must render the original text and the replacement text as separate inline DOM nodes.
+- The original text remains struck through and visually muted.
+- The replacement text must never inherit the original strikethrough styling.
+- The visible replacement text remains non-editable annotation output, not part of the student's editable essay content.
+
+Queued correction application:
+- Replaying a queued correction against a stored selection range should apply the correction mark directly without forcing an extra focus-and-scroll cycle first.
+
+## 2026-04-02 Follow-up - Correction Spacing And Editing Contract
+
+The queued correction replay path must normalize selection-boundary whitespace before applying the correction mark, and existing correction marks must stay editable in place.
+
+Required spacing behavior:
+- leading and trailing whitespace accidentally captured in the stored selection range must remain outside the struck-through original span
+- the visible replacement text must preserve normal word separation with adjacent essay text, especially when the teacher selection includes a trailing space
+- if the teacher omits a separating space before the next word, correction replay must append one automatically when the downstream essay character is word-like
+- if the teacher types trailing spaces into the correction popup and the essay already has a following gap, the rendered result must still separate with one space, not a double space
+- this whitespace normalization is part of the correction-rendering contract for both the grading editor and published Writing markup readers that render the same stored TipTap content
+
+Required editing behavior:
+- clicking an existing correction mark in grading edit mode must reopen the correction popup anchored to that mark
+- the popup must preload the stored correction text for inline edits
+- the popup must provide a delete path so the teacher can remove the correction mark without recreating the original text selection
+
+## 2026-04-02 Follow-up - Correction Deletion And Overlay Containment
+
+Correction deletion rules:
+- deleting a correction from the popup must remove only the `correctionMark` from the selected range
+- deleting a correction must never delete the student’s original essay text
+- correction mark clicks in grading edit mode should reopen the stored correction for in-place save/delete without forcing the teacher to recreate the selection
+
+Correction presentation rules:
+- visible correction replacement text should render in red to keep teacher-authored correction output visually distinct from the student’s original text
+- the original text remains muted and struck through while the replacement stays unstruck
+
+Overlay containment rules:
+- the correction popup, annotation hover tooltip, and floating selection tools must not be clipped by the editor card, essay wrapper, or scrollable editor viewport
+- those overlays should use viewport-based positioning and clamp to screen bounds so they stay usable near the edges of the grading surface
+- editor scroll and window resize must trigger repositioning or dismissal so stale overlay coordinates do not leave popups detached from their annotation anchors
+
+
+## 2026-04-02 Amendment - Task Rehydration, Draft Safety, And Session Locks
+
+### Task Rehydration Boundary
+- Changing the active task or reloading the grading source is a hard rehydration boundary for both the essay editor and the feedback editor.
+- Task-scoped transient state must be cleared on that boundary: focused comment state, hovered comment state, anchor positions, queued quick comments, queued corrections, queued comment-mark mutations, and correction-popup state.
+- Task 1 markup or feedback must never survive into Task 2, and Task 2 state must never survive back into Task 1.
+- `task2-only` submissions are first-class grading targets and must hydrate directly into Task 2 instead of failing the editor.
+
+### Draft Safety
+- Pending new-comment composers count as unsaved grading work.
+- Pending comment drafts are persisted per task in the grading draft payload.
+- Unsaved-work detection must include those pending comment drafts, not just the main dirty grading flag.
+- Save completion must always clear the saving state even when the save throws.
+- Version conflicts must reload the latest grading source instead of leaving the editor in an optimistic overwrite state.
+
+### Leave, Regrade, And Draft-Takeover Rules
+- Leaving with unsaved work must use an explicit three-way dialog: save, discard, or cancel.
+- Cancel must preserve the current page, lock, and local grading state.
+- Regrading published work requires an explicit regrade reason.
+- Discarding another teacher's private draft requires an explicit takeover reason.
+
+### Session Lock Rules
+- Lock ownership is session-aware, not just teacher-aware.
+- Same-teacher different-session collisions are conflicts, not implicit ownership.
+- Lock renewal failure must demote the page back to review/read-only assumptions until editing is reacquired.
+
+
+## 2026-04-02 Follow-up - Essay Editor Tool Contract
+
+The essay-editor tool layer is now explicitly constrained as follows:
+- `readOnly` is a true no-mutation state for toolbar buttons, bubble-menu actions, keyboard shortcuts, and queued external commands
+- quick comments must use an anchored selection snapshot captured by the page (`from`, `to`, `selectedText`) rather than whatever selection is live later
+- each text slice may hold at most one `commentMark`; comment-mark removal must target the specific `commentId`
+- text-color `Default` clears the color mark instead of saving a literal `inherit` value
+- toolbar buttons must remain keyboard-activatable while still preventing pointer-triggered editor blur
+
+The next follow-up scope is overlapping mark composition: correction/highlight/comment/strikethrough/text-color interactions on the same text range.
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 Second Pass - Mark Composition Policy
+
+The finalized grading editor implementation now constrains mark overlap explicitly:
+- correction is the dominant inline mark
+- new correction creation is blocked on ranges that already contain a comment mark or another correction mark
+- new highlight, comment, strikethrough, and text-color mutations are blocked on selections that already contain a correction mark
+- correction application strips highlight, strike, and text-color styling before the correction mark is written
+- if older saved content still contains correction+comment overlap, correction-click routing wins over comment-click routing inside the essay
+
+Related doc:
+- @doc/architecture/ielts-writing/ielts-writing-essay-editor-tool-contract-and-mark-composition-2026-04-02
+
+
+## 2026-04-02 Follow-up - Feedback Editor List Stability
+
+The tabbed feedback editor now has a controlled-update guard:
+- list-formatting commands must survive the normal `onChange -> parent rerender -> feedback prop` cycle
+- identical incoming feedback HTML must not trigger unnecessary `setContent(...)` resets
+- toolbar actions for list toggles must preserve editor selection before the command runs
+
+
+## 2026-04-02 follow-up - AI Suggestions tab
+
+The teacher grading editor now includes a fourth right-panel tab, `Suggestions`, in addition to `Prompt`, `Comments`, and `Scoring`.
+
+Finalized behavior:
+- suggestions are teacher-only working aids for grammar and vocabulary or expression issues
+- suggestions generate once per submission on teacher open and then reuse persisted cache
+- reload is explicit and manual
+- suggestions are grouped by `Grammar` and `Vocabulary & Expression`, each split into `Comment Ideas` and `Corrections`
+- comment injection must reuse the existing pending comment composer flow
+- correction injection must reuse the existing correction popup flow
+- no suggestion may auto-save, auto-apply, or auto-publish feedback
+
+This changes the earlier 3-tab right-panel assumption. The stable contract is now a 4-tab panel with the Suggestions tab positioned between Comments and Scoring.

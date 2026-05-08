@@ -34,7 +34,10 @@ interface MatchingFeaturesInputProps {
     questions: Question[];
     answers: Record<number, string>;
     onAnswerChange: (questionNumber: number, answer: string) => void;
+    onQuestionRefChange?: (questionNumber: number, element: HTMLDivElement | null) => void;
     disabled?: boolean;
+    fontSize?: number;
+    lineSpacing?: number;
 }
 
 const primaryBlue = 'rgb(65, 142, 200)';
@@ -45,11 +48,16 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
     questions,
     answers,
     onAnswerChange,
-    disabled = false
+    onQuestionRefChange,
+    disabled = false,
+    fontSize,
+    lineSpacing,
 }) => {
     // Use the first question to get the list of options (they should be identical for the group)
     const options = getQuestionOptions(questions[0]);
     const optionLabelFormat = questions[0]?.optionLabelFormat || 'letter';
+    const questionFontSize = fontSize ? `${fontSize}px` : '16px';
+    const questionLineHeight = lineSpacing ?? 1.5;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -113,6 +121,9 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
                     return (
                         <div
                             key={q.number}
+                            ref={(element) => {
+                                onQuestionRefChange?.(q.number, element);
+                            }}
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -137,10 +148,10 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
 
                                 <div style={{
                                     flex: 1,
-                                    fontSize: '16px',
+                                    fontSize: questionFontSize,
                                     color: '#000',
                                     fontFamily: 'Arial, sans-serif',
-                                    lineHeight: 1.5,
+                                    lineHeight: questionLineHeight,
                                 }}>
                                     {q.question}
                                 </div>
@@ -196,4 +207,3 @@ export const MatchingFeaturesInput: React.FC<MatchingFeaturesInputProps> = ({
         </div>
     );
 };
-

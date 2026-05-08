@@ -63,7 +63,7 @@ export function renderAnnotatedText(
         // Build combined styles
         const style: React.CSSProperties = {};
         const decorations: string[] = [];
-        let hasComment = false;
+        let interactiveAnnotation: WritingAnnotation | null = null;
         let correction: WritingAnnotation | null = null;
 
         for (const a of overlapping) {
@@ -78,6 +78,8 @@ export function renderAnnotatedText(
                 case 'correction':
                     decorations.push('line-through');
                     correction = a;
+                    interactiveAnnotation = interactiveAnnotation || a;
+                    style.cursor = 'pointer';
                     break;
                 case 'textColor':
                     style.color = a.color || '#ef4444';
@@ -85,7 +87,7 @@ export function renderAnnotatedText(
                 case 'comment':
                     style.borderBottom = '2px dotted ' + (a.color || '#3b82f6');
                     style.cursor = 'pointer';
-                    hasComment = true;
+                    interactiveAnnotation = a;
                     break;
             }
         }
@@ -100,14 +102,15 @@ export function renderAnnotatedText(
             {
                 key: `a-${i}`,
                 style,
-                onClick: hasComment && options.onAnnotationClick
+                onClick: interactiveAnnotation && options.onAnnotationClick
                     ? (event: React.MouseEvent<HTMLSpanElement>) => {
-                        const commentAnnotation = overlapping.find(a => a.type === 'comment');
-                        if (commentAnnotation) options.onAnnotationClick!(commentAnnotation, event.currentTarget);
+                        options.onAnnotationClick!(interactiveAnnotation!, event.currentTarget);
                     }
                     : undefined,
-                title: hasComment
-                    ? overlapping.find(a => a.type === 'comment')?.commentText || ''
+                title: interactiveAnnotation
+                    ? (interactiveAnnotation.type === 'comment'
+                        ? interactiveAnnotation.commentText || ''
+                        : interactiveAnnotation.correctionText || '')
                     : undefined,
             },
             text

@@ -3,11 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StudentTestResultsPage } from './StudentTestResultsPage';
+import StudentShellRoute from '../routes/StudentShellRoute';
 // @ts-ignore
 import { database } from '../services/firebase';
 import { get, onValue, ref } from 'firebase/database';
 import * as testResultsService from '../services/testResults.service';
 import * as sessionService from '../services/sessionService';
+
+const { useMediaQueryMock } = vi.hoisted(() => ({
+    useMediaQueryMock: vi.fn(),
+}));
 
 // Mock Firebase
 vi.mock('../services/firebase', () => ({
@@ -44,16 +49,31 @@ vi.mock('../services/writingSubmissionService', () => ({
     }),
 }));
 
-// Mock sub-components/modules that might cause issues in test env
-vi.mock('@mantine/core', () => ({
-    Center: ({ children }: any) => <div>{children}</div>,
-    Loader: () => <div>Loading...</div>
+vi.mock('../context/StudentShellDataContext', () => ({
+    StudentShellDataProvider: ({ children }: any) => <>{children}</>,
+}));
+
+vi.mock('../hooks/useMediaQuery', () => ({
+    useMediaQuery: (...args: unknown[]) => useMediaQueryMock(...args),
+}));
+
+vi.mock('../components/layout/StudentLayout', () => ({
+    StudentLayout: ({ children, sidebar }: any) => (
+        <div data-testid="student-layout">
+            <div data-testid="student-layout-sidebar">{sidebar}</div>
+            {children}
+        </div>
+    ),
+}));
+
+vi.mock('../components/layout/StudentSidebar', () => ({
+    StudentSidebar: () => <div data-testid="student-sidebar" />,
 }));
 
 vi.mock('../components/modern', () => ({
-    Card: ({ children }: any) => <div>{children}</div>,
-    CardBody: ({ children }: any) => <div>{children}</div>,
-    Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>
+  Card: ({ children, style }: any) => <div style={style}>{children}</div>,
+    CardBody: ({ children, style }: any) => <div style={style}>{children}</div>,
+    Button: ({ children, onClick, style, ...props }: any) => <button onClick={onClick} style={style} {...props}>{children}</button>
 }));
 
 describe('StudentTestResultsPage', () => {
@@ -64,6 +84,7 @@ describe('StudentTestResultsPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         sessionListeners.clear();
+        useMediaQueryMock.mockReturnValue(false);
 
         // Default mocks
         (sessionService.sessionService.getPlayerId as any).mockReturnValue(studentId);
@@ -128,15 +149,15 @@ describe('StudentTestResultsPage', () => {
         (testResultsService.getStudentSessionResult as any).mockResolvedValue(mockPermanentResult);
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
 
         // Should display loading initially
-        expect(screen.getByText('Loading...')).toBeInTheDocument();
+        expect(screen.getByText('Loading results...')).toBeInTheDocument();
 
         // Verify it called getStudentSessionResult
         await waitFor(() => {
@@ -207,9 +228,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -268,9 +289,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -333,9 +354,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -359,10 +380,37 @@ describe('StudentTestResultsPage', () => {
             studentId,
         });
 
+        (get as any).mockImplementation((refObj: any) => {
+            if (typeof refObj === 'string' && refObj.includes('game_sessions/')) {
+                return Promise.resolve({
+                    exists: () => false,
+                    val: () => null,
+                });
+            }
+
+            return Promise.resolve({
+                exists: () => true,
+                val: () => ({
+                    title: 'Test Title',
+                    type: 'reading',
+                    questions: [
+                        {
+                            number: 1,
+                            type: 'multiple-choice',
+                            answer: 'A',
+                            points: 1,
+                        },
+                    ],
+                }),
+            });
+        });
+
         render(
             <MemoryRouter initialEntries={['/student/results/result-legacy-1']}>
                 <Routes>
-                    <Route path="/student/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student" element={<StudentShellRoute />}>
+                        <Route path="results/:sessionCode" element={<StudentTestResultsPage />} />
+                    </Route>
                     <Route path="/result/:resultId" element={<div>Canonical Result Route</div>} />
                 </Routes>
             </MemoryRouter>
@@ -372,6 +420,52 @@ describe('StudentTestResultsPage', () => {
 
         expect(testResultsService.getTestResult).toHaveBeenCalledWith('result-legacy-1');
         expect(testResultsService.getStudentSessionResult).not.toHaveBeenCalled();
+    });
+
+    it('should load session results for legacy student alias links when the param is a session code', async () => {
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-session-alias',
+            totalScore: 8,
+            maxScore: 10,
+            percentage: 80,
+            bandScore: 7.0,
+            questionResults: [],
+            summary: { correct: 8, incorrect: 2, partialCredit: 0, totalQuestions: 10 },
+            correct: 8,
+            incorrect: 2,
+            partialCredit: 0,
+            totalQuestions: 10,
+            submittedAt: Date.now(),
+            testTitle: 'Session Alias Result',
+            testType: 'reading',
+            testSkill: 'Reading',
+            testDuration: 30,
+        });
+
+        render(
+            <MemoryRouter initialEntries={[`/student/results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/student" element={<StudentShellRoute />}>
+                        <Route path="results/:sessionCode" element={<StudentTestResultsPage />} />
+                    </Route>
+                    <Route path="/result/:resultId" element={<div>Canonical Result Route</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(testResultsService.getStudentSessionResult).toHaveBeenCalledWith(studentId, sessionCode);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('8/10')).toBeInTheDocument();
+        });
+
+        expect(screen.getByTestId('student-layout')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Return to Home' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Print Results' })).toBeInTheDocument();
+        expect(screen.queryByText('Canonical Result Route')).not.toBeInTheDocument();
+        expect(testResultsService.getTestResult).not.toHaveBeenCalled();
     });
 
     it('should update the release banner when the live session state changes', async () => {
@@ -392,9 +486,9 @@ describe('StudentTestResultsPage', () => {
         });
 
         render(
-            <MemoryRouter initialEntries={[`/results/${sessionCode}`]}>
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
                 <Routes>
-                    <Route path="/results/:sessionCode" element={<StudentTestResultsPage />} />
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
                 </Routes>
             </MemoryRouter>
         );
@@ -426,5 +520,56 @@ describe('StudentTestResultsPage', () => {
         await waitFor(() => {
             expect(screen.getByText('Answers Released')).toBeInTheDocument();
         });
+    });
+
+    it('applies mobile stacking and full-width actions when the breakpoint matches', async () => {
+        useMediaQueryMock.mockReturnValue(true);
+
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-mobile',
+            totalScore: 7,
+            maxScore: 10,
+            percentage: 70,
+            questionResults: [
+                {
+                    questionNumber: 1,
+                    questionType: 'multiple-choice',
+                    isCorrect: true,
+                    partialCredit: 0,
+                    score: 1,
+                    maxScore: 1,
+                    studentAnswer: 'A',
+                    correctAnswer: 'A',
+                    feedback: 'Nice work',
+                },
+            ],
+            correct: 1,
+            incorrect: 0,
+            partialCredit: 0,
+            totalQuestions: 1,
+            summary: { correct: 1, incorrect: 0, partialCredit: 0, totalQuestions: 1 },
+            submittedAt: Date.now(),
+            testTitle: 'Mobile Result',
+            testType: 'reading',
+            testSkill: 'Reading',
+        });
+
+        const { container } = render(
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('7/10')).toBeInTheDocument();
+        });
+
+        expect(container.querySelector('.student-view-root')).toHaveStyle({ padding: '16px 12px 24px' });
+        expect(screen.getByRole('button', { name: 'Return to Home' }).parentElement).toHaveStyle({ flexDirection: 'column' });
+        expect(screen.getByRole('button', { name: 'Return to Home' })).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByRole('button', { name: 'Print Results' })).toHaveStyle({ width: '100%', minHeight: '44px' });
+        expect(screen.getByRole('button', { name: /question 1/i })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
     });
 });

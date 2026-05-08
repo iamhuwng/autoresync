@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/browser-document-title-architecture",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/browser-document-title-architecture",
+      "version": 1,
+      "timestamp": "2026-04-02T10:22:55.0684841Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Browser Document Title Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Defines browser tab title ownership, title formatting, shell responsibilities, and route fallback after the MySTUdent Workspace branding update."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "navigation",
+            "browser",
+            "title",
+            "ux"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Browser Document Title Architecture\n\n## Purpose\n\nThis note defines how browser tab titles are owned in the web app after the `MySTUdent Workspace` branding update and the 2026-04-02 document-title wiring pass.\n\nThe goal is to prevent stale titles, duplicated page-specific logic, and shell pages silently drifting away from the visible page title shown inside the app chrome.\n\n## Brand Contract\n\n- App brand title: `MySTUdent Workspace`\n- Page format: `{Page Title} | MySTUdent Workspace`\n- Fallback format for routes without a page-specific title: `MySTUdent Workspace`\n\n## Ownership Model\n\nBrowser tab titles are owned by the same shared surfaces that already own visible page titles.\n\nCurrent ownership:\n- teacher shell pages: `src/components/navigation/TeacherHeader.tsx`\n- admin shell pages: `src/components/navigation/AdminTopBar.tsx`\n- student shell pages: `src/components/layout/StudentLayout.tsx`\n\nShared implementation:\n- formatter: `src/core/platform/documentTitle.ts`\n- platform hook: `src/core/platform/hooks/useDocumentTitle.ts`\n- app-level fallback reset: `src/App.jsx`\n\n## Routing Contract\n\nThe app resets the document title to the brand fallback on route changes before route-specific shells or pages apply their own page title.\n\nThis prevents a route that does not explicitly set a title from inheriting the previous route's tab text.\n\nExpected behavior:\n- shell/page with explicit title mounts -\u003e tab becomes `{Page Title} | MySTUdent Workspace`\n- route without explicit title mounts -\u003e tab remains `MySTUdent Workspace`\n\n## Student Shell Contract\n\nFor the shared student workspace, `StudentLayout` is the browser-title owner for shell pages.\n\nThe `mobileTitle` prop is now both:\n- the mobile visible header label\n- the shell-level browser title source\n\nIf a future student shell page needs a different tab title from its mobile header, the shell API must be expanded deliberately instead of setting `document.title` ad hoc inside the page body.\n\n## Implementation Rules\n\n- New code should use `useDocumentTitle(...)` from the platform layer instead of writing `document.title` directly.\n- Shared shells should own title updates when they already own the visible page title.\n- Standalone routes that bypass the shared shells may keep the brand fallback until they get an explicit title owner.\n- Do not introduce route-local title strings in multiple places for the same page.\n\n## Related Docs\n\n- @doc/architecture/student-experience-architecture\n- @doc/architecture/routing-navigation",
+        "description": "Defines browser tab title ownership, title formatting, shell responsibilities, and route fallback after the MySTUdent Workspace branding update.",
+        "tags": [
+          "architecture",
+          "navigation",
+          "browser",
+          "title",
+          "ux"
+        ],
+        "title": "Browser Document Title Architecture"
+      }
+    }
+  ]
+}

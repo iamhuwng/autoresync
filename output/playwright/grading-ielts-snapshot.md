@@ -1,0 +1,64 @@
+- generic [ref=e200]:
+  - generic [ref=e202]:
+    - heading "Grading" [level=1] [ref=e204]
+    - generic [ref=e206]:
+      - button "Materials" [ref=e207] [cursor=pointer]:
+        - generic [ref=e208]: Materials
+      - generic [ref=e210]:
+        - button "Students" [ref=e211] [cursor=pointer]:
+          - generic [ref=e212]: Students
+        - button "Classes" [ref=e213] [cursor=pointer]:
+          - generic [ref=e214]: Classes
+        - button "Courses" [ref=e215] [cursor=pointer]:
+          - generic [ref=e216]: Courses
+        - button "Homework" [ref=e217] [cursor=pointer]:
+          - generic [ref=e218]: Homework
+        - button "Grading" [ref=e219] [cursor=pointer]:
+          - generic [ref=e220]: Grading
+      - button "Sessions" [ref=e222] [cursor=pointer]:
+        - generic [ref=e223]: Sessions
+      - generic [ref=e225]:
+        - button "Notifications" [ref=e229] [cursor=pointer]:
+          - img [ref=e230]
+        - button "Open profile menu" [ref=e234] [cursor=pointer]:
+          - img "Teacher Test" [ref=e236]
+          - generic [ref=e237]: Teacher Test
+  - main [ref=e238]:
+    - generic [ref=e239]:
+      - generic [ref=e240]:
+        - heading "📝 Grading" [level=1] [ref=e241]
+        - paragraph [ref=e242]: Review and grade student writing answers
+      - generic [ref=e243]:
+        - button "🇻🇳 THCS Grading" [ref=e244] [cursor=pointer]
+        - button "✍️ IELTS Writing 1" [active] [ref=e264] [cursor=pointer]:
+          - text: ✍️ IELTS Writing
+          - generic [ref=e265]: "1"
+      - generic [ref=e266]:
+        - generic [ref=e269]:
+          - generic [ref=e270]:
+            - generic [ref=e271]: "Source:"
+            - combobox [ref=e272] [cursor=pointer]:
+              - option "All Sources" [selected]
+              - option "Live Session"
+              - option "Homework"
+              - option "Solo Practice"
+          - generic [ref=e273]:
+            - generic [ref=e274]: "Sort:"
+            - combobox [ref=e275] [cursor=pointer]:
+              - option "Newest First" [selected]
+              - option "Oldest First"
+          - generic [ref=e277]: 1 pending
+        - generic [ref=e281] [cursor=pointer]:
+          - generic [ref=e282]:
+            - generic [ref=e283]:
+              - generic [ref=e284]: student@test.com
+              - generic [ref=e285]: 📚 HW
+            - generic [ref=e286]:
+              - generic [ref=e287]: Task 1
+              - generic [ref=e288]: 📝 115 words
+              - generic [ref=e289]: "📄 IELTS Writing Task 1: UK emission sources (oil/coal/gas)"
+          - generic [ref=e290]:
+            - generic [ref=e291]: draft-in-progress
+            - generic [ref=e292]: 03 Apr 2026 02:35
+            - button "Resume Draft →" [ref=e293]:
+              - generic [ref=e294]: Resume Draft →

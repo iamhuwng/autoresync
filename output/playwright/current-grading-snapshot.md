@@ -1,0 +1,46 @@
+- generic [ref=e200]:
+  - generic [ref=e202]:
+    - heading "Grading" [level=1] [ref=e204]
+    - generic [ref=e206]:
+      - button "Materials" [ref=e207] [cursor=pointer]:
+        - generic [ref=e208]: Materials
+      - generic [ref=e210]:
+        - button "Students" [ref=e211] [cursor=pointer]:
+          - generic [ref=e212]: Students
+        - button "Classes" [ref=e213] [cursor=pointer]:
+          - generic [ref=e214]: Classes
+        - button "Courses" [ref=e215] [cursor=pointer]:
+          - generic [ref=e216]: Courses
+        - button "Homework" [ref=e217] [cursor=pointer]:
+          - generic [ref=e218]: Homework
+        - button "Grading" [ref=e219] [cursor=pointer]:
+          - generic [ref=e220]: Grading
+      - button "Sessions" [ref=e222] [cursor=pointer]:
+        - generic [ref=e223]: Sessions
+      - generic [ref=e225]:
+        - button "Notifications" [ref=e229] [cursor=pointer]:
+          - img [ref=e230]
+        - button "Open profile menu" [ref=e234] [cursor=pointer]:
+          - img "Teacher Test" [ref=e236]
+          - generic [ref=e237]: Teacher Test
+  - main [ref=e238]:
+    - generic [ref=e239]:
+      - generic [ref=e240]:
+        - heading "📝 Grading" [level=1] [ref=e241]
+        - paragraph [ref=e242]: Review and grade student writing answers
+      - generic [ref=e243]:
+        - button "🇻🇳 THCS Grading" [ref=e244] [cursor=pointer]
+        - button "✍️ IELTS Writing" [ref=e245] [cursor=pointer]
+      - generic [ref=e248]:
+        - textbox "🔍 Search tests..." [ref=e252]
+        - generic [ref=e253]:
+          - button "By Test" [ref=e254] [cursor=pointer]:
+            - generic [ref=e255]: By Test
+          - button "By Question" [ref=e256] [cursor=pointer]:
+            - generic [ref=e257]: By Question
+        - button "Needs Review" [ref=e258] [cursor=pointer]:
+          - generic [ref=e259]: Needs Review
+      - generic [ref=e260]:
+        - generic [ref=e261]: 📝
+        - heading "No tests with writing questions" [level=2] [ref=e262]
+        - paragraph [ref=e263]: Tests with writing questions will appear here after students submit

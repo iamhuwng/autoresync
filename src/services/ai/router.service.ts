@@ -1,6 +1,13 @@
 import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
-import type { IAIService, AIParseResult, ProviderStatus } from './ai.service';
+import type {
+  IAIService,
+  AIParseResult,
+  ProviderStatus,
+  AIStructuredGenerationOptions,
+  WritingSuggestionBatchRequest,
+  WritingSuggestionBatchResponse,
+} from './ai.service';
 import { geminiProvider } from './gemini.provider';
 import { groqProvider } from './groq.provider';
 
@@ -371,6 +378,65 @@ class AIRouterService implements IAIService {
     };
   }
 
+  async generateStructuredJson(
+    prompt: string,
+    options?: AIStructuredGenerationOptions
+  ): Promise<Result<unknown>> {
+    const providerOrder = this.getProviderOrder();
+
+    for (const providerName of providerOrder) {
+      const provider = this.providers[providerName];
+      const result = await provider.generateStructuredJson(prompt, options);
+
+      if (result.success) {
+        console.log(`✅ Structured JSON generated with ${providerName}`);
+        return result;
+      }
+
+      console.error(`❌ ${providerName} structured generation failed: ${result.error}`);
+
+      if (!this.config.enableFallback) {
+        return result;
+      }
+    }
+
+    return {
+      success: false,
+      error: 'All AI providers failed to generate structured JSON',
+    };
+  }
+
+  async generateWritingSuggestionBatch(
+    request: WritingSuggestionBatchRequest,
+    options?: AIStructuredGenerationOptions & {
+      preferredKeyIndex?: number;
+      keyLeaseId?: string | null;
+    }
+  ): Promise<Result<WritingSuggestionBatchResponse>> {
+    const providerOrder = this.getProviderOrder();
+
+    for (const providerName of providerOrder) {
+      const provider = this.providers[providerName];
+      const result = await provider.generateWritingSuggestionBatch(request, options);
+
+      if (result.success) {
+        console.log(`✅ Writing suggestion batch generated with ${providerName}`);
+        return result;
+      }
+
+      console.error(`❌ ${providerName} writing suggestion batch failed: ${result.error}`);
+
+      if (!this.config.enableFallback) {
+        return result;
+      }
+    }
+
+    return {
+      success: false,
+      error: 'All AI providers failed to generate writing suggestion batch',
+    };
+  }
+
   /**
    * Get status of all providers
    */
@@ -405,14 +471,14 @@ class AIRouterService implements IAIService {
     if (allSuccess) {
       return {
         success: true,
-        data: 'All providers connected',
+        data: undefined,
       };
     }
 
     if (anySuccess) {
       return {
         success: true,
-        data: 'At least one provider connected',
+        data: undefined,
       };
     }
 

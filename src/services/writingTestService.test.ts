@@ -74,6 +74,7 @@ describe('writingTestService', () => {
       userId: 'teacher-1',
       testType: 'IELTS',
       skill: 'Writing',
+      isPublic: true,
       metadata: {
         title: 'Unsaved Writing Test',
         duration: 60,
@@ -98,6 +99,12 @@ describe('writingTestService', () => {
     expect(getDoc).not.toHaveBeenCalled();
     expect(setDatabaseValue).toHaveBeenCalledOnce();
     expect(setDoc).toHaveBeenCalledOnce();
+    expect(setDatabaseValue).toHaveBeenCalledWith(
+      'tests/generated-test-id',
+      expect.objectContaining({
+        isPublic: true,
+      })
+    );
   });
 
   it('creates an editable draft link without reading Firestore when a writing test has no sourceDraftId', async () => {
@@ -129,6 +136,7 @@ describe('writingTestService', () => {
       exists: () => true,
       data: () => ({
         userId: 'teacher-1',
+        isPublic: true,
         status: 'editing',
         createdAt: new Date('2026-03-29T00:00:00Z'),
       }),
@@ -147,5 +155,11 @@ describe('writingTestService', () => {
     expect(result.success).toBe(true);
     expect(getDoc).toHaveBeenCalledOnce();
     expect(setDoc).toHaveBeenCalledOnce();
+    expect(setDoc).toHaveBeenCalledWith(
+      'writing_drafts/draft-1',
+      expect.objectContaining({
+        isPublic: true,
+      })
+    );
   });
 });

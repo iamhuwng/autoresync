@@ -8,6 +8,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { useHomeworkList } from '../hooks/useHomeworkList';
 import { TeacherHeader } from '../components/navigation';
 import { Tabs, Table, Badge, Modal, Loader, Group, Tooltip, ActionIcon } from '@mantine/core';
 import { Card, CardBody, Button } from '../components/modern';
@@ -15,12 +17,15 @@ import { classManager, removeStudentFromClass, approveClassStudent, rejectClassS
 import { LinkCourseModal } from '../components/course/LinkCourseModal';
 import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
 import { CourseCreateModal } from '../components/course/CourseCreateModal';
+import { HomeworkCard, HomeworkCreateModal } from '../components/homework';
 import { notifications } from '@mantine/notifications';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { getLinkedCourses, unlinkCourseFromClass, syncCourseWithOriginal } from '../services/enrollmentManager';
 import { getCourse } from '../services/courseManager';
 import { detectSyncUpdates, applySyncMaterials, applySyncNewModule } from '../services/courseSyncService';
 import type { ClassSession } from '../types/class.types';
 import type { ClassCourseLink, Course } from '../types/course.types';
+import type { HomeworkTarget } from '../types/homework.types';
 import { ModuleList } from '../components/course/ModuleList';
 import {
   IconChevronDown,
@@ -44,6 +49,7 @@ const TeacherClassDetailPage: React.FC = () => {
   const { classId } = useParams();
   const { navigateTo } = useNavigation('teacher');
   const { user, profile } = useAuth();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.classes);
   const [classData, setClassData] = useState<ClassSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string | null>('students');
@@ -54,6 +60,7 @@ const TeacherClassDetailPage: React.FC = () => {
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [selectedLinkForExtend, setSelectedLinkForExtend] = useState<string | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
+  const [showHomeworkCreateModal, setShowHomeworkCreateModal] = useState(false);
 
   const [accessDenied, setAccessDenied] = useState(false);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
@@ -63,6 +70,20 @@ const TeacherClassDetailPage: React.FC = () => {
   // Edit course details modal (for class instance copies)
   const [courseToEditDetails, setCourseToEditDetails] = useState<Course | null>(null);
   const [isEditDetailsModalOpen, setIsEditDetailsModalOpen] = useState(false);
+  const homeworkTargetClassId = activeTab === 'homework' ? classId : undefined;
+  const {
+    filteredHomework: classHomework,
+    loading: homeworkLoading,
+    error: homeworkError,
+    refetch: refetchHomework,
+    statusCounts: homeworkStatusCounts,
+  } = useHomeworkList({
+    classId: homeworkTargetClassId,
+    autoRefresh: activeTab === 'homework',
+    excludeArchived: true,
+    excludeClosed: false,
+    pageSize: 12,
+  });
 
   const handleEditCourseDetails = (course: Course) => {
     setCourseToEditDetails(course);
@@ -75,12 +96,16 @@ const TeacherClassDetailPage: React.FC = () => {
     const confirmed = window.confirm(
       `Remove ${studentName || 'this student'} from this class? This will also remove class-linked course access.`
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackAction('removeStudent', { classId, studentId, outcome: 'cancelled' });
+      return;
+    }
 
     setRemovingStudentId(studentId);
     try {
       const result = await removeStudentFromClass(classId, studentId);
       if (!result.success) {
+        trackAction('removeStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Remove Failed',
           message: result.error || 'Could not remove student from class',
@@ -89,6 +114,7 @@ const TeacherClassDetailPage: React.FC = () => {
         return;
       }
 
+      trackAction('removeStudent', { classId, studentId, outcome: 'success' });
       notifications.show({
         title: 'Student Removed',
         message: `${studentName || 'Student'} was removed from the class.`,
@@ -96,6 +122,7 @@ const TeacherClassDetailPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error removing student:', error);
+      trackAction('removeStudent', { classId, studentId, outcome: 'error' });
       notifications.show({
         title: 'Error',
         message: 'An unexpected error occurred while removing the student.',
@@ -112,6 +139,7 @@ const TeacherClassDetailPage: React.FC = () => {
     try {
       const result = await approveClassStudent(classId, studentId, user.uid);
       if (result.success) {
+        trackAction('approveStudent', { classId, studentId, outcome: 'success' });
         notifications.show({
           title: 'Student Approved',
           message: `${studentName} is now an active member of this class.`,
@@ -119,6 +147,7 @@ const TeacherClassDetailPage: React.FC = () => {
         });
         loadClassData();
       } else {
+        trackAction('approveStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Approval Failed',
           message: result.error || 'Could not approve student',
@@ -127,6 +156,7 @@ const TeacherClassDetailPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error approving student:', error);
+      trackAction('approveStudent', { classId, studentId, outcome: 'error' });
       notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
     } finally {
       setApprovingStudentId(null);
@@ -138,12 +168,16 @@ const TeacherClassDetailPage: React.FC = () => {
     const confirmed = window.confirm(
       `Reject ${studentName || 'this student'}? They will be removed from the class.`
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackAction('rejectStudent', { classId, studentId, outcome: 'cancelled' });
+      return;
+    }
 
     setRejectingStudentId(studentId);
     try {
       const result = await rejectClassStudent(classId, studentId);
       if (result.success) {
+        trackAction('rejectStudent', { classId, studentId, outcome: 'success' });
         notifications.show({
           title: 'Student Rejected',
           message: `${studentName} has been removed from the class.`,
@@ -151,6 +185,7 @@ const TeacherClassDetailPage: React.FC = () => {
         });
         loadClassData();
       } else {
+        trackAction('rejectStudent', { classId, studentId, outcome: 'failure' });
         notifications.show({
           title: 'Rejection Failed',
           message: result.error || 'Could not reject student',
@@ -159,6 +194,7 @@ const TeacherClassDetailPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error rejecting student:', error);
+      trackAction('rejectStudent', { classId, studentId, outcome: 'error' });
       notifications.show({ title: 'Error', message: 'An unexpected error occurred.', color: 'red' });
     } finally {
       setRejectingStudentId(null);
@@ -307,6 +343,38 @@ const TeacherClassDetailPage: React.FC = () => {
     navigateTo('TEACHER_CLASSES', {}, { reason: 'back_to_classes' });
   };
 
+  const handleTabChange = (nextTab: string | null) => {
+    setActiveTab(nextTab);
+
+    if (nextTab === 'homework' && classId) {
+      trackAction('viewHomeworkTab', { classId });
+    }
+  };
+
+  const handleOpenHomeworkCreateModal = () => {
+    if (classId) {
+      trackAction('openHomeworkCreateModal', { classId });
+    }
+
+    setShowHomeworkCreateModal(true);
+  };
+
+  const handleOpenHomeworkDashboard = () => {
+    if (classId) {
+      trackAction('openHomeworkDashboard', { classId });
+    }
+
+    navigateTo('TEACHER_HOMEWORK', {}, { reason: 'view_all_homework_from_class' });
+  };
+
+  const handleOpenHomeworkDetail = (homeworkId: string) => {
+    if (classId) {
+      trackAction('openHomeworkDetail', { classId, homeworkId });
+    }
+
+    navigateTo('TEACHER_HOMEWORK_DETAIL', { homeworkId }, { reason: 'teacher_open_class_homework_detail' });
+  };
+
   const handleLogout = async () => {
     navigateTo('LOGIN', {}, { reason: 'logout', replace: true });
   };
@@ -355,6 +423,11 @@ const TeacherClassDetailPage: React.FC = () => {
 
   const students = Object.values(classData.students || {});
   const assignments = Object.values(classData.assignments || {});
+  const homeworkTarget: HomeworkTarget = {
+    type: 'class',
+    classId: classId || classData.id,
+    className: classData.name,
+  };
 
   return (
     <>
@@ -439,7 +512,7 @@ const TeacherClassDetailPage: React.FC = () => {
             }}
           >
             <CardBody>
-              <Tabs value={activeTab} onChange={setActiveTab} variant="pills" color="grape" radius="md">
+              <Tabs value={activeTab} onChange={handleTabChange} variant="pills" color="grape" radius="md">
                 <Tabs.List style={{ marginBottom: '2rem', gap: '0.5rem' }}>
                   <Tabs.Tab value="students" style={{ fontWeight: 700 }} leftSection={<IconUsers size={16} />}>Students</Tabs.Tab>
                   <Tabs.Tab value="courses" style={{ fontWeight: 700 }} leftSection={<IconBook size={16} />}>Courses</Tabs.Tab>
@@ -784,13 +857,51 @@ const TeacherClassDetailPage: React.FC = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => navigateTo('TEACHER_HOMEWORK', {}, { reason: 'create_homework_from_class' })}
+                      onClick={handleOpenHomeworkCreateModal}
                     >
                       <IconPlus size={18} style={{ marginRight: '0.4rem' }} />
                       Assign Homework
                     </Button>
                   </div>
 
+                  <p style={{ margin: '0 0 1.5rem', color: '#64748b', fontSize: '0.9rem' }}>
+                    {classHomework.length} assignment{classHomework.length === 1 ? '' : 's'} for this class.
+                    {' '}
+                    {(homeworkStatusCounts.active ?? 0) + (homeworkStatusCounts.scheduled ?? 0)} open,
+                    {' '}
+                    {homeworkStatusCounts.past_due ?? 0} past due,
+                    {' '}
+                    {homeworkStatusCounts.closed ?? 0} closed.
+                  </p>
+
+                  {homeworkLoading ? (
+                    <div style={{ textAlign: 'center', padding: '3rem' }}>
+                      <Loader size="md" color="violet" />
+                      <p style={{ marginTop: '1rem', color: '#64748b', fontWeight: 600 }}>Loading class homework...</p>
+                    </div>
+                  ) : homeworkError ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 2rem', color: '#94a3b8', background: 'rgba(255,255,255,0.3)', borderRadius: '1rem', border: '1px dashed #e2e8f0' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>!</div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem' }}>Could not load class homework</h3>
+                      <p style={{ maxWidth: '450px', margin: '0 auto 1.5rem', fontSize: '0.9rem' }}>
+                        {homeworkError}
+                      </p>
+                      <Button variant="glass" onClick={() => void refetchHomework()}>
+                        Retry
+                      </Button>
+                    </div>
+                  ) : classHomework.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+                      {classHomework.map((homework) => (
+                        <HomeworkCard
+                          key={homework.id}
+                          homework={homework}
+                          onClick={() => handleOpenHomeworkDetail(homework.id)}
+                          onResetComplete={() => void refetchHomework()}
+                        />
+                      ))}
+                    </div>
+                  ) : (
                   <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8', background: 'rgba(255,255,255,0.3)', borderRadius: '1rem', border: '1px dashed #e2e8f0' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem' }}>Homework Management</h3>
@@ -799,11 +910,12 @@ const TeacherClassDetailPage: React.FC = () => {
                     </p>
                     <Button
                       variant="glass"
-                      onClick={() => navigateTo('TEACHER_HOMEWORK', {}, { reason: 'view_all_homework' })}
+                      onClick={handleOpenHomeworkDashboard}
                     >
                       View All Homework →
                     </Button>
                   </div>
+                  )}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="activity">
@@ -864,6 +976,16 @@ const TeacherClassDetailPage: React.FC = () => {
         onClose={() => setIsEditDetailsModalOpen(false)}
         onSuccess={() => { setIsEditDetailsModalOpen(false); loadLinkedCourses(); }}
         courseToEdit={courseToEditDetails}
+      />
+
+      <HomeworkCreateModal
+        isOpen={showHomeworkCreateModal}
+        onClose={() => setShowHomeworkCreateModal(false)}
+        onSuccess={() => {
+          setShowHomeworkCreateModal(false);
+          void refetchHomework();
+        }}
+        preselectedTarget={homeworkTarget}
       />
 
       <style>{`

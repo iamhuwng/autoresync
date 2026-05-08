@@ -1,0 +1,71 @@
+{
+  "docPath": "architecture/reading-passage-highlighting-architecture",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/reading-passage-highlighting-architecture",
+      "version": 1,
+      "timestamp": "2026-04-02T04:50:17.7584522Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Reading Passage Highlighting Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Renderer ownership, highlight offset contract, and solo preference defaults for reading passage highlighting."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "reading",
+            "highlighting",
+            "solo",
+            "homework"
+          ]
+        }
+      ],
+      "snapshot": {
+        "description": "Renderer ownership, highlight offset contract, and solo preference defaults for reading passage highlighting.",
+        "tags": [
+          "architecture",
+          "reading",
+          "highlighting",
+          "solo",
+          "homework"
+        ],
+        "title": "Reading Passage Highlighting Architecture"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/reading-passage-highlighting-architecture",
+      "version": 2,
+      "timestamp": "2026-04-02T04:50:32.9178408Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "# Reading Passage Highlighting Architecture\n\n## Overview\n\nReading passage highlighting is rendered from one canonical implementation:\n- `src/skills/reading/components/PassageRenderer.tsx`\n\nLegacy callers may still import:\n- `src/components/PassageRenderer_v2.jsx`\n\nThat legacy file is now a compatibility wrapper and must continue delegating to the skill-owned renderer so Reading, solo practice, and homework flows all share the same highlight behavior.\n\n## Source Of Truth\n\nHighlights are stored against the original passage text, not against rendered paragraph fragments.\n\nRequired invariants:\n- each highlight stores passage-level start and end offsets\n- rendered paragraph boundaries are presentation-only and must not change the stored offsets\n- a single logical highlight may render as multiple `\u003cmark\u003e` segments when it crosses paragraph boundaries\n\n## Selection Mapping Contract\n\nThe renderer may split passage content into multiple paragraphs and text spans for display, but selection capture must map DOM selections back to source passage offsets before saving a highlight.\n\nRequired rules:\n- each rendered text span must carry enough metadata to recover its source-text range\n- selection start and end offsets must be computed relative to the full passage text\n- selections that begin in one paragraph and end in the next paragraph are valid\n- highlight rendering must use the saved source offsets to recreate the correct marked ranges on every render\n\nThis contract prevents the interparagraph highlight bug where a cross-paragraph selection could not be reconstructed correctly from paragraph-local offsets.\n\n## Preference Contract\n\nSolo Reading preferences are stored under:\n- `solo_student_prefs_{studentId}`\n\nRequired default:\n- `highlighterEnabled: false`\n\nImplications:\n- the highlighter tool is off by default for new preference records\n- the student must explicitly enable the tool before text selection creates highlights\n- existing persisted preferences may still retain older values until the student changes them\n\n## Regression Coverage\n\nThe current contract is covered by focused tests:\n- `src/skills/reading/components/PassageRenderer.test.tsx` verifies a highlight can span adjacent paragraphs\n- `src/types/practice.types.test.ts` verifies new solo preferences default the highlighter to off\n"
+        }
+      ],
+      "snapshot": {
+        "content": "# Reading Passage Highlighting Architecture\n\n## Overview\n\nReading passage highlighting is rendered from one canonical implementation:\n- `src/skills/reading/components/PassageRenderer.tsx`\n\nLegacy callers may still import:\n- `src/components/PassageRenderer_v2.jsx`\n\nThat legacy file is now a compatibility wrapper and must continue delegating to the skill-owned renderer so Reading, solo practice, and homework flows all share the same highlight behavior.\n\n## Source Of Truth\n\nHighlights are stored against the original passage text, not against rendered paragraph fragments.\n\nRequired invariants:\n- each highlight stores passage-level start and end offsets\n- rendered paragraph boundaries are presentation-only and must not change the stored offsets\n- a single logical highlight may render as multiple `\u003cmark\u003e` segments when it crosses paragraph boundaries\n\n## Selection Mapping Contract\n\nThe renderer may split passage content into multiple paragraphs and text spans for display, but selection capture must map DOM selections back to source passage offsets before saving a highlight.\n\nRequired rules:\n- each rendered text span must carry enough metadata to recover its source-text range\n- selection start and end offsets must be computed relative to the full passage text\n- selections that begin in one paragraph and end in the next paragraph are valid\n- highlight rendering must use the saved source offsets to recreate the correct marked ranges on every render\n\nThis contract prevents the interparagraph highlight bug where a cross-paragraph selection could not be reconstructed correctly from paragraph-local offsets.\n\n## Preference Contract\n\nSolo Reading preferences are stored under:\n- `solo_student_prefs_{studentId}`\n\nRequired default:\n- `highlighterEnabled: false`\n\nImplications:\n- the highlighter tool is off by default for new preference records\n- the student must explicitly enable the tool before text selection creates highlights\n- existing persisted preferences may still retain older values until the student changes them\n\n## Regression Coverage\n\nThe current contract is covered by focused tests:\n- `src/skills/reading/components/PassageRenderer.test.tsx` verifies a highlight can span adjacent paragraphs\n- `src/types/practice.types.test.ts` verifies new solo preferences default the highlighter to off\n",
+        "description": "Renderer ownership, highlight offset contract, and solo preference defaults for reading passage highlighting.",
+        "tags": [
+          "architecture",
+          "reading",
+          "highlighting",
+          "solo",
+          "homework"
+        ],
+        "title": "Reading Passage Highlighting Architecture"
+      }
+    }
+  ]
+}

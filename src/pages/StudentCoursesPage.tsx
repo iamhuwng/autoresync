@@ -8,8 +8,9 @@ import { getRequestsByStudent, cancelCourseRequest } from '../services/courseReq
 import { toast } from '../components/modern/ToastNotification';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { CourseEnrollment, Course, CourseVisibility, CourseRequest } from '../types/course.types';
 
 interface PopulatedEnrollment extends CourseEnrollment {
@@ -206,6 +207,7 @@ const StudentCoursesPage: React.FC = () => {
     const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
     const { enrolledClasses } = useResolvedStudentShellData();
     const initialCacheEntry = getStudentCoursesCache(user?.uid);
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
     const [enrollments, setEnrollments] = useState<PopulatedEnrollment[]>(() => initialCacheEntry?.enrollments ?? []);
     const [requests, setRequests] = useState<CourseRequest[]>(() => initialCacheEntry?.requests ?? []);
@@ -347,7 +349,7 @@ const StudentCoursesPage: React.FC = () => {
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Unable to load courses</h2>
                     <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>{error}</p>
-                    <button style={{ ...localStyles.primaryBtn, width: 'auto' }} onClick={() => void loadEnrollments()}>Try Again</button>
+                    <button style={{ ...localStyles.primaryBtn, width: isMobile ? '100%' : 'auto', ...(isMobile ? mobileStyles.touchTarget : {}) }} onClick={() => void loadEnrollments()}>Try Again</button>
                 </div>
             );
         }
@@ -364,25 +366,34 @@ const StudentCoursesPage: React.FC = () => {
             }
 
             return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: 16, animation: 'dashFadeIn 0.3s ease-out' }}>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+                        ...(isMobile ? mobileStyles.singleColumnGrid : {}),
+                        gap: isMobile ? 12 : 16,
+                        padding: isMobile ? 0 : 16,
+                        animation: 'dashFadeIn 0.3s ease-out',
+                    }}
+                >
                     {requests.map(req => (
                         <div key={req.id} style={localStyles.card}>
-                            <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: 8, marginBottom: 12 }}>
                                     <span style={{ padding: '4px 10px', borderRadius: studentTokens.radiusSoft, fontSize: '0.75rem', fontWeight: 700, background: studentTokens.accentSoft, color: studentTokens.accentHover }}>
                                         {req.type === 'join' ? 'Enrollment' : 'Unenrollment'}
                                     </span>
-                                    <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted }}>
+                                    <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted, minWidth: 0 }}>
                                         Requested {new Date(req.requestedAt).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>{req.courseName}</h3>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.courseName}</h3>
                                 <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: '0 0 4px' }}>Status: <strong>{req.status}</strong></p>
                                 <p style={{ fontSize: '0.75rem', color: studentTokens.textDim, margin: 0 }}>Expires: {new Date(req.expiresAt).toLocaleDateString()}</p>
                             </div>
                             <div style={{ marginTop: 'auto' }}>
                                 <button
-                                    style={localStyles.ghostBtnRed}
+                                    style={{ ...localStyles.ghostBtnRed, ...(isMobile ? mobileStyles.touchTarget : {}) }}
                                     onClick={() => handleCancelRequest(req.id)}
                                 >
                                     Cancel Request
@@ -400,33 +411,42 @@ const StudentCoursesPage: React.FC = () => {
                     <div style={{ fontSize: '3rem', marginBottom: 16 }}>📚</div>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>No courses found</h2>
                     <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>You haven't been enrolled in any {activeTab} courses yet.</p>
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                        <button style={{ ...localStyles.primaryBtn, width: 'auto' }} onClick={() => navigateTo('STUDENT_COURSE_CATALOG')}>Browse Course Catalog</button>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', width: isMobile ? '100%' : undefined }}>
+                        <button style={{ ...localStyles.primaryBtn, width: isMobile ? '100%' : 'auto', ...(isMobile ? mobileStyles.touchTarget : {}) }} onClick={() => navigateTo('STUDENT_COURSE_CATALOG')}>Browse Course Catalog</button>
                     </div>
                 </div>
             );
         }
 
         return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: 16, animation: 'dashFadeIn 0.3s ease-out' }}>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+                    ...(isMobile ? mobileStyles.singleColumnGrid : {}),
+                    gap: isMobile ? 12 : 16,
+                    padding: isMobile ? 0 : 16,
+                    animation: 'dashFadeIn 0.3s ease-out',
+                }}
+            >
                 {filteredEnrollments.map((enrollment) => (
                     <div key={enrollment.id} style={localStyles.card} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: 8 }}>
                             <StatusBadge tone={getStatusTone(enrollment.status)}>
                                 {enrollment.status.toUpperCase()}
                             </StatusBadge>
                             {enrollment.expiresAt > 0 && (
-                                <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted }}>
+                                <span style={{ fontSize: '0.75rem', color: studentTokens.textMuted, minWidth: 0 }}>
                                     Expires: {new Date(enrollment.expiresAt).toLocaleDateString()}
                                 </span>
                             )}
                         </div>
 
-                        <div>
-                            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 4px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {enrollment.course?.originalName || enrollment.course?.name || 'Untitled Course'}
                             </h3>
-                            <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: 0 }}>by {enrollment.teacherName}</p>
+                            <p style={{ fontSize: '0.875rem', color: studentTokens.textMuted, margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>by {enrollment.teacherName}</p>
                         </div>
 
                         <div>
@@ -443,9 +463,9 @@ const StudentCoursesPage: React.FC = () => {
                             </StatusBadge>
                         </div>
 
-                        <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: 8, ...(isMobile ? mobileStyles.stackVertical : {}) }}>
                             <button
-                                style={enrollment.status === 'expired' ? localStyles.disabledBtn : localStyles.primaryBtn}
+                                style={{ ...(enrollment.status === 'expired' ? localStyles.disabledBtn : localStyles.primaryBtn), ...(isMobile ? mobileStyles.touchTarget : {}) }}
                                 disabled={enrollment.status === 'expired'}
                                 onClick={() => navigateTo('STUDENT_COURSE_DETAIL', { courseId: enrollment.courseId })}
                             >
@@ -454,7 +474,7 @@ const StudentCoursesPage: React.FC = () => {
 
                             {enrollment.status !== 'expired' && enrollment.visibility !== 'private' && (
                                 <button
-                                    style={enrollment.visibility === 'public' ? localStyles.ghostBtnRed : localStyles.ghostBtnGray}
+                                    style={{ ...(enrollment.visibility === 'public' ? localStyles.ghostBtnRed : localStyles.ghostBtnGray), ...(isMobile ? mobileStyles.touchTarget : {}) }}
                                     onClick={() => {
                                         if (enrollment.visibility === 'public') {
                                             setUnenrollConfirm({
@@ -490,33 +510,36 @@ const StudentCoursesPage: React.FC = () => {
             `}</style>
             <div style={S.feedHeader}>
                 <div style={S.feedHeaderText}>
-                    <h2 style={S.feedHeaderTitle}>My Courses</h2>
-                    <p style={S.feedHeaderSubtitle}>Manage active study paths, review pending approvals, and continue learning without switching shells.</p>
+                    <h2 style={{ ...S.feedHeaderTitle, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>My Courses</h2>
+                    <p style={{ ...S.feedHeaderSubtitle, ...(isMobile ? mobileStyles.feedSubtitleHidden : {}) }}>Manage active study paths, review pending approvals, and continue learning without switching shells.</p>
                 </div>
             </div>
 
-            <div style={S.filterBar}>
+            <div
+                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                style={{ ...S.filterBar, ...(isMobile ? { gap: 16 } : {}) }}
+            >
                 <button
                     onClick={() => setActiveTab('active')}
-                    style={{ ...S.filterTab, ...(activeTab === 'active' ? S.filterTabActive : {}) }}
+                    style={{ ...S.filterTab, ...(isMobile ? mobileStyles.touchTarget : {}), ...(activeTab === 'active' ? S.filterTabActive : {}) }}
                 >
                     Active
                 </button>
                 <button
                     onClick={() => setActiveTab('expired')}
-                    style={{ ...S.filterTab, ...(activeTab === 'expired' ? S.filterTabActive : {}) }}
+                    style={{ ...S.filterTab, ...(isMobile ? mobileStyles.touchTarget : {}), ...(activeTab === 'expired' ? S.filterTabActive : {}) }}
                 >
                     Expired
                 </button>
                 <button
                     onClick={() => setActiveTab('pending')}
-                    style={{ ...S.filterTab, ...(activeTab === 'pending' ? S.filterTabActive : {}) }}
+                    style={{ ...S.filterTab, ...(isMobile ? mobileStyles.touchTarget : {}), ...(activeTab === 'pending' ? S.filterTabActive : {}) }}
                 >
                     Pending ({requests.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('all')}
-                    style={{ ...S.filterTab, ...(activeTab === 'all' ? S.filterTabActive : {}) }}
+                    style={{ ...S.filterTab, ...(isMobile ? mobileStyles.touchTarget : {}), ...(activeTab === 'all' ? S.filterTabActive : {}) }}
                 >
                     All Courses
                 </button>
@@ -527,15 +550,35 @@ const StudentCoursesPage: React.FC = () => {
             {unenrollConfirm && (
                 <>
                     <div style={localStyles.modalOverlay} onClick={() => !processing && setUnenrollConfirm(null)} />
-                    <div style={localStyles.modalContent}>
+                    <div
+                        style={{
+                            ...localStyles.modalContent,
+                            ...(isMobile
+                                ? {
+                                    position: 'fixed',
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    top: 'auto',
+                                    width: '100%',
+                                    maxWidth: '100%',
+                                    maxHeight: '60vh',
+                                    borderRadius: '20px 20px 0 0',
+                                    overflowY: 'auto',
+                                    WebkitOverflowScrolling: 'touch',
+                                    transform: 'none',
+                                }
+                                : {}),
+                        }}
+                    >
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px', color: studentTokens.textPrimary }}>Confirm Unenrollment</h2>
                         <p style={{ fontSize: '0.938rem', color: '#374151', margin: '0 0 24px', lineHeight: 1.5 }}>
                             Are you sure you want to unenroll from <strong>{unenrollConfirm.name}</strong>?
                             This will remove your access to all materials and modules in this course.
                         </p>
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                            <button style={{ ...localStyles.outlineBtn, width: 'auto' }} onClick={() => setUnenrollConfirm(null)} disabled={processing}>Cancel</button>
-                            <button style={{ ...localStyles.primaryBtn, width: 'auto', background: '#ef4444' }} onClick={handleUnenroll} disabled={processing}>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', ...(isMobile ? mobileStyles.stackVertical : {}) }}>
+                            <button style={{ ...localStyles.outlineBtn, width: isMobile ? '100%' : 'auto', ...(isMobile ? mobileStyles.touchTarget : {}) }} onClick={() => setUnenrollConfirm(null)} disabled={processing}>Cancel</button>
+                            <button style={{ ...localStyles.primaryBtn, width: isMobile ? '100%' : 'auto', background: '#ef4444', ...(isMobile ? mobileStyles.touchTarget : {}) }} onClick={handleUnenroll} disabled={processing}>
                                 {processing ? 'Processing...' : 'Confirm Unenroll'}
                             </button>
                         </div>

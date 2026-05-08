@@ -131,6 +131,8 @@ export interface TestResultRecord {
   overallFeedback?: string;
   feedbackUpdatedAt?: number;
   feedbackUpdatedBy?: string;
+  feedbackUpdatedByTeacherId?: string;
+  feedbackUpdatedByTeacherName?: string;
   hasFeedback?: boolean;
 
   // PRD-0016: Result context (class_session, homework, self_study, course_material)

@@ -84,12 +84,6 @@ const ROMAN_SEQUENCE = [
 const LETTER_A_CODE = 'A'.charCodeAt(0);
 const LEADING_LABEL_PATTERN =
   /^\s*(?:\*\*|__)?\s*\(?\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)?\s*(?:\*\*|__)?(?:\s*[\.\):\-]\s*(.*)|\s+(.+))?\s*$/i;
-const EXPLICIT_STRUCTURED_LABEL_PATTERN =
-  /^\s*(?:\*\*|__)?\s*\(?\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)?\s*(?:\*\*|__)?\s*[\.\):\-]\s*(.+)\s*$/i;
-const EMPHASIZED_STRUCTURED_LABEL_PATTERN =
-  /^\s*(?:\*\*|__)\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*(?:\*\*|__)\s+(.+)\s*$/i;
-const PARENTHESIZED_STRUCTURED_LABEL_PATTERN =
-  /^\s*\(\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)\s+(.+)\s*$/i;
 
 interface ParsedLeadingLabel {
   label: string;
@@ -177,39 +171,10 @@ const extractLeadingLabel = (value: string): ParsedLeadingLabel | null => {
   };
 };
 
-const extractStructuredLeadingLabel = (value: string): ParsedLeadingLabel | null => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const match =
-    trimmed.match(EXPLICIT_STRUCTURED_LABEL_PATTERN) ||
-    trimmed.match(EMPHASIZED_STRUCTURED_LABEL_PATTERN) ||
-    trimmed.match(PARENTHESIZED_STRUCTURED_LABEL_PATTERN);
-
-  if (!match?.[1]) {
-    return null;
-  }
-
-  const label = normalizeLabelToken(match[1]);
-  const text = (match[2] || '').trim();
-
-  if (!label) {
-    return null;
-  }
-
-  return {
-    label,
-    text,
-    format: classifyOptionLabel(label),
-  };
-};
-
 const normalizeStructuredOption = (option: ReadingLabeledOption): NormalizedOption => {
   const label = normalizeLabelToken(option.label || '');
   const text = (option.text || '').trim();
-  const embedded = text ? extractStructuredLeadingLabel(text) : null;
+  const embedded = text ? extractLeadingLabel(text) : null;
 
   if (!label) {
     return embedded
@@ -276,7 +241,7 @@ const toNormalizedSectionReference = (
     const label = normalizeLabelToken(section.label || '');
     const title = (section.title || '').trim();
     const paragraph = section.paragraph?.trim();
-    const embedded = title ? extractStructuredLeadingLabel(title) : null;
+    const embedded = title ? extractLeadingLabel(title) : null;
 
     if (!label && embedded) {
       return {

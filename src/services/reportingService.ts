@@ -450,7 +450,7 @@ export class ReportingService {
       if (this.currentMode !== 'full') return;
       if (!this.categories.events) return;
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && feature !== 'unregistered') {
         validateFeatureId(feature);
       }
 
@@ -478,7 +478,7 @@ export class ReportingService {
       if (this.currentMode !== 'full') return;
       if (!this.categories.events) return;
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && feature !== 'unregistered') {
         validateFeatureId(feature);
       }
 

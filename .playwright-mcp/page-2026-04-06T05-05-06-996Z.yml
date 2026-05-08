@@ -1,0 +1,28 @@
+- generic [ref=e5]:
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - heading "Welcome" [level=1] [ref=e11]
+      - paragraph [ref=e12]: Sign in to access your account
+    - alert [ref=e43]:
+      - generic [ref=e44]:
+        - generic [ref=e45]:
+          - generic [ref=e46]: Error
+          - generic [ref=e47]: "Firebase: Error (auth/requests-from-referer-http://127.0.0.1:4175-are-blocked.)."
+        - button "Dismiss login error" [ref=e48] [cursor=pointer]: x
+    - generic [ref=e13]:
+      - button "Sign in with Google" [ref=e14] [cursor=pointer]:
+        - generic [ref=e15]:
+          - img [ref=e16]
+          - text: Sign in with Google
+      - paragraph [ref=e18]: New users will be registered as students by default
+      - generic [ref=e26]:
+        - generic [ref=e29]: Dev Quick Login
+        - generic [ref=e31]:
+          - button "Teacher" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - text: Teacher
+          - button "Student" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - text: Student
+  - button "Hide dev quick login" [pressed] [ref=e42] [cursor=pointer]:
+    - img [ref=e20]
