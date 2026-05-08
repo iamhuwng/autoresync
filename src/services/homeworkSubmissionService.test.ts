@@ -144,6 +144,7 @@ import {
     createSubmission,
     HomeworkSubmissionError,
     resetStudentHomework,
+    submitImportedHomeworkSubmission,
     submitHomework,
 } from './homeworkSubmissionService';
 
@@ -307,6 +308,108 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 100,
             },
         });
+    });
+
+    it('creates a submitted homework row for an external Writing import', async () => {
+        mockGetEffectiveHomeworkDueDate.mockReturnValue(Date.now() + 60_000);
+
+        const submission = await submitImportedHomeworkSubmission({
+            submissionId: 'imported-submission',
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            studentName: 'Student One',
+            resultId: 'imported-submission',
+            submittedAt: Date.now() - 5_000,
+            timeSpent: 95.4,
+            importedByTeacherId: 'teacher-1',
+            importedAt: 12345,
+            sourceNote: 'Paper script',
+        });
+
+        expect(submission).toMatchObject({
+            id: 'imported-submission',
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            studentName: 'Student One',
+            teacherId: 'teacher-1',
+            attemptNumber: 1,
+            resultId: 'imported-submission',
+            status: 'submitted',
+            timeSpent: 95,
+            isLate: false,
+            administrativeImport: {
+                source: 'external-admin-import',
+                importedByTeacherId: 'teacher-1',
+                importedAt: 12345,
+                sourceNote: 'Paper script',
+            },
+        });
+        expect(firestoreHarness.store.get('homework_submissions/imported-submission')).toMatchObject({
+            id: 'imported-submission',
+            status: 'submitted',
+            resultId: 'imported-submission',
+        });
+        expect(mockUpdateHomework).toHaveBeenCalledTimes(2);
+    });
+
+    it('reuses an in-progress homework attempt for an external import', async () => {
+        mockGetEffectiveHomeworkDueDate.mockReturnValue(Date.now() + 60_000);
+        seedSubmission(buildSubmission({
+            id: 'existing-attempt',
+            status: 'in_progress',
+            attemptNumber: 2,
+            startedAt: Date.now() - 20_000,
+        }));
+
+        const submission = await submitImportedHomeworkSubmission({
+            submissionId: 'new-generated-id',
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            studentName: 'Student One',
+            resultId: 'existing-attempt',
+            submittedAt: Date.now() - 5_000,
+            timeSpent: 15,
+            importedByTeacherId: 'teacher-1',
+            confirmInProgressOverwrite: true,
+        });
+
+        expect(submission).toMatchObject({
+            id: 'existing-attempt',
+            attemptNumber: 2,
+            status: 'submitted',
+            resultId: 'existing-attempt',
+        });
+        expect(firestoreHarness.store.get('homework_submissions/existing-attempt')).toMatchObject({
+            id: 'existing-attempt',
+            status: 'submitted',
+            resultId: 'existing-attempt',
+        });
+        expect(firestoreHarness.store.get('homework_submissions/new-generated-id')).toBeUndefined();
+        expect(mockUpdateHomework).toHaveBeenCalledTimes(1);
+    });
+
+    it('requires confirmation before replacing an in-progress attempt with an external import', async () => {
+        seedSubmission(buildSubmission({
+            id: 'existing-attempt',
+            status: 'in_progress',
+            attemptNumber: 2,
+        }));
+
+        await expect(submitImportedHomeworkSubmission({
+            submissionId: 'new-generated-id',
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            resultId: 'new-generated-id',
+            submittedAt: Date.now() - 5_000,
+            importedByTeacherId: 'teacher-1',
+        })).rejects.toMatchObject({
+            code: 'IN_PROGRESS_REQUIRES_CONFIRMATION',
+        });
+
+        expect(firestoreHarness.store.get('homework_submissions/existing-attempt')).toMatchObject({
+            status: 'in_progress',
+        });
+        expect(firestoreHarness.store.get('homework_submissions/new-generated-id')).toBeUndefined();
     });
 
     it('resets homework attempts, linked results, and stats for a student', async () => {

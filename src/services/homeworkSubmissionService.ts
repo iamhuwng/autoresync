@@ -46,11 +46,26 @@ const SUBMISSION_COLLECTION = 'homework_submissions';
 export class HomeworkSubmissionError extends Error {
     constructor(
         message: string,
-        public code: 'MAX_ATTEMPTS_REACHED' | 'HOMEWORK_NOT_FOUND' | 'HOMEWORK_CLOSED' | 'NOT_AVAILABLE_YET' | 'SUBMISSION_NOT_FOUND' | 'ALREADY_SUBMITTED' | 'UNKNOWN'
+        public code: 'MAX_ATTEMPTS_REACHED' | 'HOMEWORK_NOT_FOUND' | 'HOMEWORK_CLOSED' | 'NOT_AVAILABLE_YET' | 'SUBMISSION_NOT_FOUND' | 'ALREADY_SUBMITTED' | 'IN_PROGRESS_REQUIRES_CONFIRMATION' | 'UNKNOWN'
     ) {
         super(message);
         this.name = 'HomeworkSubmissionError';
     }
+}
+
+export interface ImportedHomeworkSubmissionInput {
+    submissionId: string;
+    homeworkId: string;
+    studentId: string;
+    studentName?: string;
+    resultId: string;
+    submittedAt: number;
+    timeSpent?: number;
+    isLate?: boolean;
+    importedByTeacherId: string;
+    importedAt?: number;
+    sourceNote?: string;
+    confirmInProgressOverwrite?: boolean;
 }
 
 export function isStudentExempted(
@@ -255,6 +270,91 @@ export async function submitHomework(
 
     // Update homework stats
     await updateHomeworkStats(submission.homeworkId, 'submitted', isLate);
+}
+
+/**
+ * Create or submit a homework submission row for teacher-entered off-app work.
+ *
+ * This keeps homework statistics on the same private update path as the normal
+ * student flow, while allowing a teacher-owned historical submittedAt value.
+ */
+export async function submitImportedHomeworkSubmission(
+    input: ImportedHomeworkSubmissionInput
+): Promise<HomeworkSubmission> {
+    const homework = await getHomeworkById(input.homeworkId);
+    if (!homework) {
+        throw new HomeworkSubmissionError('Homework not found', 'HOMEWORK_NOT_FOUND');
+    }
+
+    const previousAttempts = await getStudentSubmissionsForHomework(input.homeworkId, input.studentId);
+    const latestAttempt = previousAttempts[previousAttempts.length - 1] ?? null;
+
+    if (latestAttempt?.status === 'submitted' || latestAttempt?.status === 'graded') {
+        throw new HomeworkSubmissionError('Homework already submitted', 'ALREADY_SUBMITTED');
+    }
+    if (latestAttempt?.status === 'in_progress' && input.confirmInProgressOverwrite !== true) {
+        throw new HomeworkSubmissionError(
+            'Homework attempt is in progress',
+            'IN_PROGRESS_REQUIRES_CONFIRMATION'
+        );
+    }
+
+    const completedAttempts = previousAttempts.filter(
+        s => s.status === 'submitted' || s.status === 'graded'
+    );
+    const submissionId = latestAttempt?.status === 'in_progress'
+        ? latestAttempt.id
+        : input.submissionId;
+    const timeSpent = Math.max(0, Math.round(input.timeSpent ?? 0));
+    const startedAt = latestAttempt?.startedAt
+        ?? Math.max(0, input.submittedAt - (timeSpent * 1000));
+    const isLate = input.isLate ?? input.submittedAt > getEffectiveHomeworkDueDate(homework, input.studentId);
+    const importedAt = input.importedAt ?? Date.now();
+
+    const administrativeImport: HomeworkSubmission['administrativeImport'] = {
+        source: 'external-admin-import',
+        importedByTeacherId: input.importedByTeacherId,
+        importedAt,
+        ...(input.sourceNote?.trim() ? { sourceNote: input.sourceNote.trim() } : {}),
+    };
+
+    const submission: HomeworkSubmission = {
+        ...(latestAttempt ?? {}),
+        id: submissionId,
+        homeworkId: input.homeworkId,
+        studentId: input.studentId,
+        ...(input.studentName ? { studentName: input.studentName } : {}),
+        teacherId: homework.createdBy,
+        attemptNumber: latestAttempt?.attemptNumber ?? completedAttempts.length + 1,
+        startedAt,
+        submittedAt: input.submittedAt,
+        timeSpent,
+        isLate,
+        resultId: input.resultId,
+        status: 'submitted' as HomeworkSubmissionStatus,
+        administrativeImport,
+    };
+
+    const submissionRef = doc(db, SUBMISSION_COLLECTION, submissionId);
+    if (latestAttempt?.status === 'in_progress') {
+        await updateDoc(submissionRef, {
+            ...(input.studentName ? { studentName: input.studentName } : {}),
+            teacherId: homework.createdBy,
+            submittedAt: input.submittedAt,
+            timeSpent,
+            isLate,
+            resultId: input.resultId,
+            status: 'submitted' as HomeworkSubmissionStatus,
+            administrativeImport,
+        });
+    } else {
+        await setDoc(submissionRef, submission);
+        await updateHomeworkStats(input.homeworkId, 'started');
+    }
+
+    await updateHomeworkStats(input.homeworkId, 'submitted', isLate);
+
+    return submission;
 }
 
 /**

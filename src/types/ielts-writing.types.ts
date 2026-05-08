@@ -170,6 +170,13 @@ export interface WritingSubmission {
         courseName?: string;
         moduleId?: string;
         moduleName?: string;
+        attemptNumber?: number;
+        externalImport?: {
+            source: 'external-admin-import';
+            importedByTeacherId: string;
+            importedAt: number;
+            sourceNote?: string;
+        };
     };
 
     // Test metadata (embedded — self-contained)
