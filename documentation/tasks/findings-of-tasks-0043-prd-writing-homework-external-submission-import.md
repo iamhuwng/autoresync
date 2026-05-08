@@ -43,6 +43,9 @@
 - Post-rebase import attempt for existing dev homework/student hit the expected duplicate guard: `This student already has submitted or graded work for this homework`. This proves the rebased UI/service path reached the live duplicate policy without creating another record.
 - Queue/detail verification passed after closing the modal: existing imported drafts remained visible in the Writing queue, and `/teacher/grading/writing/-Os5FwCs8Kas9owQatvW` loaded the modern Writing grading surface with imported essay text, prompt/sidebar tabs, and zero console errors.
 - No committed e2e spec was ported from the stale donor branch; browser evidence was captured through Playwright MCP for this corrective rebase pass.
+- Release path completed after green CI: PR #2 (`https://github.com/iamhuwng/autoresync/pull/2`) merged to `main` with merge commit `3c67b2e0a18090bb05c69a3a15e253c8eba36a5f`.
+- Post-merge verification: `origin/main` points at `3c67b2e0a18090bb05c69a3a15e253c8eba36a5f` and contains the PRD-0043 feature commits (`f752c78`, `3558bca`, `a01f6ae`).
+- The stale donor checkout `C:\Users\The Lord\Desktop\luyentap-writing-import` remains donor/evidence only; no release staging, commit, or merge was performed from that polluted branch.
 
 ## 2026-05-08 - Baseline Safety
 

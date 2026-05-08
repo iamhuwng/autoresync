@@ -184,8 +184,8 @@
 - [x] 11.3 Stage intended files only.
 - [x] 11.4 Commit with conventional commit message referencing PRD-0043.
 - [x] 11.5 Push `codex/writing-homework-import-rebased`.
-- [ ] 11.6 Merge to `main` through the chosen release path immediately after green verification.
-- [ ] 11.7 After merge, verify main contains the feature and the polluted original checkout remains untouched.
+- [x] 11.6 Merge to `main` through the chosen release path immediately after green verification.
+- [x] 11.7 After merge, verify main contains the feature and the polluted original checkout remains untouched.
 
 ### 12. Corrective Modern Grading Stack Recheck
 
