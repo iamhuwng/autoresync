@@ -225,10 +225,6 @@ async function validateHomeworkForImport(
         return failure('ownership', 'Homework does not belong to this teacher');
     }
 
-    if (homework.materialSkill !== 'writing') {
-        return failure('not-writing', 'Only Writing homework can be imported here');
-    }
-
     return { success: true, data: homework };
 }
 
@@ -286,10 +282,27 @@ export async function listWritingImportHomeworkOptions(
 ): Promise<ServiceResult<WritingImportHomeworkOption[]>> {
     try {
         const homework = await getHomeworkByTeacher(importerTeacherId);
+        const importableHomework = await Promise.all(
+            homework
+                .filter((item) => item.archived !== true)
+                .map(async (item) => {
+                    if (item.materialSkill === 'writing') {
+                        return item;
+                    }
+
+                    try {
+                        const materialResult = await loadWritingMaterial(item.materialId);
+                        return materialResult.success ? item : null;
+                    } catch {
+                        return null;
+                    }
+                })
+        );
+
         return {
             success: true,
-            data: homework
-                .filter((item) => item.materialSkill === 'writing' && item.archived !== true)
+            data: importableHomework
+                .filter((item): item is HomeworkAssignment => Boolean(item))
                 .map((item) => ({
                     homeworkId: item.id,
                     title: item.title || item.materialTitle,

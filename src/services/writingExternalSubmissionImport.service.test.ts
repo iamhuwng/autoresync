@@ -188,7 +188,7 @@ function buildPreviousSubmission(overrides: Partial<HomeworkSubmission> = {}): H
     };
 }
 
-function mockMaterial(material = buildMaterial()) {
+function mockMaterial(material: unknown = buildMaterial()) {
     mockGetRtdb.mockResolvedValue({
         exists: () => true,
         val: () => material,
@@ -239,12 +239,39 @@ describe('writingExternalSubmissionImport.service', () => {
         mockMaterial();
     });
 
-    it('lists only teacher-owned Writing homework options', async () => {
+    it('lists teacher-owned Writing homework options using material as fallback truth', async () => {
         mockGetHomeworkByTeacher.mockResolvedValue([
             buildHomework({ id: 'writing-homework', title: 'Writing task' }),
-            buildHomework({ id: 'reading-homework', materialSkill: 'reading' }),
+            buildHomework({
+                id: 'legacy-writing-homework',
+                title: 'Legacy Writing task',
+                materialId: 'legacy-writing-test',
+                materialSkill: 'reading',
+            }),
+            buildHomework({
+                id: 'reading-homework',
+                materialId: 'reading-test',
+                materialSkill: 'reading',
+            }),
             buildHomework({ id: 'archived-writing', archived: true }),
         ]);
+        mockGetRtdb.mockImplementation(async (path: string) => {
+            const materialByPath: Record<string, unknown> = {
+                'tests/legacy-writing-test': {
+                    ...buildMaterial(),
+                    id: 'legacy-writing-test',
+                },
+                'tests/reading-test': {
+                    testType: 'IELTS',
+                    skill: 'Reading',
+                },
+            };
+            const material = materialByPath[path];
+            return {
+                exists: () => Boolean(material),
+                val: () => material,
+            };
+        });
 
         const result = await listWritingImportHomeworkOptions(teacherId);
 
@@ -254,6 +281,11 @@ describe('writingExternalSubmissionImport.service', () => {
                 homeworkId: 'writing-homework',
                 title: 'Writing task',
                 materialId: 'writing-test-1',
+            }),
+            expect.objectContaining({
+                homeworkId: 'legacy-writing-homework',
+                title: 'Legacy Writing task',
+                materialId: 'legacy-writing-test',
             }),
         ]);
     });
@@ -346,15 +378,19 @@ describe('writingExternalSubmissionImport.service', () => {
         expect(mockCreateSubmission).not.toHaveBeenCalled();
     });
 
-    it('rejects non-writing homework before materialization', async () => {
+    it('rejects homework whose material is not IELTS Writing', async () => {
         mockGetHomeworkById.mockResolvedValue(buildHomework({ materialSkill: 'reading' }));
+        mockMaterial({
+            testType: 'IELTS',
+            skill: 'Reading',
+        });
 
         const result = await importExternalWritingSubmission(defaultImportInput());
 
         expect(result).toEqual({
             success: false,
             code: 'not-writing',
-            error: 'Only Writing homework can be imported here',
+            error: 'Homework material is not an IELTS Writing test',
         });
         expect(mockCreateSubmission).not.toHaveBeenCalled();
     });

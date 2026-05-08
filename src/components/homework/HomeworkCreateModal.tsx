@@ -360,6 +360,8 @@ export function HomeworkCreateModal({
             await createHomework({
                 materialId: selectedMaterial.id,
                 materialTitle: selectedMaterial.title,
+                materialType: selectedMaterial.type,
+                materialSkill: selectedMaterial.skill,
                 teacherId: user!.uid,
                 target,
                 config,

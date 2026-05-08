@@ -208,6 +208,19 @@ describe('ImportWritingSubmissionModal', () => {
         );
     });
 
+    it('explains empty homework state before student choice is available', async () => {
+        mockListWritingImportHomeworkOptions.mockResolvedValue({
+            success: true,
+            data: [],
+        });
+
+        renderModal();
+
+        expect(await screen.findByText('No teacher-owned IELTS Writing homework found.')).toBeTruthy();
+        expect(screen.getByText('Choose homework first.')).toBeTruthy();
+        expect((screen.getByRole('combobox', { name: /Student/ }) as HTMLSelectElement).disabled).toBe(true);
+    });
+
     it('shows field validation and tracks failed submit', async () => {
         const user = userEvent.setup();
         const { props } = renderModal();

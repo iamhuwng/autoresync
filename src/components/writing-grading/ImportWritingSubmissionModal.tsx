@@ -337,6 +337,9 @@ export function ImportWritingSubmissionModal({
                                     </option>
                                 ))}
                             </select>
+                            {!sourceLoading && homeworkOptions.length === 0 && !fieldErrors.homeworkId && (
+                                <small>No teacher-owned IELTS Writing homework found.</small>
+                            )}
                             {fieldErrors.homeworkId && <small>{fieldErrors.homeworkId}</small>}
                         </label>
 
@@ -367,6 +370,9 @@ export function ImportWritingSubmissionModal({
                             </select>
                             {importContext && importContext.students.length === 0 && (
                                 <small>No assigned students found for this homework.</small>
+                            )}
+                            {!selectedHomeworkId && !contextLoading && (
+                                <small>Choose homework first.</small>
                             )}
                             {fieldErrors.studentId && <small>{fieldErrors.studentId}</small>}
                         </label>
