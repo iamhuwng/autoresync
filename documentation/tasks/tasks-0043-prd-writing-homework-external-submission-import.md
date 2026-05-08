@@ -183,7 +183,7 @@
 - [x] 11.2 Run final targeted test set after review fixes.
 - [x] 11.3 Stage intended files only.
 - [x] 11.4 Commit with conventional commit message referencing PRD-0043.
-- [ ] 11.5 Push `codex/writing-homework-import-rebased`.
+- [x] 11.5 Push `codex/writing-homework-import-rebased`.
 - [ ] 11.6 Merge to `main` through the chosen release path immediately after green verification.
 - [ ] 11.7 After merge, verify main contains the feature and the polluted original checkout remains untouched.
 
@@ -205,4 +205,4 @@
 - [x] 13.4 Exclude PRD-0049 docs, broad modern grading-stack backports already present on corrected main, Reading V2/Obsidian/noise, generated screenshots, and unrelated dirty work.
 - [x] 13.5 Re-run targeted service, modal/page, Writing grading, feature registry, UTF-8, diff, and build checks on the rebased branch.
 - [x] 13.6 Re-run browser verification or record why existing live evidence is insufficient after the rebase.
-- [ ] 13.7 Commit and push `codex/writing-homework-import-rebased`, then retire the stale donor branch from release consideration.
+- [x] 13.7 Commit and push `codex/writing-homework-import-rebased`, then retire the stale donor branch from release consideration.
