@@ -183,3 +183,12 @@
   - confirm `origin/main` then contains modern Writing grading and accepted hotfixes
   - fast-forward or otherwise reconcile local `main` only after owner-approved backup checks
 - Conventional commit target: `chore(repo): add branch source guardrails`.
+
+## 2026-05-08 16:25 +07:00 - Phase 6 Remote Progress
+
+- Pushed `codex/reconcile-live-main` to `origin/codex/reconcile-live-main`.
+- Opened PR `https://github.com/iamhuwng/autoresync/pull/1` from `codex/reconcile-live-main` to `main`.
+- Initial PR state was conflicting because `origin/main` contains rejected commit `b1cb2ec`, while the reconcile branch intentionally keeps the local live-parity tree and excludes that broad provider change.
+- Added merge-parent commit `6ca06ae chore(repo): record origin main reconciliation parent` with `git merge --no-ff -s ours origin/main`. This records `origin/main` ancestry without changing the reconciled tree and avoids force push.
+- PR became mergeable after the merge-parent commit, but GitHub governance check failed because result-related historical changes entering `origin/main` require PRD-0040 living docs in the same changeset.
+- Updated PRD-0040 governance docs and finding record to state that PRD-0049 changes branch/source truth only and does not alter result-view surface map, permission model, or FR closure status.

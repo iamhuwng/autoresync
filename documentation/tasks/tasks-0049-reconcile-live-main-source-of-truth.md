@@ -28,7 +28,7 @@
 - [x] A clean reconciliation branch exists from local `main`.
 - [x] The four commits present in `origin/main` but absent from local `main` are reviewed and integrated or explicitly rejected with reason.
 - [x] Reconciled branch passes agreed verification for app build, Writing grading, Reading hotfixes, and UTF-8.
-- [ ] `origin/main` is updated only after safety artifacts and verification pass.
+- [ ] `origin/main` is updated only after safety artifacts, verification, and governance checks pass.
 - [x] A reusable branch doctor command exists and warns before new work starts from stale or dirty bases.
 - [x] Final docs state the new policy: `origin/main` is deployable source of truth, local `main` mirrors it, backup branches are archive only, and feature work starts from `origin/main` after sync.
 
@@ -120,8 +120,8 @@
 ### 6. Update Remote Main Safely
 
 - [x] 6.1 Stop for owner approval before pushing any branch that changes remote state.
-- [ ] 6.2 Push `codex/reconcile-live-main`.
-- [ ] 6.3 Open or prepare PR from `codex/reconcile-live-main` to `main`.
+- [x] 6.2 Push `codex/reconcile-live-main`.
+- [x] 6.3 Open or prepare PR from `codex/reconcile-live-main` to `main`.
 - [ ] 6.4 Merge only after safety artifacts and verification are confirmed.
 - [ ] 6.5 Confirm `origin/main` now contains modern grading and accepted hotfixes.
 - [ ] 6.6 Confirm local `main` can fast-forward or is reset only after owner-approved backup checks.

@@ -12,6 +12,10 @@ Companion docs:
 - `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
 - `documentation/architecture/result-visibility-ownership-governance.md`
 
+## PRD-0049 Reconciliation Note
+
+PRD-0049 is a branch/source-of-truth reconciliation, not a new result-view feature phase. The result-related history entering `origin/main` keeps the closure statuses below at `verified`; the required PRD-0040 governance docs are updated in the same changeset so reviewers can see that no FR closure status changed.
+
 Status keys:
 - `planned`
 - `in-progress`
