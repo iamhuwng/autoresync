@@ -391,10 +391,7 @@ export const saveTestToFirebase = async (
       ...(materialLink && { materialLink }),
     };
 
-    // Save to Firebase
-    const testRef = ref(database, `tests/${testId}`);
-    await set(testRef, testData);
-    await writeStudentSafeTestData(testId, testData);
+    await writeCanonicalAndStudentSafeTestData(testId, testData);
 
     console.log('✅ Test saved to Firebase:', testId);
 
@@ -499,6 +496,16 @@ const writeStudentSafeTestData = async (
     ref(database, `student_safe_tests/${testId}`),
     buildStudentSafeTestData(testData),
   );
+};
+
+const writeCanonicalAndStudentSafeTestData = async (
+  testId: string,
+  testData: TestData,
+): Promise<void> => {
+  await update(ref(database), {
+    [`/tests/${testId}`]: testData,
+    [`/student_safe_tests/${testId}`]: buildStudentSafeTestData(testData),
+  });
 };
 
 export const refreshStudentSafeTestData = async (
@@ -634,19 +641,26 @@ export const getSessionStudentSafeTestData = async (
     const snapshot = await get(payloadRef);
 
     if (!snapshot.exists()) {
-      return {
-        success: false,
-        error: 'Session test payload not ready',
-      };
+      return getStudentSafeTestFromFirebase(testId);
     }
 
     const payload = snapshot.val() as SessionStudentSafeTestPayload;
 
     if (!payload?.testData || payload.testId !== testId) {
-      return {
-        success: false,
-        error: 'Session test payload is stale',
-      };
+      return getStudentSafeTestFromFirebase(testId);
+    }
+
+    const currentResult = await getStudentSafeTestFromFirebase(testId);
+    if (currentResult.success && currentResult.data) {
+      const payloadUpdatedAt = Number(payload.testData.updatedAt || payload.generatedAt || 0);
+      const currentUpdatedAt = Number(currentResult.data.updatedAt || 0);
+
+      if (currentUpdatedAt > payloadUpdatedAt) {
+        return {
+          success: true,
+          data: currentResult.data,
+        };
+      }
     }
 
     return {
@@ -731,20 +745,35 @@ export const updateTestInFirebase = async (
   updates: Partial<TestData>
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const testRef = ref(database, `tests/${testId}`);
+    const existingResult = await getTestFromFirebase(testId);
+
+    if (!existingResult.success || !existingResult.data) {
+      return {
+        success: false,
+        error: existingResult.error || 'Test not found',
+      };
+    }
 
     // Add updatedAt timestamp
     const updatedData = {
       ...updates,
       updatedAt: Date.now(),
     };
+    const mergedData: TestData = {
+      ...existingResult.data,
+      ...updatedData,
+    };
+    const rootUpdates: Record<string, any> = {
+      [`/student_safe_tests/${testId}`]: buildStudentSafeTestData(mergedData),
+    };
 
-    await update(testRef, updatedData);
+    Object.entries(updatedData).forEach(([key, value]) => {
+      if (value !== undefined) {
+        rootUpdates[`/tests/${testId}/${key}`] = value;
+      }
+    });
 
-    const result = await getTestFromFirebase(testId);
-    if (result.success && result.data) {
-      await writeStudentSafeTestData(testId, result.data);
-    }
+    await update(ref(database), rootUpdates);
 
     console.log('✅ Test updated in Firebase:', testId);
 

@@ -119,8 +119,13 @@ const LISTENING_TEST = {
   questionImages: [
     {
       sectionNumber: 1,
-      imageUrl: 'https://example.com/question-page.png',
-      questionRange: { start: 1, end: 2 },
+      imageUrl: 'https://example.com/question-page-1.png',
+      questionRange: { start: 1, end: 1 },
+    },
+    {
+      sectionNumber: 1,
+      imageUrl: 'https://example.com/question-page-2.png',
+      questionRange: { start: 2, end: 2 },
     },
   ],
   questions: [
@@ -216,18 +221,10 @@ describe('TestEditor draft storage', () => {
     setItemSpy.mockRestore();
   });
 
-  it('refreshes the student-safe delivery payload after saving a test edit', async () => {
+  it('atomically publishes the student-safe delivery payload when saving a test edit', async () => {
     const { ref, update, get, set } = await import('firebase/database');
     (ref as any).mockImplementation((_db: unknown, path = '') => ({ path }));
     (update as any).mockResolvedValueOnce(undefined);
-    (get as any).mockResolvedValueOnce({
-      exists: () => true,
-      val: () => ({
-        ...LISTENING_TEST,
-        title: 'Renamed Listening Test',
-      }),
-    });
-    (set as any).mockResolvedValueOnce(undefined);
     const handleClose = vi.fn();
 
     render(
@@ -244,14 +241,18 @@ describe('TestEditor draft storage', () => {
     await waitFor(() => {
       expect(update).toHaveBeenCalled();
     });
-    await waitFor(() => {
-      expect(set).toHaveBeenCalledWith(
-        { path: 'student_safe_tests/listening-1' },
-        expect.objectContaining({
-          questionImages: LISTENING_TEST.questionImages,
-        }),
-      );
-    });
+    const updates = (update as any).mock.calls[0][1];
+    expect(updates['/tests/listening-1/questionImages']).toEqual(LISTENING_TEST.questionImages);
+    expect(updates['/student_safe_tests/listening-1']).toEqual(
+      expect.objectContaining({
+        title: 'Renamed Listening Test',
+        questionImages: LISTENING_TEST.questionImages,
+      }),
+    );
+    expect(updates['/student_safe_tests/listening-1'].questions[0]).not.toHaveProperty('answer');
+    expect(updates['/student_safe_tests/listening-1'].questions[1]).not.toHaveProperty('answer');
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
     expect(handleClose).toHaveBeenCalled();
   });
 });

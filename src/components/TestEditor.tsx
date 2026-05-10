@@ -22,7 +22,7 @@ import { QuestionList } from './test/editor/QuestionList';
 import { database } from '../services/firebase';
 import { ref, update } from 'firebase/database';
 import { Button } from './modern';
-import { refreshStudentSafeTestData } from '../services/testStorage';
+import { buildStudentSafeTestData } from '../services/testStorage';
 import type { TestData, ContextResource } from '../services/testStorage';
 import { ResourceManager } from './test/editor/ResourceManager';
 import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } from './test/editor/resourceAdapters';
@@ -591,7 +591,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         // Map resourceId -> sectionNumber for Audio resources
         const audioSectionMap = new Map<string, number>();
         if (resourceUpdates.audioSections) {
-          resources.filter(r => r.type === 'audio').forEach((r, idx) => {
+          finalResources.filter(r => r.type === 'audio').forEach((r, idx) => {
             if (resourceUpdates.audioSections && resourceUpdates.audioSections[idx]) {
               audioSectionMap.set(r.id, resourceUpdates.audioSections[idx].number);
             }
@@ -599,33 +599,36 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         }
 
         // 2. Update questions
-        Object.entries(editedQuestions).forEach(([index, question]) => {
-          const qUpdate = { ...question };
-          const qNum = parseInt(index) + 1;
+        const updatedQuestions = Object.entries(editedQuestions)
+          .sort(([left], [right]) => Number(left) - Number(right))
+          .map(([index, question]) => {
+            const qUpdate = { ...question };
+            const qNum = parseInt(index) + 1;
 
-          // Find governing resource by range (Source of Truth)
-          const governingResource = resources.find(r => qNum >= (r.questionStart || 0) && qNum <= (r.questionEnd || 0));
+            // Find governing resource by range (Source of Truth)
+            const governingResource = finalResources.find(r => qNum >= (r.questionStart || 0) && qNum <= (r.questionEnd || 0));
 
-          if (governingResource) {
-            if (governingResource.type === 'text') {
-              qUpdate.passageId = governingResource.id;
-              if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-            } else if (governingResource.type === 'audio') {
-              const secNum = audioSectionMap.get(governingResource.id);
-              if (secNum) qUpdate.sectionNumber = secNum;
+            if (governingResource) {
+              if (governingResource.type === 'text') {
+                qUpdate.passageId = governingResource.id;
+                if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
+              } else if (governingResource.type === 'audio') {
+                const secNum = audioSectionMap.get(governingResource.id);
+                if (secNum) qUpdate.sectionNumber = secNum;
+                qUpdate.passageId = null;
+              }
+              // Update internal resourceId for consistency
+              qUpdate.resourceId = governingResource.id;
+            } else {
+              // unlink if no resource covers this question
               qUpdate.passageId = null;
+              if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
+              qUpdate.resourceId = null;
             }
-            // Update internal resourceId for consistency
-            qUpdate.resourceId = governingResource.id;
-          } else {
-            // unlink if no resource covers this question
-            qUpdate.passageId = null;
-            if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-            qUpdate.resourceId = null;
-          }
 
-          updates[`/tests/${test.id}/questions/${index}`] = qUpdate;
-        });
+            updates[`/tests/${test.id}/questions/${index}`] = qUpdate;
+            return qUpdate;
+          });
 
         // Update title if modified
         if (titleModified) {
@@ -643,11 +646,11 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         }
 
         // Update timestamp
-        updates[`/tests/${test.id}/updatedAt`] = Date.now();
+        const updatedAt = Date.now();
+        updates[`/tests/${test.id}/updatedAt`] = updatedAt;
 
         // Recalculate isComplete based on edited questions
-        const allQuestions = Object.values(editedQuestions);
-        const questionsWithoutAnswers = allQuestions.filter((q: any) =>
+        const questionsWithoutAnswers = updatedQuestions.filter((q: any) =>
           !q.answer ||
           (typeof q.answer === 'string' && q.answer.trim() === '') ||
           (Array.isArray(q.answer) && q.answer.length === 0)
@@ -657,16 +660,22 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
 
         updates[`/tests/${test.id}/isComplete`] = isComplete;
         updates[`/tests/${test.id}/missingAnswerCount`] = missingAnswerCount;
+        const updatedTestData: TestData = {
+          ...test,
+          ...resourceUpdates,
+          questions: updatedQuestions,
+          title: titleModified ? editedTitle : test.title,
+          isPublic: isPublicModified ? editedIsPublic : test.isPublic,
+          duration: editedDuration !== test.duration ? editedDuration : test.duration,
+          updatedAt,
+          isComplete,
+          missingAnswerCount,
+        };
+        updates[`/student_safe_tests/${test.id}`] = buildStudentSafeTestData(updatedTestData);
 
         console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
 
         await update(ref(database), updates);
-        const refreshResult = await refreshStudentSafeTestData(test.id);
-        if (!refreshResult.success) {
-          console.error('Student-safe payload refresh failed after test save:', refreshResult.error);
-          toast.error('Test saved, but student delivery cache did not refresh. Please try saving again.');
-          return;
-        }
         setResourcesModified(false);
 
         // Clear localStorage

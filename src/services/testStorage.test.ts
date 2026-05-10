@@ -9,7 +9,9 @@ import {
   saveTestToFirebase,
   getTestFromFirebase,
   getStudentSafeTestFromFirebase,
+  getSessionStudentSafeTestData,
   refreshStudentSafeTestData,
+  updateTestInFirebase,
   getAllTestsFromFirebase,
   deleteTestFromFirebase,
   buildStudentSafeTestData,
@@ -33,6 +35,14 @@ vi.mock('./restoreGuard', () => ({
     fn: (...args: unknown[]) => Promise<unknown>
   ) => fn,
 }));
+
+const getSavedCanonicalTest = (rootUpdates: Record<string, any>) => {
+  const canonicalPath = Object.keys(rootUpdates).find((path) => path.startsWith('/tests/'));
+  if (!canonicalPath) {
+    throw new Error('Missing canonical test write in root update');
+  }
+  return rootUpdates[canonicalPath];
+};
 
 describe('testStorage', () => {
   describe('buildStudentSafeTestData', () => {
@@ -216,6 +226,136 @@ describe('testStorage', () => {
           ],
         },
       );
+    });
+  });
+
+  describe('getSessionStudentSafeTestData', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      const { ref } = await import('firebase/database');
+      (ref as any).mockImplementation((_db: unknown, path = '') => ({ path }));
+    });
+
+    it('uses the current student-safe payload when a live session payload is older than the edited test', async () => {
+      const { get } = await import('firebase/database');
+      const staleSessionPayload = {
+        testId: 'test-1',
+        generatedAt: 100,
+        testData: {
+          id: 'test-1',
+          title: 'IELTS Listening',
+          updatedAt: 100,
+          questions: [{ number: 1, question: 'Q1' }],
+          questionImages: [
+            {
+              sectionNumber: 1,
+              imageUrl: 'old.png',
+              questionRange: { start: 1, end: 10 },
+            },
+          ],
+        },
+      };
+      const currentSafeTest = {
+        id: 'test-1',
+        title: 'IELTS Listening',
+        updatedAt: 200,
+        questions: [{ number: 1, question: 'Q1' }],
+        questionImages: [
+          {
+            sectionNumber: 1,
+            imageUrl: 'new-1.png',
+            questionRange: { start: 1, end: 4 },
+          },
+          {
+            sectionNumber: 1,
+            imageUrl: 'new-2.png',
+            questionRange: { start: 5, end: 10 },
+          },
+        ],
+      };
+
+      (get as any)
+        .mockResolvedValueOnce({ exists: () => true, val: () => staleSessionPayload })
+        .mockResolvedValueOnce({ exists: () => true, val: () => currentSafeTest });
+
+      const result = await getSessionStudentSafeTestData('SESSION123', 'test-1');
+
+      expect(result.success).toBe(true);
+      expect(result.data?.questionImages).toEqual(currentSafeTest.questionImages);
+    });
+  });
+
+  describe('updateTestInFirebase', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      const { ref } = await import('firebase/database');
+      (ref as any).mockImplementation((_db: unknown, path = '') => ({ path }));
+    });
+
+    it('updates the canonical test and regenerated student-safe payload in one root update', async () => {
+      const { get, update } = await import('firebase/database');
+      const canonicalTest = {
+        id: 'test-1',
+        title: 'IELTS Listening',
+        type: 'IELTS',
+        skill: 'Listening',
+        duration: 30,
+        difficulty: 'Intermediate',
+        questionCount: 1,
+        createdAt: 1,
+        createdBy: 'owner-1',
+        updatedAt: 1,
+        isPublished: true,
+        ownerId: 'owner-1',
+        isPublic: false,
+        isComplete: true,
+        metadata: { description: '', instructions: '', tags: [] },
+        passages: [],
+        questions: [
+          {
+            number: 1,
+            type: 'form-completion',
+            question: '',
+            answer: 'A',
+            points: 1,
+          },
+        ],
+        settings: {
+          allowPause: false,
+          showTimer: true,
+          shuffleQuestions: false,
+          showResults: 'immediate',
+          allowReview: true,
+          passingScore: 60,
+        },
+        statistics: {
+          attempts: 0,
+          averageScore: 0,
+          averageTime: 0,
+          completionRate: 0,
+        },
+      };
+
+      (get as any).mockResolvedValueOnce({
+        exists: () => true,
+        val: () => canonicalTest,
+      });
+      (update as any).mockResolvedValueOnce(undefined);
+
+      const result = await updateTestInFirebase('test-1', { isPublic: true } as any);
+
+      expect(result.success).toBe(true);
+      expect(update).toHaveBeenCalledOnce();
+      const rootUpdates = (update as any).mock.calls[0][1];
+      expect(rootUpdates['/tests/test-1/isPublic']).toBe(true);
+      expect(rootUpdates['/tests/test-1/updatedAt']).toEqual(expect.any(Number));
+      expect(rootUpdates['/student_safe_tests/test-1']).toEqual(
+        expect.objectContaining({
+          id: 'test-1',
+          isPublic: true,
+        }),
+      );
+      expect(rootUpdates['/student_safe_tests/test-1'].questions[0]).not.toHaveProperty('answer');
     });
   });
 
@@ -552,8 +692,8 @@ describe('testStorage', () => {
     });
 
     it('should persist wordLimit in formatted questions when saving to Firebase', async () => {
-      const { set } = await import('firebase/database');
-      (set as any).mockResolvedValueOnce(undefined);
+      const { update } = await import('firebase/database');
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Word Limit Test',
@@ -583,14 +723,14 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const savedData = getSavedCanonicalTest((update as any).mock.calls[0][1]);
       expect(savedData.questions[0].wordLimit).toBe(3);
       expect(savedData.questions[1].wordLimit).toBeUndefined();
     });
 
     it('should not persist wordLimit when value is 0 or negative', async () => {
-      const { set } = await import('firebase/database');
-      (set as any).mockResolvedValueOnce(undefined);
+      const { update } = await import('firebase/database');
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Edge Case Test',
@@ -611,13 +751,13 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const savedData = getSavedCanonicalTest((update as any).mock.calls[0][1]);
       expect(savedData.questions[0].wordLimit).toBeUndefined();
     });
 
     it('omits empty matching-information section metadata when publishing', async () => {
-      const { set } = await import('firebase/database');
-      (set as any).mockResolvedValueOnce(undefined);
+      const { update } = await import('firebase/database');
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Matching Information Test',
@@ -649,7 +789,7 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const savedData = getSavedCanonicalTest((update as any).mock.calls[0][1]);
       expect(savedData.questions[0].sectionReferences).toEqual([
         { label: 'A' },
         { label: 'B' },
