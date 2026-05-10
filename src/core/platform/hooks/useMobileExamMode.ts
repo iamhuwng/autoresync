@@ -2,14 +2,21 @@
  * Mobile Exam Mode Detection Hook
  *
  * Determines whether the current device should use the phone-optimized
- * Reading exam layout rather than the standard desktop/tablet two-column view.
+ * exam layout rather than the standard desktop/tablet two-column view.
  *
- * Detection priority:
+ * Detection priority (UA-first architecture):
  * 1. QA session-scoped override (__qa_mobile_exam_override__)
- * 2. Primary: navigator.userAgent mobile/handheld signals
- * 3. Secondary: useScreenSize().isMobile + pointer:coarse media query
- * 4. Phone-sized hardware fallback for "desktop site on phone" sessions
- * 5. Fail-safe: returns false (desktop/tablet layout)
+ * 2. **Primary gate**: navigator.userAgent — if UA contains a definitive
+ *    mobile token (Mobi, iPhone, iPod, etc.) → mobile. If UA contains a
+ *    definitive desktop token (Windows, Macintosh, CrOS, Linux x86) → desktop.
+ * 3. Only when UA is genuinely ambiguous (e.g., WebView, bot, unusual agent):
+ *    secondary heuristics (screen size, pointer type, hover capability)
+ * 4. Fail-safe: false (desktop/tablet layout)
+ *
+ * The previous architecture treated `pointer: coarse` as a strong mobile
+ * signal, which caused false positives on touchscreen laptops and when
+ * Chrome DevTools emulated touch. Now hardware signals are SUPPRESSED
+ * whenever the UA contains a desktop platform identifier.
  *
  * @see documentation/rules/mobile-portability.md — Rule 19
  */
@@ -24,51 +31,50 @@ const QA_OVERRIDE_KEY = '__qa_mobile_exam_override__';
 /** Supported override values */
 type QaOverride = 'auto' | 'force-mobile' | 'force-standard';
 
-/**
- * Check navigator.userAgent for mobile/handheld signals.
- * Returns true if the UA string contains typical phone identifiers.
- */
-function detectMobileUserAgent(): boolean {
+// ── UA Detection Helpers ────────────────────────────────────────────────────
+
+/** Returns true if the UA contains unambiguous phone-class identifiers. */
+function hasMobileUATokens(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
-  // Match common phone-class tokens; exclude iPad since iPad UA often contains 'Mobile'
-  // but iPads should use the tablet/desktop layout.
+  // Match common phone-class tokens.
+  // Exclude iPad — iPad UA sometimes contains 'Mobile' but should use tablet layout.
   return /Mobi|Android.*Mobile|iPhone|iPod|BlackBerry|Opera Mini|IEMobile/i.test(ua);
 }
 
-/**
- * Check if the primary pointer is coarse (touch-only device).
- * Tablets also have coarse pointers, so this is a secondary signal only.
- */
+/** Returns true if the UA contains unambiguous desktop/laptop platform tokens. */
+function hasDesktopUATokens(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  // Windows, macOS, Chrome OS, or Linux on x86/x86_64 → definitely not a phone.
+  return /Windows NT|Macintosh|CrOS|Linux\s+(x86|i[36]86|amd64)/i.test(ua);
+}
+
+// ── Hardware Signal Helpers (secondary only) ────────────────────────────────
+
+/** Primary pointer is coarse (touch-only device). */
 function hasCoarsePointer(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(pointer: coarse)').matches;
 }
 
+/** Device has a hover-capable pointer (mouse/trackpad). Strong desktop indicator. */
 function hasHoverCapablePointer(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches;
 }
 
-/**
- * Detect phone-class hardware from the physical screen rather than the current
- * layout viewport. This covers phone browsers that request a desktop viewport.
- */
+/** Physical screen short-side < 768px → phone-class hardware. */
 function hasPhoneSizedScreen(): boolean {
   if (typeof window === 'undefined' || !window.screen) return false;
   const shortestSide = Math.min(window.screen.width || 0, window.screen.height || 0);
   return shortestSide > 0 && shortestSide < 768;
 }
 
-function hasDesktopSitePhoneViewport(): boolean {
-  if (typeof window === 'undefined') return false;
-  const width = window.innerWidth || 0;
-  const height = window.innerHeight || 0;
-  return width >= 768 && width < 1024 && height > 0 && height < 900;
-}
+// ── Hook ────────────────────────────────────────────────────────────────────
 
 export interface UseMobileExamModeResult {
-  /** true when the phone-optimized Reading layout should render */
+  /** true when the phone-optimized exam layout should render */
   isMobileExamMode: boolean;
 }
 
@@ -97,27 +103,52 @@ export function useMobileExamMode(): UseMobileExamModeResult {
   }, []);
 
   const isMobileExamMode = useMemo(() => {
-    // 1. QA override takes precedence
-    if (qaOverride === 'force-mobile') return true;
-    if (qaOverride === 'force-standard') return false;
+    // ── 1. QA override takes precedence ──────────────────────────────────
+    if (qaOverride === 'force-mobile') {
+      console.log('[MobileExamMode] → MOBILE (QA force-mobile override)');
+      return true;
+    }
+    if (qaOverride === 'force-standard') {
+      console.log('[MobileExamMode] → DESKTOP (QA force-standard override)');
+      return false;
+    }
 
-    // 2. Primary: navigator.userAgent heuristic
-    const uaMobile = detectMobileUserAgent();
-    if (uaMobile) return true;
+    // ── 2. Primary gate: User-Agent analysis ─────────────────────────────
+    const uaMobile = hasMobileUATokens();
+    const uaDesktop = hasDesktopUATokens();
 
-    // 3. Secondary: small viewport + touch pointer
-    if (isMobile && hasCoarsePointer()) return true;
-
-    // 4. Fallback: touch phone in a widened "desktop site" viewport
-    if (
-      hasCoarsePointer()
-      && !hasHoverCapablePointer()
-      && (hasPhoneSizedScreen() || hasDesktopSitePhoneViewport())
-    ) {
+    // 2a. UA says mobile → mobile. Period.
+    if (uaMobile) {
+      console.log('[MobileExamMode] → MOBILE (UA mobile tokens detected)');
       return true;
     }
 
-    // 4. Fail-safe: uncertain → default to desktop/tablet
+    // 2b. UA says desktop → desktop. Hardware signals are SUPPRESSED.
+    //     This prevents touchscreen laptops / DevTools emulation from
+    //     false-positiving into mobile mode.
+    if (uaDesktop) {
+      console.log('[MobileExamMode] → DESKTOP (UA desktop tokens detected, hardware signals suppressed)');
+      return false;
+    }
+
+    // ── 3. Ambiguous UA — fall through to hardware heuristics ────────────
+    //    This path is for unusual agents (WebViews, bots, etc.) where the
+    //    UA string doesn't contain standard platform tokens.
+
+    // 3a. Hover-capable pointer → almost certainly desktop/laptop
+    if (hasHoverCapablePointer()) {
+      console.log('[MobileExamMode] → DESKTOP (ambiguous UA, but hover:hover detected)');
+      return false;
+    }
+
+    // 3b. Touch-only + small viewport or phone-sized screen → phone
+    if (hasCoarsePointer() && (isMobile || hasPhoneSizedScreen())) {
+      console.log('[MobileExamMode] → MOBILE (ambiguous UA, coarse pointer + small screen)');
+      return true;
+    }
+
+    // ── 4. Fail-safe: uncertain → default to desktop/tablet ──────────────
+    console.log('[MobileExamMode] → DESKTOP (fail-safe: no definitive signals)');
     return false;
   }, [qaOverride, isMobile]);
 

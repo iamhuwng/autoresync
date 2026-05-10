@@ -1,15 +1,23 @@
-﻿## ðŸ”´ Integration Safety Rules (22 rules â€” ZERO BYPASS)
+## Integration Safety Rules (22 rules - ZERO BYPASS)
 
-When your action matches a trigger below, **STOP and READ the linked file** before writing code. Do NOT load all files â€” only the one that matches.
+When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
 
-## Sub-Agents (MANDATORY)
+## Design Gate (MANDATORY)
 
-These rules are obligatory and must be treated as standard operating procedure:
-- You MUST use subagents liberally to keep the main context window clean.
-- You MUST offload research, exploration, and parallel analysis to subagents whenever the work can be decomposed safely.
-- For complex, ambiguous, or multi-part problems, you MUST throw more compute at the task via subagents instead of keeping all reasoning in the main thread.
-- Each subagent MUST own exactly one tack so execution stays focused and outputs remain composable.
-- When spawning subagents, default to the lowest-cost available model in this environment. As of 2026-04-12, that default is gpt-5.1-codex-mini. Only use a stronger subagent model when the task clearly needs deeper reasoning or a larger context budget.
+Before any UI or UX work, read [`DESIGN.md`](DESIGN.md). Treat it as the active repo-wide design gate and source classifier before using student, teacher, `.stitch`, archive, or agent-overlay design notes.
+
+## Test Command Execution On Windows (MANDATORY)
+
+When the working directory is any Windows checkout/worktree of this `luyentap` repository, including temporary feature folders that will later merge into `origin/main`:
+- Treat it as in scope if the repo root has this `AGENTS.md` plus luyentap app files such as `package.json`, `src/`, and `documentation/`.
+- Treat sibling folders like `C:\Users\The Lord\Desktop\luyentap-*` as in scope when they are Git worktrees or branch checkouts of the same repo.
+
+For `vitest`, `vite`, or `esbuild`:
+- Do not first run these commands inside the sandbox.
+- Start those commands with escalated execution on the first attempt.
+- Prefer the command form `cmd /c npx vitest run ... --reporter=basic`.
+- If using npm script form, prefer `cmd /c npm test -- --run --reporter=basic`.
+- Do not retry after a sandbox `spawn EPERM`; start unrestricted instead.
 
 ## Text Encoding Guardrail (MANDATORY)
 
@@ -38,14 +46,9 @@ When the task involves Google Cloud, Gemini, Vertex AI, Google AI Studio, Google
 - For service availability problems, inspect enablement with `gcloud services list --enabled` before changing code or rotating secrets.
 - Load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` in sync when this rule evolves.
 
-## Feature Merge And Main Refresh Safety (MANDATORY)
+### Universal Integration Safety Rules
 
-When merging finished feature work to `main`/`origin/main`:
-- Inspect source branch/worktree: `HEAD`, upstream, dirty status, included/excluded work.
-- Sync local `main` first: `git fetch origin main` then `git merge --ff-only origin/main`; stop on local-only `main` commits or dirty source.
-- Prefer PR. Direct push to `main` requires explicit user approval plus diff/commit/test summary.
-- After remote merge, fetch and fast-forward local `main` so `main == origin/main`.
-- Remove feature worktree only after commits are reachable from `origin/main`, worktree is clean, and user approves deletion.
+When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
 
 | When you are... | READ this file |
 |----------------|----------------|
@@ -58,7 +61,7 @@ When merging finished feature work to `main`/`origin/main`:
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
-| Writing ANY `import` â€” `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing ANY `import` - `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
@@ -77,87 +80,39 @@ When merging finished feature work to `main`/`origin/main`:
 <!-- KNOWNS GUIDELINES START -->
 # Knowns Guidelines
 
-> These rules are NON-NEGOTIABLE. Violating them causes data corruption.
+Knowns is not the default workflow for this repo. Use it only when the user asks for Knowns, the task targets `.knowns`, or the current task references `@task-*`, `@doc/*`, or `@template/*`.
 
-## Session Init (Required)
+Do not use Knowns for normal code edits, debugging, repo inspection, browser verification, or markdown task lists under `tasks/` unless the user explicitly asks.
+
+## Before First Knowns Operation
+
+Run session init only immediately before a real Knowns tool/CLI operation:
 
 ```json
 mcp__knowns__detect_projects({})
 mcp__knowns__set_project({ "projectRoot": "/path/to/project" })
 ```
 
-**Skip this = tools fail or work on wrong project.**
+## Active Knowns Workflow
 
----
+- Prefer MCP tools. Never edit Knowns-managed tasks/docs directly.
+- Follow Knowns refs recursively before planning: `@task-*`, `@doc/*`, `@template/*`.
+- Use `appendNotes`; do not use `notes` unless replacing history is intentional.
+- Check acceptance criteria only after work is complete.
+- Use `start_time`/`stop_time` only for tasks tracked in Knowns.
+- Run `validate` before marking a Knowns task done.
+- Do not mirror `documentation/tasks/*` workflows into Knowns unless explicitly requested.
 
-## Critical Rules
+## CLI Traps
 
-| Rule | Description |
-|------|-------------|
-| **Never edit .md** | Use MCP tools (preferred) or CLI. NEVER edit task/doc files directly |
-| **Docs first** | Read project docs BEFORE planning or coding |
-| **Plan â†’ Approve â†’ Code** | Share plan, WAIT for approval, then implement |
-| **AC after work** | Only check acceptance criteria AFTER completing work |
-| **Time tracking** | `start_time` when taking task, `stop_time` when done |
-| **Validate** | Run `validate` before marking task done |
-| **appendNotes** | Use `appendNotes` for progress. `notes` REPLACES all (destroys history) |
-
----
-
-## CLI Pitfalls
-
-### The `-a` flag trap
-
-| Command | `-a` means | NOT this |
-|---------|------------|----------|
-| `task create/edit` | `--assignee` | ~~acceptance criteria~~ |
-| `doc edit` | `--append` | ~~assignee~~ |
-
-```bash
-# WRONG - sets assignee to garbage!
-knowns task edit 35 -a "Criterion text"
-
-# CORRECT
-knowns task edit 35 --ac "Criterion text"
-```
-
-### --plain flag
-
-**Only for view/list/search commands:**
-```bash
-knowns task <id> --plain      # âœ“
-knowns task list --plain      # âœ“
-knowns task create --plain    # âœ— ERROR
-knowns task edit --plain      # âœ— ERROR
-```
-
-### Subtasks
-
-```bash
-knowns task create "Sub" --parent 48    # âœ“ raw ID
-knowns task create "Sub" --parent task-48  # âœ— WRONG
-```
-
----
-
-## References
-
-Tasks and docs can reference each other:
-
-| Type | Format |
-|------|--------|
-| Task | `@task-<id>` |
-| Doc | `@doc/<path>` |
-| Template | `@template/<name>` |
-
-**Always follow refs recursively** before planning.
+- `knowns task create/edit -a` means assignee, not acceptance criteria. Use `--ac`.
+- `--plain` is only for view/list/search commands.
+- Subtask parent takes raw ID, e.g. `--parent 48`, not `--parent task-48`.
 
 ### Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
 - Google Cloud, Gemini, Vertex AI, API key, service enablement, or MCP auth troubleshooting: load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` synchronized.
 
----
-
-> **Full reference:** Run `knowns guidelines --plain` for complete documentation
+Full Knowns reference: run `knowns guidelines --plain` when the task actually uses Knowns and details matter.
 <!-- KNOWNS GUIDELINES END -->

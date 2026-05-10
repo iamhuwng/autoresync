@@ -118,6 +118,7 @@ Scope boundary:
 
 Detailed reference:
 - `ielts-writing/copy-paste-toggle-and-attempt-persistence.md`
+
 ## 2026-04-09 Amendment - Mobile IELTS Reading Delivery Contract
 
 Canonical architecture governance for the phone-specific IELTS Reading delivery surface now lives in:
@@ -139,3 +140,15 @@ Why this matters:
 
 Reference:
 - `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+
+## 2026-05-10 Amendment - Student Test Delivery Projection Contract
+
+Legacy IELTS Listening/Reading solo and homework delivery must read student-safe projections, not answer-bearing canonical test rows.
+
+Required rules:
+- teacher edit saves, `saveTestToFirebase()`, and `updateTestInFirebase()` must regenerate `student_safe_tests/{testId}` with the canonical write
+- `questionImages` and per-image `questionRange` data are student-visible render metadata and must survive projection
+- backfill or `refreshStudentSafeTestData(testId)` is repair-only for old/missing projection incidents
+
+Detailed reference:
+- `documentation/architecture/student-test-delivery-projections.md`

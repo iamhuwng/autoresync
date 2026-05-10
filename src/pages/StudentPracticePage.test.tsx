@@ -7,11 +7,13 @@ import StudentPracticePage from './StudentPracticePage';
 const {
   getMock,
   ieltsPracticeViewPropsMock,
+  listeningPracticeViewPropsMock,
   refMock,
   resolvePracticeSettingsMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   ieltsPracticeViewPropsMock: vi.fn(),
+  listeningPracticeViewPropsMock: vi.fn(),
   refMock: vi.fn(),
   resolvePracticeSettingsMock: vi.fn(),
 }));
@@ -55,6 +57,13 @@ vi.mock('../components/practice/THCSPracticeView', () => ({
 
 vi.mock('../components/writing-practice/WritingPracticeView', () => ({
   default: () => <div data-testid="writing-practice-view" />,
+}));
+
+vi.mock('../components/practice/ListeningPracticeView', () => ({
+  default: (props: unknown) => {
+    listeningPracticeViewPropsMock(props);
+    return <div data-testid="listening-practice-view" />;
+  },
 }));
 
 describe('StudentPracticePage', () => {
@@ -117,5 +126,42 @@ describe('StudentPracticePage', () => {
         submissionId: 'submission-1',
       }),
     }));
+  });
+
+  it('routes listening-like IELTS materials to ListeningPracticeView when skill metadata is missing', async () => {
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path.endsWith('/testType')) {
+          return 'IELTS';
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return null;
+        }
+
+        return null;
+      },
+      exists: () => false,
+    }));
+
+    render(
+      <MemoryRouter initialEntries={['/student/practice/listening-material-1']}>
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('listening-practice-view')).toBeInTheDocument();
+    });
+
+    expect(listeningPracticeViewPropsMock).toHaveBeenCalledWith(expect.objectContaining({
+      materialId: 'listening-material-1',
+      practiceContext: expect.objectContaining({
+        type: 'self_study',
+      }),
+    }));
+    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 });

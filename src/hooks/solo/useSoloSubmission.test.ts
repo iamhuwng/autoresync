@@ -151,7 +151,7 @@ describe('useSoloSubmission', () => {
         expect.objectContaining({ answer: 'A' }),
       ]),
     );
-    expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1');
+    expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1', undefined);
     expect(mockNavigateTo).toHaveBeenCalledWith('STUDENT_ACADEMIC_RECORD', undefined, {
       replace: true,
       state: { resultId: 'result-1', showResult: true },
@@ -267,7 +267,7 @@ describe('useSoloSubmission', () => {
         answer: shuffledGradingQuestion.answer,
       }),
     );
-    expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1');
+    expect(clearSoloProgress).toHaveBeenCalledWith('test-1', 'student-1', undefined);
     const homeworkSaveCall = vi.mocked(saveTestResult).mock.calls[0];
     expect(homeworkSaveCall?.[13]).toEqual(
       expect.objectContaining({

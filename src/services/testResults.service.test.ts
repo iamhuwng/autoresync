@@ -136,6 +136,7 @@ function getSaveResultUpdatePayload(resultId = 'result-123'): Record<string, unk
 describe('testResults.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        (ref as any).mockImplementation((_database: unknown, path?: string) => path ?? '__root__');
         mockCreateNotification.mockResolvedValue(undefined);
         mockSendReviewedNotification.mockResolvedValue(undefined);
         mockClearUnresolvedResultVisibilityReport.mockResolvedValue(undefined);
@@ -1643,6 +1644,94 @@ describe('testResults.service', () => {
             );
         });
 
+        it('should re-resolve unresolved homework visibility during index rebuild', async () => {
+            const resolvedVisibility = {
+                contextType: 'homework',
+                sourceType: 'homework',
+                sourceId: 'hw-1',
+                sourceNameSnapshot: 'Listening Homework',
+                visibilityOwnerTeacherId: 'teacher-1',
+                ownerResolutionSource: 'homework.createdBy',
+                ownershipResolved: true,
+                unresolvedReason: null,
+                homeworkId: 'hw-1',
+                sessionCode: 'HOMEWORK-SESSION',
+                courseId: null,
+                classId: null,
+                assignmentId: null,
+            };
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: resolvedVisibility,
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'homework:hw-1',
+            });
+
+            (get as any)
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        'result-homework-bad': createLegacyResultRecord({
+                            resultId: 'result-homework-bad',
+                            sessionCode: 'HOMEWORK-SESSION',
+                            testTitle: 'Listening Homework',
+                            context: {
+                                type: 'homework',
+                                source: {
+                                    type: 'homework',
+                                    id: 'hw-1',
+                                    name: 'Listening Homework',
+                                    submissionId: 'hw-1_student-1_123',
+                                },
+                                assignment: {
+                                    homeworkId: 'hw-1',
+                                },
+                                configApplied: {},
+                            } as any,
+                            visibility: {
+                                contextType: 'homework',
+                                sourceType: 'writing_submission',
+                                sourceId: 'hw-1_student-1_123',
+                                sourceNameSnapshot: 'Listening Homework',
+                                visibilityOwnerTeacherId: null,
+                                ownerResolutionSource: 'unresolved',
+                                ownershipResolved: false,
+                                unresolvedReason: 'writing_submission_not_found',
+                                homeworkId: 'hw-1',
+                                sessionCode: 'HOMEWORK-SESSION',
+                                courseId: null,
+                                classId: null,
+                                assignmentId: null,
+                                sourceDeleted: true,
+                            },
+                            isGuest: false,
+                        }),
+                    }),
+                })
+                .mockResolvedValueOnce({ exists: () => false, val: () => null })
+                .mockResolvedValueOnce({ exists: () => false, val: () => null })
+                .mockResolvedValueOnce({ exists: () => false, val: () => null })
+                .mockResolvedValueOnce({ exists: () => false, val: () => null });
+
+            const summary = await rebuildTeacherResultIndexes();
+
+            expect(summary).toMatchObject({
+                rebuiltCount: 1,
+                unresolvedCount: 0,
+            });
+            expect(mockResolveResultOwnership).toHaveBeenCalledWith(expect.objectContaining({
+                contextType: 'homework',
+                homeworkId: 'hw-1',
+                sourceNameSnapshot: 'Listening Homework',
+            }));
+            expect((update as any).mock.calls.some((call: any[]) =>
+                call[1]?.visibility?.visibilityOwnerTeacherId === 'teacher-1'
+                && call[1]?.visibility?.sourceType === 'homework'
+            )).toBe(true);
+            expect((update as any).mock.calls.some((call: any[]) =>
+                call[1]?.['test_results_by_teacher/teacher-1/result-homework-bad']
+            )).toBe(true);
+        });
+
         it('should rebuild teacher indexes from normalized visibility and delete stale rows', async () => {
             (get as any)
                 .mockResolvedValueOnce({
@@ -1904,6 +1993,25 @@ describe('testResults.service', () => {
                         },
                     }),
                 });
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'class_session',
+                    sourceType: 'session',
+                    sourceId: 'SESSION-8',
+                    sourceNameSnapshot: 'Unresolved Result',
+                    visibilityOwnerTeacherId: null,
+                    ownerResolutionSource: 'unresolved',
+                    ownershipResolved: false,
+                    unresolvedReason: 'owner_not_resolved',
+                    homeworkId: null,
+                    sessionCode: 'SESSION-8',
+                    courseId: 'course-8',
+                    classId: 'class-8',
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'session:SESSION-8',
+            });
 
             const summary = await rebuildTeacherResultIndexes();
 
@@ -1933,6 +2041,140 @@ describe('testResults.service', () => {
                     'test_results_by_class/class-7/student-7/result-7': expect.objectContaining({
                         resultId: 'result-7',
                         courseId: 'course-7',
+                    }),
+                })
+            );
+        });
+
+        it('should re-resolve unresolved homework visibility during index rebuild', async () => {
+            (get as any)
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        'result-homework-bad': {
+                            resultId: 'result-homework-bad',
+                            sessionCode: 'SESSION-HW',
+                            testId: 'TEST-HW',
+                            studentId: 'student-1',
+                            studentName: 'Student One',
+                            totalScore: 8,
+                            maxScore: 10,
+                            percentage: 80,
+                            bandScore: 7,
+                            questionResults: [],
+                            correct: 8,
+                            incorrect: 2,
+                            partialCredit: 0,
+                            totalQuestions: 10,
+                            submittedAt: 9000,
+                            timeElapsed: 100,
+                            testDuration: 30,
+                            createdAt: 9000,
+                            testTitle: 'Listening Homework',
+                            testType: 'test',
+                            testSkill: 'listening',
+                            context: {
+                                type: 'homework',
+                                source: {
+                                    type: 'homework',
+                                    id: 'hw-1',
+                                    name: 'Listening Homework',
+                                    submissionId: 'hw-1_student-1_9000',
+                                },
+                                assignment: {
+                                    homeworkId: 'hw-1',
+                                    attemptNumber: 1,
+                                },
+                            },
+                            visibility: {
+                                contextType: 'homework',
+                                sourceType: 'writing_submission',
+                                sourceId: 'hw-1_student-1_9000',
+                                sourceNameSnapshot: 'Listening Homework',
+                                visibilityOwnerTeacherId: null,
+                                ownerResolutionSource: 'unresolved',
+                                ownershipResolved: false,
+                                unresolvedReason: 'writing_submission_not_found',
+                                homeworkId: 'hw-1',
+                                sessionCode: 'SESSION-HW',
+                                courseId: null,
+                                classId: null,
+                                assignmentId: null,
+                                sourceDeleted: true,
+                            },
+                            isGuest: false,
+                        },
+                    }),
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null,
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null,
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null,
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null,
+                });
+            mockResolveResultOwnership.mockResolvedValueOnce({
+                visibility: {
+                    contextType: 'homework',
+                    sourceType: 'homework',
+                    sourceId: 'hw-1',
+                    sourceNameSnapshot: 'Listening Homework',
+                    visibilityOwnerTeacherId: 'teacher-1',
+                    ownerResolutionSource: 'homework.createdBy',
+                    ownershipResolved: true,
+                    unresolvedReason: null,
+                    homeworkId: 'hw-1',
+                    sessionCode: 'SESSION-HW',
+                    courseId: null,
+                    classId: null,
+                    assignmentId: null,
+                },
+                sourceLookupAttempted: true,
+                strongestKnownSourceClue: 'homework:hw-1',
+            });
+
+            const summary = await rebuildTeacherResultIndexes();
+
+            expect(summary).toMatchObject({
+                rebuiltCount: 1,
+                deletedCount: 0,
+                unresolvedCount: 0,
+            });
+            expect(mockResolveResultOwnership).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    result: expect.objectContaining({
+                        resultId: 'result-homework-bad',
+                    }),
+                })
+            );
+            expect(update).toHaveBeenCalledWith(
+                'test_results/result-homework-bad',
+                expect.objectContaining({
+                    visibility: expect.objectContaining({
+                        sourceType: 'homework',
+                        sourceId: 'hw-1',
+                        visibilityOwnerTeacherId: 'teacher-1',
+                        ownershipResolved: true,
+                    }),
+                })
+            );
+            const rootUpdateCall = (update as any).mock.calls.find((call: any[]) =>
+                call[0] === '__root__' || call[0] === undefined || call[0] === null || call[0] === ''
+            ) ?? (update as any).mock.calls[(update as any).mock.calls.length - 1];
+            expect(rootUpdateCall[1]).toEqual(
+                expect.objectContaining({
+                    'test_results_by_teacher/teacher-1/result-homework-bad': expect.objectContaining({
+                        resultId: 'result-homework-bad',
+                        studentId: 'student-1',
                     }),
                 })
             );

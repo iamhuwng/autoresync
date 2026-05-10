@@ -658,7 +658,6 @@ function normalizeIdentifiers(input: ResolveResultOwnershipInput): NormalizedIde
     const writingSubmissionId =
         input.writingSubmissionId
         ?? result.writingData?.submissionId
-        ?? context?.source?.submissionId
         ?? null;
 
     return {

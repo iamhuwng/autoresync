@@ -16,11 +16,13 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import './AudioPlayer.css';
 import { googleDriveAudioService } from '../../../services/googleDriveAudio';
 import type { AudioSource } from '../../../services/googleDriveAudio';
 import { useAudioSync } from '../../../hooks/audio';
 import { SyncIndicator } from '../../../components/test/SyncIndicator';
 import type { MasterAudioState, AudioMode, AudioPlayerMode, HeadphoneRequest } from '../../../types/audio.types';
+import { listeningDiagnostics } from '../../../utils/listeningDiagnostics';
 
 /** Audio controls configuration from teacher settings */
 interface AudioControlsConfig {
@@ -52,6 +54,8 @@ interface AudioPlayerProps {
   allowReplay?: boolean;
   /** Use minimal/compact display mode (IELTS style) */
   minimal?: boolean;
+  /** Use the touch-friendly mobile layout for the minimal player */
+  mobileLayout?: boolean;
   /** Full audio controls configuration from teacher settings */
   audioControls?: AudioControlsConfig;
   /** Callback for skip section button */
@@ -97,6 +101,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   maxReplays = 1,
   allowReplay = false,
   minimal = true,
+  mobileLayout = false,
   audioControls,
   onSkipSection,
   onSpeedChange,
@@ -129,6 +134,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
   // Retry logic for transient errors
   const loadRetryCountRef = useRef(0);
+  const playbackDiagnosticTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPlayDiagnosticRef = useRef<{
+    reason: 'tap' | 'sync';
+    startTime: number;
+    startedAt: number;
+  } | null>(null);
   const MAX_LOAD_RETRIES = 3;
 
   // ============================================================
@@ -191,7 +202,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     // Initial sync on join (Task 5.4: handle late-joining)
     const initialPosition = calculateDisplayPosition();
     setCurrentTime(initialPosition);
-    console.log(`📍 [OfflineSync] Late join: synced to position ${initialPosition.toFixed(1)}s`);
+    listeningDiagnostics.log(`📍 [OfflineSync] Late join: synced to position ${initialPosition.toFixed(1)}s`);
 
     // Smooth progress bar updates every 100ms (Task 5.5)
     const updateInterval = setInterval(() => {
@@ -269,6 +280,110 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       ? soloModeDefaults.showSkipSection
       : showSkipSection;
 
+  const clearPlaybackDiagnostics = useCallback(() => {
+    if (playbackDiagnosticTimeoutRef.current) {
+      clearTimeout(playbackDiagnosticTimeoutRef.current);
+      playbackDiagnosticTimeoutRef.current = null;
+    }
+    pendingPlayDiagnosticRef.current = null;
+  }, []);
+
+  const schedulePlaybackDiagnostics = useCallback((reason: 'tap' | 'sync') => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    clearPlaybackDiagnostics();
+    pendingPlayDiagnosticRef.current = {
+      reason,
+      startTime: audio.currentTime,
+      startedAt: Date.now(),
+    };
+
+    playbackDiagnosticTimeoutRef.current = setTimeout(() => {
+      const currentAudio = audioRef.current;
+      const pending = pendingPlayDiagnosticRef.current;
+
+      if (!currentAudio || !pending) {
+        return;
+      }
+
+      if (!currentAudio.paused && currentAudio.currentTime > pending.startTime + 0.25) {
+        return;
+      }
+
+      listeningDiagnostics.warn('[AudioPlayer] Playback did not advance after play request', {
+        reason: pending.reason,
+        playerMode,
+        audioMode: audioMode ?? null,
+        sectionNumber,
+        readyState: currentAudio.readyState,
+        networkState: currentAudio.networkState,
+        paused: currentAudio.paused,
+        currentTime: currentAudio.currentTime,
+        duration: currentAudio.duration,
+        src: currentAudio.currentSrc || currentAudio.src,
+      });
+    }, 1500);
+  }, [audioMode, clearPlaybackDiagnostics, playerMode, sectionNumber]);
+
+  const markPlaybackProgress = useCallback((eventName: 'timeupdate' | 'playing') => {
+    const audio = audioRef.current;
+    const pending = pendingPlayDiagnosticRef.current;
+
+    if (!audio || !pending || audio.currentTime <= pending.startTime + 0.25) {
+      return;
+    }
+
+    listeningDiagnostics.info('[AudioPlayer] Playback advancing', {
+      eventName,
+      reason: pending.reason,
+      sectionNumber,
+      currentTime: audio.currentTime,
+      duration: audio.duration,
+      readyState: audio.readyState,
+      src: audio.currentSrc || audio.src,
+    });
+    clearPlaybackDiagnostics();
+  }, [clearPlaybackDiagnostics, sectionNumber]);
+
+  useEffect(() => {
+    setLocalSpeed(playbackSpeed);
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    listeningDiagnostics.info('[AudioPlayer] Control state resolved', {
+      playerMode,
+      audioMode: audioMode ?? null,
+      sectionNumber,
+      minimal,
+      mobileLayout,
+      effectiveAllowPause,
+      effectiveAllowRewind,
+      effectiveAllowSpeedControl,
+      effectiveShowVolumeControl,
+      effectiveShowSkipSection,
+      hideControlsForOffline,
+      teacherControlledOnline,
+      shouldMute,
+    });
+  }, [
+    audioMode,
+    effectiveAllowPause,
+    effectiveAllowRewind,
+    effectiveAllowSpeedControl,
+    effectiveShowSkipSection,
+    effectiveShowVolumeControl,
+    hideControlsForOffline,
+    minimal,
+    mobileLayout,
+    playerMode,
+    sectionNumber,
+    shouldMute,
+    teacherControlledOnline,
+  ]);
+
   // Process audio URL on mount or URL change
   useEffect(() => {
     const processAudio = async () => {
@@ -281,14 +396,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         if (isR2Url || isDirectUrl) {
           // Direct URL (R2 or other CDN)
-          console.log('🎵 Using direct audio URL:', audioUrl);
+          listeningDiagnostics.log('🎵 Using direct audio URL:', audioUrl);
 
           // PROACTIVE CHECK: Detect legacy temp paths that may have been deleted
           const isLegacyTempPath = audioUrl.includes('-temp/');
           if (isLegacyTempPath) {
-            console.warn('⚠️ [AudioPlayer] Detected legacy temp path in URL:', audioUrl);
-            console.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
-            console.warn('⚠️ Expected pattern: temp/folder/file.mp3 or permanent path without -temp/');
+            listeningDiagnostics.warn('⚠️ [AudioPlayer] Detected legacy temp path in URL:', audioUrl);
+            listeningDiagnostics.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
+            listeningDiagnostics.warn('⚠️ Expected pattern: temp/folder/file.mp3 or permanent path without -temp/');
 
             // Try to validate the file exists before attempting playback
             try {
@@ -325,7 +440,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           }
         } else {
           // Unknown URL format - try as direct
-          console.log('🎵 Treating unknown URL as direct:', audioUrl);
+          listeningDiagnostics.log('🎵 Treating unknown URL as direct:', audioUrl);
           setAudioSource({
             type: 'direct',
             url: audioUrl,
@@ -355,14 +470,75 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       setDuration(audio.duration);
       audio.volume = volume;
       audio.playbackRate = playbackSpeed;
+      listeningDiagnostics.info('[AudioPlayer] Metadata loaded', {
+        sectionNumber,
+        duration: audio.duration,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        src: audio.currentSrc || audio.src,
+      });
     };
 
-    const handleTimeUpdate = () => {
+  const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       onTimeUpdate(audio.currentTime, audio.duration);
+      markPlaybackProgress('timeupdate');
+    };
+
+    const handlePause = () => {
+      listeningDiagnostics.warn('[AudioPlayer] Pause event', {
+        sectionNumber,
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        ended: audio.ended,
+        src: audio.currentSrc || audio.src,
+      });
+    };
+
+    const handlePlaying = () => {
+      listeningDiagnostics.info('[AudioPlayer] Playing event', {
+        sectionNumber,
+        currentTime: audio.currentTime,
+        readyState: audio.readyState,
+        src: audio.currentSrc || audio.src,
+      });
+      markPlaybackProgress('playing');
+    };
+
+    const handleCanPlay = () => {
+      listeningDiagnostics.info('[AudioPlayer] Can play', {
+        sectionNumber,
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        readyState: audio.readyState,
+        src: audio.currentSrc || audio.src,
+      });
+    };
+
+    const handleWaiting = () => {
+      listeningDiagnostics.warn('[AudioPlayer] Waiting for audio data', {
+        sectionNumber,
+        currentTime: audio.currentTime,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        src: audio.currentSrc || audio.src,
+      });
+    };
+
+    const handleStalled = () => {
+      listeningDiagnostics.warn('[AudioPlayer] Audio stalled', {
+        sectionNumber,
+        currentTime: audio.currentTime,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        src: audio.currentSrc || audio.src,
+      });
     };
 
     const handleEnded = () => {
+      clearPlaybackDiagnostics();
       if (replaysUsed < maxReplays - 1) {
         setReplaysUsed(prev => prev + 1);
         audio.currentTime = 0;
@@ -373,6 +549,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
 
     const handleError = () => {
+      clearPlaybackDiagnostics();
       // Get detailed error information from audio element
       const mediaError = audio.error;
       const errorCode = mediaError?.code;
@@ -400,18 +577,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       const isGoogleDriveUrl = audioSource?.originalUrl?.includes('drive.google.com');
 
       if (!useEmbed && audioSource?.type === 'direct' && isGoogleDriveUrl && audioSource.fileId) {
-        console.log('Audio streaming failed, switching to Google Drive embed player...');
+        listeningDiagnostics.log('Audio streaming failed, switching to Google Drive embed player...');
         setUseEmbed(true);
       } else {
         // For R2 and other direct URLs, implement retry logic
         loadRetryCountRef.current++;
-        console.log(`🔄 [AudioPlayer] Audio load error (attempt ${loadRetryCountRef.current}/${MAX_LOAD_RETRIES}) - ${errorDescription}`);
+        listeningDiagnostics.log(`🔄 [AudioPlayer] Audio load error (attempt ${loadRetryCountRef.current}/${MAX_LOAD_RETRIES}) - ${errorDescription}`);
 
         if (loadRetryCountRef.current < MAX_LOAD_RETRIES) {
           // Retry loading after a short delay
           setTimeout(() => {
             if (audio) {
-              console.log('🔄 [AudioPlayer] Retrying audio load...');
+              listeningDiagnostics.log('🔄 [AudioPlayer] Retrying audio load...');
               audio.load();
             }
           }, 1000 * loadRetryCountRef.current); // Exponential backoff
@@ -441,16 +618,153 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('stalled', handleStalled);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('stalled', handleStalled);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [audioSource, volume, playbackSpeed, maxReplays, replaysUsed, onTimeUpdate, onSectionComplete, onError]);
+  }, [
+    audioSource,
+    clearPlaybackDiagnostics,
+    markPlaybackProgress,
+    maxReplays,
+    onError,
+    onSectionComplete,
+    onTimeUpdate,
+    playbackSpeed,
+    replaysUsed,
+    sectionNumber,
+    volume,
+  ]);
+
+  const attemptPlay = useCallback(async (reason: 'tap' | 'sync', revertOnFailure: boolean) => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    if (!audioSource?.url) {
+      listeningDiagnostics.log('🎵 [AudioPlayer] Waiting for audio source to load before playing');
+      return;
+    }
+
+    try {
+      listeningDiagnostics.info('[AudioPlayer] Play requested', {
+        reason,
+        sectionNumber,
+        playerMode,
+        audioMode: audioMode ?? null,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        paused: audio.paused,
+        currentTime: audio.currentTime,
+        src: audio.currentSrc || audio.src,
+      });
+      if (audio.readyState === 0) {
+        audio.load();
+      }
+      await audio.play();
+      schedulePlaybackDiagnostics(reason);
+    } catch (err) {
+      clearPlaybackDiagnostics();
+      console.error('Playback failed:', err);
+      listeningDiagnostics.warn('[AudioPlayer] Playback request rejected', {
+        reason,
+        sectionNumber,
+        playerMode,
+        audioMode: audioMode ?? null,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        paused: audio.paused,
+        currentTime: audio.currentTime,
+        src: audio.currentSrc || audio.src,
+      });
+
+      if (err instanceof DOMException && err.name === 'NotAllowedError') {
+        listeningDiagnostics.log('🔇 Autoplay blocked by browser - user interaction required');
+      } else if (err instanceof DOMException && err.name === 'NotSupportedError') {
+        onError('Audio format not supported or URL invalid.');
+      } else {
+        onError('Failed to play audio. Please try again.');
+      }
+
+      if (
+        revertOnFailure
+        && !isOnlineMode
+        && !isOfflineMode
+        && effectiveAllowPause
+        && effectiveIsPlaying
+      ) {
+        onPlayPause();
+      }
+    }
+  }, [
+    audioMode,
+    audioSource,
+    clearPlaybackDiagnostics,
+    effectiveAllowPause,
+    effectiveIsPlaying,
+    isOfflineMode,
+    isOnlineMode,
+    onError,
+    onPlayPause,
+    playerMode,
+    schedulePlaybackDiagnostics,
+    sectionNumber,
+  ]);
+
+  const handlePlayPausePress = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      onPlayPause();
+      return;
+    }
+
+    listeningDiagnostics.info('[AudioPlayer] Play/pause button pressed', {
+      audioCurrentTime: audio.currentTime,
+      audioPaused: audio.paused,
+      effectiveIsPlaying,
+      sectionNumber,
+    });
+
+    if (effectiveIsPlaying) {
+      audio.pause();
+      onPlayPause();
+      return;
+    }
+
+    if (audioSource?.url) {
+      audio.volume = effectiveVolume;
+      if (allowSpeedControl) {
+        audio.playbackRate = playbackSpeed;
+      }
+      void attemptPlay('tap', false);
+    }
+
+    onPlayPause();
+  }, [
+    allowSpeedControl,
+    attemptPlay,
+    audioSource,
+    effectiveIsPlaying,
+    effectiveVolume,
+    onPlayPause,
+    playbackSpeed,
+  ]);
 
   // Control playback
   // NOTE: In online sync mode, effectiveIsPlaying comes from masterAudioState.isPlaying
@@ -459,50 +773,23 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Don't attempt to play if audio source isn't loaded yet
-    if (!audioSource?.url) {
-      console.log('🎵 [AudioPlayer] Waiting for audio source to load before playing');
-      return;
-    }
-
-    let cleanupFn: (() => void) | undefined;
-
     if (effectiveIsPlaying) {
-      // Function to attempt playing audio
-      const playAttempt = () => {
-        audio.play().catch(err => {
-          console.error('Playback failed:', err);
-          // Log autoplay blocks but don't show error - browser policy, will retry
-          if (err.name === 'NotAllowedError') {
-            console.log('🔇 Autoplay blocked by browser - user interaction required');
-            // Don't call onError - just log it. Audio will play when user interacts.
-          } else if (err.name === 'NotSupportedError') {
-            onError('Audio format not supported or URL invalid.');
-          } else {
-            onError('Failed to play audio. Please try again.');
-          }
+      if (audio.paused) {
+        listeningDiagnostics.info('[AudioPlayer] Sync effect starting paused audio', {
+          currentTime: audio.currentTime,
+          sectionNumber,
         });
-      };
-
-      // If audio is not ready, wait for it to load
-      if (audio.readyState < 2) { // HAVE_CURRENT_DATA = 2
-        console.log('🎵 [AudioPlayer] Audio not ready, waiting for canplay event');
-        const handleCanPlay = () => {
-          playAttempt();
-          audio.removeEventListener('canplay', handleCanPlay);
-        };
-        audio.addEventListener('canplay', handleCanPlay);
-        audio.load(); // Trigger load if not already loading
-        cleanupFn = () => audio.removeEventListener('canplay', handleCanPlay);
-      } else {
-        playAttempt();
+        void attemptPlay('sync', true);
       }
-    } else {
+    } else if (!audio.paused) {
+      listeningDiagnostics.warn('[AudioPlayer] Sync effect pausing audio because effectiveIsPlaying is false', {
+        currentTime: audio.currentTime,
+        sectionNumber,
+      });
+      clearPlaybackDiagnostics();
       audio.pause();
     }
-
-    return cleanupFn;
-  }, [effectiveIsPlaying, onError, audioSource]);
+  }, [attemptPlay, clearPlaybackDiagnostics, effectiveIsPlaying, sectionNumber]);
 
   // Update volume (uses effectiveVolume to respect offline mode muting)
   useEffect(() => {
@@ -522,10 +809,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   // Reset state and reload audio when URL or section changes
   useEffect(() => {
-    console.log(`🎵 [AudioPlayer] Section/URL changed - resetting player state`);
+    listeningDiagnostics.log(`🎵 [AudioPlayer] Section/URL changed - resetting player state`);
     setReplaysUsed(0);
     setCurrentTime(0);
     setUseEmbed(false);
+    clearPlaybackDiagnostics();
     loadRetryCountRef.current = 0; // Reset retry counter for new audio
 
     // Reset and reload audio element when URL changes
@@ -534,7 +822,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.currentTime = 0;
       audio.load(); // Force reload the audio source
     }
-  }, [sectionNumber, audioUrl]);
+  }, [audioSource?.url, audioUrl, clearPlaybackDiagnostics, sectionNumber]);
+
+  useEffect(() => {
+    return () => {
+      clearPlaybackDiagnostics();
+    };
+  }, [clearPlaybackDiagnostics]);
 
   // Handle teacher-commanded seek position
   useEffect(() => {
@@ -543,7 +837,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     // Only seek if audio is ready
     if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
-      console.log(`⏩ [AudioPlayer] Seeking to position ${seekPosition}s by teacher command`);
+      listeningDiagnostics.log(`⏩ [AudioPlayer] Seeking to position ${seekPosition}s by teacher command`);
       audio.currentTime = seekPosition;
       setCurrentTime(seekPosition);
       // Notify parent that seek was consumed
@@ -553,7 +847,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     } else {
       // Wait for audio to be ready, then seek
       const handleCanPlay = () => {
-        console.log(`⏩ [AudioPlayer] Audio ready, seeking to position ${seekPosition}s by teacher command`);
+        listeningDiagnostics.log(`⏩ [AudioPlayer] Audio ready, seeking to position ${seekPosition}s by teacher command`);
         audio.currentTime = seekPosition;
         setCurrentTime(seekPosition);
         audio.removeEventListener('canplay', handleCanPlay);
@@ -678,6 +972,459 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   // IELTS-style Minimal Player
+  if (minimal && mobileLayout) {
+    const replayRemaining = maxReplays - replaysUsed;
+    const showReplayControl =
+      allowReplay &&
+      replaysUsed < maxReplays &&
+      currentTime >= duration &&
+      duration > 0;
+    const compactSecondaryButtonStyle: React.CSSProperties = {
+      minHeight: '36px',
+      padding: '0 8px',
+      fontSize: '11px',
+      fontWeight: 600,
+      borderRadius: '10px',
+      border: '1px solid #cbd5e1',
+      backgroundColor: 'white',
+      color: '#475569',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      whiteSpace: 'nowrap',
+      touchAction: 'manipulation',
+      WebkitTapHighlightColor: 'transparent',
+    };
+
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        padding: '4px 0 6px',
+      }}>
+        {/* Offline Mode Banner - Request Headphones */}
+        {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            padding: '10px 12px',
+            backgroundColor: 'rgba(251, 191, 36, 0.1)',
+            border: '1px solid rgba(251, 191, 36, 0.3)',
+            borderRadius: '10px',
+            fontSize: '12px',
+          }}>
+            <span style={{ color: '#92400e', fontWeight: 600 }}>
+              Audio is muted in classroom mode
+            </span>
+            <button
+              onClick={onRequestHeadphones}
+              disabled={isHeadphoneRequestPending}
+              type="button"
+              style={{
+                minHeight: '44px',
+                padding: '0 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                backgroundColor: isHeadphoneRequestPending ? '#e5e7eb' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: isHeadphoneRequestPending ? 'not-allowed' : 'pointer',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {isHeadphoneRequestPending ? 'Pending...' : 'Request Headphones'}
+            </button>
+          </div>
+        )}
+
+        {/* Hidden Audio Element */}
+        <audio
+          ref={audioRef}
+          src={audioSource?.url}
+          preload="metadata"
+          style={{ display: 'none' }}
+        />
+
+        {/* Sync Indicator for Online Mode */}
+        {isOnlineMode && (isSyncing || isTeacherDisconnected) && (
+          <SyncIndicator
+            isSyncing={isSyncing}
+            isTeacherDisconnected={isTeacherDisconnected}
+          />
+        )}
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '44px minmax(0, 1fr)',
+          alignItems: 'start',
+          gap: '8px',
+        }}>
+          {effectiveAllowPause ? (
+            <button
+              onClick={handlePlayPausePress}
+              aria-label={effectiveIsPlaying ? 'Pause' : 'Play'}
+              type="button"
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#374151',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                flexShrink: 0,
+                transition: 'all 0.2s',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {effectiveIsPlaying ? '⏸' : '▶'}
+            </button>
+          ) : (
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#94a3b8',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              flexShrink: 0,
+            }}>
+              {effectiveIsPlaying ? '🎧' : '⏸'}
+            </div>
+          )}
+
+          <div style={{
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+          }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <div style={{
+                minWidth: 0,
+                fontSize: '12px',
+                lineHeight: 1.15,
+                fontWeight: 700,
+                color: '#0f172a',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                whiteSpace: 'nowrap',
+              }}>
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '6px',
+                flexWrap: 'wrap',
+              }}>
+                {effectiveAllowSpeedControl && (
+                  <select
+                    value={localSpeed}
+                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                    aria-label="Playback speed"
+                    style={{
+                      minHeight: '36px',
+                      padding: '0 8px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: '10px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: 'white',
+                      color: '#374151',
+                      cursor: 'pointer',
+                      minWidth: '60px',
+                      touchAction: 'manipulation',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                  >
+                    {speedOptions.map(speed => (
+                      <option key={speed} value={speed}>{speed}x</option>
+                    ))}
+                  </select>
+                )}
+
+                {effectiveShowSkipSection && onSkipSection && (
+                  <button
+                    onClick={onSkipSection}
+                    title="Skip to next section"
+                    aria-label="Skip to next section"
+                    type="button"
+                    style={compactSecondaryButtonStyle}
+                  >
+                    <span aria-hidden="true">⏭</span>
+                    <span>Skip</span>
+                  </button>
+                )}
+
+                {showReplayControl && (
+                  <button
+                    onClick={() => {
+                      const audio = audioRef.current;
+                      if (audio) {
+                        audio.currentTime = 0;
+                        setCurrentTime(0);
+                        setReplaysUsed(prev => prev + 1);
+                        void audio.play();
+                      }
+                    }}
+                    title={`Replay (${replayRemaining} remaining)`}
+                    aria-label={`Replay section (${replayRemaining} remaining)`}
+                    type="button"
+                    style={{
+                      ...compactSecondaryButtonStyle,
+                      border: '1px solid #10b981',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      color: '#047857',
+                    }}
+                  >
+                    <span aria-hidden="true">↻</span>
+                    <span>Replay</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: effectiveShowVolumeControl
+                  ? 'minmax(0, 1fr) minmax(92px, 0.42fr)'
+                  : '1fr',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <input
+                className="audio-player-range audio-player-range--progress"
+                type="range"
+                min="0"
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                disabled={!effectiveAllowRewind}
+                aria-label="Audio progress"
+                style={{
+                  width: '100%',
+                  minHeight: '22px',
+                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
+                  cursor: effectiveAllowRewind ? 'pointer' : 'default',
+                  touchAction: 'manipulation',
+                  accentColor: '#3b82f6',
+                }}
+              />
+
+              {effectiveShowVolumeControl && (
+                <div
+                  style={{
+                    minWidth: 0,
+                    display: 'grid',
+                    gridTemplateColumns: '16px minmax(0, 1fr)',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: volume === 0 ? '#94a3b8' : '#475569',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path
+                        d="M2.5 6.5H5L8.5 3.5V12.5L5 9.5H2.5V6.5Z"
+                        fill="currentColor"
+                      />
+                      {volume === 0 ? (
+                        <path
+                          d="M10.5 5L13 11"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
+                      ) : (
+                        <>
+                          <path
+                            d="M10.75 6C11.35 6.45 11.75 7.17 11.75 8C11.75 8.83 11.35 9.55 10.75 10"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M12.5 4.5C13.45 5.35 14.05 6.65 14.05 8C14.05 9.35 13.45 10.65 12.5 11.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
+                        </>
+                      )}
+                    </svg>
+                  </span>
+
+                  <input
+                    className="audio-player-range audio-player-range--volume"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={(e) => {
+                      const newVolume = parseFloat(e.target.value);
+                      const audio = audioRef.current;
+                      if (audio) audio.volume = newVolume;
+                      onVolumeChange?.(newVolume);
+                    }}
+                    aria-label="Volume"
+                    style={{
+                      width: '100%',
+                      minHeight: '22px',
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      accentColor: '#3b82f6',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {false && effectiveShowVolumeControl && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '44px minmax(0, 1fr) 44px',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <button
+              onClick={() => {
+                const newVolume = Math.max(0, volume - 0.1);
+                const audio = audioRef.current;
+                if (audio) audio.volume = newVolume;
+                onVolumeChange?.(newVolume);
+              }}
+              type="button"
+              aria-label="Decrease volume"
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                background: '#f8fafc',
+                color: '#475569',
+                fontSize: '18px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              −
+            </button>
+
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                display: 'none',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                marginBottom: '4px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#475569',
+              }}>
+                <span>
+                  Volume {volume === 0 ? '🔇' : volume < 0.3 ? '🔈' : volume < 0.7 ? '🔉' : '🔊'}
+                </span>
+                <span>{Math.round(volume * 100)}%</span>
+              </div>
+              <input
+                className="audio-player-range audio-player-range--volume"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={(e) => {
+                  const newVolume = parseFloat(e.target.value);
+                  const audio = audioRef.current;
+                  if (audio) audio.volume = newVolume;
+                  onVolumeChange?.(newVolume);
+                }}
+                aria-label="Volume"
+                style={{
+                  width: '100%',
+                  minHeight: '28px',
+                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
+                  cursor: 'pointer',
+                  touchAction: 'manipulation',
+                  accentColor: '#3b82f6',
+                }}
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                const newVolume = Math.min(1, volume + 0.1);
+                const audio = audioRef.current;
+                if (audio) audio.volume = newVolume;
+                onVolumeChange?.(newVolume);
+              }}
+              type="button"
+              aria-label="Increase volume"
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                background: '#f8fafc',
+                color: '#475569',
+                fontSize: '18px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (minimal) {
     return (
       <div style={{
@@ -703,6 +1450,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <button
               onClick={onRequestHeadphones}
               disabled={isHeadphoneRequestPending}
+              type="button"
               style={{
                 padding: '4px 8px',
                 fontSize: '11px',
@@ -711,6 +1459,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 border: 'none',
                 borderRadius: '4px',
                 cursor: isHeadphoneRequestPending ? 'not-allowed' : 'pointer',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {isHeadphoneRequestPending ? '⏳ Pending...' : '🎧 Request Headphones'}
@@ -744,8 +1494,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           {/* Play/Pause Button - only show if allowed */}
           {effectiveAllowPause ? (
             <button
-              onClick={onPlayPause}
+              onClick={handlePlayPausePress}
               aria-label={effectiveIsPlaying ? 'Pause' : 'Play'}
+              type="button"
               style={{
                 width: '32px',
                 height: '32px',
@@ -760,6 +1511,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 fontSize: '12px',
                 flexShrink: 0,
                 transition: 'all 0.2s',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {effectiveIsPlaying ? '⏸' : '▶'}
@@ -799,6 +1552,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 appearance: 'none',
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
                 cursor: effectiveAllowRewind ? 'pointer' : 'default',
+                touchAction: 'manipulation',
               }}
             />
           </div>
@@ -828,6 +1582,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 color: '#374151',
                 cursor: 'pointer',
                 minWidth: '55px',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {speedOptions.map(speed => (
@@ -841,6 +1597,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <button
               onClick={onSkipSection}
               title="Skip to next section"
+              type="button"
               style={{
                 padding: '4px 8px',
                 fontSize: '11px',
@@ -852,6 +1609,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               ⏭️
@@ -867,10 +1626,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   audio.currentTime = 0;
                   setCurrentTime(0);
                   setReplaysUsed(prev => prev + 1);
-                  audio.play();
+                  void audio.play();
                 }
               }}
               title={`Replay (${maxReplays - replaysUsed} remaining)`}
+              type="button"
               style={{
                 padding: '4px 8px',
                 fontSize: '11px',
@@ -882,6 +1642,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               🔄 Replay ({maxReplays - replaysUsed})
@@ -899,6 +1661,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   if (audio) audio.volume = newVolume;
                   onVolumeChange?.(newVolume);
                 }}
+                type="button"
                 style={{
                   width: '20px',
                   height: '20px',
@@ -913,6 +1676,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.15s',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
@@ -947,6 +1712,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   appearance: 'none',
                   background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
                   cursor: 'pointer',
+                  touchAction: 'manipulation',
                 }}
               />
 
@@ -969,6 +1735,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   if (audio) audio.volume = newVolume;
                   onVolumeChange?.(newVolume);
                 }}
+                type="button"
                 style={{
                   width: '20px',
                   height: '20px',
@@ -983,6 +1750,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.15s',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
@@ -1015,8 +1784,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       {/* Play/Pause + Progress */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <button
-          onClick={onPlayPause}
+          onClick={handlePlayPausePress}
           disabled={!allowPause && effectiveIsPlaying}
+          type="button"
           style={{
             width: '44px',
             height: '44px',
@@ -1030,6 +1800,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             justifyContent: 'center',
             fontSize: '18px',
             opacity: (!allowPause && effectiveIsPlaying) ? 0.5 : 1,
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           {effectiveIsPlaying ? '⏸' : '▶'}

@@ -35,6 +35,8 @@ PRD-0036 requires answer-key separation: the initial student payload must not ex
   - `saveTestToFirebase()`
   - `updateTestInFirebase()`
   - `deleteTestFromFirebase()`
+- [TestEditor.tsx](/C:/Users/The%20Lord/Desktop/luyentap/src/components/TestEditor.tsx)
+  - Teacher Lobby / material-card edit modal save
 
 **Reader**
 
@@ -44,14 +46,17 @@ PRD-0036 requires answer-key separation: the initial student payload must not ex
 
 - Same overall test structure as the normal test object
 - `questions` are sanitized through `stripAnswerKeys(...)`
-- Used for solo and homework delivery only
+- render metadata is preserved, including `displayMode`, `audioSections`, `questionImages`, and per-image `questionRange`
+- used for solo, homework, and stale live-session fallback delivery
 
 **Operational rule**
 
-If a legacy test exists under `tests/{testId}` but does not have a matching `student_safe_tests/{testId}`, the new solo/homework loader can fail. That is why rollout requires either:
+Normal test save/update paths must write `tests/{testId}` and `student_safe_tests/{testId}` in the same root update. Do not rely on a later manual refresh or Firebase CLI repair after teacher edits.
 
-- backfilling the safe payload node, or
-- re-saving legacy tests so the safe copy is generated
+`refreshStudentSafeTestData(testId)` remains a repair-only helper for incident recovery or legacy migration. It is not the foundation for Teacher Lobby edit-modal saves.
+
+Detailed projection contract:
+- [student-test-delivery-projections.md](/C:/Users/The%20Lord/Desktop/luyentap/documentation/architecture/student-test-delivery-projections.md)
 
 ### 2.2 `session_test_payloads/{sessionCode}`
 
@@ -76,6 +81,16 @@ Stores the student-safe rendered payload prepared for one live session. This pre
 2. The monitor prepares and writes the sanitized session payload.
 3. Student session pages read `session_test_payloads/{sessionCode}`.
 4. When the session is ended and cleaned up, the payload is removed.
+
+**Freshness rule**
+
+`getSessionStudentSafeTestData(sessionCode, testId)` may return the current global `student_safe_tests/{testId}` payload instead of the cached session payload when:
+
+- the session payload is missing
+- the session payload points at a different test
+- `student_safe_tests/{testId}.updatedAt` is newer than the cached session payload timestamp
+
+This keeps teacher edits visible on new student loads or reloads after a session payload was primed.
 
 **Cleanup**
 
@@ -223,8 +238,9 @@ If this system is changed later, verify these questions explicitly:
 1. Does the student-facing loader still avoid direct dependence on answer-bearing question state?
 2. If a new session surface is added, does it consume `integrityRefreshRequestedAt` and the force-submit path correctly?
 3. If teacher reset behavior changes, does `submissionResetAt` still resume the waiting-room flow correctly?
-4. If test save/update flows are refactored, are `student_safe_tests/{testId}` payloads still regenerated?
+4. If test save/update flows are refactored, are `student_safe_tests/{testId}` payloads still regenerated in the same root write as canonical changes?
 5. If session end/cleanup changes, is `session_test_payloads/{sessionCode}` still removed and are anti-cheat coordination fields still reset?
+6. If live-session loaders are refactored, do they still fall back to current `student_safe_tests/{testId}` when the cached session payload is stale?
 
 ## 7. Related References
 
@@ -232,3 +248,4 @@ If this system is changed later, verify these questions explicitly:
 - [tasks-0036-prd-anti-cheating-system-production-reset.md](/C:/Users/The%20Lord/Desktop/luyentap/documentation/tasks/tasks-0036-prd-anti-cheating-system-production-reset.md)
 - [0036-anti-cheat-production-closeout.md](/C:/Users/The%20Lord/Desktop/luyentap/documentation/tasks/0036-anti-cheat-production-closeout.md)
 - [0036-anti-cheat-observability-contract.md](/C:/Users/The%20Lord/Desktop/luyentap/documentation/tasks/0036-anti-cheat-observability-contract.md)
+- [student-test-delivery-projections.md](/C:/Users/The%20Lord/Desktop/luyentap/documentation/architecture/student-test-delivery-projections.md)

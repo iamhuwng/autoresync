@@ -47,6 +47,7 @@ interface ListeningQuestionDisplayProps {
   onAnswerChange: (questionNumber: number, answer: any) => void;
   currentQuestionNumber: number;
   testSubmitted?: boolean;
+  disabled?: boolean;
   questionResults?: Record<number, boolean>;
 }
 
@@ -236,9 +237,10 @@ const QuestionItem: React.FC<{
   onAnswerChange: (answer: any) => void;
   isActive: boolean;
   testSubmitted?: boolean;
+  disabled?: boolean;
   isCorrect?: boolean;
   showContext?: boolean;
-}> = ({ question, answer, onAnswerChange, isActive, testSubmitted, isCorrect, showContext = true }) => {
+}> = ({ question, answer, onAnswerChange, isActive, testSubmitted, disabled, isCorrect, showContext = true }) => {
   return (
     <div
       style={{
@@ -327,7 +329,7 @@ const QuestionItem: React.FC<{
         }}
         answer={answer || ''}
         onChange={onAnswerChange}
-        disabled={testSubmitted}
+        disabled={Boolean(testSubmitted || disabled)}
       />
     </div>
   );
@@ -342,6 +344,7 @@ export const ListeningQuestionDisplay: React.FC<ListeningQuestionDisplayProps> =
   onAnswerChange,
   currentQuestionNumber,
   testSubmitted,
+  disabled,
   questionResults,
 }) => {
   // Instructions are now handled by SectionRubricBlock
@@ -392,6 +395,7 @@ export const ListeningQuestionDisplay: React.FC<ListeningQuestionDisplayProps> =
           answers={answers}
           onAnswerChange={onAnswerChange}
           testSubmitted={testSubmitted}
+          disabled={disabled}
           questionResults={questionResults}
           currentQuestionNumber={currentQuestionNumber}
         />
@@ -410,6 +414,7 @@ export const ListeningQuestionDisplay: React.FC<ListeningQuestionDisplayProps> =
               onAnswerChange={(answer) => onAnswerChange(question.number, answer)}
               isActive={currentQuestionNumber === question.number}
               testSubmitted={testSubmitted}
+              disabled={disabled}
               isCorrect={questionResults?.[question.number]}
               showContext={!groupImage}
             />

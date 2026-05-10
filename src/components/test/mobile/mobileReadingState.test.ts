@@ -35,6 +35,7 @@ describe('mobileReadingState helpers', () => {
       questionSheetScrollByPassage: { p1: 40 },
       textSize: 19,
     })).toEqual({
+      kind: 'reading',
       activePassageId: 'p1',
       questionSheetOpen: true,
       reviewSummaryOpen: false,

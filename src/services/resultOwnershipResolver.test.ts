@@ -289,6 +289,67 @@ describe('resultOwnershipResolver', () => {
         });
         expect(result.sourceLookupAttempted).toBe(true);
         expect(result.strongestKnownSourceClue).toBe('writing_submission:submission-1');
+        expect(dependencies.getSubmission).toHaveBeenCalledWith('submission-1');
+    });
+
+    it('does not treat homework submission ids as writing submission ids', async () => {
+        (dependencies.getHomeworkById as ReturnType<typeof vi.fn>).mockResolvedValue({
+            createdBy: 'teacher-homework',
+            title: 'Listening Homework',
+        });
+
+        const result = await resolveResultOwnership({
+            context: createContext({
+                source: {
+                    type: 'homework',
+                    id: 'hw-1',
+                    name: 'Listening Homework',
+                    submissionId: 'hw-1_student-1_123',
+                },
+            }),
+        }, dependencies);
+
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        expect(dependencies.getHomeworkById).toHaveBeenCalledWith('hw-1');
+        expect(result.visibility).toMatchObject({
+            contextType: 'homework',
+            sourceType: 'homework',
+            sourceId: 'hw-1',
+            visibilityOwnerTeacherId: 'teacher-homework',
+            ownerResolutionSource: 'homework.createdBy',
+            ownershipResolved: true,
+            homeworkId: 'hw-1',
+        });
+    });
+
+    it('does not treat homework source submission ids as writing submission ids', async () => {
+        (dependencies.getHomeworkById as ReturnType<typeof vi.fn>).mockResolvedValue({
+            createdBy: 'teacher-homework',
+            title: 'Homework 1',
+        });
+
+        const result = await resolveResultOwnership({
+            contextType: 'homework',
+            context: createContext({
+                source: {
+                    type: 'homework',
+                    id: 'hw-1',
+                    name: 'Homework 1',
+                    submissionId: 'hw-1_student-1_123',
+                },
+            }),
+        }, dependencies);
+
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        expect(dependencies.getHomeworkById).toHaveBeenCalledWith('hw-1');
+        expect(result.visibility).toMatchObject({
+            contextType: 'homework',
+            sourceType: 'homework',
+            sourceId: 'hw-1',
+            visibilityOwnerTeacherId: 'teacher-homework',
+            ownerResolutionSource: 'homework.createdBy',
+            ownershipResolved: true,
+        });
     });
 
     it('classifies self-study rows as solo practice with no teacher-owner lookup', async () => {

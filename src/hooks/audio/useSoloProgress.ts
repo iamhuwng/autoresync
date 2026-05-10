@@ -1,13 +1,14 @@
 /**
  * useSoloProgress Hook
- * 
+ *
  * Saves and restores audio progress for solo study/homework mode.
- * Uses localStorage for persistence across browser sessions.
- * 
+ * Uses the platform storage abstraction for portability across browser/mobile runtimes.
+ *
  * @see PRD-0018: Unified Audio Architecture - Solo Mode Progress
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { storage } from '../../core/platform/storage';
 
 // ============================================================
 // TYPES
@@ -33,7 +34,7 @@ export interface UseSoloProgressOptions {
     testId: string | undefined;
     /** Whether solo mode is active */
     enabled?: boolean;
-    /** Key prefix for localStorage */
+    /** Key prefix for persistent storage */
     storageKeyPrefix?: string;
 }
 
@@ -56,8 +57,24 @@ export interface UseSoloProgressReturn {
 // CONSTANTS
 // ============================================================
 
-const DEFAULT_STORAGE_PREFIX = 'solo_progress_';
+const DEFAULT_STORAGE_PREFIX = 'audio_progress_';
+const LEGACY_STORAGE_PREFIX = 'solo_progress_';
 const PROGRESS_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function isSoloProgressData(value: unknown): value is SoloProgressData {
+    return Boolean(
+        value
+        && typeof value === 'object'
+        && 'testId' in value
+        && 'section' in value
+        && 'position' in value
+        && 'savedAt' in value,
+    );
+}
 
 // ============================================================
 // HOOK IMPLEMENTATION
@@ -72,6 +89,7 @@ export function useSoloProgress({
     const [dismissed, setDismissed] = useState(false);
 
     const storageKey = testId ? `${storageKeyPrefix}${testId}` : null;
+    const legacyStorageKey = testId ? `${LEGACY_STORAGE_PREFIX}${testId}` : null;
 
     // Load saved progress on mount
     useEffect(() => {
@@ -80,36 +98,63 @@ export function useSoloProgress({
             return;
         }
 
-        try {
-            const stored = localStorage.getItem(storageKey);
-            if (stored) {
-                const parsed: SoloProgressData = JSON.parse(stored);
+        let cancelled = false;
 
-                // Check if progress is expired
-                const now = Date.now();
-                if (now - parsed.savedAt > PROGRESS_EXPIRY_MS) {
-                    localStorage.removeItem(storageKey);
+        void (async () => {
+            try {
+                const candidateKeys = [storageKey];
+                if (legacyStorageKey && legacyStorageKey !== storageKey) {
+                    candidateKeys.push(legacyStorageKey);
+                }
+
+                for (const candidateKey of candidateKeys) {
+                    const parsed = await storage.get<SoloProgressData>(candidateKey);
+                    if (!isSoloProgressData(parsed)) {
+                        continue;
+                    }
+
+                    if (Date.now() - parsed.savedAt > PROGRESS_EXPIRY_MS) {
+                        await storage.remove(candidateKey);
+                        console.log('[SoloProgress] Expired progress cleared');
+                        continue;
+                    }
+
+                    if (candidateKey !== storageKey) {
+                        await storage.set(storageKey, parsed);
+                        await storage.remove(candidateKey);
+                    }
+
+                    if (!cancelled) {
+                        setSavedProgress(parsed);
+                        console.log(`[SoloProgress] Loaded saved progress: Section ${parsed.section}, ${parsed.position.toFixed(1)}s`);
+                    }
+                    return;
+                }
+
+                if (!cancelled) {
                     setSavedProgress(null);
-                    console.log('🗑️ [SoloProgress] Expired progress cleared');
-                } else {
-                    setSavedProgress(parsed);
-                    console.log(`📖 [SoloProgress] Loaded saved progress: Section ${parsed.section}, ${parsed.position.toFixed(1)}s`);
+                }
+            } catch (error) {
+                console.error('Failed to load solo progress:', error);
+                if (!cancelled) {
+                    setSavedProgress(null);
                 }
             }
-        } catch (error) {
-            console.error('Failed to load solo progress:', error);
-            setSavedProgress(null);
-        }
-    }, [enabled, storageKey]);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [enabled, legacyStorageKey, storageKey]);
 
     /**
-     * Save current progress to localStorage
+     * Save current progress to persistent storage
      */
     const saveProgress = useCallback((
         section: number,
         position: number,
         speed: number = 1.0,
-        volume: number = 0.8
+        volume: number = 0.8,
     ) => {
         if (!enabled || !storageKey || !testId) return;
 
@@ -122,13 +167,11 @@ export function useSoloProgress({
             savedAt: Date.now(),
         };
 
-        try {
-            localStorage.setItem(storageKey, JSON.stringify(progressData));
-            setSavedProgress(progressData);
-            console.log(`💾 [SoloProgress] Saved: Section ${section}, ${position.toFixed(1)}s`);
-        } catch (error) {
+        void storage.set(storageKey, progressData).catch((error) => {
             console.error('Failed to save solo progress:', error);
-        }
+        });
+        setSavedProgress(progressData);
+        console.log(`[SoloProgress] Saved: Section ${section}, ${position.toFixed(1)}s`);
     }, [enabled, storageKey, testId]);
 
     /**
@@ -145,15 +188,14 @@ export function useSoloProgress({
     const clearProgress = useCallback(() => {
         if (!storageKey) return;
 
-        try {
-            localStorage.removeItem(storageKey);
-            setSavedProgress(null);
-            setDismissed(false);
-            console.log('🗑️ [SoloProgress] Progress cleared');
-        } catch (error) {
-            console.error('Failed to clear solo progress:', error);
+        void storage.remove(storageKey);
+        if (legacyStorageKey && legacyStorageKey !== storageKey) {
+            void storage.remove(legacyStorageKey);
         }
-    }, [storageKey]);
+        setSavedProgress(null);
+        setDismissed(false);
+        console.log('[SoloProgress] Progress cleared');
+    }, [legacyStorageKey, storageKey]);
 
     /**
      * Dismiss resume prompt without clearing saved data
@@ -164,9 +206,9 @@ export function useSoloProgress({
 
     // Calculate if we should show resume option
     const hasResumeableProgress = !!(
-        savedProgress &&
-        !dismissed &&
-        savedProgress.position > 5 // Only show if more than 5 seconds in
+        savedProgress
+        && !dismissed
+        && savedProgress.position > 5 // Only show if more than 5 seconds in
     );
 
     return {

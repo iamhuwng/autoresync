@@ -35,6 +35,7 @@ import { studentResumeService } from '../services/studentResume.service';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
+const ListeningPracticeView = lazy(() => import('../components/practice/ListeningPracticeView'));
 
 // ── Location State Shape ───────────────────────────────────────────────────────
 
@@ -66,6 +67,38 @@ interface PracticeLocationState {
 }
 
 // ── Router Content ─────────────────────────────────────────────────────────────
+
+type CanonicalIeltsSkill = 'Reading' | 'Listening' | 'Writing' | 'Speaking';
+
+const normalizeIeltsSkill = (rawSkill: unknown): CanonicalIeltsSkill | null => {
+    if (typeof rawSkill !== 'string') {
+        return null;
+    }
+
+    switch (rawSkill.trim().toLowerCase()) {
+        case 'reading':
+            return 'Reading';
+        case 'listening':
+            return 'Listening';
+        case 'writing':
+            return 'Writing';
+        case 'speaking':
+            return 'Speaking';
+        default:
+            return null;
+    }
+};
+
+const inferIeltsSkillFromMaterialId = (materialId: string): CanonicalIeltsSkill | null => {
+    const normalizedMaterialId = materialId.trim().toLowerCase();
+
+    if (normalizedMaterialId.includes('listening')) return 'Listening';
+    if (normalizedMaterialId.includes('writing')) return 'Writing';
+    if (normalizedMaterialId.includes('reading')) return 'Reading';
+    if (normalizedMaterialId.includes('speaking')) return 'Speaking';
+
+    return null;
+};
 
 const StudentPracticePageContent: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
@@ -104,7 +137,9 @@ const StudentPracticePageContent: React.FC = () => {
                 const skillRef = ref(database, `tests/${materialId}/skill`);
                 const skillSnap = await get(skillRef);
                 const rawSkill = skillSnap.val() || null;
-                setTestSkill(rawSkill);
+                const normalizedSkill = normalizeIeltsSkill(rawSkill)
+                    ?? (rawTestType === 'IELTS' ? inferIeltsSkillFromMaterialId(materialId) : null);
+                setTestSkill(normalizedSkill ?? rawSkill);
 
                 if (rawTestType === 'THCS-THPT') {
                     setTestType('THCS');
@@ -113,7 +148,7 @@ const StudentPracticePageContent: React.FC = () => {
                 }
 
                 // 2. If Writing test, load full test data for WritingPracticeView
-                if (rawTestType === 'IELTS' && rawSkill === 'Writing') {
+                if (rawTestType === 'IELTS' && normalizedSkill === 'Writing') {
                     const fullTestSnap = await get(ref(database, `tests/${materialId}`));
                     if (fullTestSnap.exists()) {
                         setWritingTestData(fullTestSnap.val() as IELTSWritingTest);
@@ -262,6 +297,28 @@ const StudentPracticePageContent: React.FC = () => {
                         startedAt: locationState.startedAt,
                         previousEssay: locationState.resumeFrom?.essays,
                     } : undefined}
+                />
+            </Suspense>
+        );
+    }
+
+    // Listening branch: IELTS + skill=Listening -> dedicated ListeningPracticeView
+    if (testType === 'IELTS' && testSkill === 'Listening') {
+        return (
+            <Suspense fallback={
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div className="lpv-spinner" style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+                        <div style={{ fontSize: '1rem', color: '#64748b' }}>Loading listening practice...</div>
+                    </div>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            }>
+                <ListeningPracticeView
+                    materialId={materialId}
+                    resolvedSettings={resolvedSettings}
+                    practiceContext={practiceContext}
+                    autoResume={locationState.autoResume === true}
                 />
             </Suspense>
         );

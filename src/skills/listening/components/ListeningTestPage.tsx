@@ -26,6 +26,24 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
+// Mobile exam mode gate (PRD-0045 Phase 3)
+import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
+import { storage } from '../../../core/platform/storage';
+import { MobileListeningExamScaffold } from '../../../components/test/mobile/MobileListeningExamScaffold';
+import type { ListeningPartInfo } from '../../../components/test/mobile/MobileListeningSubmitSheet';
+import { MobileListeningImageCanvas } from '../../../components/test/mobile/MobileListeningImageCanvas';
+import type { ImageZoomState } from '../../../components/test/mobile/MobileListeningImageCanvas';
+import { MobileListeningAnswerSheet } from '../../../components/test/mobile/MobileListeningAnswerSheet';
+import { MOBILE_LISTENING_LAYER_Z_INDEX } from '../../../components/test/mobile/mobileListeningLayering';
+import {
+  getListeningTextSizeStorageKey,
+  hydrateListeningMobileState,
+  isCompatibleListeningMobileState,
+  serializeListeningMobileState,
+  type ListeningCompatContext,
+} from '../../../components/test/mobile/mobileListeningState';
+import { AudioPlayer } from './AudioPlayer';
+
 // Listening-specific components
 import { WaitTimePopup } from './WaitTimePopup';
 import { ListeningQuestionNav } from './ListeningQuestionNav';
@@ -61,7 +79,9 @@ import { useIntegrityRefreshRequest } from '../../../hooks/test/useIntegrityRefr
 import { useTestIntegrity } from '../../../hooks/test/useTestIntegrity';
 import { useAntiCopyPaste } from '../../../hooks/test/useAntiCopyPaste';
 import { useFullscreenMode } from '../../../hooks/test/useFullscreenMode';
+import type { SavedMobileState } from '../../../types/practice.types';
 import { toast } from '../../../components/modern/ToastNotification';
+import { listeningDiagnostics } from '../../../utils/listeningDiagnostics';
 
 // Services
 import { sessionService } from '../../../services/sessionService';
@@ -94,6 +114,15 @@ interface Question {
   items?: Array<{ id: string; text: string }>;
 }
 
+interface LiveListeningPlayerProgress {
+  currentAudioIndex?: number;
+  audioIndicesCompleted?: number[];
+  currentSection?: number;
+  currentQuestionNumber?: number;
+  volume?: number;
+  playbackSpeed?: number;
+}
+
 /**
  * Get IELTS-style task instructions
  */
@@ -118,12 +147,19 @@ const getTaskInstructions = (type: string, startNum: number, endNum: number): st
 const ListeningTestPageContent: React.FC = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo, handleSessionChange } = useNavigation('student');
+  const { isMobileExamMode } = useMobileExamMode();
   const { checkAndRedirect } = useTeacherEndRedirect({ sessionCode }); // BUG-FIX: Redirect to results on teacher-end
   const submitTestRef = useRef<
-    ((submitMode?: boolean | 'teacher') => Promise<void>) | null
+    ((submitMode?: boolean) => Promise<void>) | null
   >(null);
+  const lockInputsRef = useRef<(() => void) | null>(null);
   const flushIntegrityRef = useRef<(() => Promise<void>) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const autosaveErrorToastRef = useRef<string | null>(null);
+  const mobileStateDirtyRef = useRef(false);
+  const mobileHydrationCompleteRef = useRef(false);
+  const livePlayerProgressRef = useRef<LiveListeningPlayerProgress | null>(null);
+  const listeningStudentId = sessionService.getPlayerId() || '';
 
   // ═══════════════════════════════════════════════════════════════
   // CORE TEST STATE
@@ -147,7 +183,7 @@ const ListeningTestPageContent: React.FC = () => {
       if (flushIntegrityRef.current) {
         await flushIntegrityRef.current();
       }
-      await submitTestRef.current('teacher');
+      await submitTestRef.current(true);
     },
   });
 
@@ -155,7 +191,9 @@ const ListeningTestPageContent: React.FC = () => {
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
   const [testSubmitted, setTestSubmitted] = useState(false);
+  const [autoSaveMobileState, setAutoSaveMobileState] = useState<SavedMobileState | undefined>(undefined);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [livePlayerProgressHydrated, setLivePlayerProgressHydrated] = useState(!sessionCode);
 
   // ═══════════════════════════════════════════════════════════════
   // LISTENING-SPECIFIC STATE
@@ -203,6 +241,7 @@ const ListeningTestPageContent: React.FC = () => {
     headphoneRequest,
     antiCheatConfig,
     integrityRefreshRequestedAt,
+    mobileState: savedMobileState,
   } = useTestSession({
     sessionCode,
     testData,
@@ -243,6 +282,7 @@ const ListeningTestPageContent: React.FC = () => {
     pausedDuration,
     testSubmitted,
     onTimeUp: handleTimeUp,
+    onGracePeriodStart: () => lockInputsRef.current?.(),
     extraTime: accommodation?.extraTime || 0,
   });
 
@@ -307,10 +347,10 @@ const ListeningTestPageContent: React.FC = () => {
 
     // PRD-TEST-END-FLOW: Redirects to waiting room with results modal via checkAndRedirect
     if (!loading && !testData && !error && sessionCode) {
-      console.log('⚠️ Test data no longer available, checking if auto-submitted...');
+      listeningDiagnostics.log('⚠️ Test data no longer available, checking if auto-submitted...');
       checkAndRedirect().then((redirected) => {
         if (!redirected) {
-          console.log('→ Not auto-submitted, redirecting to waiting room');
+          listeningDiagnostics.log('→ Not auto-submitted, redirecting to waiting room');
           navigateTo('STUDENT_WAITING',
             { gameSessionId: sessionCode },
             { reason: 'test_data_cleared', replace: true }
@@ -330,7 +370,7 @@ const ListeningTestPageContent: React.FC = () => {
       }
 
       if (sessionStatus && sessionStatus !== lastStableStatusRef.current) {
-        console.log(`📊 [ListeningTestPage] Session status: ${sessionStatus} (testData loaded, staying on test page)`);
+        listeningDiagnostics.log(`📊 [ListeningTestPage] Session status: ${sessionStatus} (testData loaded, staying on test page)`);
         lastStableStatusRef.current = sessionStatus;
       }
       return;
@@ -404,7 +444,7 @@ const ListeningTestPageContent: React.FC = () => {
     // CRITICAL: Ignore commands that were sent BEFORE the student joined
     // This prevents stale pause commands from blocking audio on join
     if (audioCommand.timestamp < studentJoinTimeRef.current) {
-      console.log('🔇 [ListeningTest] Ignoring stale audio command from before join:', audioCommand);
+      listeningDiagnostics.log('🔇 [ListeningTest] Ignoring stale audio command from before join:', audioCommand);
       lastProcessedCommandRef.current = audioCommand.timestamp;
       return;
     }
@@ -412,31 +452,31 @@ const ListeningTestPageContent: React.FC = () => {
     // Mark this command as processed
     lastProcessedCommandRef.current = audioCommand.timestamp;
 
-    console.log('🎧 [ListeningTest] Processing audio command:', audioCommand);
+    listeningDiagnostics.log('🎧 [ListeningTest] Processing audio command:', audioCommand);
 
     if (audioCommand.type === 'pause') {
       // Teacher broadcast: pause all audio
       setTeacherPausedAudio(true); // Set flag to prevent autoplay from re-enabling
       setIsPlaying(false);
-      console.log('⏸️ [ListeningTest] Audio paused by teacher');
+      listeningDiagnostics.log('⏸️ [ListeningTest] Audio paused by teacher');
     } else if (audioCommand.type === 'resume') {
       // Teacher broadcast: resume audio
       setTeacherPausedAudio(false); // Clear flag to allow autoplay
       setAudioError(null); // Clear any audio errors to allow retry
-      console.log('▶️ [ListeningTest] Audio resumed by teacher');
+      listeningDiagnostics.log('▶️ [ListeningTest] Audio resumed by teacher');
     } else if (audioCommand.type === 'skipToSection' && audioCommand.sectionNumber) {
       // Teacher broadcast: skip to specific section - find FIRST audio with that section number
       const targetSection = audioCommand.sectionNumber;
       const targetIndex = audioSections.findIndex(s => s.number === targetSection);
       if (targetIndex >= 0 && targetIndex !== currentAudioIndex) {
-        console.log(`⏭️ [ListeningTest] Skipping to section ${targetSection} (index ${targetIndex}) by teacher command`);
+        listeningDiagnostics.log(`⏭️ [ListeningTest] Skipping to section ${targetSection} (index ${targetIndex}) by teacher command`);
         setCurrentAudioIndex(targetIndex);
         setIsPlaying(false); // Pause before section change
         // Audio will auto-start when section changes due to auto-play logic
       }
     } else if (audioCommand.type === 'setSpeed' && audioCommand.speed) {
       // Teacher broadcast: change playback speed for all students
-      console.log(`⚡ [ListeningTest] Playback speed changed to ${audioCommand.speed}x by teacher`);
+      listeningDiagnostics.log(`⚡ [ListeningTest] Playback speed changed to ${audioCommand.speed}x by teacher`);
       setPlaybackSpeed(audioCommand.speed);
     } else if (audioCommand.type === 'seekToPosition' && audioCommand.sectionNumber !== undefined && audioCommand.position !== undefined) {
       // Teacher broadcast: seek to specific position within a section
@@ -446,12 +486,12 @@ const ListeningTestPageContent: React.FC = () => {
       if (targetIndex >= 0) {
         // If different section, switch to it first
         if (targetIndex !== currentAudioIndex) {
-          console.log(`⏭️ [ListeningTest] Switching to section ${targetSection} for seek`);
+          listeningDiagnostics.log(`⏭️ [ListeningTest] Switching to section ${targetSection} for seek`);
           setCurrentAudioIndex(targetIndex);
         }
 
         // Set the seek position - AudioPlayer will handle the actual seeking
-        console.log(`⏩ [ListeningTest] Seeking to position ${audioCommand.position}s in section ${targetSection} by teacher command`);
+        listeningDiagnostics.log(`⏩ [ListeningTest] Seeking to position ${audioCommand.position}s in section ${targetSection} by teacher command`);
         setTeacherSeekPosition(audioCommand.position);
       }
     }
@@ -475,12 +515,15 @@ const ListeningTestPageContent: React.FC = () => {
     timeRemaining,
     integrityReport: antiCheatConfig ? getIntegrityReport() : null,
     questionsWithAnswersRef,
-    telemetrySurface: 'listening_test',
   });
 
   useEffect(() => {
     submitTestRef.current = submitTest;
   }, [submitTest]);
+
+  useEffect(() => {
+    lockInputsRef.current = lockInputs;
+  }, [lockInputs]);
 
   useEffect(() => {
     setTestSubmitted(submissionTestSubmitted);
@@ -526,28 +569,26 @@ const ListeningTestPageContent: React.FC = () => {
     return baseResults;
   }, [testResults?.questionResults, reMarkingData]);
 
-  const mergedTestResults = useMemo(() => {
-    if (!testResults) return null;
-
-    if (reMarkingData) {
-      return {
-        ...testResults,
-        correctAnswers: reMarkingData.correctCount,
-        totalScore: reMarkingData.score,
-        percentage: reMarkingData.maxScore ? Math.round((reMarkingData.score / reMarkingData.maxScore) * 100) : 0,
-      };
-    }
-
-    return testResults;
-  }, [testResults, reMarkingData]);
-
   // Auto-save
   const autoSaveStatus = useTestAutoSave({
     sessionCode: sessionCode || '',
-    studentId: sessionService.getPlayerId() || '',
+    studentId: listeningStudentId,
     answers,
+    mobileState: autoSaveMobileState,
     enabled: !testSubmitted && sessionStatus === 'in-progress',
   });
+
+  useEffect(() => {
+    if (autoSaveStatus.status === 'saved') {
+      autosaveErrorToastRef.current = null;
+      return;
+    }
+
+    if (autoSaveStatus.status === 'error' && autoSaveStatus.error && autosaveErrorToastRef.current !== autoSaveStatus.error) {
+      autosaveErrorToastRef.current = autoSaveStatus.error;
+      toast.error(autoSaveStatus.error);
+    }
+  }, [autoSaveStatus.error, autoSaveStatus.status]);
 
   // ═══════════════════════════════════════════════════════════════
   // AUDIO SECTIONS CONFIGURATION
@@ -573,6 +614,14 @@ const ListeningTestPageContent: React.FC = () => {
   const currentAudioSection = audioSections[currentAudioIndex] || audioSections[0];
   // For backward compatibility, derive currentSection from the audio section's number
   const currentSection = currentAudioSection?.number || 1;
+  const findSectionNumberForQuestion = useCallback((questionNumber?: number | null) => {
+    if (typeof questionNumber !== 'number' || !Number.isFinite(questionNumber)) {
+      return undefined;
+    }
+    return audioSections.find(section => (
+      questionNumber >= section.startQuestion && questionNumber <= section.endQuestion
+    ))?.number;
+  }, [audioSections]);
 
   // ═══════════════════════════════════════════════════════════════
   // SECTION PERSISTENCE (Firebase)
@@ -581,52 +630,76 @@ const ListeningTestPageContent: React.FC = () => {
   // Restore currentAudioIndex and currentQuestionNumber from Firebase on page load
   const sectionRestoredRef = useRef(false);
   useEffect(() => {
-    if (sectionRestoredRef.current || !sessionCode || !sessionService.getPlayerId()) return;
-
     const playerId = sessionService.getPlayerId();
+
+    if (!sessionCode || !playerId) {
+      livePlayerProgressRef.current = null;
+      sectionRestoredRef.current = true;
+      setLivePlayerProgressHydrated(true);
+      return;
+    }
+
+    if (sectionRestoredRef.current) return;
+
     const playerRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}`);
+    setLivePlayerProgressHydrated(false);
 
     get(playerRef).then((snapshot) => {
       if (snapshot.exists()) {
         const playerData = snapshot.val();
+        const restoredProgress: LiveListeningPlayerProgress = {};
 
         // Restore audio section
         // Support both new (currentAudioIndex) and old (currentSection) format
         if (typeof playerData.currentAudioIndex === 'number' && playerData.currentAudioIndex > 0) {
-          console.log(`🔄 [Section] Restoring audio index ${playerData.currentAudioIndex} from Firebase`);
+          listeningDiagnostics.log(`🔄 [Section] Restoring audio index ${playerData.currentAudioIndex} from Firebase`);
           setCurrentAudioIndex(playerData.currentAudioIndex);
+          restoredProgress.currentAudioIndex = playerData.currentAudioIndex;
           if (playerData.audioIndicesCompleted && Array.isArray(playerData.audioIndicesCompleted)) {
             setAudioIndicesCompleted(playerData.audioIndicesCompleted);
+            restoredProgress.audioIndicesCompleted = playerData.audioIndicesCompleted;
           }
         } else if (playerData.currentSection && playerData.currentSection > 1) {
           // Legacy: convert section number to index
           const idx = audioSections.findIndex(s => s.number === playerData.currentSection);
           if (idx > 0) {
-            console.log(`🔄 [Section] Restoring section ${playerData.currentSection} as index ${idx} from Firebase (legacy)`);
+            listeningDiagnostics.log(`🔄 [Section] Restoring section ${playerData.currentSection} as index ${idx} from Firebase (legacy)`);
             setCurrentAudioIndex(idx);
+            restoredProgress.currentAudioIndex = idx;
+            restoredProgress.currentSection = playerData.currentSection;
           }
         }
 
         // Restore current question number
         if (typeof playerData.currentQuestionNumber === 'number' && playerData.currentQuestionNumber > 1) {
-          console.log(`🔄 [Question] Restoring question ${playerData.currentQuestionNumber} from Firebase`);
+          listeningDiagnostics.log(`🔄 [Question] Restoring question ${playerData.currentQuestionNumber} from Firebase`);
           setCurrentQuestionNumber(playerData.currentQuestionNumber);
+          restoredProgress.currentQuestionNumber = playerData.currentQuestionNumber;
         }
 
         // Restore volume and playback speed if saved
         if (typeof playerData.volume === 'number') {
-          console.log(`🔄 [Audio] Restoring volume ${playerData.volume} from Firebase`);
+          listeningDiagnostics.log(`🔄 [Audio] Restoring volume ${playerData.volume} from Firebase`);
           setVolume(playerData.volume);
+          restoredProgress.volume = playerData.volume;
         }
         if (typeof playerData.playbackSpeed === 'number') {
-          console.log(`🔄 [Audio] Restoring playback speed ${playerData.playbackSpeed}x from Firebase`);
+          listeningDiagnostics.log(`🔄 [Audio] Restoring playback speed ${playerData.playbackSpeed}x from Firebase`);
           setPlaybackSpeed(playerData.playbackSpeed);
+          restoredProgress.playbackSpeed = playerData.playbackSpeed;
         }
+
+        livePlayerProgressRef.current = restoredProgress;
+      } else {
+        livePlayerProgressRef.current = null;
       }
       sectionRestoredRef.current = true;
+      setLivePlayerProgressHydrated(true);
     }).catch(err => {
       console.error('Failed to restore section:', err);
+      livePlayerProgressRef.current = null;
       sectionRestoredRef.current = true;
+      setLivePlayerProgressHydrated(true);
     });
   }, [sessionCode, audioSections]);
 
@@ -646,7 +719,7 @@ const ListeningTestPageContent: React.FC = () => {
       playbackSpeed,
       lastActivity: Date.now(),
     }).then(() => {
-      console.log(`💾 [State] Saved: audio index ${currentAudioIndex}, question ${currentQuestionNumber}, volume ${volume}, speed ${playbackSpeed}x`);
+      listeningDiagnostics.log(`💾 [State] Saved: audio index ${currentAudioIndex}, question ${currentQuestionNumber}, volume ${volume}, speed ${playbackSpeed}x`);
     }).catch(err => {
       console.error('Failed to save state:', err);
     });
@@ -691,7 +764,7 @@ const ListeningTestPageContent: React.FC = () => {
   // Log accommodation status when it changes
   useEffect(() => {
     if (accommodation) {
-      console.log('♿ [ListeningTest] Accommodation active:', accommodation);
+      listeningDiagnostics.log('♿ [ListeningTest] Accommodation active:', accommodation);
     }
   }, [accommodation]);
 
@@ -704,6 +777,455 @@ const ListeningTestPageContent: React.FC = () => {
       name: s.name,
     }));
   }, [audioSections]);
+
+  // ═══════════════════════════════════════════════════════════════
+  // MOBILE EXAM MODE STATE (PRD-0045 Phase 3)
+  // ═══════════════════════════════════════════════════════════════
+
+  // Shell overlay toggles — all host-owned, passed as props to the scaffold
+  const [submitSheetOpen, setSubmitSheetOpen] = useState(false);
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const [textSizeControlOpen, setTextSizeControlOpen] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
+
+  // Font size for mobile text
+  const [fontSize, setFontSize] = useState(16);
+  const [mobileStateHydrated, setMobileStateHydrated] = useState(!isMobileExamMode);
+
+  // Viewed part number — separate from currentAudioSection (which drives audio).
+  // In Standard mode tabs only change viewedPartNumber; in Practice/Relaxed they change both.
+  // Initialized to the current audio section's part number.
+  const [viewedPartNumber, setViewedPartNumber] = useState(currentSection);
+
+  // Sync viewedPartNumber to currentSection when audio auto-advances (Standard mode)
+  // Only auto-sync when NOT in Practice mode, so viewed-part stays independent during user browsing
+  const prevAudioSectionRef = useRef(currentSection);
+  useEffect(() => {
+    if (prevAudioSectionRef.current !== currentSection) {
+      prevAudioSectionRef.current = currentSection;
+      // Auto-sync viewed part to audio part when audio advances
+      // This keeps the UX intuitive: when audio auto-moves, content follows
+      if (!effectiveAudioControls?.showPlayPause) {
+        // Standard mode: auto-sync viewed part to audio
+        setViewedPartNumber(currentSection);
+      }
+    }
+  }, [currentSection, effectiveAudioControls]);
+
+  // Ref for the mobile main content scroll container (task 3.6: reset scroll on part change)
+  const mobileMainContentRef = useRef<HTMLDivElement>(null);
+  const prevViewedPartRef = useRef(viewedPartNumber);
+  useEffect(() => {
+    if (prevViewedPartRef.current !== viewedPartNumber) {
+      prevViewedPartRef.current = viewedPartNumber;
+      // Reset scroll to top when viewed part changes (task 3.6)
+      if (mobileMainContentRef.current) {
+        mobileMainContentRef.current.scrollTop = 0;
+      }
+    }
+  }, [viewedPartNumber]);
+
+  // ── Image-mode state (PRD-0045 Phase 4) ─────────────────────────────────
+  /** Whether the answer entry sheet is open (image mode only) */
+  const [answerSheetOpen, setAnswerSheetOpen] = useState(false);
+  /** Per-part zoom state, keyed by part number string */
+  const [zoomByPart, setZoomByPart] = useState<Record<string, ImageZoomState>>({});
+  /** Per-part answer sheet scroll position */
+  const [answerSheetScrollByPart, setAnswerSheetScrollByPart] = useState<Record<string, number>>({});
+
+  const handleZoomChange = useCallback((partNumber: number, zoom: ImageZoomState) => {
+    setZoomByPart(prev => ({ ...prev, [String(partNumber)]: zoom }));
+  }, []);
+
+  const handleAnswerSheetScrollChange = useCallback((partNumber: number, scrollTop: number) => {
+    setAnswerSheetScrollByPart(prev => ({ ...prev, [String(partNumber)]: scrollTop }));
+  }, []);
+
+  // Questions for the currently VIEWED part (may differ from audio-playing part in Standard mode)
+  const viewedPartSection = useMemo(() => {
+    return audioSections.find(s => s.number === viewedPartNumber) || audioSections[0];
+  }, [audioSections, viewedPartNumber]);
+
+  const viewedPartQuestions = useMemo(() => {
+    if (!testData?.questions || !viewedPartSection) return [];
+    return testData.questions.filter((q: Question) =>
+      q.number >= viewedPartSection.startQuestion &&
+      q.number <= viewedPartSection.endQuestion
+    );
+  }, [testData?.questions, viewedPartSection]);
+
+  // Group questions by type for the viewed part (mobile direct-question mode)
+  const viewedPartQuestionGroups = useMemo(() => {
+    if (viewedPartQuestions.length === 0) return [];
+
+    const firstQuestion = viewedPartQuestions[0];
+    if (!firstQuestion) return [];
+
+    const groups: Array<{
+      type: string;
+      startNumber: number;
+      endNumber: number;
+      questions: Question[];
+      instructions: string;
+    }> = [];
+
+    let currentGroup: Question[] = [firstQuestion];
+    let currentType = firstQuestion.type;
+
+    for (let i = 1; i < viewedPartQuestions.length; i++) {
+      const q = viewedPartQuestions[i];
+      if (!q) continue;
+
+      if (q.type === currentType) {
+        currentGroup.push(q);
+      } else {
+        const first = currentGroup[0];
+        const last = currentGroup[currentGroup.length - 1];
+        if (first && last) {
+          groups.push({
+            type: currentType,
+            startNumber: first.number,
+            endNumber: last.number,
+            questions: currentGroup,
+            instructions: getTaskInstructions(currentType, first.number, last.number),
+          });
+        }
+        currentGroup = [q];
+        currentType = q.type;
+      }
+    }
+
+    // Add last group
+    if (currentGroup.length > 0) {
+      const first = currentGroup[0];
+      const last = currentGroup[currentGroup.length - 1];
+      if (first && last) {
+        groups.push({
+          type: currentType,
+          startNumber: first.number,
+          endNumber: last.number,
+          questions: currentGroup,
+          instructions: getTaskInstructions(currentType, first.number, last.number),
+        });
+      }
+    }
+
+    return groups;
+  }, [viewedPartQuestions]);
+
+  // Part infos for submit sheet counts
+  const mobilePartInfos: ListeningPartInfo[] = useMemo(() => {
+    return audioSections.map(s => ({
+      partNumber: s.number,
+      questionNumbers: Array.from(
+        { length: s.endQuestion - s.startQuestion + 1 },
+        (_, i) => s.startQuestion + i,
+      ),
+    }));
+  }, [audioSections]);
+
+  const isMobileBlockingState = isPaused || sessionStatus === 'waiting' || showWaitPopup || showTimeUpOverlay;
+
+  useEffect(() => {
+    if (!isMobileBlockingState) {
+      return;
+    }
+
+    setSubmitSheetOpen(false);
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    setAnswerSheetOpen(false);
+  }, [isMobileBlockingState]);
+
+  // ═══════════════════════════════════════════════════════════════
+  // MOBILE PERSISTENCE — Phase 6.0: Serialization → Autosave bridge
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Serialize current mobile state for autosave (excludes playback for live mode) */
+  const serializedMobileState = useMemo<SavedMobileState | undefined>(() => {
+    if (!isMobileExamMode) return undefined;
+    const compatQuestionsByPart: Record<number, number[]> = {};
+    for (const section of audioSections) {
+      compatQuestionsByPart[section.number] = Array.from(
+        { length: section.endQuestion - section.startQuestion + 1 },
+        (_, i) => section.startQuestion + i,
+      );
+    }
+
+    return serializeListeningMobileState({
+      compatContext: testData?.questions && audioSections.length > 0
+        ? {
+          materialId: testData.id || '',
+          partCount: audioSections.length,
+          questionsByPart: compatQuestionsByPart,
+          scopeKey: sessionCode || '',
+        }
+        : undefined,
+      viewedPartNumber,
+      currentQuestionNumber,
+      textSize: fontSize,
+      answerSheetScrollByPart: answerSheetScrollByPart as Record<string, number>,
+      imageZoomByPart: zoomByPart as Record<string, { scale: number; offsetX: number; offsetY: number }>,
+      // playback is intentionally EXCLUDED for live mode — teacher controls timing
+    }) as SavedMobileState;
+  }, [audioSections, answerSheetScrollByPart, currentQuestionNumber, fontSize, isMobileExamMode, sessionCode, testData, viewedPartNumber, zoomByPart]);
+
+  /** Build compatibility context from live test data */
+  const listeningCompatCtx = useMemo<ListeningCompatContext | null>(() => {
+    if (!testData?.questions || audioSections.length === 0) return null;
+    const questionsByPart: Record<number, number[]> = {};
+    for (const section of audioSections) {
+      questionsByPart[section.number] = Array.from(
+        { length: section.endQuestion - section.startQuestion + 1 },
+        (_, i) => section.startQuestion + i,
+      );
+    }
+    return {
+      materialId: testData.id || '',
+      partCount: audioSections.length,
+      questionsByPart,
+      scopeKey: sessionCode || '',
+    };
+  }, [testData, audioSections, sessionCode]);
+
+  /** Hydrate mobile state from RTDB on first load — strict compat guard */
+  useEffect(() => {
+    let cancelled = false;
+    const shouldSkipHydration = mobileStateDirtyRef.current && mobileHydrationCompleteRef.current;
+
+    if (!isMobileExamMode) {
+      setMobileStateHydrated(true);
+      mobileHydrationCompleteRef.current = false;
+      mobileStateDirtyRef.current = false;
+      return undefined;
+    }
+
+    if (!testData) {
+      return undefined;
+    }
+
+    if (sessionCode && !livePlayerProgressHydrated) {
+      return undefined;
+    }
+
+    if (shouldSkipHydration) {
+      return undefined;
+    }
+
+    const hydrateState = async () => {
+      try {
+        const persistedTextSize = listeningStudentId
+          ? await storage.get<number | string>(getListeningTextSizeStorageKey(listeningStudentId))
+          : undefined;
+        const parsedPersistedTextSize = typeof persistedTextSize === 'number'
+          ? persistedTextSize
+          : typeof persistedTextSize === 'string'
+            ? Number(persistedTextSize)
+            : undefined;
+        const fallbackTextSize = typeof parsedPersistedTextSize === 'number' && Number.isFinite(parsedPersistedTextSize)
+          ? parsedPersistedTextSize
+          : 16;
+
+        if (cancelled || (mobileStateDirtyRef.current && mobileHydrationCompleteRef.current)) {
+          return;
+        }
+
+        setFontSize(fallbackTextSize);
+
+        if (savedMobileState && listeningCompatCtx) {
+          if (!isCompatibleListeningMobileState(savedMobileState, listeningCompatCtx)) {
+            listeningDiagnostics.warn('[ListeningTest] Incompatible mobileState payload — discarding', savedMobileState);
+          } else {
+            const hydrated = hydrateListeningMobileState(
+              savedMobileState,
+              listeningCompatCtx,
+              fallbackTextSize,
+              false,
+            );
+            const authoritativeQuestionNumber = livePlayerProgressRef.current?.currentQuestionNumber;
+            const authoritativeViewedPartNumber = findSectionNumberForQuestion(authoritativeQuestionNumber);
+            const resolvedViewedPartNumber = authoritativeViewedPartNumber
+              ?? hydrated.viewedPartNumber;
+            const resolvedQuestionNumber = authoritativeViewedPartNumber
+              ? authoritativeQuestionNumber
+              : hydrated.currentQuestionNumber;
+
+            listeningDiagnostics.log('[ListeningTest] Hydrating mobile state from RTDB', hydrated);
+
+            if (resolvedViewedPartNumber != null) setViewedPartNumber(resolvedViewedPartNumber);
+            if (hydrated.textSize != null) setFontSize(hydrated.textSize);
+            if (resolvedQuestionNumber != null) setCurrentQuestionNumber(resolvedQuestionNumber);
+            if (hydrated.imageZoomByPart) setZoomByPart(hydrated.imageZoomByPart as Record<string, ImageZoomState>);
+            if (hydrated.answerSheetScrollByPart) setAnswerSheetScrollByPart(hydrated.answerSheetScrollByPart as Record<string, number>);
+
+            setSubmitSheetOpen(false);
+            setOverflowMenuOpen(false);
+            setTextSizeControlOpen(false);
+            setInstructionsOpen(false);
+            setAnswerSheetOpen(false);
+          }
+        }
+
+        mobileStateDirtyRef.current = false;
+        mobileHydrationCompleteRef.current = true;
+      } catch (hydrateError) {
+        listeningDiagnostics.warn('[ListeningTest] Failed to hydrate live mobile state:', hydrateError);
+        mobileStateDirtyRef.current = false;
+        mobileHydrationCompleteRef.current = true;
+      } finally {
+        if (!cancelled) {
+          setMobileStateHydrated(true);
+        }
+      }
+    };
+
+    setMobileStateHydrated(false);
+    void hydrateState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [findSectionNumberForQuestion, isMobileExamMode, listeningStudentId, livePlayerProgressHydrated, savedMobileState, listeningCompatCtx, sessionCode, testData]);
+
+  /** Persist text-size to platform storage as a fallback (Reading parity) */
+  useEffect(() => {
+    if (!isMobileExamMode || !listeningStudentId) return;
+    storage.set(getListeningTextSizeStorageKey(listeningStudentId), String(fontSize)).catch(() => {});
+  }, [fontSize, isMobileExamMode, listeningStudentId]);
+
+  /** Bridge: push serialized mobile state to autosave only when dirty */
+  useEffect(() => {
+    if (!isMobileExamMode || !mobileStateHydrated || !serializedMobileState) {
+      setAutoSaveMobileState(undefined);
+      return;
+    }
+    if (!mobileStateDirtyRef.current && mobileHydrationCompleteRef.current) return;
+    mobileStateDirtyRef.current = false;
+    setAutoSaveMobileState(serializedMobileState);
+  }, [isMobileExamMode, mobileStateHydrated, serializedMobileState]);
+
+  /** Mark state dirty when mobile-relevant values change */
+  const markMobileStateDirty = useCallback(() => {
+    mobileStateDirtyRef.current = true;
+  }, []);
+
+  // Attach dirty-marking to handlers where Reading has them
+  const handleZoomChangeWithDirty = useCallback((partNumber: number, zoom: ImageZoomState) => {
+    handleZoomChange(partNumber, zoom);
+    markMobileStateDirty();
+  }, [handleZoomChange, markMobileStateDirty]);
+
+  const handleAnswerSheetScrollWithDirty = useCallback((partNumber: number, scrollTop: number) => {
+    handleAnswerSheetScrollChange(partNumber, scrollTop);
+    markMobileStateDirty();
+  }, [handleAnswerSheetScrollChange, markMobileStateDirty]);
+
+  // Mobile tab change handler — behavior depends on mode (task 3.3 / 3.4)
+  const handleMobilePartChange = useCallback((partNumber: number) => {
+    // Always update the viewed part
+    setViewedPartNumber(partNumber);
+    markMobileStateDirty();
+
+    // Set currentQuestionNumber to first question of the tapped part
+    const section = audioSections.find(s => s.number === partNumber);
+    if (section) {
+      setCurrentQuestionNumber(section.startQuestion);
+    }
+
+    // In Practice/Relaxed modes (showPlayPause=true), also change audio (task 3.4)
+    if (effectiveAudioControls?.showPlayPause) {
+      const sectionIndex = audioSections.findIndex(s => s.number === partNumber);
+      if (sectionIndex >= 0 && sectionIndex !== currentAudioIndex) {
+        setCurrentAudioIndex(sectionIndex);
+        setAudioError(null);
+        listeningDiagnostics.log(`🎵 [Mobile] Switched to section ${partNumber} audio (Practice/Relaxed mode)`);
+      }
+    } else {
+      listeningDiagnostics.log(`📋 [Mobile] Viewing section ${partNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
+    }
+  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
+
+  // Mobile submit handler — opens confirmation sheet instead of direct submit (task 5.3)
+  const handleMobileSubmit = useCallback(async () => {
+    await flushEvents('manual_submit');
+    await submitTest(false);
+  }, [flushEvents, submitTest]);
+
+  // Mobile leave test handler
+  const handleMobileLeaveTest = useCallback(() => {
+    setOverflowMenuOpen(false);
+    navigateTo('STUDENT_DASHBOARD', {}, { reason: 'leave_test' });
+  }, [navigateTo]);
+
+  const handleOpenSubmitSheet = useCallback(() => {
+    if (isMobileBlockingState) {
+      return;
+    }
+
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    setAnswerSheetOpen(false);
+    setSubmitSheetOpen(true);
+  }, [isMobileBlockingState]);
+
+  const handleCloseSubmitSheet = useCallback(() => {
+    setSubmitSheetOpen(false);
+  }, []);
+
+  const handleOpenOverflowMenu = useCallback(() => {
+    if (isMobileBlockingState) {
+      return;
+    }
+
+    setSubmitSheetOpen(false);
+    setTextSizeControlOpen(false);
+    setInstructionsOpen(false);
+    setAnswerSheetOpen(false);
+    setOverflowMenuOpen(true);
+  }, [isMobileBlockingState]);
+
+  const handleCloseOverflowMenu = useCallback(() => {
+    setOverflowMenuOpen(false);
+  }, []);
+
+  const handleOpenTextSizeControl = useCallback(() => {
+    if (isMobileBlockingState) {
+      return;
+    }
+
+    setSubmitSheetOpen(false);
+    setOverflowMenuOpen(false);
+    setInstructionsOpen(false);
+    setAnswerSheetOpen(false);
+    setTextSizeControlOpen(true);
+  }, [isMobileBlockingState]);
+
+  const handleCloseTextSizeControl = useCallback(() => {
+    setTextSizeControlOpen(false);
+  }, []);
+
+  const handleOpenInstructions = useCallback(() => {
+    if (isMobileBlockingState) {
+      return;
+    }
+
+    setSubmitSheetOpen(false);
+    setOverflowMenuOpen(false);
+    setTextSizeControlOpen(false);
+    setAnswerSheetOpen(false);
+    setInstructionsOpen(true);
+  }, [isMobileBlockingState]);
+
+  const handleCloseInstructions = useCallback(() => {
+    setInstructionsOpen(false);
+  }, []);
+
+  const handleMobileTextSizeChange = useCallback((size: number) => {
+    markMobileStateDirty();
+    setFontSize(size);
+  }, [markMobileStateDirty]);
 
   // ═══════════════════════════════════════════════════════════════
   // DISPLAY MODE & QUESTION IMAGES
@@ -821,12 +1343,13 @@ const ListeningTestPageContent: React.FC = () => {
       if (effectiveAudioControls?.showPlayPause) {
         setCurrentAudioIndex(sectionIndex);
         setAudioError(null);
-        console.log(`🎵 [Navigation] Switched to section ${sectionNumber} audio (Practice/Relaxed mode)`);
+        listeningDiagnostics.log(`🎵 [Navigation] Switched to section ${sectionNumber} audio (Practice/Relaxed mode)`);
       } else {
-        console.log(`📋 [Navigation] Viewing section ${sectionNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
+        listeningDiagnostics.log(`📋 [Navigation] Viewing section ${sectionNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
       }
     }
-  }, [audioSections, currentSection, effectiveAudioControls]);
+    markMobileStateDirty();
+  }, [audioSections, currentSection, effectiveAudioControls, markMobileStateDirty]);
 
   const goToQuestion = useCallback((questionNumber: number) => {
     // Always change the visible question
@@ -842,12 +1365,13 @@ const ListeningTestPageContent: React.FC = () => {
       if (sectionIndex >= 0 && sectionIndex !== currentAudioIndex) {
         setCurrentAudioIndex(sectionIndex);
         setAudioError(null);
-        console.log(`🎵 [Navigation] Switched to section ${audioSections[sectionIndex]?.number} audio for Q${questionNumber} (Practice/Relaxed mode)`);
+        listeningDiagnostics.log(`🎵 [Navigation] Switched to section ${audioSections[sectionIndex]?.number} audio for Q${questionNumber} (Practice/Relaxed mode)`);
       }
     } else {
-      console.log(`📋 [Navigation] Viewing question ${questionNumber} (audio stays on section ${currentSection} - Standard mode)`);
+      listeningDiagnostics.log(`📋 [Navigation] Viewing question ${questionNumber} (audio stays on section ${currentSection} - Standard mode)`);
     }
-  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls]);
+    markMobileStateDirty();
+  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
 
   const handleSubmit = useCallback(() => {
     (async () => {
@@ -859,16 +1383,37 @@ const ListeningTestPageContent: React.FC = () => {
   // Audio handlers
   const handlePlayPause = useCallback(() => {
     setAudioError(null); // Clear error on manual toggle
-    setIsPlaying(prev => !prev);
-  }, []);
+    setIsPlaying(prev => {
+      const next = !prev;
+      listeningDiagnostics.info('[ListeningTestPage] Toggled play state', {
+        currentAudioIndex,
+        currentQuestionNumber,
+        currentSection,
+        next,
+        previous: prev,
+      });
+      return next;
+    });
+  }, [currentAudioIndex, currentQuestionNumber, currentSection]);
 
   // Audio time is managed internally by AudioPlayer; this callback is for interface compatibility
   const handleTimeUpdate = useCallback((_current: number, _duration: number) => {
     // Time tracking handled by AudioPlayer component
   }, []);
 
+  useEffect(() => {
+    listeningDiagnostics.info('[ListeningTestPage] isPlaying state changed', {
+      currentAudioIndex,
+      currentQuestionNumber,
+      currentSection,
+      isPlaying,
+      sessionStatus,
+      teacherPausedAudio,
+    });
+  }, [currentAudioIndex, currentQuestionNumber, currentSection, isPlaying, sessionStatus, teacherPausedAudio]);
+
   const handleSectionComplete = useCallback(() => {
-    console.log(`🎵 [Section] Audio index ${currentAudioIndex} (section ${currentSection}) completed`);
+    listeningDiagnostics.log(`🎵 [Section] Audio index ${currentAudioIndex} (section ${currentSection}) completed`);
     setIsPlaying(false);
 
     // Mark this audio index as completed
@@ -895,32 +1440,40 @@ const ListeningTestPageContent: React.FC = () => {
         setShowWaitPopup(true);
       } else {
         // Immediately advance to next audio
-        console.log(`🎵 [Section] Advancing to audio index ${nextAudioIndex} (section ${nextAudio.number})`);
+        listeningDiagnostics.log(`🎵 [Section] Advancing to audio index ${nextAudioIndex} (section ${nextAudio.number})`);
         // Clear any audio errors from previous audio to allow new audio to play
         setAudioError(null);
         setCurrentAudioIndex(nextAudioIndex);
         setCurrentQuestionNumber(nextAudio.startQuestion);
+        if (!effectiveAudioControls?.showPlayPause) {
+          setViewedPartNumber(nextAudio.number);
+        }
       }
     }
+    markMobileStateDirty();
     // If last audio, do nothing (user can review and submit)
-  }, [currentAudioIndex, currentSection, audioSections]);
+  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
 
   const handleWaitPopupComplete = useCallback(() => {
     if (waitPopupData) {
       // Find the next audio index (current + 1)
       const nextAudioIndex = currentAudioIndex + 1;
-      console.log(`🎵 [Section] Wait complete, advancing to audio index ${nextAudioIndex} (section ${waitPopupData.nextSection})`);
+      listeningDiagnostics.log(`🎵 [Section] Wait complete, advancing to audio index ${nextAudioIndex} (section ${waitPopupData.nextSection})`);
       // Clear any audio errors from previous section to allow new section to play
       setAudioError(null);
       setCurrentAudioIndex(nextAudioIndex);
       const nextAudio = audioSections[nextAudioIndex];
       if (nextAudio) {
         setCurrentQuestionNumber(nextAudio.startQuestion);
+        if (!effectiveAudioControls?.showPlayPause) {
+          setViewedPartNumber(nextAudio.number);
+        }
       }
     }
     setShowWaitPopup(false);
     setWaitPopupData(null);
-  }, [waitPopupData, audioSections]);
+    markMobileStateDirty();
+  }, [audioSections, currentAudioIndex, effectiveAudioControls, markMobileStateDirty, waitPopupData]);
 
   // Skip to the NEXT SECTION (not just next audio) - finds first audio of next section number
   const handleSkipToNextSection = useCallback(() => {
@@ -929,7 +1482,7 @@ const ListeningTestPageContent: React.FC = () => {
     const nextSectionIndex = audioSections.findIndex(s => s.number === nextSectionNumber);
 
     if (nextSectionIndex >= 0) {
-      console.log(`⏭️ [Section] Skipping to section ${nextSectionNumber} (index ${nextSectionIndex})`);
+      listeningDiagnostics.log(`⏭️ [Section] Skipping to section ${nextSectionNumber} (index ${nextSectionIndex})`);
       // Mark all audios up to (but not including) the target as completed
       const indicesToMark: number[] = [];
       for (let i = currentAudioIndex; i < nextSectionIndex; i++) {
@@ -939,12 +1492,16 @@ const ListeningTestPageContent: React.FC = () => {
       setAudioError(null);
       setCurrentAudioIndex(nextSectionIndex);
       setCurrentQuestionNumber(audioSections[nextSectionIndex]?.startQuestion || 1);
+      if (!effectiveAudioControls?.showPlayPause) {
+        setViewedPartNumber(audioSections[nextSectionIndex]?.number || nextSectionNumber);
+      }
       setIsPlaying(false); // Will auto-start
     } else {
       // No next section, just go to next audio (fallback to handleSectionComplete behavior)
       handleSectionComplete();
     }
-  }, [currentSection, currentAudioIndex, audioSections, handleSectionComplete]);
+    markMobileStateDirty();
+  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, handleSectionComplete, markMobileStateDirty]);
 
   const handleAudioError = useCallback((error: string) => {
     console.error('Audio error:', error);
@@ -959,7 +1516,7 @@ const ListeningTestPageContent: React.FC = () => {
   // LOADING & ERROR STATES
   // ═══════════════════════════════════════════════════════════════
 
-  if (loading) {
+  if (loading || (isMobileExamMode && (!livePlayerProgressHydrated || !mobileStateHydrated))) {
     return (
       <div style={{
         display: 'flex',
@@ -1016,7 +1573,320 @@ const ListeningTestPageContent: React.FC = () => {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // MAIN UI RENDER
+  // MOBILE EXAM MODE — Phone-optimized scaffold (PRD-0045)
+  // ═══════════════════════════════════════════════════════════════
+
+  if (isMobileExamMode) {
+    const audioUrl = currentAudioSection?.streamUrl || currentAudioSection?.audioUrl || '';
+    return (
+      <>
+        {/* Connection Monitor (always active) */}
+        <ConnectionMonitor
+          sessionCode={sessionCode}
+          onConnectionChange={(connected) => {
+            if (!connected && !testSubmitted) {
+              listeningDiagnostics.log('Connection lost during test');
+            }
+          }}
+        />
+
+        {/* Connection Status Indicator */}
+        {!isConnected && (
+          <div style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 9998,
+            background: '#fef2f2',
+            border: '2px solid #fecaca',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          }}>
+            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: '600', color: '#dc2626', fontSize: '0.875rem' }}>
+                Connection Issue
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#991b1b' }}>
+                Your answers are being saved locally
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Waiting/Paused Overlay (renders above scaffold) */}
+        <TestWaitingOverlay
+          sessionStatus={sessionStatus}
+          isPaused={isPaused}
+          sessionCode={sessionCode}
+        />
+
+        {/* Mobile Listening Exam Scaffold */}
+        <MobileListeningExamScaffold
+          mode="live"
+          activePartNumber={viewedPartNumber}
+          onPartChange={handleMobilePartChange}
+          playingPartNumber={currentSection}
+          timeRemaining={timeRemaining}
+          formatTime={formatTime}
+          answers={answers}
+          partInfos={mobilePartInfos}
+          testSubmitted={testSubmitted}
+          isSubmitting={isSubmitting}
+          onConfirmSubmit={handleMobileSubmit}
+          isPaused={isPaused}
+          isWaiting={sessionStatus === 'waiting'}
+          audioRowContent={
+            audioUrl ? (
+              <div style={{ padding: '0 0.5rem' }}>
+                <AudioPlayer
+                  audioUrl={audioUrl}
+                  sectionNumber={currentSection}
+                  isPlaying={isPlaying}
+                  volume={volume}
+                  playbackSpeed={playbackSpeed}
+                  onPlayPause={handlePlayPause}
+                  onTimeUpdate={handleTimeUpdate}
+                  onSectionComplete={handleSectionComplete}
+                  onError={handleAudioError}
+                  audioControls={effectiveAudioControls}
+                  allowReplay={effectiveAllowReplay}
+                  maxReplays={effectiveMaxReplays}
+                  onSkipSection={effectiveAudioControls?.showSkipSection ? handleSkipToNextSection : undefined}
+                  seekPosition={teacherSeekPosition}
+                  onSeekConsumed={() => setTeacherSeekPosition(null)}
+                  playerMode={effectivePlayerMode}
+                  audioMode={isSoloMode ? undefined : (audioMode ?? undefined)}
+                  masterAudioState={isSoloMode ? undefined : masterAudioState}
+                  headphoneRequest={isSoloMode ? undefined : headphoneRequest}
+                  onRequestHeadphones={isSoloMode ? undefined : handleRequestHeadphones}
+                  minimal
+                  mobileLayout
+                />
+              </div>
+            ) : (
+              <div style={{
+                padding: '0.375rem 0.5rem',
+                fontSize: '0.8125rem',
+                color: '#94a3b8',
+                textAlign: 'center',
+              }}>
+                No audio for this section
+              </div>
+            )
+          }
+          mainContent={
+            displayMode === 'image' && questionImages && questionImages.length > 0 ? (
+              /* ── Image-mode mainContent (PRD-0045 Phase 4) ───────────── */
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Image Canvas (Task 4.1) */}
+                <MobileListeningImageCanvas
+                  questionImages={questionImages}
+                  audioSections={audioSections}
+                  viewedPartNumber={viewedPartNumber}
+                  currentQuestionNumber={currentQuestionNumber}
+                  zoomByPart={zoomByPart}
+                  onZoomChange={handleZoomChangeWithDirty}
+                />
+
+                {/* Questions FAB — visible only in image mode, hidden when sheet is open (Task 4.3) */}
+                {!answerSheetOpen && (
+                  <button
+                    data-testid="mobile-listening-questions-fab"
+                    onClick={() => setAnswerSheetOpen(true)}
+                    aria-label={`Questions. ${Object.values(answers).filter(a => a !== undefined && a !== '').length} answered of ${testData?.questionCount || 40}. Open answer sheet.`}
+                    type="button"
+                    style={{
+                      position: 'absolute',
+                      bottom: 16,
+                      right: 16,
+                      zIndex: MOBILE_LISTENING_LAYER_Z_INDEX.FAB,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      height: 48,
+                      padding: '0 16px',
+                      border: 'none',
+                      borderRadius: 24,
+                      background: '#1e293b',
+                      color: '#ffffff',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1)',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                  >
+                    {/* Clipboard icon */}
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <rect x="3" y="2" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M6 2V1.5a1.5 1.5 0 0 1 1.5-1.5h1A1.5 1.5 0 0 1 10 1.5V2" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M5.5 6.5h5M5.5 9h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                    <span>Questions</span>
+                    {/* Unanswered badge */}
+                    {(() => {
+                      const total = testData?.questionCount || 40;
+                      const answered = Object.values(answers).filter(a => a !== undefined && a !== '').length;
+                      const unanswered = total - answered;
+                      if (unanswered <= 0) return null;
+                      return (
+                        <span
+                          data-testid="fab-unanswered-badge"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            minWidth: 18,
+                            height: 18,
+                            borderRadius: 9,
+                            padding: '0 5px',
+                            lineHeight: 1,
+                            background: '#fbbf24',
+                            color: '#78350f',
+                          }}
+                        >
+                          {unanswered}
+                        </span>
+                      );
+                    })()}
+                  </button>
+                )}
+
+                {/* Answer Sheet — opens within row 4, below tabs (Task 4.4) */}
+                <MobileListeningAnswerSheet
+                  isOpen={answerSheetOpen}
+                  onClose={() => setAnswerSheetOpen(false)}
+                  viewedPartNumber={viewedPartNumber}
+                  startQuestion={viewedPartSection?.startQuestion || 1}
+                  endQuestion={viewedPartSection?.endQuestion || 10}
+                  questions={(viewedPartQuestions || []).map(q => ({
+                    number: q.number,
+                    type: q.type,
+                  }))}
+                  answers={answers}
+                  onAnswerChange={(testSubmitted || isLocked) ? () => {} : handleAnswerChange}
+                  currentQuestionNumber={currentQuestionNumber}
+                  testSubmitted={testSubmitted}
+                  questionResults={mergedQuestionResults}
+                  isLocked={isLocked}
+                  scrollByPart={answerSheetScrollByPart}
+                  onScrollChange={handleAnswerSheetScrollWithDirty}
+                />
+              </div>
+            ) : (
+              /* ── Direct-question mainContent (Phase 3 — standard text mode) ── */
+              <div
+                ref={mobileMainContentRef}
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  padding: '1rem',
+                  fontSize: `${fontSize}px`,
+                }}
+              >
+                {/* Section Rubric (structural cue for current viewed part) */}
+                <SectionRubricBlock
+                  partNumber={viewedPartNumber}
+                  startQuestion={viewedPartSection?.startQuestion || 1}
+                  endQuestion={viewedPartSection?.endQuestion || 10}
+                  sectionName={viewedPartSection?.name}
+                  questionType={viewedPartQuestionGroups[0]?.type || 'completion'}
+                />
+
+                {/* Direct-question groups for the viewed part */}
+                {viewedPartQuestionGroups.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '3rem',
+                    color: '#64748b',
+                  }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📝</div>
+                    <div>No questions for this section</div>
+                  </div>
+                ) : (
+                  viewedPartQuestionGroups.map((group, groupIndex) => (
+                    <ListeningQuestionDisplay
+                      key={`mobile-group-${groupIndex}`}
+                      group={group}
+                      answers={answers}
+                      onAnswerChange={(testSubmitted || isLocked) ? () => {} : handleAnswerChange}
+                      currentQuestionNumber={currentQuestionNumber}
+                      testSubmitted={testSubmitted}
+                      questionResults={mergedQuestionResults}
+                      disabled={Boolean(testSubmitted || isLocked)}
+                    />
+                  ))
+                )}
+              </div>
+            )
+          }
+          submitSheetOpen={submitSheetOpen}
+          onOpenSubmitSheet={handleOpenSubmitSheet}
+          onCloseSubmitSheet={handleCloseSubmitSheet}
+          overflowMenuOpen={overflowMenuOpen}
+          onOpenOverflowMenu={handleOpenOverflowMenu}
+          onCloseOverflowMenu={handleCloseOverflowMenu}
+          textSizeControlOpen={textSizeControlOpen}
+          onOpenTextSizeControl={handleOpenTextSizeControl}
+          onCloseTextSizeControl={handleCloseTextSizeControl}
+          instructionsOpen={instructionsOpen}
+          onOpenInstructions={handleOpenInstructions}
+          onCloseInstructions={handleCloseInstructions}
+          fontSize={fontSize}
+          onTextSizeChange={handleMobileTextSizeChange}
+          onLeaveTest={handleMobileLeaveTest}
+          antiSelectClass={antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
+          partCount={audioSections.length}
+        />
+
+        {/* Wait Time Popup (between-section gap) */}
+        <WaitTimePopup
+          waitTime={waitPopupData?.waitTime || 30}
+          currentSection={waitPopupData?.currentSection || 1}
+          nextSection={waitPopupData?.nextSection || 2}
+          onComplete={handleWaitPopupComplete}
+          isVisible={showWaitPopup}
+        />
+
+        {/* Re-marking Modal */}
+        <ReMarkingModal
+          show={showReMarkModal}
+          reMarkingData={reMarkingData}
+          totalQuestions={testData?.questionCount || 40}
+          onClose={() => setShowReMarkModal(false)}
+        />
+
+        {/* PRD-0019: Time Up Overlay */}
+        {showTimeUpOverlay && (
+          <TimeUpOverlay
+            onComplete={() => {
+              listeningDiagnostics.log('⏰ [PRD-0019] Grace period complete, auto-submitting...');
+            }}
+            countdownSeconds={gracePeriodRemaining}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MAIN UI RENDER (Desktop)
   // ═══════════════════════════════════════════════════════════════
 
   return (
@@ -1035,7 +1905,7 @@ const ListeningTestPageContent: React.FC = () => {
         sessionCode={sessionCode}
         onConnectionChange={(connected) => {
           if (!connected && !testSubmitted) {
-            console.log('Connection lost during test');
+            listeningDiagnostics.log('Connection lost during test');
           }
         }}
       />
@@ -1149,7 +2019,7 @@ const ListeningTestPageContent: React.FC = () => {
         onSeekConsumed={() => setTeacherSeekPosition(null)}
         // PRD-0018: Unified Audio Architecture
         playerMode={effectivePlayerMode}
-        audioMode={isSoloMode ? undefined : audioMode}
+        audioMode={isSoloMode ? undefined : (audioMode ?? undefined)}
         masterAudioState={isSoloMode ? undefined : masterAudioState}
         headphoneRequest={isSoloMode ? undefined : headphoneRequest}
         onRequestHeadphones={isSoloMode ? undefined : handleRequestHeadphones}
@@ -1268,7 +2138,7 @@ const ListeningTestPageContent: React.FC = () => {
         <TimeUpOverlay
           onComplete={() => {
             // Grace period ended, submission will be triggered by useTestTimer
-            console.log('⏰ [PRD-0019] Grace period complete, auto-submitting...');
+            listeningDiagnostics.log('⏰ [PRD-0019] Grace period complete, auto-submitting...');
           }}
           countdownSeconds={gracePeriodRemaining}
         />

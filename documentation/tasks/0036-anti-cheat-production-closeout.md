@@ -65,7 +65,7 @@ PRD-0036 is now in production-ready code shape for the anti-cheat and integrity 
 ### Rollout Prerequisites
 
 - Deploy the frontend app changes together with the updated `database.rules.json`.
-- Backfill `student_safe_tests/{testId}` for active legacy tests, or re-save those tests before broad rollout so solo/homework student-safe loads do not fail on missing safe payloads.
+- Obsolete rollout caveat retired on 2026-05-10: current save/update/edit paths must regenerate `student_safe_tests/{testId}` with canonical changes. Use backfill only for old/missing projection repair, not as the normal way to make teacher edits visible to students.
 - Verify a teacher account and at least one student account can complete one live-session smoke pass and one homework smoke pass after deployment.
 
 ## 5. Rollback Checklist
@@ -78,5 +78,5 @@ PRD-0036 is now in production-ready code shape for the anti-cheat and integrity 
    - Student can open a live test and submit successfully.
    - Student can open a homework assignment and submit successfully.
    - Teacher can open session results and homework results without integrity-panel crashes.
-5. If the issue is isolated to legacy content missing `student_safe_tests/{testId}`, prefer a data backfill or test re-save over a full rollback.
+5. If the issue is isolated to legacy content missing `student_safe_tests/{testId}`, prefer data backfill over a full rollback. If a teacher edit save fails to update the safe payload, treat that as a producer bug and fix the save path instead of using repeated manual backfill as the workflow.
 6. Do not delete historical integrity data during rollback. Existing homework/session integrity records are still valid audit data even if the frontend is reverted.

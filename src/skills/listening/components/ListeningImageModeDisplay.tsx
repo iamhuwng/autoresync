@@ -45,6 +45,7 @@ interface ListeningImageModeDisplayProps {
   onAnswerChange: (questionNumber: number, answer: any) => void;
   currentQuestionNumber: number;
   testSubmitted?: boolean;
+  disabled?: boolean;
   questionResults?: Record<number, boolean>;
 }
 
@@ -279,6 +280,7 @@ const AnswerInputPanel: React.FC<{
   onAnswerChange: (questionNumber: number, answer: any) => void;
   currentQuestionNumber: number;
   testSubmitted?: boolean;
+  disabled?: boolean;
   questionResults?: Record<number, boolean>;
   currentSection: number;
   audioSections: AudioSection[];
@@ -288,6 +290,7 @@ const AnswerInputPanel: React.FC<{
   onAnswerChange,
   currentQuestionNumber,
   testSubmitted,
+  disabled,
   questionResults,
   currentSection,
   audioSections,
@@ -393,7 +396,7 @@ const AnswerInputPanel: React.FC<{
                       type="text"
                       value={answers[question.number] || ''}
                       onChange={(e) => onAnswerChange(question.number, e.target.value)}
-                      disabled={testSubmitted}
+                      disabled={Boolean(testSubmitted || disabled)}
                       placeholder="Type your answer..."
                       style={{
                         width: '100%',
@@ -403,11 +406,11 @@ const AnswerInputPanel: React.FC<{
                         borderRadius: '6px',
                         outline: 'none',
                         fontFamily: 'inherit',
-                        background: testSubmitted ? '#f9fafb' : 'white',
+                        background: (testSubmitted || disabled) ? '#f9fafb' : 'white',
                         transition: 'border-color 0.2s',
                       }}
                       onFocus={(e) => {
-                        if (!testSubmitted) {
+                        if (!testSubmitted && !disabled) {
                           e.currentTarget.style.borderColor = '#3b82f6';
                         }
                       }}
@@ -479,6 +482,7 @@ export const ListeningImageModeDisplay: React.FC<ListeningImageModeDisplayProps>
   onAnswerChange,
   currentQuestionNumber,
   testSubmitted,
+  disabled,
   questionResults,
 }) => {
   const [imageZoom, setImageZoom] = useState(100);
@@ -502,6 +506,7 @@ export const ListeningImageModeDisplay: React.FC<ListeningImageModeDisplayProps>
           onAnswerChange={onAnswerChange}
           currentQuestionNumber={currentQuestionNumber}
           testSubmitted={testSubmitted}
+          disabled={disabled}
           questionResults={questionResults}
           currentSection={currentSection}
           audioSections={audioSections}

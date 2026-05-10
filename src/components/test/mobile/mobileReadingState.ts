@@ -1,4 +1,4 @@
-import type { SavedMobileState } from '@/types/practice.types';
+import type { SavedMobileState, ReadingSavedMobileState } from '@/types/practice.types';
 
 export interface HydratedMobileReadingState {
   activePassageId?: string;
@@ -45,17 +45,23 @@ export function hydrateMobileReadingState(
   savedMobileState: SavedMobileState | null | undefined,
   fallbackTextSize: number,
 ): HydratedMobileReadingState {
-  const textSize = typeof savedMobileState?.textSize === 'number' && Number.isFinite(savedMobileState.textSize)
-    ? savedMobileState.textSize
+  // Narrow: only process if we have a reading-kind state (or legacy data without 'kind')
+  const rs: ReadingSavedMobileState | undefined =
+    savedMobileState && (savedMobileState.kind === 'reading' || !('kind' in savedMobileState))
+      ? savedMobileState as ReadingSavedMobileState
+      : undefined;
+
+  const textSize = typeof rs?.textSize === 'number' && Number.isFinite(rs.textSize)
+    ? rs.textSize
     : fallbackTextSize;
 
   return {
-    activePassageId: typeof savedMobileState?.activePassageId === 'string' ? savedMobileState.activePassageId : undefined,
-    questionSheetOpen: savedMobileState?.questionSheetOpen === true,
-    reviewSummaryOpen: savedMobileState?.reviewSummaryOpen === true,
-    passageScrollByPassage: coerceScrollMap(savedMobileState?.passageScrollByPassage),
-    activeQuestionGroupByPassage: coerceScrollMap(savedMobileState?.activeQuestionGroupByPassage),
-    questionSheetScrollByPassage: coerceScrollMap(savedMobileState?.questionSheetScrollByPassage),
+    activePassageId: typeof rs?.activePassageId === 'string' ? rs.activePassageId : undefined,
+    questionSheetOpen: rs?.questionSheetOpen === true,
+    reviewSummaryOpen: rs?.reviewSummaryOpen === true,
+    passageScrollByPassage: coerceScrollMap(rs?.passageScrollByPassage),
+    activeQuestionGroupByPassage: coerceScrollMap(rs?.activeQuestionGroupByPassage),
+    questionSheetScrollByPassage: coerceScrollMap(rs?.questionSheetScrollByPassage),
     textSize,
   };
 }
@@ -68,8 +74,9 @@ export function serializeMobileReadingState({
   activeQuestionGroupByPassage,
   questionSheetScrollByPassage,
   textSize,
-}: SerializeMobileReadingStateInput): SavedMobileState {
+}: SerializeMobileReadingStateInput): ReadingSavedMobileState {
   return {
+    kind: 'reading',
     ...(activePassageId ? { activePassageId } : {}),
     questionSheetOpen,
     reviewSummaryOpen,

@@ -69,8 +69,12 @@ export interface StudentSoloPreferences {
 /**
  * Persisted mobile Reading shell state.
  * Must remain JSON-safe because it is stored in RTDB/local storage.
+ *
+ * The `kind` discriminant was added for the Reading/Listening union.
+ * Legacy payloads without `kind` are treated as Reading by hydration helpers.
  */
-export interface SavedMobileState {
+export interface ReadingSavedMobileState {
+    kind?: 'reading';
     activePassageId?: string;
     questionSheetOpen: boolean;
     reviewSummaryOpen: boolean;
@@ -83,11 +87,62 @@ export interface SavedMobileState {
 }
 
 /**
+ * Persisted mobile Listening shell state.
+ * Must remain JSON-safe because it is stored in RTDB/local storage.
+ *
+ * Field rules (PRD-0045 Section 3):
+ * - `viewedPartNumber` is 1-based.
+ * - `currentQuestionNumber` is the last active question number within the viewed part.
+ * - Record keys for part-based maps must be the string form of the 1-based part number.
+ * - `playback` is used only for solo/homework restore. Live mode must not write `playback`.
+ */
+export interface ListeningSavedMobileState {
+    kind: 'listening';
+    version: 1;
+    compat?: {
+        materialId: string;
+        scopeKey: string;
+        partCount: number;
+        questionLayoutSignature: string;
+    };
+    viewedPartNumber: number;
+    currentQuestionNumber?: number;
+    textSize?: number;
+    answerSheetScrollByPart: Record<string, number>;
+    imageZoomByPart: Record<string, { scale: number; offsetX: number; offsetY: number }>;
+    playback?: {
+        currentAudioIndex: number;
+        audioPositionSeconds: number;
+        volume: number;
+        playbackSpeed: number;
+        audioIndicesCompleted: number[];
+    };
+}
+
+/**
+ * Discriminated union of all mobile shell states.
+ *
+ * Legacy payloads (before the `kind` discriminant existed) lack a `kind` field.
+ * Hydration helpers in `mobileReadingState.ts` and `mobileListeningState.ts`
+ * handle the legacy case by treating missing `kind` as Reading.
+ */
+export type SavedMobileState = ReadingSavedMobileState | ListeningSavedMobileState;
+
+export interface SoloProgressScopeContext {
+    mode: 'self_study' | 'course_material' | 'homework';
+    courseId?: string;
+    moduleId?: string;
+    homeworkId?: string;
+    submissionId?: string;
+}
+
+/**
  * Solo session progress saved to localStorage for resume functionality.
  */
 export interface SoloSessionProgress {
     materialId: string;
     studentId: string;
+    scopeContext?: SoloProgressScopeContext;
     answers: Record<number, any>;
     currentQuestion: number;
     timeElapsed: number;  // seconds already spent

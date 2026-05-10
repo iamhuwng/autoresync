@@ -9,7 +9,7 @@ import { getTestQuestionsFromFirebase } from '../../services/testStorage';
 import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { clearSoloProgress } from './useSoloAutoSave';
-import type { ResolvedPracticeSettings } from '../../types/practice.types';
+import type { ResolvedPracticeSettings, SoloProgressScopeContext } from '../../types/practice.types';
 import type { HomeworkIntegrity } from '../../types/integrity.types';
 import type { ResultContext, ResultSourceType } from '../../types/solo.types';
 import {
@@ -80,6 +80,7 @@ interface UseSoloSubmissionOptions {
         shuffleQuestions?: boolean;
         shuffleOptions?: boolean;
     } | null;
+    progressScopeContext?: SoloProgressScopeContext;
     integrity?: HomeworkIntegrity;
     attemptsNullified?: boolean;
     telemetrySurface?: string;
@@ -111,6 +112,7 @@ export const useSoloSubmission = ({
     submissionId,
     questionsWithAnswersRef,
     questionPresentation,
+    progressScopeContext,
     integrity,
     attemptsNullified = false,
     telemetrySurface = 'solo_submission',
@@ -437,7 +439,7 @@ export const useSoloSubmission = ({
             }
 
             // Clear localStorage progress
-            await clearSoloProgress(materialId, studentId);
+            await clearSoloProgress(materialId, studentId, progressScopeContext);
             await studentResumeService.clearResume();
 
             // Update local state

@@ -607,9 +607,10 @@ async function resolveVisibilityForResult(
 }
 
 async function ensureResultVisibility(
-  result: TestResultRecord
+  result: TestResultRecord,
+  options?: { repairUnresolved?: boolean }
 ): Promise<TestResultRecord> {
-  if (result.visibility) {
+  if (result.visibility && (result.visibility.ownershipResolved || !options?.repairUnresolved)) {
     await syncUnresolvedVisibilityReportSafely(result);
     return result;
   }
@@ -1756,7 +1757,7 @@ export async function rebuildTeacherResultIndexes(): Promise<TeacherIndexReindex
     const storedResults = resultsSnapshot.val() as Record<string, unknown>;
     const canonicalResults = Object.values(storedResults).filter(isStoredResultRecord);
     const normalizedResults = await Promise.all(
-      canonicalResults.map((result) => ensureResultVisibility(result))
+      canonicalResults.map((result) => ensureResultVisibility(result, { repairUnresolved: true }))
     );
 
     const teacherIndexSnapshot = await get(ref(database, 'test_results_by_teacher'));

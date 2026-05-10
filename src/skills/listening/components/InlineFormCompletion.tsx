@@ -47,6 +47,7 @@ interface InlineFormCompletionProps {
     answers: Record<number, any>;
     onAnswerChange: (questionNumber: number, answer: any) => void;
     testSubmitted?: boolean;
+    disabled?: boolean;
     questionResults?: Record<number, boolean>;
     currentQuestionNumber?: number;
 }
@@ -131,6 +132,7 @@ const renderQuestionWithInput = (
     answer: any,
     onAnswerChange: (value: string) => void,
     testSubmitted?: boolean,
+    disabled?: boolean,
     isCorrect?: boolean,
     isActive?: boolean
 ) => {
@@ -180,7 +182,7 @@ const renderQuestionWithInput = (
                         questionNumber={question.number}
                         value={answer || ''}
                         onChange={onAnswerChange}
-                        disabled={testSubmitted}
+                        disabled={Boolean(testSubmitted || disabled)}
                         isCorrect={isCorrect}
                         testSubmitted={testSubmitted}
                         isActive={isActive}
@@ -212,7 +214,7 @@ const renderQuestionWithInput = (
                 questionNumber={question.number}
                 value={answer || ''}
                 onChange={onAnswerChange}
-                disabled={testSubmitted}
+                disabled={Boolean(testSubmitted || disabled)}
                 isCorrect={isCorrect}
                 testSubmitted={testSubmitted}
                 isActive={isActive}
@@ -230,9 +232,10 @@ const ContextFormDisplay: React.FC<{
     answer: any;
     onAnswerChange: (value: string) => void;
     testSubmitted?: boolean;
+    disabled?: boolean;
     isCorrect?: boolean;
     isActive?: boolean;
-}> = ({ context, question, answer, onAnswerChange, testSubmitted, isCorrect, isActive }) => {
+}> = ({ context, question, answer, onAnswerChange, testSubmitted, disabled, isCorrect, isActive }) => {
     if (!context || !context.contextLines) {
         return null;
     }
@@ -291,6 +294,7 @@ const ContextFormDisplay: React.FC<{
                                 answer,
                                 onAnswerChange,
                                 testSubmitted,
+                                disabled,
                                 isCorrect,
                                 isActive
                             )
@@ -312,6 +316,7 @@ export const InlineFormCompletion: React.FC<InlineFormCompletionProps> = ({
     answers,
     onAnswerChange,
     testSubmitted,
+    disabled,
     questionResults,
     currentQuestionNumber,
 }) => {
@@ -346,6 +351,7 @@ export const InlineFormCompletion: React.FC<InlineFormCompletionProps> = ({
                                     answer={answers[question.number]}
                                     onAnswerChange={(value) => onAnswerChange(question.number, value)}
                                     testSubmitted={testSubmitted}
+                                    disabled={disabled}
                                     isCorrect={isCorrect}
                                     isActive={isActive}
                                 />
@@ -375,6 +381,7 @@ export const InlineFormCompletion: React.FC<InlineFormCompletionProps> = ({
                                             answers[question.number],
                                             (value) => onAnswerChange(question.number, value),
                                             testSubmitted,
+                                            disabled,
                                             isCorrect,
                                             isActive
                                         )}
@@ -434,6 +441,7 @@ export const InlineFormCompletion: React.FC<InlineFormCompletionProps> = ({
                                 answers[question.number],
                                 (value) => onAnswerChange(question.number, value),
                                 testSubmitted,
+                                disabled,
                                 isCorrect,
                                 isActive
                             )}

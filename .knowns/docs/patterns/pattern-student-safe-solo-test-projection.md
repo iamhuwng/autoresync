@@ -1,100 +1,103 @@
 ---
-title: 'Pattern: Student-Safe Solo Test Projection'
-description: How solo-practice IELTS loads sanitized RTDB projections, common failure modes, backfill strategy, and cross-feature risks.
+title: 'Pattern: Student-Safe Test Delivery Projection'
+description: How IELTS student render payloads are projected from canonical tests, including atomic safe writes, live-session freshness fallback, image-mode ranges, and repair-only backfill.
 createdAt: '2026-03-28T12:48:44.837Z'
-updatedAt: '2026-03-28T12:49:09.497Z'
+updatedAt: '2026-05-10T04:14:48.631Z'
 tags:
   - pattern
-  - solo
+  - student-delivery
   - ielts
   - rtdb
   - firebase
   - data-integrity
 ---
 
-# Pattern: Student-Safe Solo Test Projection
+# Pattern: Student-Safe Test Delivery Projection
 
 ## Problem
 
-Solo Practice for non-writing IELTS tests does not read directly from `tests/{id}`. It reads a sanitized projection from `student_safe_tests/{id}` so students do not receive grading payloads in the initial delivery object.
+Legacy IELTS Reading/Listening delivery cannot read directly from `tests/{id}` for student render payloads because canonical tests can carry answer keys and teacher/editor-only fields.
 
-When the canonical test exists but the student-safe projection is missing, the student can see the material in Library but fail when opening practice.
+Student pages need a fresh sanitized projection that preserves render metadata such as `displayMode`, `audioSections`, `questionImages`, and per-image `questionRange` while stripping answer fields.
 
 ## Feature Contract
 
-### Read path
-- `useSoloTestData()` loads the solo payload through `getStudentSafeTestFromFirebase(testId)`.
-- The expected first lookup is `student_safe_tests/{id}`.
-- The payload must exclude answer-key fields such as `answer`, `correctAnswer`, and `correctAns`.
+### Canonical path
+- `tests/{id}` is teacher/admin source of truth.
+- Grading reads answer-bearing questions from canonical data when needed.
+- Student render loaders should not use canonical test rows as normal payload source.
 
-### Write path
-- `saveTestToFirebase()` must write both `tests/{id}` and `student_safe_tests/{id}`.
-- `updateTestInFirebase()` must refresh the student-safe copy after canonical updates.
-- Backfills must preserve all renderable content while stripping grading fields.
+### Student-safe path
+- `student_safe_tests/{id}` is the global answer-free render payload.
+- Payload must exclude answer-key fields such as `answer`, `correctAnswer`, and `correctAns`.
+- Payload must preserve render fields, especially image-mode `questionImages` with separate `questionRange` entries.
 
-## Incident Snapshot
+### Live-session path
+- `session_test_payloads/{sessionCode}` is a session snapshot created when a teacher starts a live session.
+- Live delivery may use the global `student_safe_tests/{id}` payload when the session snapshot is missing, points at a different test, or is older than the global safe payload.
 
-### Issue
-- Students could not open IELTS Solo Practice from Library even though the card was visible.
-- Console failure was `Student-safe test payload not found`.
+## Write Path Rule
 
-### Findings
-- The live RTDB had canonical tests under `tests/` but `student_safe_tests/` was empty.
-- The current codebase already contains a fallback in `getStudentSafeTestFromFirebase()` that can rebuild a safe payload from the canonical test.
-- THCS solo practice does not use this projection path.
-- IELTS Writing also uses a separate load path and is not dependent on `student_safe_tests/{id}`.
+Normal save/update/edit paths must write canonical and student-safe data in one lifecycle.
 
-### Root Cause
-- This was a denormalized-data integrity gap: the solo IELTS read path depended on `student_safe_tests/{id}`, but legacy/live data did not contain that projection.
-- The bug scope was not "all IELTS forever". It affected IELTS Reading/Listening-style solo tests whose student-safe projection was missing.
+Current required producers:
+- `saveTestToFirebase()` writes `tests/{id}` and `student_safe_tests/{id}` together.
+- `updateTestInFirebase()` merges canonical updates and regenerates `student_safe_tests/{id}` in the same root update.
+- Teacher Lobby / material-card edit modal save regenerates `student_safe_tests/{id}` from the same edited data it writes to `tests/{id}`.
 
-### Solution Applied
-- Added a guarded fallback/backfill path so missing projections are rebuilt from `tests/{id}` without blocking the student flow.
-- Backfilled the live `student_safe_tests` node with sanitized payloads.
-- Verified that the sanitized payload contains no answer-key fields.
+Backfill and `refreshStudentSafeTestData(testId)` are repair-only tools for old/missing projection incidents. They are not the expected workflow after teacher edits.
 
-## Current State
+## Image-Mode Rule
 
-As of 2026-03-28:
-- Current save flows create both canonical and student-safe copies.
-- Current update flows refresh the student-safe copy.
-- Live RTDB `student_safe_tests/` was restored by backfill.
-- Existing IELTS solo tests should now load even in environments that still expect the projection to exist.
+`questionImages` is student-visible render metadata.
 
-## Cross-Feature Interaction Risks
+For each image:
+- `sectionNumber` scopes it to the listening part/section.
+- `questionRange.start` and `questionRange.end` decide which question group displays it.
+- a single section can have multiple images with different ranges.
 
-### Library ↔ Practice
-- Library discovery can succeed even when practice delivery fails, because listability comes from canonical/discovery data while practice delivery depends on `student_safe_tests/{id}`.
+If the editor shows multiple images but the student runtime shows only one, inspect `student_safe_tests/{id}.questionImages` first. If the projection is stale, fix the producer path. Do not treat manual Firebase CLI repair as the foundation.
 
-### Test Editor ↔ Solo Delivery
-- Any creation, import, restore, or migration path that writes only `tests/{id}` and skips `student_safe_tests/{id}` can silently reintroduce the bug.
+## Incident Lesson
 
-### Update Flows ↔ Student Safety
-- If canonical test edits are saved without refreshing the projection, students can see stale or structurally incompatible payloads.
+Earlier incident shape:
+- Library/discovery could show IELTS material while practice open failed or showed stale media.
+- Canonical `tests/{id}` was updated, but `student_safe_tests/{id}` was missing or stale.
+- Direct Firebase repair made one case look fixed, but did not prove the save path was healthy.
 
-### Backup / Restore ↔ Denormalized Nodes
-- Restoring only canonical test nodes without restoring or rebuilding derived student-safe projections leaves the system partially healthy: content exists, but student delivery breaks.
+Current root-cause rule:
+- If a teacher edit save does not update the student-safe payload immediately for new loads/reloads, it is a producer bug.
+- If a live-session snapshot is older than the global student-safe payload, loader freshness logic must return the newer global projection.
 
-### Feature Scope Confusion
-- THCS and IELTS Writing use different loading paths. Treating this as a generic "all test types" problem leads to noisy debugging and incorrect fixes.
+## Cross-Feature Risks
 
-## Reusable Pattern
+### Library / Practice
+Library discovery can succeed even when practice delivery fails because listability and render delivery use different data nodes.
 
-When a student-facing flow depends on a sanitized or derived RTDB projection:
-1. Treat the projection as a first-class contract, not a cache you can forget to rebuild.
-2. Write the canonical record and all required delivery projections in the same save/update lifecycle.
-3. Add a safe fallback that can rebuild missing projections from canonical data.
-4. Include a backfill strategy for legacy records and restore operations.
-5. Test the full chain: discovery -> open practice -> submit.
+### Test Editor / Student Runtime
+Any editor, import, restore, or migration path that writes only `tests/{id}` can silently reintroduce stale student runtime behavior.
 
-## Operational Checklist
+### Backup / Restore
+Restoring only canonical tests without restoring or rebuilding safe projections leaves content visible but student delivery unhealthy.
+
+### Scope Confusion
+THCS and IELTS Writing have different load paths. This pattern applies to legacy IELTS Reading/Listening-style projected delivery, not every test type.
+
+## Reusable Checklist
 
 - [ ] Save path writes `tests/{id}`.
-- [ ] Save path writes `student_safe_tests/{id}`.
-- [ ] Update path refreshes `student_safe_tests/{id}`.
-- [ ] Restore/migration jobs include derived delivery nodes or trigger a rebuild.
-- [ ] Library-open flow is tested against legacy data, not only fresh creates.
-- [ ] Sanitized payloads are checked for leaked answer fields.
+- [ ] Save path writes `student_safe_tests/{id}` in the same lifecycle.
+- [ ] Update/edit path refreshes `student_safe_tests/{id}` from the merged canonical data.
+- [ ] Image-mode projection preserves all `questionImages` entries and ranges.
+- [ ] Live-session loader falls back to current global safe payload when session cache is stale.
+- [ ] Sanitized payloads contain no answer fields.
+- [ ] Backfill is reserved for incident repair or legacy migration.
+
+## Repo Docs
+
+- `documentation/architecture/student-test-delivery-projections.md`
+- `documentation/tasks/0036-anti-cheat-runtime-contracts.md`
+- `documentation/architecture/homework-solo-practice-architecture.md`
 
 ## Related
 
