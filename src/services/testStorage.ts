@@ -501,6 +501,33 @@ const writeStudentSafeTestData = async (
   );
 };
 
+export const refreshStudentSafeTestData = async (
+  testId: string,
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const result = await getTestFromFirebase(testId);
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        error: result.error || 'Test not found',
+      };
+    }
+
+    await writeStudentSafeTestData(testId, result.data);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Error refreshing student-safe test payload:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to refresh student-safe test payload',
+    };
+  }
+};
+
 const backfillStudentSafeTestData = withRestoreGuard(
   'StudentSafeTestProjectionBackfill',
   false,

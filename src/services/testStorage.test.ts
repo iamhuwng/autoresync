@@ -9,6 +9,7 @@ import {
   saveTestToFirebase,
   getTestFromFirebase,
   getStudentSafeTestFromFirebase,
+  refreshStudentSafeTestData,
   getAllTestsFromFirebase,
   deleteTestFromFirebase,
   buildStudentSafeTestData,
@@ -20,6 +21,7 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn(),
   set: vi.fn(),
   get: vi.fn(),
+  update: vi.fn(),
 }));
 
 vi.mock('./firebase', () => ({
@@ -148,6 +150,68 @@ describe('testStorage', () => {
               number: 1,
               question: 'Q1',
               options: ['A', 'B'],
+            },
+          ],
+        },
+      );
+    });
+  });
+
+  describe('refreshStudentSafeTestData', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      const { ref } = await import('firebase/database');
+      (ref as any).mockImplementation((_db: unknown, path: string) => ({ path }));
+    });
+
+    it('rewrites the student-safe payload from the canonical test', async () => {
+      const { get, set } = await import('firebase/database');
+      const canonicalTest = {
+        id: 'test-1',
+        title: 'IELTS Listening',
+        questions: [
+          {
+            number: 17,
+            question: 'Q17',
+            answer: 'A',
+            options: ['A', 'B'],
+          },
+        ],
+        questionImages: [
+          {
+            sectionNumber: 2,
+            imageUrl: 'section-2b.png',
+            questionRange: { start: 17, end: 20 },
+          },
+        ],
+      };
+
+      (get as any).mockResolvedValueOnce({
+        exists: () => true,
+        val: () => canonicalTest,
+      });
+      (set as any).mockResolvedValueOnce(undefined);
+
+      const result = await refreshStudentSafeTestData('test-1');
+
+      expect(result.success).toBe(true);
+      expect(set).toHaveBeenCalledWith(
+        { path: 'student_safe_tests/test-1' },
+        {
+          id: 'test-1',
+          title: 'IELTS Listening',
+          questions: [
+            {
+              number: 17,
+              question: 'Q17',
+              options: ['A', 'B'],
+            },
+          ],
+          questionImages: [
+            {
+              sectionNumber: 2,
+              imageUrl: 'section-2b.png',
+              questionRange: { start: 17, end: 20 },
             },
           ],
         },

@@ -22,6 +22,7 @@ import { QuestionList } from './test/editor/QuestionList';
 import { database } from '../services/firebase';
 import { ref, update } from 'firebase/database';
 import { Button } from './modern';
+import { refreshStudentSafeTestData } from '../services/testStorage';
 import type { TestData, ContextResource } from '../services/testStorage';
 import { ResourceManager } from './test/editor/ResourceManager';
 import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } from './test/editor/resourceAdapters';
@@ -660,6 +661,12 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
 
         await update(ref(database), updates);
+        const refreshResult = await refreshStudentSafeTestData(test.id);
+        if (!refreshResult.success) {
+          console.error('Student-safe payload refresh failed after test save:', refreshResult.error);
+          toast.error('Test saved, but student delivery cache did not refresh. Please try saving again.');
+          return;
+        }
         setResourcesModified(false);
 
         // Clear localStorage

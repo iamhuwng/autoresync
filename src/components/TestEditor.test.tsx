@@ -17,11 +17,14 @@ vi.mock('@mantine/core', () => ({
 }));
 
 vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
-  ListeningEditorLayout: ({ title, onTitleChange, questionList, resourceManager }: any) => (
+  ListeningEditorLayout: ({ title, onTitleChange, onSave, questionList, resourceManager }: any) => (
     <div>
       <h1>{title}</h1>
       <button type="button" onClick={() => onTitleChange('Renamed Listening Test')}>
         Rename test
+      </button>
+      <button type="button" onClick={onSave}>
+        Save
       </button>
       <div>{questionList}</div>
       <div>{resourceManager}</div>
@@ -65,6 +68,8 @@ vi.mock('../services/firebase', () => ({
 }));
 vi.mock('firebase/database', () => ({
   ref: vi.fn(),
+  get: vi.fn(),
+  set: vi.fn(),
   update: vi.fn(),
 }));
 vi.mock('../hooks/useAuth', () => ({
@@ -157,6 +162,7 @@ describe('TestEditor draft storage', () => {
     localStorage.clear();
     mockToastWarning.mockClear();
     mockUseAuth.mockClear();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -208,5 +214,44 @@ describe('TestEditor draft storage', () => {
 
     warnSpy.mockRestore();
     setItemSpy.mockRestore();
+  });
+
+  it('refreshes the student-safe delivery payload after saving a test edit', async () => {
+    const { ref, update, get, set } = await import('firebase/database');
+    (ref as any).mockImplementation((_db: unknown, path = '') => ({ path }));
+    (update as any).mockResolvedValueOnce(undefined);
+    (get as any).mockResolvedValueOnce({
+      exists: () => true,
+      val: () => ({
+        ...LISTENING_TEST,
+        title: 'Renamed Listening Test',
+      }),
+    });
+    (set as any).mockResolvedValueOnce(undefined);
+    const handleClose = vi.fn();
+
+    render(
+      <TestEditor
+        test={LISTENING_TEST as any}
+        show
+        handleClose={handleClose}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(set).toHaveBeenCalledWith(
+        { path: 'student_safe_tests/listening-1' },
+        expect.objectContaining({
+          questionImages: LISTENING_TEST.questionImages,
+        }),
+      );
+    });
+    expect(handleClose).toHaveBeenCalled();
   });
 });
