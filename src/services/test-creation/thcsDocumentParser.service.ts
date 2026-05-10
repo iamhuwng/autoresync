@@ -8,6 +8,7 @@
  */
 
 import type { THCSQuestionType } from '../../types/thcs-test.types';
+import { createRawSourceArtifact } from './source-fidelity';
 import { classifyQuestionTypes, reclassifyByContent } from './thcs-type-classifier';
 import type { ReclassificationEvent } from './thcs-type-classifier';
 export { convertParsedToThcsDraft } from './thcs-draft-converter';
@@ -476,6 +477,140 @@ function parseQuestions(lines: string[], sections: ParsedSection[]): void {
     }
 }
 
+const READING_SECTION_TYPES = new Set<THCSQuestionType>([
+    'reading-comprehension',
+    'reading-announcement',
+    'reading-cloze-mcq',
+    'reading-cloze-wordbank',
+    'word-reference',
+]);
+
+function extractExplicitTypeFromText(text: string): THCSQuestionType | null {
+    const match = text.match(/\[TYPE:\s*([a-z][a-z0-9-]*)\s*\]/i);
+    return match ? match[1]!.toLowerCase().trim() as THCSQuestionType : null;
+}
+
+function isReadingLikeSection(section: ParsedSection): boolean {
+    const explicitType = extractExplicitTypeFromText(`${section.name} ${section.instructionText || ''}`);
+    if (explicitType && READING_SECTION_TYPES.has(explicitType)) return true;
+    if (READING_SECTION_TYPES.has(section.detectedType)) return true;
+
+    const text = `${section.name} ${section.instructionText || ''}`.toLowerCase();
+    return /reading|read\b.*(?:passage|text)|passage|comprehension|đọc.*hiểu/i.test(text);
+}
+
+function extractQuestionRange(text: string): { start: number; end: number } | null {
+    const normalized = text.replace(/[–—]/g, '-');
+    const patterns = [
+        /(?:questions?|q|câu)\s*(\d{1,3})\s*(?:-|to|đến)\s*(\d{1,3})/i,
+        /from\s+(\d{1,3})\s+to\s+(\d{1,3})/i,
+    ];
+
+    for (const pattern of patterns) {
+        const match = normalized.match(pattern);
+        if (!match) continue;
+
+        const start = parseInt(match[1]!, 10);
+        const end = parseInt(match[2]!, 10);
+        if (Number.isFinite(start) && Number.isFinite(end) && start <= end) {
+            return { start, end };
+        }
+    }
+
+    return null;
+}
+
+function sectionQuestionsMatchRange(section: ParsedSection, range: { start: number; end: number }): boolean {
+    if (section.questions.length === 0) return false;
+
+    const questionNumbers = section.questions
+        .map(q => q.questionNumber)
+        .filter(n => Number.isFinite(n))
+        .sort((a, b) => a - b);
+    const expectedCount = range.end - range.start + 1;
+
+    return questionNumbers[0] === range.start &&
+        questionNumbers[questionNumbers.length - 1] === range.end &&
+        questionNumbers.length === expectedCount &&
+        questionNumbers.every((n, index) => index === 0 || n === questionNumbers[index - 1]! + 1) &&
+        questionNumbers.every(n => n >= range.start && n <= range.end);
+}
+
+function inferReadingType(section: ParsedSection): THCSQuestionType {
+    const explicitType = extractExplicitTypeFromText(`${section.name} ${section.instructionText || ''}`);
+    if (explicitType && READING_SECTION_TYPES.has(explicitType)) return explicitType;
+    if (READING_SECTION_TYPES.has(section.detectedType)) return section.detectedType;
+    return 'reading-comprehension';
+}
+
+function mergeOrphanReadingSections(sections: ParsedSection[]): number {
+    let mergeCount = 0;
+
+    for (let i = 0; i < sections.length - 1; i++) {
+        const current = sections[i]!;
+        const next = sections[i + 1]!;
+        if (current.questions.length > 0 || next.questions.length === 0) continue;
+        if (!isReadingLikeSection(current)) continue;
+        if (!current.passageText || next.passageText) continue;
+
+        const range = extractQuestionRange(`${current.name} ${current.instructionText || ''}`);
+        if (!range || !sectionQuestionsMatchRange(next, range)) continue;
+
+        const readingType = inferReadingType(current);
+        const merged: ParsedSection = {
+            ...current,
+            endLine: Math.max(current.endLine, next.endLine),
+            questions: next.questions.map(q => ({ ...q, type: readingType })),
+            detectedType: readingType,
+            typeConfidence: Math.max(current.typeConfidence, 90),
+            instructionText: current.instructionText || next.instructionText,
+            passageText: current.passageText,
+        };
+
+        sections.splice(i, 2, merged);
+        mergeCount++;
+        i--;
+    }
+
+    return mergeCount;
+}
+
+function backfillQuestionTextFromSource(sections: ParsedSection[], sourceText: string): number {
+    if (!sourceText.trim()) return 0;
+
+    const rawSource = createRawSourceArtifact(sourceText);
+    const sourceQuestions = new Map(
+        rawSource.questionBlocks
+            .filter(block => block.questionText.trim())
+            .map(block => [block.questionNumber, block.questionText.trim()]),
+    );
+
+    let backfilled = 0;
+    for (const section of sections) {
+        for (const question of section.questions) {
+            if (question.text.trim()) continue;
+
+            const sourceQuestionText = sourceQuestions.get(question.questionNumber);
+            if (!sourceQuestionText) continue;
+
+            question.text = sourceQuestionText;
+            backfilled++;
+        }
+    }
+
+    return backfilled;
+}
+
+export function repairParsedSectionStructure(
+    sections: ParsedSection[],
+    sourceText = '',
+): { mergedOrphanReadingSections: number; backfilledQuestionTexts: number } {
+    const mergedOrphanReadingSections = mergeOrphanReadingSections(sections);
+    const backfilledQuestionTexts = backfillQuestionTextFromSource(sections, sourceText);
+
+    return { mergedOrphanReadingSections, backfilledQuestionTexts };
+}
+
 function extractMetadata(lines: string[]): ParsedMetadata {
     const metadata: ParsedMetadata = {};
     const headerLines = lines.slice(0, 30).join('\n');
@@ -832,6 +967,10 @@ export async function parseThcsText(
             return { success: false, error: 'Regex parsing succeeded but returned no data.' };
         }
         const parsedTest = parsedResult.data;
+        const repairStats = repairParsedSectionStructure(parsedTest.sections, cleaned);
+        if (repairStats.mergedOrphanReadingSections > 0 || repairStats.backfilledQuestionTexts > 0) {
+            console.log('[parseThcsText] Structural repair:', repairStats);
+        }
 
         // --- Stage 6: Type Classification ---------------------------
         console.log(`[parseThcsText] Stage 6: Classifying ${parsedTest.sections.length} sections`);

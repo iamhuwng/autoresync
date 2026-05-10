@@ -13,6 +13,16 @@ import { database } from '../../services/firebase';
 import type { WritingTestFormat } from '../../types/ielts-writing.types';
 import { IntegrityBadge } from '../test/IntegrityBadge'; // PRD-0036
 
+const WRITING_MONITOR_AUDIT_PREFIX = '[Diag][TeacherMonitorAudit][WritingCard]';
+
+function logWritingMonitorAudit(event: string, payload: Record<string, unknown>) {
+    if (!import.meta.env.DEV) {
+        return;
+    }
+
+    console.info(WRITING_MONITOR_AUDIT_PREFIX, event, payload);
+}
+
 interface WritingMonitorCardProps {
     sessionCode: string;
     studentUid: string;
@@ -78,6 +88,34 @@ export default function WritingMonitorCard({
     const submitted = status === 'submitted' || data?.submitted === true;
     const disconnected = status === 'disconnected';
     const working = !submitted && !disconnected;
+
+    useEffect(() => {
+        logWritingMonitorAudit('card_snapshot', {
+            sessionCode,
+            studentUid,
+            studentName,
+            statusProp: status,
+            submitted,
+            disconnected,
+            active,
+            activeTask: data?.activeTask ?? null,
+            task1Words,
+            task2Words,
+            testFormat,
+        });
+    }, [
+        active,
+        data?.activeTask,
+        disconnected,
+        sessionCode,
+        status,
+        studentName,
+        studentUid,
+        submitted,
+        task1Words,
+        task2Words,
+        testFormat,
+    ]);
 
     return (
         <div
@@ -163,7 +201,17 @@ export default function WritingMonitorCard({
                 </div>
                 {onPeek && working && (
                     <button
-                        onClick={() => onPeek(studentUid)}
+                        onClick={() => {
+                            logWritingMonitorAudit('peek_clicked', {
+                                sessionCode,
+                                studentUid,
+                                studentName,
+                                activeTask: data?.activeTask ?? null,
+                                task1Words,
+                                task2Words,
+                            });
+                            onPeek(studentUid);
+                        }}
                         style={{
                             padding: '4px 12px',
                             borderRadius: '6px',
@@ -179,7 +227,16 @@ export default function WritingMonitorCard({
                 )}
                 {onReopen && submitted && (
                     <button
-                        onClick={() => onReopen(studentUid)}
+                        onClick={() => {
+                            logWritingMonitorAudit('reopen_clicked', {
+                                sessionCode,
+                                studentUid,
+                                studentName,
+                                task1Words,
+                                task2Words,
+                            });
+                            onReopen(studentUid);
+                        }}
                         style={{
                             padding: '4px 12px',
                             borderRadius: '6px',

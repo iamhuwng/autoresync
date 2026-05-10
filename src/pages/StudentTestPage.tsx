@@ -702,6 +702,7 @@ const StudentTestPageContent: React.FC = () => {
         rightColumn={
           <IELTSQuestionsPanel
             questions={displayQuestions}
+            questionGroups={testData.questionGroups || []}
             currentPassageId={activePassageId}
             answers={answers}
             onAnswerChange={(testSubmitted || isLocked) ? () => { } : handleAnswerChange} // PRD-0019: Disable during grace period

@@ -18,7 +18,17 @@ import { SoloResumeModal } from '../components/test/SoloResumeModal';
 import { notifications } from '@mantine/notifications';
 import type { Course, Module, CourseMaterial } from '../types/course.types';
 import type { ClassSession } from '../types/class.types';
+import type { SoloSessionProgress } from '../types/practice.types';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
+import { storage } from '../core/platform/storage';
+import { buildSoloProgressStorageKey } from '../services/soloProgress.service';
+import {
+    buildReadingV2LaunchReadPlan,
+    createReadingV2LaunchMaterialSummary,
+    isReadingV2LaunchCandidate,
+} from '../services/reading-v2/readingV2LaunchIntegration.service';
+import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
+import type { ReadingV2MaterialMetadata } from '../services/reading-v2/readingV2MaterialMetadata.service';
 
 interface TestMeta { title: string; type: string; duration?: number; testType?: string; metadata?: any; }
 
@@ -98,6 +108,7 @@ const StudentCourseDetailPage: React.FC = () => {
 
     const [resumeModalOpen, setResumeModalOpen] = useState(false);
     const [pendingMaterial, setPendingMaterial] = useState<{ materialId: string; moduleId: string; duration?: number } | null>(null);
+    const [pendingProgress, setPendingProgress] = useState<SoloSessionProgress | null>(null);
 
     useEffect(() => {
         if (user?.uid && courseId) {
@@ -167,6 +178,36 @@ const StudentCourseDetailPage: React.FC = () => {
             if (materialsRes.length > 0) {
                 const uniqueIds = [...new Set(materialsRes.map(m => m.materialId))];
                 const entries = await Promise.all(uniqueIds.map(async (tid) => {
+                    const metadataPlan = buildReadingV2LaunchReadPlan({
+                        surface: 'course-material',
+                        materialId: tid,
+                    });
+                    const metadataSnap = await get(ref(database, metadataPlan.metadataPath));
+                    const metadata = metadataSnap.exists()
+                        ? metadataSnap.val() as ReadingV2MaterialMetadata
+                        : null;
+
+                    if (metadata && isReadingV2LaunchCandidate(metadata)) {
+                        const projectionPlan = buildReadingV2LaunchReadPlan({
+                            surface: 'course-material',
+                            materialId: tid,
+                            snapshotVersionId: metadata.publishedSnapshotVersionId,
+                        });
+                        const projectionSnap = await get(ref(database, projectionPlan.projectionPath));
+                        const projection = projectionSnap.exists()
+                            ? projectionSnap.val() as ReadingV2DerivedProjection
+                            : null;
+                        const summary = createReadingV2LaunchMaterialSummary({ metadata, projection });
+
+                        return [tid, {
+                            title: summary.title,
+                            type: 'ReadingV2',
+                            duration: summary.durationMinutes,
+                            testType: 'ReadingV2',
+                            metadata: summary.metadata,
+                        }] as [string, TestMeta];
+                    }
+
                     const snap = await get(ref(database, `tests/${tid}`));
                     const data = snap.exists() ? snap.val() : null;
                     // Phase 3 Task 5.2: Handle THCS test metadata
@@ -264,10 +305,19 @@ const StudentCourseDetailPage: React.FC = () => {
             }
 
             // Step 3: Check resume
-            const key = `solo_progress_${material.materialId}_${studentId}`;
-            const saved = localStorage.getItem(key);
+            const key = buildSoloProgressStorageKey({
+                materialId: material.materialId,
+                studentId,
+                scopeContext: {
+                    mode: 'course_material',
+                    courseId: courseId || undefined,
+                    moduleId,
+                },
+            });
+            const saved = await storage.get<SoloSessionProgress>(key);
             if (saved) {
                 setPendingMaterial({ materialId: material.materialId, moduleId, duration: testMeta[material.materialId]?.duration });
+                setPendingProgress(saved);
                 setResumeModalOpen(true);
                 return;
             }
@@ -536,23 +586,27 @@ const StudentCourseDetailPage: React.FC = () => {
             {pendingMaterial && (
                 <SoloResumeModal
                     opened={resumeModalOpen}
-                    onClose={() => { setResumeModalOpen(false); setPendingMaterial(null); }}
+                    onClose={() => { setResumeModalOpen(false); setPendingMaterial(null); setPendingProgress(null); }}
                     onResume={() => {
                         setResumeModalOpen(false);
-                        const saved = JSON.parse(localStorage.getItem(`solo_progress_${pendingMaterial.materialId}_${user?.uid}`) || '{}');
                         navigate(`/student/practice/${pendingMaterial.materialId}`, {
                             state: {
                                 courseId,
                                 moduleId: pendingMaterial.moduleId,
                                 courseName: course?.originalName || course?.name || '',
                                 context: { type: 'course_material', source: { type: 'course', id: courseId, name: course?.originalName || course?.name || '' } },
-                                resumeFrom: saved
+                                resumeFrom: pendingProgress
                             },
                         });
                     }}
                     onStartNew={() => {
-                        clearSoloProgress(pendingMaterial.materialId, user?.uid || '');
+                        void clearSoloProgress(pendingMaterial.materialId, user?.uid || '', {
+                            mode: 'course_material',
+                            courseId: courseId || undefined,
+                            moduleId: pendingMaterial.moduleId,
+                        });
                         setResumeModalOpen(false);
+                        setPendingProgress(null);
                         navigate(`/student/practice/${pendingMaterial.materialId}`, {
                             state: {
                                 courseId,
@@ -562,7 +616,15 @@ const StudentCourseDetailPage: React.FC = () => {
                             },
                         });
                     }}
-                    savedProgress={JSON.parse(localStorage.getItem(`solo_progress_${pendingMaterial.materialId}_${user?.uid}`) || '{}')}
+                    savedProgress={pendingProgress || {
+                        materialId: pendingMaterial.materialId,
+                        studentId: user?.uid || '',
+                        answers: {},
+                        currentQuestion: 1,
+                        timeElapsed: 0,
+                        startedAt: Date.now(),
+                        lastSavedAt: Date.now(),
+                    }}
                     totalQuestions={0} // Client will calculate this after mounting the standalone standalone solo component
                 />
             )}

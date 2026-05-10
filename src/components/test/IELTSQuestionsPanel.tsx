@@ -27,6 +27,9 @@ import {
   type ReadingOptionDisplayValue,
   type ReadingOptionDisplayFormat,
 } from '../../utils/readingOptionDisplay';
+import type { QuestionGroupsField } from '../../types/tableCompletion';
+import { isReadingAnswerEmpty } from './readingAnswerState';
+import { TableCompletionGroupRenderer } from './table-completion/TableCompletionGroupRenderer';
 
 interface StudentAnswers {
   [questionNumber: number]: string | string[] | Record<string, string>;
@@ -48,10 +51,17 @@ interface Question {
   optionLabelFormat?: ReadingOptionDisplayFormat; // Format for matching question options (A,B,C / i,ii,iii / 1,2,3)
   wordLimit?: number;
   summaryGroupId?: string; // unique ID for multi-group summary exercises (e.g. "sc-1", "sc-2")
+  groupId?: string;
+  blankId?: string;
+  anchorId?: string;
+  groupTaskType?: 'table-completion';
+  sectionInstructionId?: string;
+  tableGroupSchemaVersion?: number;
 }
 
 interface IELTSQuestionsPanelProps {
   questions: Question[];
+  questionGroups?: QuestionGroupsField;
   currentPassageId: string | null;
   answers: StudentAnswers;
   onAnswerChange: (questionNumber: number, answer: string | string[] | Record<string, string>) => void;
@@ -314,10 +324,12 @@ const MATCHING_HELP_CONTENT: Record<
 
 export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
   questions,
+  questionGroups = [],
   currentPassageId,
   answers,
   onAnswerChange,
   activeQuestionNumber,
+  onQuestionClick,
   testSubmitted = false,
   questionResults,
   partIndex: _partIndex,
@@ -341,26 +353,10 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
   const passageQuestions = questions.filter(q => q.passageId === currentPassageId);
 
   // Group questions by task type
-  const questionGroups = groupReadingQuestionsByTaskType(passageQuestions) as Array<ReadingQuestionGroup<Question>>;
-
-  // ── DIAGNOSTIC: Log matching-headings groups ──
-  const matchingHeadingsGroups = questionGroups.filter(g => g.type === 'matching-headings');
-  if (matchingHeadingsGroups.length > 0) {
-    console.log('🔍 [IELTSQuestionsPanel] matching-headings groups found:', matchingHeadingsGroups.length);
-    matchingHeadingsGroups.forEach((g, idx) => {
-      console.log(`  📌 Group ${idx + 1}: Q${g.startNumber}–Q${g.endNumber} (${g.questions.length} questions)`);
-      console.log('    Instructions:', g.instructions.substring(0, 80) + '...');
-      g.questions.forEach(q => {
-        console.log(`    Q${q.number}: type=${q.type}, options=${(q.options || []).length}, items=${(q.items || []).length}, optionLabelFormat=${(q as any).optionLabelFormat || 'none'}, question="${q.question.substring(0, 60)}..."`);
-        if (q.options && q.options.length > 0) {
-          console.log(`      Options:`, q.options);
-        }
-        if (q.items && q.items.length > 0) {
-          console.log(`      Items:`, q.items);
-        }
-      });
-    });
-  }
+  const renderedQuestionGroups = groupReadingQuestionsByTaskType(
+    passageQuestions,
+    questionGroups,
+  ) as Array<ReadingQuestionGroup<Question>>;
 
   // Scroll to active question when it changes
   useEffect(() => {
@@ -394,7 +390,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
     }
 
     const frameId = requestAnimationFrame(() => {
-      const anchors = questionGroups
+      const anchors = renderedQuestionGroups
         .map((group) => {
           const element = questionGroupRefs.current[group.startNumber];
           if (!element) {
@@ -414,7 +410,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [currentPassageId, embedded, onQuestionGroupLayoutChange, questionGroups]);
+  }, [currentPassageId, embedded, onQuestionGroupLayoutChange, renderedQuestionGroups]);
 
   if (passageQuestions.length === 0) {
     return (
@@ -471,7 +467,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
             fontSize: '13px',
             color: '#666666',
           }}>
-            {Object.keys(answers).filter(n => passageQuestions.some(q => q.number === parseInt(n))).length} of {passageQuestions.length} answered
+            {passageQuestions.filter((question) => !isReadingAnswerEmpty(answers[question.number])).length} of {passageQuestions.length} answered
           </div>
         </div>
       )}
@@ -483,7 +479,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
         overflowX: 'hidden',
         padding: embedded ? '1rem' : '1.5rem',
       }}>
-        {questionGroups.map((group, groupIndex) => (
+        {renderedQuestionGroups.map((group, groupIndex) => (
           <div
             key={`group-${groupIndex}`}
             ref={(element) => {
@@ -491,7 +487,7 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
             }}
             data-question-group-start={group.startNumber}
             style={{
-              marginBottom: groupIndex < questionGroups.length - 1 ? '3rem' : '0',
+              marginBottom: groupIndex < renderedQuestionGroups.length - 1 ? '3rem' : '0',
             }}
           >
             {/* Task Instructions Box */}
@@ -954,6 +950,25 @@ export const IELTSQuestionsPanel: React.FC<IELTSQuestionsPanelProps> = ({
                 // inputs within cells, and structured layout
                 // ═══════════════════════════════════════════════════════════
                 if (group.type === 'table-completion') {
+                  if (group.canonicalGroup) {
+                    return (
+                      <TableCompletionGroupRenderer
+                        group={group.canonicalGroup}
+                        questions={group.questions}
+                        answers={answers}
+                        onAnswerChange={(questionNumber, answer) => {
+                          if (!testSubmitted) {
+                            onAnswerChange(questionNumber, answer);
+                          }
+                        }}
+                        disabled={testSubmitted}
+                        mode={embedded ? 'mobile' : 'desktop'}
+                        activeQuestionNumber={activeQuestionNumber}
+                        onQuestionClick={onQuestionClick}
+                        registerQuestionRef={handleQuestionRefChange}
+                      />
+                    );
+                  }
 
                   // ── Step 1: Try to detect table structure from question texts ──
                   // AI may output questions as:

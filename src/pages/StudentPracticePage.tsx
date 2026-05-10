@@ -18,7 +18,7 @@
  * - Settings cascade: material > module > course > defaults
  */
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
@@ -26,12 +26,33 @@ import { resolvePracticeSettings } from '../services/practiceSettingsResolver';
 import { DEFAULT_PRACTICE_SETTINGS } from '../types/practice.types';
 import type { ResolvedPracticeSettings } from '../types/practice.types';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { IELTSPracticeView } from '../components/practice/IELTSPracticeView';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
+import {
+    ReadingV2RuntimeShell,
+    type ReadingV2AnswerValue,
+    type ReadingV2RuntimeSubmitPayload,
+} from '../components/reading-v2/runtime/ReadingV2RuntimeShell';
 import type { PracticeContext } from '../components/practice/IELTSPracticeView';
+import type { HomeworkWritingContext } from '../components/writing-practice/WritingPracticeView';
 import type { IELTSWritingTest } from '../types/ielts-writing.types';
 import { studentResumeService } from '../services/studentResume.service';
+import { getEffectiveHomeworkDueDate, getHomeworkById } from '../services/homeworkManager';
+import { getSubmissionById } from '../services/homeworkSubmissionService';
+import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
+import {
+    buildReadingV2LaunchReadPlan,
+    isReadingV2LaunchCandidate,
+    resolveReadingV2LaunchDecision,
+    type ReadingV2LaunchSurface,
+} from '../services/reading-v2/readingV2LaunchIntegration.service';
+import {
+    isReadingV2RuntimeSubmissionConfigured,
+    submitReadingV2RuntimeAttempt,
+} from '../services/reading-v2/readingV2RuntimeSubmission.service';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -66,8 +87,6 @@ interface PracticeLocationState {
     };
 }
 
-// ── Router Content ─────────────────────────────────────────────────────────────
-
 type CanonicalIeltsSkill = 'Reading' | 'Listening' | 'Writing' | 'Speaking';
 
 const normalizeIeltsSkill = (rawSkill: unknown): CanonicalIeltsSkill | null => {
@@ -92,27 +111,66 @@ const normalizeIeltsSkill = (rawSkill: unknown): CanonicalIeltsSkill | null => {
 const inferIeltsSkillFromMaterialId = (materialId: string): CanonicalIeltsSkill | null => {
     const normalizedMaterialId = materialId.trim().toLowerCase();
 
-    if (normalizedMaterialId.includes('listening')) return 'Listening';
-    if (normalizedMaterialId.includes('writing')) return 'Writing';
-    if (normalizedMaterialId.includes('reading')) return 'Reading';
-    if (normalizedMaterialId.includes('speaking')) return 'Speaking';
+    if (normalizedMaterialId.includes('listening')) {
+        return 'Listening';
+    }
+
+    if (normalizedMaterialId.includes('writing')) {
+        return 'Writing';
+    }
+
+    if (normalizedMaterialId.includes('reading')) {
+        return 'Reading';
+    }
+
+    if (normalizedMaterialId.includes('speaking')) {
+        return 'Speaking';
+    }
 
     return null;
 };
+
+const getReadingV2LaunchSurface = (locationState: PracticeLocationState): ReadingV2LaunchSurface => {
+    if (locationState.isHomework) {
+        return 'homework';
+    }
+
+    if (locationState.courseId) {
+        return 'course-material';
+    }
+
+    if (locationState.context?.source?.type === 'library') {
+        return 'public-library';
+    }
+
+    return 'solo-practice';
+};
+
+const isExplicitReadingV2Launch = (testData: unknown): boolean =>
+    isReadingV2LaunchCandidate(testData);
+
+// ── Router Content ─────────────────────────────────────────────────────────────
 
 const StudentPracticePageContent: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
     const location = useLocation();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
 
     const locationState = (location.state || {}) as PracticeLocationState;
 
     // ── State ──────────────────────────────────────────────────────────────────
     const [resolvedSettings, setResolvedSettings] = useState<ResolvedPracticeSettings | null>(null);
-    const [testType, setTestType] = useState<'IELTS' | 'THCS' | null>(null);
+    const [testType, setTestType] = useState<'IELTS' | 'THCS' | 'ReadingV2' | null>(null);
     const [testSkill, setTestSkill] = useState<string | null>(null);
     const [writingTestData, setWritingTestData] = useState<IELTSWritingTest | null>(null);
+    const [writingHomeworkContext, setWritingHomeworkContext] = useState<HomeworkWritingContext | undefined>(undefined);
+    const [readingV2Projection, setReadingV2Projection] = useState<ReadingV2DerivedProjection | null>(null);
+    const [readingV2Answers, setReadingV2Answers] = useState<Readonly<Record<string, ReadingV2AnswerValue>>>({});
+    const [readingV2StartedAt] = useState(() => (
+        typeof locationState.startedAt === 'number' ? locationState.startedAt : Date.now()
+    ));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -127,35 +185,174 @@ const StudentPracticePageContent: React.FC = () => {
         const initialize = async () => {
             setLoading(true);
             setError(null);
+            setWritingHomeworkContext(undefined);
+            setReadingV2Projection(null);
 
             try {
-                // 1. Detect test type + skill from Firebase
-                const testTypeRef = ref(database, `tests/${materialId}/testType`);
-                const testTypeSnap = await get(testTypeRef);
-                const rawTestType = testTypeSnap.val();
+                setReadingV2Answers({});
+                const launchTestSnap = await get(ref(database, `tests/${materialId}`));
+                const launchTestData = launchTestSnap.exists() ? launchTestSnap.val() : null;
 
-                const skillRef = ref(database, `tests/${materialId}/skill`);
-                const skillSnap = await get(skillRef);
-                const rawSkill = skillSnap.val() || null;
+                if (isExplicitReadingV2Launch(launchTestData)) {
+                    const launchSurface = getReadingV2LaunchSurface(locationState);
+                    const snapshotVersionId =
+                        typeof launchTestData?.publishedSnapshotVersionId === 'string'
+                            ? launchTestData.publishedSnapshotVersionId
+                            : undefined;
+                    const projectionReadPlan = buildReadingV2LaunchReadPlan({
+                        surface: launchSurface,
+                        materialId,
+                        snapshotVersionId,
+                    });
+                    const projectionSnap = await get(ref(database, projectionReadPlan.projectionPath));
+                    const launchDecision = resolveReadingV2LaunchDecision({
+                        surface: launchSurface,
+                        metadata: launchTestData,
+                        projection: projectionSnap.exists() ? projectionSnap.val() : undefined,
+                    });
+
+                    if (launchDecision.status !== 'runtime') {
+                        trackAction('readingV2LaunchBlocked', {
+                            surface: launchSurface,
+                            reason: launchDecision.status === 'blocked'
+                                ? launchDecision.reason
+                                : launchDecision.reason,
+                            materialId,
+                            outcome: 'blocked',
+                        });
+                        setError(launchDecision.status === 'blocked'
+                            ? launchDecision.message
+                            : 'Reading V2 launch could not be resolved');
+                        setLoading(false);
+                        return;
+                    }
+
+                    trackAction('launchReadingV2Runtime', {
+                        surface: launchSurface,
+                        materialId,
+                        projectionKind: launchDecision.projection.projectionKind,
+                        sourceSnapshotVersionId: launchDecision.projection.sourceSnapshotVersionId,
+                        outcome: 'success',
+                    });
+                    const readingV2Settings = locationState.courseId && locationState.moduleId
+                        ? await resolvePracticeSettings(
+                            locationState.courseId,
+                            locationState.moduleId,
+                            materialId,
+                            { timerMinutes: null, feedbackTiming: 'after_completion' }
+                        )
+                        : locationState.isHomework
+                            ? {
+                                ...DEFAULT_PRACTICE_SETTINGS,
+                                timerMinutes: locationState.timerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
+                                maxAttempts: locationState.maxAttempts ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
+                            }
+                            : DEFAULT_PRACTICE_SETTINGS;
+
+                    setReadingV2Projection(launchDecision.projection);
+                    setTestSkill('Reading');
+                    setTestType('ReadingV2');
+                    setResolvedSettings(readingV2Settings);
+                    setLoading(false);
+                    return;
+                }
+
+                // 1. Detect test type + skill from Firebase
+                const rawTestType = launchTestData?.testType ?? null;
+                const rawSkill = launchTestData?.skill ?? null;
                 const normalizedSkill = normalizeIeltsSkill(rawSkill)
                     ?? (rawTestType === 'IELTS' ? inferIeltsSkillFromMaterialId(materialId) : null);
-                setTestSkill(normalizedSkill ?? rawSkill);
+                const normalizedTestType = rawTestType === 'THCS-THPT' ? 'THCS' : 'IELTS';
+                const routeTarget = rawTestType === 'IELTS' && normalizedSkill === 'Writing'
+                    ? 'WritingPracticeView'
+                    : normalizedTestType === 'IELTS' && normalizedSkill === 'Listening'
+                        ? 'ListeningPracticeView'
+                        : normalizedTestType === 'THCS'
+                            ? 'THCSPracticeView'
+                            : 'IELTSPracticeView';
 
-                if (rawTestType === 'THCS-THPT') {
-                    setTestType('THCS');
-                } else {
-                    setTestType('IELTS');
+                if (rawTestType === 'IELTS' && !normalizeIeltsSkill(rawSkill) && normalizedSkill) {
+                    console.warn('[StudentPracticePage] Inferred IELTS skill from material id fallback', {
+                        materialId,
+                        rawSkill,
+                        inferredSkill: normalizedSkill,
+                    });
                 }
+
+                console.info('[StudentPracticePage] Resolved practice route', {
+                    materialId,
+                    rawTestType,
+                    rawSkill,
+                    normalizedSkill,
+                    normalizedTestType,
+                    routeTarget,
+                    isHomework: Boolean(locationState.isHomework),
+                    courseId: locationState.courseId || null,
+                    moduleId: locationState.moduleId || null,
+                    homeworkId: locationState.homeworkId || null,
+                    submissionId: locationState.submissionId || null,
+                });
+
+                if (
+                    materialId.toLowerCase().includes('listening')
+                    && normalizedSkill !== 'Listening'
+                ) {
+                    console.warn('[StudentPracticePage] Listening-like material id resolved to a non-listening skill', {
+                        materialId,
+                        rawSkill,
+                        normalizedSkill,
+                        rawTestType,
+                        routeTarget,
+                    });
+                }
+
+                setTestSkill(normalizedSkill);
+                setTestType(normalizedTestType);
 
                 // 2. If Writing test, load full test data for WritingPracticeView
                 if (rawTestType === 'IELTS' && normalizedSkill === 'Writing') {
-                    const fullTestSnap = await get(ref(database, `tests/${materialId}`));
-                    if (fullTestSnap.exists()) {
-                        setWritingTestData(fullTestSnap.val() as IELTSWritingTest);
+                    if (launchTestSnap.exists()) {
+                        setWritingTestData(launchTestData as IELTSWritingTest);
                     } else {
                         setError('Writing test data not found');
                         setLoading(false);
                         return;
+                    }
+
+                    if (locationState.isHomework) {
+                        if (!user?.uid || !locationState.homeworkId || !locationState.submissionId) {
+                            setError('Homework launch is missing assignment details');
+                            setLoading(false);
+                            return;
+                        }
+
+                        const [submission, homework] = await Promise.all([
+                            getSubmissionById(locationState.submissionId),
+                            getHomeworkById(locationState.homeworkId),
+                        ]);
+
+                        const isValidSubmission = submission
+                            && submission.studentId === user.uid
+                            && submission.homeworkId === locationState.homeworkId
+                            && submission.status === 'in_progress';
+
+                        if (!isValidSubmission || !homework) {
+                            setError('This homework attempt is no longer available');
+                            setLoading(false);
+                            return;
+                        }
+
+                        setWritingHomeworkContext({
+                            homeworkId: locationState.homeworkId,
+                            submissionId: locationState.submissionId,
+                            teacherId: submission.teacherId || homework.createdBy,
+                            dueDate: getEffectiveHomeworkDueDate(homework, user.uid),
+                            lateSubmissionAllowed: homework.config.lateSubmissionAllowed,
+                            timerMinutes: homework.config.timerMinutes,
+                            maxAttempts: homework.config.maxAttempts,
+                            startedAt: submission.startedAt,
+                            previousEssay: locationState.resumeFrom?.essays,
+                        });
                     }
                 }
 
@@ -188,7 +385,7 @@ const StudentPracticePageContent: React.FC = () => {
 
         initialize();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [materialId]);
+    }, [locationState.homeworkId, locationState.isHomework, locationState.resumeFrom?.essays, locationState.submissionId, materialId, trackAction, user?.uid]);
 
     useEffect(() => {
         if (!materialId || !user?.uid || loading || error) {
@@ -234,6 +431,61 @@ const StudentPracticePageContent: React.FC = () => {
         submissionId: locationState.submissionId,
     };
 
+    const handleReadingV2Submit = useCallback(async (payload: ReadingV2RuntimeSubmitPayload) => {
+        const launchSurface = getReadingV2LaunchSurface(locationState);
+        const submissionMaterialId = payload.materialId ?? materialId ?? 'unknown-material';
+        const trackingPayload = {
+            surface: launchSurface,
+            materialId: submissionMaterialId,
+            projectionId: payload.projectionId,
+            sourceSnapshotVersionId: payload.sourceSnapshotVersionId,
+        };
+
+        trackAction('submitReadingV2Attempt', {
+            ...trackingPayload,
+            outcome: 'requested',
+        });
+
+        try {
+            const result = await submitReadingV2RuntimeAttempt({
+                payload,
+                context: {
+                    surface: launchSurface,
+                    homeworkId: locationState.homeworkId,
+                    courseId: locationState.courseId,
+                    moduleId: locationState.moduleId,
+                    sourceName: locationState.context?.source?.name ?? readingV2Projection?.content.title,
+                },
+            });
+
+            trackAction('submitReadingV2Attempt', {
+                ...trackingPayload,
+                resultId: result.resultId,
+                attemptId: result.attemptId,
+                outcome: 'success',
+            });
+        } catch (submitError) {
+            trackAction('submitReadingV2Attempt', {
+                ...trackingPayload,
+                reason: submitError instanceof Error ? submitError.name : 'unknown',
+                outcome: 'failure',
+            });
+            throw submitError;
+        }
+    }, [
+        locationState.context?.source?.name,
+        locationState.courseId,
+        locationState.homeworkId,
+        locationState.isHomework,
+        locationState.moduleId,
+        materialId,
+        readingV2Projection?.content.title,
+        trackAction,
+    ]);
+    const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()
+        ? handleReadingV2Submit
+        : undefined;
+
     // ── Loading ────────────────────────────────────────────────────────────────
     if (loading) {
         return (
@@ -270,6 +522,25 @@ const StudentPracticePageContent: React.FC = () => {
 
     // ── Route to correct view ──────────────────────────────────────────────────
 
+    if (testType === 'ReadingV2' && readingV2Projection) {
+        return (
+            <ReadingV2RuntimeShell
+                projection={readingV2Projection}
+                onSubmit={readingV2SubmitHandler}
+                initialAnswers={readingV2Answers}
+                onAnswersChange={setReadingV2Answers}
+                persistenceKey={`reading-v2:practice:${user?.uid ?? 'anonymous'}:${materialId}:${readingV2Projection.projectionId}`}
+                timer={{
+                    durationMinutes: resolvedSettings.timerMinutes,
+                    startedAt: resolvedSettings.timerMinutes ? readingV2StartedAt : null,
+                    pausedDurationMs: 0,
+                    running: true,
+                    autoSubmitOnExpiry: true,
+                }}
+            />
+        );
+    }
+
     // Writing branch: IELTS + skill=Writing → WritingPracticeView
     if (testType === 'IELTS' && testSkill === 'Writing' && writingTestData) {
         return (
@@ -286,23 +557,24 @@ const StudentPracticePageContent: React.FC = () => {
                     materialId={materialId}
                     testData={writingTestData}
                     autoResume={locationState.autoResume === true}
-                    homeworkContext={locationState.isHomework ? {
-                        homeworkId: locationState.homeworkId || '',
-                        submissionId: locationState.submissionId || '',
-                        teacherId: locationState.teacherId || '',
-                        dueDate: locationState.dueDate,
-                        lateSubmissionAllowed: locationState.lateSubmissionAllowed ?? false,
-                        timerMinutes: locationState.timerMinutes,
-                        maxAttempts: locationState.maxAttempts,
-                        startedAt: locationState.startedAt,
-                        previousEssay: locationState.resumeFrom?.essays,
-                    } : undefined}
+                    practiceContext={{
+                        mode: locationState.isHomework
+                            ? 'homework'
+                            : locationState.courseId
+                                ? 'course_material'
+                                : 'self_study',
+                        courseId: locationState.courseId,
+                        moduleId: locationState.moduleId,
+                        homeworkId: locationState.homeworkId,
+                        submissionId: locationState.submissionId,
+                    }}
+                    homeworkContext={locationState.isHomework ? writingHomeworkContext : undefined}
                 />
             </Suspense>
         );
     }
 
-    // Listening branch: IELTS + skill=Listening -> dedicated ListeningPracticeView
+    // Listening branch: IELTS + skill=Listening → ListeningPracticeView (PRD-0045)
     if (testType === 'IELTS' && testSkill === 'Listening') {
         return (
             <Suspense fallback={

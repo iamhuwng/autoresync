@@ -74,7 +74,7 @@ export interface StudentSoloPreferences {
  * Legacy payloads without `kind` are treated as Reading by hydration helpers.
  */
 export interface ReadingSavedMobileState {
-    kind?: 'reading';
+    kind: 'reading';
     activePassageId?: string;
     questionSheetOpen: boolean;
     reviewSummaryOpen: boolean;

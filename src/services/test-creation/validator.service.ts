@@ -20,6 +20,24 @@ import type {
     ReadingSectionReference,
 } from '../../types/document.types';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
+import type {
+    QuestionGroupsField,
+    TableCompletionDiagnosticsField,
+} from '../../types/tableCompletion';
+import {
+    canonicalizeTableCompletionGroup,
+    type TableCompletionSourceQuestion,
+} from './tableCompletionCanonicalizer';
+import { deriveTableCompletionQuestionsFromGroup } from './tableCompletionTransforms';
+import {
+    buildTableCompletionDiagnostic,
+    validateTableCompletionCanonicalization,
+    type TableCompletionIssue,
+} from './tableCompletionValidator';
+import type {
+    DamageRegion,
+    VerificationArtifact,
+} from './source-fidelity';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -39,6 +57,7 @@ export interface AIQuestionResult {
     confidence: number;
     optionLabelFormat?: ReadingOptionLabelFormat;
     sectionReferences?: ReadingSectionReference[] | null;
+    sectionInstruction?: string;
 }
 
 /**
@@ -83,6 +102,47 @@ export interface ComparisonResult {
     discrepancies: Discrepancy[];
     /** Merged result (weighted combination) */
     mergedQuestions: MergedQuestion[];
+    /** Canonical grouped table payloads derived during validation */
+    questionGroups: QuestionGroupsField;
+    /** Grouped table issues adapted directly from the canonical validator contract */
+    tableCompletionIssues: TableCompletionIssue[];
+    /** Grouped table diagnostics for canonical and unresolved runs */
+    tableCompletionDiagnostics: TableCompletionDiagnosticsField;
+    /** Raw-source fidelity status produced by verification */
+    sourceFidelity: SourceFidelityResult;
+    /** Continuity checks between raw numbered questions and merged output */
+    questionRangeContinuity: QuestionRangeContinuityResult;
+    /** Answer-key coverage consistency derived from raw source */
+    answerCoverageConsistency: AnswerCoverageConsistencyResult;
+}
+
+export interface CompareAIvsRulesContext {
+    documentText?: string;
+    verification?: VerificationArtifact;
+    rawAnswerKey?: Record<number, string | string[]>;
+}
+
+export interface SourceFidelityResult {
+    pass: boolean;
+    blockingDamageCount: number;
+    warningDamageCount: number;
+    damageRegions: DamageRegion[];
+}
+
+export interface QuestionRangeContinuityResult {
+    complete: boolean;
+    rawQuestionNumbers: number[];
+    mergedQuestionNumbers: number[];
+    missingQuestionNumbers: number[];
+    extraQuestionNumbers: number[];
+}
+
+export interface AnswerCoverageConsistencyResult {
+    hasRawAnswerKey: boolean;
+    answeredCount: number;
+    missingQuestionNumbers: number[];
+    mismatchedQuestionNumbers: number[];
+    nonBlocking: boolean;
 }
 
 /**
@@ -97,6 +157,8 @@ export interface MergedQuestion {
     sectionReferences?: ReadingSectionReference[] | null;
     answer?: string | string[];
     passageId?: string;
+    sectionInstruction?: string;
+    sectionInstructionId?: string;
     /** Weighted confidence (rules 50%, AI 50%) */
     confidence: number;
     /** Source of the type decision */
@@ -113,6 +175,12 @@ export interface MergedQuestion {
     uncertain: boolean;
     /** Reason for uncertainty */
     uncertainReason?: string;
+    groupId?: string;
+    blankId?: string;
+    anchorId?: string;
+    groupTaskType?: 'table-completion';
+    tableGroupSchemaVersion?: number;
+    pendingTableReclassification?: boolean;
 }
 
 /**
@@ -218,6 +286,146 @@ const TYPES_REQUIRING_IMAGES: QuestionType[] = [
     'table-completion',
 ];
 
+const normalizeSourceText = (value: string): string => value.replace(/\r\n?/g, '\n');
+
+const escapeRegExp = (value: string): string =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const extractQuestionRangeSourceExcerpt = (
+    documentText: string | undefined,
+    startQuestionNumber: number,
+    endQuestionNumber: number,
+): string | undefined => {
+    if (!documentText?.trim()) {
+        return undefined;
+    }
+
+    const normalized = normalizeSourceText(documentText);
+    const rangePattern = new RegExp(
+        `\\bquestions?\\s+${escapeRegExp(String(startQuestionNumber))}` +
+        `\\s*(?:-|–|—|to)\\s*${escapeRegExp(String(endQuestionNumber))}\\b`,
+        'i',
+    );
+    const rangeMatch = rangePattern.exec(normalized);
+
+    if (!rangeMatch || rangeMatch.index === undefined) {
+        return undefined;
+    }
+
+    const excerptStart = rangeMatch.index;
+    const afterRangeIndex = excerptStart + rangeMatch[0].length;
+    const trailingExcerpt = normalized.slice(afterRangeIndex);
+    const nextBoundaryOffsetCandidates = [
+        trailingExcerpt.search(/\n\s*questions?\s+\d+\s*(?:-|–|—|to)\s*\d+\b/i),
+        trailingExcerpt.search(/\n\s*(?:answer\s*key|answers?)\b/i),
+        trailingExcerpt.search(/\n\s*(?:reading\s+passage|passage)\s+\d+\b/i),
+    ].filter((offset) => offset >= 0);
+
+    const excerptEnd =
+        nextBoundaryOffsetCandidates.length > 0
+            ? afterRangeIndex + Math.min(...nextBoundaryOffsetCandidates)
+            : normalized.length;
+
+    return normalized.slice(excerptStart, excerptEnd).trim() || undefined;
+};
+
+interface SourceQuestionRangeSection {
+    start: number;
+    end: number;
+}
+
+const QUESTION_RANGE_PATTERN =
+    /\bquestions?\s+(\d+)\s*(?:-|–|—|to)\s*(\d+)\b/gi;
+
+const extractQuestionRangeSections = (
+    documentText: string | undefined,
+): SourceQuestionRangeSection[] => {
+    if (!documentText?.trim()) {
+        return [];
+    }
+
+    const normalized = normalizeSourceText(documentText);
+    const sections: SourceQuestionRangeSection[] = [];
+    let match: RegExpExecArray | null;
+
+    while ((match = QUESTION_RANGE_PATTERN.exec(normalized)) !== null) {
+        const start = Number.parseInt(match[1] || '', 10);
+        const end = Number.parseInt(match[2] || '', 10);
+
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+            continue;
+        }
+
+        const previousSection = sections[sections.length - 1];
+        if (previousSection?.start === start && previousSection.end === end) {
+            continue;
+        }
+
+        sections.push({ start, end });
+    }
+
+    return sections.sort((left, right) =>
+        left.start !== right.start ? left.start - right.start : left.end - right.end,
+    );
+};
+
+const findQuestionRangeSection = (
+    sections: SourceQuestionRangeSection[],
+    questionNumber: number,
+): SourceQuestionRangeSection | undefined =>
+    sections.find((section) => questionNumber >= section.start && questionNumber <= section.end);
+
+const pickPreferredTableSectionInstruction = (
+    currentInstruction: string,
+    nextInstruction: string,
+): string => {
+    const current = currentInstruction.trim();
+    const next = nextInstruction.trim();
+
+    if (!current) {
+        return next;
+    }
+
+    if (!next) {
+        return current;
+    }
+
+    const currentHasHeaders = /table_headers:/i.test(current);
+    const nextHasHeaders = /table_headers:/i.test(next);
+
+    if (currentHasHeaders !== nextHasHeaders) {
+        return nextHasHeaders ? next : current;
+    }
+
+    return next.length > current.length ? next : current;
+};
+
+const normalizeAnswerValue = (value: string | string[] | undefined): string[] => {
+    if (Array.isArray(value)) {
+        return value.map((item) => item.trim()).filter(Boolean);
+    }
+
+    if (typeof value !== 'string') {
+        return [];
+    }
+
+    return [value.trim()].filter(Boolean);
+};
+
+const answersMatch = (
+    left: string | string[] | undefined,
+    right: string | string[] | undefined,
+): boolean => {
+    const normalizedLeft = normalizeAnswerValue(left);
+    const normalizedRight = normalizeAnswerValue(right);
+
+    if (normalizedLeft.length !== normalizedRight.length) {
+        return false;
+    }
+
+    return normalizedLeft.every((value, index) => value === normalizedRight[index]);
+};
+
 // ═══════════════════════════════════════════════════════════════
 // VALIDATOR SERVICE
 // ═══════════════════════════════════════════════════════════════
@@ -243,7 +451,8 @@ class ValidatorService {
      */
     compareAIvsRules(
         aiResults: AIQuestionResult[],
-        rulesResults: RulesQuestionResult[]
+        rulesResults: RulesQuestionResult[],
+        context: CompareAIvsRulesContext = {},
     ): ComparisonResult {
         const discrepancies: Discrepancy[] = [];
         const mergedQuestions: MergedQuestion[] = [];
@@ -292,13 +501,133 @@ class ValidatorService {
         const confidence = totalQuestions > 0
             ? Math.round((matchedCount / totalQuestions) * 100)
             : 0;
+        const {
+            questionGroups,
+            tableCompletionIssues,
+            tableCompletionDiagnostics,
+            mergedQuestions: mergedQuestionsWithGroups,
+        } =
+            this.buildCanonicalTableCompletionArtifacts(
+                mergedQuestions,
+                context.documentText,
+            );
+        const sourceFidelity = this.buildSourceFidelityResult(context.verification);
+        const questionRangeContinuity = this.buildQuestionRangeContinuity(
+            context.verification?.rawQuestionNumbers || aiResults.map((question) => question.questionNumber),
+            mergedQuestionsWithGroups,
+        );
+        const answerCoverageConsistency = this.buildAnswerCoverageConsistency(
+            context.rawAnswerKey,
+            mergedQuestionsWithGroups,
+        );
 
         return {
             confidence,
             matchedCount,
             discrepancyCount: discrepancies.length,
             discrepancies,
-            mergedQuestions,
+            mergedQuestions: mergedQuestionsWithGroups,
+            questionGroups,
+            tableCompletionIssues,
+            tableCompletionDiagnostics,
+            sourceFidelity,
+            questionRangeContinuity,
+            answerCoverageConsistency,
+        };
+    }
+
+    private buildSourceFidelityResult(
+        verification?: VerificationArtifact,
+    ): SourceFidelityResult {
+        if (!verification) {
+            return {
+                pass: true,
+                blockingDamageCount: 0,
+                warningDamageCount: 0,
+                damageRegions: [],
+            };
+        }
+
+        return {
+            pass: verification.sourceFidelityPass,
+            blockingDamageCount: verification.damageRegions.filter(
+                (damage) => damage.severity === 'blocking',
+            ).length,
+            warningDamageCount: verification.damageRegions.filter(
+                (damage) => damage.severity === 'warning',
+            ).length,
+            damageRegions: verification.damageRegions,
+        };
+    }
+
+    private buildQuestionRangeContinuity(
+        rawQuestionNumbers: number[],
+        mergedQuestions: MergedQuestion[],
+    ): QuestionRangeContinuityResult {
+        const mergedQuestionNumbers = mergedQuestions.map((question) => question.questionNumber);
+        const mergedQuestionSet = new Set(mergedQuestionNumbers);
+        const rawQuestionSet = new Set(rawQuestionNumbers);
+        const missingQuestionNumbers = rawQuestionNumbers.filter(
+            (questionNumber) => !mergedQuestionSet.has(questionNumber),
+        );
+        const extraQuestionNumbers = mergedQuestionNumbers.filter(
+            (questionNumber) => !rawQuestionSet.has(questionNumber),
+        );
+
+        return {
+            complete: missingQuestionNumbers.length === 0 && extraQuestionNumbers.length === 0,
+            rawQuestionNumbers,
+            mergedQuestionNumbers,
+            missingQuestionNumbers,
+            extraQuestionNumbers,
+        };
+    }
+
+    private buildAnswerCoverageConsistency(
+        rawAnswerKey: Record<number, string | string[]> | undefined,
+        mergedQuestions: MergedQuestion[],
+    ): AnswerCoverageConsistencyResult {
+        const normalizedRawAnswerKey = rawAnswerKey || {};
+        const rawAnswerQuestionNumbers = Object.keys(normalizedRawAnswerKey)
+            .map((questionNumber) => Number.parseInt(questionNumber, 10))
+            .filter((questionNumber) => Number.isFinite(questionNumber))
+            .sort((left, right) => left - right);
+        const mergedQuestionMap = new Map(
+            mergedQuestions.map((question) => [question.questionNumber, question]),
+        );
+        const answeredCount = mergedQuestions.filter((question) => question.answer !== undefined).length;
+
+        if (rawAnswerQuestionNumbers.length === 0) {
+            return {
+                hasRawAnswerKey: false,
+                answeredCount,
+                missingQuestionNumbers: [],
+                mismatchedQuestionNumbers: [],
+                nonBlocking: true,
+            };
+        }
+
+        const missingQuestionNumbers: number[] = [];
+        const mismatchedQuestionNumbers: number[] = [];
+
+        rawAnswerQuestionNumbers.forEach((questionNumber) => {
+            const mergedQuestion = mergedQuestionMap.get(questionNumber);
+            if (!mergedQuestion || mergedQuestion.answer === undefined) {
+                missingQuestionNumbers.push(questionNumber);
+                return;
+            }
+
+            if (!answersMatch(mergedQuestion.answer, normalizedRawAnswerKey[questionNumber])) {
+                mismatchedQuestionNumbers.push(questionNumber);
+            }
+        });
+
+        return {
+            hasRawAnswerKey: true,
+            answeredCount,
+            missingQuestionNumbers,
+            mismatchedQuestionNumbers,
+            nonBlocking: false,
         };
     }
 
@@ -386,6 +715,7 @@ class ValidatorService {
             sectionReferences: canonicalQuestion.sectionReferences,
             answer: aiQ.answer,
             passageId: aiQ.passageId,
+            sectionInstruction: aiQ.sectionInstruction,
             confidence: weightedConfidence,
             typeSource,
             wordLimit: rulesQ?.wordLimit,
@@ -601,6 +931,182 @@ class ValidatorService {
      * @param answerKey - Answer key mapping (questionNumber → answer)
      * @returns Validation result with errors and warnings
      */
+    private buildCanonicalTableCompletionArtifacts(
+        mergedQuestions: MergedQuestion[],
+        sourceDocumentText?: string,
+    ): {
+        mergedQuestions: MergedQuestion[];
+        questionGroups: QuestionGroupsField;
+        tableCompletionIssues: TableCompletionIssue[];
+        tableCompletionDiagnostics: TableCompletionDiagnosticsField;
+    } {
+        const nonTableQuestions = mergedQuestions.filter(
+            (question) => question.type !== 'table-completion',
+        );
+        const groupedTableRuns = this.groupTableCompletionRuns(
+            mergedQuestions,
+            sourceDocumentText,
+        );
+        const questionGroups: QuestionGroupsField = [];
+        const tableCompletionIssues: TableCompletionIssue[] = [];
+        const tableCompletionDiagnostics: TableCompletionDiagnosticsField = [];
+        const derivedTableQuestions: MergedQuestion[] = [];
+
+        groupedTableRuns.forEach((run, runIndex) => {
+            const passageSlug = (run.passageId || 'unassigned').replace(/[^a-zA-Z0-9]+/g, '-');
+            const startQuestionNumber =
+                run.sourceRange?.start || run.questions[0]?.questionNumber || runIndex + 1;
+            const endQuestionNumber =
+                run.sourceRange?.end ||
+                run.questions[run.questions.length - 1]?.questionNumber ||
+                startQuestionNumber;
+            const groupId = `table-group-${passageSlug}-${startQuestionNumber}-${endQuestionNumber}`;
+            const rawExcerpt = extractQuestionRangeSourceExcerpt(
+                sourceDocumentText,
+                startQuestionNumber,
+                endQuestionNumber,
+            );
+            const canonicalization = canonicalizeTableCompletionGroup({
+                groupId,
+                passageId: run.passageId || 'unassigned',
+                questions: run.questions.map(
+                    (question): TableCompletionSourceQuestion => ({
+                        questionNumber: question.questionNumber,
+                        questionText: question.questionText,
+                        answer: question.answer,
+                        acceptableAnswers: Array.isArray(question.answer) ? question.answer : undefined,
+                        sectionInstruction: question.sectionInstruction,
+                        options: question.labeledOptions || question.options || [],
+                    }),
+                ),
+                rawExcerpt,
+                sourceWorkflow: 'in-app-parse',
+            });
+
+            const runIssues = validateTableCompletionCanonicalization(canonicalization);
+            tableCompletionIssues.push(...runIssues);
+            tableCompletionDiagnostics.push(
+                buildTableCompletionDiagnostic(canonicalization, runIssues),
+            );
+
+            if (!canonicalization.group) {
+                derivedTableQuestions.push(
+                    ...run.questions.map((question) => ({
+                        ...question,
+                        sectionInstructionId: groupId,
+                        sectionInstruction: question.sectionInstruction || run.sectionInstruction,
+                        uncertain: true,
+                        uncertainReason:
+                            'Canonical table structure could not be resolved. ' +
+                            'Re-run parse or reclassify away from table-completion.',
+                        pendingTableReclassification: true,
+                    })),
+                );
+                return;
+            }
+
+            const group = canonicalization.group;
+            questionGroups.push(group);
+            const derivedQuestions = deriveTableCompletionQuestionsFromGroup(group);
+            const existingQuestionsByNumber = new Map(
+                run.questions.map((question) => [question.questionNumber, question]),
+            );
+
+            derivedQuestions.forEach((derivedQuestion) => {
+                const existingQuestion = existingQuestionsByNumber.get(derivedQuestion.questionNumber);
+                if (!existingQuestion) {
+                    return;
+                }
+
+                derivedTableQuestions.push({
+                    ...existingQuestion,
+                    questionText: derivedQuestion.questionText || existingQuestion.questionText,
+                    sectionInstructionId: derivedQuestion.sectionInstructionId,
+                    sectionInstruction: existingQuestion.sectionInstruction || run.sectionInstruction,
+                    groupId: derivedQuestion.groupId,
+                    blankId: derivedQuestion.blankId,
+                    anchorId: derivedQuestion.anchorId,
+                    groupTaskType: 'table-completion',
+                    tableGroupSchemaVersion: derivedQuestion.tableGroupSchemaVersion,
+                    pendingTableReclassification: false,
+                });
+            });
+        });
+
+        return {
+            mergedQuestions: [...nonTableQuestions, ...derivedTableQuestions].sort(
+                (left, right) => left.questionNumber - right.questionNumber,
+            ),
+            questionGroups,
+            tableCompletionIssues,
+            tableCompletionDiagnostics,
+        };
+    }
+
+    private groupTableCompletionRuns(
+        mergedQuestions: MergedQuestion[],
+        sourceDocumentText?: string,
+    ): Array<{
+        passageId?: string;
+        sectionInstruction: string;
+        questions: MergedQuestion[];
+        sourceRange?: SourceQuestionRangeSection;
+    }> {
+        const sortedTableQuestions = mergedQuestions
+            .filter((question) => question.type === 'table-completion')
+            .slice()
+            .sort((left, right) => left.questionNumber - right.questionNumber);
+        const sourceRangeSections = extractQuestionRangeSections(sourceDocumentText);
+        const runs: Array<{
+            passageId?: string;
+            sectionInstruction: string;
+            questions: MergedQuestion[];
+            sourceRange?: SourceQuestionRangeSection;
+        }> = [];
+
+        sortedTableQuestions.forEach((question) => {
+            const currentSectionInstruction = (question.sectionInstruction || '').trim();
+            const currentSourceRange = findQuestionRangeSection(
+                sourceRangeSections,
+                question.questionNumber,
+            );
+            const previousRun = runs[runs.length - 1];
+            const previousQuestion =
+                previousRun?.questions[previousRun.questions.length - 1];
+            const sharesSourceRange =
+                previousRun?.sourceRange &&
+                currentSourceRange &&
+                previousRun.sourceRange.start === currentSourceRange.start &&
+                previousRun.sourceRange.end === currentSourceRange.end;
+            const sharesInstruction =
+                previousRun?.sectionInstruction === currentSectionInstruction;
+
+            if (
+                previousRun &&
+                previousRun.passageId === question.passageId &&
+                previousQuestion &&
+                previousQuestion.questionNumber + 1 === question.questionNumber &&
+                (sharesSourceRange || sharesInstruction)
+            ) {
+                previousRun.questions.push(question);
+                previousRun.sectionInstruction = pickPreferredTableSectionInstruction(
+                    previousRun.sectionInstruction,
+                    currentSectionInstruction,
+                );
+                return;
+            }
+
+            runs.push({
+                passageId: question.passageId,
+                sectionInstruction: currentSectionInstruction,
+                questions: [question],
+                sourceRange: currentSourceRange,
+            });
+        });
+
+        return runs;
+    }
+
     validateAnswerKey(
         questions: MergedQuestion[],
         answerKey: Record<number | string, string | string[]>
@@ -880,9 +1386,18 @@ class ValidatorService {
         comparisonResult: ComparisonResult,
         completenessResult: CompletenessResult
     ): boolean {
+        const hasBlockingTableIssues = (comparisonResult.tableCompletionIssues || []).some(
+            (issue) => issue.severity === 'blocking',
+        );
+        const sourceFidelityPass = comparisonResult.sourceFidelity?.pass ?? true;
+        const questionRangeComplete = comparisonResult.questionRangeContinuity?.complete ?? true;
+
         return (
             comparisonResult.discrepancyCount === 0 &&
-            completenessResult.complete
+            completenessResult.complete &&
+            sourceFidelityPass &&
+            questionRangeComplete &&
+            !hasBlockingTableIssues
         );
     }
 

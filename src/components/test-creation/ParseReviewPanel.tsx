@@ -98,6 +98,17 @@ import {
     isCanonicalReadingOptionType,
     isMatchingInformationType,
 } from '../../utils/readingQuestionContract';
+import type {
+    GroupAcknowledgementsField,
+    QuestionGroupsField,
+    TableCompletionDiagnosticsField,
+} from '../../types/tableCompletion';
+import type { TableCompletionIssue } from '../../services/test-creation/tableCompletionValidator';
+import {
+    TableCompletionGroupReview,
+    type TableCompletionReviewAction,
+    type UnsupportedRepairAction,
+} from '../test/table-completion/TableCompletionGroupReview';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -143,6 +154,12 @@ export interface ParsedQuestion {
     // Structured data for complex types
     tableData?: { headers: string[]; rows: (string | null)[][] };
     flowchartData?: { steps: { label: string; content: string; hasBlank: boolean }[] };
+    groupId?: string;
+    blankId?: string;
+    anchorId?: string;
+    groupTaskType?: 'table-completion';
+    tableGroupSchemaVersion?: number;
+    pendingTableReclassification?: boolean;
 }
 
 const getOptionValue = (option: ReadingLabeledOption, index: number): string =>
@@ -179,6 +196,14 @@ export interface ParseReviewPanelProps {
     questions: ParsedQuestion[];
     /** Section instructions extracted from parsing */
     sectionInstructions?: SectionInstruction[];
+    /** Canonical grouped question state */
+    questionGroups?: QuestionGroupsField;
+    /** Draft-only acknowledgement state for grouped warnings */
+    groupAcknowledgements?: GroupAcknowledgementsField;
+    /** Current grouped-table validation issues */
+    tableCompletionIssues?: TableCompletionIssue[];
+    /** Current grouped-table diagnostics, including unresolved runs */
+    tableCompletionDiagnostics?: TableCompletionDiagnosticsField;
     /** Callback when passage is edited */
     onPassageChange: (passageId: string, updates: Partial<ParsedPassage>) => void;
     /** Callback when question is edited */
@@ -197,6 +222,14 @@ export interface ParseReviewPanelProps {
     highlightedQuestion?: number;
     /** Callback when question is clicked */
     onQuestionClick?: (questionNumber: number) => void;
+    /** Callback when a grouped table changes */
+    onQuestionGroupChange?: (groupId: string, nextGroup: QuestionGroupsField[number]) => void;
+    /** Callback when grouped warnings are acknowledged */
+    onGroupAcknowledge?: (groupId: string, issueCodes: string[], canonicalRevisionHash: string) => void;
+    /** Callback for unsupported grouped repair actions */
+    onUnsupportedRepair?: (groupId: string, action: UnsupportedRepairAction) => void;
+    /** Callback for grouped table repair actions */
+    onTableGroupReviewAction?: (action: TableCompletionReviewAction, metadata?: Record<string, unknown>) => void;
     /** Content to render in the left sidebar (e.g., UncertainItemsSidebar) */
     leftSidebarContent?: React.ReactNode;
 }
@@ -802,6 +835,10 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
     passages,
     questions,
     sectionInstructions = [],
+    questionGroups = [],
+    groupAcknowledgements = {},
+    tableCompletionIssues = [],
+    tableCompletionDiagnostics = [],
     onQuestionChange,
     onSectionInstructionChange,
     onQuestionDelete,
@@ -810,6 +847,10 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
     onDiagramUpload,
     highlightedQuestion,
     onQuestionClick,
+    onQuestionGroupChange,
+    onGroupAcknowledge,
+    onUnsupportedRepair,
+    onTableGroupReviewAction,
     leftSidebarContent,
 }) => {
     // ─────────────────────────────────────────────────────────────────────────
@@ -819,6 +860,30 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
     const [activePassageId, setActivePassageId] = useState<string | null>(passages[0]?.id || null);
     const [editingQuestion, setEditingQuestion] = useState<number | null>(null);
     const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+    const questionGroupById = useMemo(
+        () => new Map(questionGroups.map((group) => [group.groupId, group])),
+        [questionGroups],
+    );
+    const tableCompletionIssuesByGroup = useMemo(() => {
+        const grouped = new Map<string, TableCompletionIssue[]>();
+
+        tableCompletionIssues.forEach((issue) => {
+            const current = grouped.get(issue.groupId) || [];
+            current.push(issue);
+            grouped.set(issue.groupId, current);
+        });
+
+        return grouped;
+    }, [tableCompletionIssues]);
+    const tableCompletionDiagnosticsByGroup = useMemo(() => {
+        const grouped = new Map<string, TableCompletionDiagnosticsField[number]>();
+
+        tableCompletionDiagnostics.forEach((diagnostic) => {
+            grouped.set(diagnostic.groupId, diagnostic);
+        });
+
+        return grouped;
+    }, [tableCompletionDiagnostics]);
 
     // Sync activePassageId if passages change and current selection is invalid
     React.useEffect(() => {
@@ -1488,23 +1553,71 @@ export const ParseReviewPanel: React.FC<ParseReviewPanelProps> = ({
                         {/* Render by section instruction if available */}
                         {Object.entries(questionsBySection).map(([sectionId, sectionQuestions]) => {
                             const instruction = sectionInstructions.find(i => i.id === sectionId);
+                            const questionGroup = questionGroupById.get(sectionId);
+                            const tableCompletionDiagnostic = tableCompletionDiagnosticsByGroup.get(sectionId);
+                            const isCanonicalTableGroup =
+                                questionGroup?.taskType === 'table-completion' &&
+                                sectionQuestions.some((question) => question.groupId === sectionId);
 
                             return (
                                 <div key={sectionId} style={{ marginBottom: '1.25rem' }}>
-                                    {/* Section Instruction Header */}
-                                    {instruction && (
-                                        <SectionInstructionHeader
-                                            instruction={instruction}
-                                            onUpdate={(updates) => onSectionInstructionChange?.(sectionId, updates)}
-                                            isEditing={editingSectionId === sectionId}
-                                            onToggleEdit={() => setEditingSectionId(
-                                                editingSectionId === sectionId ? null : sectionId
-                                            )}
+                                    {isCanonicalTableGroup && questionGroup && onQuestionGroupChange ? (
+                                        <TableCompletionGroupReview
+                                            group={questionGroup}
+                                            issues={tableCompletionIssuesByGroup.get(questionGroup.groupId) || []}
+                                            diagnostic={tableCompletionDiagnostic}
+                                            acknowledgement={groupAcknowledgements[questionGroup.groupId]}
+                                            onGroupChange={(nextGroup) =>
+                                                onQuestionGroupChange(questionGroup.groupId, nextGroup)
+                                            }
+                                            onAcknowledgeIssues={(groupId, issueCodes, canonicalRevisionHash) =>
+                                                onGroupAcknowledge?.(groupId, issueCodes, canonicalRevisionHash)
+                                            }
+                                            onUnsupportedRepair={(groupId, action) =>
+                                                onUnsupportedRepair?.(groupId, action)
+                                            }
+                                            onReviewAction={onTableGroupReviewAction}
                                         />
-                                    )}
+                                    ) : (
+                                        <>
+                                            {tableCompletionDiagnostic && (
+                                                <Alert
+                                                    color={tableCompletionDiagnostic.validationSeverity === 'blocking' ? 'red' : 'yellow'}
+                                                    variant="light"
+                                                    mb="sm"
+                                                    icon={<IconAlertTriangle size={16} />}
+                                                >
+                                                    <div style={{ display: 'grid', gap: '0.35rem' }}>
+                                                        <strong>
+                                                            Table-completion diagnostics: {tableCompletionDiagnostic.parseMode}
+                                                        </strong>
+                                                        <span>
+                                                            Source workflow: {tableCompletionDiagnostic.sourceWorkflow} · Source shape:{' '}
+                                                            {tableCompletionDiagnostic.sourceShape}
+                                                        </span>
+                                                        <span>
+                                                            Severity: {tableCompletionDiagnostic.validationSeverity} · Issue codes:{' '}
+                                                            {tableCompletionDiagnostic.issueCodes.join(', ') || 'none'}
+                                                        </span>
+                                                    </div>
+                                                </Alert>
+                                            )}
+                                            {/* Section Instruction Header */}
+                                            {instruction && (
+                                                <SectionInstructionHeader
+                                                    instruction={instruction}
+                                                    onUpdate={(updates) => onSectionInstructionChange?.(sectionId, updates)}
+                                                    isEditing={editingSectionId === sectionId}
+                                                    onToggleEdit={() => setEditingSectionId(
+                                                        editingSectionId === sectionId ? null : sectionId
+                                                    )}
+                                                />
+                                            )}
 
-                                    {/* Section Questions */}
-                                    {sectionQuestions.map(renderQuestionCard)}
+                                            {/* Section Questions */}
+                                            {sectionQuestions.map(renderQuestionCard)}
+                                        </>
+                                    )}
                                 </div>
                             );
                         })}

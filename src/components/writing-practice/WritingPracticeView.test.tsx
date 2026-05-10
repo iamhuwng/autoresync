@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import WritingPracticeView from './WritingPracticeView';
+import { buildWritingProgressStorageKey } from '../../services/writingProgress.service';
 
 const {
     mockNavigate,
@@ -437,7 +438,15 @@ describe('WritingPracticeView', () => {
     it('restores saved homework paste attempts on auto-resume', async () => {
         const startedAt = Date.now() - 30_000;
         window.localStorage.setItem(
-            'writing_practice_material-5_student-1',
+            buildWritingProgressStorageKey({
+                materialId: 'material-5',
+                studentId: 'student-1',
+                scopeContext: {
+                    mode: 'homework',
+                    homeworkId: 'homework-5',
+                    submissionId: 'homework-submission-5',
+                },
+            }),
             JSON.stringify({
                 essays: { 1: 'Recovered homework essay.', 2: '' },
                 activeTask: 1,
@@ -484,5 +493,41 @@ describe('WritingPracticeView', () => {
         expect(mockSetPasteAttemptCount).toHaveBeenCalledWith(5);
         expect(screen.queryByText(/resume practice/i)).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /start new/i })).not.toBeInTheDocument();
+    });
+
+    it('blocks homework launches that are missing attempt identity', async () => {
+        render(
+            <WritingPracticeView
+                materialId="material-6"
+                homeworkContext={{
+                    homeworkId: '',
+                    submissionId: '',
+                    teacherId: 'teacher-1',
+                }}
+                testData={{
+                    id: 'test-homework-6',
+                    metadata: {
+                        title: 'Invalid Homework IELTS Writing',
+                        format: 'task1-only',
+                        duration: 60,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 1,
+                            taskType: 'task-1',
+                            promptText: 'Write about the chart',
+                            promptImageUrl: null,
+                            wordMinimum: 150,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/homework unavailable/i)).toBeInTheDocument();
+        });
+        fireEvent.click(screen.getByRole('button', { name: /back to homework/i }));
+        expect(mockNavigate).toHaveBeenCalledWith('/student/homework');
     });
 });

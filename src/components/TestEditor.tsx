@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '@mantine/core';
 import { EditorTab } from './test/editor/EditTestFrame';
 import { ReadingEditorLayout } from './test/editor/layouts/ReadingEditorLayout';
 import { ListeningEditorLayout } from './test/editor/layouts/ListeningEditorLayout';
+import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 
 // @ts-ignore
 import QuestionEditorPanel from './QuestionEditorPanel';
@@ -22,14 +23,12 @@ import { QuestionList } from './test/editor/QuestionList';
 import { database } from '../services/firebase';
 import { ref, update } from 'firebase/database';
 import { Button } from './modern';
-import { buildStudentSafeTestData } from '../services/testStorage';
 import type { TestData, ContextResource } from '../services/testStorage';
 import { ResourceManager } from './test/editor/ResourceManager';
 import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } from './test/editor/resourceAdapters';
 import { getGroupQuestions } from '../utils/summaryGroupUtils';
 import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
-import { storage } from '../core/platform/storage';
 
 interface TestEditorProps {
   test: TestData;
@@ -37,24 +36,30 @@ interface TestEditorProps {
   handleClose: () => void;
 }
 
-const isStorageQuotaError = (error: unknown): boolean => {
-  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
-    return (
-      error.name === 'QuotaExceededError' ||
-      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-      error.code === 22 ||
-      error.code === 1014
-    );
+const TABLE_PRESENTATION_DIAG_PREFIX = '[Diag][TablePresentationAudit]';
+
+const logTablePresentationDiag = (event: string, payload: Record<string, unknown>): void => {
+  if (!import.meta.env.DEV) {
+    return;
   }
 
-  if (error instanceof Error) {
-    return /quota/i.test(`${error.name} ${error.message}`);
-  }
-
-  return false;
+  console.log(`${TABLE_PRESENTATION_DIAG_PREFIX} ${event}`, payload);
 };
 
-const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
+const TestEditor: React.FC<TestEditorProps> = (props) => {
+  const { test } = props;
+
+  if (isReadingV2Payload(test)) {
+    // Reading V2 canonical payloads must route through ReadingV2StudioModalAdapter,
+    // not the legacy flat-question TestEditor modal.
+    console.warn('[TestEditor] Blocked Reading V2 payload from entering legacy editor.');
+    return null;
+  }
+
+  return <LegacyTestEditor {...props} />;
+};
+
+const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const { user, isAdmin } = useAuth();
 
   // FR-OWN-02 / FR-77: Only the test owner or a super_admin may edit.
@@ -84,9 +89,10 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const [isPublicModified, setIsPublicModified] = useState(false);
   const [activeTab, setActiveTab] = useState<EditorTab>('questions');
   const [resources, setResources] = useState<ContextResource[]>([]);
-  const [resourcesModified, setResourcesModified] = useState(false);
-  const disabledDraftStorageKeysRef = useRef(new Set<string>());
-  const warnedDraftStorageKeysRef = useRef(new Set<string>());
+  const canonicalTableGroupMap = useMemo(
+    () => new Map((test.questionGroups || []).map((group) => [group.groupId, group])),
+    [test.questionGroups],
+  );
 
   // Legacy states for backward compat while refactoring (will be replaced by resources)
   const [answerKeySubMode, setAnswerKeySubMode] = useState<'none' | 'manual' | 'massImport'>('none');
@@ -103,6 +109,25 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         id: test.id,
         skill: (test as any).skill,
         hasQuestionImages: (test as any).questionImages?.length || 0,
+      });
+
+      const tableQuestionGroups = Array.isArray(test.questionGroups)
+        ? test.questionGroups.filter((group) => group?.taskType === 'table-completion')
+        : [];
+
+      logTablePresentationDiag('editor_loaded', {
+        testId: test.id,
+        questionCount: Array.isArray(test.questions) ? test.questions.length : 0,
+        questionGroupCount: Array.isArray(test.questionGroups) ? test.questionGroups.length : 0,
+        tableGroupCount: tableQuestionGroups.length,
+        tableGroups: tableQuestionGroups.map((group) => ({
+          groupId: group.groupId,
+          questionRange: group.questionRange,
+          blankCount: Array.isArray(group.blanks) ? group.blanks.length : 0,
+          rowCount: Array.isArray(group.rows) ? group.rows.length : 0,
+          columnCount: Array.isArray(group.columns) ? group.columns.length : 0,
+          caption: group.sharedContent?.caption || null,
+        })),
       });
 
       if (savedData) {
@@ -134,7 +159,6 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
           setEditedIsPublic(parsed.isPublic ?? test.isPublic ?? false);
           setTitleModified(parsed.titleModified || false);
           setIsPublicModified(parsed.isPublicModified || false);
-          setResourcesModified(Boolean(parsed.resourcesModified));
 
           if (parsed.resources) {
             setResources(parsed.resources);
@@ -181,7 +205,6 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
     setEditedIsPublic(test.isPublic || false);
     setTitleModified(false);
     setIsPublicModified(false);
-    setResourcesModified(false);
 
 
   };
@@ -189,17 +212,6 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   useEffect(() => {
     if (test && Object.keys(editedQuestions).length > 0) {
       const storageKey = getStorageKey();
-      const hasDraftChanges =
-        modifiedQuestions.size > 0 ||
-        titleModified ||
-        isPublicModified ||
-        resourcesModified ||
-        editedDuration !== (test.duration || 0);
-
-      if (!hasDraftChanges || disabledDraftStorageKeysRef.current.has(storageKey)) {
-        return;
-      }
-
       const dataToSave = {
         timestamp: new Date().toISOString(),
         questions: editedQuestions,
@@ -208,28 +220,13 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         titleModified,
         isPublic: editedIsPublic,
         isPublicModified,
-        resourcesModified,
         resources,
         duration: editedDuration,
         activeTab,
       };
-      void storage.set(storageKey, dataToSave).catch((error: unknown) => {
-        disabledDraftStorageKeysRef.current.add(storageKey);
-        void storage.remove(storageKey).catch(() => undefined);
-
-        if (!warnedDraftStorageKeysRef.current.has(storageKey)) {
-          warnedDraftStorageKeysRef.current.add(storageKey);
-          console.warn('[TestEditor] Local draft persistence disabled:', error);
-
-          const message = isStorageQuotaError(error)
-            ? 'Browser storage is full, so local draft backup is paused. You can keep editing; use Save to persist changes.'
-            : 'Local draft backup is unavailable. You can keep editing; use Save to persist changes.';
-
-          toast.warning(message);
-        }
-      });
+      localStorage.setItem(storageKey, JSON.stringify(dataToSave));
     }
-  }, [editedQuestions, modifiedQuestions, test, editedTitle, titleModified, editedIsPublic, isPublicModified, resourcesModified, resources, editedDuration, activeTab]);
+  }, [editedQuestions, modifiedQuestions, test, editedTitle, titleModified, editedIsPublic, isPublicModified, resources, editedDuration, activeTab]);
 
   useEffect(() => {
     if (selectedQuestionIndex !== null) {
@@ -248,6 +245,16 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   };
 
   const handleQuestionUpdate = (index: number, updatedQuestion: any) => {
+    const currentQuestion = editedQuestions[index] || test.questions[index];
+    if (
+      currentQuestion?.groupTaskType === 'table-completion' &&
+      currentQuestion.groupId &&
+      canonicalTableGroupMap.has(currentQuestion.groupId)
+    ) {
+      toast.error('Canonical table-completion groups are read-only after publish in Phase 1.');
+      return;
+    }
+
     setEditedQuestions(prev => ({
       ...prev,
       [index]: updatedQuestion
@@ -295,6 +302,16 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   };
 
   const handleResetQuestion = (index: number) => {
+    const currentQuestion = editedQuestions[index] || test.questions[index];
+    if (
+      currentQuestion?.groupTaskType === 'table-completion' &&
+      currentQuestion.groupId &&
+      canonicalTableGroupMap.has(currentQuestion.groupId)
+    ) {
+      toast.error('Canonical table-completion groups are read-only after publish in Phase 1.');
+      return;
+    }
+
     if (window.confirm('Are you sure you want to reset this question to its original state?')) {
       const original = test.questions[index];
       setEditedQuestions(prev => ({
@@ -310,6 +327,16 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   };
 
   const handleDeleteQuestion = (index: number) => {
+    const currentQuestion = editedQuestions[index] || test.questions[index];
+    if (
+      currentQuestion?.groupTaskType === 'table-completion' &&
+      currentQuestion.groupId &&
+      canonicalTableGroupMap.has(currentQuestion.groupId)
+    ) {
+      toast.error('Canonical table-completion groups are read-only after publish in Phase 1.');
+      return;
+    }
+
     const currentQuestionCount = Object.keys(editedQuestions).length;
     const newEditedQuestions = { ...editedQuestions };
     delete newEditedQuestions[index];
@@ -409,11 +436,6 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
     setTitleModified(true);
   };
 
-  const handleResourcesUpdate = (updatedResources: ContextResource[]) => {
-    setResources(updatedResources);
-    setResourcesModified(true);
-  };
-
   // Handle answer key mode selection
   const handleManualAnswerEdit = () => {
     setAnswerKeySubMode('manual');
@@ -434,7 +456,15 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
       const qNum = parseInt(qNumStr);
       const index = qNum - 1; // Convert 1-based question number to 0-based index
 
-      if (index >= 0 && updatedQuestions[index]) {
+      if (
+        index >= 0 &&
+        updatedQuestions[index] &&
+        !(
+          updatedQuestions[index]?.groupTaskType === 'table-completion' &&
+          updatedQuestions[index]?.groupId &&
+          canonicalTableGroupMap.has(updatedQuestions[index].groupId)
+        )
+      ) {
         updatedQuestions[index] = { ...updatedQuestions[index], answer };
         modifiedIndices.push(index);
       }
@@ -449,6 +479,15 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   // Handle answer key update from AnswerKeyPanel
   const handleAnswerKeyUpdate = (index: number, answer: string) => {
     const currentQuestion = editedQuestions[index] || test.questions[index];
+    if (
+      currentQuestion?.groupTaskType === 'table-completion' &&
+      currentQuestion.groupId &&
+      canonicalTableGroupMap.has(currentQuestion.groupId)
+    ) {
+      toast.error('Canonical table-completion groups are read-only after publish in Phase 1.');
+      return;
+    }
+
     const updated = { ...currentQuestion, answer };
     setEditedQuestions(prev => ({
       ...prev,
@@ -591,7 +630,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         // Map resourceId -> sectionNumber for Audio resources
         const audioSectionMap = new Map<string, number>();
         if (resourceUpdates.audioSections) {
-          finalResources.filter(r => r.type === 'audio').forEach((r, idx) => {
+          resources.filter(r => r.type === 'audio').forEach((r, idx) => {
             if (resourceUpdates.audioSections && resourceUpdates.audioSections[idx]) {
               audioSectionMap.set(r.id, resourceUpdates.audioSections[idx].number);
             }
@@ -599,36 +638,33 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         }
 
         // 2. Update questions
-        const updatedQuestions = Object.entries(editedQuestions)
-          .sort(([left], [right]) => Number(left) - Number(right))
-          .map(([index, question]) => {
-            const qUpdate = { ...question };
-            const qNum = parseInt(index) + 1;
+        Object.entries(editedQuestions).forEach(([index, question]) => {
+          const qUpdate = { ...question };
+          const qNum = parseInt(index) + 1;
 
-            // Find governing resource by range (Source of Truth)
-            const governingResource = finalResources.find(r => qNum >= (r.questionStart || 0) && qNum <= (r.questionEnd || 0));
+          // Find governing resource by range (Source of Truth)
+          const governingResource = resources.find(r => qNum >= (r.questionStart || 0) && qNum <= (r.questionEnd || 0));
 
-            if (governingResource) {
-              if (governingResource.type === 'text') {
-                qUpdate.passageId = governingResource.id;
-                if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-              } else if (governingResource.type === 'audio') {
-                const secNum = audioSectionMap.get(governingResource.id);
-                if (secNum) qUpdate.sectionNumber = secNum;
-                qUpdate.passageId = null;
-              }
-              // Update internal resourceId for consistency
-              qUpdate.resourceId = governingResource.id;
-            } else {
-              // unlink if no resource covers this question
-              qUpdate.passageId = null;
+          if (governingResource) {
+            if (governingResource.type === 'text') {
+              qUpdate.passageId = governingResource.id;
               if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-              qUpdate.resourceId = null;
+            } else if (governingResource.type === 'audio') {
+              const secNum = audioSectionMap.get(governingResource.id);
+              if (secNum) qUpdate.sectionNumber = secNum;
+              qUpdate.passageId = null;
             }
+            // Update internal resourceId for consistency
+            qUpdate.resourceId = governingResource.id;
+          } else {
+            // unlink if no resource covers this question
+            qUpdate.passageId = null;
+            if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
+            qUpdate.resourceId = null;
+          }
 
-            updates[`/tests/${test.id}/questions/${index}`] = qUpdate;
-            return qUpdate;
-          });
+          updates[`/tests/${test.id}/questions/${index}`] = qUpdate;
+        });
 
         // Update title if modified
         if (titleModified) {
@@ -646,11 +682,11 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
         }
 
         // Update timestamp
-        const updatedAt = Date.now();
-        updates[`/tests/${test.id}/updatedAt`] = updatedAt;
+        updates[`/tests/${test.id}/updatedAt`] = Date.now();
 
         // Recalculate isComplete based on edited questions
-        const questionsWithoutAnswers = updatedQuestions.filter((q: any) =>
+        const allQuestions = Object.values(editedQuestions);
+        const questionsWithoutAnswers = allQuestions.filter((q: any) =>
           !q.answer ||
           (typeof q.answer === 'string' && q.answer.trim() === '') ||
           (Array.isArray(q.answer) && q.answer.length === 0)
@@ -660,23 +696,10 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
 
         updates[`/tests/${test.id}/isComplete`] = isComplete;
         updates[`/tests/${test.id}/missingAnswerCount`] = missingAnswerCount;
-        const updatedTestData: TestData = {
-          ...test,
-          ...resourceUpdates,
-          questions: updatedQuestions,
-          title: titleModified ? editedTitle : test.title,
-          isPublic: isPublicModified ? editedIsPublic : test.isPublic,
-          duration: editedDuration !== test.duration ? editedDuration : test.duration,
-          updatedAt,
-          isComplete,
-          missingAnswerCount,
-        };
-        updates[`/student_safe_tests/${test.id}`] = buildStudentSafeTestData(updatedTestData);
 
         console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
 
         await update(ref(database), updates);
-        setResourcesModified(false);
 
         // Clear localStorage
         const storageKey = getStorageKey();
@@ -786,7 +809,7 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const resourceManagerPanel = (
     <ResourceManager
       resources={resources}
-      onUpdateResources={handleResourcesUpdate}
+      onUpdateResources={setResources}
       skill={(test as any).skill || 'Reading'}
       totalQuestions={test.questions.length}
       readOnly={isReadOnly}
@@ -795,11 +818,78 @@ const TestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
 
   const questionEditorPanel = selectedQuestionIndex !== null ? (() => {
     const q = editedQuestions[selectedQuestionIndex] || test.questions[selectedQuestionIndex];
+    const canonicalTableGroup =
+      q?.groupTaskType === 'table-completion' && q.groupId
+        ? canonicalTableGroupMap.get(q.groupId)
+        : undefined;
     const resource = resources.find(r => r.id === q?.resourceId || r.id === q?.passageId);
     const isImagePassage =
       resource?.type === 'image' ||
       (resource?.type === 'text' && !!(resource as any).imageUrl) ||
       (resource?.type === 'audio' && (resource as any).images && (resource as any).images.length > 0);
+
+    if (canonicalTableGroup) {
+      return (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid rgba(59, 130, 246, 0.15)',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e293b' }}>
+                Canonical Table Group
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                Questions {canonicalTableGroup.questionRange.start}-{canonicalTableGroup.questionRange.end}
+              </div>
+            </div>
+            <button
+              onClick={handleCloseEditor}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0.5rem',
+                borderRadius: '0.375rem',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div style={{ padding: '1.5rem', overflowY: 'auto' }}>
+            <div
+              style={{
+                padding: '1rem 1.125rem',
+                borderRadius: '0.75rem',
+                border: '1px solid #bfdbfe',
+                background: '#eff6ff',
+                color: '#1e3a8a',
+                lineHeight: 1.6,
+              }}
+            >
+              This canonical table-completion group is read-only after publish in Phase 1.
+              Use the grouped parse-review flow to change the table structure or member answers.
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // Compute group if this is a summary type
     const isSummaryType =

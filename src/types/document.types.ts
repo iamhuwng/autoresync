@@ -115,7 +115,15 @@ export interface ParsedQuestion {
 
   // Metadata
   wordLimit?: number;
+  acceptableAnswers?: string[];
+  includesNumber?: boolean;
   sectionInstructionId?: string;
+  groupId?: string;
+  blankId?: string;
+  anchorId?: string;
+  groupTaskType?: 'table-completion';
+  tableGroupSchemaVersion?: number;
+  pendingTableReclassification?: boolean;
 
   // Matching question formats (both individual and grouped)
   items?: any[];        // For grouped matching (items to match)

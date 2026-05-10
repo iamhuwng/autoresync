@@ -17,6 +17,11 @@ import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { OverviewTab } from './OverviewTab';
 import { ReviewTab } from './ReviewTab';
 import { FeedbackTab } from './FeedbackTab';
+import {
+  ReadingV2ReviewContentAdapter,
+  type ReadingV2ReviewContentVariant,
+} from './ReadingV2ReviewContentAdapter';
+import { isReadingV2SavedResult } from '../../services/reading-v2/readingV2ResultAdapter.service';
 import { WritingSpeakingPlaceholder } from '../test/WritingSpeakingPlaceholder';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -61,6 +66,9 @@ export interface SharedSavedResultCoreProps {
 
   /** Whether overview answer-map pills may navigate into the review surface */
   canNavigateToReview?: boolean;
+
+  /** Viewer role for Reading V2 grouped review content inside existing shells. */
+  reviewVariant?: ReadingV2ReviewContentVariant;
 }
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -143,6 +151,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   onNavigateToQuestion,
   feedbackTiming = 'after_completion',
   canNavigateToReview = true,
+  reviewVariant = 'teacher',
 }) => {
   const sections = useMemo(
     () => ({ ...DEFAULT_SECTIONS, ...sectionsProp }),
@@ -175,6 +184,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   // Determine whether detailed feedback sections should be shown
   const showDetailedFeedback = feedbackTiming !== 'never';
   const showQuestionReview = sections.questionReview && showDetailedFeedback;
+  const isReadingV2Result = isReadingV2SavedResult(result);
 
   // Variant-specific spacing
   const gapSize = variant === 'full-page' ? '2rem' : variant === 'modal' ? '1.5rem' : '0';
@@ -218,11 +228,19 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
 
       {/* ── Question Review ── */}
       {showQuestionReview && (
-        <ReviewTab
-          result={result}
-          highlightedQuestionNumber={highlightedQuestion}
-          onHighlightComplete={handleHighlightComplete}
-        />
+        isReadingV2Result ? (
+          <ReadingV2ReviewContentAdapter
+            resultId={result.resultId}
+            variant={reviewVariant}
+            reviewPayload={result.readingV2.reviewPayload}
+          />
+        ) : (
+          <ReviewTab
+            result={result}
+            highlightedQuestionNumber={highlightedQuestion}
+            onHighlightComplete={handleHighlightComplete}
+          />
+        )
       )}
 
       {/* ── Per-Question Teacher Feedback (full-page shell only) ── */}

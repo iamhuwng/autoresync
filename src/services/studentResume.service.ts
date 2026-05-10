@@ -3,6 +3,9 @@ import type { RouteName, RouteParams } from '../constants/routes';
 import { storage } from '../core/platform/storage';
 import { database } from './firebase';
 import { getSubmissionById } from './homeworkSubmissionService';
+import { hasSoloProgress } from './soloProgress.service';
+import { hasWritingProgress } from './writingProgress.service';
+import type { SoloProgressScopeContext } from '../types/practice.types';
 
 const STUDENT_RESUME_KEY = 'student_activity_resume_v1';
 const LIVE_RESUME_TTL_MS = 12 * 60 * 60 * 1000;
@@ -69,15 +72,46 @@ function sanitizePracticeLocationState(locationState: PracticeLocationState): Pr
   };
 }
 
-async function hasLocalPracticeProgress(materialId: string, studentId: string): Promise<boolean> {
-  const soloProgressKey = `solo_progress_${materialId}_${studentId}`;
-  const writingProgressKey = `writing_practice_${materialId}_${studentId}`;
-  const [hasSoloProgress, hasWritingProgress] = await Promise.all([
-    storage.has(soloProgressKey),
-    storage.has(writingProgressKey),
+function getSoloProgressScopeContext(locationState: PracticeLocationState): SoloProgressScopeContext {
+  if (locationState.isHomework) {
+    return {
+      mode: 'homework',
+      homeworkId: locationState.homeworkId,
+      submissionId: locationState.submissionId,
+    };
+  }
+
+  if (locationState.courseId) {
+    return {
+      mode: 'course_material',
+      courseId: locationState.courseId,
+      moduleId: locationState.moduleId,
+    };
+  }
+
+  return { mode: 'self_study' };
+}
+
+async function hasLocalPracticeProgress(
+  materialId: string,
+  studentId: string,
+  locationState: PracticeLocationState,
+): Promise<boolean> {
+  const scopeContext = getSoloProgressScopeContext(locationState);
+  const [hasScopedSoloProgress, hasScopedWritingProgress] = await Promise.all([
+    hasSoloProgress({
+      materialId,
+      studentId,
+      scopeContext,
+    }),
+    hasWritingProgress({
+      materialId,
+      studentId,
+      scopeContext,
+    }),
   ]);
 
-  return hasSoloProgress || hasWritingProgress;
+  return hasScopedSoloProgress || hasScopedWritingProgress;
 }
 
 async function readResumeRecord(): Promise<StudentResumeRecord | null> {
@@ -185,7 +219,7 @@ export const studentResumeService = {
         return null;
       }
 
-      const hasProgress = await hasLocalPracticeProgress(record.materialId, studentId);
+      const hasProgress = await hasLocalPracticeProgress(record.materialId, studentId, record.locationState);
       const isRecentPractice = Date.now() - record.updatedAt <= LIVE_RESUME_TTL_MS;
       if (!hasProgress && !isRecentPractice) {
         await this.clearResume();

@@ -173,6 +173,83 @@ describe('AIExtractorService', () => {
                 expect(result.data.metadata.processingTimeMs).toBeGreaterThanOrEqual(0);
             }
         });
+
+        it('should preserve table sectionInstruction but not promote TABLE_HEADERS metadata into options', async () => {
+            vi.mocked(aiService.parsePassagesOnly).mockResolvedValue(mockPassagesResponse as any);
+            vi.mocked(aiService.parseQuestionsAndAnswers).mockResolvedValue({
+                success: true,
+                data: {
+                    questions: [
+                        {
+                            questionNumber: 11,
+                            questionText: 'Questions 11-13',
+                            type: 'table-completion',
+                            options: null,
+                            labeledOptions: null,
+                            answer: '',
+                            sectionInstruction:
+                                'TABLE_HEADERS: Plant Species | Native Region | Medicinal Use. Complete the table below. Choose NO MORE THAN TWO WORDS.',
+                            passageId: 'passage_1',
+                            confidence: 0.92,
+                        },
+                    ],
+                    answerKey: {
+                        11: 'Aloe vera',
+                    },
+                    confidence: 0.9,
+                },
+            } as any);
+
+            const result = await extractor.extractReadingTest('Test document content');
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.questions).toHaveLength(1);
+                const question = result.data.questions[0];
+                expect(question.instructions).toContain('TABLE_HEADERS:');
+                expect(question.instructions).toContain('Plant Species | Native Region | Medicinal Use');
+                expect(question.options).toBeUndefined();
+                expect(question.labeledOptions).toBeUndefined();
+                expect(question.suggestedAnswer).toBe('Aloe vera');
+            }
+        });
+
+        it('should keep provided options when TABLE_HEADERS metadata is malformed', async () => {
+            vi.mocked(aiService.parsePassagesOnly).mockResolvedValue(mockPassagesResponse as any);
+            vi.mocked(aiService.parseQuestionsAndAnswers).mockResolvedValue({
+                success: true,
+                data: {
+                    questions: [
+                        {
+                            questionNumber: 12,
+                            questionText: 'Question 12',
+                            type: 'table-completion',
+                            options: ['Existing Col 1', 'Existing Col 2'],
+                            answer: '',
+                            sectionInstruction:
+                                'TABLE_HEADERS: legacy-header-without-delimiters Complete the table below.',
+                            passageId: 'passage_1',
+                            confidence: 0.9,
+                        },
+                    ],
+                    answerKey: {
+                        12: 'Rosemary',
+                    },
+                    confidence: 0.85,
+                },
+            } as any);
+
+            const result = await extractor.extractReadingTest('Test document content');
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.questions).toHaveLength(1);
+                const question = result.data.questions[0];
+                expect(question.instructions).toContain('TABLE_HEADERS: legacy-header-without-delimiters');
+                expect(question.options).toEqual(['Existing Col 1', 'Existing Col 2']);
+                expect(question.suggestedAnswer).toBe('Rosemary');
+            }
+        });
     });
 
     // ═══════════════════════════════════════════════════════════════

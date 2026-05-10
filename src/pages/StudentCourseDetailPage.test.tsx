@@ -10,6 +10,7 @@ import { getCourse, getModulesByCourse, getMaterialsByCourse, getStudentCoursePr
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
 import { getClass } from '../services/classManager';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
+import { get, ref } from 'firebase/database';
 
 // Mock dependencies
 vi.mock('../hooks/useAuth');
@@ -22,6 +23,7 @@ vi.mock('../services/firebase', () => ({ database: {} }));
 vi.mock('../services/draftCloudService', () => ({ testDraftService: {} }));
 vi.mock('../services/writingSubmissionService', () => ({}));
 vi.mock('firebase/database', () => ({
+    getDatabase: vi.fn(() => ({})),
     ref: vi.fn((_database: unknown, path: string) => path),
     get: vi.fn(async () => ({
         exists: () => true,
@@ -99,6 +101,11 @@ const mockHomeworkList = {
 describe('StudentCourseDetailPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        (ref as any).mockImplementation((_database: unknown, path: string) => path);
+        (get as any).mockImplementation(async (path: string) => ({
+            exists: () => path.startsWith('tests/'),
+            val: () => ({ title: 'Session Material', type: 'Test' }),
+        }));
         (useAuth as any).mockReturnValue({
             user: { uid: 's1', displayName: 'Student User' }
         });
@@ -164,5 +171,52 @@ describe('StudentCourseDetailPage', () => {
             expect(screen.getByText('Class A')).toBeInTheDocument();
             expect(screen.getByText(/Linked to class:/i)).toBeInTheDocument();
         });
+    });
+
+    it('enriches Reading V2 course materials from published metadata and student-safe projections', async () => {
+        (getMaterialsByCourse as any).mockResolvedValue([
+            { id: 'lm1', courseId: 'c1', moduleId: 'm1', materialId: 'reading-v2-1', order: 0, isCopy: false },
+        ]);
+        (get as any).mockImplementation(async (path: string) => {
+            const valueByPath: Record<string, unknown> = {
+                'reading_v2/material_metadata/reading-v2-1': {
+                    materialId: 'reading-v2-1',
+                    ownerId: 'teacher-1',
+                    deliveryEngine: 'reading-v2',
+                    productLabel: 'Reading V2',
+                    title: 'Course Reading V2',
+                    materialKind: 'full-test',
+                    durationMinutes: 40,
+                    difficulty: 'intermediate',
+                    description: '',
+                    tags: [],
+                    visibility: 'assigned-only',
+                    publishedSnapshotVersionId: 'snapshot-1',
+                    updatedAt: '2026-01-01T00:00:00.000Z',
+                    relationshipSurfaces: ['course-material'],
+                },
+                'reading_v2/projections/student_safe_tests/reading-v2-1:snapshot-1': {
+                    deliveryEngine: 'reading-v2',
+                    plane: 'projection',
+                    projectionKind: 'student-safe',
+                    sourceSnapshotVersionId: 'snapshot-1',
+                    content: {
+                        taskGroups: [{ interactions: [{ interactionId: 'q1' }] }],
+                    },
+                },
+            };
+            const value = valueByPath[path];
+            return {
+                exists: () => value !== undefined,
+                val: () => value,
+            };
+        });
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('Course Reading V2')).toBeInTheDocument();
+        });
+        expect((ref as any).mock.calls.map((call: unknown[]) => call[1])).not.toContain('tests/reading-v2-1');
     });
 });

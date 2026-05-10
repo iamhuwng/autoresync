@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildSoloProgressStorageKey } from './soloProgress.service';
+import { buildWritingProgressStorageKey } from './writingProgress.service';
 
 const storageHarness = vi.hoisted(() => {
   const data = new Map<string, unknown>();
@@ -170,6 +172,105 @@ describe('studentResumeService', () => {
       state: {
         courseId: 'course-1',
         moduleId: 'module-1',
+        supportsAutoResume: true,
+        autoResume: true,
+      },
+    });
+  });
+
+  it('uses the scoped course-material progress key once the recent-practice grace window expires', async () => {
+    const { studentResumeService } = await import('./studentResume.service');
+
+    storageHarness.data.set('student_activity_resume_v1', {
+      kind: 'practice',
+      studentId: 'student-1',
+      materialId: 'material-1',
+      locationState: {
+        courseId: 'course-1',
+        moduleId: 'module-1',
+        supportsAutoResume: true,
+      },
+      updatedAt: Date.now() - (13 * 60 * 60 * 1000),
+    });
+    storageHarness.data.set(
+      buildSoloProgressStorageKey({
+        materialId: 'material-1',
+        studentId: 'student-1',
+        scopeContext: {
+          mode: 'course_material',
+          courseId: 'course-1',
+          moduleId: 'module-1',
+        },
+      }),
+      {
+        materialId: 'material-1',
+        studentId: 'student-1',
+        scopeContext: {
+          mode: 'course_material',
+          courseId: 'course-1',
+          moduleId: 'module-1',
+        },
+        answers: { 1: 'A' },
+        currentQuestion: 1,
+        timeElapsed: 45,
+        startedAt: Date.now() - 1000,
+        lastSavedAt: Date.now() - 1000,
+      },
+    );
+
+    const result = await studentResumeService.resolveResume('student-1');
+
+    expect(result).toEqual({
+      route: 'STUDENT_PRACTICE',
+      params: { materialId: 'material-1' },
+      state: {
+        courseId: 'course-1',
+        moduleId: 'module-1',
+        supportsAutoResume: true,
+        autoResume: true,
+      },
+    });
+  });
+
+  it('accepts scoped writing progress once the recent-practice grace window expires', async () => {
+    const { studentResumeService } = await import('./studentResume.service');
+
+    storageHarness.data.set('student_activity_resume_v1', {
+      kind: 'practice',
+      studentId: 'student-1',
+      materialId: 'material-writing-1',
+      locationState: {
+        courseId: 'course-2',
+        moduleId: 'module-2',
+        supportsAutoResume: true,
+      },
+      updatedAt: Date.now() - (13 * 60 * 60 * 1000),
+    });
+    storageHarness.data.set(
+      buildWritingProgressStorageKey({
+        materialId: 'material-writing-1',
+        studentId: 'student-1',
+        scopeContext: {
+          mode: 'course_material',
+          courseId: 'course-2',
+          moduleId: 'module-2',
+        },
+      }),
+      {
+        essays: { 1: 'Draft intro', 2: '' },
+        activeTask: 1,
+        startedAt: Date.now() - 1000,
+      },
+    );
+
+    const result = await studentResumeService.resolveResume('student-1');
+
+    expect(result).toEqual({
+      route: 'STUDENT_PRACTICE',
+      params: { materialId: 'material-writing-1' },
+      state: {
+        courseId: 'course-2',
+        moduleId: 'module-2',
         supportsAutoResume: true,
         autoResume: true,
       },

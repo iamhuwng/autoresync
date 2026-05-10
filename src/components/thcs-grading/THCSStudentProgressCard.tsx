@@ -7,6 +7,16 @@ import React from 'react';
 import { Card, CardBody, Button } from '../modern';
 import { IntegrityBadge } from '../test/IntegrityBadge'; // PRD-0036
 
+const THCS_MONITOR_AUDIT_PREFIX = '[Diag][TeacherMonitorAudit][THCSCard]';
+
+function logThcsMonitorAudit(event: string, payload: Record<string, unknown>) {
+    if (!import.meta.env.DEV) {
+        return;
+    }
+
+    console.info(THCS_MONITOR_AUDIT_PREFIX, event, payload);
+}
+
 interface THCSPartProgress {
     partName: string;
     answered: number;
@@ -89,7 +99,19 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                 border: `1px solid ${statusStyle.border}`,
                 background: statusStyle.bg,
             }}
-            onClick={onClick}
+            onClick={() => {
+                logThcsMonitorAudit('card_clicked', {
+                    name,
+                    status,
+                    progress,
+                    answeredCount,
+                    totalQuestions,
+                    writingSubmitted,
+                    writingTotal,
+                    writingGraded,
+                });
+                onClick?.();
+            }}
         >
             <CardBody style={{ padding: '1rem' }}>
                 {/* Header: Avatar + Name + Status */}
@@ -236,6 +258,13 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                                 size="sm"
                                 onClick={(e: React.MouseEvent) => {
                                     e.stopPropagation();
+                                    logThcsMonitorAudit('grade_writing_clicked', {
+                                        name,
+                                        status,
+                                        writingSubmitted,
+                                        writingTotal,
+                                        writingGraded,
+                                    });
                                     onGradeWriting();
                                 }}
                                 style={{
@@ -258,6 +287,13 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                                 onClick={(e: React.MouseEvent) => {
                                     e.stopPropagation();
                                     if (window.confirm('Force submit this student? Their current answers will be submitted.')) {
+                                        logThcsMonitorAudit('force_submit_confirmed', {
+                                            name,
+                                            status,
+                                            progress,
+                                            answeredCount,
+                                            totalQuestions,
+                                        });
                                         onForceSubmit?.();
                                     }
                                 }}
@@ -281,6 +317,16 @@ export const THCSStudentProgressCard: React.FC<THCSStudentCardProps> = ({
                                 onClick={(e: React.MouseEvent) => {
                                     e.stopPropagation();
                                     if (window.confirm('Reset this student\'s submission? They will be returned to the active test if it is still running.')) {
+                                        logThcsMonitorAudit('reset_submit_confirmed', {
+                                            name,
+                                            status,
+                                            progress,
+                                            answeredCount,
+                                            totalQuestions,
+                                            writingSubmitted,
+                                            writingTotal,
+                                            writingGraded,
+                                        });
                                         onResetSubmit?.();
                                     }
                                 }}

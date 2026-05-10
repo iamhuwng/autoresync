@@ -25,6 +25,7 @@ import { useTestAttempts } from '../../hooks/useTestAttempts';
 import { AttemptHistory } from './AttemptHistory';
 import { SharedSavedResultCore } from './SharedSavedResultCore';
 import type { SharedSavedResultCoreSections } from './SharedSavedResultCore';
+import { isReadingV2SavedResult, sanitizeReadingV2ResultForReleasePolicy } from '../../services/reading-v2/readingV2ResultAdapter.service';
 import { isPermissionDeniedError, AccessLostState, ACCESS_LOST_INITIAL } from '../../utils/rtdbAccessLost';
 import type { WritingSubmission } from '../../types/ielts-writing.types';
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
@@ -54,12 +55,13 @@ function loadWritingResultSurfaceModule() {
 /* ─── Tab Type ───────────────────────────────────────────────────────────── */
 
 export type TabId = 'overview' | 'review' | 'feedback';
+type ResultSlidePanelTab = { id: TabId; label: string };
 
-const TABS: { id: TabId; label: string }[] = [
+const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'review', label: 'Review Mistakes' },
   { id: 'feedback', label: 'Feedback' },
-];
+] as const satisfies readonly ResultSlidePanelTab[];
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -232,14 +234,37 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     [effectiveSavedResultReleaseState],
   );
   const visibleResult = useMemo(
-    () => (result ? sanitizeResultForReleaseState(result, effectiveSavedResultReleaseState) : null),
-    [result, effectiveSavedResultReleaseState],
+    () => {
+      if (!result) {
+        return null;
+      }
+
+      const releaseSanitized = sanitizeResultForReleaseState(result, effectiveSavedResultReleaseState);
+      if (!isReadingV2SavedResult(releaseSanitized)) {
+        return releaseSanitized;
+      }
+
+      return sanitizeReadingV2ResultForReleasePolicy(releaseSanitized, {
+        showScore: releaseVisibility.showScoreSummary,
+        showCorrectAnswers: releaseVisibility.showCorrectAnswers,
+        showExplanations: releaseVisibility.showAIFeedback,
+        showFeedback: releaseVisibility.showFeedbackControls,
+      });
+    },
+    [
+      result,
+      effectiveSavedResultReleaseState,
+      releaseVisibility.showAIFeedback,
+      releaseVisibility.showCorrectAnswers,
+      releaseVisibility.showFeedbackControls,
+      releaseVisibility.showScoreSummary,
+    ],
   );
   const feedbackAutoTriggerEnabled = !isPotentiallyGovernedSavedResult
     || (releaseGateResolved && effectiveSavedResultReleaseState === 'feedback-released');
   const isEligibleForAIFeedback = isEligibleForSavedResultFeedback(result);
   const availableTabs = useMemo(() => {
-    const tabs = [TABS[0]];
+    const tabs: ResultSlidePanelTab[] = [TABS[0]];
     if (releaseVisibility.showCorrectAnswers) {
       tabs.push(TABS[1]);
     }
@@ -506,14 +531,18 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
     setWritingSubmissionLoading(true);
 
     void (async () => {
+      let fallbackSubmission: WritingSubmission | null = null;
+
       try {
         const { buildWritingSubmissionFallbackFromResult } = await loadWritingResultSurfaceModule();
         if (cancelled) {
           return;
         }
 
-        const fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
-        const submissionId = result.writingData?.submissionId || result.resultId;
+        fallbackSubmission = buildWritingSubmissionFallbackFromResult(result);
+        const submissionId =
+          (result as TestResultRecord & { writingData?: { submissionId?: string } }).writingData?.submissionId
+          || result.resultId;
         if (!submissionId) {
           setWritingSubmission(fallbackSubmission);
           setWritingSubmissionLoading(false);
@@ -735,6 +764,7 @@ export const ResultSlidePanel: React.FC<ResultSlidePanelProps> = ({ resultId, on
           }}
           onNavigateToQuestion={handleCoreNavigateToQuestion}
           canNavigateToReview={availableTabs.some((tab) => tab.id === 'review')}
+          reviewVariant="student"
         />
       </>
     );

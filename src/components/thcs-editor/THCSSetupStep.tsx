@@ -10,12 +10,7 @@ import {
     Textarea, TagsInput, Switch,
     Collapse,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { THCSTemplatePicker } from './THCSTemplatePicker';
-
-import { THCSParseReviewPanel } from './THCSParseReviewPanel';
-import { parseThcsText } from '../../services/test-creation/thcsDocumentParser.service';
-import thcsExtractionPrompt from '../../services/test-creation/thcs-pdf-extraction-prompt.txt?raw';
 import type { THCSTestMetadata } from '../../types/thcs-test.types';
 import { DURATION_PRESETS, GRADE_LEVELS, EXAM_TYPE_OPTIONS } from '../../types/thcs-test.types';
 
@@ -29,6 +24,7 @@ export interface THCSSetupStepProps {
     onDocumentParsed?: (parsed: any) => void;
     onParsedProceed?: (finalParsed: any) => void;
     onStartBlank?: () => void;
+    onStartPasteText?: () => void;
 }
 
 const gradeData = (GRADE_LEVELS || [6, 7, 8, 9, 10, 11, 12]).map(g => ({ value: g.toString(), label: `Grade ${g}` }));
@@ -41,20 +37,11 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
     onMetadataChange,
     onIsPublicChange,
     onTemplateSelect,
-
-    onParsedProceed,
     onStartBlank,
+    onStartPasteText,
 }) => {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-
-    const [showPasteText, setShowPasteText] = useState(false);
-    const [pasteTextContent, setPasteTextContent] = useState('');
-
-    const [parsedPasteData, setParsedPasteData] = useState<any>(null);
-    const [isPasteProcessing, setIsPasteProcessing] = useState(false);
-    const [pasteErrorMessage, setPasteErrorMessage] = useState<string | null>(null);
-    const [promptCopied, setPromptCopied] = useState(false);
 
     const selectedDuration = metadata.duration;
 
@@ -359,7 +346,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                     <QuickStartCard
                         svgIcon={pasteTextIcon}
                         title="Paste Text"
-                        onClick={() => setShowPasteText(true)}
+                        onClick={onStartPasteText}
                         active={false}
                     />
                     <QuickStartCard
@@ -380,193 +367,6 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                     onTemplateSelect?.(template);
                 }}
             />
-
-
-
-            {/* Paste Text Modal */}
-            {showPasteText && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1000,
-                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-                    display: 'flex', justifyContent: 'center', alignItems: 'center',
-                }}>
-                    <div style={{
-                        background: 'white', borderRadius: '1rem', padding: '2rem',
-                        maxWidth: '700px', width: '90%', maxHeight: '85vh', overflow: 'auto',
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-                        display: 'flex', flexDirection: 'column', gap: '1rem',
-                    }}>
-                        {!parsedPasteData ? (
-                            /* ── Step A: Text Input ── */
-                            <>
-                                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1e293b' }}>
-                                    📝 Paste Test Content
-                                </h2>
-                                {/* Step 0: Copy Prompt for External AI */}
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                    padding: '0.75rem 1rem',
-                                    background: 'linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%)',
-                                    borderRadius: '0.75rem',
-                                    border: '1px solid rgba(139,92,246,0.15)',
-                                }}>
-                                    <span style={{ fontSize: '1.25rem' }}>🤖</span>
-                                    <div style={{ flex: 1 }}>
-                                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b' }}>
-                                            Step 1: Copy the prompt below → paste into ChatGPT/Gemini along with your test images
-                                        </span>
-                                        <br />
-                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                            Step 2: Copy the AI's output → paste it into the text box below
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                await navigator.clipboard.writeText(thcsExtractionPrompt);
-                                                setPromptCopied(true);
-                                                setTimeout(() => setPromptCopied(false), 2000);
-                                            } catch {
-                                                notifications.show({ color: 'red', title: 'Copy failed', message: 'Please copy manually' });
-                                            }
-                                        }}
-                                        style={{
-                                            padding: '0.5rem 1rem',
-                                            border: 'none',
-                                            borderRadius: '0.5rem',
-                                            background: promptCopied ? '#22c55e' : '#8b5cf6',
-                                            color: '#fff',
-                                            fontSize: '0.8125rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                            whiteSpace: 'nowrap',
-                                        }}
-                                    >
-                                        {promptCopied ? '✅ Copied!' : '📋 Copy Prompt'}
-                                    </button>
-                                </div>
-                                <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
-                                    Paste the AI's structured output below. The parser will auto-detect sections, question types,
-                                    and answers.
-                                </p>
-                                <textarea
-                                    value={pasteTextContent}
-                                    onChange={(e) => setPasteTextContent(e.target.value)}
-                                    placeholder={`I. MULTIPLE CHOICE QUESTIONS\nMark the letter A, B, C or D...\n\nQuestion 1. We all wanted to ______ in the contest.\nA. take off\nB. take part\nC. take out\nD. take over\n\n...\n\nVI. ANSWER KEY\n1 B\n2 C\n...`}
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '280px',
-                                        padding: '0.875rem',
-                                        border: '1.5px solid #cbd5e1',
-                                        borderRadius: '0.75rem',
-                                        fontSize: '0.875rem',
-                                        fontFamily: 'monospace',
-                                        color: '#1e293b',
-                                        resize: 'vertical',
-                                        outline: 'none',
-                                        boxSizing: 'border-box',
-                                        lineHeight: 1.6,
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                                />
-                                {pasteErrorMessage && (
-                                    <div style={{
-                                        margin: '1rem 0 0 0',
-                                        padding: '0.875rem',
-                                        background: '#fee2e2',
-                                        color: '#b91c1c',
-                                        borderRadius: '0.5rem',
-                                        border: '1px solid #f87171',
-                                        fontSize: '0.875rem',
-                                        fontWeight: 500,
-                                    }}>
-                                        ⚠️ {pasteErrorMessage}
-                                    </div>
-                                )}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                                        {pasteTextContent.length > 0
-                                            ? `${pasteTextContent.split('\n').filter(l => l.trim()).length} lines`
-                                            : 'No content'}
-                                    </span>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button
-                                            onClick={() => {
-                                                setShowPasteText(false);
-                                                setPasteTextContent('');
-                                            }}
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                border: '1.5px solid #cbd5e1',
-                                                borderRadius: '0.5rem',
-                                                background: '#fff',
-                                                fontSize: '0.875rem',
-                                                cursor: 'pointer',
-                                                color: '#475569',
-                                            }}
-                                        >Cancel</button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!pasteTextContent.trim()) return;
-                                                setIsPasteProcessing(true);
-                                                setPasteErrorMessage(null);
-                                                console.log('[PasteText] Starting parse, text length:', pasteTextContent.length);
-                                                try {
-                                                    const result = await parseThcsText(pasteTextContent);
-                                                    console.log('[PasteText] parseThcsText returned:', {
-                                                        success: result.success,
-                                                        error: !result.success ? result.error : undefined,
-                                                        hasSections: result.success ? result.data?.sections?.length : undefined,
-                                                        totalQuestions: result.success ? result.data?.sections?.reduce((s: number, sec: any) => s + sec.questions.length, 0) : undefined,
-                                                    });
-                                                    if (result.success) {
-                                                        const { data } = result;
-                                                        console.log('[PasteText] ✅ Setting parsedPasteData, sections:', data.sections.length);
-                                                        setParsedPasteData(data);
-                                                    } else {
-                                                        console.log('[PasteText] ❌ Parse failed:', result.error);
-                                                        setPasteErrorMessage(result.error || 'Parse failed with no error message');
-                                                    }
-                                                } catch (err) {
-                                                    console.error('[PasteText] ❌ Exception:', err);
-                                                    setPasteErrorMessage(err instanceof Error ? err.message : 'Unknown error');
-                                                } finally {
-                                                    setIsPasteProcessing(false);
-                                                }
-                                            }}
-                                            disabled={!pasteTextContent.trim() || isPasteProcessing}
-                                            style={{
-                                                padding: '0.5rem 1.25rem',
-                                                border: 'none',
-                                                borderRadius: '0.5rem',
-                                                background: pasteTextContent.trim() && !isPasteProcessing ? '#8b5cf6' : '#e2e8f0',
-                                                color: pasteTextContent.trim() && !isPasteProcessing ? '#fff' : '#94a3b8',
-                                                fontSize: '0.875rem',
-                                                fontWeight: 600,
-                                                cursor: pasteTextContent.trim() && !isPasteProcessing ? 'pointer' : 'not-allowed',
-                                            }}
-                                        >{isPasteProcessing ? '⏳ Parsing...' : 'Parse & Import'}</button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            /* ── Step B: Review parsed results ── */
-                            <THCSParseReviewPanel
-                                parsedTest={parsedPasteData}
-                                onBack={() => setParsedPasteData(null)}
-                                onProceed={(finalParsed) => {
-                                    setShowPasteText(false);
-                                    setPasteTextContent('');
-                                    setParsedPasteData(null);
-                                    onParsedProceed?.(finalParsed);
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

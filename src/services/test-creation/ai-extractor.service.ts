@@ -1,9 +1,9 @@
-/**
+﻿/**
  * AI Extractor Service for IELTS Reading Tests
  * 
  * Extracts structured content from IELTS Reading test documents using AI.
  * This service orchestrates the extraction process with:
- * - Multiple provider support (Gemini → Groq fallback)
+ * - Multiple provider support (Gemini â†’ Groq fallback)
  * - Checkpoint/resume capability
  * - Progress callbacks for UI updates
  * - Timeout handling
@@ -23,9 +23,9 @@ import type {
 import { aiService } from '../ai/router.service';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TYPES
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Extracted reading passage
@@ -112,17 +112,17 @@ export interface ExtractionOptions {
     enableCheckpoints?: boolean;
 }
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CONSTANTS
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const DEFAULT_TIMEOUT_MS = 120000; // 2 minutes
 const CHECKPOINT_EXPIRY_HOURS = 24;
 const CHECKPOINT_STORAGE_KEY = 'ielts_extraction_checkpoints';
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // AI EXTRACTOR SERVICE
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * AI Extractor Service
@@ -307,14 +307,14 @@ class AIExtractorService {
         // Transform AI questions to our format
         // IMPORTANT: The AI sets answer: "" for all questions and puts real answers in answerKey.
         // We must merge answerKey values into each question's suggestedAnswer so answers
-        // flow through the entire pipeline: ExtractedQuestion → MergedQuestion → Draft → Published Test
+        // flow through the entire pipeline: ExtractedQuestion â†’ MergedQuestion â†’ Draft â†’ Published Test
         const answerKey = result.data!.answerKey || {};
         const questions: ExtractedQuestion[] = result.data!.questions.map(q => {
             // For table-completion questions: extract TABLE_HEADERS from sectionInstruction
-            // and map them into the `options` array. This is the key mapping decision —
+            // and map them into the `options` array. This is the key mapping decision â€”
             // `options` is unused for table-completion (fill-in-the-blank, not multiple-choice)
             // and it's the ONLY field that naturally survives the entire pipeline:
-            // ExtractedQuestion → AIQuestionResult → mergedQuestion → draft → published test → student view
+            // ExtractedQuestion â†’ AIQuestionResult â†’ mergedQuestion â†’ draft â†’ published test â†’ student view
             let labeledOptions = q.labeledOptions || undefined;
             let options = Array.isArray(q.options)
                 ? q.options
@@ -335,17 +335,6 @@ class AIExtractorService {
                     text: option.text.trim(),
                 })).filter((option) => option.label || option.text);
 
-            if (q.type === 'table-completion' && q.sectionInstruction) {
-                const headerMatch = q.sectionInstruction.match(/TABLE_HEADERS:\s*(.+?)(?:\.|$)/);
-                if (headerMatch && headerMatch[1]) {
-                    const parsedHeaders = headerMatch[1].split('|').map(h => h.trim()).filter(Boolean);
-                    if (parsedHeaders.length >= 2) {
-                        // Use TABLE_HEADERS as options — display component reads these as column headers
-                        options = parsedHeaders;
-                        labeledOptions = undefined;
-                    }
-                }
-            }
 
             // Merge answer from answerKey into the question.
             // The AI returns answer: "" for each question but puts real answers in answerKey.
@@ -473,9 +462,9 @@ class AIExtractorService {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // CHECKPOINT MANAGEMENT
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /**
      * Save extraction checkpoint
@@ -505,7 +494,7 @@ class AIExtractorService {
         // Persist to localStorage
         this.saveCheckpointsToStorage();
 
-        console.log(`📌 [AIExtractor] Checkpoint saved: ${id} (stage: ${checkpoint.stage})`);
+        console.log(`ðŸ“Œ [AIExtractor] Checkpoint saved: ${id} (stage: ${checkpoint.stage})`);
         return id;
     }
 
@@ -523,7 +512,7 @@ class AIExtractorService {
             this.checkpointCache.set(id, updated);
             // Persist to localStorage
             this.saveCheckpointsToStorage();
-            console.log(`📌 [AIExtractor] Checkpoint updated: ${id} (stage: ${updated.stage})`);
+            console.log(`ðŸ“Œ [AIExtractor] Checkpoint updated: ${id} (stage: ${updated.stage})`);
         }
     }
 
@@ -594,9 +583,9 @@ class AIExtractorService {
                 }]);
             }
             localStorage.setItem(CHECKPOINT_STORAGE_KEY, JSON.stringify(entries));
-            console.log(`💾 [AIExtractor] Saved ${entries.length} checkpoint(s) to localStorage`);
+            console.log(`ðŸ’¾ [AIExtractor] Saved ${entries.length} checkpoint(s) to localStorage`);
         } catch (error) {
-            console.warn('⚠️ [AIExtractor] Failed to save checkpoints to localStorage:', error);
+            console.warn('âš ï¸ [AIExtractor] Failed to save checkpoints to localStorage:', error);
         }
     }
 
@@ -629,10 +618,10 @@ class AIExtractorService {
             }
 
             if (loadedCount > 0) {
-                console.log(`📥 [AIExtractor] Loaded ${loadedCount} checkpoint(s) from localStorage`);
+                console.log(`ðŸ“¥ [AIExtractor] Loaded ${loadedCount} checkpoint(s) from localStorage`);
             }
         } catch (error) {
-            console.warn('⚠️ [AIExtractor] Failed to load checkpoints from localStorage:', error);
+            console.warn('âš ï¸ [AIExtractor] Failed to load checkpoints from localStorage:', error);
         }
     }
 
@@ -657,9 +646,9 @@ class AIExtractorService {
         return latestCheckpoint;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // UTILITY METHODS
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /**
      * Generate hash for document content
@@ -702,9 +691,9 @@ class AIExtractorService {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // EXPORTS
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Singleton instance of AIExtractorService

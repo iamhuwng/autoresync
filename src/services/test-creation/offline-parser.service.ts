@@ -25,6 +25,14 @@ import {
 import { firestore as db } from '../firebase';
 import { typeClassifierService, type ClassificationResult } from './type-classifier.service';
 import type { QuestionType } from '../../types/QuestionSchema';
+import {
+    createRawSourceArtifact,
+    type FormattedTestArtifact,
+    type RawSourceArtifact,
+    type RepairArtifact,
+    type SourceAnchor,
+    type VerificationArtifact,
+} from './source-fidelity';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -54,6 +62,11 @@ export interface ParsedPassage {
     title: string;
     content: string;
     order: number;
+    questionRange?: {
+        start: number;
+        end: number;
+    };
+    sourceAnchor?: SourceAnchor;
 }
 
 export interface ParsedQuestion {
@@ -62,8 +75,10 @@ export interface ParsedQuestion {
     type: QuestionType;
     confidence: number;
     options?: string[];
-    answer?: string;
+    answer?: string | string[];
     passageId?: string;
+    sectionInstruction?: string;
+    sourceAnchors?: SourceAnchor[];
     /** Classification details from rules engine */
     classificationDetails?: ClassificationResult;
 }
@@ -95,6 +110,13 @@ export interface TypeDifference {
     recommendedSource: 'offline' | 'ai';
 }
 
+export interface ParsingCheckpointPartialResults extends Partial<LocalParseResult> {
+    rawSource?: RawSourceArtifact;
+    formattedTest?: FormattedTestArtifact;
+    verification?: VerificationArtifact;
+    repair?: RepairArtifact | null;
+}
+
 /**
  * Firestore checkpoint data
  */
@@ -105,7 +127,7 @@ export interface ParsingCheckpoint {
     stage: 'converting' | 'extracting' | 'classifying' | 'validating';
     progress: number;
     /** Partial results at this checkpoint */
-    partialResults?: Partial<LocalParseResult>;
+    partialResults?: ParsingCheckpointPartialResults;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     /** Expires after 24 hours */
@@ -121,6 +143,16 @@ const IDB_VERSION = 1;
 const IDB_STORE_NAME = 'parseResults';
 const CHECKPOINT_COLLECTION = 'parsingCache';
 const CHECKPOINT_TTL_HOURS = 24;
+
+const sanitizeCheckpointPartialResults = (
+    partialResults?: ParsingCheckpointPartialResults,
+): ParsingCheckpointPartialResults | undefined => {
+    if (partialResults === undefined) {
+        return undefined;
+    }
+
+    return JSON.parse(JSON.stringify(partialResults)) as ParsingCheckpointPartialResults;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // INDEXEDDB MANAGER
@@ -328,8 +360,9 @@ class OfflineParserService {
      * @returns Local parse result
      */
     async parseOffline(documentText: string, documentId: string): Promise<LocalParseResult> {
-        const passages = this.extractPassages(documentText);
-        const questions = this.extractAndClassifyQuestions(documentText, passages);
+        const rawSource = createRawSourceArtifact(documentText);
+        const passages = this.extractPassagesFromSource(rawSource);
+        const questions = this.extractAndClassifyQuestionsFromSource(rawSource, passages);
 
         const result: LocalParseResult = {
             id: documentId,
@@ -348,10 +381,94 @@ class OfflineParserService {
         return result;
     }
 
+    private extractPassagesFromSource(rawSource: RawSourceArtifact): ParsedPassage[] {
+        return rawSource.passageBlocks.map((passage) => ({
+            id: passage.rawPassageId.replace('raw-', ''),
+            title: passage.title,
+            content: passage.content,
+            order: passage.order,
+            questionRange: passage.questionRange,
+            sourceAnchor: passage.bodyAnchor,
+        }));
+    }
+
+    private extractAndClassifyQuestionsFromSource(
+        rawSource: RawSourceArtifact,
+        passages: ParsedPassage[],
+    ): ParsedQuestion[] {
+        const answerKey = rawSource.answerKeyBlock?.answers || {};
+
+        return rawSource.questionBlocks
+            .map((rawQuestion) => {
+                const optionsForClassification =
+                    rawQuestion.options.length > 0
+                        ? rawQuestion.options
+                        : rawQuestion.sharedOptions;
+                const classification = rawQuestion.instructionText
+                    ? typeClassifierService.detectFromSectionContext(
+                        rawQuestion.instructionText,
+                        rawQuestion.questionText,
+                        optionsForClassification,
+                    )
+                    : typeClassifierService.classifyQuestion(
+                        rawQuestion.questionText,
+                        optionsForClassification,
+                    );
+
+                return {
+                    questionNumber: rawQuestion.questionNumber,
+                    questionText: rawQuestion.questionText,
+                    type: classification.type,
+                    confidence: classification.confidence,
+                    options:
+                        optionsForClassification.length > 0
+                            ? optionsForClassification
+                            : undefined,
+                    answer: answerKey[rawQuestion.questionNumber],
+                    passageId: this.assignPassageFromPassages(
+                        rawQuestion.questionNumber,
+                        passages,
+                    ),
+                    sectionInstruction: rawQuestion.instructionText,
+                    sourceAnchors: [
+                        rawQuestion.blockAnchor,
+                        ...(rawQuestion.instructionAnchor ? [rawQuestion.instructionAnchor] : []),
+                    ],
+                    classificationDetails: classification,
+                };
+            })
+            .sort((a, b) => a.questionNumber - b.questionNumber);
+    }
+
+    private assignPassageFromPassages(
+        questionNumber: number,
+        passages: ParsedPassage[],
+    ): string {
+        const rangedPassage = passages.find((passage) =>
+            passage.questionRange &&
+            questionNumber >= passage.questionRange.start &&
+            questionNumber <= passage.questionRange.end,
+        );
+
+        if (rangedPassage) {
+            return rangedPassage.id;
+        }
+
+        if (passages.length <= 1) return passages[0]?.id || 'passage-1';
+
+        const questionsPerPassage = 13;
+        const passageIndex = Math.min(
+            Math.floor((questionNumber - 1) / questionsPerPassage),
+            passages.length - 1,
+        );
+
+        return passages[passageIndex]?.id || `passage-${passageIndex + 1}`;
+    }
+
     /**
      * Extract passages from document text
      */
-    private extractPassages(text: string): ParsedPassage[] {
+    extractPassages(text: string): ParsedPassage[] {
         const passages: ParsedPassage[] = [];
 
         // Pattern: "READING PASSAGE 1/2/3" or "Passage A/B/C"
@@ -394,7 +511,7 @@ class OfflineParserService {
     /**
      * Extract and classify questions from document text
      */
-    private extractAndClassifyQuestions(text: string, passages: ParsedPassage[]): ParsedQuestion[] {
+    extractAndClassifyQuestions(text: string, passages: ParsedPassage[]): ParsedQuestion[] {
         const questions: ParsedQuestion[] = [];
         const normalizedText = text.replace(/\r\n/g, '\n');
 
@@ -449,7 +566,7 @@ class OfflineParserService {
         return questions;
     }
 
-    private findNextQuestionText(text: string, startIndex: number): string {
+    findNextQuestionText(text: string, startIndex: number): string {
         const remainingLines = text.slice(startIndex).split('\n');
 
         for (const rawLine of remainingLines) {
@@ -465,7 +582,7 @@ class OfflineParserService {
     /**
      * Find section instruction for a question
      */
-    private findSectionInstruction(
+    findSectionInstruction(
         text: string,
         questionNumber: number,
         sections: RegExpMatchArray[]
@@ -491,7 +608,7 @@ class OfflineParserService {
     /**
      * Assign question to a passage (simple heuristic)
      */
-    private assignPassage(questionNumber: number, passageCount: number): string {
+    assignPassage(questionNumber: number, passageCount: number): string {
         if (passageCount <= 1) return 'passage-1';
 
         // IELTS typically has ~13 questions per passage
@@ -611,26 +728,33 @@ class OfflineParserService {
         documentHash: string,
         stage: ParsingCheckpoint['stage'],
         progress: number,
-        partialResults?: Partial<LocalParseResult>
+        partialResults?: ParsingCheckpointPartialResults
     ): Promise<string> {
         try {
             const checkpointId = `${userId}_${documentHash}`;
             const docRef = doc(db, CHECKPOINT_COLLECTION, checkpointId);
+            const sanitizedPartialResults = sanitizeCheckpointPartialResults(partialResults);
 
             const expiresAt = new Date();
             expiresAt.setHours(expiresAt.getHours() + CHECKPOINT_TTL_HOURS);
 
-            const checkpoint: ParsingCheckpoint = {
+            const checkpointBase = {
                 id: checkpointId,
                 userId,
                 documentHash,
                 stage,
                 progress,
-                partialResults,
                 createdAt: serverTimestamp() as Timestamp,
                 updatedAt: serverTimestamp() as Timestamp,
                 expiresAt: Timestamp.fromDate(expiresAt),
             };
+            const checkpoint =
+                sanitizedPartialResults === undefined
+                    ? checkpointBase
+                    : {
+                        ...checkpointBase,
+                        partialResults: sanitizedPartialResults,
+                    };
 
             await setDoc(docRef, checkpoint, { merge: true });
             console.log(`[OfflineParser] Saved checkpoint at stage: ${stage}, progress: ${progress}%`);

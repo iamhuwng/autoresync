@@ -8,6 +8,8 @@ import StudentShellRoute from '../routes/StudentShellRoute';
 const {
   authState,
   getTestFromFirebaseMock,
+  firebaseGetMock,
+  firebaseRefMock,
   navigateMock,
   startAttemptMock,
   useHomeworkSubmissionMock,
@@ -22,6 +24,8 @@ const {
     },
   },
   getTestFromFirebaseMock: vi.fn(),
+  firebaseGetMock: vi.fn(),
+  firebaseRefMock: vi.fn(),
   navigateMock: vi.fn(),
   startAttemptMock: vi.fn(),
   useHomeworkSubmissionMock: vi.fn(),
@@ -42,6 +46,15 @@ vi.mock('../hooks/useHomeworkSubmission', () => ({
 }));
 
 vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: authState.user,
+    profile: null,
+    logout: vi.fn(),
+  }),
+  default: {},
+}));
+
+vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
     user: authState.user,
     profile: null,
@@ -71,6 +84,15 @@ vi.mock('../components/layout/StudentSidebar', () => ({
 
 vi.mock('../services/testStorage', () => ({
   getTestFromFirebase: (...args: unknown[]) => getTestFromFirebaseMock(...args),
+}));
+
+vi.mock('../services/firebase', () => ({
+  database: {},
+}));
+
+vi.mock('firebase/database', () => ({
+  get: (...args: unknown[]) => firebaseGetMock(...args),
+  ref: (...args: unknown[]) => firebaseRefMock(...args),
 }));
 
 vi.mock('../components/modern', () => ({
@@ -123,6 +145,11 @@ describe('StudentHomeworkDetailPage', () => {
       data: {
         questions: [{ id: 'q1' }, { id: 'q2' }],
       },
+    });
+    firebaseRefMock.mockImplementation((_database, path) => path);
+    firebaseGetMock.mockResolvedValue({
+      exists: () => false,
+      val: () => null,
     });
 
     useHomeworkSubmissionMock.mockReturnValue({
@@ -194,6 +221,54 @@ describe('StudentHomeworkDetailPage', () => {
 
     expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'result-1');
     expect(navigateMock).not.toHaveBeenCalledWith('/student/academic-record', expect.anything());
+  });
+
+  it('hydrates Reading V2 homework headers from published metadata and student-safe projections before legacy test storage', async () => {
+    firebaseGetMock.mockImplementation(async (path: string) => {
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/material_metadata/material-1': {
+          materialId: 'material-1',
+          ownerId: 'teacher-1',
+          deliveryEngine: 'reading-v2',
+          productLabel: 'Reading V2',
+          title: 'V2 Homework Material',
+          materialKind: 'full-test',
+          durationMinutes: 35,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'assigned-only',
+          publishedSnapshotVersionId: 'snapshot-1',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          relationshipSurfaces: ['homework-assignment'],
+        },
+        'reading_v2/projections/student_safe_tests/material-1:snapshot-1': {
+          deliveryEngine: 'reading-v2',
+          plane: 'projection',
+          projectionKind: 'student-safe',
+          sourceSnapshotVersionId: 'snapshot-1',
+          content: {
+            taskGroups: [
+              {
+                interactions: [
+                  { interactionId: 'q1' },
+                ],
+              },
+            ],
+          },
+        },
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined,
+        val: () => value,
+      };
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('1 questions')).toBeInTheDocument();
+    expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
   });
 
   it('opens the start modal with mobile full-width actions and starts the attempt', async () => {

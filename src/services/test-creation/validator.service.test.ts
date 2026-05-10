@@ -256,6 +256,317 @@ describe('ValidatorService', () => {
                 expect(result.discrepancyCount).toBe(0);
             });
         });
+
+        describe('Canonical Table Completion Pipeline', () => {
+            it('should preserve source order and emit table linkage metadata with questionGroups', () => {
+                const sectionInstruction =
+                    'TABLE_HEADERS: Plant Species | Native Region | Medicinal Use. Complete the table below. Choose NO MORE THAN TWO WORDS.';
+                const aiResults: AIQuestionResult[] = [
+                    {
+                        questionNumber: 19,
+                        questionText: 'Echinacea | ___ | Supports immunity',
+                        type: 'table-completion',
+                        confidence: 93,
+                        answer: 'North America',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                    {
+                        questionNumber: 18,
+                        questionText: 'Gingko Biloba | ___ | Improves cognitive function',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'China',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                ];
+
+                const rulesResults: RulesQuestionResult[] = [
+                    { questionNumber: 18, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 19, type: 'table-completion', confidence: 95 },
+                ];
+
+                const result = validator.compareAIvsRules(aiResults, rulesResults);
+                const tableQuestions = result.mergedQuestions.filter(
+                    (question) => question.type === 'table-completion',
+                );
+
+                expect(result.questionGroups).toHaveLength(1);
+                expect(result.questionGroups[0]).toMatchObject({
+                    taskType: 'table-completion',
+                    passageId: 'passage-1',
+                    questionRange: { start: 18, end: 19 },
+                });
+                expect(result.tableCompletionDiagnostics).toEqual([
+                    expect.objectContaining({
+                        groupId: result.questionGroups[0].groupId,
+                        parseMode: 'deterministic',
+                        sourceWorkflow: 'in-app-parse',
+                        hasCanonicalGroup: true,
+                    }),
+                ]);
+
+                expect(tableQuestions.map((question) => question.questionNumber)).toEqual([18, 19]);
+                expect(tableQuestions).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            questionNumber: 18,
+                            sectionInstructionId: result.questionGroups[0].groupId,
+                            groupId: result.questionGroups[0].groupId,
+                            groupTaskType: 'table-completion',
+                            blankId: expect.any(String),
+                            anchorId: expect.any(String),
+                        }),
+                        expect.objectContaining({
+                            questionNumber: 19,
+                            sectionInstructionId: result.questionGroups[0].groupId,
+                            groupId: result.questionGroups[0].groupId,
+                            groupTaskType: 'table-completion',
+                            blankId: expect.any(String),
+                            anchorId: expect.any(String),
+                        }),
+                    ]),
+                );
+            });
+
+            it('prefers source-derived table question text when the raw excerpt contains informative blank cells', () => {
+                const sectionInstruction =
+                    'TABLE_HEADERS: Method | Detail. Complete the table below. Choose ONE WORD ONLY.';
+                const aiResults: AIQuestionResult[] = [
+                    {
+                        questionNumber: 7,
+                        questionText: 'Incorrect AI rewrite for question 7',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'droppings',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                    {
+                        questionNumber: 8,
+                        questionText: 'Incorrect AI rewrite for question 8',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'coffee',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                ];
+
+                const rulesResults: RulesQuestionResult[] = [
+                    { questionNumber: 7, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 8, type: 'table-completion', confidence: 95 },
+                ];
+
+                const documentText = `
+Questions 7-8
+Complete the table below.
+<table>
+  <tr><th>Method</th><th>Detail</th></tr>
+  <tr><td>Research</td><td>DNA analysis of bat [[7]]</td></tr>
+  <tr><td>Findings</td><td>ate pests of rice, [[8]], sugarcane</td></tr>
+</table>
+                `;
+
+                const result = validator.compareAIvsRules(aiResults, rulesResults, { documentText });
+                const tableQuestions = result.mergedQuestions.filter(
+                    (question) => question.type === 'table-completion',
+                );
+
+                expect(result.questionGroups).toHaveLength(1);
+                expect(result.tableCompletionDiagnostics).toEqual([
+                    expect.objectContaining({
+                        parseMode: 'deterministic',
+                        sourceShape: 'html-table',
+                        hasCanonicalGroup: true,
+                    }),
+                ]);
+                expect(tableQuestions.map((question) => question.questionText)).toEqual([
+                    'DNA analysis of bat ___',
+                    'ate pests of rice, ___, sugarcane',
+                ]);
+            });
+
+            it('groups contiguous table questions by source question range even when AI section instructions drift', () => {
+                const aiResults: AIQuestionResult[] = [
+                    {
+                        questionNumber: 7,
+                        questionText: '● DNA analysis of bat ______',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'droppings',
+                        passageId: 'passage-1',
+                        sectionInstruction: 'Complete the table below.',
+                    },
+                    {
+                        questionNumber: 8,
+                        questionText: '– ate pests of rice, ______, sugarcane, nuts and fruit',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'coffee',
+                        passageId: 'passage-1',
+                        sectionInstruction:
+                            'TABLE_HEADERS: Findings | Detail. Complete the table below. Choose ONE WORD ONLY.',
+                    },
+                    {
+                        questionNumber: 9,
+                        questionText: '– prevent the spread of disease by eating ______ and blackflies',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'mosquitoes',
+                        passageId: 'passage-1',
+                        sectionInstruction: 'Choose ONE WORD ONLY from the passage for each answer.',
+                    },
+                ];
+
+                const rulesResults: RulesQuestionResult[] = [
+                    { questionNumber: 7, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 8, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 9, type: 'table-completion', confidence: 95 },
+                ];
+
+                const documentText = `
+Questions 7-13
+Complete the table below.
+Choose ONE WORD ONLY from the passage for each answer.
+<table>
+  <tr><th>Section</th><th>Detail</th></tr>
+  <tr><td>Method</td><td>DNA analysis of bat [[7]]</td></tr>
+  <tr><td>Findings</td><td>ate pests of rice, [[8]], sugarcane, nuts and fruit</td></tr>
+  <tr><td>Findings</td><td>prevent the spread of disease by eating [[9]] and blackflies</td></tr>
+</table>
+                `;
+
+                const result = validator.compareAIvsRules(aiResults, rulesResults, { documentText });
+
+                expect(result.questionGroups).toHaveLength(1);
+                expect(result.questionGroups[0]).toMatchObject({
+                    taskType: 'table-completion',
+                    passageId: 'passage-1',
+                    questionRange: { start: 7, end: 9 },
+                });
+                expect(result.tableCompletionDiagnostics).toEqual([
+                    expect.objectContaining({
+                        groupId: 'table-group-passage-1-7-13',
+                        parseMode: 'deterministic',
+                        hasCanonicalGroup: true,
+                    }),
+                ]);
+                expect(
+                    result.mergedQuestions
+                        .filter((question) => question.type === 'table-completion')
+                        .map((question) => question.questionNumber),
+                ).toEqual([7, 8, 9]);
+            });
+
+            it('keeps unresolved table questions visible but marks them for reclassification', () => {
+                const sectionInstruction = 'Complete the table below.';
+                const aiResults: AIQuestionResult[] = [
+                    {
+                        questionNumber: 7,
+                        questionText: 'The bats were most active in rice fields located on ______.',
+                        type: 'table-completion',
+                        confidence: 88,
+                        answer: 'coffee',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                    {
+                        questionNumber: 8,
+                        questionText: 'Another flattened prose row ______.',
+                        type: 'table-completion',
+                        confidence: 86,
+                        answer: 'forest',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                ];
+
+                const rulesResults: RulesQuestionResult[] = [
+                    { questionNumber: 7, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 8, type: 'table-completion', confidence: 95 },
+                ];
+
+                const result = validator.compareAIvsRules(aiResults, rulesResults);
+                const unresolvedDiagnostic = result.tableCompletionDiagnostics[0];
+                const unresolvedQuestions = result.mergedQuestions.filter(
+                    (question) => question.type === 'table-completion',
+                );
+
+                expect(result.questionGroups).toHaveLength(0);
+                expect(unresolvedDiagnostic).toMatchObject({
+                    hasCanonicalGroup: false,
+                    validationSeverity: 'blocking',
+                    unsupportedRepairState: 're-run-or-reclassify-required',
+                });
+                expect(unresolvedQuestions).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            questionNumber: 7,
+                            questionText: 'The bats were most active in rice fields located on ______.',
+                            sectionInstructionId: unresolvedDiagnostic.groupId,
+                            pendingTableReclassification: true,
+                        }),
+                        expect.objectContaining({
+                            questionNumber: 8,
+                            questionText: 'Another flattened prose row ______.',
+                            sectionInstructionId: unresolvedDiagnostic.groupId,
+                            pendingTableReclassification: true,
+                        }),
+                    ]),
+                );
+            });
+
+            it('should surface blocking blank-count-mismatch issues from grouped canonical validation', () => {
+                const sectionInstruction =
+                    'TABLE_HEADERS: Plant Species | Native Region | Medicinal Use. Complete the table below. Choose NO MORE THAN TWO WORDS.';
+                const aiResults: AIQuestionResult[] = [
+                    {
+                        questionNumber: 18,
+                        questionText: 'Gingko Biloba | ___ | Improves cognitive function',
+                        type: 'table-completion',
+                        confidence: 94,
+                        answer: 'China',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                    {
+                        questionNumber: 19,
+                        questionText: 'Echinacea | North America | Supports immunity',
+                        type: 'table-completion',
+                        confidence: 93,
+                        answer: 'North America',
+                        passageId: 'passage-1',
+                        sectionInstruction,
+                    },
+                ];
+
+                const rulesResults: RulesQuestionResult[] = [
+                    { questionNumber: 18, type: 'table-completion', confidence: 95 },
+                    { questionNumber: 19, type: 'table-completion', confidence: 95 },
+                ];
+
+                const result = validator.compareAIvsRules(aiResults, rulesResults);
+
+                expect(result.tableCompletionIssues).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            code: 'blank-count-mismatch',
+                            severity: 'blocking',
+                        }),
+                    ]),
+                );
+                expect(result.tableCompletionDiagnostics).toEqual([
+                    expect.objectContaining({
+                        parseMode: 'deterministic',
+                        validationSeverity: 'blocking',
+                        issueCodes: expect.arrayContaining(['blank-count-mismatch']),
+                        hasCanonicalGroup: true,
+                    }),
+                ]);
+            });
+        });
     });
 
     // ═══════════════════════════════════════════════════════════════

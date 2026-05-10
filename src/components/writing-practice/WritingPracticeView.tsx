@@ -21,7 +21,7 @@
  * NO MANTINE.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, push } from 'firebase/database';
 // @ts-ignore — JS service file
@@ -34,6 +34,12 @@ import { createSubmission, materializeSubmissionResult } from '../../services/wr
 import { submitHomework } from '../../services/homeworkSubmissionService';
 import { notifyTeacherWritingSubmitted, notifyWritingSubmitted } from '../../services/notificationService';
 import { studentResumeService } from '../../services/studentResume.service';
+import {
+    readWritingProgress,
+    removeWritingProgress,
+    type SavedWritingPracticeState,
+    writeWritingProgress,
+} from '../../services/writingProgress.service';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
 import WritingPromptPanel from '../writing-student/WritingPromptPanel';
@@ -41,6 +47,7 @@ import WritingEditor from '../writing-student/WritingEditor';
 import SubmitToTeacherModal from './SubmitToTeacherModal';
 import type { IELTSWritingTest, WritingSubmission } from '../../types/ielts-writing.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
+import type { SoloProgressScopeContext } from '../../types/practice.types';
 import { buildRoute } from '../../constants/routes';
 import './WritingPracticeView.css';
 
@@ -60,15 +67,9 @@ export interface HomeworkWritingContext {
 interface WritingPracticeViewProps {
     materialId: string;
     testData: IELTSWritingTest;
+    practiceContext?: SoloProgressScopeContext;
     homeworkContext?: HomeworkWritingContext;
     autoResume?: boolean;
-}
-
-interface SavedPracticeState {
-    essays: { 1: string; 2: string };
-    activeTask: 1 | 2;
-    startedAt: number;
-    pasteAttemptCount?: number;
 }
 
 interface TeacherInfo {
@@ -77,42 +78,6 @@ interface TeacherInfo {
 }
 
 // ── localStorage helpers ───────────────────────────────────
-function getSaveKey(materialId: string, studentUid: string): string {
-    return `writing_practice_${materialId}_${studentUid}`;
-}
-
-function loadSavedState(key: string): SavedPracticeState | null {
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        // Expire after 72 hours
-        if (parsed.startedAt && Date.now() - parsed.startedAt > 72 * 60 * 60 * 1000) {
-            localStorage.removeItem(key);
-            return null;
-        }
-        return parsed;
-    } catch {
-        return null;
-    }
-}
-
-function savePracticeState(key: string, state: SavedPracticeState): void {
-    try {
-        localStorage.setItem(key, JSON.stringify(state));
-    } catch {
-        console.warn('[WritingPracticeView] localStorage save failed');
-    }
-}
-
-function clearPracticeState(key: string): void {
-    try {
-        localStorage.removeItem(key);
-    } catch {
-        // ignore
-    }
-}
-
 function getTimerSecondsRemaining(timerMinutes: number | null, startedAt?: number | null): number | null {
     if (timerMinutes === null || timerMinutes <= 0) {
         return null;
@@ -127,8 +92,33 @@ function getTimerSecondsRemaining(timerMinutes: number | null, startedAt?: numbe
     return Math.max(0, totalSeconds - elapsedSeconds);
 }
 
+function resolveWritingScopeContext(
+    practiceContext?: SoloProgressScopeContext,
+    homeworkContext?: HomeworkWritingContext,
+): SoloProgressScopeContext {
+    if (practiceContext) {
+        return practiceContext;
+    }
+
+    if (homeworkContext) {
+        return {
+            mode: 'homework',
+            homeworkId: homeworkContext.homeworkId,
+            submissionId: homeworkContext.submissionId,
+        };
+    }
+
+    return { mode: 'self_study' };
+}
+
 // ── Component ──────────────────────────────────────────────
-export default function WritingPracticeView({ materialId, testData, homeworkContext, autoResume = false }: WritingPracticeViewProps) {
+export default function WritingPracticeView({
+    materialId,
+    testData,
+    practiceContext,
+    homeworkContext,
+    autoResume = false,
+}: WritingPracticeViewProps) {
     const { user } = useAuth();
     const navigate = useNavigate();
     const studentId = user?.uid || '';
@@ -192,7 +182,18 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     const { pasteAttemptCount, setPasteAttemptCount, attachToTextarea } = pastePrevention;
     pasteAttemptCountRef.current = pasteAttemptCount;
 
-    const saveKey = getSaveKey(materialId, studentId);
+    const writingScopeContext = useMemo(
+        () => resolveWritingScopeContext(practiceContext, homeworkContext),
+        [
+            homeworkContext?.homeworkId,
+            homeworkContext?.submissionId,
+            practiceContext?.courseId,
+            practiceContext?.homeworkId,
+            practiceContext?.mode,
+            practiceContext?.moduleId,
+            practiceContext?.submissionId,
+        ],
+    );
 
     const handleBack = useCallback(() => {
         void studentResumeService.clearResume();
@@ -204,7 +205,10 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         navigate(-1);
     }, [isHomework, navigate]);
 
-    const applySavedProgress = useCallback((saved: SavedPracticeState) => {
+    const hasValidHomeworkIdentity = !isHomework
+        || Boolean(homeworkContext?.homeworkId && homeworkContext?.submissionId);
+
+    const applySavedProgress = useCallback((saved: SavedWritingPracticeState) => {
         setEssays(saved.essays);
         setActiveTask(saved.activeTask);
 
@@ -221,7 +225,11 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     }, [homeworkContext?.startedAt, isHomework, setPasteAttemptCount, timerMinutes]);
 
     const resetPracticeSession = useCallback(() => {
-        clearPracticeState(saveKey);
+        void removeWritingProgress({
+            materialId,
+            studentId,
+            scopeContext: writingScopeContext,
+        });
         setEssays({ 1: '', 2: '' });
         setActiveTask(defaultTask);
         setPasteAttemptCount(0);
@@ -234,7 +242,16 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         timerExpiredRef.current = false;
         setTimeRemaining(getTimerSecondsRemaining(timerMinutes, isHomework ? nextStartedAt : null));
         setShowResumeModal(false);
-    }, [defaultTask, homeworkContext?.startedAt, isHomework, saveKey, setPasteAttemptCount, timerMinutes]);
+    }, [
+        defaultTask,
+        homeworkContext?.startedAt,
+        isHomework,
+        materialId,
+        setPasteAttemptCount,
+        studentId,
+        timerMinutes,
+        writingScopeContext,
+    ]);
 
     useEffect(() => {
         if (!isHomework || !homeworkContext?.homeworkId) {
@@ -263,19 +280,51 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     useEffect(() => {
         if (!studentId) return;
 
-        const saved = loadSavedState(saveKey);
-        if (saved) {
-            if (shouldForceResume || autoResume) {
-                applySavedProgress(saved);
-                setPersistenceReady(true);
-            } else {
-                setShowResumeModal(true);
+        let cancelled = false;
+
+        void (async () => {
+            const { progress } = await readWritingProgress({
+                materialId,
+                studentId,
+                scopeContext: writingScopeContext,
+            });
+
+            if (cancelled) {
+                return;
             }
-        } else {
+
+            if (progress) {
+                if (shouldForceResume || autoResume) {
+                    applySavedProgress(progress);
+                    setPersistenceReady(true);
+                } else {
+                    setShowResumeModal(true);
+                }
+                return;
+            }
+
             startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
             setPersistenceReady(true);
-        }
-    }, [applySavedProgress, autoResume, homeworkContext?.startedAt, saveKey, shouldForceResume, studentId]);
+        })().catch((error) => {
+            console.warn('[WritingPracticeView] Failed to load saved progress:', error);
+            if (!cancelled) {
+                startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
+                setPersistenceReady(true);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        applySavedProgress,
+        autoResume,
+        homeworkContext?.startedAt,
+        materialId,
+        shouldForceResume,
+        studentId,
+        writingScopeContext,
+    ]);
 
     useEffect(() => {
         essaysRef.current = essays;
@@ -395,28 +444,39 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         setAutoSaveStatus('saving');
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-            savePracticeState(saveKey, {
+            void writeWritingProgress({
+                materialId,
+                studentId,
+                scopeContext: writingScopeContext,
+            }, {
                 essays: updatedEssays,
                 activeTask: task,
                 startedAt: startedAtRef.current,
                 pasteAttemptCount: isHomework ? pasteAttemptCountRef.current : undefined,
+            }).then(() => {
+                setAutoSaveStatus('saved');
+            }).catch(() => {
+                console.warn('[WritingPracticeView] storage save failed');
             });
-            setAutoSaveStatus('saved');
         }, 2000);
-    }, [isHomework, saveKey]);
+    }, [isHomework, materialId, studentId, writingScopeContext]);
 
     useEffect(() => {
         if (!isHomework || !persistenceReady || !studentId) {
             return;
         }
 
-        savePracticeState(saveKey, {
+        void writeWritingProgress({
+            materialId,
+            studentId,
+            scopeContext: writingScopeContext,
+        }, {
             essays: essaysRef.current,
             activeTask: activeTaskRef.current,
             startedAt: startedAtRef.current,
             pasteAttemptCount,
         });
-    }, [isHomework, pasteAttemptCount, persistenceReady, saveKey, studentId]);
+    }, [isHomework, materialId, pasteAttemptCount, persistenceReady, studentId, writingScopeContext]);
 
     // ── Essay change handler ────────────────────────────────
     const handleEssayChange = useCallback((text: string) => {
@@ -430,7 +490,11 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     const handleTabSwitch = useCallback((taskNum: 1 | 2) => {
         // Flush pending saves
         clearTimeout(saveTimerRef.current);
-        savePracticeState(saveKey, {
+        void writeWritingProgress({
+            materialId,
+            studentId,
+            scopeContext: writingScopeContext,
+        }, {
             essays,
             activeTask: taskNum,
             startedAt: startedAtRef.current,
@@ -439,7 +503,7 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         setAutoSaveStatus('saved');
         activeTime.switchTask(taskNum);
         setActiveTask(taskNum);
-    }, [activeTime, essays, isHomework, pasteAttemptCount, saveKey]);
+    }, [activeTime, essays, isHomework, materialId, pasteAttemptCount, studentId, writingScopeContext]);
 
     // ── Word count helper ───────────────────────────────────
     const getWordCount = (text: string) =>
@@ -447,12 +511,17 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
 
     // ── Resume handlers ─────────────────────────────────────
     const handleResume = () => {
-        const saved = loadSavedState(saveKey);
-        if (saved) {
-            applySavedProgress(saved);
-        }
-        setPersistenceReady(true);
-        setShowResumeModal(false);
+        void readWritingProgress({
+            materialId,
+            studentId,
+            scopeContext: writingScopeContext,
+        }).then(({ progress }) => {
+            if (progress) {
+                applySavedProgress(progress);
+            }
+            setPersistenceReady(true);
+            setShowResumeModal(false);
+        });
     };
 
     const handleStartNew = () => {
@@ -586,8 +655,11 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
                 ).catch(err => console.warn('[WritingPracticeView] Teacher notification failed:', err));
             }
 
-            // Clear localStorage
-            clearPracticeState(saveKey);
+            void removeWritingProgress({
+                materialId,
+                studentId,
+                scopeContext: writingScopeContext,
+            });
             void studentResumeService.clearResume();
             setSubmitted(true);
 
@@ -623,13 +695,14 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
         homeworkDueDate,
         homeworkLateAllowed,
         isHomework,
+        materialId,
         navigate,
         pasteAttemptCount,
-        saveKey,
         studentId,
         studentName,
         teachers,
         testData,
+        writingScopeContext,
     ]);
 
     useEffect(() => {
@@ -674,6 +747,22 @@ export default function WritingPracticeView({ materialId, testData, homeworkCont
     // (see handleSubmit above). The submitted state is only used to disable inputs.
 
     // ── Homework: deadline check (hard block) ────────────────
+    if (!hasValidHomeworkIdentity) {
+        return (
+            <div className="wpv-submitted-overlay">
+                <style>{`.wpv-submitted-overlay div:first-of-type { display: none; }`}</style>
+                <div style={{ fontSize: 64 }}>âš ï¸</div>
+                <div style={{ fontSize: 64 }}>!</div>
+                <h1>Homework Unavailable</h1>
+                <p>This homework launch is missing attempt details. Please reopen it from the homework page.</p>
+                <button className="wpv-done-btn" onClick={handleBack} style={{ fontSize: 0 }}>
+                    â† Back to Homework
+                    <span style={{ fontSize: '1rem' }}>Back to Homework</span>
+                </button>
+            </div>
+        );
+    }
+
     if (isHomework && homeworkDueDate && !homeworkLateAllowed && Date.now() > homeworkDueDate) {
         return (
             <div className="wpv-submitted-overlay">

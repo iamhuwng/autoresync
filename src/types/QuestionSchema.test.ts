@@ -15,6 +15,7 @@ import {
     type QuestionType,
     type Question,
     type CompletionQuestion,
+    type DerivedTableBlankQuestionRecord,
     type TrueFalseQuestion,
     type MatchingQuestion,
     type ChoiceQuestion,
@@ -582,5 +583,26 @@ describe('Edge Cases', () => {
         const validation = validateQuestion(question);
 
         expect(validation.valid).toBe(true);
+    });
+
+    it('supports canonical table blank linkage fields on derived table records', () => {
+        const question: DerivedTableBlankQuestionRecord = {
+            ...createCompletionQuestion({
+                type: 'table-completion',
+                questionText: 'Native region: ___',
+                answer: 'China',
+            }),
+            groupId: 'group-1',
+            blankId: 'blank-1',
+            anchorId: 'anchor-1',
+            groupTaskType: 'table-completion',
+            sectionInstructionId: 'group-1',
+            acceptableAnswers: ['China'],
+            tableGroupSchemaVersion: 1,
+        };
+
+        expect(question.groupId).toBe('group-1');
+        expect(question.sectionInstructionId).toBe('group-1');
+        expect(question.groupTaskType).toBe('table-completion');
     });
 });

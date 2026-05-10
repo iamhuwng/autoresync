@@ -29,6 +29,8 @@ import {
   getFirstUnansweredReadingQuestionGroupStart,
   groupReadingQuestionsByTaskType,
 } from '../readingQuestionGroups';
+import type { QuestionGroupsField } from '../../../types/tableCompletion';
+import { isReadingAnswerEmpty } from '../readingAnswerState';
 
 // ── Scaffold Props (PRD Section 7.2a + 7.3 host-owned state contract) ─────────
 
@@ -47,6 +49,7 @@ export interface MobileReadingExamScaffoldProps {
     type: string;
     [key: string]: unknown;
   }>;
+  questionGroups?: QuestionGroupsField;
   /** Total question count */
   totalQuestions: number;
 
@@ -214,6 +217,7 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
     mode,
     passages,
     questions,
+    questionGroups = [],
     activePassageId,
     onPassageChange,
     currentPassage,
@@ -284,12 +288,12 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
   );
 
   const activePassageQuestionGroups = useMemo(
-    () => groupReadingQuestionsByTaskType(activePassageQuestions),
-    [activePassageQuestions],
+    () => groupReadingQuestionsByTaskType(activePassageQuestions, questionGroups),
+    [activePassageQuestions, questionGroups],
   );
 
   const passageAnsweredCount = useMemo(
-    () => activePassageQuestions.filter(q => answers[q.number] !== undefined && answers[q.number] !== '').length,
+    () => activePassageQuestions.filter((q) => !isReadingAnswerEmpty(answers[q.number])).length,
     [activePassageQuestions, answers],
   );
 
@@ -299,7 +303,7 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
   const passageAnsweredSet = useMemo(() => {
     const set = new Set<number>();
     activePassageQuestions.forEach(q => {
-      if (answers[q.number] !== undefined && answers[q.number] !== '') {
+      if (!isReadingAnswerEmpty(answers[q.number])) {
         set.add(q.number);
       }
     });
@@ -522,7 +526,7 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
   const handleReviewQuestionChipTap = useCallback((passageId: string, questionNumber: number) => {
     const targetPassageQuestions = questions.filter((question) => question.passageId === passageId);
     const targetQuestionGroupStart = findReadingQuestionGroupStart(
-      groupReadingQuestionsByTaskType(targetPassageQuestions),
+      groupReadingQuestionsByTaskType(targetPassageQuestions, questionGroups),
       questionNumber,
     ) ?? questionNumber;
 
@@ -540,6 +544,7 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
     onOpenQuestionSheet,
     onPassageChange,
     onQuestionClick,
+    questionGroups,
     questions,
   ]);
 
@@ -741,6 +746,7 @@ export const MobileReadingExamScaffold: React.FC<MobileReadingExamScaffoldProps>
         <div ref={sheetBodyRef} style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }} onScroll={handleSheetBodyScroll} data-testid="mobile-sheet-question-body">
           <IELTSQuestionsPanel
             questions={questions as any}
+            questionGroups={questionGroups}
             currentPassageId={activePassageId}
             answers={answers}
             onAnswerChange={onAnswerChange}

@@ -118,6 +118,7 @@ vi.mock('../IELTSQuestionsPanel', () => ({
       data-active-question={props.activeQuestionNumber}
       data-font-size={props.fontSize}
       data-line-spacing={props.lineSpacing}
+      data-question-groups={props.questionGroups?.length ?? 0}
     >
       <button
         data-testid="mock-panel-layout-sync"
@@ -156,6 +157,7 @@ function makeBaseProps(overrides: Partial<any> = {}) {
       { number: 4, passageId: 'p2', type: 'multiple-choice' },
       { number: 5, passageId: 'p2', type: 'multiple-choice' },
     ],
+    questionGroups: [],
     totalQuestions: 5,
     activePassageId: 'p1',
     onPassageChange: vi.fn(),
@@ -270,6 +272,15 @@ describe('MobileReadingExamScaffold', () => {
     expect(fab.getAttribute('data-unanswered')).toBe('1');
   });
 
+  it('treats whitespace-only answers as unanswered in the FAB counts', () => {
+    render(<MobileReadingExamScaffold {...makeBaseProps({
+      answers: { 1: 'TRUE', 2: '   ' },
+    })} />);
+    const fab = screen.getByTestId('mock-fab');
+    expect(fab.getAttribute('data-answered')).toBe('1');
+    expect(fab.getAttribute('data-unanswered')).toBe('2');
+  });
+
   it('FAB onPress calls onOpenQuestionSheet', () => {
     const onOpen = vi.fn();
     render(<MobileReadingExamScaffold {...makeBaseProps({ onOpenQuestionSheet: onOpen })} />);
@@ -331,6 +342,13 @@ describe('MobileReadingExamScaffold', () => {
     const panel = screen.getByTestId('mock-questions-panel');
     expect(panel.getAttribute('data-embedded')).toBe('true');
     expect(panel.getAttribute('data-passage')).toBe('p1');
+  });
+
+  it('passes canonical questionGroups through to the embedded questions panel', () => {
+    render(<MobileReadingExamScaffold {...makeBaseProps({
+      questionGroups: [{ groupId: 'group-1' }],
+    })} />);
+    expect(screen.getByTestId('mock-questions-panel').getAttribute('data-question-groups')).toBe('1');
   });
 
   it('keeps only the compact navigator row at the top of the question sheet', () => {

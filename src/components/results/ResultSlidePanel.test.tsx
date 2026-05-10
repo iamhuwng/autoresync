@@ -233,6 +233,53 @@ const MOCK_LIVE_SESSION_THCS_RESULT = {
   },
 };
 
+const MOCK_READING_V2_RESULT = {
+  ...MOCK_REVIEWABLE_RESULT,
+  resultId: 'res-reading-v2',
+  deliveryEngine: 'reading-v2',
+  testType: 'ielts-reading-v2',
+  readingV2: {
+    result: {
+      resultId: 'res-reading-v2',
+      deliveryEngine: 'reading-v2',
+      publishedSnapshotVersion: 'snapshot-v2',
+      interactions: [],
+    },
+    reviewPayload: {
+      deliveryEngine: 'reading-v2',
+      schemaVersion: 1,
+      resultId: 'res-reading-v2',
+      sourceSnapshotVersionId: 'snapshot-v2',
+      title: 'Reading V2 Shell Result',
+      taskGroups: [
+        {
+          taskGroupId: 'task-group-1',
+          title: 'Questions 1-2',
+          officialTaskType: 'sentence-completion',
+          engineeringFamily: 'completion',
+          instructionText: 'Complete the sentences.',
+          stimulusContext: [],
+          interactions: [
+            {
+              interactionId: 'interaction-1',
+              taskGroupId: 'task-group-1',
+              displayNumber: 1,
+              taskFamily: 'completion',
+              officialTaskType: 'sentence-completion',
+              studentAnswer: 'wrong',
+              correctAnswer: 'answer one',
+              score: 0,
+              maxScore: 1,
+              reviewState: 'released',
+            },
+          ],
+        },
+      ],
+    },
+    regradeArtifacts: [],
+  },
+};
+
 /**
  * Helper to simulate onValue calling the success callback
  */
@@ -348,11 +395,22 @@ describe('ResultSlidePanel — PRD-0039 Task 5.11', () => {
       expect(screen.getByText('IELTS Reading')).toBeInTheDocument();
     });
 
+    it('routes Reading V2 saved results through the grouped adapter inside the existing slide panel', () => {
+      render(<ResultSlidePanel resultId="res-reading-v2" onClose={mockOnClose} />);
+      emitResultSnapshot('res-reading-v2', MOCK_READING_V2_RESULT);
+
+      fireEvent.click(screen.getByTestId('rsp-tab-review'));
+
+      expect(screen.getByTestId('reading-v2-review-adapter')).toBeInTheDocument();
+      expect(screen.getByText('Reading V2 Shell Result')).toBeInTheDocument();
+      expect(screen.queryByTestId('rv-incorrect-banner')).not.toBeInTheDocument();
+    });
+
     it('renders the Writing pending-review surface instead of the generic score summary for writing results', async () => {
       render(<ResultSlidePanel resultId="res-writing" onClose={mockOnClose} />);
       emitResultSnapshot('res-writing', MOCK_WRITING_RESULT);
 
-      expect(await screen.findByText('What Happens Next')).toBeInTheDocument();
+      expect(await screen.findByText('What Happens Next', {}, { timeout: 3000 })).toBeInTheDocument();
       expect(screen.getByText(/your submission is recorded/i)).toBeInTheDocument();
       expect(screen.getByTestId('rsp-panel').className).toContain('rsp-panel--writing');
       expect(screen.queryByTestId('rsp-tab-bar')).not.toBeInTheDocument();

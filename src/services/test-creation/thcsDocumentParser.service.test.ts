@@ -6,6 +6,7 @@
  * rules (cite markers, markdown headers, whitespace) still work.
  */
 import { describe, it, expect } from 'vitest';
+import { repairParsedSectionStructure } from './thcsDocumentParser.service';
 
 // preCleanText is not exported, so we replicate its logic for testing.
 // This ensures the test stays in sync with the actual implementation.
@@ -295,5 +296,126 @@ describe('PASSAGE: Block Extraction (PRD-0032)', () => {
         const result = extractPassageFromLines(lines);
         expect(result.passageText).toBeUndefined();
         expect(result.instructionText).toBe('Choose the best answer.');
+    });
+});
+
+describe('repairParsedSectionStructure', () => {
+    it('merges a passage-only reading section with its orphaned question carrier', () => {
+        const sourceText = `V. READING COMPREHENSION [TYPE: reading-comprehension]
+Read the following passage and mark the best answer to each question from 23 to 24.
+
+PASSAGE:
+Traveling responsibly means exploring new destinations while contributing positively to local environments.
+
+Question 23. Which of the following is NOT mentioned as a way to support conservation projects while traveling?
+A. Volunteering for beach cleanup activities
+B. Attending educational workshops with indigenous communities
+C. Using smartphone applications to document wildlife
+D. Shopping for locally made sustainable products
+
+Question 24. The word {{their}} in paragraph 1 refers to _______.
+A. tourists
+B. local environments
+C. new destinations
+D. conservation projects`;
+
+        const sections: any[] = [
+            {
+                name: 'V. READING COMPREHENSION [TYPE: reading-comprehension]',
+                instructionText: 'Read the following passage and mark the best answer to each question from 23 to 24.',
+                startLine: 0,
+                endLine: 8,
+                questions: [],
+                detectedType: 'mcq-grammar',
+                typeConfidence: 60,
+                passageText: 'Traveling responsibly means exploring new destinations while contributing positively to local environments.',
+            },
+            {
+                name: 'MCQ Grammar',
+                instructionText: '',
+                startLine: 9,
+                endLine: 20,
+                detectedType: 'mcq-grammar',
+                typeConfidence: 60,
+                questions: [
+                    { questionNumber: 23, text: '', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'] },
+                    { questionNumber: 24, text: '', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'] },
+                ],
+            },
+        ];
+
+        const stats = repairParsedSectionStructure(sections, sourceText);
+
+        expect(stats).toEqual({ mergedOrphanReadingSections: 1, backfilledQuestionTexts: 2 });
+        expect(sections).toHaveLength(1);
+        expect(sections[0].detectedType).toBe('reading-comprehension');
+        expect(sections[0].questions).toHaveLength(2);
+        expect(sections[0].questions[0].type).toBe('reading-comprehension');
+        expect(sections[0].questions[0].text).toContain('NOT mentioned');
+        expect(sections[0].questions[1].text).toContain('The word {{their}}');
+    });
+
+    it('does not merge a reading section when the next section has a different question range', () => {
+        const sections: any[] = [
+            {
+                name: 'V. READING COMPREHENSION [TYPE: reading-comprehension]',
+                instructionText: 'Read the passage and answer questions from 23 to 30.',
+                startLine: 0,
+                endLine: 8,
+                questions: [],
+                detectedType: 'reading-comprehension',
+                typeConfidence: 90,
+                passageText: 'A real passage.',
+            },
+            {
+                name: 'VI. READING COMPREHENSION [TYPE: reading-comprehension]',
+                instructionText: '',
+                startLine: 9,
+                endLine: 20,
+                detectedType: 'reading-comprehension',
+                typeConfidence: 90,
+                questions: [
+                    { questionNumber: 31, text: 'What is the main idea?', type: 'reading-comprehension', options: ['A', 'B', 'C', 'D'] },
+                ],
+            },
+        ];
+
+        const stats = repairParsedSectionStructure(sections);
+
+        expect(stats).toEqual({ mergedOrphanReadingSections: 0, backfilledQuestionTexts: 0 });
+        expect(sections).toHaveLength(2);
+    });
+
+    it('does not merge a reading section when the next question block has a numbering gap', () => {
+        const sections: any[] = [
+            {
+                name: 'V. READING COMPREHENSION [TYPE: reading-comprehension]',
+                instructionText: 'Read the passage and answer questions from 23 to 26.',
+                startLine: 0,
+                endLine: 8,
+                questions: [],
+                detectedType: 'reading-comprehension',
+                typeConfidence: 90,
+                passageText: 'A real passage.',
+            },
+            {
+                name: 'MCQ Grammar',
+                instructionText: '',
+                startLine: 9,
+                endLine: 20,
+                detectedType: 'mcq-grammar',
+                typeConfidence: 60,
+                questions: [
+                    { questionNumber: 23, text: 'First question?', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'] },
+                    { questionNumber: 24, text: 'Second question?', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'] },
+                    { questionNumber: 26, text: 'Fourth question?', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'] },
+                ],
+            },
+        ];
+
+        const stats = repairParsedSectionStructure(sections);
+
+        expect(stats).toEqual({ mergedOrphanReadingSections: 0, backfilledQuestionTexts: 0 });
+        expect(sections).toHaveLength(2);
     });
 });

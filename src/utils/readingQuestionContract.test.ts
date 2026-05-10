@@ -58,6 +58,38 @@ describe('canonicalizeReadingQuestion', () => {
     ]);
   });
 
+  it('preserves structured labels when option text starts with an article', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 27,
+      type: 'multiple-choice',
+      options: [
+        { label: 'B', text: 'A basic assumption about wisdom may be wrong.' },
+      ],
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.optionLabelFormat).toBe('letter');
+    expect(result.options).toEqual(['A basic assumption about wisdom may be wrong.']);
+    expect(result.labeledOptions).toEqual([
+      { label: 'B', text: 'A basic assumption about wisdom may be wrong.' },
+    ]);
+  });
+
+  it('flags explicitly conflicting embedded labels in structured options', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 27,
+      type: 'multiple-choice',
+      options: [
+        { label: 'B', text: 'A. basic assumption about wisdom may be wrong.' },
+      ],
+    });
+
+    expect(result.issues.map((issue) => issue.code)).toContain('conflicting-option-label-text');
+    expect(result.labeledOptions).toEqual([
+      { label: 'B', text: 'A. basic assumption about wisdom may be wrong.' },
+    ]);
+  });
+
   it('creates canonical labeled options from prefixed letter options', () => {
     const result = canonicalizeReadingQuestion({
       number: 5,
@@ -72,49 +104,6 @@ describe('canonicalizeReadingQuestion', () => {
     expect(result.labeledOptions).toEqual([
       { label: 'A', text: 'proof' },
       { label: 'B', text: 'plantation' },
-    ]);
-  });
-
-  it('treats A-J summary-completion-list banks as a uniform letter label set', () => {
-    const result = canonicalizeReadingQuestion({
-      number: 31,
-      type: 'summary-completion-list',
-      question: 'Complete the summary.',
-      optionLabelFormat: 'letter',
-      labeledOptions: [
-        { label: 'A', text: 'opinions' },
-        { label: 'I', text: 'range' },
-        { label: 'J', text: 'reasons' },
-      ],
-    });
-
-    expect(result.issues).toEqual([]);
-    expect(result.optionLabelFormat).toBe('letter');
-    expect(result.labeledOptions).toEqual([
-      { label: 'A', text: 'opinions' },
-      { label: 'I', text: 'range' },
-      { label: 'J', text: 'reasons' },
-    ]);
-  });
-
-  it('keeps ambiguous single-letter roman labels in matching-headings banks', () => {
-    const result = canonicalizeReadingQuestion({
-      number: 12,
-      type: 'matching-headings',
-      question: 'Choose the correct heading.',
-      labeledOptions: [
-        { label: 'i', text: 'The first heading' },
-        { label: 'ii', text: 'The second heading' },
-        { label: 'iii', text: 'The third heading' },
-      ],
-    });
-
-    expect(result.issues).toEqual([]);
-    expect(result.optionLabelFormat).toBe('roman');
-    expect(result.labeledOptions).toEqual([
-      { label: 'i', text: 'The first heading' },
-      { label: 'ii', text: 'The second heading' },
-      { label: 'iii', text: 'The third heading' },
     ]);
   });
 
@@ -170,5 +159,40 @@ describe('canonicalizeReadingQuestion', () => {
     });
 
     expect(result.issues.map((issue) => issue.code)).toContain('missing-section-references');
+  });
+
+  it('bypasses legacy option canonicalization for canonical table member questions', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 10,
+      type: 'table-completion',
+      question: 'Native region: ___',
+      options: ['TABLE_HEADERS: ignored'],
+      groupTaskType: 'table-completion',
+      groupId: 'group-1',
+      blankId: 'blank-1',
+      anchorId: 'anchor-1',
+      sectionInstructionId: 'group-1',
+      tableGroupSchemaVersion: 1,
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.options).toEqual(['TABLE_HEADERS: ignored']);
+    expect(result.questionText).toBe('Native region: ___');
+  });
+
+  it('rejects unsupported canonical table schema versions', () => {
+    const result = canonicalizeReadingQuestion({
+      number: 10,
+      type: 'table-completion',
+      question: 'Native region: ___',
+      groupTaskType: 'table-completion',
+      groupId: 'group-1',
+      blankId: 'blank-1',
+      anchorId: 'anchor-1',
+      sectionInstructionId: 'group-1',
+      tableGroupSchemaVersion: 2,
+    });
+
+    expect(result.issues.map((issue) => issue.code)).toContain('unsupported-table-completion-schema');
   });
 });

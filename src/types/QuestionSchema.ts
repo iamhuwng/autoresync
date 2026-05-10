@@ -167,6 +167,8 @@ export interface BaseQuestion {
     displayHints: DisplayHints;
     /** Associated passage ID */
     passageId?: string;
+    /** Compatibility link to grouped section instructions */
+    sectionInstructionId?: string;
     /** Points for this question */
     points: number;
     /** Time limit in seconds (optional) */
@@ -229,6 +231,17 @@ export interface CompletionQuestion extends BaseQuestion {
         columns?: string[];
         headers?: string[];
     };
+}
+
+export interface DerivedTableBlankQuestionRecord extends CompletionQuestion {
+    type: 'table-completion';
+    groupId: string;
+    blankId: string;
+    anchorId: string;
+    groupTaskType: 'table-completion';
+    sectionInstructionId: string;
+    acceptableAnswers?: string[];
+    tableGroupSchemaVersion: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

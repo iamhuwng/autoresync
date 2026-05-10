@@ -5,7 +5,7 @@
  * Displays confidence, section breakdown, answer key grid, and ambiguous items.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, Text, Badge, Group, Alert, SimpleGrid, Textarea, Button } from '@mantine/core';
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
 import type { THCSQuestionType } from '../../types/thcs-test.types';
@@ -62,12 +62,20 @@ interface THCSParseReviewPanelProps {
     parsedTest: ParsedTest;
     onBack: () => void;
     onProceed: (parsedTest: ParsedTest) => void;
+    onChange?: (parsedTest: ParsedTest) => void;
+    showActions?: boolean;
 }
 
 const CONFIDENCE_COLOR = (c: number) => c >= 80 ? 'green' : c >= 60 ? 'yellow' : 'red';
 const CONFIDENCE_ICON = (c: number) => c >= 80 ? '✅' : '⚠️';
 
-export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSParseReviewPanelProps) {
+export function THCSParseReviewPanel({
+    parsedTest,
+    onBack,
+    onProceed,
+    onChange,
+    showActions = true,
+}: THCSParseReviewPanelProps) {
     const [editedTest, setEditedTest] = useState<ParsedTest>(parsedTest);
     const [showPasteKeys, setShowPasteKeys] = useState(false);
     const [pasteText, setPasteText] = useState('');
@@ -77,6 +85,14 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
     const missingAnswers = totalQuestions - answeredCount;
     const [showAuditLog, setShowAuditLog] = useState(false);
     const debug = editedTest._pipelineDebug;
+
+    useEffect(() => {
+        setEditedTest(parsedTest);
+    }, [parsedTest]);
+
+    useEffect(() => {
+        onChange?.(editedTest);
+    }, [editedTest, onChange]);
 
     // Check if a section was compromised
     const isCompromised = (si: number) => debug?.compromisedSections?.some(c => c.sectionIndex === si);
@@ -335,23 +351,24 @@ export function THCSParseReviewPanel({ parsedTest, onBack, onProceed }: THCSPars
                     )}
                 </div>
             )}
-            {/* Actions */}
-            <Group justify="space-between" mt="md">
-                <Button
-                    variant="subtle"
-                    leftSection={<IconArrowLeft size={16} />}
-                    onClick={onBack}
-                >
-                    ← Back
-                </Button>
-                <Button
-                    color="violet"
-                    rightSection={<IconArrowRight size={16} />}
-                    onClick={() => onProceed(editedTest)}
-                >
-                    Edit in Full Editor →
-                </Button>
-            </Group>
+            {showActions && (
+                <Group justify="space-between" mt="md">
+                    <Button
+                        variant="subtle"
+                        leftSection={<IconArrowLeft size={16} />}
+                        onClick={onBack}
+                    >
+                        ← Back
+                    </Button>
+                    <Button
+                        color="violet"
+                        rightSection={<IconArrowRight size={16} />}
+                        onClick={() => onProceed(editedTest)}
+                    >
+                        Edit in Full Editor →
+                    </Button>
+                </Group>
+            )}
         </Stack>
     );
 }

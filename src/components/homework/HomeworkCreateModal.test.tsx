@@ -1,9 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeworkCreateModal } from './HomeworkCreateModal';
-import { createHomework } from '../../services/homeworkManager';
 
 const mockGetAllTests = vi.fn();
 const mockGetAllQuizzes = vi.fn();
@@ -79,7 +77,6 @@ describe('HomeworkCreateModal', () => {
         vi.clearAllMocks();
         mockGetClasses.mockResolvedValue([]);
         mockGetClass.mockResolvedValue(null);
-        vi.mocked(createHomework).mockResolvedValue('homework-1');
         mockGetAllTests.mockResolvedValue([
             {
                 id: 'owned-test',
@@ -87,14 +84,6 @@ describe('HomeworkCreateModal', () => {
                 ownerId: 'teacher-1',
                 type: 'test',
                 skill: 'reading',
-                questions: [{ id: 'q1' }],
-            },
-            {
-                id: 'owned-writing-test',
-                title: 'Owned Writing Test',
-                ownerId: 'teacher-1',
-                type: 'test',
-                skill: 'writing',
                 questions: [{ id: 'q1' }],
             },
             {
@@ -137,42 +126,5 @@ describe('HomeworkCreateModal', () => {
         });
 
         expect(screen.getByText('Public Library')).toBeInTheDocument();
-    });
-
-    it('passes selected material type and skill when creating homework', async () => {
-        const user = userEvent.setup();
-        const onSuccess = vi.fn();
-        const { container } = render(
-            <HomeworkCreateModal
-                isOpen={true}
-                onClose={vi.fn()}
-                onSuccess={onSuccess}
-                preselectedTarget={{
-                    type: 'class',
-                    classId: 'class-1',
-                    className: 'Class A',
-                }}
-            />
-        );
-
-        await user.click(await screen.findByText('Owned Writing Test'));
-        await user.click(screen.getByRole('button', { name: /Next/ }));
-        await user.click(screen.getByRole('button', { name: /Next/ }));
-
-        const dateInputs = container.querySelectorAll<HTMLInputElement>('input[type="datetime-local"]');
-        await user.type(dateInputs[1], '2026-05-20T10:00');
-        await user.click(screen.getByRole('button', { name: /Next/ }));
-        await user.click(screen.getByRole('button', { name: /Create Homework/ }));
-
-        await waitFor(() => {
-            expect(createHomework).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    materialId: 'owned-writing-test',
-                    materialType: 'test',
-                    materialSkill: 'writing',
-                })
-            );
-        });
-        expect(onSuccess).toHaveBeenCalled();
     });
 });

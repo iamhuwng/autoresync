@@ -20,6 +20,8 @@ export interface THCSWizardStepperProps {
     saveStatusText?: string;
     /** Save status color */
     saveStatusColor?: string;
+    /** When embedded, strip glass card chrome so it blends into the parent modal */
+    presentation?: 'page' | 'embedded';
 }
 
 const THCSWizardStepper: React.FC<THCSWizardStepperProps> = ({
@@ -29,14 +31,20 @@ const THCSWizardStepper: React.FC<THCSWizardStepperProps> = ({
     onStepClick,
     saveStatusText,
     saveStatusColor = '#94a3b8',
+    presentation = 'page',
 }) => {
+    const isEmbedded = presentation === 'embedded';
     const isClickable = (idx: number) => {
         if (freeNavigation) return true;
         return idx < currentStep; // Only completed steps are clickable in sequential mode
     };
 
     return (
-        <div style={{
+        <div style={isEmbedded ? {
+            position: 'relative',
+            padding: '0.5rem 0',
+            marginBottom: '1rem',
+        } : {
             position: 'relative',
             padding: '1rem 1.5rem',
             background: 'rgba(255,255,255,0.5)',
@@ -169,7 +177,7 @@ const THCSWizardStepper: React.FC<THCSWizardStepperProps> = ({
 
 export const WIZARD_STEPS: WizardStep[] = [
     { label: 'Test Setup', icon: '📋' },
-    { label: 'Questions', icon: '✏️' },
+    { label: 'Build Test', icon: '✏️' },
     { label: 'Answer Key', icon: '🔑' },
     { label: 'Review & Publish', icon: '✅' },
 ];

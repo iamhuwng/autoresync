@@ -15,6 +15,7 @@ import { THCSPreviewOverlay } from './THCSPreviewOverlay';
 import { THCSVersionDropdown } from './THCSVersionDropdown';
 import { THCSSaveTemplateModal } from './THCSSaveTemplateModal';
 import type { THCSTestMetadata, THCSSection, THCSTest } from '../../types/thcs-test.types';
+import type { ParsedMetadataConflict } from '../../pages/THCSTestEditorPage';
 
 export interface THCSReviewStepProps {
     metadata: THCSTestMetadata;
@@ -33,6 +34,9 @@ export interface THCSReviewStepProps {
     onDuplicate: () => void;
     onSetShowPublishWarnings: (val: boolean) => void;
     onIsPublicChange: (value: boolean) => void;
+    parsedMetadataConflicts?: ParsedMetadataConflict[];
+    onApplyParsedMetadata?: () => void;
+    onDismissParsedMetadataConflicts?: () => void;
 }
 
 const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
@@ -52,6 +56,9 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
     onDuplicate,
     onSetShowPublishWarnings,
     onIsPublicChange,
+    parsedMetadataConflicts = [],
+    onApplyParsedMetadata,
+    onDismissParsedMetadataConflicts,
 }) => {
     const [showPreview, setShowPreview] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -199,6 +206,57 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                             {isValid ? '✅ Ready to publish' : '⚠️ Fix issues before publishing'}
                         </div>
                     </div>
+
+                    {parsedMetadataConflicts.length > 0 && (
+                        <div style={{
+                            ...cardStyle,
+                            borderColor: 'rgba(59,130,246,0.2)',
+                            background: 'rgba(239,246,255,0.9)',
+                        }}>
+                            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 700, color: '#1d4ed8' }}>
+                                Review Parsed Metadata
+                            </h3>
+                            <p style={{
+                                margin: '0 0 0.75rem',
+                                fontSize: '0.8125rem',
+                                lineHeight: 1.5,
+                                color: '#334155',
+                            }}>
+                                The imported document suggests different test information. Your step-1 setup is still active. Choose whether to keep it or apply the parsed values before publishing.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                                {parsedMetadataConflicts.map((conflict) => (
+                                    <div
+                                        key={conflict.field}
+                                        style={{
+                                            padding: '0.625rem 0.75rem',
+                                            borderRadius: '0.625rem',
+                                            background: '#fff',
+                                            border: '1px solid rgba(59,130,246,0.14)',
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.25rem' }}>
+                                            {conflict.label}
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 }}>
+                                            Current setup: <strong>{conflict.currentValue}</strong>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 }}>
+                                            Parsed document: <strong>{conflict.parsedValue}</strong>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <Button variant="glass" onClick={onDismissParsedMetadataConflicts}>
+                                    Keep Current Setup
+                                </Button>
+                                <Button variant="primary" onClick={onApplyParsedMetadata}>
+                                    Apply Parsed Values
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Warnings if any */}
                     {warnings.length > 0 && (

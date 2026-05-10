@@ -124,7 +124,35 @@ describe('StudentLayout', () => {
         );
 
         expect(screen.getByText('IELTS Class 5')).toBeInTheDocument();
-        expect(screen.getByText('8 Students · 2 Active')).toBeInTheDocument();
+        expect(screen.getByText((_, node) => node?.textContent === '8 Students · 2 Active')).toBeInTheDocument();
+    });
+
+    it('joins a live session from the shared default right rail', () => {
+        vi.mocked(studentShellHooks.useStudentShellData).mockReturnValue(makeShellData({
+            classLiveSessions: [{
+                code: 'LIVE123',
+                classId: 'cls-1',
+                className: 'IELTS Class',
+                createdAt: Date.now(),
+                mode: 'test',
+                status: 'waiting',
+                title: 'Live IELTS Reading',
+            }],
+        }));
+
+        render(
+            <StudentLayout mobileTitle="Library" sidebar={<div>Sidebar</div>}>
+                <div>Main Content</div>
+            </StudentLayout>,
+        );
+
+        fireEvent.click(screen.getByText('Live IELTS Reading'));
+
+        expect(mockNavigateTo).toHaveBeenCalledWith(
+            'STUDENT_WAITING',
+            { gameSessionId: 'LIVE123' },
+            { reason: 'student_shell_right_rail_join' },
+        );
     });
 
     it('uses the shared live and up-next module pattern for the dashboard right rail', () => {
@@ -255,5 +283,35 @@ describe('StudentLayout', () => {
 
         expect(rightRail).toHaveStyle({ transform: 'translateX(0)' });
         expect(screen.getByText('Mobile Reading Practice')).toBeInTheDocument();
+    });
+
+    it('joins a live session from the shared right rail drawer on mobile', () => {
+        vi.mocked(mediaQueryHooks.useMediaQuery).mockReturnValue(true);
+        vi.mocked(studentShellHooks.useStudentShellData).mockReturnValue(makeShellData({
+            classLiveSessions: [{
+                code: 'LIVE123',
+                classId: 'cls-1',
+                className: 'IELTS Class',
+                createdAt: Date.now(),
+                mode: 'test',
+                status: 'waiting',
+                title: 'Live IELTS Reading',
+            }],
+        }));
+
+        render(
+            <StudentLayout mobileTitle="Library" sidebar={<div>Sidebar</div>}>
+                <div>Main Content</div>
+            </StudentLayout>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /open right rail/i }));
+        fireEvent.click(screen.getByText('Live IELTS Reading'));
+
+        expect(mockNavigateTo).toHaveBeenCalledWith(
+            'STUDENT_WAITING',
+            { gameSessionId: 'LIVE123' },
+            { reason: 'student_shell_right_rail_join' },
+        );
     });
 });

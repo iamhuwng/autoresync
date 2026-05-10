@@ -1,8 +1,16 @@
+import { buildTableCompletionSectionInstruction } from '../../services/test-creation/tableCompletionTransforms';
+import type { QuestionGroupsField, TableCompletionGroupV1 } from '../../types/tableCompletion';
+
+import { isReadingAnswerEmpty } from './readingAnswerState';
+
 interface ReadingQuestionLike {
   number: number;
   type: string;
+  passageId?: string;
   wordLimit?: number;
   summaryGroupId?: string;
+  groupId?: string;
+  groupTaskType?: 'table-completion';
 }
 
 export interface ReadingQuestionGroup<TQuestion extends ReadingQuestionLike = ReadingQuestionLike> {
@@ -11,6 +19,7 @@ export interface ReadingQuestionGroup<TQuestion extends ReadingQuestionLike = Re
   type: string;
   questions: TQuestion[];
   instructions: string;
+  canonicalGroup?: TableCompletionGroupV1;
 }
 
 const getTaskInstructions = (
@@ -54,64 +63,54 @@ const getTaskInstructions = (
   return instructionMap[type] || `${range}\n\nAnswer the following questions.`;
 };
 
+const getCanonicalTableGroupsForQuestions = <TQuestion extends ReadingQuestionLike>(
+  questions: TQuestion[],
+  questionGroups: QuestionGroupsField,
+): TableCompletionGroupV1[] => {
+  if (questions.length === 0 || questionGroups.length === 0) {
+    return [];
+  }
+
+  const questionNumbers = new Set(questions.map((question) => question.number));
+  const questionPassageIds = new Set(
+    questions
+      .map((question) => question.passageId)
+      .filter((passageId): passageId is string => typeof passageId === 'string' && passageId.length > 0),
+  );
+
+  return questionGroups.filter((group) => {
+    if (questionPassageIds.size > 0 && !questionPassageIds.has(group.passageId)) {
+      return false;
+    }
+
+    return group.blanks.some((blank) => questionNumbers.has(blank.questionNumber));
+  });
+};
+
 export const groupReadingQuestionsByTaskType = <TQuestion extends ReadingQuestionLike>(
   questions: TQuestion[],
+  questionGroups: QuestionGroupsField = [],
 ): ReadingQuestionGroup<TQuestion>[] => {
   if (questions.length === 0) {
     return [];
   }
 
-  const firstQuestion = questions[0];
-  if (!firstQuestion) {
-    return [];
-  }
-
+  const canonicalGroups = getCanonicalTableGroupsForQuestions(questions, questionGroups);
+  const canonicalGroupsById = new Map(
+    canonicalGroups.map((group) => [group.groupId, group] as const),
+  );
+  const consumedCanonicalGroupIds = new Set<string>();
+  const sortedQuestions = [...questions].sort((left, right) => left.number - right.number);
   const groups: ReadingQuestionGroup<TQuestion>[] = [];
-  let currentGroup: TQuestion[] = [firstQuestion];
-  let currentType = firstQuestion.type;
-  let currentSummaryGroupId = firstQuestion.summaryGroupId;
 
-  for (let i = 1; i < questions.length; i += 1) {
-    const question = questions[i];
-    if (!question) {
-      continue;
-    }
-
-    const isSameType = question.type === currentType;
-    const isSameSummaryGroup = question.summaryGroupId === currentSummaryGroupId;
-
-    if (isSameType && isSameSummaryGroup) {
-      currentGroup.push(question);
-      continue;
-    }
-
+  const pushLegacyGroup = (currentGroup: TQuestion[], currentType: string) => {
     const firstInGroup = currentGroup[0];
     const lastInGroup = currentGroup[currentGroup.length - 1];
 
-    if (firstInGroup && lastInGroup) {
-      groups.push({
-        startNumber: firstInGroup.number,
-        endNumber: lastInGroup.number,
-        type: currentType,
-        questions: currentGroup,
-        instructions: getTaskInstructions(
-          currentType,
-          firstInGroup.number,
-          lastInGroup.number,
-          firstInGroup.wordLimit,
-        ),
-      });
+    if (!firstInGroup || !lastInGroup) {
+      return;
     }
 
-    currentGroup = [question];
-    currentType = question.type;
-    currentSummaryGroupId = question.summaryGroupId;
-  }
-
-  const firstInGroup = currentGroup[0];
-  const lastInGroup = currentGroup[currentGroup.length - 1];
-
-  if (firstInGroup && lastInGroup) {
     groups.push({
       startNumber: firstInGroup.number,
       endNumber: lastInGroup.number,
@@ -124,6 +123,85 @@ export const groupReadingQuestionsByTaskType = <TQuestion extends ReadingQuestio
         firstInGroup.wordLimit,
       ),
     });
+  };
+
+  let currentGroup: TQuestion[] = [];
+  let currentType: string | null = null;
+  let currentSummaryGroupId: string | undefined;
+
+  for (const question of sortedQuestions) {
+    const canonicalGroupId =
+      question.groupTaskType === 'table-completion' ? question.groupId : undefined;
+    const canonicalGroup = canonicalGroupId
+      ? canonicalGroupsById.get(canonicalGroupId)
+      : undefined;
+
+    if (canonicalGroup) {
+      if (currentGroup.length > 0 && currentType) {
+        pushLegacyGroup(currentGroup, currentType);
+        currentGroup = [];
+        currentType = null;
+        currentSummaryGroupId = undefined;
+      }
+
+      if (consumedCanonicalGroupIds.has(canonicalGroup.groupId)) {
+        continue;
+      }
+
+      const groupQuestions = sortedQuestions.filter(
+        (candidate) =>
+          candidate.groupTaskType === 'table-completion' &&
+          candidate.groupId === canonicalGroup.groupId,
+      );
+
+      if (groupQuestions.length === 0) {
+        continue;
+      }
+
+      const firstInGroup = groupQuestions[0];
+      const lastInGroup = groupQuestions[groupQuestions.length - 1];
+      if (!firstInGroup || !lastInGroup) {
+        continue;
+      }
+
+      groups.push({
+        startNumber: firstInGroup.number,
+        endNumber: lastInGroup.number,
+        type: canonicalGroup.taskType,
+        questions: groupQuestions,
+        instructions: buildTableCompletionSectionInstruction(canonicalGroup),
+        canonicalGroup,
+      });
+      consumedCanonicalGroupIds.add(canonicalGroup.groupId);
+      continue;
+    }
+
+    if (currentGroup.length === 0) {
+      currentGroup = [question];
+      currentType = question.type;
+      currentSummaryGroupId = question.summaryGroupId;
+      continue;
+    }
+
+    const isSameType = question.type === currentType;
+    const isSameSummaryGroup = question.summaryGroupId === currentSummaryGroupId;
+
+    if (isSameType && isSameSummaryGroup) {
+      currentGroup.push(question);
+      continue;
+    }
+
+    if (currentType) {
+      pushLegacyGroup(currentGroup, currentType);
+    }
+
+    currentGroup = [question];
+    currentType = question.type;
+    currentSummaryGroupId = question.summaryGroupId;
+  }
+
+  if (currentGroup.length > 0 && currentType) {
+    pushLegacyGroup(currentGroup, currentType);
   }
 
   return groups;
@@ -145,7 +223,11 @@ export const getFirstUnansweredReadingQuestionGroupStart = (
   answers: Record<number, unknown>,
 ): number | null => {
   const firstUnansweredGroup = groups.find((group) =>
-    group.questions.some((question) => answers[question.number] === undefined || answers[question.number] === ''),
+    group.questions.some((question) =>
+      isReadingAnswerEmpty(
+        answers[question.number] as string | string[] | Record<string, string> | null | undefined,
+      ),
+    ),
   );
 
   return firstUnansweredGroup?.startNumber ?? null;

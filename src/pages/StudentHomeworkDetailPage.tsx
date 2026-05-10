@@ -8,11 +8,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { get, ref } from 'firebase/database';
 import { useHomeworkSubmission } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { getTestFromFirebase, TestData } from '../services/testStorage';
+import { database } from '../services/firebase';
+import {
+    buildReadingV2LaunchReadPlan,
+    createReadingV2LaunchMaterialSummary,
+    isReadingV2LaunchCandidate,
+} from '../services/reading-v2/readingV2LaunchIntegration.service';
+import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
+import type { ReadingV2MaterialMetadata } from '../services/reading-v2/readingV2MaterialMetadata.service';
 import { Card, CardBody, Button } from '../components/modern';
 import { DeferredResultSlidePanel } from '../components/results/DeferredResultSlidePanel';
 import { StudentLayout } from '../components/layout/StudentLayout';
@@ -588,6 +597,43 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
             try {
                 setMaterialLoading(true);
+                const metadataPlan = buildReadingV2LaunchReadPlan({
+                    surface: 'homework',
+                    materialId: homework.materialId,
+                });
+                const metadataSnapshot = await get(ref(database, metadataPlan.metadataPath));
+                const metadata = metadataSnapshot.exists()
+                    ? metadataSnapshot.val() as ReadingV2MaterialMetadata
+                    : null;
+
+                if (metadata && isReadingV2LaunchCandidate(metadata)) {
+                    const projectionPlan = buildReadingV2LaunchReadPlan({
+                        surface: 'homework',
+                        materialId: homework.materialId,
+                        snapshotVersionId: metadata.publishedSnapshotVersionId,
+                    });
+                    const projectionSnapshot = await get(ref(database, projectionPlan.projectionPath));
+                    const projection = projectionSnapshot.exists()
+                        ? projectionSnapshot.val() as ReadingV2DerivedProjection
+                        : null;
+                    const summary = createReadingV2LaunchMaterialSummary({ metadata, projection });
+
+                    setMaterial({
+                        id: summary.id,
+                        title: summary.title,
+                        duration: summary.durationMinutes,
+                        updatedAt: metadata.updatedAt,
+                        questionCount: summary.questionCount,
+                        questions: Array.from({ length: summary.questionCount }, (_value, index) => ({
+                            id: `reading-v2-question-${index + 1}`,
+                        })),
+                        skillType: 'reading',
+                        testType: 'ReadingV2',
+                        metadata: summary.metadata,
+                    } as unknown as TestData);
+                    return;
+                }
+
                 const result = await getTestFromFirebase(homework.materialId);
                 if (result.success && result.data) {
                     setMaterial(result.data);

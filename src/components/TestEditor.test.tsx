@@ -1,11 +1,10 @@
 import '@testing-library/jest-dom';
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockToastWarning, mockUseAuth } = vi.hoisted(() => ({
-  mockToastWarning: vi.fn(),
+const { mockUseAuth } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(() => ({
     user: { uid: 'owner-1' },
     isAdmin: false,
@@ -16,35 +15,48 @@ vi.mock('@mantine/core', () => ({
   Modal: ({ opened, children }: any) => (opened ? <div>{children}</div> : null),
 }));
 
-vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
-  ListeningEditorLayout: ({ title, onTitleChange, onSave, questionList, resourceManager }: any) => (
+vi.mock('./QuestionEditorPanel', () => ({
+  default: () => <div data-testid="flat-question-editor">Flat Question Editor</div>,
+}));
+
+vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
+  ReadingEditorLayout: ({ questionList, questionEditor }: any) => (
     <div>
-      <h1>{title}</h1>
-      <button type="button" onClick={() => onTitleChange('Renamed Listening Test')}>
-        Rename test
-      </button>
-      <button type="button" onClick={onSave}>
-        Save
-      </button>
       <div>{questionList}</div>
-      <div>{resourceManager}</div>
+      <div>{questionEditor}</div>
     </div>
   ),
 }));
 
-vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
-  ReadingEditorLayout: ({ title }: any) => <div>{title}</div>,
+vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
+  ListeningEditorLayout: ({ questionList, questionEditor }: any) => (
+    <div>
+      <div>{questionList}</div>
+      <div>{questionEditor}</div>
+    </div>
+  ),
 }));
 
 vi.mock('./test/editor/QuestionList', () => ({
-  QuestionList: () => <div>Question list</div>,
+  QuestionList: ({ questions, onQuestionSelect }: any) => (
+    <div>
+      {questions.map((question: any, index: number) => (
+        <button
+          key={question.number}
+          type="button"
+          onClick={() => onQuestionSelect(index)}
+        >
+          Select question {index + 1}
+        </button>
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock('./test/editor/ResourceManager', () => ({
-  ResourceManager: () => <div>Resource manager</div>,
+  ResourceManager: () => <div>Resource Manager</div>,
 }));
 
-vi.mock('./QuestionEditorPanel', () => ({ default: () => <div /> }));
 vi.mock('./SingleQuestionCreator', () => ({ default: () => <div /> }));
 vi.mock('./BulkQuestionCreator', () => ({ default: () => <div /> }));
 vi.mock('./AnswerKeyPanel', () => ({ default: () => <div /> }));
@@ -68,8 +80,6 @@ vi.mock('../services/firebase', () => ({
 }));
 vi.mock('firebase/database', () => ({
   ref: vi.fn(),
-  get: vi.fn(),
-  set: vi.fn(),
   update: vi.fn(),
 }));
 vi.mock('../hooks/useAuth', () => ({
@@ -79,18 +89,17 @@ vi.mock('./modern/ToastNotification', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
-    warning: mockToastWarning,
   },
 }));
 
 import TestEditor from './TestEditor';
 
-const LISTENING_TEST = {
-  id: 'listening-1',
-  title: 'IELTS Listening',
+const TEST_FIXTURE = {
+  id: 'test-1',
+  title: 'IELTS Reading',
   type: 'IELTS',
-  skill: 'Listening',
-  duration: 30,
+  skill: 'Reading',
+  duration: 60,
   difficulty: 'Intermediate',
   questionCount: 2,
   createdAt: 1,
@@ -100,49 +109,42 @@ const LISTENING_TEST = {
   ownerId: 'owner-1',
   isPublic: false,
   isComplete: true,
-  displayMode: 'image',
   metadata: {
     description: '',
     instructions: '',
     tags: [],
   },
-  passages: [],
-  audioSections: [
+  passages: [
     {
-      number: 1,
-      name: 'Section 1',
-      audioUrl: 'https://example.com/audio.mp3',
-      startQuestion: 1,
-      endQuestion: 2,
-    },
-  ],
-  questionImages: [
-    {
-      sectionNumber: 1,
-      imageUrl: 'https://example.com/question-page-1.png',
-      questionRange: { start: 1, end: 1 },
-    },
-    {
-      sectionNumber: 1,
-      imageUrl: 'https://example.com/question-page-2.png',
-      questionRange: { start: 2, end: 2 },
+      id: 'p1',
+      title: 'Passage 1',
+      content: 'Passage text',
+      type: 'text',
+      wordCount: 10,
+      questionStart: 1,
+      questionEnd: 2,
+      createdAt: 1,
     },
   ],
   questions: [
     {
       number: 1,
-      type: 'form-completion',
-      question: '',
-      answer: 'A',
-      sectionNumber: 1,
+      type: 'table-completion',
+      question: 'legacy fallback one',
+      answer: '',
+      passageId: 'p1',
       points: 1,
+      groupId: 'group-table-1',
+      blankId: 'blank-1',
+      anchorId: 'anchor-1',
+      groupTaskType: 'table-completion',
     },
     {
       number: 2,
-      type: 'form-completion',
-      question: '',
-      answer: 'B',
-      sectionNumber: 1,
+      type: 'multiple-choice',
+      question: 'Regular editable question',
+      answer: 'A',
+      passageId: 'p1',
       points: 1,
     },
   ],
@@ -160,99 +162,76 @@ const LISTENING_TEST = {
     averageTime: 0,
     completionRate: 0,
   },
+  questionGroups: [
+    {
+      schemaVersion: 1,
+      groupId: 'group-table-1',
+      taskType: 'table-completion',
+      passageId: 'p1',
+      questionRange: { start: 1, end: 1 },
+      sharedContent: {
+        instructionText: 'Questions 1-1',
+        answerRuleText: 'Choose ONE WORD ONLY.',
+        constraints: { maxWords: 1 },
+      },
+      columns: [],
+      rows: [],
+      cells: [],
+      blanks: [],
+      provenance: {
+        sourceWorkflow: 'in-app-parse',
+        sourceShape: 'markdown-table',
+        rawExcerpt: 'raw',
+        normalizationVersion: 1,
+        confidence: 0.95,
+        warnings: [],
+        canonicalRevisionHash: 'hash-1',
+      },
+      canonicalReadingOrder: [],
+    },
+  ],
 };
 
-describe('TestEditor draft storage', () => {
+describe('TestEditor', () => {
   beforeEach(() => {
-    localStorage.clear();
-    mockToastWarning.mockClear();
     mockUseAuth.mockClear();
-    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('does not auto-save a full draft just from opening a fresh Listening editor', async () => {
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('Quota exceeded', 'QuotaExceededError');
-    });
-
-    render(
-      <TestEditor
-        test={LISTENING_TEST as any}
-        show
-        handleClose={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('IELTS Listening')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Resource manager')).toBeInTheDocument());
-
-    expect(setItemSpy).not.toHaveBeenCalled();
-    expect(mockToastWarning).not.toHaveBeenCalled();
-
-    setItemSpy.mockRestore();
-  });
-
-  it('catches quota errors after a real edit and keeps the modal open', async () => {
-    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('Quota exceeded', 'QuotaExceededError');
-    });
+  it('blocks Reading V2 payloads before legacy editor hooks run', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     render(
       <TestEditor
-        test={LISTENING_TEST as any}
+        test={{ ...TEST_FIXTURE, deliveryEngine: 'reading-v2' } as any}
         show
         handleClose={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename test' }));
-
-    await waitFor(() => {
-      expect(mockToastWarning).toHaveBeenCalledWith(expect.stringContaining('Browser storage is full'));
-    });
-    expect(screen.getByText('Renamed Listening Test')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select question 1' })).not.toBeInTheDocument();
+    expect(mockUseAuth).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TestEditor] Blocked Reading V2 payload from entering legacy editor.',
+    );
 
     warnSpy.mockRestore();
-    setItemSpy.mockRestore();
   });
 
-  it('atomically publishes the student-safe delivery payload when saving a test edit', async () => {
-    const { ref, update, get, set } = await import('firebase/database');
-    (ref as any).mockImplementation((_db: unknown, path = '') => ({ path }));
-    (update as any).mockResolvedValueOnce(undefined);
-    const handleClose = vi.fn();
-
+  it('shows a read-only canonical table notice instead of the flat editor for published groups', () => {
     render(
       <TestEditor
-        test={LISTENING_TEST as any}
+        test={TEST_FIXTURE as any}
         show
-        handleClose={handleClose}
+        handleClose={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename test' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select question 1' }));
 
-    await waitFor(() => {
-      expect(update).toHaveBeenCalled();
-    });
-    const updates = (update as any).mock.calls[0][1];
-    expect(updates['/tests/listening-1/questionImages']).toEqual(LISTENING_TEST.questionImages);
-    expect(updates['/student_safe_tests/listening-1']).toEqual(
-      expect.objectContaining({
-        title: 'Renamed Listening Test',
-        questionImages: LISTENING_TEST.questionImages,
-      }),
-    );
-    expect(updates['/student_safe_tests/listening-1'].questions[0]).not.toHaveProperty('answer');
-    expect(updates['/student_safe_tests/listening-1'].questions[1]).not.toHaveProperty('answer');
-    expect(get).not.toHaveBeenCalled();
-    expect(set).not.toHaveBeenCalled();
-    expect(handleClose).toHaveBeenCalled();
+    expect(screen.getByText('Canonical Table Group')).toBeInTheDocument();
+    expect(
+      screen.getByText(/read-only after publish in Phase 1/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('flat-question-editor')).not.toBeInTheDocument();
   });
 });

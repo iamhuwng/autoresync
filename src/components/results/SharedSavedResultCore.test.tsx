@@ -146,6 +146,52 @@ const MOCK_LEGACY_RESULT: any = {
   // Missing: bandScore, thcsData, ieltsData, formativeFeedback, questionResults
 };
 
+const MOCK_READING_V2_RESULT: any = {
+  ...MOCK_RESULT,
+  resultId: 'res-reading-v2',
+  deliveryEngine: 'reading-v2',
+  testType: 'ielts-reading-v2',
+  readingV2: {
+    result: {
+      resultId: 'res-reading-v2',
+      deliveryEngine: 'reading-v2',
+      publishedSnapshotVersion: 'snapshot-v2',
+      interactions: [],
+    },
+    reviewPayload: {
+      deliveryEngine: 'reading-v2',
+      schemaVersion: 1,
+      resultId: 'res-reading-v2',
+      sourceSnapshotVersionId: 'snapshot-v2',
+      title: 'Reading V2 Saved Result',
+      taskGroups: [
+        {
+          taskGroupId: 'task-group-1',
+          title: 'Questions 1-2',
+          officialTaskType: 'sentence-completion',
+          engineeringFamily: 'completion',
+          instructionText: 'Complete the sentences.',
+          interactions: [
+            {
+              interactionId: 'interaction-1',
+              taskGroupId: 'task-group-1',
+              displayNumber: 1,
+              taskFamily: 'completion',
+              officialTaskType: 'sentence-completion',
+              studentAnswer: 'wrong',
+              correctAnswer: 'answer one',
+              score: 0,
+              maxScore: 1,
+              reviewState: 'released',
+            },
+          ],
+        },
+      ],
+    },
+    regradeArtifacts: [],
+  },
+};
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
@@ -180,6 +226,16 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     );
     // ReviewTab renders incorrect banner for results with incorrect questions
     expect(screen.getByTestId('rv-incorrect-banner')).toBeInTheDocument();
+  });
+
+  it('routes Reading V2 saved results to the grouped review adapter instead of legacy ReviewTab', () => {
+    render(
+      <SharedSavedResultCore result={MOCK_READING_V2_RESULT} variant="modal" />,
+    );
+
+    expect(screen.getByTestId('reading-v2-review-adapter')).toBeInTheDocument();
+    expect(screen.queryByTestId('rv-incorrect-banner')).not.toBeInTheDocument();
+    expect(screen.getByText('Reading V2 Saved Result')).toBeInTheDocument();
   });
 
   it('hides ReviewTab when feedbackTiming is never', () => {

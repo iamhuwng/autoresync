@@ -15,8 +15,157 @@ import { database } from './firebase';
 import type { TestData } from './testStorage';
 import type { LibraryFilters, LibraryMaterial } from '../types/solo.types';
 import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
+import {
+    READING_V2_ROLLOUT_MODE,
+    isReadingV2PublicRollout,
+    type ReadingV2RolloutMode,
+} from '../config/readingV2FeatureFlags';
+import {
+    buildReadingV2LaunchReadPlan,
+    createReadingV2LibraryMaterial,
+    isReadingV2LaunchCandidate,
+    resolveReadingV2LaunchDecision,
+} from './reading-v2/readingV2LaunchIntegration.service';
+import type { ReadingV2DerivedProjection } from './reading-v2/readingV2Projection.service';
+import type { ReadingV2MaterialMetadata } from './reading-v2/readingV2MaterialMetadata.service';
+import { readingV2StoragePaths } from './reading-v2/readingV2StoragePaths.service';
 
 type StudentMaterialHistory = NonNullable<LibraryMaterial['studentHistory']>;
+
+interface MaterialDiscoveryOptions {
+    readonly readingV2RolloutMode?: ReadingV2RolloutMode;
+}
+
+const MATERIAL_LIBRARY_DIAGNOSTICS_ENABLED = import.meta.env.DEV
+    && import.meta.env.VITE_LIBRARY_DIAGNOSTICS === 'true';
+
+function logMaterialLibraryDiagnostic(event: string, payload: Record<string, unknown>): void {
+    if (!MATERIAL_LIBRARY_DIAGNOSTICS_ENABLED) {
+        return;
+    }
+
+    console.info(`[Diag][MaterialDiscovery] ${event}`, payload);
+}
+
+function matchesReadingV2LibraryFilters(material: LibraryMaterial, filters: LibraryFilters): boolean {
+    if (filters.source && filters.source !== 'public') {
+        return false;
+    }
+
+    if (filters.skill && filters.skill !== 'reading' && filters.skill !== 'reading-v2') {
+        return false;
+    }
+
+    if (filters.type && material.type !== filters.type) {
+        return false;
+    }
+
+    if (filters.difficulty && material.difficulty !== filters.difficulty) {
+        return false;
+    }
+
+    if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        const metadata = (material as any).metadata ?? {};
+        const tags = (metadata.tags ?? []) as string[];
+        const titleMatch = material.title.toLowerCase().includes(query);
+        const descMatch = String(metadata.description ?? '').toLowerCase().includes(query);
+        const tagsMatch = tags.some(tag => tag.toLowerCase().includes(query));
+
+        if (!titleMatch && !descMatch && !tagsMatch) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function getReadingV2PublicLibraryMaterials(
+    filters: LibraryFilters,
+    options: MaterialDiscoveryOptions = {}
+): Promise<LibraryMaterial[]> {
+    if (filters.source && filters.source !== 'public') {
+        return [];
+    }
+
+    const rolloutMode = options.readingV2RolloutMode ?? READING_V2_ROLLOUT_MODE;
+    if (!isReadingV2PublicRollout(rolloutMode)) {
+        return [];
+    }
+
+    const indexRootPath = readingV2StoragePaths.relationshipIndexes('library-listing', '');
+    const indexSnapshot = await get(ref(database, indexRootPath));
+
+    if (!indexSnapshot.exists()) {
+        return [];
+    }
+
+    const indexEntries = Object.values(indexSnapshot.val() ?? {}) as Array<{
+        materialId?: string;
+        snapshotVersionId?: string;
+        source?: string;
+    }>;
+
+    const materials = await Promise.all(indexEntries.map(async (entry) => {
+        if (!entry.materialId || entry.source !== 'student-safe-projection') {
+            return null;
+        }
+
+        const readPlan = buildReadingV2LaunchReadPlan({
+            surface: 'public-library',
+            materialId: entry.materialId,
+            snapshotVersionId: entry.snapshotVersionId,
+        });
+
+        const metadataSnapshot = await get(ref(database, readPlan.metadataPath));
+        const metadata = metadataSnapshot.exists()
+            ? metadataSnapshot.val() as ReadingV2MaterialMetadata
+            : null;
+
+        if (
+            !metadata ||
+            !isReadingV2LaunchCandidate(metadata) ||
+            metadata.visibility !== 'library-eligible'
+        ) {
+            return null;
+        }
+
+        const projectionSnapshot = await get(ref(database, readPlan.projectionPath));
+        const projection = projectionSnapshot.exists()
+            ? projectionSnapshot.val() as ReadingV2DerivedProjection
+            : null;
+
+        const launchDecision = resolveReadingV2LaunchDecision({
+            surface: 'public-library',
+            metadata,
+            projection,
+            rolloutMode,
+        });
+
+        if (launchDecision.status !== 'runtime') {
+            return null;
+        }
+
+        const material = createReadingV2LibraryMaterial({
+            metadata,
+            projection: launchDecision.projection,
+            source: { type: 'public' },
+        });
+
+        (material as any).metadata = {
+            deliveryEngine: metadata.deliveryEngine,
+            productLabel: metadata.productLabel,
+            materialKind: metadata.materialKind,
+            description: metadata.description,
+            tags: metadata.tags,
+            sourceSnapshotVersionId: entry.snapshotVersionId,
+        };
+
+        return matchesReadingV2LibraryFilters(material, filters) ? material : null;
+    }));
+
+    return materials.filter((material): material is LibraryMaterial => material !== null);
+}
 
 function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCanonicalStudentResults>>): Map<string, StudentMaterialHistory> {
     const historyByMaterialId = new Map<string, StudentMaterialHistory>();
@@ -42,9 +191,9 @@ function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCa
         }
 
         existing.attemptCount += 1;
-        existing.bestScore = Math.max(existing.bestScore, percentage);
+        existing.bestScore = Math.max(existing.bestScore ?? 0, percentage);
 
-        if (submittedAt >= existing.lastPracticed) {
+        if (submittedAt >= (existing.lastPracticed ?? 0)) {
             existing.lastPracticed = submittedAt;
             existing.lastScore = percentage;
         }
@@ -70,20 +219,18 @@ async function getStudentMaterialHistoryMap(studentId: string): Promise<Map<stri
  * @returns Array of library materials
  */
 export async function getLibraryMaterials(
-    filters: LibraryFilters
+    filters: LibraryFilters,
+    options: MaterialDiscoveryOptions = {}
 ): Promise<LibraryMaterial[]> {
     try {
-        console.log('📚 Fetching library materials with filters:', filters);
+        logMaterialLibraryDiagnostic('getLibraryMaterials_requested', { filters });
 
-        // Get all tests from Firebase
+        // Get all legacy tests from Firebase. Reading V2 public entries are
+        // loaded separately from the approved library relationship index.
         const testsRef = ref(database, 'tests');
         const snapshot = await get(testsRef);
 
-        if (!snapshot.exists()) {
-            return [];
-        }
-
-        const testsData = snapshot.val();
+        const testsData = snapshot.exists() ? snapshot.val() : {};
         const allTests: TestData[] = Object.values(testsData);
 
         // Filter tests based on criteria
@@ -154,8 +301,14 @@ export async function getLibraryMaterials(
             studentHistory: undefined
         }));
 
-        console.log(`✅ Found ${libraryMaterials.length} materials`);
-        return libraryMaterials;
+        const readingV2LibraryMaterials = await getReadingV2PublicLibraryMaterials(filters, options);
+        const allLibraryMaterials = [...libraryMaterials, ...readingV2LibraryMaterials];
+
+        logMaterialLibraryDiagnostic('getLibraryMaterials_resolved', {
+            materialCount: allLibraryMaterials.length,
+            readingV2Count: readingV2LibraryMaterials.length,
+        });
+        return allLibraryMaterials;
 
     } catch (error) {
         console.error('❌ Error fetching library materials:', error);
@@ -175,7 +328,7 @@ export async function getCourseMaterials(
     studentId: string
 ): Promise<LibraryMaterial[]> {
     try {
-        console.log(`📚 Fetching course materials for course: ${courseId}, student: ${studentId}`);
+        logMaterialLibraryDiagnostic('getCourseMaterials_requested', { courseId, studentId });
 
         // TODO: Verify student enrollment in course
         // For now, we'll fetch all materials linked to the course
@@ -223,7 +376,7 @@ export async function getCourseMaterials(
             studentHistory: undefined
         }));
 
-        console.log(`✅ Found ${libraryMaterials.length} course materials`);
+        logMaterialLibraryDiagnostic('getCourseMaterials_resolved', { materialCount: libraryMaterials.length });
         return libraryMaterials;
 
     } catch (error) {
@@ -308,7 +461,7 @@ export async function getRecommendedMaterials(
     studentId: string
 ): Promise<LibraryMaterial[]> {
     try {
-        console.log(`🎯 Fetching recommended materials for student: ${studentId}`);
+        logMaterialLibraryDiagnostic('getRecommendedMaterials_requested', { studentId });
 
         // Get all available materials
         const allMaterials = await getLibraryMaterials({});
@@ -348,7 +501,9 @@ export async function getRecommendedMaterials(
         // Limit to 10 recommendations
         const limitedRecommendations = recommended.slice(0, 10);
 
-        console.log(`✅ Found ${limitedRecommendations.length} recommended materials`);
+        logMaterialLibraryDiagnostic('getRecommendedMaterials_resolved', {
+            materialCount: limitedRecommendations.length,
+        });
         return limitedRecommendations;
 
     } catch (error) {

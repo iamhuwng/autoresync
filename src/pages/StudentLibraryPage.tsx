@@ -6,6 +6,7 @@ import { clearSoloProgress } from '../hooks/solo/useSoloAutoSave';
 import { SoloResumeModal } from '../components/test/SoloResumeModal';
 import type { LibrarySource } from '../types/solo.types';
 import type { SoloSessionProgress } from '../types/practice.types';
+import { readSoloProgress } from '../services/soloProgress.service';
 
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
@@ -13,7 +14,6 @@ import { S, studentTokens, mobileStyles } from '../components/layout/studentLayo
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useNavigation } from '../hooks/useNavigation';
-import { storage } from '../core/platform/storage';
 
 /* ── Inline SVG Icons (24×24, currentColor) ─────────────────────── */
 const SvgBook = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
@@ -62,6 +62,47 @@ const FILTER_TABS = [
     { key: 'recommended', label: 'Recommended' },
     { key: 'recent', label: 'Recent' },
 ];
+
+const SKILL_FILTER_OPTIONS = [
+    { value: 'reading', label: 'Reading' },
+    { value: 'reading-v2', label: 'Reading V2' },
+    { value: 'listening', label: 'Listening' },
+    { value: 'writing', label: 'Writing' },
+    { value: 'speaking', label: 'Speaking' },
+];
+
+function getMaterialSkillLabel(skill?: string): string {
+    if (skill === 'reading-v2') {
+        return 'Reading V2';
+    }
+
+    if (!skill) {
+        return 'Reading';
+    }
+
+    return skill.charAt(0).toUpperCase() + skill.slice(1);
+}
+
+function getMaterialSkillBadgeStyle(skill?: string) {
+    if (skill === 'writing') {
+        return {
+            background: studentTokens.accentSoft,
+            color: studentTokens.accentHover,
+        };
+    }
+
+    if (skill === 'reading-v2') {
+        return {
+            background: '#e7f0fb',
+            color: '#1f5f99',
+        };
+    }
+
+    return {
+        background: '#edf5f9',
+        color: '#4c5458',
+    };
+}
 
 export const StudentLibraryPage: React.FC = () => {
     const { user, profile } = useAuth();
@@ -115,9 +156,12 @@ export const StudentLibraryPage: React.FC = () => {
 
     const handlePractice = async (materialId: string, title?: string) => {
         const studentId = user?.uid || '';
-        const key = `solo_progress_${materialId}_${studentId}`;
         const materialTitle = title || '';
-        const saved = await storage.get<SoloSessionProgress>(key);
+        const { progress: saved } = await readSoloProgress({
+            materialId,
+            studentId,
+            scopeContext: { mode: 'self_study' },
+        });
 
         if (saved) {
             setPendingMaterial({ id: materialId, title: materialTitle });
@@ -132,6 +176,7 @@ export const StudentLibraryPage: React.FC = () => {
     const renderMaterialCard = (material: any, index: number) => {
         const history = material.studentHistory;
         const hasAttempted = history && history.attemptCount > 0;
+        const skillBadgeStyle = getMaterialSkillBadgeStyle(material.skill);
 
         const diffColor = material.difficulty === 'easy' ? { bg: '#edf5f9', text: '#4c5458' } : material.difficulty === 'medium' ? { bg: '#f4ede4', text: '#9a6427' } : material.difficulty === 'hard' ? { bg: '#fff2f2', text: '#9e3f4e' } : { bg: studentTokens.bgSurfaceAlt, text: studentTokens.textBody };
 
@@ -144,11 +189,14 @@ export const StudentLibraryPage: React.FC = () => {
             >
                 <div style={localStyles.cardBody}>
                     <div>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{material.title}</h3>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'normal' : 'nowrap', display: isMobile ? '-webkit-box' : undefined, WebkitLineClamp: isMobile ? 2 : undefined, WebkitBoxOrient: isMobile ? 'vertical' : undefined }}>{material.title}</h3>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ ...localStyles.badge, background: material.skill === 'writing' ? studentTokens.accentSoft : '#edf5f9', color: material.skill === 'writing' ? studentTokens.accentHover : '#4c5458' }}>
-                                {material.skill}
+                            <span style={{ ...localStyles.badge, ...skillBadgeStyle }}>
+                                {getMaterialSkillLabel(material.skill)}
                             </span>
+                            {material.skill === 'reading-v2' && (
+                                <span style={{ ...localStyles.badge, background: '#f8fafc', color: '#334155', border: `1px solid ${studentTokens.borderSoft}` }}>V2 Engine</span>
+                            )}
                             <span style={{ ...localStyles.badge, background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody }}>{material.type}</span>
                             {material.difficulty && (
                                 <span style={{ ...localStyles.badge, background: diffColor.bg, color: diffColor.text }}>{material.difficulty}</span>
@@ -284,10 +332,9 @@ export const StudentLibraryPage: React.FC = () => {
                                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: studentTokens.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Skill</label>
                                 <select value={filters.skill || ''} onChange={e => updateFilter('skill', e.target.value as any)} style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${studentTokens.borderSoft}`, background: studentTokens.bgSurface, color: studentTokens.textPrimary, fontSize: '0.938rem', outline: 'none', fontFamily: 'inherit' }}>
                                     <option value="">All Skills</option>
-                                    <option value="reading">Reading</option>
-                                    <option value="listening">Listening</option>
-                                    <option value="writing">Writing</option>
-                                    <option value="speaking">Speaking</option>
+                                    {SKILL_FILTER_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
                                 </select>
                             </div>
 

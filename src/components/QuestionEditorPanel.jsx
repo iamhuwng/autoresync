@@ -20,6 +20,7 @@ const QuestionEditorPanel = ({
   isImagePassage = false,
   groupQuestions = null,
   onGroupUpdate = null,
+  readOnly = false,
 }) => {
   const [localQuestion, setLocalQuestion] = useState(question);
   const [validationWarnings, setValidationWarnings] = useState({});
@@ -33,6 +34,12 @@ const QuestionEditorPanel = ({
     setLocalQuestion(question);
     validateFields(question);
   }, [question, questionIndex]);
+
+  const isCanonicalTableMember =
+    question?.groupTaskType === 'table-completion' &&
+    question?.groupId &&
+    question?.blankId &&
+    question?.anchorId;
 
   const validateFields = (q) => {
     if (!q) return; // Safety check for undefined question
@@ -205,6 +212,84 @@ const QuestionEditorPanel = ({
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [showImageUpload, isAuthenticated]);
+
+  if (isCanonicalTableMember) {
+    return (
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          padding: '1.5rem',
+          borderBottom: '1px solid rgba(59, 130, 246, 0.15)',
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <Text size="lg" fw={700} style={{ color: '#1e293b' }}>
+              Canonical Table Group
+            </Text>
+            <Text size="xs" style={{ color: '#64748b', marginTop: '0.25rem' }}>
+              Question {questionIndex + 1} is part of a published canonical table-completion group.
+            </Text>
+          </div>
+
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0.5rem',
+              borderRadius: '0.375rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+          <div style={{
+            padding: '1rem 1.125rem',
+            borderRadius: '0.75rem',
+            border: '1px solid #bfdbfe',
+            background: '#eff6ff',
+            color: '#1e3a8a',
+            lineHeight: 1.6
+          }}>
+            Phase 1 keeps published canonical table groups read-only in the flat editor.
+            Re-open this content through the grouped review flow if the table needs repair.
+          </div>
+        </div>
+
+        <div style={{
+          padding: '1.5rem',
+          borderTop: '1px solid rgba(59, 130, 246, 0.15)',
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.03) 0%, rgba(14, 165, 233, 0.03) 100%)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Button variant="glass" size="sm" onClick={onReset} disabled={readOnly}>
+            Reset to Original
+          </Button>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            Read-only canonical group member
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

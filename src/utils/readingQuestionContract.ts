@@ -15,6 +15,12 @@ export interface ReadingQuestionLike {
   labeledOptions?: ReadingLabeledOption[] | null;
   optionLabelFormat?: ReadingOptionLabelFormat | null;
   sectionReferences?: ReadingSectionReference[] | null;
+  sectionInstructionId?: string | null;
+  groupId?: string | null;
+  blankId?: string | null;
+  anchorId?: string | null;
+  groupTaskType?: 'table-completion' | null;
+  tableGroupSchemaVersion?: number | null;
 }
 
 export interface ReadingQuestionIssue {
@@ -25,7 +31,9 @@ export interface ReadingQuestionIssue {
     | 'empty-option-text'
     | 'empty-option-label'
     | 'inconsistent-option-label-format'
-    | 'conflicting-option-label-text';
+    | 'conflicting-option-label-text'
+    | 'canonical-table-question-missing-linkage'
+    | 'unsupported-table-completion-schema';
   message: string;
 }
 
@@ -84,6 +92,12 @@ const ROMAN_SEQUENCE = [
 const LETTER_A_CODE = 'A'.charCodeAt(0);
 const LEADING_LABEL_PATTERN =
   /^\s*(?:\*\*|__)?\s*\(?\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)?\s*(?:\*\*|__)?(?:\s*[\.\):\-]\s*(.*)|\s+(.+))?\s*$/i;
+const EXPLICIT_STRUCTURED_LABEL_PATTERN =
+  /^\s*(?:\*\*|__)?\s*\(?\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)?\s*(?:\*\*|__)?\s*[\.\):\-]\s*(.+)\s*$/i;
+const EMPHASIZED_STRUCTURED_LABEL_PATTERN =
+  /^\s*(?:\*\*|__)\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*(?:\*\*|__)\s+(.+)\s*$/i;
+const PARENTHESIZED_STRUCTURED_LABEL_PATTERN =
+  /^\s*\(\s*([A-Za-z]|\d+|(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i))\s*\)\s+(.+)\s*$/i;
 
 interface ParsedLeadingLabel {
   label: string;
@@ -110,32 +124,10 @@ const normalizeLabelToken = (value: string): string => value.replace(/[()]/g, ''
 
 const classifyOptionLabel = (label: string): ReadingOptionLabelFormat | undefined => {
   if (/^\d+$/.test(label)) return 'number';
+  if (/^[A-Z]$/.test(label)) return 'letter';
   if (/^(?:xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i)$/i.test(label)) return 'roman';
   if (/^[A-Z]$/i.test(label)) return 'letter';
   return undefined;
-};
-
-const isAmbiguousSingleLetterLabel = (label: string): boolean => /^(?:i|v|x)$/i.test(label);
-
-const resolveAmbiguousLabelFormat = (
-  label: string,
-  format: ReadingOptionLabelFormat | undefined,
-  preferredFormat?: ReadingOptionLabelFormat,
-  dominantFormat?: ReadingOptionLabelFormat,
-): ReadingOptionLabelFormat | undefined => {
-  if (!format || !isAmbiguousSingleLetterLabel(label)) {
-    return format;
-  }
-
-  if (preferredFormat === 'letter' || preferredFormat === 'roman') {
-    return preferredFormat;
-  }
-
-  if (dominantFormat === 'letter' || dominantFormat === 'roman') {
-    return dominantFormat;
-  }
-
-  return format;
 };
 
 const buildGeneratedLabel = (index: number, format: ReadingOptionLabelFormat): string => {
@@ -171,10 +163,39 @@ const extractLeadingLabel = (value: string): ParsedLeadingLabel | null => {
   };
 };
 
+const extractStructuredLeadingLabel = (value: string): ParsedLeadingLabel | null => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const match =
+    trimmed.match(EXPLICIT_STRUCTURED_LABEL_PATTERN) ||
+    trimmed.match(EMPHASIZED_STRUCTURED_LABEL_PATTERN) ||
+    trimmed.match(PARENTHESIZED_STRUCTURED_LABEL_PATTERN);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const label = normalizeLabelToken(match[1]);
+  const text = (match[2] || '').trim();
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    label,
+    text,
+    format: classifyOptionLabel(label),
+  };
+};
+
 const normalizeStructuredOption = (option: ReadingLabeledOption): NormalizedOption => {
   const label = normalizeLabelToken(option.label || '');
   const text = (option.text || '').trim();
-  const embedded = text ? extractLeadingLabel(text) : null;
+  const embedded = text ? extractStructuredLeadingLabel(text) : null;
 
   if (!label) {
     return embedded
@@ -241,7 +262,7 @@ const toNormalizedSectionReference = (
     const label = normalizeLabelToken(section.label || '');
     const title = (section.title || '').trim();
     const paragraph = section.paragraph?.trim();
-    const embedded = title ? extractLeadingLabel(title) : null;
+    const embedded = title ? extractStructuredLeadingLabel(title) : null;
 
     if (!label && embedded) {
       return {
@@ -287,7 +308,6 @@ const collectLabelIssues = (
     conflictingEmbeddedLabel?: string;
   }>,
   issues: ReadingQuestionIssue[],
-  preferredFormat?: ReadingOptionLabelFormat,
 ): {
   hasLabels: boolean;
   optionLabelFormat: ReadingOptionLabelFormat;
@@ -296,23 +316,10 @@ const collectLabelIssues = (
   const hasLabels = labeledCount > 0;
   const allHaveLabels = labeledCount === normalizedEntries.length;
 
-  const unambiguousFormats = Array.from(
-    new Set(
-      normalizedEntries
-        .filter((entry) => entry.label && !isAmbiguousSingleLetterLabel(entry.label))
-        .map((entry) => entry.format)
-        .filter((format): format is ReadingOptionLabelFormat => Boolean(format)),
-    ),
-  );
-
-  const dominantFormat = unambiguousFormats.length === 1 ? unambiguousFormats[0] : undefined;
-
   const inferredFormats = Array.from(
     new Set(
       normalizedEntries
-        .map((entry) =>
-          resolveAmbiguousLabelFormat(entry.label, entry.format, preferredFormat, dominantFormat),
-        )
+        .map((entry) => entry.format)
         .filter((format): format is ReadingOptionLabelFormat => Boolean(format)),
     ),
   );
@@ -343,7 +350,7 @@ const collectLabelIssues = (
 
   return {
     hasLabels,
-    optionLabelFormat: inferredFormats[0] || preferredFormat || 'letter',
+    optionLabelFormat: inferredFormats[0] || 'letter',
   };
 };
 
@@ -391,7 +398,39 @@ export const canonicalizeReadingQuestion = (
   const rawQuestionText = question.questionText ?? question.question ?? '';
   const questionText = sanitizeReadingQuestionText(rawQuestionText, questionNumber);
   const issues: ReadingQuestionIssue[] = [];
-  const preferredLabelFormat = question.optionLabelFormat || defaultLabelFormatForType(question.type);
+
+  if (question.groupTaskType === 'table-completion') {
+    if (question.tableGroupSchemaVersion !== 1) {
+      issues.push({
+        code: 'unsupported-table-completion-schema',
+        message:
+          `Question ${questionNumber || '?'} belongs to unsupported table-completion ` +
+          `schemaVersion ${question.tableGroupSchemaVersion ?? 'unknown'}.`,
+      });
+    }
+
+    if (!question.groupId || !question.blankId || !question.anchorId || !question.sectionInstructionId) {
+      issues.push({
+        code: 'canonical-table-question-missing-linkage',
+        message:
+          `Question ${questionNumber || '?'} is missing canonical table linkage fields.`,
+      });
+    }
+
+    return {
+      questionText,
+      question: questionText,
+      options: Array.isArray(question.options)
+        ? question.options.map((option) =>
+            typeof option === 'string' ? option.trim() : (option.text || '').trim(),
+          )
+        : undefined,
+      labeledOptions: Array.isArray(question.labeledOptions) ? question.labeledOptions : undefined,
+      optionLabelFormat: question.optionLabelFormat || undefined,
+      sectionReferences: Array.isArray(question.sectionReferences) ? question.sectionReferences : undefined,
+      issues,
+    };
+  }
 
   if (isMatchingInformationType(question.type)) {
     const sourceSections =
@@ -413,7 +452,7 @@ export const canonicalizeReadingQuestion = (
         questionText,
         question: questionText,
         options: [],
-        optionLabelFormat: preferredLabelFormat,
+        optionLabelFormat: question.optionLabelFormat || defaultLabelFormatForType(question.type),
         sectionReferences: [],
         issues,
       };
@@ -424,13 +463,12 @@ export const canonicalizeReadingQuestion = (
       questionNumber,
       normalizedSections,
       issues,
-      preferredLabelFormat,
     );
 
     const optionLabelFormat =
       question.optionLabelFormat ||
       inferredFormat ||
-      preferredLabelFormat;
+      defaultLabelFormatForType(question.type);
 
     const canonicalSections = normalizedSections.map((section, index) => {
       const label = section.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : '');
@@ -506,7 +544,7 @@ export const canonicalizeReadingQuestion = (
     return {
       questionText,
       question: questionText,
-      optionLabelFormat: preferredLabelFormat,
+      optionLabelFormat: question.optionLabelFormat || defaultLabelFormatForType(question.type),
       issues,
     };
   }
@@ -516,13 +554,12 @@ export const canonicalizeReadingQuestion = (
     questionNumber,
     normalizedOptions,
     issues,
-    preferredLabelFormat,
   );
 
   const optionLabelFormat =
     question.optionLabelFormat ||
     inferredFormat ||
-    preferredLabelFormat;
+    defaultLabelFormatForType(question.type);
 
   const generatedOptions = normalizedOptions.map((option, index) => ({
     label: option.label || (!hasLabels ? buildGeneratedLabel(index, optionLabelFormat) : ''),
