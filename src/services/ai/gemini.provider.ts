@@ -380,6 +380,7 @@ ${chunk.text}
 2. Classify question types ACCURATELY using the list below
 3. Extract options for multiple-choice and matching questions
 4. For completion: PRESERVE word limits in questionText ("ONE WORD ONLY", "NO MORE THAN TWO WORDS")
+5. For table-completion: NEVER rewrite source row wording in questionText; only standardize sectionInstruction metadata if parser recognition needs help
 
 **QUESTION TYPES (use EXACT names):**
 
@@ -396,7 +397,7 @@ ${chunk.text}
 **COMPLETION TYPES - Key Distinction: WORD SOURCE**
 - "completion" - Fill blanks using words FROM PASSAGE (preserve word limit!)
 - "summary-completion-list" - Fill blanks from PROVIDED WORD BANK (A-H). ⚠️ FIRST question MUST contain the ENTIRE summary paragraph with ALL blanks (______). Subsequent questions get empty questionText "".
-- "table-completion" - Fill table cells. Use pipe (|) in questionText to preserve column structure. Put headers in sectionInstruction with "TABLE_HEADERS:" prefix. 🚫 NEVER use questionNumber: 0.
+- "table-completion" - Fill table cells. Keep the ORIGINAL row/cell wording verbatim in questionText. NEVER change the semantic wording of questionText to make parsing easier. Only standardize sectionInstruction metadata for parser recognition. Use pipe (|) in questionText to preserve column structure. Put headers in sectionInstruction with "TABLE_HEADERS:" prefix. 🚫 NEVER use questionNumber: 0.
 
 **CHOICE TYPES - Key Distinction: NUMBER OF ANSWERS**
 - "multiple-choice" - ONE answer: "Choose the correct letter"
@@ -808,6 +809,9 @@ ${chunk.text}
     - Identified by: "Complete the TABLE below"
     - ⚠️ **CRITICAL: PRESERVE TABLE STRUCTURE using pipe (|) delimiters!**
     - The questionText MUST use pipe (|) to separate columns, matching the ORIGINAL table layout
+    - Preserve the ORIGINAL row/cell wording verbatim in questionText. Do NOT paraphrase, summarize, reorder, or rewrite table rows into prose sentences.
+    - NEVER change the semantic wording of questionText to make parsing easier. If the source says "DNA analysis of bat ______", keep that wording instead of rewriting it as a standalone sentence.
+    - The ONLY field you may standardize for parser recognition is sectionInstruction (for example adding "TABLE_HEADERS:" and moving answer-rule text there).
     - Put the TABLE HEADERS in the sectionInstruction field with prefix "TABLE_HEADERS:" followed by pipe-separated headers
       Example sectionInstruction: "TABLE_HEADERS: Plant Species | Native Region | Medicinal Use. Complete the table below. Choose NO MORE THAN TWO WORDS."
     - 🚫 **ABSOLUTELY FORBIDDEN: Do NOT create ANY question with questionNumber: 0**
@@ -949,6 +953,18 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    ✅ If 8-11 heading options (i-xi) → **matching-headings**
    ✅ "multiple-choice" = typically 4 options (A-D) per question
 
+**═══════════════════════════════════════════════════════════════**
+**STRUCTURED LABEL CONTRACT**
+**═══════════════════════════════════════════════════════════════**
+
+- For label-bearing Reading option lists, prefer labeledOptions over free-text labels
+- Each labeled option must be shaped like { "label": "A", "text": "Option text" }
+- Set optionLabelFormat to "letter", "roman", or "number" whenever labels exist
+- If you also include options, it must contain TEXT ONLY with no embedded labels
+- Never duplicate a label inside text
+- Never return conflicting shapes like { "label": "B", "text": "A option text" }
+- For unlabeled question types, return labeledOptions: null and optionLabelFormat: null
+
 **OUTPUT (JSON object only, no markdown):**
 {
   "questions": [
@@ -979,7 +995,13 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "questionText": "discovered the vaccination technique",
       "type": "matching-features",
       "sectionInstruction": "Look at the following statements and the list of researchers below. Match each statement with the correct researcher, A-C.",
-      "options": ["A. Louis Pasteur", "B. Edward Jenner", "C. Robert Koch"],
+      "options": ["Louis Pasteur", "Edward Jenner", "Robert Koch"],
+      "labeledOptions": [
+        { "label": "A", "text": "Louis Pasteur" },
+        { "label": "B", "text": "Edward Jenner" },
+        { "label": "C", "text": "Robert Koch" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-2",
       "confidence": 90,
@@ -1002,7 +1024,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "The value attached to original works of art. Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical__(word)", "B.__(word)", "C.__(word)", "D. __(word)", "E. __(word)", "F. __(word)", "G. __(word)", "H. __(word)"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
@@ -1014,7 +1043,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "The value attached to original works of art. Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical__(word)", "B. __(word)", "C. __(word)", "D. __(word)", "E. __(word)", "F. __(word)", "G. __(word)", "H. __(word)"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,

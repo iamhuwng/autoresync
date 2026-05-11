@@ -442,6 +442,7 @@ ${chunk.text}
 2. Identify question type accurately using the guide below
 3. Extract options for matching/choice questions
 4. For completion: extract ONLY the sentence with the blank (______)
+5. For table-completion: NEVER rewrite source row wording in questionText; only standardize sectionInstruction metadata if parser recognition needs help
 
 **═══════════════════════════════════════════════════════════════**
 **QUESTION TYPE CLASSIFICATION GUIDE (ESSENCE-BASED)**
@@ -474,6 +475,9 @@ ${chunk.text}
 
 **⚠️ TABLE FORMAT RULES (for "table-completion" ONLY):**
 - questionText MUST use PIPE character to separate columns, preserving original table layout
+- Preserve the ORIGINAL row/cell wording verbatim in questionText. Do NOT paraphrase, summarize, reorder, or rewrite table rows into prose sentences.
+- NEVER change the semantic wording of questionText to make parsing easier. If the source says "DNA analysis of bat ______", keep that wording instead of rewriting it as a standalone sentence.
+- The ONLY field you may standardize for parser recognition is sectionInstruction (for example adding "TABLE_HEADERS:" and moving answer-rule text there).
 - Example: questionText = "Gingko Biloba PIPE ______ PIPE Improves cognitive function" (replace PIPE with the actual pipe character)
 - Put column headers in sectionInstruction: "TABLE_HEADERS: Plant Species PIPE Native Region PIPE Medicinal Use. Complete the table below."
 - Use underscores (______) for blanks, NOT dots
@@ -558,7 +562,7 @@ This document may have an INTERLEAVED structure:
 4. **QUESTION TYPES (Use SPECIFIC types, not generic):**
    **True/False:** "true-false-not-given" (facts) or "yes-no-not-given" (opinions)
    **Matching:** "matching-headings", "matching-information", "matching-features", "matching-sentence-endings"
-   **Completion:** "sentence-completion", "summary-completion-text", "summary-completion-list", "note-completion", "table-completion" (use pipe | for columns!), "flowchart-completion", "diagram-labeling"
+   **Completion:** "sentence-completion", "summary-completion-text", "summary-completion-list", "note-completion", "table-completion" (use pipe | for columns, keep source questionText verbatim, and only standardize sectionInstruction), "flowchart-completion", "diagram-labeling"
    **Choice:** "multiple-choice" (one answer), "multiple-select" (multiple answers)
    **Other:** "short-answer"
 
@@ -792,6 +796,18 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
    ✅ If 8-11 heading options (i-xi) → **matching-headings**
    ✅ "multiple-choice" = typically 4 options (A-D) per question
 
+**═══════════════════════════════════════════════════════════════**
+**STRUCTURED LABEL CONTRACT**
+**═══════════════════════════════════════════════════════════════**
+
+- For label-bearing Reading option lists, prefer labeledOptions over free-text labels
+- Each labeled option must be shaped like { "label": "A", "text": "Option text" }
+- Set optionLabelFormat to "letter", "roman", or "number" whenever labels exist
+- If you also include options, it must contain TEXT ONLY with no embedded labels
+- Never duplicate a label inside text
+- Never return conflicting shapes like { "label": "B", "text": "A option text" }
+- For unlabeled question types, return labeledOptions: null and optionLabelFormat: null
+
 **OUTPUT (JSON object only, no markdown):**
 {
   "questions": [
@@ -818,12 +834,36 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "context": null
     },
     {
+      "questionNumber": 19,
+      "questionText": "discovered the vaccination technique",
+      "type": "matching-features",
+      "sectionInstruction": "Look at the following statements and the list of researchers below. Match each statement with the correct researcher, A-C.",
+      "options": ["Louis Pasteur", "Edward Jenner", "Robert Koch"],
+      "labeledOptions": [
+        { "label": "A", "text": "Louis Pasteur" },
+        { "label": "B", "text": "Edward Jenner" },
+        { "label": "C", "text": "Robert Koch" }
+      ],
+      "optionLabelFormat": "letter",
+      "answer": "",
+      "passageId": "passage-2",
+      "confidence": 90,
+      "context": null
+    },
+    {
       "questionNumber": 27,
       "questionText": "People go to art museums because they accept the value of seeing an original work of art. But they do not go to museums to read original manuscripts of novels, perhaps because the availability of novels has depended on ______ for so long, and also because with novels, the ______ are the most important thing.\\n\\nHowever, in historical times artists such as Leonardo were happy to instruct ______ to produce copies of their work.",
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical", "B. ideas", "C. assistants", "D. colour"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
@@ -835,7 +875,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       "type": "summary-completion-list",
       "summaryGroupId": "sc-1",
       "sectionInstruction": "Complete the summary using the list of words, A-L, below.",
-      "options": ["A. mechanical", "B. ideas"],
+      "options": ["mechanical", "ideas", "assistants", "colour"],
+      "labeledOptions": [
+        { "label": "A", "text": "mechanical" },
+        { "label": "B", "text": "ideas" },
+        { "label": "C", "text": "assistants" },
+        { "label": "D", "text": "colour" }
+      ],
+      "optionLabelFormat": "letter",
       "answer": "",
       "passageId": "passage-3",
       "confidence": 95,
