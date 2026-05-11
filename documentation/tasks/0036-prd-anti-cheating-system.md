@@ -338,13 +338,13 @@ interface HomeworkIntegrity {
 
 **FR-52:** The correct answer keys MUST be fetched as a separate request, only when needed for grading (at submission time).
 
-**FR-53:** This is not true server-side protection — the answer key is still fetched client-side for grading. It prevents casual inspection of page source or initial network responses but does not prevent a determined student from intercepting the grading request. Full server-side grading is deferred to a future PRD when the project moves to the Firebase Blaze plan with Cloud Functions.
+**FR-53:** This is not true server-side protection — the answer key is still fetched client-side for grading. It prevents casual inspection of page source or initial network responses but does not prevent a determined student from intercepting the grading request. Full server-side grading is deferred to a future trusted-backend PRD. Cloud Functions were the original assumed backend, but a Cloudflare Worker or another trusted HTTP service is also valid if it verifies auth, keeps answer keys server-side, scores server-side, and writes official results server-side.
 
 ---
 
 ## 5. Non-Goals (Out of Scope)
 
-1. **Server-side grading via Cloud Functions** — deferred to future PRD (requires Blaze plan upgrade)
+1. **Server-side grading via trusted backend** — deferred to future PRD; may use Cloud Functions, Cloudflare Worker, or another approved trusted service.
 2. **Webcam-based proctoring** — too complex, privacy concerns for junior high students
 3. **IP/device fingerprinting** — privacy concerns, out of scope
 4. **AI-based cheating detection** (ChatGPT usage detection, writing style analysis) — future consideration
@@ -470,10 +470,10 @@ StudentTestPage  THCSPracticeView  StudentQuizPageNew
 
 ### 7.3 Firebase Spark Plan Constraints
 
-- No Cloud Functions available — all logic runs client-side
+- No Cloud Functions available on Spark; all PRD-0036 logic runs client-side unless a separate trusted backend such as the Reading V2 Worker is introduced.
 - Answer key obfuscation (FR-51-53) is a client-side separation, not server-side protection
 - Integrity logging increases RTDB writes by ~3-5 per student per test (batched), well within Spark limits
-- Full server-side grading is explicitly deferred to a future PRD when the project upgrades to Blaze
+- Full server-side grading is explicitly deferred to a future PRD or approved trusted-backend implementation.
 
 ### 7.4 Performance Impact
 
@@ -552,8 +552,8 @@ StudentTestPage  THCSPracticeView  StudentQuizPageNew
 - `useTestCompletionCheck` extension to THCS homework
 - Auto-submit with nullify-attempts option
 
-### Future Phase (Requires Blaze Plan)
-- Server-side grading via Cloud Functions
+### Future Phase (Requires Trusted Backend)
+- Server-side grading via Cloud Functions, Cloudflare Worker, or another approved trusted service
 - Answer keys in admin-only Firestore collection
 - Time anomaly detection (Cloud Function post-analysis)
 - Collusion detection (answer pattern comparison)

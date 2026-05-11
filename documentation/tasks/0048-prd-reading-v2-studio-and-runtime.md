@@ -272,6 +272,7 @@ Interpretation:
 82. Live sessions must receive Reading V2 session-safe payloads through the shared session launch infrastructure.
 83. Solo practice, homework, course material launches, and public-library launches must all support Reading V2 through shared platform launch plumbing.
 84. Reading V2 must integrate with shared result infrastructure where safe, while keeping Reading V2 interpretation and scoring owned by the new engine.
+84a. Reading V2 submission/result generation requires a trusted HTTP backend boundary. The PRD does not require Firebase Cloud Functions specifically; Cloudflare Worker, Firebase Functions, or another trusted service is acceptable if it verifies Firebase Auth, loads canonical snapshot/review projection data server-side, scores without exposing answer keys to the browser, and writes canonical result/index records server-side.
 
 ### 4.9 Results and Review
 
