@@ -6,10 +6,11 @@ Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
 - `documentation/architecture/result-view-permission-matrix.md`
+- `documentation/architecture/homework-result-visibility-repair.md`
 
 ## Absolute Rule
 
-Result visibility is determined by teaching-context ownership and permitted solo-practice policy, never by original test authorship or raw `teacherId`.
+Result visibility is determined by teaching-context ownership and permitted solo-practice policy, never by original test authorship or raw `teacherId`. Teacher detail `Access Revoked` caused by `/test_results/{resultId}` denial is a canonical visibility/repair failure unless the user truly lost the outer assignment gate.
 
 ## Reject Conditions
 
@@ -22,6 +23,10 @@ Result visibility is determined by teaching-context ownership and permitted solo
 - A result writer persists visibility fields outside `result.visibility`.
 - A teacher-facing consumer includes unresolved rows in history, detail, analytics, or teacher-owned indexes.
 - A change introduces solo-practice rows into `test_results_by_teacher/*`.
+- A change treats generic homework `context.source.submissionId` as a Writing submission id.
+- A change treats an existing unresolved `result.visibility` value as final without allowing canonical resolver/reindex re-resolution.
+- A modal or page catches `permission_denied` and performs a separate homework lookup to display a denied result.
+- A production-only row patch is proposed without fixing the canonical writer/resolver/reindex contract.
 - A change omits unresolved reporting to `/reports/result_visibility/unresolved/{resultId}`.
 - A change touches teacher indexes without a stale-index reindex or cleanup path.
 - A change touches reconciliation or index-repair behavior without matching verification coverage for unresolved reporting, deleted-source visibility, and safe backfill.
@@ -35,6 +40,8 @@ Result visibility is determined by teaching-context ownership and permitted solo
 - Teacher-facing filters are derived from classified result data.
 - Deleted-source rendering uses submission-time snapshot metadata first.
 - Access-loss handling clears sensitive data immediately.
+- Homework results resolve through `context.assignment.homeworkId` / `homework_assignments/{homeworkId}.createdBy`, not through generic source submission ids.
+- `ensureResultVisibility()` and `rebuildTeacherResultIndexes()` keep a repair path for historical unresolved rows.
 
 ## Required Artifacts In The Same Change Set
 
@@ -49,5 +56,7 @@ Result visibility is determined by teaching-context ownership and permitted solo
 
 - grep for `teacherId` filters in pages/components/services
 - grep for `session.teacherId`
+- grep for `source.submissionId` near `writing_submission`
+- grep for `permission_denied` in result detail components
 - grep for writes to `test_results_by_teacher`
 - grep for direct `test_results/{resultId}` writes outside canonical services

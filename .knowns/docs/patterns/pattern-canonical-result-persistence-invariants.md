@@ -2,7 +2,7 @@
 title: 'Pattern: Canonical Result Persistence Invariants'
 description: 'Canonical persistence contract for RTDB test results: atomic save of canonical row plus discovery indexes, ownership fallback rules, read-path dependencies, and repair expectations.'
 createdAt: '2026-03-27T22:56:18.635Z'
-updatedAt: '2026-03-28T23:11:49.443Z'
+updatedAt: '2026-05-11T17:43:09.129Z'
 tags:
   - pattern
   - results
@@ -143,3 +143,19 @@ If those surfaces advance before canonical persistence succeeds, the UI presents
 - @doc/sop/test-end-flow-debug-retrospective
 - @doc/architecture/test-system-architecture
 - @doc/architecture/results-academic-record
+
+
+## 2026-05-10 Amendment - Homework Visibility Misclassification Repair
+
+Additional failure class:
+- Teacher Homework Detail can list a submission but the result modal shows `Access Revoked` because `/test_results/{resultId}` is not teacher-readable.
+- Root cause can be canonical visibility misclassification, especially treating generic homework `context.source.submissionId` as a Writing submission id and persisting `visibility.sourceType: "writing_submission"` with `ownershipResolved: false`.
+
+New invariant:
+- Generic homework `context.source.submissionId` is not a Writing ownership signal.
+- Normal Reading/Listening homework results resolve through `context.assignment.homeworkId` -> `homework_assignments/{homeworkId}.createdBy`.
+- Explicit Writing identifiers only may trigger `writing_submissions/{submissionId}` ownership lookup.
+- `ensureResultVisibility()` and `rebuildTeacherResultIndexes()` must re-resolve unresolved historical rows before exclusion remains final.
+- UI fallback reads after `permission_denied` are forbidden; repair belongs in canonical visibility/indexing.
+
+Related doc: @doc/architecture/homework-result-visibility-repair

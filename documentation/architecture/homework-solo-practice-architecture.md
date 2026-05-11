@@ -9,6 +9,8 @@ Canonical visibility governance for homework and solo-practice results lives in:
 - Homework result ownership resolves from `homework_assignments/{homeworkId}`.
 - The authoritative owner field is `createdBy`.
 - Homework ownership overrides weaker session, course, class, or producer-local fields.
+- Homework attempt identifiers under `context.source.submissionId` are not Writing submission identifiers.
+- Normal homework Reading/Listening result rows must resolve visibility as `sourceType: "homework"`, not `sourceType: "writing_submission"`.
 
 ## Solo Practice Ownership
 
@@ -22,6 +24,17 @@ Canonical visibility governance for homework and solo-practice results lives in:
 
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
+
+## 2026-05-10 Amendment - Homework Result Access Revoked Repair
+
+Teacher homework detail access failures with `permission_denied` at `/test_results/{resultId}` are governed by:
+- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/result-visibility-ownership-governance.md`
+
+Rules:
+- `ResultDetailModal` is a consumer shell and must not invent fallback ownership.
+- `resultOwnershipResolver` owns classification of homework vs Writing-linked results.
+- Existing unresolved homework rows must be healed by the result-visibility reindex path, not by one-off modal handling.
 
 ## Administrative External Writing Import Contract
 

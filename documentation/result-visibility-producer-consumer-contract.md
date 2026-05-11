@@ -2,6 +2,7 @@
 
 Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
+- `documentation/architecture/homework-result-visibility-repair.md`
 - `documentation/rules/result-visibility-review-checklist.md`
 - `documentation/architecture/result-view-permission-matrix.md`
 
@@ -48,6 +49,19 @@ Companion docs:
 | Writing | `writing_submissions/{submissionId}` plus linked authoritative source | linked source fallback only | `grading.teacherId`, `selectedTeacherId`, `assigningTeacherId` |
 | Solo practice | no teacher-owner lookup | assignment gate only for read-time visibility | any teacher-owner write |
 
+### Identifier Classification Rule
+
+`context.source.submissionId` is not a Writing identity by default. It can identify a generic homework/listening/reading attempt.
+
+Allowed Writing identifiers:
+- resolver input `writingSubmissionId`
+- `result.writingData.submissionId`
+
+Forbidden classification:
+- deriving `writingSubmissionId` from generic `context.source.submissionId`
+
+Homework writers should pass or persist `homeworkId` through `context.assignment.homeworkId` or explicit resolver input, then let the ownership resolver read `homework_assignments/{homeworkId}.createdBy`.
+
 ## Consumer Contract
 
 - `getStudentResults(studentId)` remains student-complete.
@@ -83,3 +97,4 @@ Minimum fields:
 - assignment context promotion to top-level ownership
 - local page-level visibility filtering once the shared services exist
 - solo-practice teacher index writes
+- generic homework `context.source.submissionId` treated as `writing_submission`

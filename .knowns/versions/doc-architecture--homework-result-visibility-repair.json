@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/homework-result-visibility-repair",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/homework-result-visibility-repair",
+      "version": 1,
+      "timestamp": "2026-05-11T17:43:00.0343086Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Homework Result Visibility Repair"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Repair contract for Teacher Homework Detail Access Revoked failures caused by unresolved or misclassified result visibility."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "results",
+            "homework",
+            "visibility",
+            "bugfix"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Homework Result Visibility Repair\n\n## Symptom\n\nTeacher Homework Detail can list a student submission, but opening the result detail shows:\n\n\u003e Access Revoked\n\u003e You no longer have access to this result. This may happen if permissions were changed.\n\nConsole evidence usually includes `permission_denied at /test_results/{resultId}` from `ResultDetailModal`.\n\n## Root Cause\n\nThe result row was not teacher-readable because canonical `result.visibility` was unresolved or misclassified. The critical failure class was treating generic homework `context.source.submissionId` as a Writing submission id. Normal Reading/Listening homework attempts may carry that field as an attempt/submission identifier, but it is not proof that `writing_submissions/{submissionId}` exists.\n\nBad persisted shape:\n\n- `visibility.sourceType: \"writing_submission\"`\n- `ownershipResolved: false`\n- `unresolvedReason: \"writing_submission_not_found\"`\n- missing `visibilityOwnerTeacherId`\n- no usable `test_results_by_teacher/{teacherId}/{resultId}` path\n\n## Canonical Rule\n\nNormal homework result ownership resolves through:\n\n1. `context.assignment.homeworkId`\n2. `homework_assignments/{homeworkId}`\n3. `homework.createdBy`\n4. `result.visibility.visibilityOwnerTeacherId`\n5. `test_results_by_teacher/{teacherId}/{resultId}`\n\nWriting ownership may load `writing_submissions/{submissionId}` only when the id came from an explicit Writing field such as `context.writingData.submissionId`, `writingSubmissionId`, or another typed Writing id.\n\n## Repair Contract\n\n- New result saves must not infer Writing ownership from generic `context.source.submissionId`.\n- `ensureResultVisibility()` must treat unresolved rows as repairable and re-run canonical resolution.\n- `rebuildTeacherResultIndexes()` must repair historical unresolved/misclassified rows and backfill the teacher index only after ownership resolves.\n- `ResultDetailModal` must not add a modal-local fallback that bypasses RTDB read permission. A denied read is repaired upstream in visibility, not downstream in UI.\n\n## Root Docs\n\n- `documentation/architecture/homework-result-visibility-repair.md`\n- `documentation/architecture/result-visibility-ownership-governance.md`\n- `documentation/result-visibility-producer-consumer-contract.md`\n- `documentation/architecture/result-view-permission-matrix.md`\n- `documentation/rules/result-visibility-review-checklist.md`\n\n## Verification\n\nUse the focused repair pack:\n\n```bash\ncmd /c npx vitest run src/services/resultOwnershipResolver.test.ts src/services/testResults.service.test.ts --reporter=basic\nnpm run check:utf8 -- src/services/resultOwnershipResolver.ts src/services/resultOwnershipResolver.test.ts src/services/testResults.service.ts src/services/testResults.service.test.ts\n```",
+        "description": "Repair contract for Teacher Homework Detail Access Revoked failures caused by unresolved or misclassified result visibility.",
+        "tags": [
+          "architecture",
+          "results",
+          "homework",
+          "visibility",
+          "bugfix"
+        ],
+        "title": "Homework Result Visibility Repair"
+      }
+    }
+  ]
+}

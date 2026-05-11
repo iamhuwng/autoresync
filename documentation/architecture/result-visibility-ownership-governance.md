@@ -6,6 +6,7 @@ Companion docs:
 - `documentation/tasks/0041-prd-result-visibility-ownership-governance.md`
 - `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
+- `documentation/architecture/homework-result-visibility-repair.md`
 - `documentation/rules/result-visibility-review-checklist.md`
 - `documentation/architecture/result-view-permission-matrix.md`
 - `documentation/architecture/result-view-fr-closure-matrix.md`
@@ -77,6 +78,8 @@ Additional deleted-source display fields may be added only in `src/types/results
 
 - Producers pass raw source/context identifiers to the service layer. They do not construct visibility snapshots locally.
 - `src/services/testResults.service.ts` and `src/services/writingSubmissionService.ts` must call the write-side resolver before any canonical result row, unresolved report row, or teacher index row is written.
+- `context.source.submissionId` is a generic attempt/submission identifier. It must not be used by itself to classify a result as `writing_submission`.
+- Writing-linked ownership may start only from an explicit Writing submission identifier such as resolver input `writingSubmissionId` or `result.writingData.submissionId`.
 - `test_results_by_teacher/{teacherId}/{resultId}` may be created only from `result.visibility.visibilityOwnerTeacherId` when `ownershipResolved === true`.
 - Never create teacher index rows for solo-practice or unresolved results.
 - Live quiz canonical writes must use the same canonical store, student indexes, and ownership normalization path as other result writers.
@@ -134,8 +137,22 @@ The admin surface for this data is `src/pages/AdminReportsPage.tsx`. Do not crea
 - Stale `test_results_by_teacher/*` rows built from raw `teacherId` semantics are not authoritative.
 - Stale `test_results_by_course/*` and `test_results_by_class/*` rows are also not authoritative once normalized visibility is available.
 - Reindexing must rebuild teacher-owned, class-owned, and course-owned rows from normalized visibility data only.
-- Reindexing must skip solo-practice and unresolved backfill, while still deleting stale nested index rows that no longer match the canonical result location.
+- Reindexing must re-run ownership resolution for rows with missing visibility or `ownershipResolved !== true` before deciding final eligibility.
+- After that re-resolution pass, reindexing must skip solo-practice and still-unresolved backfill, while still deleting stale nested index rows that no longer match the canonical result location.
 - Reindexing must log rebuilt, deleted, skipped, and unresolved counts, including class/course breakdowns when those indexes are repaired.
+
+## Homework Detail Access Revoked Repair Rule
+
+If a teacher homework detail result fails with `permission_denied` at `/test_results/{resultId}`, treat it as a canonical visibility problem first.
+
+Required investigation path:
+
+1. Inspect `test_results/{resultId}/context` and `test_results/{resultId}/visibility`.
+2. If `context.type === "homework"`, verify ownership from `homework_assignments/{homeworkId}.createdBy`.
+3. If visibility says `sourceType: "writing_submission"` while the row is a non-Writing homework attempt, repair the resolver input classification.
+4. Use `rebuildTeacherResultIndexes()` / result visibility reindexing to heal existing unresolved rows.
+
+Do not add local fallback reads or ownership heuristics inside `ResultDetailModal`.
 
 ## Teacher Full-Page Shell Requirement
 
