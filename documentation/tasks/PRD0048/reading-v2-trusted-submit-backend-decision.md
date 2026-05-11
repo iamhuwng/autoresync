@@ -51,9 +51,11 @@ Production must configure this explicit endpoint. If it is absent, the browser m
 - Firebase Hosting `kahut1` deployed on 2026-05-11 with the Worker endpoint in the production build.
 - Firebase Hosting no longer rewrites `/api/reading-v2/submit` to the undeployed `readingV2Submit` Cloud Function.
 - Client production fallback now fails closed when no explicit endpoint is configured; it does not derive `cloudfunctions.net/readingV2Submit`.
+- Authenticated production verification completed on 2026-05-11 with `student@test.com`, material `studio-material-mojlf55h`, and snapshot `snapshot-studio-material-mojlf55h-mojlfaqa`.
+- Solo-practice Worker submit returned `reading-v2-result-938044f7-2529-4cc4-be2c-447c8f0a09d7`, `reading-v2-attempt-3ab822a7-fd51-4767-8ed3-48c37662fe48`, and `40/40`; canonical result, attempt, review, student, solo-practice, and session indexes were present in RTDB.
+- Live-session Worker submit against verification session `CDXV2T` returned `reading-v2-result-1e6af2cf-6f43-4941-a79a-e13abab55e25`, `reading-v2-attempt-4a1c4ce3-008d-4c5c-a917-cdc32c767a25`, and `40/40`; `game_sessions/CDXV2T/students/{uid}/readingV2`, player completion flags, teacher index, session index, and canonical result were present in RTDB.
 
 ## Remaining Work
 
 - Move shared submit core out of `functions/src` into a neutral shared backend/core location.
-- Complete an authenticated live student submit/result verification through the deployed Worker.
 - Keep Firebase Functions wrapper only as optional fallback unless an owner approves deleting it.
