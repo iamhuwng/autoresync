@@ -15,7 +15,7 @@
  * - Solo mode: full local control, no sync
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import './AudioPlayer.css';
 import { googleDriveAudioService } from '../../../services/googleDriveAudio';
 import type { AudioSource } from '../../../services/googleDriveAudio';
@@ -800,7 +800,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [playbackSpeed, allowSpeedControl]);
 
   // Reset state and reload audio when URL or section changes
-  useEffect(() => {
+  useLayoutEffect(() => {
     listeningDiagnostics.log(`🎵 [AudioPlayer] Section/URL changed - resetting player state`);
     setReplaysUsed(0);
     setCurrentTime(0);
@@ -815,6 +815,43 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.load(); // Force reload the audio source
     }
   }, [audioSource?.url, audioUrl, clearPlaybackDiagnostics, sectionNumber]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioSource?.url || !effectiveIsPlaying) {
+      return;
+    }
+
+    let cancelled = false;
+    const playAfterSourceLoad = () => {
+      if (cancelled || audioRef.current !== audio || !effectiveIsPlaying || !audio.paused) {
+        return;
+      }
+
+      listeningDiagnostics.info('[AudioPlayer] Restarting active playback after source reload', {
+        sectionNumber,
+        readyState: audio.readyState,
+        currentTime: audio.currentTime,
+        src: audio.currentSrc || audio.src,
+      });
+      void attemptPlay('sync', false);
+    };
+
+    if (audio.readyState >= 2) {
+      playAfterSourceLoad();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    audio.addEventListener('loadeddata', playAfterSourceLoad, { once: true });
+    audio.addEventListener('canplay', playAfterSourceLoad, { once: true });
+    return () => {
+      cancelled = true;
+      audio.removeEventListener('loadeddata', playAfterSourceLoad);
+      audio.removeEventListener('canplay', playAfterSourceLoad);
+    };
+  }, [attemptPlay, audioSource?.url, effectiveIsPlaying, sectionNumber]);
 
   useEffect(() => {
     return () => {

@@ -1121,7 +1121,27 @@ const ListeningTestPageContent: React.FC = () => {
     markMobileStateDirty();
   }, [handleAnswerSheetScrollChange, markMobileStateDirty]);
 
-  // Mobile tab change handler — behavior depends on mode (task 3.3 / 3.4)
+  // Shared explicit section switch: visible part and destination audio stay in sync.
+  const switchToSectionAudio = useCallback((partNumber: number, reason: string) => {
+    const sectionIndex = audioSections.findIndex(s => s.number === partNumber);
+    const section = audioSections[sectionIndex];
+    if (sectionIndex < 0 || !section) {
+      return;
+    }
+
+    const targetAudioUrl = section.streamUrl || section.audioUrl;
+    setCurrentAudioIndex(sectionIndex);
+    setAudioError(null);
+    setIsPlaying(Boolean(targetAudioUrl) && !testSubmitted);
+    listeningDiagnostics.info('[ListeningTestPage] Switched section audio', {
+      fromSection: currentSection,
+      reason,
+      targetAudioIndex: sectionIndex,
+      targetPart: partNumber,
+      willPlay: Boolean(targetAudioUrl) && !testSubmitted,
+    });
+  }, [audioSections, currentSection, testSubmitted]);
+
   const handleMobilePartChange = useCallback((partNumber: number) => {
     // Always update the viewed part
     setViewedPartNumber(partNumber);
@@ -1133,27 +1153,8 @@ const ListeningTestPageContent: React.FC = () => {
       setCurrentQuestionNumber(section.startQuestion);
     }
 
-    const mobileSectionIndex = audioSections.findIndex(s => s.number === partNumber);
-    if (section && mobileSectionIndex >= 0) {
-      setCurrentAudioIndex(mobileSectionIndex);
-      setAudioError(null);
-      setIsPlaying(Boolean(section.audioUrl || section.streamUrl));
-      listeningDiagnostics.log(`[Mobile] Switched to section ${partNumber} audio`);
-      return;
-    }
-
-    // In Practice/Relaxed modes (showPlayPause=true), also change audio (task 3.4)
-    if (effectiveAudioControls?.showPlayPause) {
-      const sectionIndex = audioSections.findIndex(s => s.number === partNumber);
-      if (sectionIndex >= 0 && sectionIndex !== currentAudioIndex) {
-        setCurrentAudioIndex(sectionIndex);
-        setAudioError(null);
-        listeningDiagnostics.log(`🎵 [Mobile] Switched to section ${partNumber} audio (Practice/Relaxed mode)`);
-      }
-    } else {
-      listeningDiagnostics.log(`📋 [Mobile] Viewing section ${partNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
-    }
-  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
+    switchToSectionAudio(partNumber, 'mobile_part_tab');
+  }, [audioSections, markMobileStateDirty, switchToSectionAudio]);
 
   const handleMobileImageNavigate = useCallback((image: QuestionImage) => {
     const targetSection = audioSections.find(s => s.number === image.sectionNumber);
@@ -1165,14 +1166,11 @@ const ListeningTestPageContent: React.FC = () => {
     setCurrentQuestionNumber(targetQuestion);
 
     if (targetSection && targetAudioIndex >= 0 && targetAudioIndex !== currentAudioIndex) {
-      setCurrentAudioIndex(targetAudioIndex);
-      setAudioError(null);
-      setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
-      listeningDiagnostics.log(`[Mobile] Swiped to section ${image.sectionNumber} image and audio`);
+      switchToSectionAudio(image.sectionNumber, 'mobile_image_swipe');
     }
 
     markMobileStateDirty();
-  }, [audioSections, currentAudioIndex, currentQuestionNumber, markMobileStateDirty]);
+  }, [audioSections, currentAudioIndex, currentQuestionNumber, markMobileStateDirty, switchToSectionAudio]);
 
   // Mobile submit handler — opens confirmation sheet instead of direct submit (task 5.3)
   const handleMobileSubmit = useCallback(async () => {
@@ -1355,10 +1353,7 @@ const ListeningTestPageContent: React.FC = () => {
     setAnswers(prev => ({ ...prev, [questionNumber]: answer }));
   }, []);
 
-  // Handle section change - navigate to view a different Part's questions
-  // Mode-dependent behavior:
-  // - Standard mode (showPlayPause=false): Only change questions, audio continues
-  // - Practice/Relaxed modes (showPlayPause=true): Change both questions AND audio
+  // Handle section change - navigate to a different Part and its audio.
   const handleSectionChange = useCallback((sectionNumber: number) => {
     const sectionIndex = audioSections.findIndex(s => s.number === sectionNumber);
     const section = audioSections[sectionIndex];
@@ -1366,40 +1361,24 @@ const ListeningTestPageContent: React.FC = () => {
       // Always change the visible question
       setCurrentQuestionNumber(section.startQuestion);
 
-      // In Practice/Relaxed modes (showPlayPause=true), also change the audio
-      // In Standard mode (showPlayPause=false), keep audio on current section
-      if (effectiveAudioControls?.showPlayPause) {
-        setCurrentAudioIndex(sectionIndex);
-        setAudioError(null);
-        listeningDiagnostics.log(`🎵 [Navigation] Switched to section ${sectionNumber} audio (Practice/Relaxed mode)`);
-      } else {
-        listeningDiagnostics.log(`📋 [Navigation] Viewing section ${sectionNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
-      }
+      switchToSectionAudio(sectionNumber, 'section_tab');
     }
     markMobileStateDirty();
-  }, [audioSections, currentSection, effectiveAudioControls, markMobileStateDirty]);
+  }, [audioSections, markMobileStateDirty, switchToSectionAudio]);
 
   const goToQuestion = useCallback((questionNumber: number) => {
     // Always change the visible question
     setCurrentQuestionNumber(questionNumber);
 
-    // In Practice/Relaxed modes (showPlayPause=true), also switch audio if needed
-    // In Standard mode (showPlayPause=false), keep audio on current section
-    if (effectiveAudioControls?.showPlayPause) {
-      // Find which audio section this question belongs to
-      const sectionIndex = audioSections.findIndex(s =>
-        questionNumber >= s.startQuestion && questionNumber <= s.endQuestion
-      );
-      if (sectionIndex >= 0 && sectionIndex !== currentAudioIndex) {
-        setCurrentAudioIndex(sectionIndex);
-        setAudioError(null);
-        listeningDiagnostics.log(`🎵 [Navigation] Switched to section ${audioSections[sectionIndex]?.number} audio for Q${questionNumber} (Practice/Relaxed mode)`);
-      }
-    } else {
-      listeningDiagnostics.log(`📋 [Navigation] Viewing question ${questionNumber} (audio stays on section ${currentSection} - Standard mode)`);
+    const sectionIndex = audioSections.findIndex(s =>
+      questionNumber >= s.startQuestion && questionNumber <= s.endQuestion
+    );
+    const targetSection = audioSections[sectionIndex];
+    if (sectionIndex >= 0 && targetSection && sectionIndex !== currentAudioIndex) {
+      switchToSectionAudio(targetSection.number, 'question_nav');
     }
     markMobileStateDirty();
-  }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
+  }, [audioSections, currentAudioIndex, markMobileStateDirty, switchToSectionAudio]);
 
   const handleSubmit = useCallback(() => {
     (async () => {

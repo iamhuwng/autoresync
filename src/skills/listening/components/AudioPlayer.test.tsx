@@ -25,11 +25,24 @@ describe('AudioPlayer', () => {
   const playMock = vi.fn();
   const pauseMock = vi.fn();
   const loadMock = vi.fn();
+  let pausedValue = true;
+  let readyStateValue = 2;
 
   beforeEach(() => {
     playMock.mockReset();
     pauseMock.mockReset();
     loadMock.mockReset();
+    pausedValue = true;
+    readyStateValue = 2;
+    playMock.mockImplementation(async () => {
+      pausedValue = false;
+    });
+    pauseMock.mockImplementation(() => {
+      pausedValue = true;
+    });
+    loadMock.mockImplementation(() => {
+      pausedValue = true;
+    });
 
     Object.defineProperty(HTMLMediaElement.prototype, 'play', {
       configurable: true,
@@ -45,7 +58,11 @@ describe('AudioPlayer', () => {
     });
     Object.defineProperty(HTMLMediaElement.prototype, 'readyState', {
       configurable: true,
-      get: () => 2,
+      get: () => readyStateValue,
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'paused', {
+      configurable: true,
+      get: () => pausedValue,
     });
   });
 
@@ -149,6 +166,58 @@ describe('AudioPlayer', () => {
       const select = screen.getByDisplayValue('1.5x') as HTMLSelectElement;
       expect(select.value).toBe('1.5');
     });
+  });
+
+  it('restarts playback after changing source while active', async () => {
+    const onPlayPause = vi.fn();
+
+    const { rerender } = render(
+      <AudioPlayer
+        audioUrl="https://cdn.example.com/audio-1.mp3"
+        sectionNumber={1}
+        isPlaying
+        volume={1}
+        playbackSpeed={1}
+        onPlayPause={onPlayPause}
+        onTimeUpdate={() => {}}
+        onSectionComplete={() => {}}
+        onError={() => {}}
+        playerMode="solo"
+        minimal
+        mobileLayout
+      />,
+    );
+
+    await waitFor(() => {
+      expect(playMock).toHaveBeenCalled();
+    });
+
+    playMock.mockClear();
+    loadMock.mockClear();
+    pausedValue = false;
+
+    rerender(
+      <AudioPlayer
+        audioUrl="https://cdn.example.com/audio-2.mp3"
+        sectionNumber={2}
+        isPlaying
+        volume={1}
+        playbackSpeed={1}
+        onPlayPause={onPlayPause}
+        onTimeUpdate={() => {}}
+        onSectionComplete={() => {}}
+        onError={() => {}}
+        playerMode="solo"
+        minimal
+        mobileLayout
+      />,
+    );
+
+    await waitFor(() => {
+      expect(loadMock).toHaveBeenCalled();
+      expect(playMock).toHaveBeenCalled();
+    });
+    expect(onPlayPause).not.toHaveBeenCalled();
   });
 
   it('finishes the section instead of auto-replaying when audio ends', async () => {
