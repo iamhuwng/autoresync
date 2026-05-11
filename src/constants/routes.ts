@@ -97,8 +97,6 @@ export const ROUTES = {
   STUDENT_LIBRARY: '/student/library',
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
-  STUDENT_AWL_SUBLIST_THREE: '/student/awl-sublist-three',
-  AWL_SUBLIST_THREE: '/awl-sublist-three',
   RESULT_DETAIL: '/result/:resultId',
 } as const;
 

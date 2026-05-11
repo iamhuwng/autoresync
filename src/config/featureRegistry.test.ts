@@ -15,10 +15,6 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/student-test/ABC123')).toBe('testTaking');
     });
 
-    it('maps the AWL independent route to testTaking', () => {
-      expect(resolveFeatureFromRoute('/awl-sublist-three')).toBe('testTaking');
-    });
-
     it('maps known homework routes to homework', () => {
       expect(resolveFeatureFromRoute('/teacher/homework')).toBe('homework');
     });
