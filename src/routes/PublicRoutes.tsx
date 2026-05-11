@@ -8,7 +8,6 @@ const GuestResultsPage = lazyWithRetry(() => import('../pages/GuestResultsPage')
 const AccessDeniedPage = lazyWithRetry(() => import('../pages/AccessDeniedPage'));
 const BlockedUserPage = lazyWithRetry(() => import('../pages/BlockedUserPage'));
 const TeacherInvitePage = lazyWithRetry(() => import('../pages/TeacherInvitePage.jsx'));
-const AwlSublist3PracticePage = lazyWithRetry(() => import('../pages/AwlSublist3PracticePage'));
 const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
@@ -38,10 +37,6 @@ export default function PublicRoutes() {
     {
       path: '/teacher-invite',
       element: <TeacherInvitePage />,
-    },
-    {
-      path: '/awl-sublist-three',
-      element: withTrackedRoute(<AwlSublist3PracticePage />, 'testTaking'),
     },
     {
       path: '*',
