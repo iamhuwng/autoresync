@@ -14,6 +14,23 @@ import { ref, get, query, orderByChild, equalTo, limitToFirst } from 'firebase/d
 import { database } from './firebase';
 import dataCache, { CacheTypes, CacheTTL } from './dataCache';
 
+const toTestList = (data) => data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+
+const sortTestsByRecentUpdate = (tests) => [...tests].sort((a, b) => {
+  const aTime = a.updatedAt || a.publishedAt || a.createdAt || 0;
+  const bTime = b.updatedAt || b.publishedAt || b.createdAt || 0;
+  return bTime - aTime;
+});
+
+const dedupeTestsById = (testGroups) => {
+  const byId = new Map();
+  testGroups.flat().forEach(test => {
+    if (!test?.id) return;
+    byId.set(test.id, { ...byId.get(test.id), ...test });
+  });
+  return sortTestsByRecentUpdate([...byId.values()]);
+};
+
 class FirebaseQueryOptimizer {
   constructor() {
     this.pendingQueries = new Map();
@@ -192,7 +209,7 @@ class FirebaseQueryOptimizer {
     const snapshot = await get(testsRef);
     const data = snapshot.val();
 
-    const testList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+    const testList = toTestList(data);
 
     // Cache for 30 seconds
     dataCache.set(CacheTypes.TEST, cacheKey, testList, CacheTTL.MEDIUM);
@@ -203,6 +220,75 @@ class FirebaseQueryOptimizer {
     });
 
     console.log(`✅ [QueryOptimizer] Fetched ${testList.length} tests`);
+    return testList;
+  }
+
+  /**
+   * Fetch tests visible in a teacher's My Content tab using indexed ownership queries.
+   * Avoids downloading the full /tests node on the lobby route.
+   * @param {string} ownerId - Teacher uid
+   * @param {boolean} skipCache - Force fresh fetch
+   * @returns {Promise<Array>} Array of tests
+   */
+  async getTeacherOwnedTests(ownerId, skipCache = false) {
+    if (!ownerId) return [];
+
+    const cacheKey = `owner:${ownerId}`;
+    if (!skipCache) {
+      const cached = dataCache.get(CacheTypes.TEST, cacheKey);
+      if (cached) {
+        console.log(`[QueryOptimizer] Teacher tests from cache (${cached.length} items)`);
+        return cached;
+      }
+    }
+
+    console.log(`[QueryOptimizer] Fetching teacher tests by owner index`);
+    const testsRef = ref(database, 'tests');
+    const [ownerSnapshot, createdBySnapshot] = await Promise.all([
+      get(query(testsRef, orderByChild('ownerId'), equalTo(ownerId))),
+      get(query(testsRef, orderByChild('createdBy'), equalTo(ownerId))),
+    ]);
+
+    const testList = dedupeTestsById([
+      toTestList(ownerSnapshot.val()),
+      toTestList(createdBySnapshot.val()),
+    ]);
+
+    dataCache.set(CacheTypes.TEST, cacheKey, testList, CacheTTL.MEDIUM);
+    testList.forEach(test => {
+      dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
+    });
+
+    console.log(`[QueryOptimizer] Fetched ${testList.length} teacher tests`);
+    return testList;
+  }
+
+  /**
+   * Fetch public tests using the isPublic index.
+   * @param {boolean} skipCache - Force fresh fetch
+   * @returns {Promise<Array>} Array of public tests
+   */
+  async getPublicTests(skipCache = false) {
+    const cacheKey = 'public';
+    if (!skipCache) {
+      const cached = dataCache.get(CacheTypes.TEST, cacheKey);
+      if (cached) {
+        console.log(`[QueryOptimizer] Public tests from cache (${cached.length} items)`);
+        return cached;
+      }
+    }
+
+    console.log(`[QueryOptimizer] Fetching public tests by isPublic index`);
+    const testsRef = ref(database, 'tests');
+    const snapshot = await get(query(testsRef, orderByChild('isPublic'), equalTo(true)));
+    const testList = sortTestsByRecentUpdate(toTestList(snapshot.val()));
+
+    dataCache.set(CacheTypes.TEST, cacheKey, testList, CacheTTL.MEDIUM);
+    testList.forEach(test => {
+      dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
+    });
+
+    console.log(`[QueryOptimizer] Fetched ${testList.length} public tests`);
     return testList;
   }
 

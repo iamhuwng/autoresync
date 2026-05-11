@@ -7,17 +7,30 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 const mockRemove = vi.fn().mockResolvedValue(undefined);
 const mockDbUpdate = vi.fn().mockResolvedValue(undefined);
 const mockRef = vi.fn((_db: any, path: string) => ({ path }));
+const mockQuery = vi.fn((target: any, ...constraints: any[]) => ({
+  path: target.path,
+  constraints,
+}));
+const mockOrderByChild = vi.fn((child: string) => ({ type: 'orderByChild', child }));
+const mockEqualTo = vi.fn((value: unknown) => ({ type: 'equalTo', value }));
 let onValueCallback: ((snapshot: any) => void) | null = null;
 let onValueErrorCallback: ((error: any) => void) | null = null;
+const onValueCallbacks: Array<(snapshot: any) => void> = [];
+const onValueErrorCallbacks: Array<(error: any) => void> = [];
 const mockUnsubscribe = vi.fn();
 const mockOnValue = vi.fn((ref: any, successCb: any, errorCb?: any) => {
   onValueCallback = successCb;
   onValueErrorCallback = errorCb || null;
+  onValueCallbacks.push(successCb);
+  if (errorCb) onValueErrorCallbacks.push(errorCb);
   return mockUnsubscribe;
 });
 
 vi.mock('firebase/database', () => ({
   ref: (...args: any[]) => mockRef(...args),
+  query: (...args: any[]) => mockQuery(...args),
+  orderByChild: (...args: any[]) => mockOrderByChild(...args),
+  equalTo: (...args: any[]) => mockEqualTo(...args),
   onValue: (...args: any[]) => mockOnValue(...args),
   remove: (...args: any[]) => mockRemove(...args),
   update: (...args: any[]) => mockDbUpdate(...args),
@@ -39,10 +52,14 @@ vi.mock('../../services/firebase', () => ({
 
 // Mock queryOptimizer
 const mockGetAllTests = vi.fn();
+const mockGetTeacherOwnedTests = vi.fn();
+const mockGetPublicTests = vi.fn();
 const mockInvalidate = vi.fn();
 vi.mock('../../services/firebaseQueryOptimizer', () => ({
   default: {
     getAllTests: (...args: any[]) => mockGetAllTests(...args),
+    getTeacherOwnedTests: (...args: any[]) => mockGetTeacherOwnedTests(...args),
+    getPublicTests: (...args: any[]) => mockGetPublicTests(...args),
     invalidate: (...args: any[]) => mockInvalidate(...args),
   },
 }));
@@ -76,15 +93,19 @@ describe('useTeacherTests', () => {
     vi.clearAllMocks();
     onValueCallback = null;
     onValueErrorCallback = null;
+    onValueCallbacks.length = 0;
+    onValueErrorCallbacks.length = 0;
     mockGetAllTests.mockResolvedValue(mockTests);
+    mockGetTeacherOwnedTests.mockResolvedValue(mockTests);
+    mockGetPublicTests.mockResolvedValue(mockTests);
     mockGetReadingV2TeacherLobbyTests.mockResolvedValue([]);
     mockRemove.mockResolvedValue(undefined);
     mockDbUpdate.mockResolvedValue(undefined);
     mockDeleteDoc.mockResolvedValue(undefined);
   });
 
-  it('loads tests initially via queryOptimizer.getAllTests()', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
+  it('loads teacher-owned tests initially via indexed owner queries', async () => {
+    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
 
     // Initially loading
     expect(result.current.loading).toBe(true);
@@ -93,12 +114,13 @@ describe('useTeacherTests', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockGetAllTests).toHaveBeenCalledOnce();
+    expect(mockGetTeacherOwnedTests).toHaveBeenCalledWith('teacher-1', false);
+    expect(mockGetAllTests).not.toHaveBeenCalled();
     expect(result.current.tests).toEqual(mockTests);
     expect(result.current.error).toBeNull();
   });
 
-  it('merges Reading V2 teacher-lobby materials for the current owner', async () => {
+  it('uses tests registry rows for Reading V2 cards without relationship hydration', async () => {
     const readingV2Material = {
       id: 'reading-v2-material-1',
       materialId: 'reading-v2-material-1',
@@ -106,7 +128,7 @@ describe('useTeacherTests', () => {
       deliveryEngine: 'reading-v2',
       ownerId: 'teacher-1',
     };
-    mockGetReadingV2TeacherLobbyTests.mockResolvedValueOnce([readingV2Material]);
+    mockGetTeacherOwnedTests.mockResolvedValueOnce([readingV2Material]);
 
     const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
 
@@ -114,14 +136,15 @@ describe('useTeacherTests', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockGetReadingV2TeacherLobbyTests).toHaveBeenCalledWith('teacher-1');
-    expect(result.current.tests).toEqual([...mockTests, readingV2Material]);
+    expect(mockGetTeacherOwnedTests).toHaveBeenCalledWith('teacher-1', false);
+    expect(mockGetReadingV2TeacherLobbyTests).not.toHaveBeenCalled();
+    expect(result.current.tests).toEqual([readingV2Material]);
   });
 
   it('exposes error state when initial load fails', async () => {
-    mockGetAllTests.mockRejectedValue(new Error('Network failed'));
+    mockGetTeacherOwnedTests.mockRejectedValue(new Error('Network failed'));
 
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
+    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -132,11 +155,11 @@ describe('useTeacherTests', () => {
   });
 
   it('skips first onValue call and processes second call for real-time updates', async () => {
-    mockGetAllTests
+    mockGetPublicTests
       .mockResolvedValueOnce(mockTests)
       .mockResolvedValueOnce([{ id: 'test-3', title: 'New Test' }]);
 
-    const { result } = renderHook(() => useTeacherTests({ realtime: true }));
+    const { result } = renderHook(() => useTeacherTests({ realtime: true, contentFilter: 'public' }));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -160,7 +183,10 @@ describe('useTeacherTests', () => {
     await waitFor(() => {
       expect(result.current.tests).toEqual([{ id: 'test-3', title: 'New Test' }]);
     });
-    expect(mockInvalidate).toHaveBeenCalledWith('test', 'all');
+    expect(mockInvalidate).toHaveBeenCalledWith('test', 'public');
+    expect(mockGetAllTests).not.toHaveBeenCalled();
+    expect(mockOrderByChild).toHaveBeenCalledWith('isPublic');
+    expect(mockEqualTo).toHaveBeenCalledWith(true);
   });
 
   it('cleans up subscription on unmount', async () => {
@@ -181,7 +207,7 @@ describe('useTeacherTests', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { result } = renderHook(() => useTeacherTests({ realtime: true }));
+    const { result } = renderHook(() => useTeacherTests({ realtime: true, contentFilter: 'public' }));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);

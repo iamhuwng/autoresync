@@ -340,6 +340,7 @@
             ".indexOn": [
                 "userId",
                 "ownerId",
+                "createdBy",
                 "isPublic",
                 "createdAt",
                 "testType"

@@ -91,6 +91,8 @@ const TeacherLobbyPage = () => {
   const modals = useModalManager();
   const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests({
     ownerId: user?.uid,
+    userRole: profile?.role,
+    contentFilter,
   });
   const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts } = useTeacherDrafts({
     userId: user?.uid || '',
