@@ -150,4 +150,37 @@ describe('AudioPlayer', () => {
       expect(select.value).toBe('1.5');
     });
   });
+
+  it('finishes the section instead of auto-replaying when audio ends', async () => {
+    playMock.mockResolvedValue(undefined);
+    const onSectionComplete = vi.fn();
+
+    const { container } = render(
+      <AudioPlayer
+        audioUrl="https://cdn.example.com/audio.mp3"
+        sectionNumber={1}
+        isPlaying={false}
+        volume={1}
+        playbackSpeed={1}
+        onPlayPause={() => {}}
+        onTimeUpdate={() => {}}
+        onSectionComplete={onSectionComplete}
+        onError={() => {}}
+        allowReplay
+        maxReplays={2}
+        playerMode="solo"
+        minimal
+        mobileLayout
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('audio')).toBeTruthy();
+    });
+
+    fireEvent.ended(container.querySelector('audio') as HTMLAudioElement);
+
+    expect(onSectionComplete).toHaveBeenCalledTimes(1);
+    expect(playMock).not.toHaveBeenCalled();
+  });
 });

@@ -539,13 +539,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     const handleEnded = () => {
       clearPlaybackDiagnostics();
-      if (replaysUsed < maxReplays - 1) {
-        setReplaysUsed(prev => prev + 1);
-        audio.currentTime = 0;
-        audio.play();
-      } else {
-        onSectionComplete();
-      }
+      onSectionComplete();
     };
 
     const handleError = () => {
@@ -641,12 +635,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     audioSource,
     clearPlaybackDiagnostics,
     markPlaybackProgress,
-    maxReplays,
     onError,
     onSectionComplete,
     onTimeUpdate,
     playbackSpeed,
-    replaysUsed,
     sectionNumber,
     volume,
   ]);

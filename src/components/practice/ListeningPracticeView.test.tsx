@@ -219,6 +219,7 @@ vi.mock('../../skills/listening/components/AudioPlayer', () => ({
     <div
       data-testid="mock-audio-player"
       data-section={String(props.sectionNumber)}
+      data-is-playing={String(Boolean(props.isPlaying))}
       data-volume={String(props.volume)}
       data-speed={String(props.playbackSpeed)}
       data-mobile-layout={String(Boolean(props.mobileLayout))}
@@ -244,7 +245,24 @@ vi.mock('../../skills/listening/components/SectionRubricBlock', () => ({
 }));
 
 vi.mock('../test/mobile/MobileListeningImageCanvas', () => ({
-  MobileListeningImageCanvas: () => <div data-testid="mock-image-canvas" />,
+  MobileListeningImageCanvas: (props: any) => (
+    <div
+      data-testid="mock-image-canvas"
+      data-viewed-part={String(props.viewedPartNumber)}
+      data-current-question={String(props.currentQuestionNumber)}
+    >
+      <button
+        type="button"
+        onClick={() => props.onImageNavigate?.({
+          sectionNumber: 2,
+          imageUrl: 'part-2-b.png',
+          questionRange: { start: 16, end: 20 },
+        })}
+      >
+        Swipe To Part 2 Image
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('../test/mobile/MobileListeningAnswerSheet', () => ({
@@ -658,11 +676,53 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     });
 
     expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('2');
+    expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
 
     expect(trackActionMock).toHaveBeenCalledWith('switchListeningPart', expect.objectContaining({
       fromPart: 1,
       toPart: 2,
       surface: 'mobile_part_tabs',
+    }));
+  });
+
+  it('swiping image canvas moves across parts and starts destination audio', async () => {
+    vi.mocked(useSoloTestData).mockReturnValue({
+      testData: {
+        ...mockTestData,
+        displayMode: 'image',
+        questionImages: [
+          { sectionNumber: 1, imageUrl: 'part-1.png', questionRange: { start: 1, end: 10 } },
+          { sectionNumber: 2, imageUrl: 'part-2-a.png', questionRange: { start: 11, end: 15 } },
+          { sectionNumber: 2, imageUrl: 'part-2-b.png', questionRange: { start: 16, end: 20 } },
+        ],
+      },
+      loading: false,
+      error: null,
+      questionsWithAnswersRef: { current: mockTestData.questions },
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('mock-listening-scaffold');
+    fireEvent.click(screen.getByRole('button', { name: 'Swipe To Part 2 Image' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('2');
+      expect(screen.getByTestId('mock-image-canvas').getAttribute('data-current-question')).toBe('16');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('2');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
+    });
+
+    expect(trackActionMock).toHaveBeenCalledWith('switchListeningImage', expect.objectContaining({
+      fromPart: 1,
+      toPart: 2,
+      targetQuestion: 16,
     }));
   });
 
@@ -709,6 +769,39 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
   });
 
   // ── 5.10.11: Results screen shown after submission ──
+
+  it('auto-advancing audio moves image mode to the next section', async () => {
+    vi.mocked(useSoloTestData).mockReturnValue({
+      testData: {
+        ...mockTestData,
+        displayMode: 'image',
+        questionImages: [
+          { sectionNumber: 1, imageUrl: 'part-1.png', questionRange: { start: 1, end: 10 } },
+          { sectionNumber: 2, imageUrl: 'part-2.png', questionRange: { start: 11, end: 20 } },
+        ],
+      },
+      loading: false,
+      error: null,
+      questionsWithAnswersRef: { current: mockTestData.questions },
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('mock-listening-scaffold');
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Audio Section' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('2');
+      expect(screen.getByTestId('mock-image-canvas').getAttribute('data-current-question')).toBe('11');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('2');
+    });
+  });
 
   it('shows results screen after test is submitted', async () => {
     vi.mocked(useSoloSubmission).mockReturnValue({
@@ -989,7 +1082,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     });
   });
 
-  it('does not steal the viewed part when image-mode audio auto-advances', async () => {
+  it('moves the viewed part when image-mode audio auto-advances', async () => {
     vi.mocked(useSoloTestData).mockReturnValue({
       testData: {
         ...mockTestData,
@@ -1029,7 +1122,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
       expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('3');
     });
 
-    expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('2');
+    expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('3');
   });
 
   it('homework mode uses same scaffold as self_study (Phase 7.3)', async () => {

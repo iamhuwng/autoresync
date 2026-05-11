@@ -1133,6 +1133,15 @@ const ListeningTestPageContent: React.FC = () => {
       setCurrentQuestionNumber(section.startQuestion);
     }
 
+    const mobileSectionIndex = audioSections.findIndex(s => s.number === partNumber);
+    if (section && mobileSectionIndex >= 0) {
+      setCurrentAudioIndex(mobileSectionIndex);
+      setAudioError(null);
+      setIsPlaying(Boolean(section.audioUrl || section.streamUrl));
+      listeningDiagnostics.log(`[Mobile] Switched to section ${partNumber} audio`);
+      return;
+    }
+
     // In Practice/Relaxed modes (showPlayPause=true), also change audio (task 3.4)
     if (effectiveAudioControls?.showPlayPause) {
       const sectionIndex = audioSections.findIndex(s => s.number === partNumber);
@@ -1145,6 +1154,25 @@ const ListeningTestPageContent: React.FC = () => {
       listeningDiagnostics.log(`📋 [Mobile] Viewing section ${partNumber} questions (audio stays on section ${currentSection} - Standard mode)`);
     }
   }, [audioSections, currentAudioIndex, currentSection, effectiveAudioControls, markMobileStateDirty]);
+
+  const handleMobileImageNavigate = useCallback((image: QuestionImage) => {
+    const targetSection = audioSections.find(s => s.number === image.sectionNumber);
+    const targetAudioIndex = audioSections.findIndex(s => s.number === image.sectionNumber);
+    const legacyImageRange = image as QuestionImage & { startQuestion?: number };
+    const targetQuestion = image.questionRange?.start ?? legacyImageRange.startQuestion ?? targetSection?.startQuestion ?? currentQuestionNumber;
+
+    setViewedPartNumber(image.sectionNumber);
+    setCurrentQuestionNumber(targetQuestion);
+
+    if (targetSection && targetAudioIndex >= 0 && targetAudioIndex !== currentAudioIndex) {
+      setCurrentAudioIndex(targetAudioIndex);
+      setAudioError(null);
+      setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
+      listeningDiagnostics.log(`[Mobile] Swiped to section ${image.sectionNumber} image and audio`);
+    }
+
+    markMobileStateDirty();
+  }, [audioSections, currentAudioIndex, currentQuestionNumber, markMobileStateDirty]);
 
   // Mobile submit handler — opens confirmation sheet instead of direct submit (task 5.3)
   const handleMobileSubmit = useCallback(async () => {
@@ -1445,9 +1473,8 @@ const ListeningTestPageContent: React.FC = () => {
         setAudioError(null);
         setCurrentAudioIndex(nextAudioIndex);
         setCurrentQuestionNumber(nextAudio.startQuestion);
-        if (!effectiveAudioControls?.showPlayPause) {
-          setViewedPartNumber(nextAudio.number);
-        }
+        setViewedPartNumber(nextAudio.number);
+        setIsPlaying(Boolean(nextAudio.audioUrl || nextAudio.streamUrl));
       }
     }
     markMobileStateDirty();
@@ -1465,9 +1492,8 @@ const ListeningTestPageContent: React.FC = () => {
       const nextAudio = audioSections[nextAudioIndex];
       if (nextAudio) {
         setCurrentQuestionNumber(nextAudio.startQuestion);
-        if (!effectiveAudioControls?.showPlayPause) {
-          setViewedPartNumber(nextAudio.number);
-        }
+        setViewedPartNumber(nextAudio.number);
+        setIsPlaying(Boolean(nextAudio.audioUrl || nextAudio.streamUrl));
       }
     }
     setShowWaitPopup(false);
@@ -1698,6 +1724,7 @@ const ListeningTestPageContent: React.FC = () => {
                   currentQuestionNumber={currentQuestionNumber}
                   zoomByPart={zoomByPart}
                   onZoomChange={handleZoomChangeWithDirty}
+                  onImageNavigate={handleMobileImageNavigate}
                 />
 
                 {/* Questions FAB — visible only in image mode, hidden when sheet is open (Task 4.3) */}

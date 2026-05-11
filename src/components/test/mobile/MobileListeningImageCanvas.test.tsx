@@ -84,6 +84,20 @@ describe('MobileListeningImageCanvas', () => {
       expect(img).toHaveAttribute('src', '/images/part2-q16-20.png');
     });
 
+    it('supports legacy startQuestion/endQuestion image ranges', () => {
+      renderCanvas({
+        questionImages: [
+          { sectionNumber: 2, imageUrl: '/images/legacy-q11-15.png', startQuestion: 11, endQuestion: 15 },
+          { sectionNumber: 2, imageUrl: '/images/legacy-q16-20.png', startQuestion: 16, endQuestion: 20 },
+        ],
+        viewedPartNumber: 2,
+        currentQuestionNumber: 17,
+      });
+
+      expect(screen.getByTestId('mobile-image-canvas-img')).toHaveAttribute('src', '/images/legacy-q16-20.png');
+      expect(screen.getByTestId('mobile-image-order-pill')).toHaveTextContent('2/2');
+    });
+
     it('defaults to first image when question is out of range', () => {
       renderCanvas({ viewedPartNumber: 2, currentQuestionNumber: 99 });
       const img = screen.getByTestId('mobile-image-canvas-img');
@@ -95,9 +109,82 @@ describe('MobileListeningImageCanvas', () => {
       expect(screen.getByTestId('mobile-image-nav-dots')).toBeInTheDocument();
     });
 
+    it('shows global image order in the floating pill', () => {
+      renderCanvas({ viewedPartNumber: 2, currentQuestionNumber: 17 });
+      expect(screen.getByTestId('mobile-image-order-pill')).toHaveTextContent('3/5');
+      expect(screen.getByTestId('mobile-image-order-pill')).toHaveAttribute('aria-label', 'Image 3 of 5');
+    });
+
     it('does not show navigation dots when part has a single image', () => {
       renderCanvas({ viewedPartNumber: 1, currentQuestionNumber: 1 });
       expect(screen.queryByTestId('mobile-image-nav-dots')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Image navigation', () => {
+    it('swipe right moves to the next global image', () => {
+      const onImageNavigate = vi.fn();
+      renderCanvas({ viewedPartNumber: 2, currentQuestionNumber: 11, onImageNavigate });
+
+      const canvas = screen.getByTestId('mobile-image-canvas');
+      fireEvent.touchStart(canvas, { touches: [{ clientX: 100, clientY: 120 }] });
+      fireEvent.touchEnd(canvas, {
+        touches: [],
+        changedTouches: [{ clientX: 170, clientY: 122 }],
+      });
+
+      expect(onImageNavigate).toHaveBeenCalledWith(expect.objectContaining({
+        sectionNumber: 2,
+        questionRange: { start: 16, end: 20 },
+      }));
+    });
+
+    it('swipe left returns to the previous global image across parts', () => {
+      const onImageNavigate = vi.fn();
+      renderCanvas({ viewedPartNumber: 2, currentQuestionNumber: 11, onImageNavigate });
+
+      const canvas = screen.getByTestId('mobile-image-canvas');
+      fireEvent.touchStart(canvas, { touches: [{ clientX: 170, clientY: 120 }] });
+      fireEvent.touchEnd(canvas, {
+        touches: [],
+        changedTouches: [{ clientX: 100, clientY: 122 }],
+      });
+
+      expect(onImageNavigate).toHaveBeenCalledWith(expect.objectContaining({
+        sectionNumber: 1,
+        questionRange: { start: 1, end: 10 },
+      }));
+    });
+
+    it('dot taps navigate to that part image', () => {
+      const onImageNavigate = vi.fn();
+      renderCanvas({ viewedPartNumber: 2, currentQuestionNumber: 11, onImageNavigate });
+
+      fireEvent.click(screen.getByLabelText('Image 2 of 2'));
+
+      expect(onImageNavigate).toHaveBeenCalledWith(expect.objectContaining({
+        sectionNumber: 2,
+        questionRange: { start: 16, end: 20 },
+      }));
+    });
+
+    it('does not swipe between images while zoomed in', () => {
+      const onImageNavigate = vi.fn();
+      renderCanvas({
+        viewedPartNumber: 2,
+        currentQuestionNumber: 11,
+        zoomByPart: { '2': zoomedIn },
+        onImageNavigate,
+      });
+
+      const canvas = screen.getByTestId('mobile-image-canvas');
+      fireEvent.touchStart(canvas, { touches: [{ clientX: 100, clientY: 120 }] });
+      fireEvent.touchEnd(canvas, {
+        touches: [],
+        changedTouches: [{ clientX: 170, clientY: 122 }],
+      });
+
+      expect(onImageNavigate).not.toHaveBeenCalled();
     });
   });
 

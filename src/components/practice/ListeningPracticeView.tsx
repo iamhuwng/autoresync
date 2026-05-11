@@ -358,10 +358,39 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 setAudioPositionSeconds(0);
                 setPendingSeekPosition(0);
                 setAudioError(null);
+                setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
             }
         }
         mobileStateDirtyRef.current = true;
     }, [audioSections, practiceContext.type, trackAction, viewedPartNumber]);
+
+    const handleImageNavigate = useCallback((image: QuestionImage) => {
+        const targetSection = audioSections.find(s => s.number === image.sectionNumber);
+        const targetAudioIndex = audioSections.findIndex(s => s.number === image.sectionNumber);
+        const legacyImageRange = image as QuestionImage & { startQuestion?: number };
+        const targetQuestion = image.questionRange?.start ?? legacyImageRange.startQuestion ?? targetSection?.startQuestion ?? currentQuestionNumber;
+
+        trackAction('switchListeningImage', {
+            mode: practiceContext.type === 'homework' ? 'homework' : 'solo',
+            surface: 'mobile_image_canvas',
+            fromPart: viewedPartNumber,
+            toPart: image.sectionNumber,
+            targetQuestion,
+        });
+
+        setViewedPartNumber(image.sectionNumber);
+        setCurrentQuestionNumber(targetQuestion);
+
+        if (targetSection && targetAudioIndex >= 0 && targetAudioIndex !== currentAudioIndex) {
+            setCurrentAudioIndex(targetAudioIndex);
+            setAudioPositionSeconds(0);
+            setPendingSeekPosition(0);
+            setAudioError(null);
+            setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
+        }
+
+        mobileStateDirtyRef.current = true;
+    }, [audioSections, currentAudioIndex, currentQuestionNumber, practiceContext.type, trackAction, viewedPartNumber]);
 
     // ═══════════════════════════════════════════════════════════════
     // AUDIO HANDLERS — PRD-0045 Fix: solo/homework audio playback
@@ -409,16 +438,14 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 listeningDiagnostics.log(`🎵 [ListeningPractice] Advancing to section ${nextSection.number}`);
                 setAudioError(null);
                 setCurrentAudioIndex(nextIndex);
-                if (displayMode !== 'image') {
-                    setViewedPartNumber(nextSection.number);
-                    setCurrentQuestionNumber(nextSection.startQuestion);
-                }
+                setViewedPartNumber(nextSection.number);
+                setCurrentQuestionNumber(nextSection.startQuestion);
                 // Auto-play next section after a short delay
                 setTimeout(() => setIsPlaying(true), 500);
             }
         }
         // If last section, stay paused — user reviews and submits
-    }, [audioSections, currentAudioIndex, displayMode]);
+    }, [audioSections, currentAudioIndex]);
 
     const handleAudioError = useCallback((error: string) => {
         listeningDiagnostics.warn('[ListeningPractice] Audio error:', error);
@@ -1259,6 +1286,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                                     currentQuestionNumber={currentQuestionNumber}
                                     zoomByPart={zoomByPart}
                                     onZoomChange={handleZoomChange}
+                                    onImageNavigate={handleImageNavigate}
                                 />
 
                                 {/* Questions FAB — visible only when sheet is closed */}

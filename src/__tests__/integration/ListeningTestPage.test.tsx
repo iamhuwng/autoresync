@@ -141,8 +141,23 @@ vi.mock('../../skills/listening/components/ListeningImageModeDisplay', () => ({
 }));
 
 vi.mock('../../components/test/mobile/MobileListeningImageCanvas', () => ({
-  MobileListeningImageCanvas: ({ viewedPartNumber }: any) => (
-    <div data-testid="mobile-image-canvas" data-viewed-part={String(viewedPartNumber)} />
+  MobileListeningImageCanvas: ({ viewedPartNumber, currentQuestionNumber, onImageNavigate }: any) => (
+    <div
+      data-testid="mobile-image-canvas"
+      data-viewed-part={String(viewedPartNumber)}
+      data-current-question={String(currentQuestionNumber)}
+    >
+      <button
+        type="button"
+        onClick={() => onImageNavigate?.({
+          sectionNumber: 2,
+          imageUrl: 'https://example.com/img2b.jpg',
+          questionRange: { start: 4, end: 4 },
+        })}
+      >
+        Swipe To Section 2 Image
+      </button>
+    </div>
   ),
 }));
 
@@ -165,12 +180,17 @@ vi.mock('../../skills/listening/components/ListeningNavArrows', () => ({
 }));
 
 vi.mock('../../skills/listening/components/AudioPlayer', () => ({
-  AudioPlayer: ({ sectionNumber, mobileLayout }: any) => (
+  AudioPlayer: ({ sectionNumber, mobileLayout, isPlaying, onSectionComplete }: any) => (
     <div
       data-testid="mobile-audio-player"
       data-section={sectionNumber}
+      data-is-playing={String(Boolean(isPlaying))}
       data-mobile-layout={String(Boolean(mobileLayout))}
-    />
+    >
+      <button type="button" onClick={onSectionComplete}>
+        Complete Audio Section
+      </button>
+    </div>
   ),
 }));
 
@@ -511,7 +531,7 @@ describe('ListeningTestPage mobile direct-question (Phase 3)', () => {
   });
 
   // Task 3.3: Standard/live tab tap changes viewed-part only
-  it('Standard/live tab tap changes viewed-part cue only — audio stays unchanged', async () => {
+  it('Standard/live tab tap changes viewed part, audio section, and playback', async () => {
     // Default test data has showPlayPause = false (Standard mode)
     renderPage();
     await screen.findByTestId('mock-mobile-listening-scaffold');
@@ -528,13 +548,16 @@ describe('ListeningTestPage mobile direct-question (Phase 3)', () => {
       const s = screen.getByTestId('mock-mobile-listening-state');
       // viewedPartNumber changed to 3
       expect(s.getAttribute('data-active-part')).toBe('3');
-      // playingPartNumber stays at 1 — audio is NOT changed
-      expect(s.getAttribute('data-playing-part')).toBe('1');
+      // audio follows the selected part
+      expect(s.getAttribute('data-playing-part')).toBe('3');
     });
+
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-section')).toBe('3');
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-is-playing')).toBe('true');
   });
 
   // Task 3.3: Standard/live rendered question group stays audio-locked
-  it('Standard/live rendered content derives from audio section 1 even when viewed-part is 3', async () => {
+  it('Standard/live rendered content follows selected part and audio section', async () => {
     renderPage();
     await screen.findByTestId('mock-mobile-listening-scaffold');
 
@@ -549,9 +572,9 @@ describe('ListeningTestPage mobile direct-question (Phase 3)', () => {
     const rubric = screen.getByTestId('section-rubric');
     expect(rubric.getAttribute('data-part')).toBe('3');
 
-    // The audio player should still show section 1 (audio-locked)
+    // The audio player should follow the selected section.
     const audioPlayer = screen.getByTestId('mobile-audio-player');
-    expect(audioPlayer.getAttribute('data-section')).toBe('1');
+    expect(audioPlayer.getAttribute('data-section')).toBe('3');
   });
 
   // Task 3.4: Practice/Relaxed tab tap changes audio section AND rendered group
@@ -781,14 +804,15 @@ describe('ListeningTestPage mobile direct-question (Phase 3)', () => {
       const s = screen.getByTestId('mock-mobile-listening-state');
       // viewed part changed to 4
       expect(s.getAttribute('data-active-part')).toBe('4');
-      // audio stays locked to Part 1
-      expect(s.getAttribute('data-playing-part')).toBe('1');
+      // audio follows the selected part
+      expect(s.getAttribute('data-playing-part')).toBe('4');
     });
 
     // Section rubric shows the viewed part (4)
     expect(screen.getByTestId('section-rubric').getAttribute('data-part')).toBe('4');
-    // Audio player stays on section 1
-    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-section')).toBe('1');
+    // Audio player follows section 4
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-section')).toBe('4');
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-is-playing')).toBe('true');
   });
 
   it('passes locked state through to mobile question groups', async () => {
@@ -930,7 +954,7 @@ describe('ListeningTestPage mobile image-mode (Phase 7.2)', () => {
     });
   });
 
-  it('audio does not change when tapping parts in Standard image mode', async () => {
+  it('audio changes and starts when tapping parts in Standard image mode', async () => {
     renderPage();
     await screen.findByTestId('mock-mobile-listening-scaffold');
 
@@ -939,7 +963,38 @@ describe('ListeningTestPage mobile image-mode (Phase 7.2)', () => {
     await waitFor(() => {
       const s = screen.getByTestId('mock-mobile-listening-state');
       expect(s.getAttribute('data-active-part')).toBe('4');
-      expect(s.getAttribute('data-playing-part')).toBe('1');
+      expect(s.getAttribute('data-playing-part')).toBe('4');
+    });
+
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-section')).toBe('4');
+    expect(screen.getByTestId('mobile-audio-player').getAttribute('data-is-playing')).toBe('true');
+  });
+
+  it('image swipe across sections changes image, section, and audio', async () => {
+    renderPage();
+    await screen.findByTestId('mock-mobile-listening-scaffold');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Swipe To Section 2 Image' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mobile-image-canvas').getAttribute('data-viewed-part')).toBe('2');
+      expect(screen.getByTestId('mobile-image-canvas').getAttribute('data-current-question')).toBe('4');
+      expect(screen.getByTestId('mock-mobile-listening-state').getAttribute('data-playing-part')).toBe('2');
+      expect(screen.getByTestId('mobile-audio-player').getAttribute('data-is-playing')).toBe('true');
+    });
+  });
+
+  it('section completion advances image mode to the next section and starts audio', async () => {
+    renderPage();
+    await screen.findByTestId('mock-mobile-listening-scaffold');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Audio Section' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mobile-image-canvas').getAttribute('data-viewed-part')).toBe('2');
+      expect(screen.getByTestId('mobile-image-canvas').getAttribute('data-current-question')).toBe('3');
+      expect(screen.getByTestId('mock-mobile-listening-state').getAttribute('data-playing-part')).toBe('2');
+      expect(screen.getByTestId('mobile-audio-player').getAttribute('data-is-playing')).toBe('true');
     });
   });
 

@@ -18,7 +18,7 @@
  * @see PRD-0045 Task 4.1, 4.8, 4.9
  */
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { MOBILE_LISTENING_LAYER_Z_INDEX } from './mobileListeningLayering';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -28,6 +28,8 @@ export interface QuestionImage {
   imageUrl: string;
   imageCaption?: string;
   questionRange?: { start: number; end: number };
+  startQuestion?: number;
+  endQuestion?: number;
 }
 
 export interface AudioSection {
@@ -56,6 +58,8 @@ export interface MobileListeningImageCanvasProps {
   zoomByPart: Record<string, ImageZoomState>;
   /** Callback to update zoom state for a part */
   onZoomChange: (partNumber: number, zoom: ImageZoomState) => void;
+  /** Callback when swipe/dot navigation selects another image */
+  onImageNavigate?: (image: QuestionImage) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -63,6 +67,8 @@ export interface MobileListeningImageCanvasProps {
 const MIN_SCALE = 1;
 const MAX_SCALE = 3;
 const DEFAULT_ZOOM: ImageZoomState = { scale: 1, offsetX: 0, offsetY: 0 };
+const SWIPE_THRESHOLD_PX = 44;
+const SWIPE_VERTICAL_TOLERANCE_PX = 36;
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 
@@ -86,7 +92,7 @@ const imageContainerStyle: React.CSSProperties = {
 
 const resetButtonStyle: React.CSSProperties = {
   position: 'absolute',
-  top: 12,
+  top: 52,
   right: 12,
   zIndex: 10, // Within the image area only
   display: 'flex',
@@ -106,6 +112,29 @@ const resetButtonStyle: React.CSSProperties = {
   WebkitBackdropFilter: 'blur(8px)',
   WebkitTapHighlightColor: 'transparent',
   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+};
+
+const imageOrderPillStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 12,
+  right: 12,
+  zIndex: 11,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 52,
+  height: 32,
+  padding: '0 12px',
+  borderRadius: 16,
+  background: 'rgba(15, 23, 42, 0.78)',
+  color: '#ffffff',
+  fontSize: '0.75rem',
+  fontWeight: 700,
+  fontFamily: 'system-ui, -apple-system, sans-serif',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.28)',
+  pointerEvents: 'none',
 };
 
 const emptyStateStyle: React.CSSProperties = {
@@ -165,6 +194,14 @@ function getTouchMidpoint(t1: React.Touch, t2: React.Touch): { x: number; y: num
   };
 }
 
+function getImageRange(image: QuestionImage): { start: number; end: number } | undefined {
+  if (image.questionRange) return image.questionRange;
+  if (Number.isFinite(image.startQuestion) && Number.isFinite(image.endQuestion)) {
+    return { start: image.startQuestion!, end: image.endQuestion! };
+  }
+  return undefined;
+}
+
 /** Calculate clamped pan offset so image edges don't leave the viewport */
 function clampOffset(
   offset: number,
@@ -189,6 +226,7 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
   currentQuestionNumber,
   zoomByPart,
   onZoomChange,
+  onImageNavigate,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -200,6 +238,7 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
   const initialScale = useRef(1);
   const lastPanPoint = useRef({ x: 0, y: 0 });
   const gestureActive = useRef(false);
+  const swipeStartPoint = useRef<{ x: number; y: number } | null>(null);
 
   // Track image natural dimensions for pan clamping
   const [imageDims, setImageDims] = useState({ width: 0, height: 0 });
@@ -208,19 +247,30 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
   const partKey = String(viewedPartNumber);
   const currentZoom = zoomByPart[partKey] || DEFAULT_ZOOM;
 
+  const orderedImages = useMemo(() => {
+    const sectionOrder = new Map(audioSections.map((section, index) => [section.number, index]));
+    return [...questionImages].sort((a, b) => {
+      const aSectionOrder = sectionOrder.get(a.sectionNumber) ?? a.sectionNumber;
+      const bSectionOrder = sectionOrder.get(b.sectionNumber) ?? b.sectionNumber;
+      if (aSectionOrder !== bSectionOrder) return aSectionOrder - bSectionOrder;
+      return (getImageRange(a)?.start ?? 0) - (getImageRange(b)?.start ?? 0);
+    });
+  }, [audioSections, questionImages]);
+
   // ── Filter images for viewed part ──────────────────────────────────────
   const sectionImages = questionImages
     .filter(img => img.sectionNumber === viewedPartNumber)
-    .sort((a, b) => (a.questionRange?.start || 0) - (b.questionRange?.start || 0));
+    .sort((a, b) => (getImageRange(a)?.start || 0) - (getImageRange(b)?.start || 0));
 
   // Find the image index that covers the current question
   const activeImageIndex = (() => {
     for (let i = 0; i < sectionImages.length; i++) {
       const img = sectionImages[i];
-      if (img?.questionRange) {
+      const range = img ? getImageRange(img) : undefined;
+      if (range) {
         if (
-          currentQuestionNumber >= img.questionRange.start &&
-          currentQuestionNumber <= img.questionRange.end
+          currentQuestionNumber >= range.start &&
+          currentQuestionNumber <= range.end
         ) {
           return i;
         }
@@ -230,6 +280,22 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
   })();
 
   const currentImage = sectionImages[activeImageIndex] || sectionImages[0];
+  const activeGlobalImageIndex = currentImage
+    ? orderedImages.findIndex(image => image === currentImage)
+    : -1;
+  const imageOrder = activeGlobalImageIndex >= 0 ? activeGlobalImageIndex + 1 : 0;
+  const imageTotal = orderedImages.length;
+
+  const navigateByOffset = useCallback(
+    (offset: number) => {
+      if (!onImageNavigate || activeGlobalImageIndex < 0) return;
+      const targetImage = orderedImages[activeGlobalImageIndex + offset];
+      if (targetImage) {
+        onImageNavigate(targetImage);
+      }
+    },
+    [activeGlobalImageIndex, onImageNavigate, orderedImages],
+  );
 
   // ── Update zoom with pan clamping ──────────────────────────────────────
   const setZoom = useCallback(
@@ -277,6 +343,7 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
         // Pinch start
         e.preventDefault();
         e.stopPropagation();
+        swipeStartPoint.current = null;
         isPinching.current = true;
         gestureActive.current = true;
         const t1 = e.touches[0];
@@ -290,6 +357,7 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
         }
       } else if (e.touches.length === 1 && currentZoom.scale > 1) {
         // Pan start (only when zoomed in)
+        swipeStartPoint.current = null;
         isPanning.current = true;
         gestureActive.current = true;
         const t = e.touches[0];
@@ -299,6 +367,9 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
         if (containerRef.current) {
           containerRef.current.style.touchAction = 'none';
         }
+      } else if (e.touches.length === 1) {
+        const t = e.touches[0];
+        swipeStartPoint.current = { x: t.clientX, y: t.clientY };
       }
     },
     [currentZoom.scale],
@@ -349,9 +420,26 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent<HTMLDivElement>) => {
       if (e.touches.length === 0) {
+        const swipeStart = swipeStartPoint.current;
+        const swipeEnd = e.changedTouches[0];
+        swipeStartPoint.current = null;
         isPinching.current = false;
         isPanning.current = false;
         gestureActive.current = false;
+
+        if (swipeStart && swipeEnd && currentZoom.scale <= 1) {
+          const deltaX = swipeEnd.clientX - swipeStart.x;
+          const deltaY = swipeEnd.clientY - swipeStart.y;
+          if (
+            Math.abs(deltaX) >= SWIPE_THRESHOLD_PX &&
+            Math.abs(deltaX) > Math.abs(deltaY) + SWIPE_VERTICAL_TOLERANCE_PX
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Product contract: swipe right advances, swipe left returns.
+            navigateByOffset(deltaX > 0 ? 1 : -1);
+          }
+        }
 
         // Restore normal page scroll
         if (containerRef.current) {
@@ -367,7 +455,7 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
         }
       }
     },
-    [currentZoom.scale],
+    [currentZoom.scale, navigateByOffset],
   );
 
   // ── Disable double-tap zoom ────────────────────────────────────────────
@@ -459,6 +547,14 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
         </button>
       )}
 
+      <div
+        data-testid="mobile-image-order-pill"
+        style={imageOrderPillStyle}
+        aria-label={`Image ${imageOrder} of ${imageTotal}`}
+      >
+        {imageOrder}/{imageTotal}
+      </div>
+
       {/* Image display area */}
       <div style={imageContainerStyle}>
         {currentImage ? (
@@ -495,11 +591,9 @@ export const MobileListeningImageCanvas: React.FC<MobileListeningImageCanvasProp
               aria-label={`Image ${idx + 1} of ${sectionImages.length}`}
               type="button"
               onClick={() => {
-                // Navigate to the first question of the clicked image
                 const img = sectionImages[idx];
-                if (img?.questionRange) {
-                  // The host handles question changes; we can't directly
-                  // set question number. The dots are informational.
+                if (img) {
+                  onImageNavigate?.(img);
                 }
               }}
             />
