@@ -20,7 +20,50 @@ const JWKS = createRemoteJWKSet(
 interface VerifyResult {
     valid: boolean;
     uid?: string;
+    name?: string | null;
+    email?: string | null;
     error?: string;
+}
+
+export async function verifyFirebaseToken(
+    authHeader: string | null,
+    env: WorkerEnv
+): Promise<VerifyResult> {
+    try {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.warn('[Auth] Missing or invalid Authorization header');
+            return { valid: false, error: 'Missing Authorization header' };
+        }
+
+        const token = authHeader.slice(7);
+        if (!token) {
+            console.warn('[Auth] Empty token after stripping Bearer prefix');
+            return { valid: false, error: 'Missing Authorization header' };
+        }
+
+        console.log('[Auth] Verifying JWT for project:', env.FIREBASE_PROJECT_ID);
+        const { payload } = await jwtVerify(token, JWKS, {
+            issuer: `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`,
+            audience: env.FIREBASE_PROJECT_ID,
+        });
+
+        const uid = payload.sub;
+        if (!uid) {
+            return { valid: false, error: 'Token is missing subject uid' };
+        }
+
+        console.log('[Auth] JWT verified, uid:', uid);
+        return {
+            valid: true,
+            uid,
+            name: typeof payload.name === 'string' ? payload.name : null,
+            email: typeof payload.email === 'string' ? payload.email : null,
+        };
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Token verification failed';
+        console.error('[Auth] JWT verification failed:', message);
+        return { valid: false, error: message };
+    }
 }
 
 /**

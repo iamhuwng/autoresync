@@ -23,6 +23,7 @@ import type { WorkerEnv, StatusTrackerState } from './types';
 import { verifyAdminToken } from './auth/firebase-auth';
 import { BackupR2Client } from './utils/r2-client';
 import { clearStaleRestoreFlag } from './backup/auto-backup';
+import { handleReadingV2Submit } from './reading-v2/submit';
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -406,6 +407,10 @@ async function handleRequest(
     // CORS preflight
     if (method === 'OPTIONS') {
         return corsPreflightResponse();
+    }
+
+    if (method === 'POST' && path === '/api/reading-v2/submit') {
+        return handleReadingV2Submit(request, env);
     }
 
     const r2 = createR2Client(env);

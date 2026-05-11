@@ -12,13 +12,14 @@
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "outDir": "./dist",
-        "rootDir": "./src",
+        "rootDir": "..",
         "lib": [
             "ES2022"
         ]
     },
     "include": [
-        "src/**/*.ts"
+        "src/**/*.ts",
+        "../functions/src/readingV2SubmitCore.ts"
     ],
     "exclude": [
         "node_modules",
