@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/teacher-materials-listing-and-diagnostics",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/teacher-materials-listing-and-diagnostics",
+      "version": 1,
+      "timestamp": "2026-05-11T17:23:18.7404067Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher Materials Listing And Diagnostics"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher-lobby",
+            "materials",
+            "performance",
+            "diagnostics"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher Materials Listing And Diagnostics\n\n## Purpose\n\nDefines the current Teacher Lobby materials-listing contract after the May 2026 performance repair.\n\nThe old normal-teacher loading model could read all `/tests` rows and filter client-side. That path is obsolete because it made the Materials tab slow and hid regressions when new material families were added.\n\n## Code Anchors\n\n- `src/pages/TeacherLobbyPage.jsx`\n- `src/hooks/test/useTeacherTests.ts`\n- `src/services/firebaseQueryOptimizer.js`\n- `src/utils/teacherMaterialsDiagnostics.js`\n- `database.rules.json` `/tests` indexes: `ownerId`, `createdBy`, `isPublic`, `createdAt`, `updatedAt`\n\nRepo architecture mirror: `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.\n\n## Current Listing Contract\n\nNormal teacher My Content:\n\n1. Query `/tests` by `ownerId == teacherUid`.\n2. Query `/tests` by `createdBy == teacherUid`.\n3. Merge and de-duplicate by id.\n4. Sort by recent update/create time.\n5. Cache under `test:owner:{teacherUid}`.\n\nPublic Library:\n\n1. Query `/tests` by `isPublic == true`.\n2. Sort by recent update/create time.\n3. Cache under `test:public`.\n\nSuper admin My Content is the only valid broad all-tests exception.\n\nDrafts stay on `useTeacherDrafts` and should only load when the Drafts tab is active.\n\n## Realtime Contract\n\nRealtime listeners must match the list scope:\n\n- owned: indexed `ownerId` and `createdBy` listeners\n- public: indexed `isPublic` listener\n- all: super-admin-only broad listener\n\nInitial snapshots are skipped after the initial fetch. Later events invalidate scoped cache and reload with `skipCache=true`.\n\n`loadedScope` prevents stale data from being reported as a rendered grid for the wrong tab.\n\n## Diagnostics Contract\n\nDiagnostics are gated through `teacherMaterialsDiagnostics`.\n\nEnablement:\n\n- dev: enabled automatically\n- production: enabled with `?diagTeacherMaterials=1` or `?diagTeacherMaterials=true`\n- test: disabled by default\n\nStable prefix: `[Diag][TeacherMaterials]`.\n\nEvent families include optimizer fetch/cache/skipped, hook load/reload, realtime registration/snapshot skip, and `grid_rendered`.\n\nPayloads may include scope, strategy, branch names, counts, duration, and uid tail only. They must not log material payloads, answers, passages, drafts, profiles, or student data.\n\n## Retired Patterns\n\nDo not reintroduce these for normal Teacher Lobby material cards:\n\n- `queryOptimizer.getAllTests()` for normal teacher My Content\n- full `/tests` read plus client-side ownership filtering\n- full `/tests` read plus client-side public filtering\n- Reading V2 canonical document/projection hydration for card lists\n- always-on console timing logs outside gated diagnostics\n\n## Evidence\n\nLocal browser verification on 2026-05-11 showed:\n\n- My Content: indexed `ownerId` + `createdBy`, 16 rows loaded, 16 visible, around 1.5s.\n- Public Library: indexed `isPublic`, 23 rows loaded, 17 visible, around 1.16s.\n- No app console errors.\n- No app network failures.\n\nShipped as `f57580c chore(teacher): add materials diagnostics` and deployed to Firebase Hosting `kahut1`.\n\n## Healthy System Rules\n\n- Add list-scope tests for new Teacher Lobby tabs/material families.\n- Treat normal-teacher full `/tests` scans as regressions.\n- Add RTDB indexes before new query branches.\n- Keep cards on summary/index rows; heavy canonical payloads belong behind explicit open/edit/preview actions.\n- Preserve gated diagnostics for live browser proof.\n- Add pagination or a dedicated material-summary index before indexed reads exceed UI budget.\n",
+        "description": "Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "materials",
+          "performance",
+          "diagnostics"
+        ],
+        "title": "Teacher Materials Listing And Diagnostics"
+      }
+    }
+  ]
+}

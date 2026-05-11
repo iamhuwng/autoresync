@@ -1,0 +1,145 @@
+# Teacher Materials Listing And Diagnostics
+
+## Purpose
+
+This document defines the current Teacher Lobby materials-listing contract after the May 2026 performance repair.
+
+It exists because the old Teacher Lobby loading model was too broad: normal teachers could trigger full `/tests` reads and then filter client-side. That was slow, noisy, and easy to regress when new material types such as Reading V2 were added.
+
+## Current Ownership
+
+Runtime surfaces:
+
+- `src/pages/TeacherLobbyPage.jsx`
+- `src/hooks/test/useTeacherTests.ts`
+- `src/services/firebaseQueryOptimizer.js`
+- `src/utils/teacherMaterialsDiagnostics.js`
+
+Database/index anchors:
+
+- RTDB `/tests/{testId}`
+- `database.rules.json` `.indexOn` for `/tests`: `ownerId`, `createdBy`, `isPublic`, `createdAt`, `updatedAt`
+
+The Teacher Lobby list is a material index/read surface. It must not hydrate canonical Reading V2 drafts, passage assets, student-safe payloads, session-safe payloads, or result projections just to render cards.
+
+## Listing Contract
+
+### My Content
+
+For normal teachers, My Content must load only owned material rows:
+
+1. Query `/tests` by `ownerId == teacherUid`.
+2. Query `/tests` by `createdBy == teacherUid`.
+3. Merge and de-duplicate by material id.
+4. Sort by recent update/create time.
+5. Cache under `test:owner:{teacherUid}`.
+
+Reason for dual ownership query:
+
+- newer rows should use `ownerId`
+- older rows may only have `createdBy`
+- the lobby cannot safely drop either field until a complete migration/backfill proves it
+
+### Super Admin My Content
+
+Super admin My Content may still use the broad all-tests path because the role explicitly owns global inspection.
+
+This is the exception, not the normal teacher path.
+
+### Public Library
+
+Public Library must load by the public index:
+
+1. Query `/tests` by `isPublic == true`.
+2. Sort by recent update/create time.
+3. Cache under `test:public`.
+
+It must not read all tests and then filter public rows client-side.
+
+### Drafts
+
+Drafts remain separate from the published-material list. `useTeacherDrafts` owns draft loading and should only run when the Drafts tab is active.
+
+## Realtime Contract
+
+Realtime listeners must match the active listing scope:
+
+- owned scope: indexed `ownerId` and `createdBy` listeners
+- public scope: indexed `isPublic` listener
+- all scope: super-admin-only broad listener
+
+Initial RTDB listener snapshots are skipped because the initial indexed fetch already loaded the same data. Later realtime events invalidate the matching scoped cache and reload with `skipCache=true`.
+
+The page exposes `loadedScope` from `useTeacherTests` and only emits rendered-grid diagnostics when `loadedScope` matches the active tab. This prevents stale owned data from being logged as a completed public render during tab switches.
+
+## Diagnostics Contract
+
+Diagnostics are intentionally scoped to Teacher Lobby materials loading.
+
+Enablement:
+
+- dev mode: enabled automatically
+- production mode: enabled only with `?diagTeacherMaterials=1` or `?diagTeacherMaterials=true`
+- test mode: disabled by default
+
+Stable prefix:
+
+```text
+[Diag][TeacherMaterials]
+```
+
+Required event families:
+
+- `optimizer_fetch_requested`
+- `optimizer_fetch_succeeded`
+- `optimizer_cache_hit`
+- `optimizer_fetch_skipped`
+- `hook_load_requested`
+- `hook_load_succeeded`
+- `hook_load_failed`
+- `realtime_listener_registered`
+- `realtime_initial_snapshot_skipped`
+- `realtime_reload_succeeded`
+- `realtime_reload_failed`
+- `grid_rendered`
+
+Diagnostic payload rules:
+
+- include scope, strategy, branch names, counts, and duration
+- include only a short uid tail, never full uid or user profile data
+- do not log material payloads, answers, passages, draft bodies, or student data
+
+## Retired Patterns
+
+These patterns are obsolete for normal Teacher Lobby material loading:
+
+- `queryOptimizer.getAllTests()` for normal teacher My Content
+- reading the full `/tests` table and filtering by ownership client-side
+- reading the full `/tests` table and filtering public rows client-side
+- hydrating Reading V2 canonical documents or projections just to render material cards
+- logging grid readiness before the loaded data scope matches the active tab
+- adding always-on console timing logs outside the gated diagnostics helper
+
+Old PRD-0033 references to `useTeacherTests` using `queryOptimizer.getAllTests()` are historical extraction requirements, not current architecture.
+
+## Live Evidence
+
+Local browser verification on 2026-05-11 against the diagnostic build showed:
+
+- My Content: indexed `ownerId` + `createdBy`, 16 rows loaded, 16 visible, `optimizer_fetch_succeeded` around 1.5s.
+- Public Library: indexed `isPublic`, 23 rows loaded, 17 visible, `optimizer_fetch_succeeded` around 1.16s.
+- No app console errors.
+- No app network failures.
+
+This was committed as `f57580c chore(teacher): add materials diagnostics` and deployed to Firebase Hosting `kahut1`.
+
+## Healthy System Plan
+
+Keep this path healthy with these rules:
+
+1. Add list-scope tests whenever a new Teacher Lobby tab, material family, or card source is added.
+2. Treat any normal-teacher full `/tests` scan as a regression unless a documented migration window explicitly allows it.
+3. Add RTDB indexes before adding a new query branch.
+4. Keep lobby cards on summary/index rows. Move heavy canonical payloads behind explicit open/edit/preview actions.
+5. Preserve gated diagnostics so live browser checks can prove query scope, row counts, and render readiness without leaking payloads.
+6. Add pagination or a dedicated material-summary index before public/owned row counts become large enough that indexed reads still exceed the UI budget.

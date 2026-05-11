@@ -1,5 +1,7 @@
 # PRD-0033: Teacher Lobby Page Refactor
 
+> Status note, 2026-05-12: this PRD is a historical extraction/refactor source. Its original `useTeacherTests` data-loading requirement used `queryOptimizer.getAllTests()` because the refactor preserved old behavior. That loading model is now obsolete for normal teachers. Current Teacher Lobby materials loading is governed by `documentation/architecture/teacher-materials-listing-and-diagnostics.md`: normal My Content reads indexed `ownerId` + `createdBy`, Public Library reads indexed `isPublic`, and broad `getAllTests()` is reserved for super-admin/global inspection paths.
+
 ## 1. Introduction / Overview
 
 The `TeacherLobbyPage.jsx` has grown to **2,035 lines** across 8+ PRDs (PRD-0018, 0022, 0027, 0028, 0029, etc.). It is a single-file monolith containing 25 `useState` hooks, 5 `useEffect` blocks, 12 event handlers, 3 card renderers, 3 modals, and ~1,000 lines of deeply nested JSX. Every feature change—no matter how small—risks breaking unrelated features because all domains (tests, quizzes, drafts, sessions, audio, modals) share the same scope.

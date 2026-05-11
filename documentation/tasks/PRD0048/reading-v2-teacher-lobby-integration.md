@@ -4,6 +4,7 @@ This document is part of the PRD-0048 source-of-truth packet.
 
 Authoritative companion docs:
 
+- `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
 - `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 - `documentation/tasks/PRD0048/contract-freeze-0048-prd-reading-v2-studio-and-runtime.md`
 - `documentation/tasks/PRD0048/reading-v2-feature-pipeline-matrix.md`
@@ -21,6 +22,8 @@ Reading V2 must integrate with the existing Teacher Lobby material-card workflow
 
 The Teacher Lobby is not a new Reading V2 discovery product in PRD-0048. It remains the current `/lobby` shell where teachers already see material cards and draft cards for other test families.
 
+Current data-loading architecture is defined in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Reading V2 lobby integration must use the same scoped material-listing contract as every other family: normal teachers read owned `/tests` rows by `ownerId` and `createdBy`; public library reads `/tests` by `isPublic`; drafts stay on the draft path. The lobby must not hydrate Reading V2 canonical documents, passage assets, projections, or result payloads just to render cards.
+
 Baseline PRD-0048 Teacher Lobby behavior:
 
 - the existing lobby page remains the entry surface
@@ -36,6 +39,9 @@ Baseline PRD-0048 Teacher Lobby behavior:
 Use these current files as integration-pattern references only:
 
 - `src/pages/TeacherLobbyPage.jsx`
+- `src/hooks/test/useTeacherTests.ts`
+- `src/services/firebaseQueryOptimizer.js`
+- `src/utils/teacherMaterialsDiagnostics.js`
 - `src/components/modern/TestCard.jsx`
 - `src/components/modern/DraftCard.tsx`
 - the existing `modals.openEditTest(...)` / edit-modal flow in `TeacherLobbyPage.jsx`
@@ -131,6 +137,9 @@ Teacher Lobby may show card metadata after publish, but it must not become the m
 Teacher Lobby integration tests must prove:
 
 - Reading V2 cards use the existing material-card pattern.
+- Normal teacher My Content uses indexed owned material reads instead of full `/tests` scans.
+- Public Library uses the indexed `isPublic` read instead of full `/tests` scans.
+- Card rendering does not require Reading V2 canonical draft/projection hydration.
 - Clicking a Reading V2 material does not open legacy `TestEditor`.
 - Clicking a Reading V2 material opens the Reading V2 modal adapter or approved Studio entry.
 - Reading V2 draft cards resume Studio draft mode.
@@ -153,6 +162,7 @@ Do not:
 - implement Reading V2 authoring inside `TeacherLobbyPage.jsx`
 - use Teacher Lobby as the canonical state owner for Reading V2 drafts, published snapshots, attempts, results, or projections
 - store answer keys, material settings, or publish-readiness state directly in lobby card state
+- reintroduce normal-teacher `getAllTests()` loading or full `/tests` client-side filtering for card lists
 
 ---
 
@@ -163,3 +173,4 @@ Do not:
 - `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`
 - `documentation/tasks/PRD0048/reading-v2-student-runtime-v1-parity-contract.md`
 - `documentation/tasks/PRD0048/reading-v2-result-feedback-integration.md`
+- `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
