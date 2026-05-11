@@ -4,6 +4,22 @@
 > **Generated:** 2026-04-14
 > **Hardened For Execution:** 2026-04-14
 
+## 2026-05-12 Amendment - Mobile Section Audio Navigation Supersession
+
+Status: Active supersession for mobile student Listening.
+
+The earlier PRD-0045 Standard/live mobile behavior that kept audio locked when students tapped another Part is now obsolete.
+
+Current mobile contract:
+- active section/part tab selection moves the viewed part, destination question, `currentAudioIndex`, and destination audio together
+- destination audio auto-starts when the test is not submitted and an audio URL exists
+- image swipes may cross section boundaries; when they do, image, viewed part, current question, and destination audio section move together
+- section completion advances to the next section and starts the next section audio instead of replaying the completed section
+- `showPlayPause` no longer decides whether explicit mobile section navigation changes audio
+
+Architecture reference:
+- `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
+
 ## Locked Implementation Decisions
 
 These decisions are part of the task list. The implementer must follow them exactly and must not substitute a different architecture, state contract, or flow.
@@ -104,9 +120,9 @@ Restore rules:
 
 These rules are locked and must not be unified into one model:
 
-- Direct-question Standard/live: rendered grouped content is derived from `currentAudioSection` only.
-- Direct-question Standard/live tab taps update viewed-part UI state and `currentQuestionNumber`, but do not change `currentAudioIndex` and do not change the rendered question group.
-- Direct-question Practice/Relaxed: tab taps update both `currentQuestionNumber` and `currentAudioIndex`, so rendered content changes with the selected part.
+- Retired 2026-05-12: Direct-question Standard/live tab taps no longer keep audio locked to `currentAudioSection` in the mobile student interface.
+- Current mobile rule: active section/part navigation updates `currentQuestionNumber`, `currentAudioIndex`, rendered destination content, and playback intent together.
+- Practice/Relaxed and Standard/live mobile tab taps now share the same destination-audio switching rule for explicit student navigation.
 - Image mode: viewed content and the answer sheet are derived from the viewing part driven by `currentQuestionNumber`, not the current audio section.
 
 ### 7. Mobile Overlay Precedence
@@ -256,13 +272,13 @@ Touch these files only if the exact capability is missing. Do not modify them by
 - [x] 3.0 Implement live mobile direct-question behavior in `ListeningTestPage` with exact preservation of current desktop semantics.
   - [x] 3.1 Add one `useMobileExamMode()` render gate in `src/skills/listening/components/ListeningTestPage.tsx` so the existing desktop render path remains active and unchanged when mobile exam mode is false.
   - [x] 3.2 Keep all live Listening state ownership in `ListeningTestPage.tsx`. Pass state, derived labels, and callbacks into `MobileListeningExamScaffold`. Do not move Listening business logic into the scaffold.
-  - [x] 3.3 In Standard/live direct-question mode where `showPlayPause=false`, implement tab taps exactly like current desktop semantics: set the viewed-part UI state and set `currentQuestionNumber` to the first question of the tapped part, but do not change `currentAudioIndex` and do not change the rendered grouped content, which must remain derived from `currentAudioSection`.
-  - [x] 3.4 In Practice/Relaxed direct-question mode where `showPlayPause=true`, implement tab taps so they update both `currentQuestionNumber` and `currentAudioIndex`, causing rendered grouped content to change to the newly selected part.
+  - [x] 3.3 Retired 2026-05-12. The old Standard/live rule that part tabs did not change `currentAudioIndex` is obsolete for mobile student Listening.
+  - [x] 3.4 Superseded 2026-05-12. All explicit mobile part-tab navigation now updates both `currentQuestionNumber` and `currentAudioIndex`, causing rendered content and destination audio to change to the selected part.
   - [x] 3.5 Render grouped Listening question content directly on the main canvas in direct-question mode. Do not render a `Questions` FAB and do not render an answer sheet in direct-question mode.
   - [x] 3.6 Keep in-part navigation scroll-only. When the displayed grouped content changes to another part, reset the direct-question scroll container to the top immediately instead of restoring the previous in-session scroll position for that part.
   - [x] 3.7 Hide the legacy sticky `ListeningQuestionNav` and floating `ListeningNavArrows` only inside the mobile branch. The desktop branch must keep the existing components.
   - [x] 3.8 Make the current viewed part understandable without a warning banner by relying on subtle structural cues only: the audio row must always display the currently playing part number as part of its normal UI (e.g. the section rubric or audio file label). The content area's section rubric block must always display the currently viewed part number as part of its normal heading. Do not add conditional labels, prefixes, or banners that appear only when the playing and viewed parts differ.
-  - [x] 3.9 Add or update tests that prove all of these scenarios: Standard/live tab tap changes viewed-part cue only, Standard/live rendered question group stays audio-locked, Practice/Relaxed tab tap changes audio section and rendered group, direct-question mode has no `Questions` button, and desktop Listening still renders the legacy bottom navigator and arrows outside mobile mode.
+  - [x] 3.9 Superseded 2026-05-12. Tests must prove explicit mobile tab taps change destination audio and rendered group, direct-question mode has no `Questions` button, and desktop Listening still renders the legacy bottom navigator and arrows outside mobile mode.
   - [x] 3.10 Run the focused Listening host/integration tests for direct-question behavior and then run `cmd /c npm run build` before marking `3.0` complete.
 
 - [x] 4.0 Implement live mobile image-mode behavior with the exact question-sheet and zoom rules from the PRD.
@@ -305,8 +321,8 @@ Touch these files only if the exact capability is missing. Do not modify them by
   - [x] 6.10 Run the focused persistence/resume tests and then run `cmd /c npm run build` before marking `6.0` complete.
 
 - [x] 7.0 Complete regression coverage, manual QA, and release-closeout discipline with explicit scenario verification.
-  - [x] 7.1 Extend `src/__tests__/integration/ListeningTestPage.test.tsx` so live mobile Listening proves all of these direct-question scenarios: Standard/live tab tap changes only viewed-part state, Standard/live rendered content stays audio-locked, Practice/Relaxed tab tap changes audio section and rendered content, direct-question mode has no `Questions` FAB, the mobile branch hides the legacy bottom nav and floating arrows, and in Standard/live mode tapping a future part tab (e.g. Part 4 while audio is on Part 1) successfully changes the viewed-part state without being blocked or locked.
-  - [x] 7.2 Extend `src/__tests__/integration/ListeningTestPage.test.tsx` so live mobile Listening also proves all of these image-mode scenarios: `Questions` FAB appears only in image mode, the sheet opens below the part-tab row with the header, audio row, and part tabs remaining visible above it, part tabs remain usable while the sheet is open, part switching updates the sheet in place, audio auto-advance does not steal the viewed part, same-part reopen preserves sheet scroll, part switch resets zoom, and reset-button placement stays clear of the FAB.
+  - [x] 7.1 Superseded 2026-05-12. Live mobile direct-question tests must prove Standard/live tab taps change destination audio and rendered content, direct-question mode has no `Questions` FAB, the mobile branch hides the legacy bottom nav and floating arrows, and future-part taps are not blocked.
+  - [x] 7.2 Extend `src/__tests__/integration/ListeningTestPage.test.tsx` so live mobile Listening also proves all of these image-mode scenarios: `Questions` FAB appears only in image mode, the sheet opens below the part-tab row with the header, audio row, and part tabs remaining visible above it, part tabs remain usable while the sheet is open, part switching updates the sheet in place, image swipe across sections changes image/section/audio together, audio auto-advance moves to the next section instead of replaying, same-part reopen preserves sheet scroll, part switch resets zoom, and reset-button placement stays clear of the FAB.
   - [x] 7.3 Extend `src/components/practice/ListeningPracticeView.test.tsx` and related hook tests so solo/homework Listening proves all of these scenarios: `StudentPracticePage` routes `IELTS + Listening` correctly, silent restore hydrates compatible state only, restore never auto-opens the image question sheet, homework uses the same shell but preserves homework expiration rules, and mobile homework ignores fullscreen enforcement the same way Reading mobile does.
   - [x] 7.4 Add or update focused tests for submit and overlays so they prove these exact scenarios: submit uses the confirmation sheet instead of direct submit, warning copy appears only when unanswered questions remain, pause blocks all mobile interaction, wait blocks all mobile interaction while desktop wait remains unchanged, time-up closes transient overlays before auto-submit, and no mismatch-warning banner exists.
   - [x] 7.5 Run the focused Vitest suites for every touched Listening mobile file using `cmd /c npx vitest run ... --reporter=basic`.

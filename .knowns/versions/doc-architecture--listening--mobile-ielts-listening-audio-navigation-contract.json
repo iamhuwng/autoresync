@@ -1,0 +1,49 @@
+{
+  "docPath": "architecture/listening/mobile-ielts-listening-audio-navigation-contract",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/listening/mobile-ielts-listening-audio-navigation-contract",
+      "version": 1,
+      "timestamp": "2026-05-11T17:22:18.0344725Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Mobile IELTS Listening Audio Navigation Contract"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Current contract for mobile IELTS Listening section tabs, image swipes, section completion, and audio source reload behavior."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "ielts",
+            "listening",
+            "mobile",
+            "audio",
+            "navigation"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Mobile IELTS Listening Audio Navigation Contract\n\n## Current Rule\n\nActive mobile section navigation changes destination audio.\n\nThis applies to live, solo, and homework IELTS Listening mobile surfaces.\n\nWhen a student taps another Part or otherwise chooses another section context, the host must:\n- move viewed part/question context to the destination section\n- move `currentAudioIndex` to the destination section audio\n- clear old audio error state\n- auto-start destination audio when the test is not submitted and the destination section has an audio URL\n\nThis rule is not conditional on `showPlayPause`.\n\n## Retired Rule\n\nOlder PRD-0045 text said Standard/live mobile section tabs only changed viewed state and kept audio locked to the current section.\n\nThat rule is obsolete for the mobile student interface.\n\n## Image Mode\n\n`questionImages` is an ordered render list. A section may have multiple images with different `questionRange` values.\n\nMobile image mode shows one active image at a time and may expose an `X/Y` position pill across the flattened image list.\n\nSwiping across image entries can cross section boundaries. When it does, viewed part, current question, and destination audio section move together.\n\nProjection must not collapse images to one image per section.\n\n## Section Completion\n\nWhen section audio ends on mobile Listening:\n- do not replay the completed section\n- advance to the next section when one exists\n- move viewed part/question to the next section\n- start next section audio\n\n## Source Reload\n\n`AudioPlayer` owns source-change race handling. When playback intent remains active across `audioUrl` or section changes, the media element must reload before play sync and restart after the new source is ready.\n\nTransient source-load races must not flip parent playback intent to stopped.\n\n## Main Files\n\n- `src/skills/listening/components/ListeningTestPage.tsx`\n- `src/components/practice/ListeningPracticeView.tsx`\n- `src/skills/listening/components/AudioPlayer.tsx`\n- `src/components/test/mobile/MobileListeningImageCanvas.tsx`\n\n## Repo Docs\n\n- `documentation/architecture/mobile-ielts-listening-audio-navigation.md`\n- `documentation/tasks/tasks-0045-prd-mobile-ielts-listening-test-taking-interface.md`\n- `documentation/architecture/student-test-delivery-projections.md`\n- `documentation/architecture/homework-solo-practice-architecture.md`",
+        "description": "Current contract for mobile IELTS Listening section tabs, image swipes, section completion, and audio source reload behavior.",
+        "tags": [
+          "architecture",
+          "ielts",
+          "listening",
+          "mobile",
+          "audio",
+          "navigation"
+        ],
+        "title": "Mobile IELTS Listening Audio Navigation Contract"
+      }
+    }
+  ]
+}

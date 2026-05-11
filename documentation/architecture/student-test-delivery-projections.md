@@ -67,8 +67,12 @@ For image mode, `questionImages` is an ordered render contract:
 - `sectionNumber` scopes the image to a listening section/part
 - `questionRange.start` and `questionRange.end` decide which questions show that image
 - a section may have multiple images with different ranges
+- mobile image mode may flatten this ordered list into a swipe carousel; swiping across section boundaries must preserve the image's owning section and destination audio behavior
 
 If only one image appears for a section that should have multiple images, first inspect `student_safe_tests/{testId}.questionImages` before changing the renderer.
+
+Related mobile navigation contract:
+- `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
 
 ## Obsolete Model
 
@@ -76,6 +80,7 @@ Retired assumptions:
 - "Teacher edit can save only `tests/{testId}` and a later refresh will update students."
 - "Student runtime must wait for manual Firebase CLI backfill after every image-range edit."
 - "Re-saving a single affected test proves the system is healthy."
+- "Student-safe projection may collapse Listening images to the first image per section."
 
 Current rule:
 - a successful teacher edit save must update the student-safe projection immediately for all affected test fields.

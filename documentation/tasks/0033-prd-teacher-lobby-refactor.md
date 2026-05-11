@@ -1,6 +1,7 @@
 # PRD-0033: Teacher Lobby Page Refactor
 
 > Status note, 2026-05-12: this PRD is a historical extraction/refactor source. Its original `useTeacherTests` data-loading requirement used `queryOptimizer.getAllTests()` because the refactor preserved old behavior. That loading model is now obsolete for normal teachers. Current Teacher Lobby materials loading is governed by `documentation/architecture/teacher-materials-listing-and-diagnostics.md`: normal My Content reads indexed `ownerId` + `createdBy`, Public Library reads indexed `isPublic`, and broad `getAllTests()` is reserved for super-admin/global inspection paths.
+> UI/navigation note, 2026-05-12: current Teacher Lobby authoring entry, compact teacher-header behavior, search SVG icon, THCS setup modal polish, and two-line material-card title contract are governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`. Treat older page-first or mobile-only hamburger wording below as historical extraction context.
 
 ## 1. Introduction / Overview
 

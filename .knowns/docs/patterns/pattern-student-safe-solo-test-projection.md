@@ -2,7 +2,7 @@
 title: 'Pattern: Student-Safe Test Delivery Projection'
 description: How IELTS student render payloads are projected from canonical tests, including atomic safe writes, live-session freshness fallback, image-mode ranges, and repair-only backfill.
 createdAt: '2026-03-28T12:48:44.837Z'
-updatedAt: '2026-05-10T04:14:48.631Z'
+updatedAt: '2026-05-11T17:22:18.048Z'
 tags:
   - pattern
   - student-delivery
@@ -104,3 +104,12 @@ THCS and IELTS Writing have different load paths. This pattern applies to legacy
 - @doc/system/solo-study-homework-system
 - @doc/architecture/homework-solo-practice-architecture
 - @doc/patterns/pattern-rtdb-multi-path-write-obligation
+
+
+## 2026-05-12 Related Mobile Listening Navigation Contract
+
+Student-safe Listening image projection also feeds mobile image carousel navigation.
+
+Do not collapse `questionImages` to one image per section. Mobile image mode may flatten the ordered image list and allow swipes across section boundaries. When a swipe crosses section, viewed part/current question/destination audio section must move together.
+
+Current audio/navigation contract is documented in `documentation/architecture/mobile-ielts-listening-audio-navigation.md` and @doc/architecture/listening/mobile-ielts-listening-audio-navigation-contract.

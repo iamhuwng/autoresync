@@ -1,7 +1,7 @@
 # Mobile IELTS Listening Runtime Diagnostics
 
 Status: Active
-Last Updated: 2026-04-15
+Last Updated: 2026-05-12
 Owner: Frontend Platform / IELTS Listening
 
 ## Purpose
@@ -65,5 +65,7 @@ Use the gated model above for live debugging.
 This diagnostics document only defines runtime logging behavior and production overhead control.
 It does not replace real-device symptom tracking for touch responsiveness, audio UI layout, or playback visual behavior.
 
-For real-device symptom inventory and closure status, see:
-- `documentation/architecture/mobile-ielts-listening-real-device-issue-matrix.md`
+For the current section-tab, image-swipe, section-completion, and audio-source contract, see:
+- `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
+
+The older reference to `documentation/architecture/mobile-ielts-listening-real-device-issue-matrix.md` is obsolete in this checkout unless that file is recreated. Use the active navigation contract above plus fresh live-device evidence for current playback behavior.

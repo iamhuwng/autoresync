@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/teacher-lobby-authoring-navigation-contract",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/teacher-lobby-authoring-navigation-contract",
+      "version": 1,
+      "timestamp": "2026-05-11T17:29:15.4028387Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher Lobby Authoring Navigation Contract"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher-lobby",
+            "test-creation",
+            "navigation",
+            "thcs"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher Lobby Authoring Navigation Contract\n\n## Purpose\n\nDefines current Teacher Lobby authoring, card, search, and responsive navigation contract after May 2026 lobby polish.\n\n## Current Anchors\n\n- `src/pages/TeacherLobbyPage.jsx`\n- `src/components/navigation/TeacherHeader.tsx`\n- `src/components/navigation/TeacherNavigation.tsx`\n- `src/components/modern/SearchFilterBar.jsx`\n- `src/components/modern/TestCard.jsx`\n- `src/components/modern/icons.jsx`\n- `src/components/test-creation/TestCreationModal.tsx`\n- `src/components/thcs-editor/THCSSetupStep.tsx`\n\n## Contract\n\n- Teacher Lobby `Create New Test` opens `TestCreationModal`; it must not route to a separate creation page before test-family/skill selection.\n- THCS-THPT creation stays inside the shared creation modal shell; do not add a second THCS-only lobby modal.\n- Reading V2 uses the same modal entry and forwards metadata/start mode into Studio.\n- `SearchFilterBar` search input uses the shared SVG `SearchIcon`; do not use emoji-only input icons.\n- Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.\n- `TeacherHeader` renders full inline tabs only at `\u003e=1280px`; `769px-1279px` uses the compact teacher-navigation hamburger dropdown; `\u003c=768px` uses the mobile drawer.\n- THCS setup quick-start cards use SVG icon art and stay compact with breathing room below the card row.\n- `Advanced Settings` uses a rotating SVG chevron, not a text triangle glyph.\n\n## Retired Patterns\n\n- page-first test creation from Teacher Lobby before family selection\n- THCS creation through a separate lobby-only modal\n- emoji search icon as the input icon\n- text-glyph `Advanced Settings` triangle\n- material-card titles expanding beyond two lines\n- full teacher tab row on narrow desktop widths where it collides with user/profile controls\n\n## Repo Docs\n\n- `documentation/architecture/teacher-lobby-authoring-and-navigation.md`\n- `documentation/architecture/teacher-materials-listing-and-diagnostics.md`\n- `documentation/architecture/teacher-test-creation-parsing-and-review.md`\n- `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`\n- `documentation/system/navigation-ux-guide.md`\n",
+        "description": "Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "test-creation",
+          "navigation",
+          "thcs"
+        ],
+        "title": "Teacher Lobby Authoring Navigation Contract"
+      }
+    }
+  ]
+}

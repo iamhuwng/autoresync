@@ -152,3 +152,16 @@ Required rules:
 
 Detailed reference:
 - `documentation/architecture/student-test-delivery-projections.md`
+
+## 2026-05-12 Amendment - Mobile Listening Section Audio Navigation
+
+Solo and homework IELTS Listening use the same mobile section-audio navigation contract as live mobile Listening when a student actively changes section context.
+
+Required rules:
+- explicit mobile part-tab navigation changes viewed part, destination question, destination audio section, and playback intent together
+- cross-section image swipes in image mode carry the destination section audio with the image
+- section completion advances to the next section audio instead of replaying the completed section
+- old Standard/live audio-lock wording does not apply to mobile student Listening section navigation
+
+Detailed reference:
+- `documentation/architecture/mobile-ielts-listening-audio-navigation.md`

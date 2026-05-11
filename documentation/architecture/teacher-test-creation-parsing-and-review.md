@@ -18,6 +18,19 @@ This architecture applies to the teacher Reading creation flow rendered by:
 
 It does not define student Reading delivery or Reading passage rendering behavior.
 
+## Teacher Lobby Entry Boundary
+
+Teacher Lobby creation starts in `TestCreationModal`; it must not route to a separate creation page before the teacher chooses test family and skill.
+
+Current rules:
+
+- `TeacherLobbyPage` opens `TestCreationModal` for `Create New Test`.
+- IELTS Reading uses this modal as the parser/draft/review entry.
+- THCS-THPT branches into its setup/editor surface inside the same modal shell.
+- Reading V2 uses the same modal entry to collect/forward metadata and start mode into Studio.
+
+Do not reintroduce page-first lobby creation, a second THCS-only lobby creation modal, or lobby-owned canonical authoring state. The broader lobby UI and navigation contract lives in `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+
 ## Pipeline Contract
 
 The current teacher Reading creation flow is:
@@ -135,6 +148,8 @@ Operational consequence:
 - `documentation/tasks/0020-prd-automated-ielts-reading-test-creation.md`
 - `documentation/tasks/0022-prd-test-creation-modal-with-drafts.md`
 - `documentation/ai-system-research-report.md`
+- `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
+
 ## 2026-04-10 Amendment - Staged Parse Job Artifacts
 
 The Reading creator now uses an explicit internal parse-job model inside `src/services/test-creation/index.ts` while preserving the existing modal-facing contract.

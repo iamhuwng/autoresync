@@ -22,6 +22,8 @@ Database/index anchors:
 
 The Teacher Lobby list is a material index/read surface. It must not hydrate canonical Reading V2 drafts, passage assets, student-safe payloads, session-safe payloads, or result projections just to render cards.
 
+UI chrome, modal authoring entry, card title clamp, search icon, and responsive teacher navigation are governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`. Keep this document focused on data loading, cache scope, realtime scope, and diagnostics.
+
 ## Listing Contract
 
 ### My Content
@@ -143,3 +145,9 @@ Keep this path healthy with these rules:
 4. Keep lobby cards on summary/index rows. Move heavy canonical payloads behind explicit open/edit/preview actions.
 5. Preserve gated diagnostics so live browser checks can prove query scope, row counts, and render readiness without leaking payloads.
 6. Add pagination or a dedicated material-summary index before public/owned row counts become large enough that indexed reads still exceed the UI budget.
+
+## Related Docs
+
+- `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
+- `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
+- `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`

@@ -1,5 +1,7 @@
 # Conversation Log - January 27, 2025
 
+> Historical note, 2026-05-12: The Standard/live Listening audio-lock behavior described in this log is obsolete for the mobile student interface. Current mobile contract: active section/part navigation switches to destination audio and starts it when possible. See `documentation/architecture/mobile-ielts-listening-audio-navigation.md`.
+
 ## Session Start: 3:22 AM UTC+07:00
 
 ---

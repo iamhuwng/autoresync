@@ -118,7 +118,8 @@ import { TeacherHeader } from '@/components/navigation';
 - `hideBreadcrumbs` (boolean, optional): Hide breadcrumbs
 
 **Responsive Behavior**:
-- **Desktop (>768px)**: Full navigation bar with text buttons
+- **Wide desktop (>=1280px)**: Full navigation bar with text buttons
+- **Narrow desktop/tablet (769px-1279px)**: Compact teacher-navigation hamburger dropdown, with notification/profile controls still visible
 - **Mobile (≤768px)**: Hamburger menu with slide-in drawer
 
 ---
@@ -326,17 +327,20 @@ const AdminUserPage = () => {
 
 ### Breakpoint
 
-- **Desktop**: > 768px
+- **Wide desktop**: >= 1280px
+- **Narrow desktop/tablet**: 769px-1279px
 - **Mobile**: ≤ 768px
 
 ### Behavior Summary
 
 | Component | Desktop | Mobile |
 |-----------|---------|--------|
-| **TeacherHeader** | Inline navigation buttons | Hamburger menu |
+| **TeacherHeader** | Inline navigation at >=1280px; compact hamburger dropdown from 769px-1279px | Mobile drawer hamburger |
 | **AdminLayout** | Fixed sidebar (240px/64px) | Drawer overlay |
 | **Breadcrumbs** | Full hierarchy | Condensed (last 2 levels) |
 | **Content Padding** | 2rem | 1rem |
+
+Teacher Lobby authoring and compact-header polish are documented in `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
 
 ### Testing Mobile
 

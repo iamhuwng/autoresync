@@ -5,6 +5,7 @@ This document is part of the PRD-0048 source-of-truth packet.
 Authoritative companion docs:
 
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
+- `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 - `documentation/tasks/PRD0048/contract-freeze-0048-prd-reading-v2-studio-and-runtime.md`
 - `documentation/tasks/PRD0048/reading-v2-feature-pipeline-matrix.md`
@@ -23,6 +24,8 @@ Reading V2 must integrate with the existing Teacher Lobby material-card workflow
 The Teacher Lobby is not a new Reading V2 discovery product in PRD-0048. It remains the current `/lobby` shell where teachers already see material cards and draft cards for other test families.
 
 Current data-loading architecture is defined in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Reading V2 lobby integration must use the same scoped material-listing contract as every other family: normal teachers read owned `/tests` rows by `ownerId` and `createdBy`; public library reads `/tests` by `isPublic`; drafts stay on the draft path. The lobby must not hydrate Reading V2 canonical documents, passage assets, projections, or result payloads just to render cards.
+
+Current lobby chrome, card-title, search-icon, create-modal, and responsive header behavior is defined in `documentation/architecture/teacher-lobby-authoring-and-navigation.md`. Reading V2 integration must fit that surface instead of creating a parallel lobby shell.
 
 Baseline PRD-0048 Teacher Lobby behavior:
 
@@ -88,6 +91,8 @@ Allowed in phase 1:
 5. Route draft-card resume into the Studio draft mode.
 6. Route published edit into Studio draft-revision mode.
 7. Preserve existing assignment and duplication entry points where the platform already supports them.
+8. Preserve existing material-card polish: two-line card titles with full-title tooltip, summary badges only, and no canonical draft hydration for card chrome.
+9. Preserve existing Teacher Lobby header/search behavior: compact teacher-navigation hamburger at narrow desktop widths and shared SVG `SearchIcon` in the search bar.
 
 Not allowed in phase 1 unless a future senior-approved product decision explicitly adds it:
 
@@ -148,6 +153,7 @@ Teacher Lobby integration tests must prove:
 - Metadata shown on cards comes from approved material metadata/index reads, not from canonical draft inspection.
 - Existing IELTS Reading, Listening, Writing, THCS, and non-V2 material cards keep their current behavior.
 - Standalone passage assets are hidden from broad Teacher Lobby exposure unless `READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY` explicitly enables that later phase.
+- Existing card-title clamp, search-icon, and compact-header behavior stays intact for Reading V2 materials.
 
 ---
 
@@ -174,3 +180,4 @@ Do not:
 - `documentation/tasks/PRD0048/reading-v2-student-runtime-v1-parity-contract.md`
 - `documentation/tasks/PRD0048/reading-v2-result-feedback-integration.md`
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
+- `documentation/architecture/teacher-lobby-authoring-and-navigation.md`

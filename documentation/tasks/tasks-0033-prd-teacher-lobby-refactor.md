@@ -3,6 +3,7 @@
 > **Source PRD:** `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
 > **Generated:** 2026-03-12
 > **Obsolete data-loading note:** Task 3.3 reflects the original extraction target and is no longer the current Teacher Lobby loading contract for normal teachers. Use `documentation/architecture/teacher-materials-listing-and-diagnostics.md` instead: normal My Content loads indexed `ownerId` + `createdBy`, Public Library loads indexed `isPublic`, and full `getAllTests()` is not allowed for normal teacher material cards.
+> **Current UI/navigation note:** post-refactor Teacher Lobby chrome is governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`: `Create New Test` opens `TestCreationModal`, narrow desktop uses compact teacher navigation, search uses the shared SVG icon, THCS setup stays inside the modal, and long material-card titles clamp to two lines with full-title tooltip.
 
 ## Relevant Files
 
