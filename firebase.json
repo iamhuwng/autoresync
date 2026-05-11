@@ -68,10 +68,6 @@
       ],
       "rewrites": [
         {
-          "source": "/api/reading-v2/submit",
-          "function": "readingV2Submit"
-        },
-        {
           "source": "**",
           "destination": "/index.html"
         }
