@@ -23,6 +23,16 @@ Build a **completely new automated test creation system** that allows teachers t
 - **Rule-Based Layer**: Runs **independently and silently** as a second classifier using regex patterns on section instructions and question text. Does NOT override AI results.
 - **Validation Layer**: Compares AI vs. rules results side-by-side. Flags discrepancies for teacher review. Teacher decides which to trust (not compulsory to accept either). Teacher corrections are saved as input for future optimization.
 
+### Current Provider Contract Amendment - 2026-05-11
+Gemini and Groq Reading prompts must produce label-aware option data before validation:
+
+- use `labeledOptions` for source labels and clean option text
+- keep `options` text-only when labels exist
+- set `optionLabelFormat` to `letter`, `roman`, or `number`
+- return null label fields for unlabeled question types
+
+For `table-completion`, providers must preserve source row/cell wording in `questionText`. They may normalize only `sectionInstruction` metadata such as `TABLE_HEADERS:` and answer-rule text. This prevents AI from paraphrasing table rows into easier but non-source-faithful prose.
+
 ---
 
 ## 1.5 Phase 0: Transition (Pre-Implementation)

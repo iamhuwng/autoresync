@@ -62,12 +62,29 @@
   - `ix. The cities`
   - Never `i. ii. ...`, `ii. iv. ...`, `iii. ix. ...`
 
+## Provider Prompt Contract
+- Gemini and Groq Reading extraction prompts must request the same canonical option shape.
+- For any label-bearing option bank, providers should return:
+  - `options`: text-only option values, without embedded labels.
+  - `labeledOptions`: `{ label, text }` objects preserving source labels.
+  - `optionLabelFormat`: `letter`, `roman`, or `number`.
+- Providers must not return conflicting mixed shapes such as `label: "B"` with text that still starts with `A.`.
+- For unlabeled question types, providers should return `labeledOptions: null` and `optionLabelFormat: null`.
+
+## Table Completion Extraction Contract
+- Table-completion `questionText` must preserve original source row/cell wording.
+- Providers must not paraphrase, summarize, reorder, or rewrite table rows into prose to make parsing easier.
+- Providers may standardize only `sectionInstruction` for parser recognition, for example adding `TABLE_HEADERS:` or moving answer-rule text there.
+- Table structure stays pipe-delimited in `questionText`; table headers stay metadata in `sectionInstruction`.
+- Header-only rows remain forbidden as questions.
+
 ## Verification
 - Creating a matching-headings Reading test with source labels `ii`, `iv`, `ix` stores and renders those exact labels once.
 - Creating a summary-completion-list test with options like `A proof`, `B plantation` stores structured labels and renders them once.
 - A prompt containing a stored leading question number publishes with one visible number in student view.
 - Publish is blocked when a Reading option group mixes labeled and unlabeled entries or repeats a label.
 - Student Reading option shuffling no longer mutates canonical labeled options.
+- Gemini and Groq prompt tests must assert the table source-preservation contract is present.
 
 ## Assumptions
 - Existing drafts/tests are out of scope.

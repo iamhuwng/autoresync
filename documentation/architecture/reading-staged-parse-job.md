@@ -57,7 +57,24 @@ Operational consequence:
 - removing the chunking env keys does not change the live teacher Reading creation flow
 - cleanup can continue pruning legacy chunking utilities without changing teacher setup requirements
 
+## 2026-05-11 Amendment - Provider Output Contract Hardening
+Gemini and Groq question-extraction prompts now share the same Reading option contract:
+
+- `options` should be text-only when labels exist.
+- `labeledOptions` should preserve the extracted source label and option text separately.
+- `optionLabelFormat` should record `letter`, `roman`, or `number` when labels exist.
+- unlabeled question types should keep `labeledOptions` and `optionLabelFormat` null.
+
+Table-completion extraction also has a stricter source-fidelity rule:
+
+- `questionText` must preserve the original source row/cell wording.
+- providers must not rewrite table rows into easier prose.
+- only `sectionInstruction` may be normalized for parser recognition, such as `TABLE_HEADERS:` metadata or answer-rule text.
+
+This keeps provider output aligned with the canonical label-aware Reading question contract before the staged parse job reaches validation, review draft, storage, or student runtime.
+
 ## Related Docs
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+- `documentation/tasks/Canonical Label-Aware Reading Question Contract.md`
 - `documentation/tasks/0020-prd-automated-ielts-reading-test-creation.md`
 - `documentation/tasks/0022-prd-test-creation-modal-with-drafts.md`
