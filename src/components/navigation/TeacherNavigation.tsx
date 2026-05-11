@@ -19,6 +19,8 @@ export interface TeacherNavigationProps {
     userAvatarUrl?: string;
     /** User role for conditional navigation (super_admin vs teacher) */
     userRole?: 'teacher' | 'super_admin';
+    /** Collapse nav tabs into a hamburger dropdown while keeping user actions visible */
+    compact?: boolean;
 }
 
 /**
@@ -41,11 +43,14 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
     userEmail,
     userAvatarUrl,
     userRole = 'teacher',
+    compact = false,
 }) => {
     const location = useLocation();
     const currentPath = location.pathname;
     const [menuOpen, setMenuOpen] = useState(false);
+    const [navMenuOpen, setNavMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
+    const navMenuRef = useRef<HTMLDivElement | null>(null);
 
     const displayName = userDisplayName?.trim() || 'Teacher';
     const displayEmail = userEmail?.trim() || '';
@@ -64,14 +69,18 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
         if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
             setMenuOpen(false);
         }
+        if (navMenuRef.current && !navMenuRef.current.contains(event.target as Node)) {
+            setNavMenuOpen(false);
+        }
     }, []);
 
     useEffect(() => {
-        if (!menuOpen) return;
+        if (!menuOpen && !navMenuOpen) return;
 
         const handleEscape = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 setMenuOpen(false);
+                setNavMenuOpen(false);
             }
         };
 
@@ -82,7 +91,64 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
         };
-    }, [menuOpen, handleClickOutside]);
+    }, [menuOpen, navMenuOpen, handleClickOutside]);
+
+    const navItems = [
+        {
+            id: 'materials',
+            label: 'Materials',
+            route: ROUTES.LOBBY,
+            reason: 'nav_to_materials',
+            active: isMaterialsActive,
+        },
+        {
+            id: 'students',
+            label: 'Students',
+            route: userRole === 'super_admin' ? ROUTES.ADMIN_USERS : ROUTES.TEACHER_STUDENTS,
+            reason: userRole === 'super_admin' ? 'nav_to_users' : 'nav_to_students',
+            active: userRole === 'super_admin' ? isActive(ROUTES.ADMIN_USERS) : isActive(ROUTES.TEACHER_STUDENTS),
+        },
+        {
+            id: 'classes',
+            label: 'Classes',
+            route: ROUTES.TEACHER_CLASSES,
+            reason: 'nav_to_classes',
+            active: isActive(ROUTES.TEACHER_CLASSES),
+        },
+        {
+            id: 'courses',
+            label: 'Courses',
+            route: ROUTES.TEACHER_COURSES,
+            reason: 'nav_to_courses',
+            active: isActive(ROUTES.TEACHER_COURSES),
+        },
+        {
+            id: 'homework',
+            label: 'Homework',
+            route: ROUTES.TEACHER_HOMEWORK,
+            reason: 'nav_to_homework',
+            active: isActive(ROUTES.TEACHER_HOMEWORK),
+        },
+        {
+            id: 'grading',
+            label: 'Grading',
+            route: ROUTES.TEACHER_GRADING,
+            reason: 'nav_to_grading',
+            active: isActive(ROUTES.TEACHER_GRADING),
+        },
+        {
+            id: 'sessions',
+            label: 'Sessions',
+            route: ROUTES.SESSIONS,
+            reason: 'nav_to_sessions',
+            active: isActive(ROUTES.SESSIONS),
+        },
+    ];
+
+    const handleNavItemClick = (route: string, reason: string) => {
+        setNavMenuOpen(false);
+        onNavigate(route, reason);
+    };
 
     const handleProfileClick = () => {
         setMenuOpen(false);
@@ -102,13 +168,96 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                 gap: '0.75rem',
             }}
         >
-            {/* Primary Group: Materials */}
-            <Button
-                variant={isMaterialsActive ? 'primary' : 'glass'}
-                onClick={() => onNavigate(ROUTES.LOBBY, 'nav_to_materials')}
-            >
-                Materials
-            </Button>
+            {compact && (
+                <>
+                    <div ref={navMenuRef} style={{ position: 'relative' }}>
+                        <button
+                            type="button"
+                            onClick={() => setNavMenuOpen(open => !open)}
+                            aria-haspopup="menu"
+                            aria-expanded={navMenuOpen ? 'true' : 'false'}
+                            aria-label="Open teacher navigation menu"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '44px',
+                                height: '44px',
+                                border: '1px solid rgba(203, 213, 225, 0.85)',
+                                background: '#ffffff',
+                                borderRadius: '0.75rem',
+                                cursor: 'pointer',
+                                color: '#1e293b',
+                                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
+                            }}
+                        >
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                        </button>
+
+                        {navMenuOpen && (
+                            <div
+                                role="menu"
+                                aria-label="Teacher navigation"
+                                style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: 'calc(100% + 0.5rem)',
+                                    minWidth: '220px',
+                                    borderRadius: '0.75rem',
+                                    border: '1px solid #e2e8f0',
+                                    background: '#ffffff',
+                                    boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)',
+                                    padding: '0.5rem',
+                                    zIndex: 60,
+                                }}
+                            >
+                                {navItems.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => handleNavItemClick(item.route, item.reason)}
+                                        style={{
+                                            width: '100%',
+                                            border: 'none',
+                                            background: item.active ? '#ede9fe' : 'transparent',
+                                            padding: '0.75rem 0.625rem',
+                                            textAlign: 'left',
+                                            borderRadius: '0.5rem',
+                                            cursor: 'pointer',
+                                            color: item.active ? '#5b21b6' : '#1e293b',
+                                            fontSize: '0.875rem',
+                                            fontWeight: item.active ? 700 : 600,
+                                        }}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div
+                        style={{
+                            width: '1px',
+                            height: '24px',
+                            background: 'rgba(203, 213, 225, 0.5)',
+                        }}
+                    />
+                </>
+            )}
+
+            {!compact && (
+                <>
+                    {/* Primary Group: Materials */}
+                    <Button
+                        variant={isMaterialsActive ? 'primary' : 'glass'}
+                        onClick={() => onNavigate(ROUTES.LOBBY, 'nav_to_materials')}
+                    >
+                        Materials
+                    </Button>
 
             {/* Divider */}
             <div
@@ -183,14 +332,16 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                 Sessions
             </Button>
 
-            {/* Divider */}
-            <div
-                style={{
-                    width: '1px',
-                    height: '24px',
-                    background: 'rgba(203, 213, 225, 0.5)',
-                }}
-            />
+                    {/* Divider */}
+                    <div
+                        style={{
+                            width: '1px',
+                            height: '24px',
+                            background: 'rgba(203, 213, 225, 0.5)',
+                        }}
+                    />
+                </>
+            )}
 
             {/* User Actions: Notifications, Profile Menu */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

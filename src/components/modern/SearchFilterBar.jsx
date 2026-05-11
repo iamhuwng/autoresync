@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Button, NativeSelect } from './index';
-import { PlusIcon } from './icons.jsx';
+import { PlusIcon, SearchIcon } from './icons.jsx';
 import './SearchFilterBar.css';
 
 const SearchFilterBar = ({
@@ -19,7 +19,8 @@ const SearchFilterBar = ({
     <div className="search-filter-bar">
       <div className="search-filter-bar__search">
         <Input
-          placeholder="🔍 Search by title or keyword..."
+          placeholder="Search by title or keyword..."
+          icon={<SearchIcon size={18} />}
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
           variant="default"
@@ -27,7 +28,7 @@ const SearchFilterBar = ({
         />
       </div>
 
-      {/* Type filters — only in public library mode */}
+      {/* Type filters - only in public library mode */}
       {contentFilter === 'public' && (
         <>
           <NativeSelect
@@ -40,9 +41,9 @@ const SearchFilterBar = ({
               }
             }}
             options={[
-              { value: 'all', label: '📚 All Types' },
-              { value: 'IELTS', label: '🌐 IELTS' },
-              { value: 'THCS-THPT', label: '🇻🇳 THCS-THPT' },
+              { value: 'all', label: 'All Types' },
+              { value: 'IELTS', label: 'IELTS' },
+              { value: 'THCS-THPT', label: 'THCS-THPT' },
             ]}
             minWidth="150px"
           />

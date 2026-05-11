@@ -12,8 +12,8 @@ let mockBreadcrumbs = [
 ];
 
 vi.mock('./TeacherNavigation', () => ({
-    TeacherNavigation: ({ userId, onNavigate, onLogout }: any) => (
-        <div data-testid="teacher-navigation">
+    TeacherNavigation: ({ userId, onNavigate, onLogout, compact }: any) => (
+        <div data-testid="teacher-navigation" data-compact={compact ? 'true' : 'false'}>
             <button onClick={() => onNavigate('/test', 'test')}>Nav Button</button>
             <button onClick={onLogout}>Logout</button>
             {userId && <span data-testid="nav-user-id">{userId}</span>}
@@ -148,8 +148,16 @@ describe('TeacherHeader', () => {
         });
 
         it('shows navigation in desktop mode by default', () => {
+            setViewportWidth(1440);
             renderComponent();
             expect(screen.getByTestId('teacher-navigation')).toBeInTheDocument();
+            expect(screen.getByTestId('teacher-navigation')).toHaveAttribute('data-compact', 'false');
+        });
+
+        it('collapses navigation tabs on compact desktop widths', () => {
+            setViewportWidth(1208);
+            renderComponent();
+            expect(screen.getByTestId('teacher-navigation')).toHaveAttribute('data-compact', 'true');
         });
 
         it('hides navigation in mobile mode', () => {

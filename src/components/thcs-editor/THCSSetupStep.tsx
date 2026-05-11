@@ -46,19 +46,19 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
     const selectedDuration = metadata.duration;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: isEditMode ? 0 : '0.75rem' }}>
             {/* ─── Main Metadata Card ─── */}
             <div style={{
                 background: 'rgba(255,255,255,0.55)',
                 backdropFilter: 'blur(16px)',
                 WebkitBackdropFilter: 'blur(16px)',
-                borderRadius: '1.25rem',
+                borderRadius: '1rem',
                 border: '1px solid rgba(148,163,184,0.2)',
-                padding: '2rem 2.25rem',
+                padding: '1.5rem 2rem',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1.125rem',
+                gap: '0.95rem',
             }}>
                 {/* Test Title — bold label, no asterisk (mockup style) */}
                 <div>
@@ -162,6 +162,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         {DURATION_PRESETS.map(d => (
                             <button
+                                type="button"
                                 key={d}
                                 onClick={() => onMetadataChange('duration', d)}
                                 style={{
@@ -213,9 +214,11 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                     </div>
                 </div>
 
-                {/* ▸ Advanced Settings Accordion */}
+                {/* Advanced Settings accordion */}
                 <button
+                    type="button"
                     onClick={() => setAdvancedOpen(!advancedOpen)}
+                    aria-expanded={advancedOpen}
                     style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -229,12 +232,21 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                         color: '#334155',
                     }}
                 >
-                    <span style={{
-                        display: 'inline-block',
-                        transition: 'transform 0.2s',
-                        transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                        fontSize: '0.75rem',
-                    }}>▶</span>
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        aria-hidden="true"
+                        style={{
+                            transition: 'transform 0.2s',
+                            transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                            color: '#3b82f6',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     Advanced Settings
                 </button>
 
@@ -335,6 +347,7 @@ const THCSSetupStep: React.FC<THCSSetupStepProps> = ({
                     display: 'grid',
                     gridTemplateColumns: 'repeat(3, 1fr)',
                     gap: '0.75rem',
+                    marginBottom: '0.75rem',
                 }}>
                     <QuickStartCard
                         svgIcon={templateIcon}
@@ -379,6 +392,7 @@ const QuickStartCard: React.FC<{
     active: boolean;
 }> = ({ svgIcon, title, onClick, active }) => (
     <button
+        type="button"
         onClick={onClick}
         style={{
             display: 'flex',
@@ -386,7 +400,8 @@ const QuickStartCard: React.FC<{
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.625rem',
-            padding: '1.75rem 1rem',
+            minHeight: 112,
+            padding: '1.25rem 0.875rem',
             border: active
                 ? '2px solid #8b5cf6'
                 : '1px solid rgba(148,163,184,0.2)',
@@ -437,6 +452,7 @@ const TimerModeCard: React.FC<{
     onClick: () => void;
 }> = ({ svgIcon, title, description, active, onClick }) => (
     <button
+        type="button"
         onClick={onClick}
         style={{
             display: 'flex',

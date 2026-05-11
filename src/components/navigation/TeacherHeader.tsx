@@ -14,7 +14,7 @@
  * This component provides consistent navigation across all teacher pages.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../modern';
 import { TeacherNavigation } from './TeacherNavigation';
@@ -22,7 +22,7 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { MobileMenu, HamburgerButton } from './MobileMenu';
 import { useNavigationContext } from '../../hooks/useNavigationContext';
 import { ROUTES } from '../../constants/routes';
-import { useDocumentTitle } from '../../core/platform';
+import { useDocumentTitle, useScreenSize } from '../../core/platform';
 
 export interface TeacherHeaderProps {
     /** Page title to display */
@@ -71,22 +71,12 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
 }) => {
     const navigate = useNavigate();
     const { isRoot, navigateToParent, breadcrumbs } = useNavigationContext();
+    const { width } = useScreenSize();
     useDocumentTitle(pageTitle);
 
-    // Mobile state
-    const [isMobile, setIsMobile] = useState(false);
+    const useMobileDrawerNavigation = width <= 768;
+    const shouldUseCompactNavigation = width < 1280;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-    // Detect mobile breakpoint (≤768px)
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth <= 768);
-        };
-
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
 
     // Show back button if not on root and not hidden
     const showBackButton = !isRoot && !hideBackButton;
@@ -158,7 +148,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                     <h1
                         style={{
                             margin: 0,
-                            fontSize: isMobile ? '1.25rem' : '1.5rem',
+                            fontSize: useMobileDrawerNavigation ? '1.25rem' : '1.5rem',
                             fontWeight: '700',
                             color: '#1e293b',
                             whiteSpace: 'nowrap',
@@ -171,7 +161,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                 </div>
 
                 {/* Desktop: Full Navigation */}
-                {!hideNavigation && !isMobile && (
+                {!hideNavigation && !useMobileDrawerNavigation && (
                     <div
                         style={{
                             display: 'flex',
@@ -188,12 +178,13 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                             userAvatarUrl={userAvatarUrl}
                             onNavigate={handleNavigate}
                             onLogout={onLogout}
+                            compact={shouldUseCompactNavigation}
                         />
                     </div>
                 )}
 
                 {/* Mobile: Hamburger Menu */}
-                {!hideNavigation && isMobile && (
+                {!hideNavigation && useMobileDrawerNavigation && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         <HamburgerButton
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -207,12 +198,12 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
             {!hideBreadcrumbs && breadcrumbItems.length > 1 && (
                 <Breadcrumbs
                     items={breadcrumbItems}
-                    condensed={isMobile}
+                    condensed={useMobileDrawerNavigation}
                 />
             )}
 
             {/* Mobile Menu Drawer */}
-            {isMobile && (
+            {useMobileDrawerNavigation && (
                 <MobileMenu
                     isOpen={mobileMenuOpen}
                     onClose={() => setMobileMenuOpen(false)}

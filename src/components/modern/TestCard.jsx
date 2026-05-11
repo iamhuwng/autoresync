@@ -43,13 +43,23 @@ const TestCard = ({ test, index, canEdit, isOwner, onEdit, onDelete, onStartTest
     >
       <CardBody style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <h3 style={{
-              fontSize: '1.25rem',
-              fontWeight: '700',
-              color: isIncomplete ? '#94a3b8' : '#1e293b',
-              margin: 0,
-            }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <h3
+              title={title}
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: '700',
+                color: isIncomplete ? '#94a3b8' : '#1e293b',
+                margin: 0,
+                flex: 1,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                lineHeight: 1.35,
+              }}
+            >
               {title}
             </h3>
             {isIncomplete && (

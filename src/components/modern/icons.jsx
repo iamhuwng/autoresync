@@ -32,6 +32,13 @@ export const PlusIcon = ({ size = 14, style = {}, className = '' }) => (
   </svg>
 );
 
+export const SearchIcon = ({ size = 14, style = {}, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+  </svg>
+);
+
 export const ClockIcon = ({ size = 14, style = {}, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
     <circle cx="12" cy="12" r="10" />
