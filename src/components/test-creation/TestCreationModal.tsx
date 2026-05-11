@@ -49,6 +49,8 @@ import {
 } from '../../services/writingTestService';
 import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
+import { THCSTestEditorSurface } from '../../pages/THCSTestEditorPage';
+import type { WizardStep } from '../thcs-editor/THCSWizardStepper';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -145,6 +147,13 @@ const WRITING_STEP_CONFIGS: StepConfig[] = [
         description: 'Add prompts & tasks',
         icon: '✍️',
     },
+];
+
+const DEFAULT_THCS_STEP_CONFIGS: WizardStep[] = [
+    { label: 'Test Setup', icon: 'ðŸ“‹' },
+    { label: 'Build Test', icon: 'âœï¸' },
+    { label: 'Answer Key', icon: 'ðŸ”‘' },
+    { label: 'Review & Publish', icon: 'âœ…' },
 ];
 
 /** Default writing task fields */
@@ -265,6 +274,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const [parsingError, setParsingError] = useState<string | undefined>();
     const [draftId, setDraftId] = useState<string | null>(null);
 
+    // THCS embedded flow state
+    const [isThcsFlow, setIsThcsFlow] = useState(false);
+    const [thcsHasUnsavedChanges, setThcsHasUnsavedChanges] = useState(false);
+    const [thcsStep, setThcsStep] = useState(0);
+    const [thcsWideLayout, setThcsWideLayout] = useState(false);
+    const [thcsStepConfigs, setThcsStepConfigs] = useState<WizardStep[]>(DEFAULT_THCS_STEP_CONFIGS);
+
     // ─── Writing-specific State ───────────────────────────────────
     const [writingMeta, setWritingMeta] = useState<WritingMetadataFields>({
         title: '',
@@ -346,11 +362,19 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setHasUnsavedChanges(true);
     }, []);
 
+    const resetThcsFlowState = useCallback(() => {
+        setIsThcsFlow(false);
+        setThcsHasUnsavedChanges(false);
+        setThcsStep(0);
+        setThcsWideLayout(false);
+        setThcsStepConfigs(DEFAULT_THCS_STEP_CONFIGS);
+    }, []);
+
     const handleTypeSelect = useCallback((testType: TestType) => {
-        // PRD-0027: THCS-THPT has its own dedicated editor page
         if (testType === 'THCS-THPT') {
-            onClose();
-            navigate('/teacher/thcs-test/create');
+            updateStepData({ testType });
+            setIsThcsFlow(true);
+            setThcsHasUnsavedChanges(false);
             return;
         }
         updateStepData({ testType });
@@ -362,7 +386,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 setIsAnimating(false);
             }, 150);
         }, 100);
-    }, [updateStepData, onClose, navigate]);
+    }, [updateStepData]);
 
     const handleSkillSelect = useCallback((skillType: SkillType) => {
         updateStepData({ skillType });
@@ -413,6 +437,15 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     // ─── Close Handlers ──────────────────────────────────────────
     const handleCloseRequest = useCallback(() => {
+        if (isThcsFlow) {
+            if (thcsHasUnsavedChanges) {
+                setShowCloseConfirmation(true);
+            } else {
+                onClose();
+            }
+            return;
+        }
+
         if (isParsing) {
             // During parsing, show confirmation before closing
             setShowCloseConfirmation(true);
@@ -424,7 +457,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         } else {
             onClose();
         }
-    }, [isParsing, hasUnsavedChanges, currentStepIndex, onClose]);
+    }, [isThcsFlow, thcsHasUnsavedChanges, isParsing, hasUnsavedChanges, currentStepIndex, onClose]);
 
     const handleConfirmClose = useCallback(() => {
         setShowCloseConfirmation(false);
@@ -432,8 +465,18 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setCurrentStep('type');
         setStepData({ ...INITIAL_MODAL_DATA });
         setHasUnsavedChanges(false);
+        resetThcsFlowState();
         onClose();
-    }, [onClose]);
+    }, [resetThcsFlowState, onClose]);
+
+    const handleThcsFlowPublished = useCallback(() => {
+        setShowCloseConfirmation(false);
+        setCurrentStep('type');
+        setStepData({ ...INITIAL_MODAL_DATA });
+        setHasUnsavedChanges(false);
+        resetThcsFlowState();
+        onClose();
+    }, [resetThcsFlowState, onClose]);
 
     // ─── Parsing Completion Handler ──────────────────────────────
     const handleParsingComplete = useCallback((draftId: string) => {
@@ -471,6 +514,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setParsingMessage(undefined);
             setParsingError(undefined);
             setDraftId(null);
+            // Reset THCS state
+            resetThcsFlowState();
             // Reset writing state
             setWritingMeta({
                 title: initialWritingMetadata?.title || '',
@@ -494,7 +539,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setWritingDraftId(initialWritingDraftId);
             // Note: parsingAbortRef and isParsingRef are reset in startRealParsing
         }
-    }, [opened, initialStep, initialData, initialWritingDraftId]);
+    }, [opened, initialStep, initialData, initialWritingDraftId, resetThcsFlowState]);
 
     // ─── Real Parsing Flow ──────────────────────────────────────────
     // Ref to track parsing abort
@@ -729,22 +774,40 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         </div>
     );
 
-    const renderHeader = () => (
-        <div style={modalStyles.header as React.CSSProperties}>
+    const renderHeader = () => {
+        const activeThcsStep = thcsStepConfigs[thcsStep] ?? DEFAULT_THCS_STEP_CONFIGS[thcsStep] ?? DEFAULT_THCS_STEP_CONFIGS[0]!;
+
+        return (
+            <div style={modalStyles.header as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '1.5rem' }}>{currentStepConfig?.icon}</span>
+                        <span style={{ fontSize: '1.5rem' }}>{isThcsFlow ? activeThcsStep.icon : currentStepConfig?.icon}</span>
                         <div>
                             <Text size="xl" fw={700} style={{ color: '#1e293b' }}>
-                                {currentStepConfig?.label}
+                                {isThcsFlow ? 'THCS-THPT Test' : currentStepConfig?.label}
                             </Text>
-                            <Text size="sm" c="dimmed">
+                            {isThcsFlow && (
+                                <Text size="sm" c="dimmed">
+                                    {activeThcsStep.label} - Step {thcsStep + 1} of {thcsStepConfigs.length}
+                                </Text>
+                            )}
+                            <Text size="sm" c="dimmed" style={{ display: isThcsFlow ? 'none' : undefined }}>
                                 {currentStepConfig?.description} • Step {currentStepIndex + 1} of {totalSteps}
                             </Text>
                         </div>
                     </div>
-                    {renderStepIndicator()}
+                    {isThcsFlow ? (
+                        <div style={stepIndicatorStyles.container}>
+                            {thcsStepConfigs.map((step, index) => (
+                                <div
+                                    key={`${step.label}-${index}`}
+                                    style={stepIndicatorStyles.step(index === thcsStep, index < thcsStep)}
+                                    title={`Step ${index + 1}: ${step.label}`}
+                                />
+                            ))}
+                        </div>
+                    ) : renderStepIndicator()}
                 </div>
 
                 {/* Close Button */}
@@ -771,8 +834,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     </svg>
                 </button>
             </div>
-        </div>
-    );
+            </div>
+        );
+    };
 
     const renderStepContent = () => {
         // Animation wrapper styles
@@ -781,6 +845,20 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             transform: isAnimating ? 'translateX(20px)' : 'translateX(0)',
             transition: 'opacity 0.15s ease, transform 0.15s ease',
         };
+
+        if (isThcsFlow) {
+            return (
+                <THCSTestEditorSurface
+                    presentation="embedded"
+                    onExit={handleCloseRequest}
+                    onPublished={handleThcsFlowPublished}
+                    onDirtyChange={setThcsHasUnsavedChanges}
+                    onStepChange={setThcsStep}
+                    onWideLayoutChange={setThcsWideLayout}
+                    onStepConfigChange={setThcsStepConfigs}
+                />
+            );
+        }
 
         switch (currentStep) {
             case 'type':
@@ -1001,6 +1079,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     }, [user, writingMeta, writingFormat, writingTask1, writingTask2, writingDraftId, onClose, navigate]);
 
     const renderFooter = () => {
+        if (isThcsFlow) {
+            return null;
+        }
+
         if (currentStep === 'parsing') {
             // During parsing, show only a cancel button
             return (
@@ -1163,20 +1245,46 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             <Modal
                 opened={opened}
                 onClose={handleCloseRequest}
-                size="lg"
+                size={isThcsFlow ? '95vw' : 'lg'}
                 title={null}
                 withCloseButton={false}
                 padding={0}
                 closeOnClickOutside={!isParsing}
                 closeOnEscape={false}
                 styles={{
-                    body: { padding: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
-                    content: modalStyles.content as React.CSSProperties,
+                    body: {
+                        padding: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: 1,
+                        minHeight: 0,
+                        ...(isThcsFlow && thcsWideLayout ? { overflow: 'hidden' } : {}),
+                    },
+                    content: {
+                        ...(modalStyles.content as React.CSSProperties),
+                        ...(isThcsFlow
+                            ? {
+                                maxWidth: thcsWideLayout ? '95vw' : '620px',
+                                transitionProperty: 'max-width',
+                                transitionDuration: '0.3s',
+                                transitionTimingFunction: 'ease',
+                            }
+                            : {}),
+                    },
                 }}
             >
                 <div style={modalStyles.innerWrapper}>
                     {renderHeader()}
-                    <div ref={contentRef} style={modalStyles.body as React.CSSProperties}>
+                    <div
+                        ref={contentRef}
+                        style={{
+                            ...(modalStyles.body as React.CSSProperties),
+                            ...(isThcsFlow ? {
+                                padding: 0,
+                                overflowY: thcsWideLayout ? 'hidden' : 'auto',
+                            } : {}),
+                        }}
+                    >
                         {renderStepContent()}
                     </div>
                     {renderFooter()}

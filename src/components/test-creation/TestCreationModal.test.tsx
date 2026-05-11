@@ -44,6 +44,9 @@ vi.mock('../../services/writingTestService', () => ({
     saveWritingDraft: vi.fn(),
     publishWritingTest: vi.fn(),
 }));
+vi.mock('../../pages/THCSTestEditorPage', () => ({
+    THCSTestEditorSurface: () => <div>Mock THCS Editor Surface</div>,
+}));
 import TestCreationModal from './TestCreationModal';
 import { testDraftService } from '../../services/draftCloudService';
 import testCreationService from '../../services/test-creation';
@@ -149,6 +152,22 @@ describe('TestCreationModal', () => {
 
             // Should still be on type step
             expect(screen.getByText('Test Type')).toBeInTheDocument();
+        });
+
+        it('keeps THCS-THPT creation inside the shared modal flow', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('THCS-THPT'));
+
+            await waitFor(() => {
+                expect(screen.getByText('THCS-THPT Test')).toBeInTheDocument();
+                expect(screen.getByText('Test Setup - Step 1 of 4')).toBeInTheDocument();
+                expect(screen.getByText('Mock THCS Editor Surface')).toBeInTheDocument();
+            });
+            expect(onClose).not.toHaveBeenCalled();
+            expect(mockNavigate).not.toHaveBeenCalled();
         });
     });
 
