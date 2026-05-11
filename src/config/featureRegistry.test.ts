@@ -15,8 +15,19 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/student-test/ABC123')).toBe('testTaking');
     });
 
+    it('maps the AWL independent route to testTaking', () => {
+      expect(resolveFeatureFromRoute('/awl-sublist-three')).toBe('testTaking');
+    });
+
     it('maps known homework routes to homework', () => {
       expect(resolveFeatureFromRoute('/teacher/homework')).toBe('homework');
+    });
+
+    it('maps Reading V2 studio routes to readingV2Studio', () => {
+      expect(resolveFeatureFromRoute('/teacher/reading-v2/create')).toBe('readingV2Studio');
+      expect(resolveFeatureFromRoute('/teacher/reading-v2/import')).toBe('readingV2Studio');
+      expect(resolveFeatureFromRoute('/teacher/reading-v2/drafts/draft-123')).toBe('readingV2Studio');
+      expect(resolveFeatureFromRoute('/teacher/reading-v2/materials/material-123/revise')).toBe('readingV2Studio');
     });
 
     it('maps wildcard admin routes to adminPanel', () => {
@@ -64,10 +75,39 @@ describe('featureRegistry', () => {
       const liveSessions = FEATURE_REGISTRY.find((feature) => feature.id === 'liveSessions');
       const results = FEATURE_REGISTRY.find((feature) => feature.id === 'results');
       const antiCheat = FEATURE_REGISTRY.find((feature) => feature.id === 'antiCheat');
+      const readingV2Studio = FEATURE_REGISTRY.find((feature) => feature.id === 'readingV2Studio');
+      const testTaking = FEATURE_REGISTRY.find((feature) => feature.id === 'testTaking');
 
       expect(homework?.actions).toContain('viewIntegrityDetails');
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
+      expect(readingV2Studio?.actions).toEqual(
+        expect.arrayContaining([
+          'openStudio',
+          'startBlankMaterial',
+          'startImportMaterial',
+          'resumeDraft',
+          'revisePublishedMaterial',
+          'operationalStateAction',
+          'openFromTeacherLobbyCard',
+          'openFromTeacherLobbyDraft',
+        ]),
+      );
+      expect(testTaking?.actions).toEqual(
+        expect.arrayContaining([
+          'launchReadingV2Runtime',
+          'readingV2LaunchBlocked',
+          'submitReadingV2Attempt',
+        ]),
+      );
+      expect(results?.actions).toEqual(
+        expect.arrayContaining([
+          'openReadingV2Review',
+          'submitReadingV2Feedback',
+          'createReadingV2Regrade',
+          'readingV2OperationalError',
+        ]),
+      );
       expect(antiCheat?.actions).toEqual(
         expect.arrayContaining([
           'initializeProtection',
@@ -85,6 +125,17 @@ describe('featureRegistry', () => {
 
       expect(profile?.routes).not.toContain('/profile/complete');
       expect(results?.routes).toContain('/profile/complete');
+    });
+
+    it('keeps Reading V2 review ownership inside existing result surfaces', () => {
+      const readingV2Studio = FEATURE_REGISTRY.find((feature) => feature.id === 'readingV2Studio');
+
+      expect(readingV2Studio?.routes).not.toEqual(
+        expect.arrayContaining([
+          '/teacher/reading-v2/results/:resultId',
+          '/student/reading-v2/results/:resultId',
+        ]),
+      );
     });
   });
 });

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading V2 Build Test</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Georgia&amp;family=Noto+Sans:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#005c55",
+                      "on-surface": "#0b1c30",
+                      "tertiary": "#4f5254",
+                      "on-secondary-container": "#586377",
+                      "on-primary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-primary": "#80d5cb",
+                      "on-secondary": "#ffffff",
+                      "inverse-surface": "#213145",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-container": "#676a6c",
+                      "outline": "#6e7977",
+                      "tertiary-fixed-dim": "#c4c7c9",
+                      "secondary-fixed-dim": "#bcc7de",
+                      "surface-variant": "#d3e4fe",
+                      "surface-dim": "#cbdbf5",
+                      "surface-tint": "#006a63",
+                      "surface-container-highest": "#d3e4fe",
+                      "surface-container": "#e5eeff",
+                      "primary-fixed-dim": "#80d5cb",
+                      "tertiary-fixed": "#e0e3e5",
+                      "on-primary-fixed": "#00201d",
+                      "on-secondary-fixed": "#111c2d",
+                      "on-tertiary-fixed": "#191c1e",
+                      "surface-container-high": "#dce9ff",
+                      "primary-container": "#0f766e",
+                      "secondary": "#545f73",
+                      "on-background": "#0b1c30",
+                      "surface-container-low": "#eff4ff",
+                      "background": "#f8f9ff",
+                      "on-tertiary-fixed-variant": "#444749",
+                      "on-tertiary-container": "#e9ebed",
+                      "inverse-on-surface": "#eaf1ff",
+                      "on-primary-container": "#a3faef",
+                      "on-secondary-fixed-variant": "#3c475a",
+                      "error": "#ba1a1a",
+                      "surface": "#f8f9ff",
+                      "outline-variant": "#bdc9c6",
+                      "on-error-container": "#93000a",
+                      "secondary-container": "#d5e0f8",
+                      "on-primary-fixed-variant": "#00504a",
+                      "secondary-fixed": "#d8e3fb",
+                      "error-container": "#ffdad6",
+                      "surface-bright": "#f8f9ff",
+                      "primary-fixed": "#9cf2e8",
+                      "on-surface-variant": "#3e4947",
+                      "on-error": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "xl": "32px",
+                      "container-max": "1280px",
+                      "gutter": "24px",
+                      "base": "4px",
+                      "xs": "8px",
+                      "md": "16px",
+                      "lg": "24px",
+                      "sm": "12px"
+              },
+              "fontFamily": {
+                      "label-sm": ["Inter"],
+                      "h3": ["Inter"],
+                      "code": ["monospace"],
+                      "h2": ["Inter"],
+                      "body-reading": ["Georgia"],
+                      "label-bold": ["Inter"],
+                      "h1": ["Inter"],
+                      "body-ui": ["Inter"]
+              },
+              "fontSize": {
+                      "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                      "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                      "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                      "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                      "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                      "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                      "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                      "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-ui h-screen overflow-hidden flex flex-col">
+<!-- Minimal Editor Header (Excluding Shared Nav due to Focused Editor Context) -->
+<header class="flex-none flex items-center justify-between border-b border-outline-variant px-gutter py-sm bg-surface-container-lowest z-10">
+<div class="flex items-center gap-md">
+<button class="flex items-center justify-center p-xs rounded hover:bg-surface-container transition-colors text-on-surface" title="Back to Dashboard">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="h-6 w-px bg-outline-variant"></div>
+<h1 class="font-label-bold text-[18px] text-on-surface">IELTS Reading V2: Build Test</h1>
+</div>
+<div class="flex items-center gap-sm">
+<button class="px-md py-sm border border-outline rounded-lg font-label-bold text-on-surface hover:bg-surface-container transition-colors focus:ring-2 focus:ring-primary focus:outline-none">
+                Save Draft
+            </button>
+<button class="px-md py-sm bg-primary text-on-primary rounded-lg font-label-bold hover:opacity-90 transition-opacity flex items-center gap-xs focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:outline-none">
+                Publish
+            </button>
+</div>
+</header>
+<!-- Passage Tabs -->
+<div class="flex-none px-gutter border-b border-outline-variant bg-surface-container-lowest flex gap-lg z-0">
+<button class="py-sm border-b-[3px] border-primary font-label-bold text-primary flex items-center gap-xs">
+            Passage 1
+        </button>
+<button class="py-sm border-b-[3px] border-transparent font-label-bold text-outline hover:text-on-surface transition-colors flex items-center gap-xs">
+            Passage 2
+        </button>
+<button class="py-sm border-b-[3px] border-transparent font-label-bold text-outline hover:text-on-surface transition-colors flex items-center gap-xs">
+            Passage 3
+        </button>
+</div>
+<!-- Main Split Workspace -->
+<main class="flex-1 flex overflow-hidden">
+<!-- Left Panel: Passage Editor -->
+<section class="w-1/2 h-full border-r border-outline-variant bg-surface-container-lowest overflow-y-auto flex flex-col relative">
+<div class="sticky top-0 bg-surface-container-lowest/90 backdrop-blur border-b border-outline-variant p-md flex items-center justify-between z-10">
+<span class="font-label-bold text-secondary">Passage Editor</span>
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit_document</span>
+</button>
+</div>
+<div class="p-xl mx-auto w-full max-w-[760px]">
+<h2 class="font-h1 text-on-surface mb-lg outline-none focus:bg-surface-container rounded p-xs -ml-xs" contenteditable="true">The History of the Bicycle</h2>
+<div class="font-body-reading text-on-surface leading-loose space-y-md outline-none focus:bg-surface-container rounded p-xs -ml-xs" contenteditable="true">
+<p>The invention of the bicycle was not a single, isolated event, but rather a gradual evolution over the 19th century. The earliest iteration, known as the 'running machine' or Draisine, was invented by Karl Drais in 1817. This early two-wheeler lacked pedals entirely; riders propelled themselves forward by pushing their feet directly against the ground.</p>
+<p>It wasn't until the 1860s that the concept of pedals was introduced by French inventors Pierre Michaux and Pierre Lallement. Their design, often referred to as the velocipede or 'boneshaker', attached pedals directly to the front wheel. This direct-drive system meant that the speed was limited by the size of the wheel, leading to the development of the perilous Penny Farthing, characterized by its massive front wheel and tiny rear wheel.</p>
+<p>The introduction of the 'safety bicycle' in the late 1880s by John Kemp Starley was a major turning point. Unlike previous models, it featured two wheels of equal size and utilized a chain to drive the rear wheel. This design vastly improved stability and ease of use, leading to the global bicycle craze of the 1890s. Furthermore, John Boyd Dunlop's invention of the pneumatic tyre in 1888 replaced solid rubber, finally providing a comfortable ride over cobbled streets.</p>
+</div>
+</div>
+</section>
+<!-- Right Panel: Question Groups -->
+<section class="w-1/2 h-full bg-surface overflow-y-auto flex flex-col">
+<div class="sticky top-0 bg-surface/90 backdrop-blur border-b border-outline-variant p-md flex items-center justify-between z-10">
+<span class="font-label-bold text-secondary">Assessment Builder</span>
+<button class="flex items-center gap-xs text-primary font-label-bold hover:bg-surface-container px-sm py-xs rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add Block
+                </button>
+</div>
+<div class="p-lg max-w-[800px] w-full mx-auto space-y-xl">
+<h2 class="font-h2 text-on-surface pb-sm border-b border-outline-variant">Questions 1-14</h2>
+<!-- Question Card 1: Sentence Completion -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col">
+<!-- Card Header -->
+<div class="flex items-center justify-between p-md border-b border-outline-variant bg-surface-container-low/50">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline cursor-grab">drag_indicator</span>
+<span class="bg-surface-container py-xs px-sm rounded text-label-bold text-on-surface">Sentence Completion</span>
+<span class="font-label-sm text-secondary">Questions 1-5</span>
+</div>
+<div class="flex items-center gap-xs text-outline">
+<button class="p-xs hover:bg-surface-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-xs hover:bg-error-container hover:text-error rounded transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-md space-y-md">
+<!-- Settings Row -->
+<div class="flex items-center gap-md bg-surface p-sm rounded border border-outline-variant">
+<div class="flex-1">
+<label class="font-label-bold block mb-xs text-secondary">Instructions</label>
+<input class="w-full bg-transparent border-none p-0 focus:ring-0 font-body-ui" type="text" value="Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer."/>
+</div>
+<div class="w-px h-8 bg-outline-variant"></div>
+<div>
+<label class="font-label-bold block mb-xs text-secondary">Word Limit</label>
+<select class="bg-transparent border-none p-0 pr-xl focus:ring-0 font-body-ui font-medium text-on-surface cursor-pointer">
+<option>1 word</option>
+<option selected="">2 words</option>
+<option>3 words</option>
+</select>
+</div>
+</div>
+<!-- Questions List -->
+<div class="space-y-sm">
+<!-- Row 1 -->
+<div class="flex items-start gap-sm group p-sm hover:bg-surface-container-low rounded-lg transition-colors border border-transparent hover:border-outline-variant">
+<span class="material-symbols-outlined text-outline/50 group-hover:text-outline mt-1 cursor-grab">drag_indicator</span>
+<span class="font-label-bold text-on-surface mt-1.5 w-6">1.</span>
+<div class="flex-1 flex flex-wrap items-center gap-x-xs gap-y-sm font-body-ui">
+<span class="py-1">Karl Drais's 1817 invention was propelled by the rider pushing their</span>
+<div class="relative">
+<input class="bg-surface border border-outline-variant rounded px-sm py-xs w-32 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-label-bold text-primary placeholder:text-outline placeholder:font-normal transition-shadow" placeholder="Answer key..." type="text" value="feet"/>
+<div class="absolute -top-2 -right-2 bg-surface-container border border-outline-variant rounded-full p-0.5 text-secondary hidden group-hover:block cursor-pointer hover:text-primary"><span class="material-symbols-outlined text-[12px]">edit</span></div>
+</div>
+<span class="py-1">against the ground.</span>
+</div>
+<button class="text-outline/50 hover:text-error p-1 opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<!-- Row 2 -->
+<div class="flex items-start gap-sm group p-sm hover:bg-surface-container-low rounded-lg transition-colors border border-transparent hover:border-outline-variant">
+<span class="material-symbols-outlined text-outline/50 group-hover:text-outline mt-1 cursor-grab">drag_indicator</span>
+<span class="font-label-bold text-on-surface mt-1.5 w-6">2.</span>
+<div class="flex-1 flex flex-wrap items-center gap-x-xs gap-y-sm font-body-ui">
+<span class="py-1">The early pedals were fixed to the</span>
+<input class="bg-surface border border-outline-variant rounded px-sm py-xs w-40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-label-bold text-primary placeholder:text-outline placeholder:font-normal transition-shadow" placeholder="Answer key..." type="text" value="front wheel"/>
+<span class="py-1">of the velocipede.</span>
+</div>
+<button class="text-outline/50 hover:text-error p-1 opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+</div>
+<button class="w-full py-sm border border-dashed border-outline-variant rounded-lg text-secondary font-label-bold hover:bg-surface-container hover:text-primary transition-colors flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Question Row
+                        </button>
+</div>
+</div>
+<!-- Question Card 2: Summary Completion -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col shadow-sm">
+<!-- Card Header -->
+<div class="flex items-center justify-between p-md border-b border-outline-variant bg-surface-container-low/50">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline cursor-grab">drag_indicator</span>
+<span class="bg-surface-container py-xs px-sm rounded text-label-bold text-on-surface">Summary Completion</span>
+<span class="font-label-sm text-secondary">Questions 6-10</span>
+</div>
+<div class="flex items-center gap-xs text-outline">
+<button class="p-xs hover:bg-surface-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-xs hover:bg-error-container hover:text-error rounded transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-md space-y-md">
+<!-- Settings Row -->
+<div class="flex items-center gap-md bg-surface p-sm rounded border border-outline-variant">
+<div class="flex-1">
+<label class="font-label-bold block mb-xs text-secondary">Instructions</label>
+<input class="w-full bg-transparent border-none p-0 focus:ring-0 font-body-ui" type="text" value="Complete the summary below. Choose NO MORE THAN TWO WORDS from the passage."/>
+</div>
+</div>
+<!-- Paragraph Editor Area -->
+<div>
+<label class="font-label-bold block mb-sm text-on-surface">Summary Text</label>
+<div class="border border-outline-variant rounded-lg p-md bg-surface font-body-ui text-on-surface leading-loose min-h-[120px] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-shadow cursor-text relative group">
+                                The introduction of the 'safety bicycle' in the late 1880s was a major turning point. Unlike previous models, it had two wheels of
+                                <span class="inline-flex items-center gap-1 bg-primary-container/10 border border-primary/30 text-primary px-sm py-1 rounded mx-1 font-label-bold cursor-pointer hover:bg-primary-container/20 align-baseline">
+<span class="material-symbols-outlined text-[14px]">tag</span>11
+                                </span>
+                                size and utilized a chain to drive the rear wheel. The design was much safer. Later, the addition of a
+                                <span class="inline-flex items-center gap-1 bg-error-container/20 border border-error/50 text-error px-sm py-1 rounded mx-1 font-label-bold cursor-pointer hover:bg-error-container/40 align-baseline relative">
+<span class="material-symbols-outlined text-[14px]">warning</span>12
+                                    <!-- Tooltip mock -->
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-sm py-1 px-2 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Missing Answer Key</div>
+</span>
+                                improved the ride quality immensely.
+
+                                <!-- Floating Format Toolbar (Mock) -->
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-surface-container-highest border border-outline-variant rounded shadow-sm hidden group-hover:flex items-center p-1 gap-1">
+<button class="p-1 hover:bg-surface-variant rounded text-on-surface"><span class="material-symbols-outlined text-[18px]">format_bold</span></button>
+<button class="p-1 hover:bg-surface-variant rounded text-on-surface"><span class="material-symbols-outlined text-[18px]">format_italic</span></button>
+<div class="w-px h-4 bg-outline-variant mx-1"></div>
+<button class="flex items-center gap-1 px-2 py-1 hover:bg-surface-variant rounded text-primary font-label-bold"><span class="material-symbols-outlined text-[18px]">data_object</span> Insert Blank</button>
+</div>
+</div>
+</div>
+<!-- Answer Keys Mapping -->
+<div class="bg-surface-container-low rounded-lg p-md border border-outline-variant mt-sm">
+<h4 class="font-label-bold text-on-surface mb-md flex items-center gap-xs"><span class="material-symbols-outlined text-[18px]">key</span> Answer Keys</h4>
+<div class="space-y-sm">
+<!-- Key 11 -->
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-secondary w-8 text-right">11.</span>
+<input class="bg-surface-container-lowest border border-outline-variant rounded px-sm py-xs flex-1 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-label-bold text-primary" type="text" value="equal"/>
+</div>
+<!-- Key 12 (Error State) -->
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-error w-8 text-right">12.</span>
+<div class="flex-1 relative">
+<input class="w-full bg-error-container/10 border border-error rounded px-sm py-xs focus:border-error focus:outline-none focus:ring-1 focus:ring-error font-label-bold text-error placeholder:text-error/60 placeholder:font-normal pr-8" placeholder="Required..." type="text"/>
+<span class="material-symbols-outlined text-error absolute right-2 top-1/2 -translate-y-1/2 text-[18px]">error</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom padding for scroll -->
+<div class="h-xl"></div>
+</div>
+</section>
+</main>
+</body></html>

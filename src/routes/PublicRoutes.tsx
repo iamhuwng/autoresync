@@ -1,18 +1,20 @@
-import React from 'react';
 import { useRoutes } from 'react-router-dom';
-import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
-import { withTrackedRoute } from './routeHelpers.tsx';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { withTrackedRoute } from './routeHelpers';
 
 const LoginPage = lazyWithRetry(() => import('../pages/LoginPage.jsx'));
 const GuestJoinPage = lazyWithRetry(() => import('../pages/GuestJoinPage.jsx'));
-const GuestResultsPage = lazyWithRetry(() => import('../pages/GuestResultsPage.tsx'));
-const AccessDeniedPage = lazyWithRetry(() => import('../pages/AccessDeniedPage.tsx'));
-const BlockedUserPage = lazyWithRetry(() => import('../pages/BlockedUserPage.tsx'));
+const GuestResultsPage = lazyWithRetry(() => import('../pages/GuestResultsPage'));
+const AccessDeniedPage = lazyWithRetry(() => import('../pages/AccessDeniedPage'));
+const BlockedUserPage = lazyWithRetry(() => import('../pages/BlockedUserPage'));
 const TeacherInvitePage = lazyWithRetry(() => import('../pages/TeacherInvitePage.jsx'));
-const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes.tsx'));
+const AwlSublist3PracticePage = lazyWithRetry(() => import('../pages/AwlSublist3PracticePage'));
+const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes'));
+const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
+const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
 
 export default function PublicRoutes() {
-  return useRoutes([
+  const routes = [
     {
       path: '/',
       element: <LoginPage />,
@@ -38,8 +40,24 @@ export default function PublicRoutes() {
       element: <TeacherInvitePage />,
     },
     {
+      path: '/awl-sublist-three',
+      element: withTrackedRoute(<AwlSublist3PracticePage />, 'testTaking'),
+    },
+    {
       path: '*',
       element: <AuthenticatedRoutes />,
     },
-  ]);
+  ];
+
+  if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+    routes.splice(routes.length - 1, 0, {
+      path: '/__smoke/reading-v2-studio',
+      element: withTrackedRoute(<ReadingV2StudioSmokePage />, 'readingV2Studio'),
+    }, {
+      path: '/__smoke/reading-v2-vertical-loop',
+      element: withTrackedRoute(<ReadingV2VerticalLoopSmokePage />, 'testTaking'),
+    });
+  }
+
+  return useRoutes(routes);
 }

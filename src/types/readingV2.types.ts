@@ -123,10 +123,27 @@ export interface ReadingV2PassageParagraph {
   readonly anchorId?: ReadingV2AnchorId;
   readonly label?: string;
   readonly text: string;
+  readonly blockKind?: 'paragraph' | 'heading' | 'list-item';
+  readonly headingLevel?: 1 | 2 | 3;
+  readonly listKind?: 'ordered' | 'bullet';
+  readonly itemId?: string;
 }
 
 export interface ReadingV2TableCellContent {
+  readonly cellId?: string;
   readonly anchorId?: ReadingV2AnchorId;
+  readonly anchorIds?: readonly ReadingV2AnchorId[];
+  readonly text: string;
+  readonly role?: 'header' | 'body';
+  readonly isBlank?: boolean;
+  readonly rowSpan?: number;
+  readonly colSpan?: number;
+  readonly splitSourceCells?: readonly ReadingV2TableSplitSourceCellContent[];
+}
+
+export interface ReadingV2TableSplitSourceCellContent {
+  readonly anchorId?: ReadingV2AnchorId;
+  readonly anchorIds?: readonly ReadingV2AnchorId[];
   readonly text: string;
   readonly role?: 'header' | 'body';
   readonly isBlank?: boolean;
@@ -169,6 +186,8 @@ export type ReadingV2StimulusContent =
       readonly kind: 'media-content';
       readonly mediaUrl?: string;
       readonly alt: string;
+      readonly caption?: string;
+      readonly source?: string;
     };
 
 export interface ReadingV2StimulusNode {

@@ -16,8 +16,21 @@ import type {
   ReadingSectionReference,
 } from '../types/document.types';
 import type { MaterialSoloConfig } from '../types/solo.types';
+import type { QuestionGroupsField } from '../types/tableCompletion';
+import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 import { stripAnswerKeys } from '../utils/answerKeyHelper';
 import { canonicalizeReadingQuestion } from '../utils/readingQuestionContract';
+import {
+  generateReadingV2SessionSafeProjection,
+  type ReadingV2DerivedProjection,
+} from './reading-v2/readingV2Projection.service';
+import { readingV2StoragePaths } from './reading-v2/readingV2StoragePaths.service';
+import {
+  mergeQuestionsWithCanonicalTableGroups,
+  sortTableCompletionQuestionGroups,
+  stripTableCompletionReviewOnlyProvenanceFromField,
+} from './test-creation/tableCompletionTransforms';
+import { buildPersistedTableCompletionDiagnostics } from './test-creation/tableCompletionValidator';
 
 /** Link to source material (legacy - Materials feature removed) */
 export interface MaterialLink {
@@ -151,6 +164,11 @@ export interface TestData {
     acceptableAnswers?: string[];
     wordLimit?: number; // Max words allowed for completion-type questions
     sectionInstructionId?: string; // Links question to its section instruction
+    groupId?: string;
+    blankId?: string;
+    anchorId?: string;
+    groupTaskType?: 'table-completion';
+    tableGroupSchemaVersion?: number;
   }>;
 
   settings: {
@@ -174,6 +192,12 @@ export interface TestData {
 
   /** PRD-0016: Solo study configuration */
   soloConfig?: MaterialSoloConfig;
+
+  /** Canonical grouped Reading tasks */
+  questionGroups?: QuestionGroupsField;
+
+  /** Teacher/operator-only grouped table diagnostics */
+  tableCompletionDiagnostics?: unknown[];
 }
 
 export interface SessionStudentSafeTestPayload {
@@ -230,16 +254,23 @@ export const saveTestToFirebase = async (
   createdBy: string = 'teacher-default',
   materialLink?: MaterialLink,
   ownerId?: string,
-  isPublic: boolean = false
+  isPublic: boolean = false,
+  questionGroups: QuestionGroupsField = [],
 ): Promise<{ success: boolean; testId?: string; error?: string }> => {
   try {
     const testId = generateTestId();
     const now = Date.now();
+    const sortedQuestionGroups = sortTableCompletionQuestionGroups(
+      questionGroups,
+      passages.map((passage) => passage.id),
+    );
+    const tableCompletionDiagnostics = buildPersistedTableCompletionDiagnostics(sortedQuestionGroups);
+    const effectiveQuestions = mergeQuestionsWithCanonicalTableGroups(questions, sortedQuestionGroups);
 
     // Format passages
     const formattedPassages = passages.map((passage, index) => {
       // Find question range for this passage
-      const passageQuestions = questions.filter(q => q.passageId === passage.id);
+      const passageQuestions = effectiveQuestions.filter(q => q.passageId === passage.id);
       const questionNumbers = passageQuestions.map(q => q.number || 0).filter(n => n > 0);
 
       const questionStart = questionNumbers.length > 0 ? Math.min(...questionNumbers) : (index * 13) + 1;
@@ -259,7 +290,7 @@ export const saveTestToFirebase = async (
     });
 
     // Format questions
-    const formattedQuestions = questions.map((question, index) => {
+    const formattedQuestions = effectiveQuestions.map((question, index) => {
       const canonicalQuestion = canonicalizeReadingQuestion({
         questionNumber: question.questionNumber || question.number,
         type: question.type,
@@ -269,6 +300,12 @@ export const saveTestToFirebase = async (
         labeledOptions: question.labeledOptions,
         optionLabelFormat: question.optionLabelFormat,
         sectionReferences: question.sectionReferences,
+        sectionInstructionId: (question as any).sectionInstructionId,
+        groupId: (question as any).groupId,
+        blankId: (question as any).blankId,
+        anchorId: (question as any).anchorId,
+        groupTaskType: (question as any).groupTaskType,
+        tableGroupSchemaVersion: (question as any).tableGroupSchemaVersion,
       });
 
       if (canonicalQuestion.issues.length > 0) {
@@ -317,6 +354,21 @@ export const saveTestToFirebase = async (
       if ((question as any).sectionInstructionId) {
         formatted.sectionInstructionId = (question as any).sectionInstructionId;
       }
+      if ((question as any).groupId) {
+        formatted.groupId = (question as any).groupId;
+      }
+      if ((question as any).blankId) {
+        formatted.blankId = (question as any).blankId;
+      }
+      if ((question as any).anchorId) {
+        formatted.anchorId = (question as any).anchorId;
+      }
+      if ((question as any).groupTaskType) {
+        formatted.groupTaskType = (question as any).groupTaskType;
+      }
+      if ((question as any).tableGroupSchemaVersion) {
+        formatted.tableGroupSchemaVersion = (question as any).tableGroupSchemaVersion;
+      }
 
       return formatted;
     });
@@ -337,7 +389,7 @@ export const saveTestToFirebase = async (
     const isComplete = missingAnswerCount === 0;
 
     if (!isComplete) {
-      console.log(`⚠️ Test has ${missingAnswerCount}/${questions.length} questions without answer keys`);
+      console.log(`⚠️ Test has ${missingAnswerCount}/${formattedQuestions.length} questions without answer keys`);
     }
 
     // Build test data structure
@@ -348,7 +400,7 @@ export const saveTestToFirebase = async (
       skill: metadata.skill,
       duration: metadata.duration,
       difficulty: metadata.difficulty || 'Intermediate',
-      questionCount: questions.length,
+      questionCount: formattedQuestions.length,
       createdAt: now,
       createdBy,
       updatedAt: now,
@@ -361,7 +413,7 @@ export const saveTestToFirebase = async (
 
       metadata: {
         description: metadata.description || '',
-        instructions: `You have ${metadata.duration} minutes to complete all ${questions.length} questions`,
+        instructions: `You have ${metadata.duration} minutes to complete all ${formattedQuestions.length} questions`,
         tags: metadata.tags || [metadata.type, metadata.skill],
         // Only include optional fields if they have values (Firebase rejects undefined)
         ...(metadata.targetBand && { targetBand: metadata.targetBand }),
@@ -370,6 +422,10 @@ export const saveTestToFirebase = async (
 
       passages: formattedPassages,
       questions: formattedQuestions,
+      ...(sortedQuestionGroups.length > 0 ? { questionGroups: sortedQuestionGroups } : {}),
+      ...(tableCompletionDiagnostics.length > 0
+        ? { tableCompletionDiagnostics }
+        : {}),
 
       settings: {
         allowPause: false,
@@ -391,7 +447,10 @@ export const saveTestToFirebase = async (
       ...(materialLink && { materialLink }),
     };
 
-    await writeCanonicalAndStudentSafeTestData(testId, testData);
+    // Save to Firebase
+    const testRef = ref(database, `tests/${testId}`);
+    await set(testRef, testData);
+    await writeStudentSafeTestData(testId, testData);
 
     console.log('✅ Test saved to Firebase:', testId);
 
@@ -472,18 +531,39 @@ const sanitizeSectionQuestions = <T extends QuestionContainer>(sections: T[]): T
  * This keeps the rendered question state separate from grading data.
  */
 export const buildStudentSafeTestData = <T extends Record<string, any>>(testData: T): T => {
+  if (isReadingV2Payload(testData)) {
+    throw new Error(
+      'Reading V2 payloads must use the dedicated Reading V2 publish pipeline before student-safe projection.',
+    );
+  }
+
   const studentSafeTestData = { ...testData } as T & {
     questions?: Array<Record<string, any>>;
     sections?: QuestionContainer[];
+    questionGroups?: QuestionGroupsField;
+    tableCompletionDiagnostics?: unknown[];
   };
 
   if (Array.isArray(studentSafeTestData.questions)) {
-    studentSafeTestData.questions = stripAnswerKeys(studentSafeTestData.questions);
+    studentSafeTestData.questions = stripAnswerKeys(studentSafeTestData.questions).map((question) => {
+      const { acceptableAnswers, explanation, ...rest } = question;
+      void acceptableAnswers;
+      void explanation;
+      return rest;
+    });
   }
 
   if (Array.isArray(studentSafeTestData.sections)) {
     studentSafeTestData.sections = sanitizeSectionQuestions(studentSafeTestData.sections);
   }
+
+  if (Array.isArray(studentSafeTestData.questionGroups)) {
+    studentSafeTestData.questionGroups = stripTableCompletionReviewOnlyProvenanceFromField(
+      studentSafeTestData.questionGroups,
+    ) as typeof studentSafeTestData.questionGroups;
+  }
+
+  delete studentSafeTestData.tableCompletionDiagnostics;
 
   return studentSafeTestData;
 };
@@ -498,43 +578,6 @@ const writeStudentSafeTestData = async (
   );
 };
 
-const writeCanonicalAndStudentSafeTestData = async (
-  testId: string,
-  testData: TestData,
-): Promise<void> => {
-  await update(ref(database), {
-    [`/tests/${testId}`]: testData,
-    [`/student_safe_tests/${testId}`]: buildStudentSafeTestData(testData),
-  });
-};
-
-export const refreshStudentSafeTestData = async (
-  testId: string,
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const result = await getTestFromFirebase(testId);
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || 'Test not found',
-      };
-    }
-
-    await writeStudentSafeTestData(testId, result.data);
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.error('Error refreshing student-safe test payload:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to refresh student-safe test payload',
-    };
-  }
-};
-
 const backfillStudentSafeTestData = withRestoreGuard(
   'StudentSafeTestProjectionBackfill',
   false,
@@ -542,6 +585,81 @@ const backfillStudentSafeTestData = withRestoreGuard(
   await writeStudentSafeTestData(testId, testData);
   return true;
 });
+
+const stripUndefined = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stripUndefined(entry));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, stripUndefined(entry)]),
+    );
+  }
+
+  return value;
+};
+
+const cacheReadingV2SessionSafeProjection = async (
+  sessionCode: string,
+  testId: string,
+  testData: TestData,
+): Promise<{ success: boolean; data?: TestData; error?: string }> => {
+  const materialId = String((testData as Record<string, unknown>).materialId || testId);
+  const metadataSnapshot = await get(ref(database, readingV2StoragePaths.materialMetadata(materialId)));
+
+  if (!metadataSnapshot.exists()) {
+    return {
+      success: false,
+      error: `Reading V2 material metadata not found for ${materialId}`,
+    };
+  }
+
+  const metadata = metadataSnapshot.val() as Record<string, any>;
+  const snapshotVersionId =
+    typeof metadata.publishedSnapshotVersionId === 'string'
+      ? metadata.publishedSnapshotVersionId
+      : typeof (testData as Record<string, any>).publishedSnapshotVersionId === 'string'
+        ? (testData as Record<string, any>).publishedSnapshotVersionId
+        : typeof (testData as Record<string, any>).metadata?.publishedSnapshotVersionId === 'string'
+          ? (testData as Record<string, any>).metadata.publishedSnapshotVersionId
+          : null;
+
+  if (!snapshotVersionId) {
+    return {
+      success: false,
+      error: `Reading V2 material ${materialId} is missing a published snapshot version`,
+    };
+  }
+
+  const studentSafeSnapshot = await get(
+    ref(database, readingV2StoragePaths.studentSafeTests(materialId, snapshotVersionId)),
+  );
+
+  if (!studentSafeSnapshot.exists()) {
+    return {
+      success: false,
+      error: `Reading V2 student-safe projection not found for ${materialId}:${snapshotVersionId}`,
+    };
+  }
+
+  const sessionSafeProjection = generateReadingV2SessionSafeProjection({
+    sessionCode,
+    studentSafeProjection: studentSafeSnapshot.val() as ReadingV2DerivedProjection,
+  });
+
+  await update(ref(database), {
+    [readingV2StoragePaths.sessionSafePayloads(sessionCode, snapshotVersionId)]: stripUndefined(sessionSafeProjection),
+    [`game_sessions/${sessionCode}/readingV2`]: stripUndefined(metadata),
+  });
+
+  return {
+    success: true,
+    data: sessionSafeProjection as unknown as TestData,
+  };
+};
 
 /**
  * Read the global student-safe payload for solo/homework delivery.
@@ -607,6 +725,10 @@ export const cacheSessionStudentSafeTestData = async (
       };
     }
 
+    if (isReadingV2Payload(result.data)) {
+      return await cacheReadingV2SessionSafeProjection(sessionCode, testId, result.data);
+    }
+
     const studentSafeTestData = buildStudentSafeTestData(result.data);
     const payload: SessionStudentSafeTestPayload = {
       testId,
@@ -641,26 +763,19 @@ export const getSessionStudentSafeTestData = async (
     const snapshot = await get(payloadRef);
 
     if (!snapshot.exists()) {
-      return getStudentSafeTestFromFirebase(testId);
+      return {
+        success: false,
+        error: 'Session test payload not ready',
+      };
     }
 
     const payload = snapshot.val() as SessionStudentSafeTestPayload;
 
     if (!payload?.testData || payload.testId !== testId) {
-      return getStudentSafeTestFromFirebase(testId);
-    }
-
-    const currentResult = await getStudentSafeTestFromFirebase(testId);
-    if (currentResult.success && currentResult.data) {
-      const payloadUpdatedAt = Number(payload.testData.updatedAt || payload.generatedAt || 0);
-      const currentUpdatedAt = Number(currentResult.data.updatedAt || 0);
-
-      if (currentUpdatedAt > payloadUpdatedAt) {
-        return {
-          success: true,
-          data: currentResult.data,
-        };
-      }
+      return {
+        success: false,
+        error: 'Session test payload is stale',
+      };
     }
 
     return {
@@ -737,6 +852,61 @@ export const getAllTestsFromFirebase = async (): Promise<{ success: boolean; dat
   }
 };
 
+export const persistIELTSCanonicalQuestionGroupsToFirebase = async (
+  testId: string,
+  questionGroups: QuestionGroupsField,
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const existingResult = await getTestFromFirebase(testId);
+    if (!existingResult.success || !existingResult.data) {
+      return {
+        success: false,
+        error: existingResult.error || 'Test not found',
+      };
+    }
+
+    const existingTest = existingResult.data;
+    if (existingTest.type === 'THCS-THPT') {
+      return {
+        success: false,
+        error: 'THCS grouped-table persistence is not supported by the IELTS canonical storage path.',
+      };
+    }
+
+    const sortedQuestionGroups = sortTableCompletionQuestionGroups(
+      questionGroups,
+      existingTest.passages.map((passage) => passage.id),
+    );
+    const nextQuestions = mergeQuestionsWithCanonicalTableGroups(
+      existingTest.questions as ParsedQuestion[],
+      sortedQuestionGroups,
+    );
+    const nextDiagnostics = buildPersistedTableCompletionDiagnostics(sortedQuestionGroups);
+    const nextTestData: TestData = {
+      ...existingTest,
+      questions: nextQuestions as TestData['questions'],
+      updatedAt: Date.now(),
+      ...(sortedQuestionGroups.length > 0 ? { questionGroups: sortedQuestionGroups } : {}),
+      ...(sortedQuestionGroups.length === 0 ? { questionGroups: [] } : {}),
+      ...(nextDiagnostics.length > 0 ? { tableCompletionDiagnostics: nextDiagnostics } : {}),
+      ...(nextDiagnostics.length === 0 ? { tableCompletionDiagnostics: [] } : {}),
+    };
+
+    await set(ref(database, `tests/${testId}`), nextTestData);
+    await writeStudentSafeTestData(testId, nextTestData);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('❌ Error persisting IELTS canonical question groups:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to persist IELTS canonical question groups',
+    };
+  }
+};
+
 /**
  * Update test in Firebase
  */
@@ -745,35 +915,41 @@ export const updateTestInFirebase = async (
   updates: Partial<TestData>
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const existingResult = await getTestFromFirebase(testId);
+    let remainingUpdates: Partial<TestData> = { ...updates };
 
-    if (!existingResult.success || !existingResult.data) {
-      return {
-        success: false,
-        error: existingResult.error || 'Test not found',
-      };
+    if (remainingUpdates.questionGroups !== undefined) {
+      const groupedResult = await persistIELTSCanonicalQuestionGroupsToFirebase(
+        testId,
+        remainingUpdates.questionGroups,
+      );
+
+      if (!groupedResult.success) {
+        return groupedResult;
+      }
+
+      delete remainingUpdates.questionGroups;
+      delete remainingUpdates.questions;
+      delete remainingUpdates.tableCompletionDiagnostics;
+
+      if (Object.keys(remainingUpdates).length === 0) {
+        return { success: true };
+      }
     }
+
+    const testRef = ref(database, `tests/${testId}`);
 
     // Add updatedAt timestamp
     const updatedData = {
-      ...updates,
+      ...remainingUpdates,
       updatedAt: Date.now(),
     };
-    const mergedData: TestData = {
-      ...existingResult.data,
-      ...updatedData,
-    };
-    const rootUpdates: Record<string, any> = {
-      [`/student_safe_tests/${testId}`]: buildStudentSafeTestData(mergedData),
-    };
 
-    Object.entries(updatedData).forEach(([key, value]) => {
-      if (value !== undefined) {
-        rootUpdates[`/tests/${testId}/${key}`] = value;
-      }
-    });
+    await update(testRef, updatedData);
 
-    await update(ref(database), rootUpdates);
+    const result = await getTestFromFirebase(testId);
+    if (result.success && result.data) {
+      await writeStudentSafeTestData(testId, result.data);
+    }
 
     console.log('✅ Test updated in Firebase:', testId);
 

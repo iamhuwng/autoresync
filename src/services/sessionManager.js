@@ -1,9 +1,9 @@
 /**
  * Session Manager (Hybrid Architecture)
- * 
+ *
  * INTERNAL: Uses class-based multi-test/quiz architecture
  * EXTERNAL: Maintains backward-compatible session API
- * 
+ *
  * Key Features:
  * - Auto-migrates old sessions to new format on read
  * - Provides compatibility fields for legacy code
@@ -57,10 +57,46 @@ const isQuizModeEnabled = () => {
   return hostname === 'localhost' || hostname === '127.0.0.1';
 };
 
+const READING_V2_ENGINE = 'reading-v2';
+
+const omitUndefined = (value) => Object.fromEntries(
+  Object.entries(value).filter(([, entry]) => entry !== undefined),
+);
+
+const getReadingV2SessionMetadata = async (contentId, mode) => {
+  if (mode !== SessionMode.TEST || !contentId || contentId === 'pending') {
+    return null;
+  }
+
+  const snapshot = await get(ref(database, `tests/${contentId}`));
+  const marker = snapshot.exists() ? snapshot.val() : null;
+  const isReadingV2 =
+    marker?.deliveryEngine === READING_V2_ENGINE ||
+    marker?.contentEngine === READING_V2_ENGINE ||
+    marker?.runtimeEngine === READING_V2_ENGINE;
+
+  if (!isReadingV2) {
+    return null;
+  }
+
+  return omitUndefined({
+    deliveryEngine: READING_V2_ENGINE,
+    contentEngine: READING_V2_ENGINE,
+    runtimeEngine: READING_V2_ENGINE,
+    materialId: marker.materialId || contentId,
+    publishedSnapshotVersionId: marker.publishedSnapshotVersionId,
+    title: marker.title || marker.metadata?.title,
+    durationMinutes: marker.duration || marker.durationMinutes,
+    productLabel: marker.productLabel || marker.metadata?.productLabel,
+    materialKind: marker.materialKind || marker.metadata?.materialKind,
+    visibility: marker.metadata?.visibility,
+  });
+};
+
 /**
  * Create a new session with a unique session code
  * HYBRID ARCHITECTURE: Creates new class-based structure with compatibility layer
- * 
+ *
  * @param {Object} options - Session creation options
  * @param {string} options.quizId - ID of the quiz (for quiz mode)
  * @param {string} options.testId - ID of the test (for test mode)
@@ -77,6 +113,7 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
     // Allow creating sessions without content (content selected later by teacher)
     const contentId = mode === SessionMode.TEST ? testId : quizId;
     const hasContent = contentId && contentId !== 'pending';
+    const readingV2SessionMetadata = await getReadingV2SessionMetadata(contentId, mode);
 
     if (!Object.values(SessionMode).includes(mode)) {
       throw new Error(`Invalid session mode: ${mode}`);
@@ -130,6 +167,10 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
       bannedStudents: {},
 
       // Settings
+      ...(readingV2SessionMetadata && {
+        readingV2: readingV2SessionMetadata,
+      }),
+
       settings: {
         autoAdvance: settings.autoAdvance !== false,
         allowLateJoin: settings.allowLateJoin !== false,
@@ -224,7 +265,7 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
 /**
  * Get session data by session code
  * AUTO-MIGRATES old format to new hybrid structure
- * 
+ *
  * @param {string} sessionCode - The session code
  * @returns {Promise<Object|null>} Session data or null if not found
  */
@@ -267,7 +308,7 @@ export async function getSession(sessionCode) {
 
 /**
  * Check if a session exists and is valid for joining
- * 
+ *
  * @param {string} sessionCode - The session code to validate
  * @returns {Promise<Object>} Validation result with success flag and message
  */
@@ -327,7 +368,7 @@ export async function validateSessionForJoin(sessionCode) {
 /**
  * Validate if a guest (anonymous) user can join a session
  * Checks both general session validity and allowAnonymous setting
- * 
+ *
  * @param {string} sessionCode - The session code to validate
  * @returns {Promise<Object>} Validation result with success flag and message
  */
@@ -357,7 +398,7 @@ export async function validateGuestJoin(sessionCode) {
 /**
  * Validate if a student can join a restricted session (Phase 6)
  * Checks if session is restricted to class members and validates student enrollment
- * 
+ *
  * @param {string} sessionCode - The session code to validate
  * @param {string} studentId - The student's user ID
  * @returns {Promise<Object>} Validation result with success flag and message
@@ -423,7 +464,7 @@ export async function validateStudentClassMembership(sessionCode, studentId) {
 
 /**
  * Update session status
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {string} newStatus - New status (waiting, in-progress, completed, expired)
  * @returns {Promise<void>}
@@ -445,7 +486,7 @@ export async function updateSessionStatus(sessionCode, newStatus) {
 
 /**
  * End a session (mark as completed)
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {Object} finalData - Optional final data to save (scores, results, etc.)
  * @returns {Promise<void>}
@@ -509,7 +550,7 @@ export async function endSession(sessionCode, finalData = {}) {
 
 /**
  * Delete a session completely (cleanup)
- * 
+ *
  * @param {string} sessionCode - The session code
  * @returns {Promise<void>}
  */
@@ -540,7 +581,7 @@ export async function deleteSession(sessionCode) {
 /**
  * Get all active sessions (waiting or in-progress)
  * Useful for teacher dashboard
- * 
+ *
  * @returns {Promise<Array>} Array of active session objects
  */
 export async function getActiveSessions() {
@@ -555,7 +596,7 @@ export async function getActiveSessions() {
 /**
  * Cleanup expired sessions (run periodically)
  * Marks sessions as expired if past expiration time
- * 
+ *
  * @param {boolean} deleteExpired - Whether to delete expired sessions or just mark them
  * @returns {Promise<Object>} Cleanup results
  */
@@ -602,7 +643,7 @@ export async function cleanupExpiredSessions(deleteExpired = false) {
 /**
  * Subscribe to session updates in real-time
  * Returns an unsubscribe function
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {Function} callback - Callback function (receives session data)
  * @returns {Function} Unsubscribe function
@@ -624,7 +665,7 @@ export function subscribeToSession(sessionCode, callback) {
 /**
  * Extend session expiration time
  * Useful if teacher wants to continue a session
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {number} additionalHours - Hours to add (default: 24)
  * @returns {Promise<void>}
@@ -681,7 +722,7 @@ export function getSessionTeacherId(sessionCode) {
 /**
  * Calculate session statistics from existing session data (OPTIMIZED - no re-fetch)
  * Use this when you already have session data to avoid redundant Firebase queries
- * 
+ *
  * @param {Object} session - The session data object
  * @param {string} sessionCode - The session code
  * @returns {Object} Session statistics
@@ -711,7 +752,7 @@ export function calculateSessionStatsFromData(session, sessionCode) {
 /**
  * Get session statistics (player count, status, etc.)
  * ⚠️ WARNING: This re-fetches session data. Use calculateSessionStatsFromData() if you already have the session.
- * 
+ *
  * @param {string} sessionCode - The session code
  * @returns {Promise<Object>} Session statistics
  */
@@ -732,7 +773,7 @@ export async function getSessionStats(sessionCode) {
 /**
  * Assign a test to specific students in a session
  * NEW FUNCTIONALITY for multi-test support
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {string} testId - ID of the test to assign
  * @param {string[]} studentIds - Array of student IDs to assign
@@ -820,7 +861,7 @@ export async function assignTestToStudents(sessionCode, testId, studentIds, opti
 /**
  * Assign a quiz to specific students in a session
  * NEW FUNCTIONALITY for multi-quiz support
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {string} quizId - ID of the quiz to assign
  * @param {string[]} studentIds - Array of student IDs to assign
@@ -878,7 +919,7 @@ export async function assignQuizToStudents(sessionCode, quizId, studentIds, opti
 /**
  * Start a test assignment (set status to in-progress)
  * NEW FUNCTIONALITY for multi-test support
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {string} assignmentId - The assignment ID
  * @returns {Promise<void>}
@@ -902,7 +943,7 @@ export async function startTestAssignment(sessionCode, assignmentId) {
 /**
  * Get student's assigned content (test or quiz)
  * NEW FUNCTIONALITY for multi-test routing
- * 
+ *
  * @param {string} sessionCode - The session code
  * @param {string} studentId - The student ID
  * @returns {Promise<Object|null>} {type: 'test'|'quiz', id: string} or null

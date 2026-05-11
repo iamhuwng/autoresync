@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading V2 Build Test</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#111c2d",
+                      "surface-tint": "#006a63",
+                      "surface": "#f8f9ff",
+                      "surface-container-high": "#dce9ff",
+                      "on-secondary-container": "#586377",
+                      "primary-fixed-dim": "#80d5cb",
+                      "on-tertiary-fixed": "#191c1e",
+                      "on-error-container": "#93000a",
+                      "on-background": "#0b1c30",
+                      "primary": "#005c55",
+                      "secondary": "#545f73",
+                      "primary-fixed": "#9cf2e8",
+                      "outline": "#6e7977",
+                      "tertiary-container": "#676a6c",
+                      "surface-container-highest": "#d3e4fe",
+                      "on-tertiary": "#ffffff",
+                      "on-primary-fixed-variant": "#00504a",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-fixed-dim": "#c4c7c9",
+                      "surface-container": "#e5eeff",
+                      "surface-container-low": "#eff4ff",
+                      "inverse-surface": "#213145",
+                      "surface-bright": "#f8f9ff",
+                      "on-secondary": "#ffffff",
+                      "surface-variant": "#d3e4fe",
+                      "inverse-primary": "#80d5cb",
+                      "on-primary-fixed": "#00201d",
+                      "error-container": "#ffdad6",
+                      "primary-container": "#0f766e",
+                      "on-secondary-fixed-variant": "#3c475a",
+                      "on-error": "#ffffff",
+                      "on-tertiary-fixed-variant": "#444749",
+                      "on-tertiary-container": "#e9ebed",
+                      "on-surface": "#0b1c30",
+                      "secondary-fixed": "#d8e3fb",
+                      "outline-variant": "#bdc9c6",
+                      "on-surface-variant": "#3e4947",
+                      "error": "#ba1a1a",
+                      "surface-dim": "#cbdbf5",
+                      "tertiary": "#4f5254",
+                      "background": "#f8f9ff",
+                      "inverse-on-surface": "#eaf1ff",
+                      "secondary-fixed-dim": "#bcc7de",
+                      "on-primary-container": "#a3faef",
+                      "on-primary": "#ffffff",
+                      "secondary-container": "#d5e0f8",
+                      "tertiary-fixed": "#e0e3e5"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "base": "4px",
+                      "md": "16px",
+                      "lg": "24px",
+                      "sm": "12px",
+                      "xl": "32px",
+                      "xs": "8px",
+                      "container-max": "1280px"
+              },
+              "fontFamily": {
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "body-reading": [
+                              "Georgia"
+                      ],
+                      "h1": [
+                              "Inter"
+                      ],
+                      "h2": [
+                              "Inter"
+                      ],
+                      "label-bold": [
+                              "Inter"
+                      ],
+                      "body-ui": [
+                              "Inter"
+                      ],
+                      "h3": [
+                              "Inter"
+                      ],
+                      "code": [
+                              "monospace"
+                      ]
+              },
+              "fontSize": {
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-reading": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "h1": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "h2": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-bold": [
+                              "14px",
+                              {
+                                      "lineHeight": "1",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-ui": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "h3": [
+                              "20px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "code": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 400,
+          'GRAD' 0,
+          'opsz' 24
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface h-screen flex flex-col overflow-hidden">
+<!-- TopNavBar -->
+<header class="bg-surface-container-lowest docked full-width top-0 border-b border-outline-variant flex justify-between items-center px-6 h-16 w-full flex-shrink-0">
+<div class="flex items-center gap-6">
+<div class="font-h3 text-h3 font-bold text-primary dark:text-primary-fixed">IELTS Author</div>
+<nav class="hidden md:flex gap-4 h-full pt-4">
+<a class="font-label-bold text-label-bold text-primary border-b-2 border-primary pb-2 flex items-center gap-2" href="#">
+                    Passage 1
+                </a>
+<a class="font-label-bold text-label-bold text-on-surface-variant hover:text-on-surface pb-2 flex items-center gap-2" href="#">
+                    Passage 2
+                </a>
+<a class="font-label-bold text-label-bold text-on-surface-variant hover:text-on-surface pb-2 flex items-center gap-2" href="#">
+                    Passage 3
+                </a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="font-label-bold text-label-bold text-on-surface-variant hover:bg-surface-container-low px-4 py-2 rounded-lg transition-colors border border-outline-variant">
+                Preview
+            </button>
+<button class="font-label-bold text-label-bold bg-primary text-on-primary hover:bg-on-primary-fixed-variant px-4 py-2 rounded-lg transition-colors">
+                Publish Test
+            </button>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-4 ml-2">
+<button class="text-on-surface-variant hover:text-on-surface p-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="text-on-surface-variant hover:text-on-surface p-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high ml-2 overflow-hidden border border-outline-variant">
+<img alt="Teacher Profile" class="w-full h-full object-cover" data-alt="A professional headshot of an educator, a man with glasses and a friendly expression. The lighting is soft and natural, emphasizing approachability and academic competence. The background is slightly blurred and neutral in tone." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTZq_eYS0vZG_1Snm7FbF_9Sz_Ag1H99BceQDXK3nTuTIYaAoM9m0stsAk84KZsndkJH0pESNWA2_jCWXVcuudDYE-QL34yhOhBu1osS3-ng7Q_n9USPQ6q1oUAt3nTqJuVxfOFSA_nspbf6jP2cot4h8c5s0kOjNLPYcIvSqb-gKET5Cv5AljB3SSq6eHXHZmJY1kHDoXlsKhZHm1zb8Szmnx5Dby0UThVHdEtdWMmO-vXE0R2RaFe8bZq_tAh5RrugBSpcQwV9k"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Workspace Split -->
+<main class="flex-1 flex overflow-hidden">
+<!-- Left Panel: Passage Editor -->
+<section class="w-1/2 border-r border-outline-variant bg-surface-container-lowest overflow-y-auto flex flex-col">
+<div class="p-6 border-b border-outline-variant bg-surface-container-lowest sticky top-0 z-10 flex justify-between items-center">
+<h2 class="font-h2 text-h2 text-on-surface">Reading Passage 1</h2>
+<button class="text-primary hover:bg-surface-container p-2 rounded transition-colors" title="Settings">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="p-8 max-w-3xl mx-auto w-full flex-1">
+<div class="mb-8">
+<input class="w-full font-h1 text-h1 text-on-surface bg-transparent border-none outline-none placeholder:text-outline-variant focus:ring-0 mb-4" placeholder="Passage Title" type="text" value="The Evolution of City Planning"/>
+<textarea class="w-full font-body-reading text-body-reading text-on-surface bg-transparent border-none outline-none placeholder:text-outline-variant focus:ring-0 resize-none h-[600px]" placeholder="Paste passage text here...">The history of urban planning goes back much further than most people realize. While the profession as we know it today emerged in the late 19th and early 20th centuries, the core concepts of designing functional, organized living spaces are ancient. Early urban planning was primarily concerned with establishing order, ensuring defense, and facilitating trade.
+
+In ancient Mesopotamia, cities like Uruk and Ur featured grid-like patterns and monumental architecture, serving both practical and religious purposes. The Indus Valley Civilization, notably cities like Harappa and Mohenjo-Daro, demonstrated a remarkably sophisticated understanding of urban layout, with well-organized streets, advanced drainage systems, and standardized brick sizes.
+
+The true modern era of city planning, however, is often linked to the industrial revolution. The rapid influx of populations into cities led to overcrowding, disease, and poor living conditions. It was in response to these dire circumstances that visionaries began to propose comprehensive strategies for urban renewal. Sir Ebenezer Howard's concept of the "Garden City," which sought to combine the benefits of town and country living, was a highly influential model that shaped planning philosophy for decades.
+                    </textarea>
+</div>
+</div>
+</section>
+<!-- Right Panel: Question Groups Editor -->
+<section class="w-1/2 bg-surface overflow-y-auto p-6 space-y-6">
+<div class="flex justify-between items-center mb-2">
+<h2 class="font-h2 text-h2 text-on-surface">Question Groups</h2>
+<button class="font-label-bold text-label-bold text-primary flex items-center gap-1 hover:bg-surface-container p-2 rounded transition-colors">
+<span class="material-symbols-outlined">add</span>
+                    Add Group
+                </button>
+</div>
+<!-- Card 1: Multiple Choice -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 group">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="cursor-grab text-outline-variant hover:text-on-surface-variant p-1">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-1">Questions 1-5</div>
+<h3 class="font-h3 text-h3 text-on-surface">Multiple Choice</h3>
+</div>
+</div>
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-outline-variant hover:text-on-surface p-2 rounded transition-colors"><span class="material-symbols-outlined">settings</span></button>
+<button class="text-outline-variant hover:text-error p-2 rounded transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</div>
+</div>
+<div class="mb-4">
+<label class="font-label-bold text-label-bold text-on-surface-variant block mb-1">Instructions</label>
+<input class="w-full font-body-ui text-body-ui bg-surface-container-lowest border border-outline-variant rounded-lg p-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow" type="text" value="Choose the correct letter, A, B, C or D."/>
+</div>
+<div class="space-y-6 border-t border-outline-variant pt-4 mt-4">
+<!-- Q1 -->
+<div class="relative pl-4 border-l-2 border-surface-container-highest">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-bold text-label-bold text-secondary">Q1</span>
+</div>
+<input class="w-full font-body-ui text-body-ui bg-transparent border-none p-0 focus:ring-0 mb-3" type="text" value="According to the passage, Galileo Galilei constructed his telescope:"/>
+<div class="space-y-2">
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q1" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">in order to observe the moons of Jupiter.</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg bg-surface-container-low transition-colors group/opt border border-primary-fixed-dim">
+<input checked="" class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q1" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">after hearing about an invention from the Netherlands.</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q1" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">to prove that the Earth revolved around the sun.</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q1" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">without using any magnifying lenses.</span>
+</label>
+</div>
+</div>
+<!-- Q2 -->
+<div class="relative pl-4 border-l-2 border-surface-container-highest">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-bold text-label-bold text-secondary">Q2</span>
+</div>
+<input class="w-full font-body-ui text-body-ui bg-transparent border-none p-0 focus:ring-0 mb-3" type="text" value="What was the primary goal of early urban planning?"/>
+<div class="space-y-2">
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q2" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">To establish large agricultural farms.</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q2" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">To create recreational parks for citizens.</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg bg-surface-container-low transition-colors group/opt border border-primary-fixed-dim">
+<input checked="" class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q2" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">Establishing order, ensuring defense, and facilitating trade.</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 text-primary border-outline-variant focus:ring-primary" name="q2" type="radio"/>
+<span class="font-body-ui text-body-ui flex-1">To design monument architecture solely for religious purposes.</span>
+</label>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant flex justify-center">
+<button class="font-label-bold text-label-bold text-primary flex items-center gap-1 hover:bg-surface-container px-4 py-2 rounded-lg transition-colors border border-outline-variant">
+<span class="material-symbols-outlined">add</span>
+                        Add Question
+                    </button>
+</div>
+</div>
+<!-- Card 2: Multiple Selection -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 group">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="cursor-grab text-outline-variant hover:text-on-surface-variant p-1">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-1">Questions 6-7</div>
+<h3 class="font-h3 text-h3 text-on-surface">Multiple Selection</h3>
+</div>
+</div>
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="bg-surface-container px-2 py-1 rounded text-label-sm font-label-sm text-on-surface-variant mr-2">Select 2 answers</div>
+<button class="text-outline-variant hover:text-on-surface p-2 rounded transition-colors"><span class="material-symbols-outlined">settings</span></button>
+<button class="text-outline-variant hover:text-error p-2 rounded transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</div>
+</div>
+<div class="mb-4">
+<label class="font-label-bold text-label-bold text-on-surface-variant block mb-1">Instructions</label>
+<input class="w-full font-body-ui text-body-ui bg-surface-container-lowest border border-outline-variant rounded-lg p-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow" type="text" value="Choose TWO letters, A-E."/>
+</div>
+<div class="border-t border-outline-variant pt-4 mt-4">
+<input class="w-full font-body-ui text-body-ui bg-transparent border-none p-0 focus:ring-0 mb-4" type="text" value="Which TWO of the following reasons for city planning are mentioned in the text?"/>
+<div class="space-y-2">
+<label class="flex items-center gap-3 p-2 rounded-lg bg-surface-container-low transition-colors group/opt border border-primary-fixed-dim">
+<input checked="" class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="font-body-ui text-body-ui flex-1">Ensuring defense</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="font-body-ui text-body-ui flex-1">Promoting equality</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="font-body-ui text-body-ui flex-1">Developing technology</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg bg-surface-container-low transition-colors group/opt border border-primary-fixed-dim">
+<input checked="" class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="font-body-ui text-body-ui flex-1">Facilitating trade</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</label>
+<label class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-low transition-colors group/opt">
+<input class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="font-body-ui text-body-ui flex-1">Preserving nature</span>
+</label>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant flex justify-center">
+<button class="font-label-bold text-label-bold text-primary flex items-center gap-1 hover:bg-surface-container px-4 py-2 rounded-lg transition-colors border border-outline-variant">
+<span class="material-symbols-outlined">add</span>
+                        Add Option
+                    </button>
+</div>
+</div>
+<!-- Card 3: Short Answer -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 group">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="cursor-grab text-outline-variant hover:text-on-surface-variant p-1">
+<span class="material-symbols-outlined">drag_indicator</span>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-1">Questions 8-10</div>
+<h3 class="font-h3 text-h3 text-on-surface">Short Answer Questions</h3>
+</div>
+</div>
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="bg-surface-container px-2 py-1 rounded text-label-sm font-label-sm text-on-surface-variant mr-2">Max 3 words</div>
+<button class="text-outline-variant hover:text-on-surface p-2 rounded transition-colors"><span class="material-symbols-outlined">settings</span></button>
+<button class="text-outline-variant hover:text-error p-2 rounded transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</div>
+</div>
+<div class="mb-4">
+<label class="font-label-bold text-label-bold text-on-surface-variant block mb-1">Instructions</label>
+<input class="w-full font-body-ui text-body-ui bg-surface-container-lowest border border-outline-variant rounded-lg p-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow" type="text" value="Answer the questions below. Choose NO MORE THAN THREE WORDS from the passage for each answer."/>
+</div>
+<div class="space-y-6 border-t border-outline-variant pt-4 mt-4">
+<!-- Q8 -->
+<div class="relative pl-4 border-l-2 border-surface-container-highest">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-bold text-label-bold text-secondary">Q8</span>
+</div>
+<input class="w-full font-body-ui text-body-ui bg-transparent border-none p-0 focus:ring-0 mb-3" type="text" value="What did Sir Ebenezer Howard seek to combine?"/>
+<div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant">
+<div class="flex items-center justify-between mb-2">
+<label class="font-label-sm text-label-sm text-secondary">Primary Answer Key</label>
+</div>
+<input class="w-full font-body-ui text-body-ui bg-surface-container-lowest border border-outline-variant rounded-md p-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow mb-2" type="text" value="town and country"/>
+<label class="font-label-sm text-label-sm text-secondary block mb-1">Accepted Alternatives</label>
+<div class="flex gap-2 items-center">
+<span class="bg-surface px-2 py-1 rounded border border-outline-variant text-body-ui font-body-ui flex items-center gap-1">
+                                    town and country living
+                                    <button class="text-outline-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button>
+</span>
+<button class="text-primary hover:bg-surface-container p-1 rounded transition-colors"><span class="material-symbols-outlined text-[20px]">add</span></button>
+</div>
+</div>
+</div>
+<!-- Q9 (Warning State) -->
+<div class="relative pl-4 border-l-2 border-error">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-bold text-label-bold text-secondary">Q9</span>
+<span class="flex items-center gap-1 text-error font-label-sm text-label-sm bg-error-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px]">warning</span> Answer Key Missing
+                            </span>
+</div>
+<input class="w-full font-body-ui text-body-ui bg-transparent border-none p-0 focus:ring-0 mb-3" type="text" value="What is the primary goal of early urban planning?"/>
+<div class="bg-surface-container-low rounded-lg p-3 border border-error">
+<input class="w-full font-body-ui text-body-ui bg-surface-container-lowest border border-error rounded-md p-2 outline-none transition-shadow placeholder:text-error/60" placeholder="Enter correct answer..." type="text"/>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant flex justify-center">
+<button class="font-label-bold text-label-bold text-primary flex items-center gap-1 hover:bg-surface-container px-4 py-2 rounded-lg transition-colors border border-outline-variant">
+<span class="material-symbols-outlined">add</span>
+                        Add Question
+                    </button>
+</div>
+</div>
+<!-- Bottom Spacer -->
+<div class="h-12"></div>
+</section>
+</main>
+</body></html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading Build Test</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#545f73",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#0b1c30",
+                        "surface-tint": "#006a63",
+                        "primary": "#005c55",
+                        "surface-container-low": "#eff4ff",
+                        "primary-fixed-dim": "#80d5cb",
+                        "on-tertiary-container": "#e9ebed",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "secondary-fixed": "#d8e3fb",
+                        "inverse-surface": "#213145",
+                        "outline": "#6e7977",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "primary-container": "#0f766e",
+                        "on-secondary-fixed": "#111c2d",
+                        "surface-container": "#e5eeff",
+                        "outline-variant": "#bdc9c6",
+                        "on-primary-fixed": "#00201d",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-primary": "#80d5cb",
+                        "surface-variant": "#d3e4fe",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "background": "#f8f9ff",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-container": "#d5e0f8",
+                        "on-surface-variant": "#3e4947",
+                        "primary-fixed": "#9cf2e8",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-surface": "#0b1c30",
+                        "on-secondary-container": "#586377",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-container": "#a3faef",
+                        "surface-bright": "#f8f9ff",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#e0e3e5",
+                        "tertiary": "#4f5254",
+                        "inverse-on-surface": "#eaf1ff",
+                        "tertiary-container": "#676a6c",
+                        "on-primary-fixed-variant": "#00504a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "base": "4px",
+                        "xs": "8px",
+                        "container-max": "1280px",
+                        "xl": "32px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "body-ui": ["Inter"],
+                        "label-bold": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h3": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-reading": ["Georgia"],
+                        "h1": ["Inter"],
+                        "code": ["monospace"]
+                    },
+                    "fontSize": {
+                        "body-ui": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-bold": ["14px", {"lineHeight": "1", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "h2": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-reading": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "h1": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "code": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface font-body-ui text-body-ui text-on-surface antialiased h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="bg-slate-50 dark:bg-slate-950 flex flex-col w-64 h-full docked h-screen left-0 border-r border-r border-slate-200 dark:border-slate-800 flat no shadows shrink-0 hidden md:flex">
+<div class="p-6 border-b border-slate-200 dark:border-slate-800">
+<h1 class="font-h2 text-h2 font-black text-teal-700 tracking-tight">Academic Portal</h1>
+<p class="font-label-sm text-label-sm text-secondary mt-2">Exam Authoring Mode</p>
+</div>
+<div class="flex-1 overflow-y-auto py-4">
+<ul class="space-y-1 px-3">
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg font-body-ui text-body-ui text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+                        Dashboard
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg font-body-ui text-body-ui bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 font-semibold border-r-4 border-teal-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]" data-weight="fill" style="font-variation-settings: 'FILL' 1;">edit_document</span>
+                        Assessments
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg font-body-ui text-body-ui text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+                        Question Bank
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg font-body-ui text-body-ui text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]">analytics</span>
+                        Analytics
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg font-body-ui text-body-ui text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                        Settings
+                    </a>
+</li>
+</ul>
+</div>
+<div class="p-6 border-t border-slate-200 dark:border-slate-800">
+<button class="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-2 px-4 rounded-lg font-label-bold text-label-bold hover:bg-primary-container hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Assessment
+            </button>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+<!-- TopAppBar -->
+<header class="bg-white dark:bg-slate-900 docked full-width top-0 border-b border-b border-slate-200 dark:border-slate-800 flat no shadows flex justify-between items-center w-full px-6 py-3 shrink-0">
+<div class="flex items-center gap-6">
+<div class="text-lg font-bold text-teal-700 dark:text-teal-400 font-inter text-sm font-medium tracking-tight">IELTS Author</div>
+<nav class="hidden md:flex gap-4">
+<a class="font-inter text-sm font-medium tracking-tight text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors Active: opacity-80 scale-[0.99] px-2 py-1 rounded" href="#">Passage 1</a>
+<a class="font-inter text-sm font-medium tracking-tight text-teal-700 dark:text-teal-400 border-b-2 border-teal-700 dark:border-teal-400 pb-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors Active: opacity-80 scale-[0.99] px-2 py-1" href="#">Passage 2</a>
+<a class="font-inter text-sm font-medium tracking-tight text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors Active: opacity-80 scale-[0.99] px-2 py-1 rounded" href="#">Passage 3</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 hover:text-primary transition-colors p-2 rounded-full hover:bg-slate-50">
+<span class="material-symbols-outlined">save</span>
+</button>
+<button class="font-label-bold text-label-bold text-secondary border border-outline px-4 py-2 rounded-lg hover:bg-surface-variant transition-colors">Preview</button>
+<button class="font-label-bold text-label-bold bg-primary text-on-primary px-4 py-2 rounded-lg hover:bg-primary-container transition-colors">Publish</button>
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden border border-outline-variant flex-shrink-0">
+<img alt="Teacher Profile" class="w-full h-full object-cover" data-alt="A professional headshot of a confident woman with short dark hair, wearing a smart teal blouse. She is smiling gently. The background is a soft, blurred modern office environment with bright, natural lighting. The overall mood is academic, approachable, and highly professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDxmAICdeTcL9f31DOo2f1RhZWUvDL7HGbXZKrBwYsasXnHdMBZdbAR7f_XeUd7_B-ZHSo9j9FBZPlV7u4ksTDasU3rMfT89kz0rGzSTbsFx1ug9RV7YENyBTHFTokAdscyt9yTJwWHjf8SQGXZwl4-PGxp-moKNR-TxYai2secp2Yf-_90lUuQjtDJqcDnaXDPrZHaL7s3PSejpRzUF7IC9OdSvwgA_aBDZKYabEr6O2-uGlgp0mjoL4MWj05Vs8dbZQ94M83RTEk"/>
+</div>
+</div>
+</header>
+<!-- Workspace Canvas -->
+<main class="flex-1 overflow-hidden flex flex-col md:flex-row bg-background">
+<!-- Left Panel: Passage Editor -->
+<div class="w-full md:w-1/2 h-full border-r border-outline-variant bg-surface-container-lowest overflow-y-auto flex flex-col">
+<div class="sticky top-0 bg-surface-container-lowest/90 backdrop-blur border-b border-outline-variant p-4 z-10 flex gap-2">
+<button class="p-1.5 rounded text-secondary hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">format_bold</span></button>
+<button class="p-1.5 rounded text-secondary hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">format_italic</span></button>
+<button class="p-1.5 rounded text-secondary hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">format_underlined</span></button>
+<div class="w-px h-6 bg-outline-variant self-center mx-1"></div>
+<button class="p-1.5 rounded text-secondary hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">format_list_bulleted</span></button>
+<button class="p-1.5 rounded text-secondary hover:bg-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">format_list_numbered</span></button>
+</div>
+<div class="p-8 max-w-[800px] mx-auto w-full flex-1">
+<div class="mb-6">
+<input class="w-full text-h1 font-h1 font-bold text-on-surface border-none p-0 focus:ring-0 bg-transparent placeholder-outline" placeholder="Passage Title" type="text" value="The History of the Bicycle"/>
+</div>
+<div class="font-body-reading text-body-reading text-on-surface space-y-6 max-w-[75ch]">
+<p class="outline-none min-h-[1em]" contenteditable="true">
+                            The bicycle is a remarkable piece of engineering that has undergone numerous transformations since its inception. While early models were rudimentary and often difficult to ride, advancements in materials and manufacturing processes eventually led to the efficient machines we use today. One crucial development was the process of vulcanization.
+                        </p>
+<p class="outline-none min-h-[1em]" contenteditable="true">
+                            Vulcanization, a chemical process that converts natural rubber into a more durable material, revolutionized the bicycle industry. Before this, tires were made of iron or wood, providing a harsh and uncomfortable ride. The introduction of the pneumatic tire, made possible by vulcanization, significantly improved comfort and speed.
+                        </p>
+<p class="outline-none min-h-[1em]" contenteditable="true">
+                            Another iconic design from the 19th century was the Penny Farthing. Characterized by its massive front wheel and tiny rear wheel, it allowed for higher speeds but was notoriously unstable and dangerous. The rider sat high above the ground, making falls a frequent and hazardous occurrence.
+                        </p>
+</div>
+</div>
+</div>
+<!-- Right Panel: Question Editors -->
+<div class="w-full md:w-1/2 h-full overflow-y-auto bg-background p-lg space-y-lg">
+<!-- Flowchart Completion Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="inline-block bg-surface-variant text-on-surface-variant font-label-sm text-label-sm px-2 py-1 rounded mb-2">Questions 26-28</span>
+<h3 class="font-h3 text-h3 text-on-surface">Flowchart Completion</h3>
+</div>
+<button class="text-secondary hover:text-error transition-colors p-1"><span class="material-symbols-outlined">delete</span></button>
+</div>
+<div class="mb-4">
+<label class="block font-label-bold text-label-bold text-on-surface mb-xs">Title</label>
+<input class="w-full border border-outline-variant rounded px-3 py-2 text-body-ui font-body-ui focus:border-primary focus:ring-1 focus:ring-primary bg-transparent" type="text" value="The Vulcanization Process"/>
+</div>
+<div class="bg-surface rounded-lg border border-outline-variant p-6 relative">
+<!-- Step 1 -->
+<div class="flex flex-col items-center group relative">
+<div class="w-full max-w-sm bg-surface-container-lowest border border-outline-variant rounded p-3 text-center flex items-center justify-between">
+<span class="material-symbols-outlined text-outline cursor-grab">drag_indicator</span>
+<input class="flex-1 text-center border-none bg-transparent focus:ring-0 text-body-ui font-body-ui" type="text" value="Raw rubber added"/>
+<button class="text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">edit_note</span></button>
+</div>
+<!-- Arrow -->
+<div class="h-8 w-px bg-outline-variant relative my-2">
+<div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 border-b border-r border-outline-variant rotate-45"></div>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center group relative">
+<div class="w-full max-w-sm bg-surface-container-lowest border border-primary rounded p-3 text-center flex items-center justify-between ring-1 ring-primary shadow-sm">
+<span class="material-symbols-outlined text-outline cursor-grab">drag_indicator</span>
+<div class="flex-1 flex items-center justify-center gap-2">
+<span class="font-body-ui text-body-ui text-primary font-medium">[26]</span>
+<input class="w-24 text-center border-b border-outline-variant bg-transparent focus:border-primary focus:ring-0 text-body-ui font-body-ui px-1 py-0" type="text" value="added"/>
+</div>
+<button class="text-primary transition-colors"><span class="material-symbols-outlined text-[18px]" data-weight="fill" style="font-variation-settings: 'FILL' 1;">edit_note</span></button>
+</div>
+</div>
+<!-- Controls -->
+<div class="mt-6 flex justify-center gap-3">
+<button class="flex items-center gap-1 text-primary hover:bg-surface-variant px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-colors border border-primary-fixed">
+<span class="material-symbols-outlined text-[16px]">add</span> Add Step
+                            </button>
+<button class="flex items-center gap-1 text-secondary hover:bg-surface-variant px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-colors border border-outline-variant">
+<span class="material-symbols-outlined text-[16px]">remove</span> Remove Step
+                            </button>
+<button class="flex items-center gap-1 text-secondary hover:bg-surface-variant px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-colors border border-outline-variant">
+<span class="material-symbols-outlined text-[16px]">crop_din</span> Mark as Blank
+                            </button>
+</div>
+</div>
+<!-- Answer Key -->
+<div class="mt-4 pt-4 border-t border-outline-variant">
+<h4 class="font-label-bold text-label-bold text-on-surface mb-2">Answer Key</h4>
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded bg-surface-variant flex items-center justify-center font-label-bold text-label-bold text-secondary">26</span>
+<input class="flex-1 border border-outline-variant rounded px-3 py-1.5 text-body-ui font-body-ui focus:border-primary focus:ring-1 focus:ring-primary bg-surface-container-lowest" type="text" value="Sulphur"/>
+</div>
+</div>
+</div>
+<!-- Diagram Labelling Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="inline-block bg-surface-variant text-on-surface-variant font-label-sm text-label-sm px-2 py-1 rounded mb-2">Questions 29-30</span>
+<h3 class="font-h3 text-h3 text-on-surface">Diagram Labelling</h3>
+</div>
+<button class="text-secondary hover:text-error transition-colors p-1"><span class="material-symbols-outlined">delete</span></button>
+</div>
+<!-- Upload Area / Preview -->
+<div class="relative w-full aspect-[4/3] bg-surface rounded-lg border-2 border-dashed border-outline-variant mb-6 flex flex-col items-center justify-center overflow-hidden group">
+<!-- Placeholder for visual purposes -->
+<div class="absolute inset-0 p-4 opacity-50 pointer-events-none flex items-center justify-center">
+<div class="w-48 h-48 rounded-full border-4 border-outline relative">
+<div class="absolute -right-8 bottom-0 w-16 h-16 rounded-full border-4 border-outline"></div>
+<div class="absolute top-1/2 left-1/2 w-2 h-2 bg-outline rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
+<div class="absolute w-full h-1 bg-outline top-1/2 left-0 transform -translate-y-1/2 rotate-45"></div>
+<div class="absolute w-full h-1 bg-outline top-1/2 left-0 transform -translate-y-1/2 -rotate-45"></div>
+</div>
+</div>
+<!-- Callouts Overlay -->
+<div class="absolute top-[20%] right-[30%] w-8 h-8 bg-primary text-on-primary rounded-full flex items-center justify-center font-label-bold text-label-bold shadow-sm z-10 cursor-move ring-2 ring-white">29</div>
+<div class="absolute bottom-[30%] left-[20%] w-8 h-8 bg-primary text-on-primary rounded-full flex items-center justify-center font-label-bold text-label-bold shadow-sm z-10 cursor-move ring-2 ring-white">30</div>
+<div class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 z-20">
+<span class="material-symbols-outlined text-[32px] text-primary">cloud_upload</span>
+<span class="font-label-bold text-label-bold text-on-surface">Replace Diagram</span>
+</div>
+</div>
+<!-- Validation State (Hidden visually in this mockup as image is "present", but structurally included per prompt) -->
+<div class="hidden bg-error-container text-on-error-container p-3 rounded-lg mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">error</span>
+<span class="font-label-sm text-label-sm">Upload required</span>
+</div>
+<!-- Label List -->
+<div class="space-y-3">
+<div class="flex items-center gap-3 bg-surface p-2 rounded border border-outline-variant">
+<span class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-bold text-label-bold shrink-0">29</span>
+<div class="flex-1 relative">
+<input class="w-full border-none bg-transparent px-2 py-1 text-body-ui font-body-ui focus:ring-0 placeholder-outline border-b border-outline-variant focus:border-primary" placeholder="Correct answer" type="text"/>
+</div>
+<button class="text-outline hover:text-error transition-colors p-1"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<div class="flex items-center gap-3 bg-surface p-2 rounded border border-outline-variant">
+<span class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-bold text-label-bold shrink-0">30</span>
+<div class="flex-1 relative">
+<input class="w-full border-none bg-transparent px-2 py-1 text-body-ui font-body-ui focus:ring-0 placeholder-outline border-b border-outline-variant focus:border-primary" placeholder="Correct answer" type="text"/>
+</div>
+<button class="text-outline hover:text-error transition-colors p-1"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<button class="w-full py-2 border border-dashed border-primary text-primary font-label-bold text-label-bold rounded-lg hover:bg-surface-variant transition-colors flex items-center justify-center gap-2 mt-4">
+<span class="material-symbols-outlined text-[18px]">add_location</span>
+                            Add Label
+                        </button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

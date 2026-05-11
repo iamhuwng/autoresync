@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading V2: Build Test - Assessment Builder</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#bdc9c6",
+                        "surface-container-highest": "#d3e4fe",
+                        "surface": "#f8f9ff",
+                        "on-secondary-fixed": "#111c2d",
+                        "primary-fixed": "#9cf2e8",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "primary": "#005c55",
+                        "secondary": "#545f73",
+                        "on-primary-container": "#a3faef",
+                        "outline": "#6e7977",
+                        "on-secondary-container": "#586377",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "inverse-surface": "#213145",
+                        "secondary-container": "#d5e0f8",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-container": "#0f766e",
+                        "on-background": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#e9ebed",
+                        "on-surface-variant": "#3e4947",
+                        "surface-bright": "#f8f9ff",
+                        "on-surface": "#0b1c30",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#e5eeff",
+                        "surface-container-high": "#dce9ff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "tertiary": "#4f5254",
+                        "tertiary-container": "#676a6c",
+                        "on-tertiary-fixed": "#191c1e",
+                        "surface-tint": "#006a63",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "surface-container-low": "#eff4ff",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#80d5cb",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e3fb",
+                        "inverse-primary": "#80d5cb",
+                        "background": "#f8f9ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-primary-fixed": "#00201d",
+                        "surface-dim": "#cbdbf5",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1280px",
+                        "xl": "32px",
+                        "base": "4px",
+                        "xs": "8px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Inter"],
+                        "label-bold": ["Inter"],
+                        "body-ui": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h1": ["Inter"],
+                        "code": ["monospace"],
+                        "h2": ["Inter"],
+                        "body-reading": ["Georgia"]
+                    },
+                    "fontSize": {
+                        "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body-ui text-body-ui text-on-surface h-screen flex overflow-hidden">
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-full bg-surface relative">
+<!-- TopNavBar -->
+<header class="bg-white dark:bg-slate-900 font-['Inter'] antialiased text-slate-900 dark:text-slate-100 docked full-width top-0 border-b border-slate-200 dark:border-slate-800 flat no shadows flex items-center justify-between px-8 w-full h-20 flex-shrink-0 z-30">
+<div class="flex items-center gap-8 h-full">
+<div class="text-lg font-bold tracking-tight text-teal-700 dark:text-teal-500">
+                    IELTS Reading V2: Build Test
+                </div>
+<nav class="flex items-end gap-6 h-full pt-2">
+<a class="text-slate-500 dark:text-slate-400 pb-4 mt-4 hover:text-teal-600 dark:hover:text-teal-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 1</a>
+<!-- Active Navigation Link -->
+<a class="text-teal-700 dark:text-teal-400 border-b-2 border-teal-700 dark:border-teal-500 pb-4 mt-4 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 2</a>
+<a class="text-slate-500 dark:text-slate-400 pb-4 mt-4 hover:text-teal-600 dark:hover:text-teal-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 3</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center text-slate-500">
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 rounded-full cursor-pointer active:opacity-80 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span>
+</button>
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 rounded-full cursor-pointer active:opacity-80 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 rounded-full cursor-pointer active:opacity-80 transition-opacity flex items-center justify-center border-r border-slate-200 pr-4 mr-2">
+<span class="material-symbols-outlined" data-icon="exit_to_app">exit_to_app</span>
+</button>
+</div>
+<button class="border border-slate-300 text-slate-700 font-label-bold text-label-bold px-4 py-2 rounded transition-colors hover:bg-slate-50">Save Draft</button>
+<button class="bg-teal-700 hover:bg-teal-800 text-white font-label-bold text-label-bold px-4 py-2 rounded transition-colors">Publish</button>
+</div>
+</header>
+<!-- Workspace (Split Pane) -->
+<div class="flex flex-1 overflow-hidden p-6 gap-6 max-w-container-max mx-auto w-full">
+<!-- Left Pane: Source Text (Context) -->
+<div class="w-[45%] flex flex-col bg-surface-container-lowest border border-outline-variant rounded shadow-sm overflow-hidden flex-shrink-0">
+<div class="p-4 border-b border-outline-variant bg-surface flex justify-between items-center">
+<h2 class="font-h3 text-h3 text-on-surface">Reading Passage 2</h2>
+<span class="text-label-sm font-label-sm text-secondary bg-surface-variant px-2 py-1 rounded">Read-Only View</span>
+</div>
+<div class="p-8 overflow-y-auto font-body-reading text-body-reading text-on-surface bg-white">
+<h3 class="font-h2 text-h2 mb-6">The Evolution of Urban Architecture</h3>
+<p class="mb-4"><strong>A.</strong> The physical landscape of our cities has undergone radical transformations over the past century. Initially, urban development was heavily constrained by the limitations of building materials. The reliance on stone and masonry meant that structures were rarely taller than a few stories, leading to sprawling, high-density settlements that spread horizontally rather than vertically. This horizontal expansion created distinct challenges in transportation and infrastructure management.</p>
+<p class="mb-4"><strong>B.</strong> The introduction of structural steel in the late 19th century heralded a new era. This innovation removed the vertical limitations imposed by traditional materials, allowing for the construction of skyscrapers. These towering structures not only maximized land use in densely populated city centers but also became symbols of economic prosperity and technological prowess. The steel frame changed the very fabric of urban life, consolidating commercial activity into tight, vertical districts.</p>
+<p class="mb-4"><strong>C.</strong> Concurrently, the development of reinforced concrete offered architects unprecedented freedom in form and massing. Unlike steel, which was primarily used for framing, concrete could be poured into almost any shape, enabling sweeping curves and monolithic structures that defied traditional geometric constraints. This material became the backbone of modernist architecture, emphasizing function over ornamentation and giving rise to stark, imposing civic buildings and expansive public housing projects.</p>
+<p class="mb-4"><strong>D.</strong> However, the mid-20th century saw a growing critique of these monumental concrete structures. Critics argued that they alienated inhabitants and fostered harsh, uninviting urban environments. In response, contemporary architecture has seen a resurgence in the use of sustainable and 'warm' materials, such as engineered timber. Furthermore, modern urban planning increasingly emphasizes integration with natural environments, advocating for 'green roofs' and extensive urban parks to counteract the concrete dominance of previous decades.</p>
+</div>
+</div>
+<!-- Right Pane: Question Editor Cards -->
+<div class="w-[55%] flex flex-col gap-xl overflow-y-auto pb-xl px-2">
+<!-- Card 1: Matching Headings -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded p-6 flex flex-col gap-md">
+<div class="flex justify-between items-start border-b border-outline-variant pb-4 mb-2">
+<div>
+<h2 class="font-h3 text-h3 text-on-surface">Matching Headings</h2>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Questions 15-20</p>
+</div>
+<button class="text-secondary hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="bg-surface p-4 rounded border border-outline-variant mb-2">
+<h4 class="font-label-bold text-label-bold text-on-surface mb-2">List of Headings</h4>
+<ul class="font-body-ui text-body-ui text-on-surface-variant space-y-1 ml-4 list-none">
+<li><span class="inline-block w-8 font-semibold">i</span> The shift towards eco-friendly construction</li>
+<li><span class="inline-block w-8 font-semibold">ii</span> Limitations of early building materials</li>
+<li><span class="inline-block w-8 font-semibold">iii</span> The financial cost of skyscrapers</li>
+<li><span class="inline-block w-8 font-semibold">iv</span> Steel framing and vertical expansion</li>
+<li><span class="inline-block w-8 font-semibold">v</span> The aesthetic flexibility of concrete</li>
+<li><span class="inline-block w-8 font-semibold">vi</span> Transportation issues in modern cities</li>
+<li><span class="inline-block w-8 font-semibold">vii</span> Backlash against modernist urban design</li>
+</ul>
+</div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-4 py-2 border-b border-surface-variant border-dashed">
+<span class="font-label-bold text-label-bold w-24">Paragraph A</span>
+<div class="flex-1">
+<label class="sr-only">Correct Heading for Paragraph A</label>
+<select class="w-full border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent appearance-none">
+<option disabled="" value="">Select correct heading...</option>
+<option value="i">i</option>
+<option selected="" value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+</div>
+<div class="flex items-center gap-4 py-2 border-b border-surface-variant border-dashed">
+<span class="font-label-bold text-label-bold w-24">Paragraph B</span>
+<div class="flex-1">
+<label class="sr-only">Correct Heading for Paragraph B</label>
+<select class="w-full border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent appearance-none">
+<option disabled="" value="">Select correct heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option selected="" value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+</div>
+<div class="flex items-center gap-4 py-2 border-b border-surface-variant border-dashed">
+<span class="font-label-bold text-label-bold w-24">Paragraph C</span>
+<div class="flex-1">
+<label class="sr-only">Correct Heading for Paragraph C</label>
+<select class="w-full border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent appearance-none">
+<option disabled="" value="">Select correct heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option selected="" value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+</div>
+<div class="flex items-center gap-4 py-2">
+<span class="font-label-bold text-label-bold w-24">Paragraph D</span>
+<div class="flex-1">
+<label class="sr-only">Correct Heading for Paragraph D</label>
+<select class="w-full border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent appearance-none">
+<option disabled="" value="">Select correct heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option selected="" value="vii">vii</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2: Matching Features -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded p-6 flex flex-col gap-md">
+<div class="flex justify-between items-start border-b border-outline-variant pb-4 mb-2">
+<div>
+<h2 class="font-h3 text-h3 text-on-surface">Matching Features</h2>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Questions 21-23</p>
+</div>
+<button class="text-secondary hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<p class="font-body-ui text-body-ui text-on-surface-variant italic mb-2">Match each statement with the correct building material.</p>
+<div class="bg-surface p-4 rounded border border-outline-variant mb-4 flex gap-8">
+<div>
+<h4 class="font-label-bold text-label-bold text-on-surface mb-2">Materials</h4>
+<ul class="font-body-ui text-body-ui text-on-surface-variant space-y-1 list-none">
+<li><strong>A</strong> Stone and Masonry</li>
+<li><strong>B</strong> Structural Steel</li>
+<li><strong>C</strong> Reinforced Concrete</li>
+</ul>
+</div>
+<div class="flex-1 flex justify-end items-start pt-6">
+<button class="text-primary font-label-sm text-label-sm flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span> Edit Options
+                            </button>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Q21 -->
+<div class="flex flex-col gap-2">
+<div class="flex items-start gap-3">
+<span class="font-label-bold text-label-bold pt-1 w-6">21</span>
+<input class="flex-1 border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent" placeholder="Enter statement text" type="text" value="Allowed for the construction of tall structures in crowded city centers."/>
+</div>
+<div class="flex items-center gap-3 pl-9">
+<span class="text-label-sm font-label-sm text-secondary">Answer Key:</span>
+<select class="w-32 border border-primary text-primary font-label-bold bg-primary/5 rounded px-3 py-1.5 focus:outline-none appearance-none cursor-pointer">
+<option value="A">A</option>
+<option selected="" value="B">B</option>
+<option value="C">C</option>
+</select>
+</div>
+</div>
+<!-- Q22 -->
+<div class="flex flex-col gap-2 border-t border-surface-variant pt-4">
+<div class="flex items-start gap-3">
+<span class="font-label-bold text-label-bold pt-1 w-6">22</span>
+<input class="flex-1 border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent" placeholder="Enter statement text" type="text" value="Led to expansive horizontal growth of early urban areas."/>
+</div>
+<div class="flex items-center gap-3 pl-9">
+<span class="text-label-sm font-label-sm text-secondary">Answer Key:</span>
+<select class="w-32 border border-primary text-primary font-label-bold bg-primary/5 rounded px-3 py-1.5 focus:outline-none appearance-none cursor-pointer">
+<option selected="" value="A">A</option>
+<option value="B">B</option>
+<option value="C">C</option>
+</select>
+</div>
+</div>
+<!-- Q23 -->
+<div class="flex flex-col gap-2 border-t border-surface-variant pt-4">
+<div class="flex items-start gap-3">
+<span class="font-label-bold text-label-bold pt-1 w-6">23</span>
+<input class="flex-1 border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent" placeholder="Enter statement text" type="text" value="Was frequently criticized for creating uninviting public spaces."/>
+</div>
+<div class="flex items-center gap-3 pl-9">
+<span class="text-label-sm font-label-sm text-secondary">Answer Key:</span>
+<select class="w-32 border border-primary text-primary font-label-bold bg-primary/5 rounded px-3 py-1.5 focus:outline-none appearance-none cursor-pointer">
+<option value="A">A</option>
+<option value="B">B</option>
+<option selected="" value="C">C</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 3: Multiple Choice -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded p-6 flex flex-col gap-md">
+<div class="flex justify-between items-start border-b border-outline-variant pb-4 mb-2">
+<div>
+<h2 class="font-h3 text-h3 text-on-surface">Multiple Choice</h2>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Questions 24-25</p>
+</div>
+<button class="text-secondary hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<!-- Single MC Question Block -->
+<div class="flex flex-col gap-4 mb-6">
+<div class="flex items-start gap-3">
+<span class="font-label-bold text-label-bold pt-2 w-6">24</span>
+<textarea class="flex-1 border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent resize-none h-20" placeholder="Enter question text">According to the passage, what was a primary consequence of using structural steel?</textarea>
+</div>
+<div class="pl-9 flex flex-col gap-2">
+<p class="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-1">Set Answer Key &amp; Options</p>
+<!-- Option A -->
+<div class="flex items-center gap-3 group">
+<div class="w-6 h-6 rounded-full border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+<!-- Empty circle for unselected radio -->
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">A</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="A reduction in the overall cost of construction materials."/>
+<button class="opacity-0 group-hover:opacity-100 text-secondary hover:text-error transition-opacity p-1">
+<span class="material-symbols-outlined text-[18px]" data-icon="close">close</span>
+</button>
+</div>
+<!-- Option B (Correct) -->
+<div class="flex items-center gap-3 group bg-primary/5 -ml-2 p-2 rounded border border-primary/20 relative">
+<div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r"></div>
+<div class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center cursor-pointer relative">
+<div class="w-3 h-3 bg-primary rounded-full"></div>
+</div>
+<span class="font-label-bold text-label-bold text-primary w-4">B</span>
+<input class="flex-1 border border-transparent focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent text-primary font-medium" type="text" value="The concentration of commercial activities in vertical districts."/>
+<span class="text-label-sm font-label-sm text-primary uppercase mr-2">Correct</span>
+</div>
+<!-- Option C -->
+<div class="flex items-center gap-3 group">
+<div class="w-6 h-6 rounded-full border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">C</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="A decrease in the need for public transportation systems."/>
+<button class="opacity-0 group-hover:opacity-100 text-secondary hover:text-error transition-opacity p-1">
+<span class="material-symbols-outlined text-[18px]" data-icon="close">close</span>
+</button>
+</div>
+<!-- Option D -->
+<div class="flex items-center gap-3 group">
+<div class="w-6 h-6 rounded-full border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">D</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="An increase in horizontal urban sprawl."/>
+<button class="opacity-0 group-hover:opacity-100 text-secondary hover:text-error transition-opacity p-1">
+<span class="material-symbols-outlined text-[18px]" data-icon="close">close</span>
+</button>
+</div>
+<button class="flex items-center gap-1 text-primary font-label-bold text-label-bold mt-2 hover:underline self-start">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span> Add Option
+                            </button>
+</div>
+</div>
+</div>
+<!-- Card 4: Multiple Selection -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded p-6 flex flex-col gap-md">
+<div class="flex justify-between items-start border-b border-outline-variant pb-4 mb-2">
+<div>
+<h2 class="font-h3 text-h3 text-on-surface">Multiple Selection</h2>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Questions 26-27</p>
+</div>
+<button class="text-secondary hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<p class="font-body-ui text-body-ui text-on-surface-variant font-bold mb-2">Choose TWO letters, A-E.</p>
+<div class="flex flex-col gap-4">
+<div class="flex items-start gap-3">
+<span class="font-label-bold text-label-bold pt-2 w-12 text-right">26-27</span>
+<textarea class="flex-1 border border-outline-variant rounded px-3 py-2 text-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-transparent resize-none h-20" placeholder="Enter question text">Which TWO statements accurately reflect modern responses to mid-20th century architecture mentioned in the text?</textarea>
+</div>
+<div class="pl-16 flex flex-col gap-2">
+<!-- Option A -->
+<div class="flex items-center gap-3 group">
+<div class="w-5 h-5 rounded-[4px] border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">A</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="A complete rejection of vertical construction methods."/>
+</div>
+<!-- Option B (Correct) -->
+<div class="flex items-center gap-3 group bg-primary/5 -ml-2 p-2 rounded border border-primary/20">
+<div class="w-5 h-5 rounded-[4px] bg-primary flex items-center justify-center cursor-pointer border border-primary">
+<span class="material-symbols-outlined text-white text-[16px] font-bold" data-icon="check">check</span>
+</div>
+<span class="font-label-bold text-label-bold text-primary w-4">B</span>
+<input class="flex-1 border border-transparent focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent text-primary font-medium" type="text" value="An increased use of sustainable materials like engineered timber."/>
+</div>
+<!-- Option C -->
+<div class="flex items-center gap-3 group">
+<div class="w-5 h-5 rounded-[4px] border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">C</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="A return to exclusively using stone and masonry for public buildings."/>
+</div>
+<!-- Option D (Correct) -->
+<div class="flex items-center gap-3 group bg-primary/5 -ml-2 p-2 rounded border border-primary/20">
+<div class="w-5 h-5 rounded-[4px] bg-primary flex items-center justify-center cursor-pointer border border-primary">
+<span class="material-symbols-outlined text-white text-[16px] font-bold" data-icon="check">check</span>
+</div>
+<span class="font-label-bold text-label-bold text-primary w-4">D</span>
+<input class="flex-1 border border-transparent focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent text-primary font-medium" type="text" value="The integration of natural environments into urban planning."/>
+</div>
+<!-- Option E -->
+<div class="flex items-center gap-3 group">
+<div class="w-5 h-5 rounded-[4px] border border-outline-variant flex items-center justify-center cursor-pointer group-hover:border-primary transition-colors">
+</div>
+<span class="font-label-bold text-label-bold text-secondary w-4">E</span>
+<input class="flex-1 border border-transparent hover:border-outline-variant focus:border-primary rounded px-3 py-1.5 text-body-ui outline-none bg-transparent transition-colors" type="text" value="The widespread demolition of early concrete civic buildings."/>
+</div>
+</div>
+</div>
+</div>
+<div class="flex justify-center mt-4">
+<button class="border-2 border-dashed border-outline-variant text-secondary font-label-bold text-label-bold py-4 px-8 rounded-lg hover:border-primary hover:text-primary transition-colors flex items-center gap-2 bg-surface">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+                        Add New Question Group
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

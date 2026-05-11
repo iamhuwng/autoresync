@@ -524,6 +524,199 @@
                 ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
             }
         },
+        "reading_v2": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "drafts": {
+                "$draftId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['draftId', 'ownerId', 'document', 'revisionToken', 'state', 'updatedAt']) && newData.child('draftId').val() === $draftId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "updatedAt"
+                    ]
+                }
+            },
+            "passage_assets": {
+                "$assetId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['passageAssetId', 'ownerId']) && newData.child('passageAssetId').val() === $assetId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "topic"
+                    ],
+                    "versions": {
+                        "$versionId": {
+                            ".read": "auth != null && (root.child('reading_v2').child('passage_assets').child($assetId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && (!data.exists()) && (root.child('reading_v2').child('passage_assets').child($assetId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.child('passageAssetId').val() === $assetId && newData.child('versionId').val() === $versionId)"
+                        }
+                    }
+                }
+            },
+            "task_group_materials": {
+                "$materialId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId']) && newData.child('materialId').val() === $materialId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "engineeringFamily",
+                        "officialTaskType"
+                    ]
+                }
+            },
+            "full_tests": {
+                "$fullTestId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['fullTestId', 'ownerId']) && newData.child('fullTestId').val() === $fullTestId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "libraryVisibility"
+                    ]
+                }
+            },
+            "material_metadata": {
+                "$materialId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'deliveryEngine', 'title', 'publishedSnapshotVersionId']) && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                    ".indexOn": [
+                        "ownerId",
+                        "visibility",
+                        "publishedSnapshotVersionId"
+                    ]
+                }
+            },
+            "relationship_indexes": {
+                "$surface": {
+                    "$materialId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['surface', 'materialId', 'snapshotVersionId', 'source', 'ownerId', 'deliveryEngine']) && newData.child('surface').val() === $surface && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                        ".indexOn": [
+                            "snapshotVersionId",
+                            "source",
+                            "ownerId"
+                        ]
+                    }
+                }
+            },
+            "published_snapshots": {
+                "$materialId": {
+                    "$snapshotVersionId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'snapshotVersionId', 'ownerId']) && newData.child('materialId').val() === $materialId && newData.child('snapshotVersionId').val() === $snapshotVersionId)"
+                    }
+                }
+            },
+            "projections": {
+                "preview": {
+                    "$draftId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                    }
+                },
+                "student_safe_tests": {
+                    "$testId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
+                    }
+                },
+                "session_test_payloads": {
+                    "$sessionCode": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
+                    }
+                },
+                "review": {
+                    "$projectionId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId', 'projectionKind', 'sourceSnapshotVersionId']) && newData.child('projectionKind').val() === 'review' && !newData.child('canonicalEditableDraft').exists())"
+                    }
+                }
+            },
+            "attempts": {
+                "$attemptId": {
+                    ".read": "auth != null && (data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['attemptId', 'studentId']) && newData.child('attemptId').val() === $attemptId)",
+                    ".indexOn": [
+                        "studentId",
+                        "materialId",
+                        "sessionCode"
+                    ]
+                }
+            },
+            "results": {
+                "$resultId": {
+                    ".read": "auth != null && (data.child('studentId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('studentId').val() === auth.uid || newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['resultId', 'studentId', 'ownerId']) && newData.child('resultId').val() === $resultId && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                    ".indexOn": [
+                        "studentId",
+                        "ownerId",
+                        "materialId",
+                        "submittedAt"
+                    ]
+                }
+            },
+            "review_indexes": {
+                "$resultId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])",
+                    ".indexOn": [
+                        "taskGroupId"
+                    ]
+                }
+            },
+            "analytics_outputs": {
+                "$outputId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('authorDiagnostics').exists())",
+                    ".indexOn": [
+                        "materialId",
+                        "engineeringFamily",
+                        "officialTaskType"
+                    ]
+                }
+            },
+            "provenance": {
+                "$recordId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                }
+            },
+            "where_used": {
+                "$assetId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                }
+            },
+            "publish_commits": {
+                "$commitId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['commitKey', 'materialId', 'snapshotVersionId', 'ownerId', 'deliveryEngine', 'operationKeys', 'writePaths', 'committedAt']) && newData.child('deliveryEngine').val() === 'reading-v2')"
+                }
+            }
+        },
         "system_flags": {
             ".read": "auth != null",
             ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"

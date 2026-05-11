@@ -74,7 +74,10 @@ const assertStimulusContent = (stimulus: ReadingV2StimulusNode): void => {
 
     stimulus.content.rows
       .flat()
-      .forEach((cell) => assertAnchorBelongsToStimulusContent(stimulus, cell.anchorId));
+      .forEach((cell) => {
+        assertAnchorBelongsToStimulusContent(stimulus, cell.anchorId);
+        cell.anchorIds?.forEach((anchorId) => assertAnchorBelongsToStimulusContent(stimulus, anchorId));
+      });
     return;
   }
 

@@ -1,7 +1,7 @@
 /**
  * Central Route Definitions
  * Single source of truth for all application routes
- * 
+ *
  * Usage:
  *   import { ROUTES, buildRoute } from '@/constants/routes';
  *   const path = buildRoute('STUDENT_TEST', { sessionCode: 'ABC123' });
@@ -63,6 +63,10 @@ export const ROUTES = {
 
   // Teacher Routes - Test Creation (PRD-0020)
   TEACHER_TEST_CREATE: '/teacher/test/create',
+  TEACHER_READING_V2_CREATE: '/teacher/reading-v2/create',
+  TEACHER_READING_V2_IMPORT: '/teacher/reading-v2/import',
+  TEACHER_READING_V2_DRAFT: '/teacher/reading-v2/drafts/:draftId',
+  TEACHER_READING_V2_REVISE: '/teacher/reading-v2/materials/:materialId/revise',
 
   // Teacher Routes - Test Review (PRD-0022)
   TEACHER_TEST_REVIEW: '/teacher/test/review/:draftId',
@@ -93,6 +97,8 @@ export const ROUTES = {
   STUDENT_LIBRARY: '/student/library',
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
+  STUDENT_AWL_SUBLIST_THREE: '/student/awl-sublist-three',
+  AWL_SUBLIST_THREE: '/awl-sublist-three',
   RESULT_DETAIL: '/result/:resultId',
 } as const;
 
@@ -125,7 +131,7 @@ export interface RouteParams {
  * @param route - Route name from ROUTES constant
  * @param params - Route parameters to inject
  * @returns Complete route path with parameters injected
- * 
+ *
  * @example
  * buildRoute('STUDENT_TEST', { sessionCode: 'ABC123' })
  * // Returns: '/student-test/ABC123'
@@ -153,7 +159,7 @@ export const buildRoute = (
  * @param route - Route name
  * @param path - Actual path to extract from
  * @returns Extracted parameters or null if no match
- * 
+ *
  * @example
  * extractParams('STUDENT_TEST', '/student-test/ABC123')
  * // Returns: { sessionCode: 'ABC123' }

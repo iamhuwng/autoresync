@@ -6,10 +6,12 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 import { AppShell } from '@mantine/core';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import { Card, CardBody } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
+import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
 
 // Extracted hooks
 import { useModalManager } from '../hooks/useModalManager';
@@ -87,7 +89,9 @@ const TeacherLobbyPage = () => {
 
   // ---------- Hooks ----------
   const modals = useModalManager();
-  const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests();
+  const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests({
+    ownerId: user?.uid,
+  });
   const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts } = useTeacherDrafts({
     userId: user?.uid || '',
     enabled: contentFilter === 'drafts',
@@ -110,6 +114,10 @@ const TeacherLobbyPage = () => {
     thcsGradeFilter,
     thcsExamTypeFilter,
   });
+  const visibleTests = filteredTests.filter((test) =>
+    shouldShowReadingV2TeacherLobbyItem(test),
+  );
+  const visibleDrafts = drafts.filter((draft) => !isReadingV2Payload(draft));
 
   const handleOpenTestCreation = useCallback(() => {
     trackAction('createTest', { source: 'teacher_lobby' });
@@ -147,6 +155,21 @@ const TeacherLobbyPage = () => {
 
   const handleEditTest = useCallback((test) => {
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+    const readingV2MaterialId = isReadingV2Payload(test) ? test?.materialId || test?.id : null;
+
+    if (readingV2MaterialId) {
+      trackAction('editTest', {
+        source: 'teacher_lobby_test_card',
+        skill: 'reading-v2',
+        testId: readingV2MaterialId,
+      });
+      navigateTo(
+        'TEACHER_READING_V2_REVISE',
+        { materialId: readingV2MaterialId },
+        { reason: 'teacher_lobby_edit_reading_v2_material' }
+      );
+      return;
+    }
 
     if (test.testType === 'THCS-THPT') {
       trackAction('editTest', {
@@ -191,7 +214,7 @@ const TeacherLobbyPage = () => {
       testId: test.id,
     });
     modals.openEditTest(test);
-  }, [modals.openEditThcsTest, modals.openEditTest, openWritingDraftEditor, trackAction, user?.uid]);
+  }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
     const isThcs = test.testType === 'THCS-THPT';
@@ -341,7 +364,7 @@ const TeacherLobbyPage = () => {
                       <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
                       <p style={{ color: '#ef4444', fontWeight: 600 }}>{draftsError}</p>
                     </Card>
-                  ) : drafts.length === 0 ? (
+                  ) : visibleDrafts.length === 0 ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
@@ -357,7 +380,7 @@ const TeacherLobbyPage = () => {
                       gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                       gap: '1.5rem',
                     }}>
-                      {drafts.map((draft, index) => (
+                      {visibleDrafts.map((draft, index) => (
                         <DraftCard
                           key={draft.id}
                           draft={draft}
@@ -410,7 +433,7 @@ const TeacherLobbyPage = () => {
                       }} />
                       <p style={{ color: '#64748b' }}>Loading tests...</p>
                     </div>
-                  ) : filteredTests.length === 0 ? (
+                  ) : visibleTests.length === 0 ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center', marginTop: '1.5rem' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
                         {contentFilter === 'public' ? '🌐' : '📝'}
@@ -431,7 +454,7 @@ const TeacherLobbyPage = () => {
                       gap: '1.5rem',
                       marginTop: '1.5rem',
                     }}>
-                      {filteredTests.map((test, index) => {
+                      {visibleTests.map((test, index) => {
                         if (test.testType === 'THCS-THPT') {
                           return (
                             <ThcsTestCard
@@ -526,6 +549,7 @@ const TeacherLobbyPage = () => {
                 handleCloseTestCreation();
                 navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
               }}
+              onAction={(actionName, metadata) => trackAction(actionName, metadata)}
             />
           </Suspense>
         )}

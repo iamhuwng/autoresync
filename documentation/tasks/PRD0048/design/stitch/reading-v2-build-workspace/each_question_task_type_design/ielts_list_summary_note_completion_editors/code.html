@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading V2: Build Test</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Georgia&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#005c55",
+                    "on-surface": "#0b1c30",
+                    "tertiary": "#4f5254",
+                    "on-secondary-container": "#586377",
+                    "on-primary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-primary": "#80d5cb",
+                    "on-secondary": "#ffffff",
+                    "inverse-surface": "#213145",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#676a6c",
+                    "outline": "#6e7977",
+                    "tertiary-fixed-dim": "#c4c7c9",
+                    "secondary-fixed-dim": "#bcc7de",
+                    "surface-variant": "#d3e4fe",
+                    "surface-dim": "#cbdbf5",
+                    "surface-tint": "#006a63",
+                    "surface-container-highest": "#d3e4fe",
+                    "surface-container": "#e5eeff",
+                    "primary-fixed-dim": "#80d5cb",
+                    "tertiary-fixed": "#e0e3e5",
+                    "on-primary-fixed": "#00201d",
+                    "on-secondary-fixed": "#111c2d",
+                    "on-tertiary-fixed": "#191c1e",
+                    "surface-container-high": "#dce9ff",
+                    "primary-container": "#0f766e",
+                    "secondary": "#545f73",
+                    "on-background": "#0b1c30",
+                    "surface-container-low": "#eff4ff",
+                    "background": "#f8f9ff",
+                    "on-tertiary-fixed-variant": "#444749",
+                    "on-tertiary-container": "#e9ebed",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-primary-container": "#a3faef",
+                    "on-secondary-fixed-variant": "#3c475a",
+                    "error": "#ba1a1a",
+                    "surface": "#f8f9ff",
+                    "outline-variant": "#bdc9c6",
+                    "on-error-container": "#93000a",
+                    "secondary-container": "#d5e0f8",
+                    "on-primary-fixed-variant": "#00504a",
+                    "secondary-fixed": "#d8e3fb",
+                    "error-container": "#ffdad6",
+                    "surface-bright": "#f8f9ff",
+                    "primary-fixed": "#9cf2e8",
+                    "on-surface-variant": "#3e4947",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "xl": "32px",
+                    "container-max": "1280px",
+                    "gutter": "24px",
+                    "base": "4px",
+                    "xs": "8px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "sm": "12px"
+            },
+            "fontFamily": {
+                    "label-sm": ["Inter"],
+                    "h3": ["Inter"],
+                    "code": ["monospace"],
+                    "h2": ["Inter"],
+                    "body-reading": ["Georgia"],
+                    "label-bold": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-ui": ["Inter"]
+            },
+            "fontSize": {
+                    "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                    "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                    "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                    "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                    "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                    "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                    "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                    "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-ui antialiased h-screen overflow-hidden flex flex-col">
+<!-- Top AppBar (Back to main exception applies, but prompt explicitly asks for specific top bar layout, acting as a focused view header) -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-outline-variant px-md py-sm bg-surface-container-lowest shrink-0 z-10 relative">
+<div class="flex items-center gap-xs text-on-surface">
+<button class="text-on-surface hover:text-primary transition-colors flex items-center justify-center p-xs rounded hover:bg-surface-container">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<h2 class="font-h2 text-h2">IELTS Reading V2: Build Test</h2>
+</div>
+<div class="flex gap-sm">
+<button class="flex cursor-pointer items-center justify-center rounded h-10 px-md bg-surface-container-low border border-outline-variant text-primary font-label-bold text-label-bold hover:bg-surface-container transition-colors">
+                Save Draft
+            </button>
+<button class="flex cursor-pointer items-center justify-center rounded h-10 px-md bg-primary text-on-primary font-label-bold text-label-bold hover:bg-primary-container transition-colors">
+                Publish
+            </button>
+</div>
+</header>
+<!-- Passage Tabs -->
+<div class="bg-surface-container-lowest border-b border-outline-variant px-md shrink-0">
+<div class="flex gap-lg max-w-container-max mx-auto">
+<a class="flex flex-col items-center justify-center border-b-2 border-primary text-primary pb-sm pt-md font-label-bold text-label-bold" href="#">
+                Passage 1
+            </a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-on-surface-variant hover:text-on-surface hover:border-outline-variant pb-sm pt-md font-label-bold text-label-bold transition-all" href="#">
+                Passage 2
+            </a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-on-surface-variant hover:text-on-surface hover:border-outline-variant pb-sm pt-md font-label-bold text-label-bold transition-all" href="#">
+                Passage 3
+            </a>
+</div>
+</div>
+<!-- Main Workspace Split -->
+<main class="flex flex-1 overflow-hidden w-full max-w-container-max mx-auto">
+<!-- Left Panel: Passage Editor -->
+<div class="w-1/2 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-full overflow-y-auto">
+<div class="p-lg flex flex-col gap-md">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-bold text-label-bold text-on-surface-variant uppercase tracking-wider">Passage Editor</span>
+<button class="text-on-surface-variant hover:text-primary p-xs rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<h1 class="font-h1 text-h1 text-on-surface mb-md focus:outline-none focus:ring-1 focus:ring-primary rounded px-xs -mx-xs" contenteditable="true">
+                    The History of the Bicycle
+                </h1>
+<div class="font-body-reading text-body-reading text-on-surface flex flex-col gap-md max-w-[75ch] focus:outline-none focus:ring-1 focus:ring-primary rounded px-xs -mx-xs p-xs" contenteditable="true">
+<p>The bicycle has undergone significant transformations since its inception. Early designs were primarily novelties, often lacking the necessary mechanisms for safe and efficient travel. The evolution of the bicycle is a testament to continuous engineering refinement, driven by the desire for improved mobility and personal transport.</p>
+<p>One of the earliest iterations, often referred to as the 'Dandy Horse', relied entirely on the rider pushing their feet against the ground. It was not until the introduction of pedals that the bicycle truly began to resemble its modern counterpart. This crucial addition allowed for continuous forward motion without the need for foot-to-ground contact, revolutionizing the riding experience.</p>
+</div>
+</div>
+</div>
+<!-- Right Panel: Question Groups -->
+<div class="w-1/2 bg-surface flex flex-col h-full overflow-y-auto p-lg gap-lg">
+<div class="flex items-center justify-between">
+<span class="font-label-bold text-label-bold text-on-surface-variant uppercase tracking-wider">Question Groups</span>
+<button class="flex items-center gap-xs text-primary hover:text-primary-container font-label-bold text-label-bold transition-colors">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                    Add Question Group
+                </button>
+</div>
+<!-- Question Group Card 1: Summary Completion (List) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col gap-md">
+<!-- Header -->
+<div class="flex items-start justify-between border-b border-outline-variant pb-sm mb-xs">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<span class="inline-flex items-center justify-center bg-surface-container-high text-on-surface px-sm py-1 rounded font-label-sm text-label-sm">
+                                Summary Completion
+                            </span>
+<span class="font-label-bold text-label-bold text-on-surface-variant">Questions 11-15</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-surface focus:outline-none focus:border-b focus:border-primary border-b border-transparent" contenteditable="true">
+                            Summary Completion: Choose from List
+                        </h3>
+</div>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<button class="p-xs hover:text-primary hover:bg-surface-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-xs hover:text-error hover:bg-error-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+<button class="p-xs hover:text-on-surface hover:bg-surface-container cursor-grab rounded transition-colors"><span class="material-symbols-outlined text-[20px]">drag_indicator</span></button>
+</div>
+</div>
+<!-- Instructions -->
+<div class="flex flex-col gap-xs">
+<label class="font-label-bold text-label-bold text-on-surface-variant">Instructions</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded p-sm font-body-ui text-body-ui text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" rows="1">Complete the summary using the list of words, A-H, below.</textarea>
+</div>
+<!-- Options List -->
+<div class="flex flex-col gap-xs">
+<label class="font-label-bold text-label-bold text-on-surface-variant flex items-center justify-between">
+                        Options List
+                        <button class="text-primary hover:underline font-label-sm text-label-sm flex items-center gap-base"><span class="material-symbols-outlined text-[16px]">edit</span> Edit List</button>
+</label>
+<div class="bg-surface p-sm border border-outline-variant rounded grid grid-cols-4 gap-sm font-body-ui text-body-ui text-on-surface">
+<div>A. stability</div>
+<div>B. speed</div>
+<div>C. safety</div>
+<div>D. balance</div>
+<div>E. cost</div>
+<div>F. weight</div>
+<div>G. size</div>
+<div>H. durability</div>
+</div>
+</div>
+<!-- Paragraph Editor with inline blanks -->
+<div class="flex flex-col gap-xs mt-sm">
+<label class="font-label-bold text-label-bold text-on-surface-variant flex items-center justify-between">
+                        Summary Text
+                        <button class="text-primary hover:underline font-label-sm text-label-sm flex items-center gap-base"><span class="material-symbols-outlined text-[16px]">add_box</span> Insert Blank</button>
+</label>
+<div class="w-full bg-surface-container-lowest border border-outline-variant rounded p-sm font-body-ui text-body-ui text-on-surface focus-within:border-primary focus-within:ring-1 focus-within:ring-primary min-h-[100px]" contenteditable="true">
+                        This design provided much greater <span class="inline-flex items-center justify-center bg-surface-container px-2 py-0.5 rounded border border-outline-variant text-primary font-code text-code mx-1 cursor-pointer" contenteditable="false">[11]</span> for riders. It also became more <span class="inline-flex items-center justify-center bg-surface-container px-2 py-0.5 rounded border border-outline-variant text-primary font-code text-code mx-1 cursor-pointer" contenteditable="false">[12]</span> as pneumatic tires were added later.
+                    </div>
+</div>
+<!-- Answer Key Selectors -->
+<div class="flex flex-col gap-xs bg-surface p-sm rounded border border-outline-variant mt-xs">
+<label class="font-label-bold text-label-bold text-on-surface-variant border-b border-outline-variant pb-xs mb-xs">Answer Key</label>
+<div class="flex flex-col gap-sm">
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-8 text-right">11.</span>
+<select class="flex-1 bg-surface-container-lowest border border-outline-variant rounded px-sm py-xs font-body-ui text-body-ui text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+<option selected="" value="A">A. stability</option>
+<option value="B">B. speed</option>
+<option value="C">C. safety</option>
+<option value="D">D. balance</option>
+</select>
+</div>
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-8 text-right">12.</span>
+<select class="flex-1 bg-surface-container-lowest border border-outline-variant rounded px-sm py-xs font-body-ui text-body-ui text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+<option value="A">A. stability</option>
+<option value="B">B. speed</option>
+<option selected="" value="C">C. safety</option>
+<option value="D">D. balance</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<!-- Question Group Card 2: Note Completion -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col gap-md">
+<!-- Header -->
+<div class="flex items-start justify-between border-b border-outline-variant pb-sm mb-xs">
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<span class="inline-flex items-center justify-center bg-surface-container-high text-on-surface px-sm py-1 rounded font-label-sm text-label-sm">
+                                Note Completion
+                            </span>
+<span class="font-label-bold text-label-bold text-on-surface-variant">Questions 16-20</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-surface focus:outline-none focus:border-b focus:border-primary border-b border-transparent" contenteditable="true">
+                            Note Completion
+                        </h3>
+</div>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<button class="p-xs hover:text-primary hover:bg-surface-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-xs hover:text-error hover:bg-error-container rounded transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+<button class="p-xs hover:text-on-surface hover:bg-surface-container cursor-grab rounded transition-colors"><span class="material-symbols-outlined text-[20px]">drag_indicator</span></button>
+</div>
+</div>
+<!-- Instructions -->
+<div class="flex flex-col gap-xs">
+<label class="font-label-bold text-label-bold text-on-surface-variant flex items-center justify-between">
+                        Instructions
+                        <div class="flex items-center gap-xs bg-surface px-sm py-1 rounded border border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Word Limit:</span>
+<select class="bg-transparent text-primary font-label-bold text-label-sm outline-none border-none p-0 cursor-pointer">
+<option>ONE WORD ONLY</option>
+<option>NO MORE THAN TWO WORDS</option>
+<option>NO MORE THAN THREE WORDS</option>
+</select>
+</div>
+</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded p-sm font-body-ui text-body-ui text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" rows="1">Complete the notes below. Choose ONE WORD ONLY...</textarea>
+</div>
+<!-- Note Structure Builder -->
+<div class="flex flex-col gap-sm mt-xs">
+<label class="font-label-bold text-label-bold text-on-surface-variant">Note Structure</label>
+<div class="flex flex-col border-l-2 border-outline-variant ml-xs pl-sm gap-sm">
+<!-- Heading Level -->
+<div class="flex items-start gap-sm group">
+<button class="mt-1 text-on-surface-variant opacity-0 group-hover:opacity-100 cursor-grab"><span class="material-symbols-outlined text-[16px]">drag_indicator</span></button>
+<input class="flex-1 bg-transparent border-b border-dashed border-outline-variant focus:border-solid focus:border-primary font-h3 text-h3 text-on-surface outline-none py-xs uppercase tracking-wide" type="text" value="EVOLUTION OF THE BICYCLE DESIGN"/>
+</div>
+<!-- Sub-heading Level -->
+<div class="flex flex-col border-l-2 border-outline-variant ml-md pl-sm gap-sm">
+<div class="flex items-start gap-sm group">
+<button class="mt-1 text-on-surface-variant opacity-0 group-hover:opacity-100 cursor-grab"><span class="material-symbols-outlined text-[16px]">drag_indicator</span></button>
+<input class="flex-1 bg-transparent border-b border-dashed border-outline-variant focus:border-solid focus:border-primary font-label-bold text-label-bold text-on-surface outline-none py-xs" type="text" value='The "Boneshaker" (1860s)'/>
+</div>
+<!-- Bullet Points with Blanks -->
+<div class="flex flex-col gap-sm ml-md">
+<!-- Q16 -->
+<div class="flex items-start gap-sm group relative">
+<button class="mt-1 text-on-surface-variant opacity-0 group-hover:opacity-100 cursor-grab"><span class="material-symbols-outlined text-[16px]">drag_indicator</span></button>
+<div class="w-1.5 h-1.5 rounded-full bg-on-surface-variant mt-2.5 shrink-0"></div>
+<div class="flex-1 flex flex-col gap-xs">
+<div class="flex items-center gap-xs flex-wrap bg-surface-container-lowest border border-outline-variant rounded p-xs focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+<span class="font-body-ui text-body-ui text-on-surface outline-none min-w-[20px]" contenteditable="true">Featured a stiff frame and wheels made of</span>
+<span class="inline-flex items-center justify-center bg-surface-container px-2 py-0.5 rounded border border-outline-variant text-primary font-code text-code mx-1 cursor-pointer select-none" contenteditable="false">[16]</span>
+<span class="font-body-ui text-body-ui text-on-surface outline-none min-w-[20px]" contenteditable="true">.</span>
+</div>
+<div class="flex items-center gap-sm bg-surface p-xs rounded border border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-surface-variant w-8">Ans:</span>
+<input class="flex-1 bg-transparent border-b border-outline-variant focus:border-primary font-body-ui text-body-ui text-on-surface outline-none py-0.5" type="text" value="wood"/>
+</div>
+</div>
+<button class="mt-1 p-0.5 text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<!-- Q17 with Validation Error -->
+<div class="flex items-start gap-sm group relative">
+<button class="mt-1 text-on-surface-variant opacity-0 group-hover:opacity-100 cursor-grab"><span class="material-symbols-outlined text-[16px]">drag_indicator</span></button>
+<div class="w-1.5 h-1.5 rounded-full bg-on-surface-variant mt-2.5 shrink-0"></div>
+<div class="flex-1 flex flex-col gap-xs">
+<div class="flex items-center gap-xs flex-wrap bg-surface-container-lowest border border-outline-variant rounded p-xs focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+<span class="font-body-ui text-body-ui text-on-surface outline-none min-w-[20px]" contenteditable="true">Included</span>
+<span class="inline-flex items-center justify-center bg-error-container px-2 py-0.5 rounded border border-error text-error font-code text-code mx-1 cursor-pointer select-none" contenteditable="false">[17]</span>
+<span class="font-body-ui text-body-ui text-on-surface outline-none min-w-[20px]" contenteditable="true">bands around the wheels.</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-sm bg-error-container/30 p-xs rounded border border-error">
+<span class="font-label-sm text-label-sm text-on-surface-variant w-8">Ans:</span>
+<input class="flex-1 bg-transparent border-b border-error focus:border-error font-body-ui text-body-ui text-on-surface outline-none py-0.5" type="text" value="heavy solid iron"/>
+</div>
+<span class="text-error font-label-sm text-label-sm flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">warning</span> Word limit exceeded (Max 1)</span>
+</div>
+</div>
+<button class="mt-1 p-0.5 text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+</div>
+<button class="flex items-center gap-xs text-on-surface-variant hover:text-primary font-label-sm text-label-sm py-xs w-fit transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span> Add Bullet Point
+                            </button>
+</div>
+<button class="flex items-center gap-xs text-on-surface-variant hover:text-primary font-label-sm text-label-sm py-xs mt-sm w-fit transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span> Add Sub-heading
+                        </button>
+</div>
+</div>
+<div class="border-t border-outline-variant pt-sm mt-xs flex justify-center">
+<button class="flex items-center gap-xs text-primary bg-surface-container hover:bg-surface-container-high px-md py-sm rounded font-label-bold text-label-bold transition-colors w-full justify-center border border-dashed border-primary-container">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                        Add Note Row
+                    </button>
+</div>
+</div>
+<!-- Padding at bottom for scrolling -->
+<div class="h-xl shrink-0"></div>
+</div>
+</main>
+</body></html>

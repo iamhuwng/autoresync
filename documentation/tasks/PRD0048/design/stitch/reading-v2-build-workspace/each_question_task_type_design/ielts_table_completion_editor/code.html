@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading Build Test</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#545f73",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#0b1c30",
+                        "surface-tint": "#006a63",
+                        "primary": "#005c55",
+                        "surface-container-low": "#eff4ff",
+                        "primary-fixed-dim": "#80d5cb",
+                        "on-tertiary-container": "#e9ebed",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "secondary-fixed": "#d8e3fb",
+                        "inverse-surface": "#213145",
+                        "outline": "#6e7977",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "primary-container": "#0f766e",
+                        "on-secondary-fixed": "#111c2d",
+                        "surface-container": "#e5eeff",
+                        "outline-variant": "#bdc9c6",
+                        "on-primary-fixed": "#00201d",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-primary": "#80d5cb",
+                        "surface-variant": "#d3e4fe",
+                        "error": "#ba1a1a",
+                        "surface": "#f8f9ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "background": "#f8f9ff",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-container": "#d5e0f8",
+                        "on-surface-variant": "#3e4947",
+                        "primary-fixed": "#9cf2e8",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-surface": "#0b1c30",
+                        "on-secondary-container": "#586377",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-container": "#a3faef",
+                        "surface-bright": "#f8f9ff",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#e0e3e5",
+                        "tertiary": "#4f5254",
+                        "inverse-on-surface": "#eaf1ff",
+                        "tertiary-container": "#676a6c",
+                        "on-primary-fixed-variant": "#00504a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "base": "4px",
+                        "xs": "8px",
+                        "container-max": "1280px",
+                        "xl": "32px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "body-ui": ["Inter"],
+                        "label-bold": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h3": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-reading": ["Georgia"],
+                        "h1": ["Inter"],
+                        "code": ["monospace"]
+                    },
+                    "fontSize": {
+                        "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-ui h-screen overflow-hidden flex flex-col">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-6 py-3 bg-surface-container-lowest border-b border-outline-variant flat no shadows font-body-ui text-sm font-medium tracking-tight">
+<div class="flex items-center gap-6">
+<div class="text-lg font-bold text-primary">IELTS Author</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-primary border-b-2 border-primary pb-2 opacity-80 scale-[0.99] transition-all" href="#">Passage 1</a>
+<a class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors px-2 py-1 rounded" href="#">Passage 2</a>
+<a class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors px-2 py-1 rounded" href="#">Passage 3</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="save">save</span>
+</button>
+<button class="px-4 py-2 text-primary border border-outline rounded-lg hover:bg-surface-container-low transition-colors font-label-bold">Preview</button>
+<button class="px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary-container transition-colors font-label-bold">Publish</button>
+<img alt="Teacher Profile" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="A professional headshot of a teacher, well-lit, neutral expression, against a plain, light background, in a modern educational setting. The lighting is soft and even." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVcLpoUIvMS8ZLhzzmdeS9-tKfVxS2qviV47lu-9ZFlo1OA1E3x45W14q3uSLnr2IiSgC0HuYWumXtV1y_KFVBKa14mIv4iVYC-L7SFslhUjGjYPc0yMo66n6f7xK8zdYpnVqLVdFUe7ZPGiWWx2_tGB6CB8ykXB2jMGZ2gIEaXaRvmquYaVeZn1LUUjr02NRhYCYqHKPLUQ06lr66f3u80fbncNpjCxgk4sXXZ6rJn-sNUJraD98IApsb-IKBtcvEG_0W-En5wks"/>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar -->
+<aside class="flex flex-col w-64 h-full bg-surface-container-lowest border-r border-outline-variant flat no shadows font-body-ui text-sm hidden md:flex transition-all duration-200 ease-in-out shrink-0">
+<div class="p-6 border-b border-outline-variant">
+<div class="flex items-center gap-3 mb-4">
+<img alt="Institution Logo" class="w-10 h-10" data-alt="A clean, minimalist circular logo featuring the letters AP in white against a deep teal background. The design is modern, academic, and highly legible, suitable for an educational portal." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDL7wE7qYopj2GYk6M1W2OtwMNB47wXFbwUEw8WgH12dlvgLWHkh8eoeZHwr3NWNMG3X9vS4sOUrOZf7wlF2rPrgyDO992hJKzikDOpzlJR8_aVZ66E7ZbPeFN_y1RbqBJLNCXiY3hrE_CQWfcA8SRYF1dAIoY7VCyPSvFW5qo75Wpmymvz5bspNU_9mVnDnh5qy3g7_38htfzbOjVnkWpIIhA_lleyjhAUSSbSJS97o2b9sDj603eUDHJHSsK-z066yYjj2EtTRoE"/>
+<div>
+<h2 class="font-black text-primary font-h3">Academic Portal</h2>
+<p class="text-on-surface-variant font-label-sm">Exam Authoring Mode</p>
+</div>
+</div>
+<button class="w-full px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary-container transition-colors font-label-bold flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> New Assessment
+                </button>
+</div>
+<nav class="flex-1 py-4 flex flex-col gap-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+                </a>
+<a class="flex items-center gap-3 px-3 py-2 bg-surface-container text-primary font-semibold border-r-4 border-primary rounded-lg" href="#">
+<span class="material-symbols-outlined">edit_document</span> Assessments
+                </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">database</span> Question Bank
+                </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span> Analytics
+                </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-lg transition-colors mt-auto" href="#">
+<span class="material-symbols-outlined">settings</span> Settings
+                </a>
+</nav>
+</aside>
+<!-- Main Workspace -->
+<main class="flex-1 flex overflow-hidden bg-background">
+<!-- Left Panel: Passage Editor -->
+<section class="flex-1 flex flex-col border-r border-outline-variant bg-surface-container-lowest max-w-[50%] min-w-[400px]">
+<div class="px-6 py-4 border-b border-outline-variant bg-surface-container-lowest sticky top-0 z-10 flex justify-between items-center">
+<h2 class="font-h3 text-on-surface">Passage Editor</h2>
+<div class="flex gap-2">
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container rounded transition-colors" title="Bold"><span class="material-symbols-outlined">format_bold</span></button>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container rounded transition-colors" title="Italic"><span class="material-symbols-outlined">format_italic</span></button>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container rounded transition-colors" title="Underline"><span class="material-symbols-outlined">format_underlined</span></button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-8 xl">
+<div class="max-w-[75ch] mx-auto">
+<h1 class="font-h1 text-on-surface mb-6">The History of the Bicycle</h1>
+<div class="font-body-reading text-on-surface-variant space-y-4">
+<p>The bicycle is a remarkable piece of engineering that has undergone numerous transformations since its inception. While the exact origins are debated, the earliest verifiable ancestor was the Draisienne, invented by Karl Drais in 1817. This "running machine" lacked pedals and was propelled by the rider pushing their feet against the ground. It featured a rudimentary form of <strong class="bg-surface-variant px-1 rounded cursor-pointer border border-outline-variant" title="Linked to Q21">[21]</strong>, allowing the front wheel to be pivoted for direction.</p>
+<p>Significant progress occurred in the 1860s with the introduction of the velocipede, also known as the "boneshaker." This model attached pedals directly to the front wheel, a major innovation, though its stiff wooden wheels and iron frame made for a jarring ride. To increase speed, inventors began enlarging the front wheel, leading to the iconic Penny Farthing. However, these machines were inherently dangerous due to their high center of gravity.</p>
+<p>The true revolution in bicycle design arrived in the 1880s with the "safety bicycle." John Kemp Starley's Rover, introduced in 1885, established the modern template: two wheels of equal size, a diamond-shaped frame, and a <strong class="bg-surface-variant px-1 rounded cursor-pointer border border-outline-variant" title="Linked to Q22">[22]</strong> to transmit power from the pedals to the rear wheel. This design vastly improved stability and efficiency, opening cycling to a much wider demographic.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Panel: Question Editor -->
+<section class="flex-1 flex flex-col bg-surface overflow-y-auto relative">
+<div class="p-lg max-w-container-max mx-auto w-full space-y-md">
+<!-- Question Group Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 relative">
+<div class="absolute left-0 top-6 bottom-6 w-1 bg-primary rounded-r"></div>
+<div class="flex justify-between items-start mb-6 pl-4">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 bg-surface-container text-on-surface font-label-sm rounded border border-outline-variant">Questions 21-25</span>
+<span class="text-on-surface-variant font-label-bold flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">grid_on</span> Table Completion</span>
+</div>
+<h3 class="font-h3 text-on-surface">Edit Question Block</h3>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"><span class="material-symbols-outlined">more_vert</span></button>
+</div>
+<!-- Table Title Input -->
+<div class="mb-6 pl-4">
+<label class="block font-label-bold text-on-surface mb-2">Table Title (Optional)</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-on-surface font-body-ui focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="Bicycle Development Milestones"/>
+</div>
+<!-- Table Toolbar -->
+<div class="pl-4 mb-4 flex flex-wrap gap-2 items-center bg-surface p-2 border border-outline-variant rounded-lg">
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors flex items-center gap-1 font-label-sm" title="Add Row">
+<span class="material-symbols-outlined text-[18px]">table_rows</span> Add Row
+                            </button>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors flex items-center gap-1 font-label-sm" title="Add Column">
+<span class="material-symbols-outlined text-[18px]">view_column</span> Add Col
+                            </button>
+<div class="w-px h-6 bg-outline-variant mx-1"></div>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors" title="Delete Row"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors" title="Delete Column"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+<div class="w-px h-6 bg-outline-variant mx-1"></div>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors" title="Merge Cells"><span class="material-symbols-outlined text-[18px]">cell_merge</span></button>
+<button class="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors" title="Split Cell"><span class="material-symbols-outlined text-[18px]">call_split</span></button>
+<div class="w-px h-6 bg-outline-variant mx-1"></div>
+<button class="p-1.5 bg-surface-variant text-on-surface rounded transition-colors border border-outline-variant flex items-center gap-1 font-label-sm" title="Toggle Header">
+<span class="material-symbols-outlined text-[18px]">table_chart</span> Header Row
+                            </button>
+<button class="ml-auto px-3 py-1.5 bg-primary-container text-on-primary-container rounded transition-colors flex items-center gap-1 font-label-bold text-sm">
+<span class="material-symbols-outlined text-[18px]">check_box_outline_blank</span> Mark as Blank
+                            </button>
+</div>
+<!-- Interactive Table Editor -->
+<div class="pl-4 mb-6 overflow-x-auto">
+<table class="w-full border-collapse border border-outline-variant font-body-ui text-sm">
+<thead>
+<tr class="bg-surface-container">
+<th class="border border-outline-variant p-3 text-left font-semibold text-on-surface w-1/3">Time Period</th>
+<th class="border border-outline-variant p-3 text-left font-semibold text-on-surface w-1/3">Model Name</th>
+<th class="border border-outline-variant p-3 text-left font-semibold text-on-surface w-1/3">Key Innovation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="hover:bg-surface-bright transition-colors group">
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="1817"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="Draisienne"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<div class="w-full h-full p-3 flex items-center">
+                                                Introduced a form of <span class="inline-flex items-center justify-center bg-surface-container-high border border-outline px-2 py-0.5 rounded mx-1 font-label-bold text-primary">[21]</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-bright transition-colors">
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="1860s"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<div class="w-full h-full p-3 flex items-center">
+<span class="inline-flex items-center justify-center bg-surface-container-high border border-outline px-2 py-0.5 rounded mr-1 font-label-bold text-primary">[23]</span> (Boneshaker)
+                                            </div>
+</td>
+<td class="border border-outline-variant p-0 relative bg-secondary-container bg-opacity-20 outline outline-2 outline-primary outline-offset-[-2px] z-10">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="Pedals attached to front wheel"/>
+</td>
+</tr>
+<tr class="hover:bg-surface-bright transition-colors">
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="1870s"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="Penny Farthing"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<div class="w-full h-full p-3 flex items-center">
+                                                Enlarged front wheel to increase <span class="inline-flex items-center justify-center bg-surface-container-high border border-outline px-2 py-0.5 rounded ml-1 font-label-bold text-primary">[24]</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-bright transition-colors">
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="1885"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<input class="w-full h-full p-3 bg-transparent border-none outline-none text-on-surface" type="text" value="Rover Safety Bicycle"/>
+</td>
+<td class="border border-outline-variant p-0 relative">
+<div class="w-full h-full p-3 flex items-center">
+                                                Equal sized wheels and a <span class="inline-flex items-center justify-center bg-surface-container-high border border-outline px-2 py-0.5 rounded mx-1 font-label-bold text-primary">[22]</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Validation Warning -->
+<div class="pl-4 mb-6">
+<div class="flex items-center gap-2 text-error bg-error-container bg-opacity-30 px-3 py-2 rounded border border-error border-opacity-50">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+<span class="font-label-sm">Missing answer key for Q23</span>
+</div>
+</div>
+<!-- Answer Key Panel -->
+<div class="pl-4">
+<h4 class="font-label-bold text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">key</span> Answer Key</h4>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex items-center gap-3 bg-surface p-2 rounded border border-outline-variant">
+<span class="font-label-bold text-primary w-6 text-right">21.</span>
+<input class="flex-1 bg-transparent border-b border-outline-variant focus:border-primary outline-none px-1 text-sm text-on-surface font-body-ui" type="text" value="steering"/>
+</div>
+<div class="flex items-center gap-3 bg-surface p-2 rounded border border-outline-variant">
+<span class="font-label-bold text-primary w-6 text-right">22.</span>
+<input class="flex-1 bg-transparent border-b border-outline-variant focus:border-primary outline-none px-1 text-sm text-on-surface font-body-ui" type="text" value="chain drive"/>
+</div>
+<div class="flex items-center gap-3 bg-error-container bg-opacity-20 p-2 rounded border border-error border-opacity-50">
+<span class="font-label-bold text-error w-6 text-right">23.</span>
+<input class="flex-1 bg-transparent border-b border-error border-opacity-50 focus:border-error outline-none px-1 text-sm text-on-surface font-body-ui" placeholder="Enter answer..." type="text"/>
+</div>
+<div class="flex items-center gap-3 bg-surface p-2 rounded border border-outline-variant">
+<span class="font-label-bold text-primary w-6 text-right">24.</span>
+<input class="flex-1 bg-transparent border-b border-outline-variant focus:border-primary outline-none px-1 text-sm text-on-surface font-body-ui" type="text" value="speed"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Student Preview -->
+<div class="mt-8">
+<h3 class="font-h3 text-on-surface mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary">visibility</span> Student Preview</h3>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-[0_10px_15px_-3px_rgba(0,0,0,0.05)]">
+<p class="font-body-ui text-on-surface mb-4">Complete the table below. Choose <strong class="font-semibold">NO MORE THAN TWO WORDS</strong> from the passage for each answer.</p>
+<h4 class="font-h3 text-center text-on-surface mb-4">Bicycle Development Milestones</h4>
+<table class="w-full border-collapse border border-on-surface font-body-ui text-sm">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="border border-on-surface p-3 text-left font-semibold text-on-surface w-1/3">Time Period</th>
+<th class="border border-on-surface p-3 text-left font-semibold text-on-surface w-1/3">Model Name</th>
+<th class="border border-on-surface p-3 text-left font-semibold text-on-surface w-1/3">Key Innovation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="border border-on-surface p-3 text-on-surface">1817</td>
+<td class="border border-on-surface p-3 text-on-surface">Draisienne</td>
+<td class="border border-on-surface p-3 text-on-surface">Introduced a form of <strong class="font-semibold text-on-surface ml-1">21</strong> ____________________</td>
+</tr>
+<tr>
+<td class="border border-on-surface p-3 text-on-surface">1860s</td>
+<td class="border border-on-surface p-3 text-on-surface"><strong class="font-semibold text-on-surface mr-1">23</strong> ____________________ (Boneshaker)</td>
+<td class="border border-on-surface p-3 text-on-surface">Pedals attached to front wheel</td>
+</tr>
+<tr>
+<td class="border border-on-surface p-3 text-on-surface">1870s</td>
+<td class="border border-on-surface p-3 text-on-surface">Penny Farthing</td>
+<td class="border border-on-surface p-3 text-on-surface">Enlarged front wheel to increase <strong class="font-semibold text-on-surface ml-1">24</strong> ____________________</td>
+</tr>
+<tr>
+<td class="border border-on-surface p-3 text-on-surface">1885</td>
+<td class="border border-on-surface p-3 text-on-surface">Rover Safety Bicycle</td>
+<td class="border border-on-surface p-3 text-on-surface">Equal sized wheels and a <strong class="font-semibold text-on-surface ml-1">22</strong> ____________________</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+</body></html>

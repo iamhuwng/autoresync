@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading V2 - Authoring Editor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary": "#4f5254",
+                      "on-tertiary-fixed-variant": "#444749",
+                      "on-primary": "#ffffff",
+                      "on-surface": "#0b1c30",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "primary-fixed-dim": "#80d5cb",
+                      "surface-container-low": "#eff4ff",
+                      "surface-tint": "#006a63",
+                      "on-surface-variant": "#3e4947",
+                      "secondary-fixed-dim": "#bcc7de",
+                      "surface-dim": "#cbdbf5",
+                      "inverse-surface": "#213145",
+                      "inverse-primary": "#80d5cb",
+                      "surface-container": "#e5eeff",
+                      "on-tertiary": "#ffffff",
+                      "on-background": "#0b1c30",
+                      "secondary": "#545f73",
+                      "outline": "#6e7977",
+                      "on-primary-fixed": "#00201d",
+                      "on-primary-container": "#a3faef",
+                      "on-tertiary-container": "#e9ebed",
+                      "tertiary-container": "#676a6c",
+                      "on-secondary-fixed": "#111c2d",
+                      "surface-container-high": "#dce9ff",
+                      "surface-container-lowest": "#ffffff",
+                      "primary": "#005c55",
+                      "on-secondary-fixed-variant": "#3c475a",
+                      "on-primary-fixed-variant": "#00504a",
+                      "inverse-on-surface": "#eaf1ff",
+                      "surface-bright": "#f8f9ff",
+                      "surface": "#f8f9ff",
+                      "primary-fixed": "#9cf2e8",
+                      "tertiary-fixed-dim": "#c4c7c9",
+                      "secondary-fixed": "#d8e3fb",
+                      "tertiary-fixed": "#e0e3e5",
+                      "error-container": "#ffdad6",
+                      "surface-container-highest": "#d3e4fe",
+                      "primary-container": "#0f766e",
+                      "on-secondary": "#ffffff",
+                      "surface-variant": "#d3e4fe",
+                      "background": "#f8f9ff",
+                      "outline-variant": "#bdc9c6",
+                      "on-tertiary-fixed": "#191c1e",
+                      "error": "#ba1a1a",
+                      "secondary-container": "#d5e0f8",
+                      "on-secondary-container": "#586377"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "xs": "8px",
+                      "xl": "32px",
+                      "lg": "24px",
+                      "md": "16px",
+                      "sm": "12px",
+                      "gutter": "24px",
+                      "container-max": "1280px",
+                      "base": "4px"
+              },
+              "fontFamily": {
+                      "label-bold": ["Inter"],
+                      "h3": ["Inter"],
+                      "h1": ["Inter"],
+                      "code": ["monospace"],
+                      "body-reading": ["Georgia"],
+                      "label-sm": ["Inter"],
+                      "h2": ["Inter"],
+                      "body-ui": ["Inter"]
+              },
+              "fontSize": {
+                      "label-bold": ["14px", {"lineHeight": "1", "fontWeight": "600"}],
+                      "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                      "h1": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "code": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "body-reading": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "h2": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-ui": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-ui text-body-ui">
+<!-- TopNavBar -->
+<nav class="bg-[#F8FAFC] dark:bg-slate-900 font-['Inter'] text-sm tracking-tight docked full-width top-0 border-b border-slate-200 dark:border-slate-800 flat no shadows flex items-center justify-between px-6 h-16 w-full max-w-[1280px] mx-auto z-50 bg-white">
+<div class="flex items-center gap-6">
+<span class="text-lg font-bold text-slate-900 dark:text-white">IELTS Author</span>
+<div class="hidden md:flex gap-6">
+<a class="text-slate-500 dark:text-slate-400 pb-3 hover:text-[#0F766E] dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-80 mt-3" href="#">Passage 1</a>
+<a class="text-[#0F766E] border-b-2 border-[#0F766E] pb-3 font-semibold hover:text-[#0F766E] dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-80 mt-3" href="#">Passage 2</a>
+<a class="text-slate-500 dark:text-slate-400 pb-3 hover:text-[#0F766E] dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-80 mt-3" href="#">Passage 3</a>
+<a class="text-slate-500 dark:text-slate-400 pb-3 hover:text-[#0F766E] dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-80 mt-3" href="#">General Settings</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-slate-500">
+<button aria-label="history" class="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer active:opacity-80"><span class="material-symbols-outlined" data-icon="history">history</span></button>
+<button aria-label="settings" class="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer active:opacity-80"><span class="material-symbols-outlined" data-icon="settings">settings</span></button>
+<button aria-label="help" class="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer active:opacity-80"><span class="material-symbols-outlined" data-icon="help">help</span></button>
+</div>
+<button class="px-4 py-2 border border-slate-300 text-slate-700 rounded-DEFAULT font-label-bold text-label-bold hover:bg-slate-50 transition-colors cursor-pointer active:opacity-80">
+                Preview
+            </button>
+<button class="px-4 py-2 bg-[#0F766E] text-white rounded-DEFAULT font-label-bold text-label-bold hover:bg-[#0d655e] transition-colors cursor-pointer active:opacity-80 shadow-sm">
+                Publish Test
+            </button>
+<img alt="Teacher Profile" class="w-8 h-8 rounded-full border border-slate-200 cursor-pointer" data-alt="A small circular profile picture of a professional academic teacher with glasses, soft natural lighting, set against a clean modern white background reflecting the scholarly and clean aesthetic of the educational platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvbP4bqbDXGFmKrZJ2SUOJ6fZtt4r0oqMPzlIYKvtXWjj6LnNLPS4oMgdpAn7NlquS65Xy9o0oNFFXslO0WACEPSf0BpPeQKwFqTUb6KfKx22-sPbQEe9Vj4W747qfDq_s4pcKusJE5Ch5RCp-wZSsn3s3ldBK373mFKUhH_6cdDO9oBiLh8FsryykLcPqy97FJhVScUKjpDIbWgWmRU4zz53_5qRYkeh7038Q2u2iS5rLpbij5UaLxrZRdBUp51Bk5jdihrfl754"/>
+</div>
+</nav>
+<!-- Main Workspace -->
+<main class="flex-grow flex justify-center w-full bg-background pt-lg pb-xl px-gutter">
+<div class="w-full max-w-container-max flex flex-col lg:flex-row gap-lg">
+<!-- Left Panel: Reading Passage Editor -->
+<section class="flex-1 bg-surface-container-lowest border border-[#E2E8F0] rounded-DEFAULT flex flex-col overflow-hidden h-[calc(100vh-120px)] sticky top-lg">
+<!-- Editor Toolbar -->
+<div class="h-12 border-b border-[#E2E8F0] bg-surface-bright flex items-center px-sm gap-sm text-on-surface-variant sticky top-0 z-10">
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="format_bold">format_bold</span></button>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="format_italic">format_italic</span></button>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="format_underlined">format_underlined</span></button>
+<div class="w-px h-6 bg-[#E2E8F0] mx-1"></div>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="format_list_bulleted">format_list_bulleted</span></button>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="format_list_numbered">format_list_numbered</span></button>
+<div class="w-px h-6 bg-[#E2E8F0] mx-1"></div>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="image">image</span></button>
+<button class="p-1 hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[20px]" data-icon="table_chart">table_chart</span></button>
+<div class="flex-grow"></div>
+<span class="font-label-sm text-label-sm text-outline">Passage 2 • 850 Words</span>
+</div>
+<!-- Rich Text Area -->
+<div class="p-xl overflow-y-auto flex-grow max-w-[800px] mx-auto w-full outline-none" contenteditable="true">
+<h2 class="font-h2 text-h2 text-on-surface mb-lg">The Evolution of City Planning</h2>
+<p class="font-body-reading text-body-reading text-on-surface mb-md">
+<strong>A</strong> The concept of urban planning is not a modern invention. Evidence of organized city grids dates back to the ancient Indus Valley Civilization, where cities like Mohenjo-Daro featured sophisticated drainage systems and rectilinear street layouts. These early settlements prioritized functionality, ensuring that citizens had access to clean water and efficient transportation routes, laying the groundwork for future municipal engineering.
+                    </p>
+<p class="font-body-reading text-body-reading text-on-surface mb-md">
+<strong>B</strong> During the Renaissance period, aesthetic considerations began to heavily influence urban design in Europe. The 'Ideal City' concept emerged, characterized by symmetrical, star-shaped fortifications and grandiose public squares. This era saw a shift from purely defensive or functional layouts to cities designed to reflect political power, social harmony, and the revival of classical architectural principles, fundamentally altering the visual landscape of the continent.
+                    </p>
+<p class="font-body-reading text-body-reading text-on-surface mb-md">
+<strong>C</strong> The Industrial Revolution brought unprecedented challenges to city planners. Rapid urbanization led to severe overcrowding, unsanitary conditions, and the spread of disease in factory towns. In response, social reformers and visionaries like Ebenezer Howard proposed radical new models. Howard's 'Garden City' movement advocated for self-contained communities surrounded by greenbelts, attempting to combine the benefits of city living with the healthfulness of the countryside.
+                    </p>
+<p class="font-body-reading text-body-reading text-on-surface mb-md">
+<strong>D</strong> In the 20th century, the advent of the automobile drastically reshaped urban environments, leading to the phenomenon of suburban sprawl. Planners began designing cities around highways and car-centric infrastructure, often at the expense of pedestrian spaces and public transit. Today, contemporary urban planning faces a new set of crises, particularly climate change and social inequality, prompting a resurgence in 'smart growth' and sustainable, mixed-use development strategies.
+                    </p>
+</div>
+</section>
+<!-- Right Panel: Questions Authoring -->
+<section class="w-full lg:w-[450px] flex flex-col gap-lg h-[calc(100vh-120px)] overflow-y-auto pb-xl">
+<!-- Matching Headings Card -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-DEFAULT flex flex-col">
+<div class="p-md border-b border-[#E2E8F0] bg-surface-bright flex justify-between items-center rounded-t-DEFAULT">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Matching Headings</h3>
+<span class="font-label-sm text-label-sm text-outline">Questions 15-20</span>
+</div>
+<div class="flex gap-1">
+<button class="p-1 text-outline hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span></button>
+<button class="p-1 text-outline hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined text-[20px]" data-icon="drag_indicator">drag_indicator</span></button>
+</div>
+</div>
+<div class="p-md flex flex-col gap-md">
+<div class="bg-surface p-md rounded-DEFAULT border border-[#E2E8F0]">
+<p class="font-label-bold text-label-bold text-on-surface mb-sm">List of Headings</p>
+<ul class="font-body-ui text-body-ui text-on-surface-variant flex flex-col gap-sm">
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">i</span>
+<span>The impact of industrialization on living standards</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">ii</span>
+<span>Modern challenges and sustainable solutions</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">iii</span>
+<span>Ancient roots of civic organization</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">iv</span>
+<span>The role of agriculture in early settlements</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">v</span>
+<span>Aesthetic shifts and symmetrical designs</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">vi</span>
+<span>The decline of public transportation networks</span>
+</li>
+<li class="flex gap-sm">
+<span class="font-label-bold text-label-bold w-6 text-right">vii</span>
+<span>Utopian visions responding to urban crises</span>
+</li>
+</ul>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-24">Paragraph A</span>
+<select class="flex-grow bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-24">Paragraph B</span>
+<select class="flex-grow bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-24">Paragraph C</span>
+<select class="flex-grow bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+<div class="flex items-center gap-md">
+<span class="font-label-bold text-label-bold text-on-surface w-24">Paragraph D</span>
+<select class="flex-grow bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select heading...</option>
+<option value="i">i</option>
+<option value="ii">ii</option>
+<option value="iii">iii</option>
+<option value="iv">iv</option>
+<option value="v">v</option>
+<option value="vi">vi</option>
+<option value="vii">vii</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<!-- Matching Information Card -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-DEFAULT flex flex-col">
+<div class="p-md border-b border-[#E2E8F0] bg-surface-bright flex justify-between items-center rounded-t-DEFAULT">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Matching Information</h3>
+<span class="font-label-sm text-label-sm text-outline">Questions 21-23</span>
+</div>
+<div class="flex gap-1">
+<button class="p-1 text-outline hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span></button>
+<button class="p-1 text-outline hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined text-[20px]" data-icon="drag_indicator">drag_indicator</span></button>
+</div>
+</div>
+<div class="p-md flex flex-col gap-md">
+<p class="font-body-ui text-body-ui text-on-surface-variant">Which section contains the following information?</p>
+<div class="flex flex-col gap-md">
+<div class="flex flex-col gap-xs">
+<div class="flex gap-sm items-start">
+<span class="font-label-bold text-label-bold mt-1">21</span>
+<p class="font-body-ui text-body-ui text-on-surface flex-grow">A reference to a period where urban design was used to project authority.</p>
+</div>
+<div class="ml-7">
+<select class="w-full bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select section...</option>
+<option value="A">Section A</option>
+<option value="B">Section B</option>
+<option value="C">Section C</option>
+<option value="D">Section D</option>
+<option value="E">Section E</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex gap-sm items-start">
+<span class="font-label-bold text-label-bold mt-1">22</span>
+<p class="font-body-ui text-body-ui text-on-surface flex-grow">Mention of early infrastructure designed for public health.</p>
+</div>
+<div class="ml-7">
+<select class="w-full bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select section...</option>
+<option value="A">Section A</option>
+<option value="B">Section B</option>
+<option value="C">Section C</option>
+<option value="D">Section D</option>
+<option value="E">Section E</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex gap-sm items-start">
+<span class="font-label-bold text-label-bold mt-1">23</span>
+<p class="font-body-ui text-body-ui text-on-surface flex-grow">An example of a town planning theory that sought to merge urban and rural benefits.</p>
+</div>
+<div class="ml-7">
+<select class="w-full bg-surface-container-lowest border border-[#E2E8F0] text-on-surface font-body-ui text-body-ui rounded-DEFAULT px-sm py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer">
+<option disabled="" selected="" value="">Select section...</option>
+<option value="A">Section A</option>
+<option value="B">Section B</option>
+<option value="C">Section C</option>
+<option value="D">Section D</option>
+<option value="E">Section E</option>
+</select>
+</div>
+</div>
+</div>
+<div class="mt-sm bg-surface p-sm rounded-DEFAULT border border-[#E2E8F0] flex items-center gap-sm">
+<input class="w-4 h-4 text-primary bg-surface-container-lowest border-[#E2E8F0] rounded-DEFAULT focus:ring-primary cursor-pointer" id="reuse-section" type="checkbox"/>
+<label class="font-label-bold text-label-bold text-on-surface-variant cursor-pointer" for="reuse-section">
+<em>NB</em> You may use any letter more than once.
+                            </label>
+</div>
+</div>
+</div>
+<!-- Add Question Action -->
+<button class="w-full py-md border-2 border-dashed border-[#E2E8F0] text-outline font-label-bold text-label-bold rounded-DEFAULT hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-sm cursor-pointer">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    Add Question Block
+                </button>
+</section>
+</div>
+</main>
+</body></html>

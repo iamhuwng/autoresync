@@ -47,6 +47,22 @@ vi.mock('../../services/firebaseQueryOptimizer', () => ({
   },
 }));
 
+const mockGetReadingV2TeacherLobbyTests = vi.fn();
+vi.mock('../../services/reading-v2/readingV2TeacherLobbyMaterials.service', () => ({
+  getReadingV2TeacherLobbyTests: (...args: any[]) => mockGetReadingV2TeacherLobbyTests(...args),
+  getReadingV2TeacherLobbyIndexQuery: (ownerId: string) => ({
+    path: 'reading_v2/relationship_indexes/teacher-lobby/',
+    ownerId,
+  }),
+  mergeReadingV2TeacherLobbyTests: (legacyTests: any[], readingV2Tests: any[]) => {
+    const seenIds = new Set(legacyTests.map((test) => test.id));
+    return [
+      ...legacyTests,
+      ...readingV2Tests.filter((test) => !seenIds.has(test.id)),
+    ];
+  },
+}));
+
 // Import AFTER mocks
 import { useTeacherTests } from '../test/useTeacherTests';
 
@@ -61,6 +77,7 @@ describe('useTeacherTests', () => {
     onValueCallback = null;
     onValueErrorCallback = null;
     mockGetAllTests.mockResolvedValue(mockTests);
+    mockGetReadingV2TeacherLobbyTests.mockResolvedValue([]);
     mockRemove.mockResolvedValue(undefined);
     mockDbUpdate.mockResolvedValue(undefined);
     mockDeleteDoc.mockResolvedValue(undefined);
@@ -81,6 +98,26 @@ describe('useTeacherTests', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('merges Reading V2 teacher-lobby materials for the current owner', async () => {
+    const readingV2Material = {
+      id: 'reading-v2-material-1',
+      materialId: 'reading-v2-material-1',
+      title: 'Published Reading V2',
+      deliveryEngine: 'reading-v2',
+      ownerId: 'teacher-1',
+    };
+    mockGetReadingV2TeacherLobbyTests.mockResolvedValueOnce([readingV2Material]);
+
+    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(mockGetReadingV2TeacherLobbyTests).toHaveBeenCalledWith('teacher-1');
+    expect(result.current.tests).toEqual([...mockTests, readingV2Material]);
+  });
+
   it('exposes error state when initial load fails', async () => {
     mockGetAllTests.mockRejectedValue(new Error('Network failed'));
 
@@ -95,6 +132,10 @@ describe('useTeacherTests', () => {
   });
 
   it('skips first onValue call and processes second call for real-time updates', async () => {
+    mockGetAllTests
+      .mockResolvedValueOnce(mockTests)
+      .mockResolvedValueOnce([{ id: 'test-3', title: 'New Test' }]);
+
     const { result } = renderHook(() => useTeacherTests({ realtime: true }));
 
     await waitFor(() => {
@@ -116,7 +157,9 @@ describe('useTeacherTests', () => {
     const snapshotSecond = { val: () => updatedData };
     act(() => { onValueCallback!(snapshotSecond); });
 
-    expect(result.current.tests).toEqual([{ id: 'test-3', title: 'New Test' }]);
+    await waitFor(() => {
+      expect(result.current.tests).toEqual([{ id: 'test-3', title: 'New Test' }]);
+    });
     expect(mockInvalidate).toHaveBeenCalledWith('test', 'all');
   });
 

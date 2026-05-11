@@ -1,13 +1,13 @@
 /**
  * Solo Mode Types
- * 
+ *
  * Defines types for the Solo Study System (PRD-0016: Solo Study & Homework System)
- * 
+ *
  * Key Concepts:
  * - Solo mode allows students to practice independently
  * - Materials can be configured for solo access
  * - Results are tagged with context (self_study, homework, class_session, course_material)
- * 
+ *
  * @module types/solo.types
  */
 
@@ -308,7 +308,7 @@ export interface LibraryFilters {
     source?: LibrarySource;
 
     /** Skill type filter */
-    skill?: 'reading' | 'listening' | 'writing' | 'speaking';
+    skill?: 'reading' | 'reading-v2' | 'listening' | 'writing' | 'speaking';
 
     /** Material type filter */
     type?: 'quiz' | 'test' | 'thcs-test';
@@ -337,7 +337,7 @@ export interface LibraryMaterial {
     type: 'quiz' | 'test' | 'thcs-test';
 
     /** Skill */
-    skill: 'reading' | 'listening' | 'writing' | 'speaking';
+    skill: 'reading' | 'reading-v2' | 'listening' | 'writing' | 'speaking';
 
     /** Difficulty level */
     difficulty?: 'easy' | 'medium' | 'hard';

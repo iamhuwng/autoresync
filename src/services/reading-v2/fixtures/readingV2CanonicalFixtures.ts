@@ -34,6 +34,34 @@ const TASK_TYPE_ANCHOR_KIND = {
   'short-answer': 'paragraph',
 } as const;
 
+const ROMAN_OPTION_LABELS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'] as const;
+const LETTER_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
+
+const getFixtureOptionLabels = (
+  taskType: ReadingV2CanonicalTaskType,
+  family: ReturnType<typeof getReadingV2TaskFamily>,
+): readonly string[] => {
+  if (taskType === 'matching-headings') {
+    return ROMAN_OPTION_LABELS;
+  }
+
+  if (taskType === 'summary-completion-list' || taskType === 'matching-information') {
+    return LETTER_OPTION_LABELS;
+  }
+
+  if (taskType === 'matching-sentence-endings') {
+    return LETTER_OPTION_LABELS.slice(0, 7);
+  }
+
+  if (taskType === 'matching-features') {
+    return LETTER_OPTION_LABELS.slice(0, 5);
+  }
+
+  return family === 'choice' || family === 'matching'
+    ? ['A', 'B', 'C']
+    : [];
+};
+
 const createOptionSet = (
   taskType: ReadingV2CanonicalTaskType,
   taskGroup: ReadingV2TaskGroup,
@@ -45,11 +73,19 @@ const createOptionSet = (
   return {
     optionSetId: taskGroup.optionSetRefs[0],
     taskGroupId: taskGroup.taskGroupId,
-    options: [
-      { optionId: `${taskType}-option-a`, label: 'A', text: 'Option A' },
-      { optionId: `${taskType}-option-b`, label: 'B', text: 'Option B' },
-      { optionId: `${taskType}-option-c`, label: 'C', text: 'Option C' },
-    ],
+    options: getFixtureOptionLabels(taskType, taskGroup.engineeringFamily).map((label) => ({
+      optionId: `${taskType}-option-${label.toLowerCase()}`,
+      label,
+      text: taskType === 'matching-headings'
+        ? `Heading option ${label}`
+        : taskType === 'matching-information'
+          ? `Paragraph ${label} note`
+          : taskType === 'matching-features'
+            ? `Feature ${label}`
+            : taskType === 'matching-sentence-endings'
+              ? `Ending ${label}`
+              : `Option ${label}`,
+    })),
   };
 };
 
@@ -63,12 +99,12 @@ const createStimulusContent = (
       kind: 'table-content',
       rows: [
         [
-          { text: 'Feature', role: 'header' },
-          { text: 'Detail', role: 'header' },
+          { cellId: 'cell-table-completion-header-1', text: 'Feature', role: 'header', rowSpan: 1, colSpan: 1 },
+          { cellId: 'cell-table-completion-header-2', text: 'Detail', role: 'header', rowSpan: 1, colSpan: 1 },
         ],
         [
-          { anchorId: anchorOneId, text: 'First table context', role: 'body' },
-          { anchorId: anchorTwoId, text: '', role: 'body', isBlank: true },
+          { cellId: 'cell-table-completion-body-1', anchorId: anchorOneId, anchorIds: [anchorOneId], text: '_____', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
+          { cellId: 'cell-table-completion-body-2', anchorId: anchorTwoId, anchorIds: [anchorTwoId], text: '_____', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
         ],
       ],
     };
@@ -88,6 +124,7 @@ const createStimulusContent = (
     return {
       kind: 'diagram-content',
       imageAlt: 'Fixture diagram with two labeled targets',
+      imageUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="white"/><circle cx="170" cy="130" r="72" fill="none" stroke="%236b7280" stroke-width="8"/><circle cx="260" cy="190" r="34" fill="none" stroke="%236b7280" stroke-width="8"/></svg>',
       hotspots: [
         { anchorId: anchorOneId, label: 'Target 1', xPercent: 30, yPercent: 40 },
         { anchorId: anchorTwoId, label: 'Target 2', xPercent: 70, yPercent: 60 },
@@ -134,10 +171,16 @@ const fixturePromptText = (
       : 'Fixture summary: the second result produces _____.';
   }
 
+  if (taskType === 'summary-completion-list') {
+    return questionNumber === 1
+      ? 'Fixture summary list blank [blank] belongs in the first sentence.'
+      : 'Fixture summary list blank [blank] belongs in the second sentence.';
+  }
+
   if (taskType === 'sentence-completion' || taskType === 'note-completion') {
     return questionNumber === 1
-      ? 'Complete the fixture sentence with the first missing word.'
-      : 'Complete the fixture sentence with the second missing word.';
+      ? 'Complete the fixture sentence with the first missing word _____.'
+      : 'Complete the fixture sentence with the second missing word _____.';
   }
 
   return questionNumber === 1
@@ -201,7 +244,13 @@ export const createReadingV2CanonicalFixture = (
             vocabulary: taskType === 'true-false-not-given' ? 'TFNG' : 'YNNG',
           }
         : family === 'matching'
-          ? { kind: 'matching', optionSetId, optionReuse: 'allowed' }
+          ? {
+              kind: 'matching',
+              optionSetId,
+              optionReuse: taskType === 'matching-headings' || taskType === 'matching-sentence-endings'
+                ? 'disallowed'
+                : 'allowed',
+            }
           : family === 'structured-layout'
             ? {
                 kind: 'structured-entry',
@@ -228,13 +277,27 @@ export const createReadingV2CanonicalFixture = (
     answerRule: {
       responseShape,
       wordLimit: family === 'completion' ? 2 : undefined,
-      optionReuse: family === 'matching' ? 'allowed' : undefined,
+      optionReuse: family === 'matching'
+        ? taskType === 'matching-headings' || taskType === 'matching-sentence-endings'
+          ? 'disallowed'
+          : 'allowed'
+        : undefined,
       casing: 'ignored',
       punctuation: 'ignored',
     },
     stimulusRefs: [{ stimulusId, anchorIds: [anchorOneId, anchorTwoId] }],
     optionSetRefs: usesOptions ? [optionSetId] : [],
     interactionIds: [interactionOneId, interactionTwoId],
+    layoutHint: taskType === 'summary-completion-list'
+      ? JSON.stringify({
+          kind: 'summary-list',
+          segments: [
+            'Fixture summary list blank',
+            'belongs in the first sentence and the second blank',
+            'belongs in the second sentence.',
+          ],
+        })
+      : undefined,
     validationState: { issues: [] },
   };
 
@@ -243,7 +306,19 @@ export const createReadingV2CanonicalFixture = (
       interactionId: interactionOneId,
       taskGroupId,
       responseShape,
-      scoringRule: { maxScore: 1, acceptableAnswers: ['answer one'] },
+      scoringRule: {
+        maxScore: 1,
+        acceptableAnswers: taskType === 'multiple-select'
+          ? ['A', 'B']
+          : family === 'choice'
+            ? ['A']
+          : family === 'binary-judgement'
+              ? [taskType === 'true-false-not-given' ? 'True' : 'Yes']
+              : family === 'matching'
+                ? [taskType === 'matching-headings' ? 'i' : 'A']
+              : ['answer one'],
+        orderMatters: taskType === 'multiple-select' ? false : undefined,
+      },
       reviewLabel: {},
       promptText: fixturePromptText(taskType, 1),
       primaryAnchorId: anchorOneId,
@@ -252,7 +327,19 @@ export const createReadingV2CanonicalFixture = (
       interactionId: interactionTwoId,
       taskGroupId,
       responseShape,
-      scoringRule: { maxScore: 1, acceptableAnswers: ['answer two'] },
+      scoringRule: {
+        maxScore: 1,
+        acceptableAnswers: taskType === 'multiple-select'
+          ? ['B', 'C']
+          : family === 'choice'
+            ? ['B']
+            : family === 'binary-judgement'
+              ? [taskType === 'true-false-not-given' ? 'False' : 'No']
+              : family === 'matching'
+                ? [taskType === 'matching-headings' ? 'ii' : 'B']
+            : ['answer two'],
+        orderMatters: taskType === 'multiple-select' ? false : undefined,
+      },
       reviewLabel: {},
       promptText: fixturePromptText(taskType, 2),
       primaryAnchorId: anchorTwoId,

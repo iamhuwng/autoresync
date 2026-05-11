@@ -2,12 +2,12 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * SHARED CONTRACT: Draft Management System
  * ═══════════════════════════════════════════════════════════════════════════
- * 
+ *
  * This file defines the EXACT types, interfaces, and function signatures
  * that BOTH UI and Infrastructure tracks MUST follow.
- * 
+ *
  * ⚠️ IMPORTANT: Any changes to this file require agreement from BOTH tracks.
- * 
+ *
  * Created: 2026-02-07
  * PRD Reference: PRD-0022 Test Creation Modal with Draft Management
  * ═══════════════════════════════════════════════════════════════════════════
@@ -21,6 +21,11 @@ import type {
     ReadingOptionLabelFormat,
     ReadingSectionReference,
 } from './document.types';
+import type {
+    GroupAcknowledgementsField,
+    TableCompletionDiagnosticsField,
+    QuestionGroupsField,
+} from './tableCompletion';
 
 // Re-export for convenience
 export type {
@@ -41,7 +46,7 @@ export type {
 export type TestType = 'IELTS' | 'TOEIC' | 'SAT' | 'THCS-THPT' | 'Custom';
 
 /** Skill sections within a test */
-export type SkillType = 'reading' | 'listening' | 'writing' | 'speaking' | 'mixed';
+export type SkillType = 'reading' | 'reading-v2' | 'listening' | 'writing' | 'speaking' | 'mixed';
 
 /** Test format (primarily for IELTS) */
 export type TestFormat = 'academic' | 'general';
@@ -114,6 +119,15 @@ export interface DraftDocument {
     /** Section instructions keyed by passage ID or "global" */
     sectionInstructions: Record<string, string>;
 
+    /** Canonical grouped question storage for grouped Reading tasks */
+    questionGroups: QuestionGroupsField;
+
+    /** Draft-only acknowledgement state for acknowledgement-required grouped issues */
+    groupAcknowledgements: GroupAcknowledgementsField;
+
+    /** Canonical grouped-table diagnostics, including unresolved parse runs */
+    tableCompletionDiagnostics: TableCompletionDiagnosticsField;
+
     // ─── Status Tracking ───
     status: DraftStatus;
     questionCount: number;
@@ -145,11 +159,14 @@ export interface DraftListItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Steps in the test creation modal */
-export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing'
+export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing' | 'reading-v2-start' | 'reading-v2-import' | 'reading-v2-auto'
     | 'writing-metadata' | 'writing-format' | 'writing-content';
 
 /** Step order for navigation (Reading/Listening) */
 export const MODAL_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'upload', 'parsing'];
+
+/** Step order for Reading V2 skill - metadata first, then route into Studio */
+export const READING_V2_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'reading-v2-start', 'reading-v2-import', 'reading-v2-auto'];
 
 /** Step order for Writing skill — stays in-modal for all steps */
 export const WRITING_STEP_ORDER: ModalStep[] = ['type', 'skill', 'writing-metadata', 'writing-format', 'writing-content'];
@@ -293,7 +310,10 @@ export interface DraftServiceInterface {
         draftId: string,
         passages: Passage[],
         questions: ParsedQuestion[],
-        sectionInstructions: Record<string, string>
+        sectionInstructions: Record<string, string>,
+        questionGroups?: QuestionGroupsField,
+        groupAcknowledgements?: GroupAcknowledgementsField,
+        tableCompletionDiagnostics?: TableCompletionDiagnosticsField,
     ): Promise<ServiceResponse>;
 }
 

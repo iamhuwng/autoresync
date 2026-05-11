@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reading V2 Task Type UI Mockups</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface-dim: #f1f4f6;
+      --surface-exam: #f3f4f6;
+      --ink: #0f172a;
+      --ink-soft: #1f2937;
+      --body: #586064;
+      --muted: #737c7f;
+      --line: #d1d5db;
+      --line-soft: #e2e8f0;
+      --blue: #1f5f99;
+      --blue-soft: #e7f0fb;
+      --teal: #0f766e;
+      --teal-soft: #d9f2ed;
+      --rose: #e11d48;
+      --green: #159447;
+      --green-soft: #e8f7ef;
+      --warn: #9a6700;
+      --warn-soft: #fff4cf;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+    }
+
+    .board-header {
+      padding: 28px 32px 20px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .board-title {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 0 0 8px;
+    }
+
+    .ielts-mark {
+      color: var(--rose);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      margin-bottom: 0;
+    }
+
+    .board-header p {
+      color: var(--body);
+      max-width: 920px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .jump {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .jump a {
+      color: var(--blue);
+      text-decoration: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--surface);
+    }
+
+    main {
+      padding: 28px 32px 64px;
+      max-width: 1680px;
+      margin: 0 auto;
+    }
+
+    .section {
+      margin-bottom: 42px;
+    }
+
+    .section > h2 {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .section > p {
+      color: var(--body);
+      margin-bottom: 18px;
+      line-height: 1.55;
+    }
+
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(230px, 1fr));
+      gap: 14px;
+    }
+
+    .component-card,
+    .exam-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .component-card {
+      padding: 14px;
+      min-height: 166px;
+    }
+
+    .component-card h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .component-note {
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    .mockup-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(420px, 1fr));
+      gap: 18px;
+    }
+
+    .exam-panel {
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .exam-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .exam-head h3 {
+      font-size: 15px;
+      line-height: 1.3;
+      margin: 0;
+    }
+
+    .task-kicker {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+      font-weight: 800;
+    }
+
+    .progress-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--ink-soft);
+      white-space: nowrap;
+    }
+
+    .instruction {
+      padding: 13px 16px;
+      background: var(--surface-exam);
+      border-bottom: 1px solid var(--line);
+      color: var(--ink-soft);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .instruction strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .exam-body {
+      padding: 16px;
+      flex: 1;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .question-list,
+    .statement-list,
+    .assignment-list,
+    .short-list {
+      display: grid;
+      gap: 14px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .q-row {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .q-badge {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--blue);
+      color: var(--blue);
+      background: var(--surface);
+      border-radius: 5px;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 800;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+
+    .q-badge[data-state="answered"] {
+      color: #0f6b32;
+      border-color: #8ccaa3;
+      background: var(--green-soft);
+    }
+
+    .inline-blank {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      vertical-align: baseline;
+      margin: 0 3px;
+    }
+
+    .blank-field,
+    .select-field,
+    .wide-field {
+      height: 36px;
+      border: 1px solid #b7c3cf;
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 7px 9px;
+      font: inherit;
+      min-width: 132px;
+    }
+
+    .wide-field { width: min(100%, 300px); }
+
+    .select-field {
+      min-width: 148px;
+      color: var(--ink-soft);
+    }
+
+    .blank-field:focus,
+    .select-field:focus,
+    .wide-field:focus {
+      outline: 2px solid rgba(31, 95, 153, 0.16);
+      border-color: var(--blue);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 0;
+    }
+
+    .summary-box,
+    .note-box,
+    .reference-bank,
+    .choice-set,
+    .diagram-box,
+    .flow-box {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfa;
+      padding: 14px;
+    }
+
+    .summary-box h4,
+    .note-box h4,
+    .reference-bank h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+
+    .summary-text {
+      margin: 0;
+      line-height: 1.75;
+    }
+
+    .bank-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px 12px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .bank-grid li,
+    .heading-bank li {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 8px;
+      align-items: baseline;
+      min-height: 28px;
+    }
+
+    .bank-letter {
+      font-weight: 800;
+      color: var(--blue);
+    }
+
+    .bank-grid li[data-used="true"] {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+
+    .note-box ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .note-box li {
+      margin: 8px 0;
+    }
+
+    .mock-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+    }
+
+    .mock-table th,
+    .mock-table td {
+      border: 1px solid var(--line);
+      padding: 10px;
+      vertical-align: middle;
+    }
+
+    .mock-table th {
+      text-align: left;
+      background: var(--surface-dim);
+      font-weight: 800;
+    }
+
+    .mock-table td[data-blank="true"] {
+      background: #fbfdff;
+    }
+
+    .flow-box {
+      display: grid;
+      gap: 10px;
+      background: var(--surface);
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: #fbfcfa;
+      position: relative;
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: "";
+      width: 1px;
+      height: 12px;
+      background: var(--line);
+      position: absolute;
+      left: 24px;
+      bottom: -12px;
+    }
+
+    .flow-step[data-active="true"] {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .diagram-box {
+      position: relative;
+      min-height: 248px;
+      background:
+        linear-gradient(90deg, rgba(31,95,153,.05) 1px, transparent 1px) 0 0 / 28px 28px,
+        linear-gradient(rgba(31,95,153,.05) 1px, transparent 1px) 0 0 / 28px 28px,
+        #fbfcfa;
+    }
+
+    .diagram-shape {
+      position: absolute;
+      inset: 46px 88px 52px 92px;
+      border: 2px solid #7f8ea3;
+      border-radius: 52% 48% 46% 54%;
+      background: rgba(241, 244, 246, .9);
+    }
+
+    .diagram-line {
+      position: absolute;
+      height: 1px;
+      background: #7f8ea3;
+      transform-origin: left center;
+    }
+
+    .pin {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    .pin.one { top: 28px; left: 28px; }
+    .pin.two { top: 106px; right: 24px; }
+    .pin.three { bottom: 22px; left: 72px; }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .segmented button,
+    .chip,
+    .choice-row {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink-soft);
+      font-weight: 700;
+      font: inherit;
+    }
+
+    .segmented button[data-selected="true"],
+    .chip[data-selected="true"],
+    .choice-row[data-selected="true"] {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+      color: var(--ink);
+    }
+
+    .assignment-row {
+      display: grid;
+      grid-template-columns: 30px 1fr minmax(150px, 210px);
+      gap: 10px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .assignment-row:last-child { border-bottom: 0; }
+
+    .heading-bank {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px 14px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      padding: 0 10px;
+    }
+
+    .choice-set {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      background: var(--surface);
+    }
+
+    .choice-row {
+      display: grid;
+      grid-template-columns: 22px 28px 1fr;
+      align-items: start;
+      gap: 8px;
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+    }
+
+    .choice-row input {
+      margin-top: 3px;
+    }
+
+    .choice-letter {
+      font-weight: 800;
+      color: var(--blue);
+    }
+
+    .counter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #8ccaa3;
+      background: var(--green-soft);
+      color: #0f6b32;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 10px;
+    }
+
+    .callout {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #edd27a;
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-radius: 6px;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 1180px) {
+      .component-grid,
+      .mockup-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .board-header,
+      main { padding-left: 16px; padding-right: 16px; }
+      .assignment-row { grid-template-columns: 30px 1fr; }
+      .assignment-row .select-field,
+      .assignment-row .chip-row { grid-column: 2; }
+      .bank-grid,
+      .heading-bank { grid-template-columns: 1fr; }
+      .segmented { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="board-header">
+    <div class="board-title">
+      <span class="ielts-mark">IELTS</span>
+      <h1>Reading V2 Improved Task Type UI Mockups</h1>
+    </div>
+    <p>Spec-driven visual upgrade for the 16 Reading task types. Mockups keep official IELTS form, but improve density, hierarchy, option-bank clarity, and reusable component separation.</p>
+    <nav class="jump" aria-label="Mockup sections">
+      <a href="#components">Components</a>
+      <a href="#completion">Completion</a>
+      <a href="#judgement">Judgement</a>
+      <a href="#matching">Matching</a>
+      <a href="#choice">Choice</a>
+      <a href="#short-answer">Short Answer</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="section" id="components">
+      <h2>Separate UI Components</h2>
+      <p>Atomic pieces below compose every mockup. Production extraction should keep these independent from task-type data mapping.</p>
+      <div class="component-grid">
+        <article class="component-card">
+          <h3>InstructionStrip</h3>
+          <div class="instruction"><strong>Complete the sentences below.</strong>Choose ONE WORD ONLY from the passage.</div>
+          <p class="component-note">One neutral band per group. No repeated instruction inside rows.</p>
+        </article>
+        <article class="component-card">
+          <h3>QuestionBadge + InlineBlank</h3>
+          <p>built using a <span class="inline-blank"><span class="q-badge">7</span><input class="blank-field" aria-label="component blank"></span> nearby source.</p>
+          <p class="component-note">Same badge footprint everywhere. Inline inputs preserve sentence rhythm.</p>
+        </article>
+        <article class="component-card">
+          <h3>ReferenceBank</h3>
+          <ul class="bank-grid">
+            <li><span class="bank-letter">A</span><span>rising costs</span></li>
+            <li data-used="true"><span class="bank-letter">B</span><span>social pressure</span></li>
+            <li><span class="bank-letter">C</span><span>new evidence</span></li>
+            <li><span class="bank-letter">D</span><span>older methods</span></li>
+          </ul>
+          <p class="component-note">Render once. Mark used options only when reuse blocked.</p>
+        </article>
+        <article class="component-card">
+          <h3>SegmentedAnswerGroup</h3>
+          <div class="segmented">
+            <button type="button">TRUE</button>
+            <button type="button" data-selected="true">FALSE</button>
+            <button type="button">NOT GIVEN</button>
+          </div>
+          <p class="component-note">Equal weight, native focus, exact IELTS vocabulary.</p>
+        </article>
+        <article class="component-card">
+          <h3>MatchingAssignmentRow</h3>
+          <div class="assignment-row">
+            <span class="q-badge">12</span>
+            <span>Section C</span>
+            <select class="select-field"><option>ii Cooperation beneath the waves</option></select>
+          </div>
+          <p class="component-note">Prompt and answer stay in one scan line.</p>
+        </article>
+        <article class="component-card">
+          <h3>ChoiceOption</h3>
+          <label class="choice-row" data-selected="true">
+            <input type="radio" checked>
+            <span class="choice-letter">B</span>
+            <span>It reduced the cost of repeated transport.</span>
+          </label>
+          <p class="component-note">Full-width target; selected state uses border plus fill.</p>
+        </article>
+        <article class="component-card">
+          <h3>StructuredTableSurface</h3>
+          <table class="mock-table">
+            <tr><th>Period</th><th>Finding</th></tr>
+            <tr><td>1880s</td><td data-blank="true"><span class="q-badge">4</span></td></tr>
+          </table>
+          <p class="component-note">Input target lives in cell, not below table.</p>
+        </article>
+        <article class="component-card">
+          <h3>FlowchartSurface</h3>
+          <div class="flow-box">
+            <div class="flow-step">Collect samples</div>
+            <div class="flow-step" data-active="true"><span class="q-badge">9</span> classify by <input class="blank-field" aria-label="component flow blank"></div>
+          </div>
+          <p class="component-note">Process order remains visible while answering.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="completion">
+      <h2>Completion Task Types</h2>
+      <p>Completion screens prioritize natural reading flow and exact blank location.</p>
+      <div class="mockup-grid">
+        <article class="exam-panel" id="sentence-completion">
+          <div class="exam-head"><h3><span class="task-kicker">Sentence completion</span>Questions 1-3</h3><span class="progress-pill">1 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the sentences below.</strong>Choose ONE WORD ONLY from the passage for each answer.</div>
+          <div class="exam-body">
+            <ol class="question-list">
+              <li class="q-row"><span class="q-badge" data-state="answered">1</span><p>The colony builds its nest using soil and <span class="inline-blank"><input class="blank-field" value="resin" aria-label="Question 1 answer"></span> from nearby trees.</p></li>
+              <li class="q-row"><span class="q-badge">2</span><p>In winter, activity decreases during a state of <span class="inline-blank"><input class="blank-field" aria-label="Question 2 answer"></span>.</p></li>
+              <li class="q-row"><span class="q-badge">3</span><p>The main threat is the expansion of local <span class="inline-blank"><input class="blank-field" aria-label="Question 3 answer"></span>.</p></li>
+            </ol>
+            <p class="helper">Word limit: 1 word for each blank.</p>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="summary-completion-text">
+          <div class="exam-head"><h3><span class="task-kicker">Summary completion from text</span>Questions 4-6</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the summary below.</strong>Choose NO MORE THAN TWO WORDS from the passage for each answer.</div>
+          <div class="exam-body">
+            <div class="summary-box">
+              <h4>The History of Silk</h4>
+              <p class="summary-text">According to legend, silk was discovered when a cocoon fell into tea. At first, the material was reserved for <span class="inline-blank"><span class="q-badge">4</span><input class="blank-field" aria-label="Question 4 answer"></span>, but later became a form of currency used to pay <span class="inline-blank"><span class="q-badge">5</span><input class="blank-field" aria-label="Question 5 answer"></span>. Anyone smuggling silkworms faced <span class="inline-blank"><span class="q-badge">6</span><input class="blank-field" aria-label="Question 6 answer"></span>.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="summary-completion-list">
+          <div class="exam-head"><h3><span class="task-kicker">Summary completion from list</span>Questions 7-9</h3><span class="progress-pill">1 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the summary using the list of phrases, A-H, below.</strong>Write the correct letter in each blank.</div>
+          <div class="exam-body">
+            <div class="reference-bank" aria-label="List of phrases">
+              <h4>List of phrases</h4>
+              <ul class="bank-grid">
+                <li><span class="bank-letter">A</span><span>wrong classes</span></li>
+                <li data-used="true"><span class="bank-letter">B</span><span>lower expectations</span></li>
+                <li><span class="bank-letter">C</span><span>average learners</span></li>
+                <li><span class="bank-letter">D</span><span>bottom sets</span></li>
+                <li><span class="bank-letter">E</span><span>brightest pupils</span></li>
+                <li><span class="bank-letter">F</span><span>disadvantaged backgrounds</span></li>
+              </ul>
+            </div>
+            <div class="summary-box" style="margin-top: 12px">
+              <p class="summary-text">Streaming shows little indication of <span class="inline-blank"><span class="q-badge" data-state="answered">7</span><select class="select-field"><option>B</option></select></span>. It has the greatest impact on students in the <span class="inline-blank"><span class="q-badge">8</span><select class="select-field"><option>Select</option></select></span>, and rarely benefits <span class="inline-blank"><span class="q-badge">9</span><select class="select-field"><option>Select</option></select></span>.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="note-completion">
+          <div class="exam-head"><h3><span class="task-kicker">Note completion</span>Questions 10-12</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the notes below.</strong>Choose ONE WORD ONLY from the passage for each answer.</div>
+          <div class="exam-body">
+            <div class="note-box">
+              <h4>Coral reef recovery</h4>
+              <ul>
+                <li>temperature rise causes damage to <span class="inline-blank"><span class="q-badge">10</span><input class="blank-field"></span></li>
+                <li>new survey compared shallow and deep <span class="inline-blank"><span class="q-badge">11</span><input class="blank-field"></span></li>
+                <li>researchers found strongest recovery near protected <span class="inline-blank"><span class="q-badge">12</span><input class="blank-field"></span></li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="table-completion">
+          <div class="exam-head"><h3><span class="task-kicker">Table completion</span>Questions 13-15</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the table below.</strong>Choose ONE WORD AND/OR A NUMBER from the passage.</div>
+          <div class="exam-body">
+            <table class="mock-table">
+              <tr><th>Stepwell</th><th>Location</th><th>Feature</th></tr>
+              <tr><td>Surya Kund</td><td>Gujarat</td><td data-blank="true"><span class="inline-blank"><span class="q-badge">13</span><input class="blank-field"></span></td></tr>
+              <tr><td>Neemrana Ki Baori</td><td>Rajasthan</td><td data-blank="true"><span class="inline-blank"><span class="q-badge">14</span><input class="blank-field"></span></td></tr>
+              <tr><td>Chand Baori</td><td>Abhaneri</td><td data-blank="true"><span class="inline-blank"><span class="q-badge">15</span><input class="blank-field"></span></td></tr>
+            </table>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="flowchart-completion">
+          <div class="exam-head"><h3><span class="task-kicker">Flowchart completion</span>Questions 16-18</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete the flow-chart below.</strong>Choose NO MORE THAN TWO WORDS from the passage.</div>
+          <div class="exam-body">
+            <div class="flow-box">
+              <div class="flow-step">Collect observations from the coastal stations</div>
+              <div class="flow-step" data-active="true"><span class="inline-blank"><span class="q-badge">16</span><input class="blank-field"></span> filters unreliable readings</div>
+              <div class="flow-step" data-active="true">Combine results with <span class="inline-blank"><span class="q-badge">17</span><input class="blank-field"></span> maps</div>
+              <div class="flow-step" data-active="true">Publish warning for areas with high <span class="inline-blank"><span class="q-badge">18</span><input class="blank-field"></span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="diagram-labeling">
+          <div class="exam-head"><h3><span class="task-kicker">Diagram labelling</span>Questions 19-21</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Label the diagram below.</strong>Choose ONE WORD ONLY from the passage for each answer.</div>
+          <div class="exam-body">
+            <div class="diagram-box">
+              <div class="diagram-shape"></div>
+              <div class="diagram-line" style="top:58px;left:128px;width:90px;transform:rotate(17deg)"></div>
+              <div class="diagram-line" style="top:128px;right:126px;width:80px;transform:rotate(160deg)"></div>
+              <label class="pin one"><span class="q-badge">19</span><input class="blank-field" aria-label="Question 19 answer"></label>
+              <label class="pin two"><span class="q-badge">20</span><input class="blank-field" aria-label="Question 20 answer"></label>
+              <label class="pin three"><span class="q-badge">21</span><input class="blank-field" aria-label="Question 21 answer"></label>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="judgement">
+      <h2>Judgement Task Types</h2>
+      <p>Judgement controls use exact wording and identical selector mechanics.</p>
+      <div class="mockup-grid">
+        <article class="exam-panel" id="true-false-not-given">
+          <div class="exam-head"><h3><span class="task-kicker">True / False / Not Given</span>Questions 22-24</h3><span class="progress-pill">1 of 3 answered</span></div>
+          <div class="instruction"><strong>Do the following statements agree with the information given in the text?</strong>TRUE if the statement agrees, FALSE if it contradicts, NOT GIVEN if there is no information.</div>
+          <div class="exam-body">
+            <ol class="statement-list">
+              <li><div class="q-row"><span class="q-badge" data-state="answered">22</span><p>The first trial was completed before 1990.</p></div><div class="segmented"><button type="button" data-selected="true">TRUE</button><button type="button">FALSE</button><button type="button">NOT GIVEN</button></div></li>
+              <li><div class="q-row"><span class="q-badge">23</span><p>Researchers used identical equipment in both locations.</p></div><div class="segmented"><button type="button">TRUE</button><button type="button">FALSE</button><button type="button">NOT GIVEN</button></div></li>
+              <li><div class="q-row"><span class="q-badge">24</span><p>The second study received government funding.</p></div><div class="segmented"><button type="button">TRUE</button><button type="button">FALSE</button><button type="button">NOT GIVEN</button></div></li>
+            </ol>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="yes-no-not-given">
+          <div class="exam-head"><h3><span class="task-kicker">Yes / No / Not Given</span>Questions 25-27</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Do the following statements agree with the views of the writer?</strong>YES if the statement agrees with the claims, NO if it contradicts, NOT GIVEN if impossible to say.</div>
+          <div class="exam-body">
+            <ol class="statement-list">
+              <li><div class="q-row"><span class="q-badge">25</span><p>The writer thinks the policy was introduced too late.</p></div><div class="segmented"><button type="button">YES</button><button type="button">NO</button><button type="button">NOT GIVEN</button></div></li>
+              <li><div class="q-row"><span class="q-badge">26</span><p>The writer supports greater public involvement.</p></div><div class="segmented"><button type="button">YES</button><button type="button">NO</button><button type="button">NOT GIVEN</button></div></li>
+              <li><div class="q-row"><span class="q-badge">27</span><p>The writer believes older methods should be abandoned.</p></div><div class="segmented"><button type="button">YES</button><button type="button">NO</button><button type="button">NOT GIVEN</button></div></li>
+            </ol>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="matching">
+      <h2>Matching Task Types</h2>
+      <p>Matching screens use a single reference bank and compact assignment rows.</p>
+      <div class="mockup-grid">
+        <article class="exam-panel" id="matching-headings">
+          <div class="exam-head"><h3><span class="task-kicker">Matching headings</span>Questions 28-31</h3><span class="progress-pill">1 of 4 answered</span></div>
+          <div class="instruction"><strong>Choose the correct heading for each section from the list of headings below.</strong>Write the correct number, i-viii.</div>
+          <div class="exam-body">
+            <div class="reference-bank"><h4>List of headings</h4><ul class="heading-bank"><li><span class="bank-letter">i</span><span>Tried and tested solutions</span></li><li><span class="bank-letter">ii</span><span>Cooperation beneath the waves</span></li><li><span class="bank-letter">iii</span><span>Working to lessen the problems</span></li><li><span class="bank-letter">iv</span><span>Disagreement about a phrase</span></li><li><span class="bank-letter">v</span><span>A new source of pressure</span></li><li><span class="bank-letter">vi</span><span>Examples from earlier studies</span></li></ul></div>
+            <div class="assignment-list" style="margin-top: 12px">
+              <div class="assignment-row"><span class="q-badge" data-state="answered">28</span><span>Section A</span><select class="select-field"><option>ii Cooperation beneath the waves</option></select></div>
+              <div class="assignment-row"><span class="q-badge">29</span><span>Section B</span><select class="select-field"><option>Select heading</option></select></div>
+              <div class="assignment-row"><span class="q-badge">30</span><span>Section C</span><select class="select-field"><option>Select heading</option></select></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="matching-information">
+          <div class="exam-head"><h3><span class="task-kicker">Matching information</span>Questions 32-35</h3><span class="progress-pill">0 of 4 answered</span></div>
+          <div class="instruction"><strong>Which paragraph contains the following information?</strong>You may use any letter more than once.</div>
+          <div class="exam-body">
+            <div class="reference-bank"><h4>Paragraphs</h4><ul class="bank-grid"><li><span class="bank-letter">A</span><span>Origins</span></li><li><span class="bank-letter">B</span><span>Early experiments</span></li><li><span class="bank-letter">C</span><span>Modern criticism</span></li><li><span class="bank-letter">D</span><span>Future applications</span></li></ul></div>
+            <div class="assignment-list" style="margin-top: 12px">
+              <div class="assignment-row"><span class="q-badge">32</span><span>a reference to an unsuccessful trial</span><select class="select-field"><option>Select paragraph</option></select></div>
+              <div class="assignment-row"><span class="q-badge">33</span><span>an explanation of the original purpose</span><select class="select-field"><option>Select paragraph</option></select></div>
+              <div class="assignment-row"><span class="q-badge">34</span><span>a prediction about later use</span><select class="select-field"><option>Select paragraph</option></select></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="matching-features">
+          <div class="exam-head"><h3><span class="task-kicker">Matching features</span>Questions 36-38</h3><span class="progress-pill">1 of 3 answered</span></div>
+          <div class="instruction"><strong>Match each statement with the correct researcher, A-D.</strong>Write the correct letter.</div>
+          <div class="exam-body">
+            <div class="reference-bank"><h4>Researchers</h4><ul class="bank-grid"><li><span class="bank-letter">A</span><span>Dr Mina Rao</span></li><li><span class="bank-letter">B</span><span>Professor Lee</span></li><li><span class="bank-letter">C</span><span>Anna Smith</span></li><li><span class="bank-letter">D</span><span>Jon Keller</span></li></ul></div>
+            <div class="assignment-list" style="margin-top: 12px">
+              <div class="assignment-row"><span class="q-badge" data-state="answered">36</span><span>argued that field tests were too small</span><div class="chip-row"><button class="chip" data-selected="true">A</button><button class="chip">B</button><button class="chip">C</button><button class="chip">D</button></div></div>
+              <div class="assignment-row"><span class="q-badge">37</span><span>emphasised the need for local knowledge</span><div class="chip-row"><button class="chip">A</button><button class="chip">B</button><button class="chip">C</button><button class="chip">D</button></div></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="matching-sentence-endings">
+          <div class="exam-head"><h3><span class="task-kicker">Matching sentence endings</span>Questions 39-41</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Complete each sentence with the correct ending, A-F.</strong>Use each ending once only.</div>
+          <div class="exam-body">
+            <div class="reference-bank"><h4>Endings</h4><ul class="bank-grid"><li><span class="bank-letter">A</span><span>before regular measurements began.</span></li><li><span class="bank-letter">B</span><span>because costs rose quickly.</span></li><li><span class="bank-letter">C</span><span>after pressure from local groups.</span></li><li><span class="bank-letter">D</span><span>without changing the overall result.</span></li></ul></div>
+            <div class="assignment-list" style="margin-top: 12px">
+              <div class="assignment-row"><span class="q-badge">39</span><span>The first proposal was rejected</span><select class="select-field"><option>Select ending</option></select></div>
+              <div class="assignment-row"><span class="q-badge">40</span><span>The new method became popular</span><select class="select-field"><option>Select ending</option></select></div>
+              <div class="assignment-row"><span class="q-badge">41</span><span>Earlier records were unreliable</span><select class="select-field"><option>Select ending</option></select></div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="choice">
+      <h2>Choice Task Types</h2>
+      <p>Choice questions need full-option scanability and clear selected count.</p>
+      <div class="mockup-grid">
+        <article class="exam-panel" id="multiple-choice">
+          <div class="exam-head"><h3><span class="task-kicker">Multiple choice</span>Questions 42-43</h3><span class="progress-pill">1 of 2 answered</span></div>
+          <div class="instruction"><strong>Choose the correct letter, A-D.</strong>Write the correct letter in the answer box.</div>
+          <div class="exam-body">
+            <p><strong>42.</strong> What is the writer's main point about early transport systems?</p>
+            <div class="choice-set">
+              <label class="choice-row"><input type="radio"><span class="choice-letter">A</span><span>They were designed mainly for trade between regions.</span></label>
+              <label class="choice-row" data-selected="true"><input type="radio" checked><span class="choice-letter">B</span><span>They often changed in response to local conditions.</span></label>
+              <label class="choice-row"><input type="radio"><span class="choice-letter">C</span><span>They depended on central government support.</span></label>
+              <label class="choice-row"><input type="radio"><span class="choice-letter">D</span><span>They replaced older systems almost immediately.</span></label>
+            </div>
+          </div>
+        </article>
+
+        <article class="exam-panel" id="multiple-select">
+          <div class="exam-head"><h3><span class="task-kicker">Multiple selection</span>Questions 44-45</h3><span class="progress-pill">2 of 2 selected</span></div>
+          <div class="instruction"><strong>Choose TWO letters, A-E.</strong>Write the correct letters in boxes 44 and 45.</div>
+          <div class="exam-body">
+            <span class="callout">Select exactly two options</span>
+            <p><strong>Which TWO benefits are mentioned in the passage?</strong></p>
+            <div class="choice-set">
+              <label class="choice-row"><input type="checkbox"><span class="choice-letter">A</span><span>lower production cost</span></label>
+              <label class="choice-row" data-selected="true"><input type="checkbox" checked><span class="choice-letter">B</span><span>improved safety for workers</span></label>
+              <label class="choice-row" data-selected="true"><input type="checkbox" checked><span class="choice-letter">C</span><span>reduced use of water</span></label>
+              <label class="choice-row"><input type="checkbox"><span class="choice-letter">D</span><span>faster delivery to customers</span></label>
+              <label class="choice-row"><input type="checkbox"><span class="choice-letter">E</span><span>greater resistance to heat</span></label>
+            </div>
+            <span class="counter">Selected 2 of 2</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="short-answer">
+      <h2>Short Answer Task Type</h2>
+      <p>Short-answer rows use wider inputs and clear word-limit helpers.</p>
+      <div class="mockup-grid">
+        <article class="exam-panel" id="short-answer-panel">
+          <div class="exam-head"><h3><span class="task-kicker">Short answer questions</span>Questions 46-48</h3><span class="progress-pill">0 of 3 answered</span></div>
+          <div class="instruction"><strong>Answer the questions below.</strong>Choose NO MORE THAN THREE WORDS AND/OR A NUMBER from the passage.</div>
+          <div class="exam-body">
+            <ol class="short-list">
+              <li class="q-row"><span class="q-badge">46</span><div><p>What instrument measured the depth of the ocean floor?</p><input class="wide-field" aria-label="Question 46 answer"><p class="helper">Max 3 words and/or a number.</p></div></li>
+              <li class="q-row"><span class="q-badge">47</span><div><p>In which year did the expedition reach the South Pole?</p><input class="wide-field" aria-label="Question 47 answer"><p class="helper">Max 3 words and/or a number.</p></div></li>
+              <li class="q-row"><span class="q-badge">48</span><div><p>What material protected the outer layer?</p><input class="wide-field" aria-label="Question 48 answer"><p class="helper">Max 3 words and/or a number.</p></div></li>
+            </ol>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

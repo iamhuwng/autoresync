@@ -6,6 +6,7 @@ import {
   type ReadingV2Attempt,
   type ReadingV2AttemptContext,
   type ReadingV2Interaction,
+  type ReadingV2OptionSet,
   type ReadingV2PublishedSnapshot,
   type ReadingV2RegradeArtifact,
   type ReadingV2Result,
@@ -17,6 +18,7 @@ import type {
   ReadingV2ProjectedStimulus,
   ReadingV2ProjectedTaskGroup,
 } from './readingV2Projection.service';
+import { readingV2JudgementAnswersMatch } from './readingV2JudgementAnswers.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export type ReadingV2SubmittedAnswerValue = string | readonly string[];
@@ -156,6 +158,8 @@ export interface ReadingV2ResultPersistencePlan {
   }[];
 }
 
+type ReadingV2ResultPersistenceOperation = ReadingV2ResultPersistencePlan['operations'][number];
+
 export interface ReadingV2RegradePersistencePlan {
   readonly operations: readonly {
     readonly key: string;
@@ -227,7 +231,24 @@ const normalizeAnswerItems = (
     readonly caseSensitive?: boolean;
     readonly punctuationSensitive?: boolean;
   },
-): string[] => (Array.isArray(value) ? value : [value]).map((entry) => normalizeText(entry, options));
+  optionSet?: ReadingV2OptionSet,
+): string[] => (Array.isArray(value) ? value : [value]).map((entry) =>
+  normalizeText(optionLabelForAnswer(entry, optionSet), options),
+);
+
+const optionKey = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+const optionLabelForAnswer = (
+  value: unknown,
+  optionSet: ReadingV2OptionSet | undefined,
+): string => {
+  const key = optionKey(value);
+  const option = optionSet?.options.find((entry) =>
+    optionKey(entry.label) === key || optionKey(entry.optionId) === key,
+  );
+
+  return option?.label ?? String(value ?? '');
+};
 
 const answerListsMatch = (
   studentItems: readonly string[],
@@ -243,24 +264,58 @@ const answerListsMatch = (
   return left.every((entry, index) => entry === right[index]);
 };
 
-const answerMatches = (studentAnswer: unknown, interaction: ReadingV2Interaction): boolean => {
+const answerMatches = (
+  studentAnswer: unknown,
+  interaction: ReadingV2Interaction,
+  optionSet?: ReadingV2OptionSet,
+): boolean => {
   const acceptableAnswers = interaction.scoringRule.acceptableAnswers ?? [];
   if (acceptableAnswers.length === 0) {
     return false;
   }
 
-  if (Array.isArray(studentAnswer) || interaction.responseShape.kind === 'multi-select') {
+  if (interaction.responseShape.kind === 'binary-judgement') {
+    if (Array.isArray(studentAnswer)) {
+      return false;
+    }
+    return acceptableAnswers.some((answer) =>
+      readingV2JudgementAnswersMatch(studentAnswer, answer, interaction.responseShape.vocabulary),
+    );
+  }
+
+  if (interaction.responseShape.kind === 'multi-select') {
+    if (!Array.isArray(studentAnswer)) {
+      return false;
+    }
     return answerListsMatch(
-      normalizeAnswerItems(studentAnswer, interaction.scoringRule),
-      normalizeAnswerItems(acceptableAnswers, interaction.scoringRule),
+      normalizeAnswerItems(studentAnswer, interaction.scoringRule, optionSet),
+      normalizeAnswerItems(acceptableAnswers, interaction.scoringRule, optionSet),
       interaction.scoringRule.orderMatters !== false,
     );
   }
 
-  const normalizedStudent = normalizeText(studentAnswer, interaction.scoringRule);
+  if (Array.isArray(studentAnswer)) {
+    return false;
+  }
+
+  const normalizedStudent = normalizeText(optionLabelForAnswer(studentAnswer, optionSet), interaction.scoringRule);
   return acceptableAnswers.some(
-    (answer) => normalizeText(answer, interaction.scoringRule) === normalizedStudent,
+    (answer) => normalizeText(optionLabelForAnswer(answer, optionSet), interaction.scoringRule) === normalizedStudent,
   );
+};
+
+const optionSetIdForInteraction = (
+  interaction: ReadingV2Interaction,
+): string | undefined => {
+  if (
+    interaction.responseShape.kind === 'single-choice'
+    || interaction.responseShape.kind === 'multi-select'
+    || interaction.responseShape.kind === 'matching'
+  ) {
+    return interaction.responseShape.optionSetId;
+  }
+
+  return undefined;
 };
 
 const answerMapFromRuntime = (
@@ -276,9 +331,48 @@ const findProjectedTaskGroup = (
     taskGroup.interactions.some((interaction) => interaction.interactionId === interactionId),
   );
 
-const correctAnswerForInteraction = (interaction: ReadingV2Interaction): unknown => {
+const assertSubmittedAnswerMatchesProjection = (
+  answer: ReadingV2SubmittedAnswerRecord,
+  interaction: ReadingV2Interaction,
+  projection: ReadingV2DerivedProjection,
+): void => {
+  const projectedGroup = findProjectedTaskGroup(projection, answer.interactionId);
+  const projectedInteraction = projectedGroup?.interactions.find(
+    (candidate) => candidate.interactionId === answer.interactionId,
+  );
+
+  if (!projectedGroup || !projectedInteraction) {
+    throw new Error(`Reading V2 submitted interaction ${answer.interactionId} is not in the active projection.`);
+  }
+
+  if (answer.taskGroupId !== projectedGroup.taskGroupId || answer.taskGroupId !== interaction.taskGroupId) {
+    throw new Error(`Reading V2 submitted task group does not match interaction ${answer.interactionId}.`);
+  }
+
+  if (answer.displayNumber !== projectedInteraction.displayNumber) {
+    throw new Error(`Reading V2 submitted display number does not match interaction ${answer.interactionId}.`);
+  }
+
+  if (interaction.responseShape.kind === 'multi-select') {
+    if (!Array.isArray(answer.value)) {
+      throw new Error(`Reading V2 multi-select interaction ${answer.interactionId} requires an array answer.`);
+    }
+    return;
+  }
+
+  if (Array.isArray(answer.value)) {
+    throw new Error(`Reading V2 scalar interaction ${answer.interactionId} cannot accept an array answer.`);
+  }
+};
+
+const correctAnswerForInteraction = (
+  interaction: ReadingV2Interaction,
+  optionSet?: ReadingV2OptionSet,
+): unknown => {
   const acceptableAnswers = interaction.scoringRule.acceptableAnswers ?? [];
-  return interaction.scoringRule.orderMatters === false ? [...acceptableAnswers] : acceptableAnswers[0] ?? '';
+  const displayAnswers = acceptableAnswers.map((answer) => optionLabelForAnswer(answer, optionSet));
+
+  return interaction.scoringRule.orderMatters === false ? displayAnswers : displayAnswers[0] ?? '';
 };
 
 const truncateContext = (value: string, maxLength = 220): string => {
@@ -320,7 +414,7 @@ const stimulusExcerpt = (
     const labels = content.hotspots
       .filter((hotspot) => selectedAnchorIds.size === 0 || (hotspot.anchorId && selectedAnchorIds.has(hotspot.anchorId)))
       .map((hotspot) => hotspot.label);
-    return truncateContext([content.imageAlt, ...labels].filter(Boolean).join(' | '));
+    return truncateContext([content.imageUrl ? 'Diagram image provided' : '', ...labels].filter(Boolean).join(' | '));
   }
 
   return truncateContext(content.alt);
@@ -415,6 +509,14 @@ export const scoreReadingV2Attempt = (input: {
     }),
   );
 
+  Object.values(runtimeAnswers).forEach((answer) => {
+    const interaction = input.snapshot.document.interactions[answer.interactionId];
+    if (!interaction) {
+      throw new Error(`Reading V2 submitted interaction ${answer.interactionId} is not in the published snapshot.`);
+    }
+    assertSubmittedAnswerMatchesProjection(answer, interaction, input.projection);
+  });
+
   const interactions: ReadingV2ResultInteraction[] = Object.values(input.snapshot.document.interactions)
     .map((interaction) => {
       const taskGroup = input.snapshot.document.taskGroups[interaction.taskGroupId];
@@ -427,7 +529,9 @@ export const scoreReadingV2Attempt = (input: {
       const projectedInteraction = projectedGroup?.interactions.find(
         (candidate) => candidate.interactionId === interaction.interactionId,
       );
-      const score = answerMatches(answer?.value, interaction) ? interaction.scoringRule.maxScore : 0;
+      const optionSetId = optionSetIdForInteraction(interaction);
+      const optionSet = optionSetId ? input.snapshot.document.optionSets[optionSetId] : undefined;
+      const score = answerMatches(answer?.value, interaction, optionSet) ? interaction.scoringRule.maxScore : 0;
 
       return {
         interactionId: interaction.interactionId,
@@ -436,7 +540,7 @@ export const scoreReadingV2Attempt = (input: {
         taskFamily: taskGroup.engineeringFamily,
         officialTaskType: taskGroup.officialTaskType,
         studentAnswer: answer?.value ?? '',
-        scoredAnswer: correctAnswerForInteraction(interaction),
+        scoredAnswer: correctAnswerForInteraction(interaction, optionSet),
         score,
         maxScore: interaction.scoringRule.maxScore,
         reviewState: 'released',
@@ -778,7 +882,7 @@ export const buildReadingV2ResultPersistencePlan = (input: {
   const materialId = input.attempt.context.materialId ?? input.result.testId;
   const studentIndexRow = buildReadingV2StudentIndexRow(savedResult);
   const sessionIndexRow = buildReadingV2SessionIndexRow(savedResult);
-  const operations: ReadingV2ResultPersistencePlan['operations'] = [
+  const operations: ReadingV2ResultPersistenceOperation[] = [
     {
       key: `reading-v2-attempt:${input.attempt.attemptId}`,
       path: readingV2StoragePaths.attempts(input.attempt.attemptId),

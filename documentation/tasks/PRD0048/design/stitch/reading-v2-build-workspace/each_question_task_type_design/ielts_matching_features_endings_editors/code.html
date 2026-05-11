@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IELTS Reading Authoring Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Georgia&amp;family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "tertiary": "#4f5254",
+                            "on-tertiary-fixed-variant": "#444749",
+                            "on-primary": "#ffffff",
+                            "on-surface": "#0b1c30",
+                            "on-error-container": "#93000a",
+                            "on-error": "#ffffff",
+                            "primary-fixed-dim": "#80d5cb",
+                            "surface-container-low": "#eff4ff",
+                            "surface-tint": "#006a63",
+                            "on-surface-variant": "#3e4947",
+                            "secondary-fixed-dim": "#bcc7de",
+                            "surface-dim": "#cbdbf5",
+                            "inverse-surface": "#213145",
+                            "inverse-primary": "#80d5cb",
+                            "surface-container": "#e5eeff",
+                            "on-tertiary": "#ffffff",
+                            "on-background": "#0b1c30",
+                            "secondary": "#545f73",
+                            "outline": "#6e7977",
+                            "on-primary-fixed": "#00201d",
+                            "on-primary-container": "#a3faef",
+                            "on-tertiary-container": "#e9ebed",
+                            "tertiary-container": "#676a6c",
+                            "on-secondary-fixed": "#111c2d",
+                            "surface-container-high": "#dce9ff",
+                            "surface-container-lowest": "#ffffff",
+                            "primary": "#005c55",
+                            "on-secondary-fixed-variant": "#3c475a",
+                            "on-primary-fixed-variant": "#00504a",
+                            "inverse-on-surface": "#eaf1ff",
+                            "surface-bright": "#f8f9ff",
+                            "surface": "#f8f9ff",
+                            "primary-fixed": "#9cf2e8",
+                            "tertiary-fixed-dim": "#c4c7c9",
+                            "secondary-fixed": "#d8e3fb",
+                            "tertiary-fixed": "#e0e3e5",
+                            "error-container": "#ffdad6",
+                            "surface-container-highest": "#d3e4fe",
+                            "primary-container": "#0f766e",
+                            "on-secondary": "#ffffff",
+                            "surface-variant": "#d3e4fe",
+                            "background": "#f8f9ff",
+                            "outline-variant": "#bdc9c6",
+                            "on-tertiary-fixed": "#191c1e",
+                            "error": "#ba1a1a",
+                            "secondary-container": "#d5e0f8",
+                            "on-secondary-container": "#586377"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.125rem",
+                            "lg": "0.25rem",
+                            "xl": "0.5rem",
+                            "full": "0.75rem"
+                    },
+                    "spacing": {
+                            "xs": "8px",
+                            "xl": "32px",
+                            "lg": "24px",
+                            "md": "16px",
+                            "sm": "12px",
+                            "gutter": "24px",
+                            "container-max": "1280px",
+                            "base": "4px"
+                    },
+                    "fontFamily": {
+                            "label-bold": ["Inter"],
+                            "h3": ["Inter"],
+                            "h1": ["Inter"],
+                            "code": ["monospace"],
+                            "body-reading": ["Georgia"],
+                            "label-sm": ["Inter"],
+                            "h2": ["Inter"],
+                            "body-ui": ["Inter"]
+                    },
+                    "fontSize": {
+                            "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                            "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                            "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                            "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                            "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                            "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                            "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                            "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-ui text-body-ui h-screen flex flex-col overflow-hidden">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-white dark:bg-slate-900 docked full-width top-0 border-b border-b border-slate-200 dark:border-slate-800 flex justify-between items-center px-6 h-16 w-full z-50">
+<div class="flex items-center gap-xl">
+<span class="text-lg font-bold text-teal-700 dark:text-teal-500">IELTS Authoring</span>
+<nav class="flex gap-lg h-full items-end pt-4">
+<a class="font-['Inter'] text-sm font-medium tracking-tight text-teal-700 dark:text-teal-400 border-b-2 border-teal-700 dark:border-teal-400 pb-4 cursor-pointer active:opacity-70 transition-opacity" href="#">Passage 1</a>
+<a class="font-['Inter'] text-sm font-medium tracking-tight text-slate-500 dark:text-slate-400 pb-4 hover:text-teal-600 dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-70 transition-opacity" href="#">Passage 2</a>
+<a class="font-['Inter'] text-sm font-medium tracking-tight text-slate-500 dark:text-slate-400 pb-4 hover:text-teal-600 dark:hover:text-teal-300 transition-colors cursor-pointer active:opacity-70 transition-opacity" href="#">Passage 3</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<button class="font-label-bold text-label-bold text-outline border border-outline px-md py-sm rounded hover:bg-surface-container-low transition-colors">Save</button>
+<button class="font-label-bold text-label-bold bg-primary text-on-primary px-md py-sm rounded hover:bg-primary-container transition-colors">Publish</button>
+<div class="flex gap-sm ml-sm text-teal-700 dark:text-teal-400">
+<span class="material-symbols-outlined cursor-pointer hover:opacity-80" data-icon="settings">settings</span>
+<span class="material-symbols-outlined cursor-pointer hover:opacity-80" data-icon="help_outline">help_outline</span>
+</div>
+<img alt="Teacher Profile" class="w-8 h-8 rounded-full ml-sm object-cover border border-outline-variant" data-alt="A close-up studio portrait of a professional educator looking slightly off-camera with a confident, approachable expression. The lighting is bright and even, casting soft shadows to emphasize the modern, clean aesthetic. The background is a pure, flat light grey to blend seamlessly with the bright UI canvas. The image feels sharp, authoritative, yet warm." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCVxCerqce3L17s_F_RrEfMGhzcHLrASP0pwBlYlVGXuC1ltzaI0_6UWEO8ET9Qe6IDRykHAhJv_AdGNXoQVMTqdmfSTIrygX2emqUoVW0Qc5M-Hukkownu78SU72dDSWskMIj09szgomUPHU7_R0Yn0YfiqJY5H8SjxB5BpWI4MSod_XE6nqwyv2a2p91ju2qafu8FiQB12_qNGxyM1mjA4xbKKOo3wvfPcSJK8WQ1xfiqgj_Qc8lAZWba5BKZxKe5JTdRa3Cqs4"/>
+</div>
+</header>
+<!-- Main Workspace -->
+<main class="flex-1 flex overflow-hidden">
+<!-- Left Panel: Reading Passage Editor -->
+<section class="w-1/2 flex flex-col border-r border-outline-variant bg-surface-container-lowest overflow-hidden">
+<div class="px-xl py-lg border-b border-outline-variant flex items-center justify-between bg-surface-bright">
+<input class="font-h2 text-h2 text-on-surface bg-transparent border-none focus:ring-0 w-full outline-none placeholder:text-outline p-0" placeholder="Enter passage title..." type="text" value="The Evolution of Urban Architecture"/>
+</div>
+<!-- Simulated Text Editor Toolbar -->
+<div class="flex items-center gap-sm px-xl py-sm border-b border-outline-variant bg-surface-container-lowest text-outline">
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_bold</span></button>
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_italic</span></button>
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_underlined</span></button>
+<div class="w-[1px] h-4 bg-outline-variant mx-xs"></div>
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_align_left</span></button>
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_align_center</span></button>
+<button class="hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">format_align_right</span></button>
+</div>
+<!-- Editor Canvas -->
+<div class="flex-1 overflow-y-auto px-xl py-xl pb-32">
+<div class="max-w-[75ch] mx-auto space-y-lg font-body-reading text-body-reading text-on-surface">
+<p>Urban architecture has undergone a radical transformation over the past century, moving from purely functional structures to intricate designs that attempt to balance high-density living with environmental sustainability. In the early 20th century, the advent of mass-produced steel and elevators led to the proliferation of skyscrapers, fundamentally altering the skyline of major cities.</p>
+<p>However, modern architectural theories increasingly emphasize the psychological impact of spaces on their inhabitants. Biophilic design, which incorporates natural lighting, ventilation, and vegetation into the built environment, has seen a resurgence. This approach argues that human beings have an innate connection to nature, and that integrating organic elements into urban landscapes can significantly reduce stress and improve cognitive function.</p>
+<p>Critics of contemporary mega-structures argue that they often lack the human scale necessary to foster community interaction. While towering glass edifices symbolize economic prowess, they can also create alienating environments at street level, leading to phenomena such as urban heat islands and wind tunnels.</p>
+</div>
+</div>
+</section>
+<!-- Right Panel: Task Editors -->
+<section class="w-1/2 bg-surface flex flex-col overflow-hidden relative">
+<div class="px-xl py-md border-b border-outline-variant bg-surface-bright flex justify-between items-center z-10 sticky top-0">
+<h2 class="font-h3 text-h3 text-on-surface">Questions &amp; Tasks</h2>
+<button class="flex items-center gap-xs font-label-sm text-label-sm text-primary hover:text-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Task
+                </button>
+</div>
+<div class="flex-1 overflow-y-auto p-xl space-y-xl pb-32">
+<!-- Task 1: Matching Features Editor -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg shadow-sm">
+<div class="flex justify-between items-start mb-md pb-md border-b border-outline-variant">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<h3 class="font-h3 text-h3 text-on-surface">Questions 21-25</h3>
+<span class="bg-secondary-container text-on-secondary-container px-sm py-base rounded-full font-label-sm text-label-sm">Matching Features</span>
+</div>
+</div>
+<div class="flex gap-sm text-outline">
+<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-[20px]">content_copy</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-error text-[20px]">delete</span>
+</div>
+</div>
+<!-- Features List -->
+<div class="mb-lg">
+<label class="font-label-bold text-label-bold text-on-surface block mb-sm">Features (A-E)</label>
+<div class="border border-outline-variant rounded p-sm bg-surface-bright space-y-base font-body-ui text-body-ui text-on-surface min-h-[100px]" contenteditable="true">
+<div><strong>A</strong> Early 20th-century skyscrapers</div>
+<div><strong>B</strong> Biophilic design</div>
+<div><strong>C</strong> Mega-structures</div>
+<div><strong>D</strong> Urban heat islands</div>
+<div><strong>E</strong> Human-scale architecture</div>
+</div>
+</div>
+<!-- Options Toggle -->
+<div class="flex items-center gap-sm mb-lg">
+<input checked="" class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary" id="nb-toggle" type="checkbox"/>
+<label class="font-body-ui text-body-ui text-on-surface-variant cursor-pointer" for="nb-toggle">NB You may use any letter more than once</label>
+</div>
+<!-- Statements Builder -->
+<div>
+<label class="font-label-bold text-label-bold text-on-surface block mb-sm">Statements to Match</label>
+<div class="space-y-sm">
+<!-- Row 1 -->
+<div class="flex items-start gap-sm group">
+<span class="material-symbols-outlined text-outline-variant cursor-grab mt-2 opacity-50 group-hover:opacity-100">drag_indicator</span>
+<div class="w-16">
+<select class="w-full bg-surface-bright border border-outline-variant text-on-surface font-body-ui text-body-ui rounded focus:ring-primary focus:border-primary p-2 h-10">
+<option>A</option>
+<option>B</option>
+<option selected="">C</option>
+<option>D</option>
+<option>E</option>
+</select>
+</div>
+<div class="flex-1">
+<input class="w-full bg-surface-bright border border-outline-variant text-on-surface font-body-ui text-body-ui rounded focus:ring-primary focus:border-primary p-2 h-10" type="text" value="Are frequently criticized for isolating individuals at street level."/>
+</div>
+<button class="mt-2 text-outline hover:text-error opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+<!-- Row 2 -->
+<div class="flex items-start gap-sm group">
+<span class="material-symbols-outlined text-outline-variant cursor-grab mt-2 opacity-50 group-hover:opacity-100">drag_indicator</span>
+<div class="w-16">
+<select class="w-full bg-surface-bright border border-outline-variant text-on-surface font-body-ui text-body-ui rounded focus:ring-primary focus:border-primary p-2 h-10">
+<option>A</option>
+<option selected="">B</option>
+<option>C</option>
+<option>D</option>
+<option>E</option>
+</select>
+</div>
+<div class="flex-1">
+<input class="w-full bg-surface-bright border border-outline-variant text-on-surface font-body-ui text-body-ui rounded focus:ring-primary focus:border-primary p-2 h-10" type="text" value="Aims to integrate natural elements to improve cognitive well-being."/>
+</div>
+<button class="mt-2 text-outline hover:text-error opacity-0 group-hover:opacity-100 transition-opacity"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+<button class="mt-md flex items-center gap-xs font-label-bold text-label-bold text-primary hover:text-primary-fixed-dim transition-colors ml-8">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Statement
+                        </button>
+</div>
+</div>
+<!-- Task 2: Matching Sentence Endings Editor (Empty State) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg shadow-sm">
+<div class="flex justify-between items-start mb-md pb-md border-b border-outline-variant">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<h3 class="font-h3 text-h3 text-on-surface">Questions 26-30</h3>
+<span class="bg-secondary-container text-on-secondary-container px-sm py-base rounded-full font-label-sm text-label-sm">Matching Sentence Endings</span>
+</div>
+</div>
+<div class="flex gap-sm text-outline">
+<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-[20px]">content_copy</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-error text-[20px]">delete</span>
+</div>
+</div>
+<!-- Endings List -->
+<div class="mb-lg">
+<label class="font-label-bold text-label-bold text-on-surface block mb-sm">Endings (A-H)</label>
+<div class="border border-outline-variant rounded p-sm bg-surface-bright space-y-base font-body-ui text-body-ui text-on-surface min-h-[100px]" contenteditable="true">
+<div><strong>A</strong> due to the introduction of mass-produced steel.</div>
+<div><strong>B</strong> despite the economic benefits they bring to cities.</div>
+<div><strong>C</strong> resulting in environments that lack human scale.</div>
+<div><strong>D</strong> because they inherently foster community interaction.</div>
+<div><strong>E</strong> leading to a decrease in urban heat islands.</div>
+<div><strong>F</strong> as a response to the psychological needs of urban dwellers.</div>
+<div><strong>G</strong> while simultaneously reducing the need for artificial lighting.</div>
+<div><strong>H</strong> by increasing the density of living spaces drastically.</div>
+</div>
+</div>
+<!-- Beginnings Builder (Empty State) -->
+<div>
+<label class="font-label-bold text-label-bold text-on-surface block mb-sm">Sentence Beginnings</label>
+<div class="flex flex-col items-center justify-center p-xl border-2 border-dashed border-outline-variant rounded-lg bg-surface-bright mt-sm">
+<span class="material-symbols-outlined text-[48px] text-outline mb-md" data-weight="fill">list_alt</span>
+<p class="font-body-ui text-body-ui text-on-surface-variant text-center mb-lg">No sentence beginnings added yet</p>
+<button class="bg-primary text-on-primary font-label-bold text-label-bold px-md py-sm rounded flex items-center gap-xs hover:bg-primary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Sentence Beginning
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</body></html>

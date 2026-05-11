@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Assessment Builder - IELTS Reading</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Georgia:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#bdc9c6",
+                        "surface-container-highest": "#d3e4fe",
+                        "surface": "#f8f9ff",
+                        "on-secondary-fixed": "#111c2d",
+                        "primary-fixed": "#9cf2e8",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "primary": "#005c55",
+                        "secondary": "#545f73",
+                        "on-primary-container": "#a3faef",
+                        "outline": "#6e7977",
+                        "on-secondary-container": "#586377",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "inverse-surface": "#213145",
+                        "secondary-container": "#d5e0f8",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-container": "#0f766e",
+                        "on-background": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#e9ebed",
+                        "on-surface-variant": "#3e4947",
+                        "surface-bright": "#f8f9ff",
+                        "on-surface": "#0b1c30",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#e5eeff",
+                        "surface-container-high": "#dce9ff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "tertiary": "#4f5254",
+                        "tertiary-container": "#676a6c",
+                        "on-tertiary-fixed": "#191c1e",
+                        "surface-tint": "#006a63",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "surface-container-low": "#eff4ff",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#80d5cb",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#d8e3fb",
+                        "inverse-primary": "#80d5cb",
+                        "background": "#f8f9ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-primary-fixed": "#00201d",
+                        "surface-dim": "#cbdbf5",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1280px",
+                        "xl": "32px",
+                        "base": "4px",
+                        "xs": "8px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Inter"],
+                        "label-bold": ["Inter"],
+                        "body-ui": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h1": ["Inter"],
+                        "code": ["monospace"],
+                        "h2": ["Inter"],
+                        "body-reading": ["Georgia"]
+                    },
+                    "fontSize": {
+                        "h3": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "label-bold": ["14px", { "lineHeight": "1", "fontWeight": "600" }],
+                        "body-ui": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "h1": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "code": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "h2": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-reading": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-ui min-h-screen flex flex-col antialiased">
+<!-- TopNavBar -->
+<header class="docked full-width top-0 border-b border-slate-200 dark:border-slate-800 flat no shadows bg-white dark:bg-slate-900 flex flex-col w-full shrink-0 z-50">
+<div class="flex items-center justify-between px-8 h-16 w-full">
+<div class="text-lg font-bold tracking-tight text-teal-700 dark:text-teal-500 font-h3 text-h3 uppercase">
+                IELTS Reading V2: Build Test
+            </div>
+<div class="flex items-center gap-4">
+<button class="font-label-bold text-label-bold text-outline hover:text-on-surface transition-colors px-4 py-2 border border-outline-variant rounded-DEFAULT hover:bg-surface-container">Save Draft</button>
+<button class="font-label-bold text-label-bold bg-primary text-on-primary px-6 py-2 rounded-xl hover:bg-surface-tint transition-colors flex items-center gap-2">
+                Publish
+            </button>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-4 ml-2">
+<button aria-label="check_circle" class="p-2 text-outline hover:text-primary transition-colors rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+<button aria-label="visibility" class="p-2 text-outline hover:text-primary transition-colors rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+<button aria-label="exit_to_app" class="p-2 text-outline hover:text-error transition-colors rounded-full hover:bg-error-container">
+<span class="material-symbols-outlined">exit_to_app</span>
+</button>
+</div>
+</div>
+</div>
+<div class="px-8 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex w-full">
+<nav class="flex items-center gap-6">
+<a class="text-teal-700 dark:text-teal-400 border-b-2 border-teal-700 dark:border-teal-500 py-3 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 1</a>
+<a class="text-slate-500 dark:text-slate-400 py-3 hover:text-teal-600 dark:hover:text-teal-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 2</a>
+<a class="text-slate-500 dark:text-slate-400 py-3 hover:text-teal-600 dark:hover:text-teal-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer active:opacity-80 transition-opacity" href="#">Passage 3</a>
+</nav>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<!-- Main Workspace (Split Pane) -->
+<main class="flex-1 flex overflow-hidden bg-surface-container-low">
+<!-- Left Pane: Passage Editor -->
+<section class="w-1/2 h-full flex flex-col border-r border-outline-variant bg-surface-container-lowest">
+<!-- Toolbar -->
+<div class="h-12 border-b border-outline-variant bg-surface-bright flex items-center px-4 gap-2 shrink-0">
+<div class="font-label-bold text-label-bold text-secondary mr-2">Passage Text</div>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<button class="p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-DEFAULT transition-colors"><span class="material-symbols-outlined text-[20px]">format_bold</span></button>
+<button class="p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-DEFAULT transition-colors"><span class="material-symbols-outlined text-[20px]">format_italic</span></button>
+<button class="p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-DEFAULT transition-colors"><span class="material-symbols-outlined text-[20px]">format_underlined</span></button>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<button class="p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-DEFAULT transition-colors"><span class="material-symbols-outlined text-[20px]">format_list_bulleted</span></button>
+<button class="p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-DEFAULT transition-colors"><span class="material-symbols-outlined text-[20px]">format_list_numbered</span></button>
+<div class="flex-1"></div>
+<button class="font-label-sm text-label-sm text-primary flex items-center gap-1 hover:bg-primary-container/10 px-2 py-1 rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined text-[16px]">spellcheck</span> Check
+                    </button>
+</div>
+<!-- Editor Canvas -->
+<div class="flex-1 overflow-y-auto p-8 lg:p-12">
+<div class="max-w-[800px] mx-auto">
+<input class="w-full font-h1 text-h1 text-on-surface bg-transparent border-none focus:ring-0 p-0 mb-6 placeholder:text-outline-variant" placeholder="Passage Title" type="text" value="The History of the Bicycle"/>
+<div class="font-body-reading text-body-reading text-on-surface space-y-6 outline-none" contenteditable="true">
+<p>The bicycle is a remarkable piece of engineering that has evolved significantly over the past two centuries. Initially conceptualized as a simple wooden frame with two wheels, it has transformed into a highly efficient mode of transport and recreation. The earliest iteration, often attributed to Karl Drais in 1817, was known as the "running machine" or <i>Laufmaschine</i>. It lacked pedals, requiring the rider to push off the ground with their feet to generate forward momentum.</p>
+<p>It wasn't until the 1860s that pedals were attached directly to the front wheel, giving birth to the "velocipede," popularly known as the "boneshaker" due to its rigid frame and iron-banded wooden wheels, which made for an incredibly uncomfortable ride on the cobbled streets of the era. To increase speed, inventors enlarged the front wheel, leading to the iconic but precarious "penny-farthing" in the 1870s.</p>
+<p>The true revolution occurred with the development of the "safety bicycle" in the late 1880s. Featuring two wheels of equal size and a chain-driven rear wheel, it offered stability and ease of use, making cycling accessible to a much wider demographic. The subsequent invention of pneumatic tires by John Boyd Dunlop further smoothed the ride, cementing the bicycle's place in modern society.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Pane: Questions Editor -->
+<section class="w-1/2 h-full flex flex-col bg-surface-container-lowest">
+<!-- Toolbar -->
+<div class="h-12 border-b border-outline-variant bg-surface-bright flex items-center justify-between px-4 shrink-0">
+<div class="font-label-bold text-label-bold text-secondary">Questions (1-14)</div>
+<button class="font-label-sm text-label-sm bg-surface-container border border-outline-variant text-on-surface px-3 py-1.5 rounded-DEFAULT flex items-center gap-1 hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span> Add Module
+                    </button>
+</div>
+<!-- Questions Canvas -->
+<div class="flex-1 overflow-y-auto p-6 space-y-xl">
+<!-- Module 1: Sentence Completion -->
+<div class="bg-white border border-outline-variant rounded-lg p-6 relative group">
+<div class="absolute -left-3 top-6 bottom-6 w-6 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+<span class="material-symbols-outlined text-outline">drag_indicator</span>
+</div>
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface mb-1">Sentence Completion</h3>
+<p class="font-label-sm text-label-sm text-secondary">Questions 1-5</p>
+</div>
+<div class="flex gap-2">
+<button class="p-1 text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-1 text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 rounded-DEFAULT border border-outline-variant mb-6">
+<div class="font-label-bold text-label-bold text-on-surface mb-2">Instructions</div>
+<input class="w-full font-body-ui text-body-ui text-on-surface bg-white border border-outline-variant rounded-DEFAULT px-3 py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none" type="text" value="Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer."/>
+</div>
+<div class="space-y-4">
+<!-- Q1 -->
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 shrink-0 bg-surface-variant rounded-full flex items-center justify-center font-label-bold text-label-bold text-on-surface border border-outline-variant mt-1">1</div>
+<div class="flex-1 space-y-2">
+<textarea class="w-full font-body-ui text-body-ui text-on-surface bg-transparent border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-1 resize-none outline-none" placeholder="Enter sentence with [blank]..." rows="2">Karl Drais's 1817 invention was propelled by the rider pushing their [blank] against the ground.</textarea>
+<div class="flex items-center gap-3">
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">Answer Key:</span>
+<input class="font-code text-code text-primary bg-primary-fixed/20 border border-primary-fixed px-2 py-1 rounded-DEFAULT w-48 focus:outline-none focus:border-primary" type="text" value="feet"/>
+</div>
+</div>
+<button class="mt-2 text-outline hover:text-error"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<!-- Q2 Error State -->
+<div class="flex items-start gap-4 p-3 -mx-3 bg-error-container/20 border border-error/30 rounded-DEFAULT">
+<div class="w-8 h-8 shrink-0 bg-surface-variant rounded-full flex items-center justify-center font-label-bold text-label-bold text-on-surface border border-outline-variant mt-1">2</div>
+<div class="flex-1 space-y-2">
+<textarea class="w-full font-body-ui text-body-ui text-on-surface bg-transparent border-b border-error focus:border-error focus:ring-0 px-0 py-1 resize-none outline-none" placeholder="Enter sentence with [blank]..." rows="2">The early pedals were fixed to the [blank] of the velocipede.</textarea>
+<div class="flex items-center gap-3">
+<span class="font-label-sm text-label-sm text-error uppercase tracking-wider font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span> Answer Required:</span>
+<input class="font-code text-code text-on-surface bg-white border border-error px-2 py-1 rounded-DEFAULT w-48 focus:outline-none focus:border-error focus:ring-1 focus:ring-error" placeholder="Enter accepted answer(s)" type="text"/>
+</div>
+</div>
+<button class="mt-2 text-outline hover:text-error"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+</div>
+<button class="mt-6 font-label-bold text-label-bold text-primary flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Question
+                        </button>
+</div>
+<!-- Module 2: Note Completion -->
+<div class="bg-white border border-outline-variant rounded-lg p-6 relative group">
+<div class="absolute -left-3 top-6 bottom-6 w-6 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+<span class="material-symbols-outlined text-outline">drag_indicator</span>
+</div>
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface mb-1">Note Completion</h3>
+<p class="font-label-sm text-label-sm text-secondary">Questions 6-10</p>
+</div>
+<div class="flex gap-2">
+<button class="p-1 text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-1 text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</div>
+<div class="border border-outline-variant rounded-DEFAULT overflow-hidden">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant flex items-center justify-between">
+<input class="font-label-bold text-label-bold text-on-surface bg-transparent border-none p-0 focus:ring-0 w-2/3 uppercase tracking-wide" type="text" value="Evolution of the Bicycle Design"/>
+<div class="flex gap-1">
+<button class="p-1 bg-white border border-outline-variant rounded text-outline hover:text-on-surface"><span class="material-symbols-outlined text-[16px]">format_h1</span></button>
+<button class="p-1 bg-white border border-outline-variant rounded text-outline hover:text-on-surface"><span class="material-symbols-outlined text-[16px]">format_list_bulleted</span></button>
+</div>
+</div>
+<div class="p-6 bg-white space-y-4">
+<!-- Note Header -->
+<div class="flex items-center gap-2">
+<span class="font-bold text-on-surface">The "Boneshaker" (1860s)</span>
+</div>
+<!-- Note Bullet -->
+<div class="flex items-start gap-3 pl-4">
+<span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-outline-variant shrink-0"></span>
+<div class="flex-1 flex flex-wrap items-center gap-2 font-body-ui text-body-ui">
+<span>Featured a stiff frame and wheels made of wood with</span>
+<div class="relative inline-flex items-center">
+<span class="absolute -left-6 font-label-bold text-label-bold text-secondary">6</span>
+<input class="w-24 border-b-2 border-primary text-center px-1 py-0 bg-surface-container-lowest focus:outline-none focus:bg-surface-container-low font-code text-code text-primary h-8" readonly="" type="text" value="[blank]"/>
+</div>
+<span>bands.</span>
+</div>
+<div class="flex items-center gap-2 border border-outline-variant rounded-DEFAULT px-2 py-1 bg-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-secondary">Key:</span>
+<input class="w-20 font-code text-code bg-transparent border-none p-0 focus:ring-0 text-sm" type="text" value="iron"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Module 3: Summary Completion -->
+<div class="bg-white border border-outline-variant rounded-lg p-6 relative group">
+<div class="absolute -left-3 top-6 bottom-6 w-6 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+<span class="material-symbols-outlined text-outline">drag_indicator</span>
+</div>
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface mb-1">Summary Completion</h3>
+<p class="font-label-sm text-label-sm text-secondary">Questions 11-14</p>
+</div>
+<div class="flex gap-2">
+<button class="p-1 text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="p-1 text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</div>
+<div class="bg-surface p-6 rounded-DEFAULT border border-outline-variant/50">
+<div class="font-body-ui text-body-ui text-on-surface leading-relaxed">
+                                The introduction of the 'safety bicycle' in the late 1880s was a major turning point. Unlike previous models, it had two wheels of
+                                <span class="inline-flex items-center mx-1 relative">
+<span class="absolute -top-3 left-1 font-label-sm text-label-sm text-secondary text-[10px]">11</span>
+<select class="appearance-none bg-white border border-primary text-primary font-code text-code py-1 pl-2 pr-6 rounded-DEFAULT focus:outline-none focus:ring-1 focus:ring-primary h-8">
+<option>equal size</option>
+<option>different sizes</option>
+</select>
+<span class="material-symbols-outlined absolute right-1 text-[16px] text-primary pointer-events-none">arrow_drop_down</span>
+</span>
+                                and utilized a chain to drive the rear wheel. This design provided much greater
+                                <span class="inline-flex items-center mx-1 relative">
+<span class="absolute -top-3 left-1 font-label-sm text-label-sm text-secondary text-[10px]">12</span>
+<input class="w-24 border-b-2 border-primary text-center px-1 py-0 bg-transparent focus:outline-none focus:bg-surface-container-low font-code text-code text-primary h-8" type="text" value="stability"/>
+</span>
+                                for riders.
+                            </div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+</body></html>

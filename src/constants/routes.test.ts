@@ -15,12 +15,16 @@ describe('Route Constants', () => {
       expect(ROUTES.SESSIONS).toBe('/sessions');
       expect(ROUTES.TEACHER_STUDENT_HISTORY).toBe('/teacher/student/:studentId/history');
       expect(ROUTES.RESULT_DETAIL).toBe('/result/:resultId');
+      expect(ROUTES.TEACHER_READING_V2_CREATE).toBe('/teacher/reading-v2/create');
+      expect(ROUTES.TEACHER_READING_V2_IMPORT).toBe('/teacher/reading-v2/import');
+      expect(ROUTES.TEACHER_READING_V2_DRAFT).toBe('/teacher/reading-v2/drafts/:draftId');
+      expect(ROUTES.TEACHER_READING_V2_REVISE).toBe('/teacher/reading-v2/materials/:materialId/revise');
     });
 
     it('should have consistent naming convention', () => {
       const routeNames = Object.keys(ROUTES);
       routeNames.forEach(name => {
-        expect(name).toMatch(/^[A-Z_]+$/); // All uppercase with underscores
+        expect(name).toMatch(/^[A-Z0-9_]+$/); // All uppercase with underscores and numeric suffixes
       });
     });
 
@@ -35,7 +39,7 @@ describe('Route Constants', () => {
       paths.forEach(path => {
         const segments = path.split('/').filter(s => s && !s.startsWith(':'));
         segments.forEach(segment => {
-          expect(segment).toMatch(/^[a-z]+(-[a-z]+)*$/);
+          expect(segment).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
         });
       });
     });
@@ -91,6 +95,16 @@ describe('Route Constants', () => {
         expect(path).toBe('/teacher/student/student-123/history');
       });
 
+      it('should handle reading v2 draft parameters', () => {
+        const path = buildRoute('TEACHER_READING_V2_DRAFT', { draftId: 'draft-123' });
+        expect(path).toBe('/teacher/reading-v2/drafts/draft-123');
+      });
+
+      it('should handle reading v2 revise parameters', () => {
+        const path = buildRoute('TEACHER_READING_V2_REVISE', { materialId: 'material-123' });
+        expect(path).toBe('/teacher/reading-v2/materials/material-123/revise');
+      });
+
       it('should ignore undefined parameter values', () => {
         const path = buildRoute('STUDENT_TEST', { sessionCode: undefined });
         expect(path).toBe('/student-test/:sessionCode');
@@ -140,8 +154,12 @@ describe('Route Constants', () => {
           'SESSIONS',
           'TEACHER_STUDENT_HISTORY',
           'RESULT_DETAIL',
+          'TEACHER_READING_V2_CREATE',
+          'TEACHER_READING_V2_IMPORT',
+          'TEACHER_READING_V2_DRAFT',
+          'TEACHER_READING_V2_REVISE',
         ];
-        
+
         routes.forEach(route => {
           expect(() => buildRoute(route)).not.toThrow();
         });
@@ -272,6 +290,19 @@ describe('Route Constants', () => {
       it('should extract from quiz feedback URL', () => {
         const params = extractParams('TEACHER_FEEDBACK', '/teacher-feedback/GAME_789');
         expect(params).toEqual({ gameSessionId: 'GAME_789' });
+      });
+
+      it('should extract reading v2 draft params', () => {
+        const params = extractParams('TEACHER_READING_V2_DRAFT', '/teacher/reading-v2/drafts/draft-123');
+        expect(params).toEqual({ draftId: 'draft-123' });
+      });
+
+      it('should extract reading v2 revise params', () => {
+        const params = extractParams(
+          'TEACHER_READING_V2_REVISE',
+          '/teacher/reading-v2/materials/material-123/revise',
+        );
+        expect(params).toEqual({ materialId: 'material-123' });
       });
     });
   });

@@ -19,3 +19,4 @@ export type { ScreenSize } from './hooks/useScreenSize';
 export { useOnlineStatus } from './hooks/useOnlineStatus';
 export { useAppLifecycle } from './hooks/useAppLifecycle';
 export { useDocumentTitle } from './hooks/useDocumentTitle';
+export { useClipboard } from './hooks/useClipboard';

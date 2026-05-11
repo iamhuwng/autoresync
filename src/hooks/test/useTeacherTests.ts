@@ -4,63 +4,110 @@ import { firestore as db } from '../../services/firebase';
 import { ref, onValue, remove, update as dbUpdate } from 'firebase/database';
 import { doc, deleteDoc } from 'firebase/firestore';
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
+import {
+  getReadingV2TeacherLobbyIndexQuery,
+  getReadingV2TeacherLobbyTests,
+  mergeReadingV2TeacherLobbyTests,
+} from '../../services/reading-v2/readingV2TeacherLobbyMaterials.service';
 
 interface UseTeacherTestsOptions {
   realtime?: boolean;
   skipCache?: boolean;
+  ownerId?: string;
 }
 
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
-  const { realtime = true } = options;
+  const { ownerId, realtime = true, skipCache = false } = options;
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    const unsubscribers: Array<() => void> = [];
     let isSubscribed = true;
-    let skipFirstCall = true; // Prevent immediate cache invalidation
+    let skipFirstTestsCall = true;
+    let skipFirstReadingV2Call = true;
+
+    const loadTeacherTests = async (nextSkipCache = skipCache) => {
+      const [testList, readingV2Tests] = await Promise.all([
+        queryOptimizer.getAllTests(nextSkipCache),
+        getReadingV2TeacherLobbyTests(ownerId),
+      ]);
+
+      return mergeReadingV2TeacherLobbyTests(testList, readingV2Tests);
+    };
 
     const loadData = async () => {
       setLoading(true);
       try {
-        // Initial fetch with cache
-        const testList = await queryOptimizer.getAllTests();
+        const testList = await loadTeacherTests(skipCache);
         if (isSubscribed) {
           setTests(testList);
           setLoading(false);
+          setError(null);
         }
 
         if (realtime) {
-          // Real-time subscription
           const testsRef = ref(database, 'tests');
-          unsubscribe = onValue(testsRef, (snapshot) => {
+          unsubscribers.push(onValue(testsRef, () => {
             if (!isSubscribed) return;
 
-            // Skip first call (onValue fires immediately with current data)
-            if (skipFirstCall) {
-              skipFirstCall = false;
-              console.log('📝 [REALTIME] Skipping first test listener call (already have data)');
+            if (skipFirstTestsCall) {
+              skipFirstTestsCall = false;
+              console.log('[REALTIME] Skipping first test listener call (already have data)');
               return;
             }
 
-            const data = snapshot.val();
-            const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-            console.log('📝 [REALTIME] Tests updated:', list.length);
-            setTests(list);
-            setLoading(false);
-
-            // Only invalidate cache on actual updates
             queryOptimizer.invalidate('test', 'all');
+            void loadTeacherTests(true).then((list) => {
+              if (!isSubscribed) return;
+              console.log('[REALTIME] Tests updated:', list.length);
+              setTests(list);
+              setLoading(false);
+            }).catch((error: any) => {
+              if (!isSubscribed) return;
+              console.error('Error loading tests:', error);
+              setLoading(false);
+            });
           }, (error: any) => {
-            // Check if error is due to logout (permission denied is expected after logout)
             if (error.code === 'PERMISSION_DENIED') {
-              console.log('🔒 [REALTIME] Test listener stopped (user logged out)');
-              return; // Silent fail - user is logging out
+              console.log('[REALTIME] Test listener stopped (user logged out)');
+              return;
             }
             console.error('Error loading tests:', error);
             if (isSubscribed) setLoading(false);
-          });
+          }));
+
+          if (ownerId) {
+            unsubscribers.push(onValue(getReadingV2TeacherLobbyIndexQuery(ownerId), () => {
+              if (!isSubscribed) return;
+
+              if (skipFirstReadingV2Call) {
+                skipFirstReadingV2Call = false;
+                console.log('[REALTIME] Skipping first Reading V2 lobby listener call (already have data)');
+                return;
+              }
+
+              queryOptimizer.invalidate('test', 'all');
+              void loadTeacherTests(true).then((list) => {
+                if (!isSubscribed) return;
+                console.log('[REALTIME] Reading V2 lobby materials updated:', list.length);
+                setTests(list);
+                setLoading(false);
+              }).catch((error: any) => {
+                if (!isSubscribed) return;
+                console.error('Error loading Reading V2 lobby materials:', error);
+                setLoading(false);
+              });
+            }, (error: any) => {
+              if (error.code === 'PERMISSION_DENIED') {
+                console.log('[REALTIME] Reading V2 lobby listener stopped (user logged out)');
+                return;
+              }
+              console.error('Error loading Reading V2 lobby materials:', error);
+              if (isSubscribed) setLoading(false);
+            }));
+          }
         }
       } catch (error) {
         console.error('Error in data loading:', error);
@@ -75,14 +122,19 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
 
     return () => {
       isSubscribed = false;
-      if (unsubscribe) unsubscribe();
+      unsubscribers.forEach((unsubscribe) => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      });
     };
-  }, [realtime]);
+  }, [ownerId, realtime, skipCache]);
 
   const refresh = async () => {
     queryOptimizer.invalidate('test', 'all');
-    const testList = await queryOptimizer.getAllTests();
-    setTests(testList);
+    const [testList, readingV2Tests] = await Promise.all([
+      queryOptimizer.getAllTests(true),
+      getReadingV2TeacherLobbyTests(ownerId),
+    ]);
+    setTests(mergeReadingV2TeacherLobbyTests(testList, readingV2Tests));
   };
 
   const deleteTest = async (test: any) => {
@@ -90,7 +142,6 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     await remove(testRef);
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
 
-    // PRD-0027: Clean up Firestore thcs_library and draft if THCS test
     const isThcs = test.testType === 'THCS-THPT';
     if (isThcs) {
       try {
@@ -118,9 +169,9 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
         isPublic: !currentIsPublic,
         updatedAt: Date.now()
       });
-      console.log(`✅ ${type} ${id} isPublic toggled to ${!currentIsPublic}`);
+      console.log(`${type} ${id} isPublic toggled to ${!currentIsPublic}`);
     } catch (error) {
-      console.error(`❌ Error toggling isPublic for ${type}:`, error);
+      console.error(`Error toggling isPublic for ${type}:`, error);
       alert(`Failed to update ${type}. Please try again.`);
     }
   };

@@ -1,141 +1,124 @@
 "use strict";
-/**
- * Firebase Cloud Functions - Audio Proxy
- *
- * This function proxies audio requests from Google Drive,
- * adding the necessary CORS headers so the browser can
- * use native HTML5 <audio> elements with full JavaScript control.
- *
- * Why this is needed:
- * - Google Drive doesn't send CORS headers for audio files
- * - Without CORS, browsers block direct <audio src="..."> usage
- * - Falls back to iframe embed (no JS control)
- * - With this proxy, we get: play(), pause(), onended, volume control
- */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthCheck = exports.audioProxy = void 0;
+exports.readingV2Submit = void 0;
+const admin = require("firebase-admin");
 const functions = require("firebase-functions");
-const node_fetch_1 = require("node-fetch");
-// Allowed origins for CORS (add your domains here)
-const ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'https://kahut1.web.app',
-    'https://kahut1.firebaseapp.com',
-];
-/**
- * Audio Proxy Function
- *
- * Usage: https://your-project.cloudfunctions.net/audioProxy?id=GOOGLE_DRIVE_FILE_ID
- *
- * This streams the audio file from Google Drive through our server,
- * adding CORS headers so the client can use it with HTML5 Audio API.
- */
-exports.audioProxy = functions.https.onRequest(async (req, res) => {
-    // Handle CORS preflight
-    const origin = req.headers.origin || '';
-    const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin) || origin.includes('localhost');
-    // Set CORS headers
-    if (isAllowedOrigin) {
-        res.set('Access-Control-Allow-Origin', origin);
+const readingV2SubmitCore_1 = require("./readingV2SubmitCore");
+if (admin.apps.length === 0) {
+    admin.initializeApp();
+}
+const db = admin.database();
+const setCorsHeaders = (response, origin) => {
+    response.set('Access-Control-Allow-Origin', origin || '*');
+    response.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    response.set('Vary', 'Origin');
+};
+const sendJson = (response, status, body) => {
+    response.status(status).json(body);
+};
+const readBearerToken = (header) => {
+    const match = /^Bearer\s+(.+)$/i.exec(header !== null && header !== void 0 ? header : '');
+    if (!(match === null || match === void 0 ? void 0 : match[1])) {
+        throw Object.assign(new Error('Firebase ID token is required.'), { statusCode: 401 });
     }
-    else {
-        res.set('Access-Control-Allow-Origin', '*');
+    return match[1];
+};
+const toHttpStatus = (error) => {
+    const statusCode = error === null || error === void 0 ? void 0 : error.statusCode;
+    if (typeof statusCode === 'number') {
+        return statusCode;
     }
-    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Range');
-    res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
-    // Handle OPTIONS preflight request
-    if (req.method === 'OPTIONS') {
-        res.status(204).send('');
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('missing') || message.includes('requires') || message.includes('unsupported')) {
+        return 400;
+    }
+    if (message.includes('binding')) {
+        return 409;
+    }
+    if (message.includes('could not load') || message.includes('not found')) {
+        return 404;
+    }
+    return 500;
+};
+const readRtdbValue = async (path) => {
+    const snapshot = await db.ref(path).get();
+    return snapshot.exists() ? snapshot.val() : null;
+};
+const pushKey = (path, label) => {
+    const key = db.ref(path).push().key;
+    if (!key) {
+        throw new Error(`Could not allocate Reading V2 ${label} id.`);
+    }
+    return key;
+};
+exports.readingV2Submit = functions.https.onRequest(async (request, response) => {
+    var _a;
+    setCorsHeaders(response, request.get('origin'));
+    if (request.method === 'OPTIONS') {
+        response.status(204).send('');
         return;
     }
-    // Only allow GET requests
-    if (req.method !== 'GET') {
-        res.status(405).send('Method not allowed');
-        return;
-    }
-    // Get file ID from query parameter
-    const fileId = req.query.id;
-    if (!fileId) {
-        res.status(400).json({
-            error: 'Missing file ID',
-            usage: '/audioProxy?id=YOUR_GOOGLE_DRIVE_FILE_ID'
-        });
-        return;
-    }
-    // Validate file ID format (basic check)
-    if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
-        res.status(400).json({ error: 'Invalid file ID format' });
+    if (request.method !== 'POST') {
+        sendJson(response, 405, { message: 'Method not allowed.' });
         return;
     }
     try {
-        // Google Drive direct download URL
-        // This works for files shared with "Anyone with the link"
-        const driveUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-        console.log(`Proxying audio: ${fileId}`);
-        // Fetch from Google Drive
-        // Pass through Range header for seeking support
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        };
-        if (req.headers.range) {
-            headers['Range'] = req.headers.range;
+        const token = readBearerToken(request.get('authorization'));
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const submitRequest = (0, readingV2SubmitCore_1.parseReadingV2TrustedSubmissionRequest)(request.body);
+        const materialId = (0, readingV2SubmitCore_1.getMaterialIdFromRequest)(submitRequest);
+        const snapshotVersionId = submitRequest.sourceSnapshotVersionId;
+        const sessionCode = (_a = submitRequest.context) === null || _a === void 0 ? void 0 : _a.sessionCode;
+        const [snapshot, reviewProjection, metadata, studentProfile, session,] = await Promise.all([
+            readRtdbValue(`reading_v2/published_snapshots/${materialId}/${snapshotVersionId}`),
+            readRtdbValue(`reading_v2/projections/review/${materialId}:${snapshotVersionId}`),
+            readRtdbValue(`reading_v2/material_metadata/${materialId}`),
+            readRtdbValue(`users/${decodedToken.uid}`),
+            sessionCode ? readRtdbValue(`game_sessions/${sessionCode}`) : Promise.resolve(null),
+        ]);
+        if (!snapshot) {
+            throw Object.assign(new Error('Reading V2 trusted submission could not load the published snapshot.'), { statusCode: 404 });
         }
-        const response = await (0, node_fetch_1.default)(driveUrl, { headers });
-        // Check if we got a redirect (Google sometimes does this)
-        if (response.status >= 400) {
-            console.error(`Google Drive returned ${response.status}`);
-            res.status(response.status).json({
-                error: 'Failed to fetch audio from Google Drive',
-                hint: 'Make sure the file is shared with "Anyone with the link"'
-            });
-            return;
+        if (!reviewProjection) {
+            throw Object.assign(new Error('Reading V2 trusted submission could not load the review projection.'), { statusCode: 404 });
         }
-        // Set response headers
-        res.set('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
-        res.set('Accept-Ranges', 'bytes');
-        const contentLength = response.headers.get('content-length');
-        if (contentLength) {
-            res.set('Content-Length', contentLength);
-        }
-        const contentRange = response.headers.get('content-range');
-        if (contentRange) {
-            res.set('Content-Range', contentRange);
-            res.status(206); // Partial content
-        }
-        else {
-            res.status(200);
-        }
-        // Cache the audio for 1 hour to reduce repeated requests
-        res.set('Cache-Control', 'public, max-age=3600');
-        // Stream the response body to client
-        if (response.body) {
-            response.body.pipe(res);
-        }
-        else {
-            // Fallback: buffer the response
-            const buffer = await response.buffer();
-            res.send(buffer);
-        }
+        const now = new Date();
+        const plan = (0, readingV2SubmitCore_1.buildReadingV2TrustedSubmissionPlan)({
+            request: submitRequest,
+            auth: {
+                uid: decodedToken.uid,
+                name: decodedToken.name,
+                email: decodedToken.email,
+            },
+            records: {
+                snapshot,
+                reviewProjection,
+                metadata,
+                studentProfile,
+                session,
+            },
+            identity: {
+                resultId: pushKey('test_results', 'result'),
+                attemptId: pushKey('reading_v2/attempts', 'attempt'),
+                submittedAtIso: now.toISOString(),
+                submittedAtMs: now.getTime(),
+            },
+        });
+        await db.ref(plan.canonicalResultPath).set(plan.savedResult);
+        await db.ref().update(plan.secondaryUpdates);
+        sendJson(response, 200, plan.response);
     }
     catch (error) {
-        console.error('Audio proxy error:', error);
-        res.status(500).json({
-            error: 'Failed to proxy audio',
-            message: error instanceof Error ? error.message : 'Unknown error'
+        const status = toHttpStatus(error);
+        const message = error instanceof Error
+            ? error.message
+            : 'Trusted Reading V2 submission failed.';
+        functions.logger.error('Reading V2 trusted submission failed', {
+            status,
+            message,
         });
+        sendJson(response, status, { message });
     }
-});
-/**
- * Health check endpoint
- */
-exports.healthCheck = functions.https.onRequest((req, res) => {
-    res.json({
-        status: 'ok',
-        service: 'audio-proxy',
-        timestamp: new Date().toISOString()
-    });
 });
 //# sourceMappingURL=index.js.map

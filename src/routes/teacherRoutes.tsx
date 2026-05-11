@@ -4,6 +4,7 @@ import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
+import { isReadingV2TeacherRouteExposureAllowed } from '../config/readingV2FeatureFlags.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
 
 const TeacherLobbyPage = lazyWithRetry(() => import('../pages/TeacherLobbyPage.jsx'));
@@ -28,6 +29,7 @@ const TeacherHomeworkListPage = lazyWithRetry(() => import('../pages/TeacherHome
 const TestCreationRedirectPage = lazyWithRetry(() => import('../pages/TestCreationRedirectPage.tsx'));
 const TestCreationPage = lazyWithRetry(() => import('../pages/TestCreationPage.tsx'));
 const TestReviewPage = lazyWithRetry(() => import('../pages/TestReviewPage.tsx'));
+const ReadingV2StudioPage = lazyWithRetry(() => import('../pages/ReadingV2StudioPage.tsx'));
 const THCSTestEditorPage = lazyWithRetry(() => import('../pages/THCSTestEditorPage.tsx'));
 const TeacherGradingPage = lazyWithRetry(() => import('../pages/TeacherGradingPage.tsx'));
 const WritingTestBuilder = lazyWithRetry(() => import('../pages/WritingTestBuilder.tsx'));
@@ -68,7 +70,36 @@ function asTeacherErrorBoundaryPage(
   return asTeacherPage(children, featureName, allowedRoles);
 }
 
-export const teacherRoutes: RouteObject[] = [
+const readingV2StudioRoutes = (): RouteObject[] => [
+  {
+    path: '/teacher/reading-v2/create',
+    element: asTeacherErrorBoundaryPage(<ReadingV2StudioPage />, 'readingV2Studio', ['teacher', 'super_admin']),
+  },
+  {
+    path: '/teacher/reading-v2/import',
+    element: asTeacherErrorBoundaryPage(<ReadingV2StudioPage />, 'readingV2Studio', ['teacher', 'super_admin']),
+  },
+  {
+    path: '/teacher/reading-v2/drafts/:draftId',
+    element: asTeacherErrorBoundaryPage(<ReadingV2StudioPage />, 'readingV2Studio', ['teacher', 'super_admin']),
+  },
+  {
+    path: '/teacher/reading-v2/materials/:materialId/revise',
+    element: asTeacherErrorBoundaryPage(<ReadingV2StudioPage />, 'readingV2Studio', ['teacher', 'super_admin']),
+  },
+];
+
+export interface TeacherRoutesOptions {
+  readonly exposeReadingV2StudioRoutes?: boolean;
+}
+
+export const createTeacherRoutes = (
+  options: TeacherRoutesOptions = {},
+): RouteObject[] => {
+  const exposeReadingV2StudioRoutes =
+    options.exposeReadingV2StudioRoutes ?? isReadingV2TeacherRouteExposureAllowed();
+
+  return [
   {
     path: '/teacher/students',
     element: asTeacherPage(<TeacherStudentsPage />),
@@ -165,6 +196,9 @@ export const teacherRoutes: RouteObject[] = [
     path: '/teacher/test/review/:draftId',
     element: asTeacherErrorBoundaryPage(<TestReviewPage />, 'testCreation', ['teacher', 'super_admin']),
   },
+  // Reading V2 route URLs remain registered for feature ownership, but the
+  // route table mounts them only after the rollout mode allows teacher entry.
+  ...(exposeReadingV2StudioRoutes ? readingV2StudioRoutes() : []),
   {
     path: '/teacher/thcs-test/create',
     element: asTeacherErrorBoundaryPage(<THCSTestEditorPage />, 'testCreation'),
@@ -193,4 +227,7 @@ export const teacherRoutes: RouteObject[] = [
     path: '/teacher/grading/writing/:submissionId',
     element: asTeacherErrorBoundaryPage(<WritingGradingPage />, 'grading', ['teacher', 'super_admin']),
   },
-];
+  ];
+};
+
+export const teacherRoutes: RouteObject[] = createTeacherRoutes();

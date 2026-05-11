@@ -14,6 +14,7 @@ import {
   type ReadingV2SnapshotVersionId,
   type ReadingV2StimulusContent,
   type ReadingV2StimulusNode,
+  type ReadingV2TableCellContent,
   type ReadingV2TaskGroup,
 } from '../../types/readingV2.types';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
@@ -35,6 +36,8 @@ export interface ReadingV2ProjectedTaskGroup {
   readonly officialTaskType: string;
   readonly engineeringFamily: string;
   readonly groupTitle?: string;
+  readonly layoutHint?: string;
+  readonly wordLimit?: number;
   readonly instructionBlocks: readonly { readonly id: string; readonly text: string }[];
   readonly stimulusRefs: readonly { readonly stimulusId: string; readonly anchorIds?: readonly string[] }[];
   readonly interactions: readonly ReadingV2ProjectedInteraction[];
@@ -92,6 +95,32 @@ export interface ReadingV2DerivedProjection extends ReadingV2ProjectionPayload {
 
 const copy = <T>(value: T): T => structuredClone(value) as T;
 
+const createProjectedTableCellContent = (
+  cell: ReadingV2TableCellContent,
+): ReadingV2TableCellContent => ({
+  ...(cell.cellId !== undefined ? { cellId: cell.cellId } : {}),
+  ...(cell.anchorId !== undefined ? { anchorId: cell.anchorId } : {}),
+  ...(cell.anchorIds !== undefined ? { anchorIds: [...cell.anchorIds] } : {}),
+  text: cell.text,
+  ...(cell.role !== undefined ? { role: cell.role } : {}),
+  ...(cell.isBlank !== undefined ? { isBlank: cell.isBlank } : {}),
+  ...(cell.rowSpan !== undefined ? { rowSpan: cell.rowSpan } : {}),
+  ...(cell.colSpan !== undefined ? { colSpan: cell.colSpan } : {}),
+});
+
+const createProjectedStimulusContent = (
+  content: ReadingV2StimulusContent,
+): ReadingV2StimulusContent => {
+  if (content.kind === 'table-content') {
+    return {
+      kind: 'table-content',
+      rows: content.rows.map((row) => row.map(createProjectedTableCellContent)),
+    };
+  }
+
+  return copy(content);
+};
+
 const orderedTaskGroups = (document: ReadingV2Document): ReadingV2TaskGroup[] =>
   document.sectionIds.flatMap((sectionId) => {
     const section = document.sections[sectionId];
@@ -134,7 +163,7 @@ const createProjectionContent = (
       stimulusId: stimulus.stimulusId,
       kind: stimulus.kind,
       title: stimulus.title,
-      content: copy(stimulus.content),
+      content: createProjectedStimulusContent(stimulus.content),
       anchorIds: [...stimulus.anchorIds],
     })),
     anchors: Object.values(document.anchors).map((anchor) => ({
@@ -148,6 +177,8 @@ const createProjectionContent = (
       officialTaskType: taskGroup.officialTaskType,
       engineeringFamily: taskGroup.engineeringFamily,
       groupTitle: taskGroup.groupTitle,
+      layoutHint: taskGroup.layoutHint,
+      wordLimit: taskGroup.answerRule.wordLimit,
       instructionBlocks: taskGroup.instructionBlocks.map((block) => ({
         id: block.id,
         text: block.text,
@@ -303,11 +334,16 @@ export const assertReadingV2ProjectionIsStudentSanitized = (
     'acceptableAnswers',
     'scoringRule',
     'answerKeys',
+    'answerKeyText',
     'authorDiagnostics',
     'importEvidence',
     'importEvidenceRefs',
+    'parsedAnswerValues',
+    'rawAnswerText',
+    'teacherAnswerKey',
     'hiddenProvenance',
     'teacherOnlyReview',
+    'splitSourceCells',
   ];
   const leakedToken = forbiddenTokens.find((token) => serialized.includes(token));
 
