@@ -13,6 +13,11 @@
 import { ref, get, query, orderByChild, equalTo, limitToFirst } from 'firebase/database';
 import { database } from './firebase';
 import dataCache, { CacheTypes, CacheTTL } from './dataCache';
+import {
+  getTeacherMaterialsDiagnosticTime,
+  getTeacherMaterialsElapsedMs,
+  logTeacherMaterialsDiagnostic,
+} from '../utils/teacherMaterialsDiagnostics';
 
 const toTestList = (data) => data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
 
@@ -231,18 +236,36 @@ class FirebaseQueryOptimizer {
    * @returns {Promise<Array>} Array of tests
    */
   async getTeacherOwnedTests(ownerId, skipCache = false) {
-    if (!ownerId) return [];
+    const startedAt = getTeacherMaterialsDiagnosticTime();
+    if (!ownerId) {
+      logTeacherMaterialsDiagnostic('optimizer_fetch_skipped', {
+        scope: 'owned',
+        reason: 'missing_owner',
+      });
+      return [];
+    }
 
     const cacheKey = `owner:${ownerId}`;
     if (!skipCache) {
       const cached = dataCache.get(CacheTypes.TEST, cacheKey);
       if (cached) {
-        console.log(`[QueryOptimizer] Teacher tests from cache (${cached.length} items)`);
+        logTeacherMaterialsDiagnostic('optimizer_cache_hit', {
+          scope: 'owned',
+          cacheKey,
+          count: cached.length,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+        });
         return cached;
       }
     }
 
-    console.log(`[QueryOptimizer] Fetching teacher tests by owner index`);
+    logTeacherMaterialsDiagnostic('optimizer_fetch_requested', {
+      scope: 'owned',
+      strategy: 'indexed_owner_and_createdBy',
+      branches: ['ownerId', 'createdBy'],
+      skipCache,
+      ownerTail: ownerId.slice(-6),
+    });
     const testsRef = ref(database, 'tests');
     const [ownerSnapshot, createdBySnapshot] = await Promise.all([
       get(query(testsRef, orderByChild('ownerId'), equalTo(ownerId))),
@@ -259,7 +282,15 @@ class FirebaseQueryOptimizer {
       dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
     });
 
-    console.log(`[QueryOptimizer] Fetched ${testList.length} teacher tests`);
+    logTeacherMaterialsDiagnostic('optimizer_fetch_succeeded', {
+      scope: 'owned',
+      strategy: 'indexed_owner_and_createdBy',
+      branches: ['ownerId', 'createdBy'],
+      count: testList.length,
+      ownerIdCount: toTestList(ownerSnapshot.val()).length,
+      createdByCount: toTestList(createdBySnapshot.val()).length,
+      durationMs: getTeacherMaterialsElapsedMs(startedAt),
+    });
     return testList;
   }
 
@@ -269,16 +300,27 @@ class FirebaseQueryOptimizer {
    * @returns {Promise<Array>} Array of public tests
    */
   async getPublicTests(skipCache = false) {
+    const startedAt = getTeacherMaterialsDiagnosticTime();
     const cacheKey = 'public';
     if (!skipCache) {
       const cached = dataCache.get(CacheTypes.TEST, cacheKey);
       if (cached) {
-        console.log(`[QueryOptimizer] Public tests from cache (${cached.length} items)`);
+        logTeacherMaterialsDiagnostic('optimizer_cache_hit', {
+          scope: 'public',
+          cacheKey,
+          count: cached.length,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+        });
         return cached;
       }
     }
 
-    console.log(`[QueryOptimizer] Fetching public tests by isPublic index`);
+    logTeacherMaterialsDiagnostic('optimizer_fetch_requested', {
+      scope: 'public',
+      strategy: 'indexed_isPublic',
+      branches: ['isPublic'],
+      skipCache,
+    });
     const testsRef = ref(database, 'tests');
     const snapshot = await get(query(testsRef, orderByChild('isPublic'), equalTo(true)));
     const testList = sortTestsByRecentUpdate(toTestList(snapshot.val()));
@@ -288,7 +330,13 @@ class FirebaseQueryOptimizer {
       dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
     });
 
-    console.log(`[QueryOptimizer] Fetched ${testList.length} public tests`);
+    logTeacherMaterialsDiagnostic('optimizer_fetch_succeeded', {
+      scope: 'public',
+      strategy: 'indexed_isPublic',
+      branches: ['isPublic'],
+      count: testList.length,
+      durationMs: getTeacherMaterialsElapsedMs(startedAt),
+    });
     return testList;
   }
 

@@ -1,6 +1,6 @@
 // TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
 // Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
-import React, { Suspense, useState, useCallback } from 'react';
+import React, { Suspense, useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
@@ -9,6 +9,7 @@ import { FEATURE_IDS } from '../config/featureRegistry';
 import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 import { AppShell } from '@mantine/core';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
+import { logTeacherMaterialsDiagnostic } from '../utils/teacherMaterialsDiagnostics';
 import { Card, CardBody } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
@@ -89,7 +90,7 @@ const TeacherLobbyPage = () => {
 
   // ---------- Hooks ----------
   const modals = useModalManager();
-  const { tests, loading: contentLoading, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests({
+  const { tests, loading: contentLoading, loadedScope, deleteTest, togglePublic, refresh: refreshTests } = useTeacherTests({
     ownerId: user?.uid,
     userRole: profile?.role,
     contentFilter,
@@ -120,6 +121,44 @@ const TeacherLobbyPage = () => {
     shouldShowReadingV2TeacherLobbyItem(test),
   );
   const visibleDrafts = drafts.filter((draft) => !isReadingV2Payload(draft));
+  const visibleReadingV2Count = visibleTests.filter((test) => test?.deliveryEngine === 'reading-v2').length;
+  const activeTestScope = contentFilter === 'public'
+    ? 'public'
+    : profile?.role === 'super_admin' && contentFilter === 'my'
+      ? 'all'
+      : 'owned';
+
+  useEffect(() => {
+    if (contentLoading || contentFilter === 'drafts' || loadedScope !== activeTestScope) {
+      return;
+    }
+
+    logTeacherMaterialsDiagnostic('grid_rendered', {
+      tab: contentFilter,
+      dataScope: loadedScope,
+      loadedCount: tests.length,
+      filteredCount: filteredTests.length,
+      visibleCount: visibleTests.length,
+      visibleReadingV2Count,
+      searchActive: searchTerm.trim().length > 0,
+      testTypeFilter,
+      thcsGradeFilter,
+      thcsExamTypeFilter,
+    });
+  }, [
+    activeTestScope,
+    contentFilter,
+    contentLoading,
+    filteredTests.length,
+    loadedScope,
+    searchTerm,
+    tests.length,
+    testTypeFilter,
+    thcsExamTypeFilter,
+    thcsGradeFilter,
+    visibleReadingV2Count,
+    visibleTests.length,
+  ]);
 
   const handleOpenTestCreation = useCallback(() => {
     trackAction('createTest', { source: 'teacher_lobby' });

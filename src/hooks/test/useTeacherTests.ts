@@ -4,6 +4,11 @@ import { firestore as db } from '../../services/firebase';
 import { ref, onValue, remove, update as dbUpdate, query, orderByChild, equalTo } from 'firebase/database';
 import { doc, deleteDoc } from 'firebase/firestore';
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
+import {
+  getTeacherMaterialsDiagnosticTime,
+  getTeacherMaterialsElapsedMs,
+  logTeacherMaterialsDiagnostic,
+} from '../../utils/teacherMaterialsDiagnostics';
 
 type TeacherContentFilter = 'my' | 'public' | 'drafts';
 
@@ -15,11 +20,22 @@ interface UseTeacherTestsOptions {
   contentFilter?: TeacherContentFilter;
 }
 
+function summarizeTestsForDiagnostics(testList: any[]) {
+  return {
+    count: testList.length,
+    readingV2Count: testList.filter((test) => test?.deliveryEngine === 'reading-v2').length,
+    publicCount: testList.filter((test) => test?.isPublic === true).length,
+    thcsCount: testList.filter((test) => test?.testType === 'THCS-THPT').length,
+    writingCount: testList.filter((test) => String(test?.skill || '').toLowerCase() === 'writing').length,
+  };
+}
+
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   const { ownerId, userRole = '', contentFilter = 'my', realtime = true, skipCache = false } = options;
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
 
   const isSuperAdminMyContent = userRole === 'super_admin' && contentFilter === 'my';
   const listScope = contentFilter === 'public'
@@ -86,11 +102,29 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     let isSubscribed = true;
 
     const loadData = async () => {
+      const startedAt = getTeacherMaterialsDiagnosticTime();
+      logTeacherMaterialsDiagnostic('hook_load_requested', {
+        scope: listScope,
+        contentFilter,
+        realtime,
+        skipCache,
+        ownerPresent: Boolean(ownerId),
+        ownerTail: ownerId?.slice(-6) ?? null,
+      });
       setLoading(true);
+      setLoadedScope(null);
       try {
         const testList = await loadTeacherTests(skipCache);
+        logTeacherMaterialsDiagnostic('hook_load_succeeded', {
+          scope: listScope,
+          contentFilter,
+          realtime,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+          ...summarizeTestsForDiagnostics(testList),
+        });
         if (isSubscribed) {
           setTests(testList);
+          setLoadedScope(listScope);
           setLoading(false);
           setError(null);
         }
@@ -98,6 +132,11 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
         if (realtime) {
           const realtimeQueries = getRealtimeQueries();
           let initialListenerCallsRemaining = realtimeQueries.length;
+          logTeacherMaterialsDiagnostic('realtime_listener_registered', {
+            scope: listScope,
+            contentFilter,
+            listenerCount: realtimeQueries.length,
+          });
 
           realtimeQueries.forEach((testsQuery) => {
             unsubscribers.push(onValue(testsQuery, () => {
@@ -105,18 +144,32 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
 
               if (initialListenerCallsRemaining > 0) {
                 initialListenerCallsRemaining -= 1;
-                console.log('[REALTIME] Skipping first indexed test listener call (already have data)');
+                logTeacherMaterialsDiagnostic('realtime_initial_snapshot_skipped', {
+                  scope: listScope,
+                  remainingInitialSnapshots: initialListenerCallsRemaining,
+                });
                 return;
               }
 
               invalidateScopedCache();
+              const reloadStartedAt = getTeacherMaterialsDiagnosticTime();
               void loadTeacherTests(true).then((list) => {
                 if (!isSubscribed) return;
-                console.log('[REALTIME] Indexed tests updated:', list.length);
+                logTeacherMaterialsDiagnostic('realtime_reload_succeeded', {
+                  scope: listScope,
+                  contentFilter,
+                  durationMs: getTeacherMaterialsElapsedMs(reloadStartedAt),
+                  ...summarizeTestsForDiagnostics(list),
+                });
                 setTests(list);
+                setLoadedScope(listScope);
                 setLoading(false);
               }).catch((error: any) => {
                 if (!isSubscribed) return;
+                logTeacherMaterialsDiagnostic('realtime_reload_failed', {
+                  scope: listScope,
+                  message: error instanceof Error ? error.message : String(error),
+                });
                 console.error('Error loading indexed tests:', error);
                 setLoading(false);
               });
@@ -131,6 +184,12 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
           });
         }
       } catch (error) {
+        logTeacherMaterialsDiagnostic('hook_load_failed', {
+          scope: listScope,
+          contentFilter,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+          message: error instanceof Error ? error.message : String(error),
+        });
         console.error('Error in data loading:', error);
         if (isSubscribed) {
           setError(error instanceof Error ? error.message : 'Failed to load tests');
@@ -147,12 +206,25 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
         if (typeof unsubscribe === 'function') unsubscribe();
       });
     };
-  }, [loadTeacherTests, getRealtimeQueries, invalidateScopedCache, realtime]);
+  }, [contentFilter, loadTeacherTests, getRealtimeQueries, invalidateScopedCache, listScope, ownerId, realtime, skipCache]);
 
   const refresh = async () => {
+    const startedAt = getTeacherMaterialsDiagnosticTime();
+    logTeacherMaterialsDiagnostic('refresh_requested', {
+      scope: listScope,
+      contentFilter,
+      ownerPresent: Boolean(ownerId),
+    });
     invalidateScopedCache();
     const testList = await loadTeacherTests(true);
+    logTeacherMaterialsDiagnostic('refresh_succeeded', {
+      scope: listScope,
+      contentFilter,
+      durationMs: getTeacherMaterialsElapsedMs(startedAt),
+      ...summarizeTestsForDiagnostics(testList),
+    });
     setTests(testList);
+    setLoadedScope(listScope);
   };
 
   const deleteTest = async (test: any) => {
@@ -194,5 +266,5 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     }
   };
 
-  return { tests, loading, error, refresh, deleteTest, togglePublic };
+  return { tests, loading, error, loadedScope, refresh, deleteTest, togglePublic };
 }
