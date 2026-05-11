@@ -218,7 +218,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Database | Firebase Realtime Database |
 | Hosting | Firebase Hosting |
 | File Storage | Cloudflare R2 (via Workers) |
-| Cloud Functions | Firebase Cloud Functions |
+| Trusted Backend | Cloudflare Worker (`r2-backup-worker`); Firebase Functions wrappers are legacy/optional |
 | AI Primary | Google Gemini 2.5 Flash (`@google/generative-ai`) |
 | AI Fallback | Groq Llama 3.1 70B (`groq-sdk`) |
 
@@ -373,7 +373,8 @@ kahoot/
 │   ├── styles/                  # Design system tokens
 │   └── __tests__/               # Integration tests
 │
-├── functions/                   # Firebase Cloud Functions
+├── functions/                   # Legacy/optional Firebase Functions wrappers and shared submit core
+├── r2-backup-worker/            # Cloudflare Worker for backup and Reading V2 trusted submit
 ├── cloudflare/                  # R2 upload Worker
 ├── conductor/                   # Orchestration tooling
 ├── e2e/                         # Playwright E2E tests

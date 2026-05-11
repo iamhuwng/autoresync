@@ -16,7 +16,7 @@
 - **Platform:** Firebase
 - **Database:** Firebase Realtime Database (Live sessions, Tests, Quizzes)
 - **Authentication:** Firebase Auth
-- **Serverless:** Firebase Cloud Functions (Node.js/TypeScript)
+- **Trusted Backend:** Cloudflare Worker (`r2-backup-worker`) for deployed Reading V2 trusted submit; Firebase Functions wrappers are legacy/optional
 - **Hosting:** Firebase Hosting
 
 ## AI & Content Processing

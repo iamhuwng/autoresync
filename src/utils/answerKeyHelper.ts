@@ -5,8 +5,8 @@
  * The answer keys are still fetched and processed on the client.
  * This prevents casual inspection of page source / React DevTools
  * but does NOT prevent a determined student from intercepting the
- * grading request. True server-side grading requires Cloud Functions
- * on the Blaze plan (deferred to future PRD).
+ * grading request. True server-side grading requires a trusted backend
+ * such as Cloud Functions, Cloudflare Worker, or another approved service.
  */
 
 /**

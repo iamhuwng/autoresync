@@ -73,16 +73,12 @@ export const buildDefaultReadingV2SubmissionEndpoint = (input: {
   const projectId = input.projectId?.trim();
   const region = input.region?.trim() || 'us-central1';
 
-  if (!projectId) {
+  if (!projectId || !input.useLocalEmulator) {
     return '';
   }
 
-  if (input.useLocalEmulator) {
-    const emulatorOrigin = input.emulatorOrigin?.trim() || 'http://127.0.0.1:5001';
-    return `${emulatorOrigin}/${projectId}/${region}/readingV2Submit`;
-  }
-
-  return `https://${region}-${projectId}.cloudfunctions.net/readingV2Submit`;
+  const emulatorOrigin = input.emulatorOrigin?.trim() || 'http://127.0.0.1:5001';
+  return `${emulatorOrigin}/${projectId}/${region}/readingV2Submit`;
 };
 
 export const READING_V2_SUBMISSION_ENDPOINT =

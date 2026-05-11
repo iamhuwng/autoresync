@@ -40,7 +40,7 @@ describe('readingV2RuntimeSubmission', () => {
     expect(isReadingV2RuntimeSubmissionConfigured('https://example.test/reading-v2-submit')).toBe(true);
     expect(isReadingV2RuntimeSubmissionConfigured('')).toBe(false);
     expect(buildDefaultReadingV2SubmissionEndpoint({ projectId: 'temp-a1437' }))
-      .toBe('https://us-central1-temp-a1437.cloudfunctions.net/readingV2Submit');
+      .toBe('');
     expect(buildDefaultReadingV2SubmissionEndpoint({
       projectId: 'temp-a1437',
       useLocalEmulator: true,

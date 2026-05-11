@@ -30,6 +30,8 @@ Production should use:
 
 `VITE_READING_V2_SUBMISSION_ENDPOINT=https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit`
 
+Production must configure this explicit endpoint. If it is absent, the browser must fail closed instead of silently deriving the undeployed Firebase Cloud Functions URL. Vite dev may still derive the local Functions emulator endpoint for local backend tests.
+
 ## Required Behavior
 
 - Verify Firebase Auth.
@@ -42,10 +44,16 @@ Production should use:
 - Fan out Reading V2 attempt/result/review indexes and shared result indexes.
 - Update live-session completion state when session context exists.
 
+## Implementation Status
+
+- Cloudflare Worker deployed on 2026-05-11 at `https://r2-backup-worker.iamhuwng.workers.dev`.
+- Worker route `POST /api/reading-v2/submit` is live and rejects unauthenticated requests with `403`.
+- Firebase Hosting `kahut1` deployed on 2026-05-11 with the Worker endpoint in the production build.
+- Firebase Hosting no longer rewrites `/api/reading-v2/submit` to the undeployed `readingV2Submit` Cloud Function.
+- Client production fallback now fails closed when no explicit endpoint is configured; it does not derive `cloudfunctions.net/readingV2Submit`.
+
 ## Remaining Work
 
-- Deploy the Cloudflare Worker after Wrangler authentication or API-token setup.
-- Deploy Firebase Hosting with the Worker endpoint in the build environment.
 - Move shared submit core out of `functions/src` into a neutral shared backend/core location.
-- Update remaining tests/comments that imply Firebase Cloud Functions are the only trusted backend.
+- Complete an authenticated live student submit/result verification through the deployed Worker.
 - Keep Firebase Functions wrapper only as optional fallback unless an owner approves deleting it.

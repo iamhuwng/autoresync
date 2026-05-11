@@ -1,4 +1,4 @@
-# r2-backup-worker - Cloudflare Worker for Backup & Disaster Recovery (PRD-0026)
+# r2-backup-worker - Cloudflare Worker for backup, diagnostics, and Reading V2 trusted submit
 #
 # Secrets (set via `wrangler secret put <NAME>`):
 #   1. GOOGLE_SA_KEY - Full Service Account JSON key (~2.3 KB)
