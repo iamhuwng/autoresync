@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
 import { generateReadingV2AutoImportCandidate, type ReadingV2AutoStructuredGenerator } from './readingV2AutoImport.service';
+import { normalizeReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 
 const autoPayload = (overrides: Record<string, unknown> = {}) => ({
   sourceFile: 'auto-fixture.txt',
@@ -64,6 +66,97 @@ const rawSourceWithAnswerKey = [
   '2 FALSE',
 ].join('\n');
 
+const rawSourceWithBookStyleAnswerKey = [
+  'READING PASSAGE 3',
+  'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+  'It has a second sentence to avoid being too tiny for guardrails.',
+  '',
+  '31 Jefferson taught at the University of Virginia.',
+  '32 By today standards, Monticello appears quite a small house for a famous person.',
+  '',
+  'Questions 33-39',
+  'Complete the table below.',
+  'Write NO MORE THAN TWO WORDS OR A DATE for each answer.',
+  '1768 The mountaintop 33 ... to prepare for the building of Monticello.',
+  '39 ... The death of Jefferson.',
+  '',
+  'Question 40',
+  'Which plan shows the stages in which Monticello was built?',
+  '',
+  'Reading Test 66',
+  'Reading Test 68',
+  '',
+  'Answer Reading Test 67',
+  '',
+  'Passage 1',
+  '1. D',
+  '2. B',
+  '',
+  'Passage 2',
+  '23. YES',
+  '24. NOT GIVEN',
+  '',
+  'Passage 3',
+  '31. NOT GIVEN',
+  '32. TRUE',
+  '33. was level(led)',
+  '34. bricks',
+  '35. South Pavilion (capitals optional)',
+  '36. 1796',
+  '37. doors',
+  '38. roof',
+  '39. 1826',
+  '40. A',
+].join('\n');
+
+const rawSourceWithUnheadedAnswerKey = [
+  'READING PASSAGE 1',
+  'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+  'It has a second sentence to avoid being too tiny for guardrails.',
+  '',
+  'Questions 1-10',
+  'Choose the correct letter, A, B, C or D.',
+  '1 Which option is correct?',
+  '2 Which option is correct?',
+  '3 Which option is correct?',
+  '4 Which option is correct?',
+  '5 Which option is correct?',
+  '6 Which option is correct?',
+  '7 Which option is correct?',
+  '8 Which option is correct?',
+  '9 Which option is correct?',
+  '10 Which option is correct?',
+  '',
+  '1 D',
+  '2 B',
+  '3 TRUE',
+  '4 NOT GIVEN',
+  '5 was levelled',
+  '6 bricks',
+  '7 South Pavilion',
+  '8 1796',
+  '9 roof',
+  '10 A',
+].join('\n');
+
+const rawSourceWithNumberedQuestionsOnly = [
+  'READING PASSAGE 3',
+  'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+  'It has a second sentence to avoid being too tiny for guardrails.',
+  '',
+  'Answers must be written in boxes on your answer sheet.',
+  '31 Jefferson taught at the University of Virginia.',
+  '32 By today standards, Monticello appears quite a small house for a famous person.',
+  '33 The mountaintop .......... to prepare for the building of Monticello.',
+  '34 .......... were made by Jefferson slaves.',
+  '35 Jefferson began to live in the .......... .',
+  '36 .......... -1807',
+  '37 automatic .......... , and delivery systems.',
+  '38 The .......... was covered with long-lasting material.',
+  '39 ..........',
+  '40 Which plan shows the stages in which Monticello was built?',
+].join('\n');
+
 const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
   generateStructuredJson: vi.fn().mockResolvedValue({ success: true, data }),
 });
@@ -105,6 +198,98 @@ describe('readingV2AutoImport.service', () => {
     expect(result.candidate.answerKeyText).toBe('1 TRUE\n2 FALSE');
   });
 
+  it('extracts book-style answer-key headings with reading test page labels', async () => {
+    const generator = generatorFor(autoPayload());
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: rawSourceWithBookStyleAnswerKey,
+        sourceName: 'Book-style key fixture',
+      },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toContain('1 D');
+    expect(result.answerKeyText).toContain('31 NOT GIVEN');
+    expect(result.answerKeyText).toContain('40 A');
+    expect(result.answerKeyText).not.toContain('Passage 1');
+    expect(result.candidate.answerKeyText).toBe(result.answerKeyText);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'answer-key-extracted', severity: 'info' }),
+    ]));
+  });
+
+  it('extracts dense unheaded answer-key blocks near the end without adding heading exceptions', async () => {
+    const generator = generatorFor(autoPayload());
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: rawSourceWithUnheadedAnswerKey,
+        sourceName: 'Unheaded key fixture',
+      },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBe([
+      '1 D',
+      '2 B',
+      '3 TRUE',
+      '4 NOT GIVEN',
+      '5 was levelled',
+      '6 bricks',
+      '7 South Pavilion',
+      '8 1796',
+      '9 roof',
+      '10 A',
+    ].join('\n'));
+  });
+
+  it('does not treat trailing numbered question text as an answer key', async () => {
+    const generator = generatorFor(autoPayload());
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: rawSourceWithNumberedQuestionsOnly,
+        sourceName: 'Numbered questions only fixture',
+      },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBeUndefined();
+    expect(result.candidate.answerKeyText).toBeUndefined();
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'answer-key-missing', severity: 'warning' }),
+    ]));
+  });
+
+  it('stops extracted answer-key rows before trailing explanation prose', async () => {
+    const generator = generatorFor(autoPayload());
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: [
+          rawSourceWithAnswerKey,
+          '',
+          'Explanation: question 1 is supported by paragraph A.',
+          'Next material starts here.',
+        ].join('\n'),
+        sourceName: 'Trailing explanation fixture',
+      },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    expect(result.answerKeyText).not.toContain('Explanation');
+  });
+
   it('strips Gemini answers when the raw source has no visible answer key', async () => {
     const generator = generatorFor(autoPayload());
     const result = await generateReadingV2AutoImportCandidate(
@@ -139,7 +324,7 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
-  it('processes multi-passage sources sequentially and merges payloads', async () => {
+  it('repairs copied Gemini passage numbers while merging multi-passage chunks', async () => {
     const generator: ReadingV2AutoStructuredGenerator = {
       generateStructuredJson: vi.fn().mockImplementation((prompt: string) => Promise.resolve({
         success: true,
@@ -147,7 +332,7 @@ describe('readingV2AutoImport.service', () => {
           materials: [
             {
               ...autoPayload().materials[0],
-              passageNumber: prompt.includes('Reading Passage 2') ? 2 : 1,
+              passageNumber: 1,
               title: prompt.includes('Reading Passage 2') ? 'Second auto passage' : 'First auto passage',
               questions: [
                 {
@@ -190,5 +375,8 @@ describe('readingV2AutoImport.service', () => {
     expect(result.passageCount).toBe(2);
     expect(result.questionCount).toBe(2);
     expect(result.candidate.rawText).toContain('"passageNumber":2');
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(normalized.document.sectionIds).toHaveLength(2);
   });
 });

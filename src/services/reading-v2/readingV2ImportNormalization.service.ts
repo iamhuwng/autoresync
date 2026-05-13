@@ -151,7 +151,7 @@ const answerKeyDiagnostic = (
 });
 
 const isAnswerKeyHeading = (line: string): boolean =>
-  /^(?:answers?|answer\s+key|reading\s+passage\s+\d+|passage\s+\d+|section\s+\d+)\s*:?\s*$/i.test(
+  /^(?:answers?|answer\s+key|key)(?:\s+(?:reading\s+)?test\s+\d+)?\s*:?$|^(?:(?:reading\s+)?passage|section|reading\s+test)\s+\d+\s*:?$/i.test(
     line.replace(/^#+\s*/, '').trim(),
   );
 
@@ -497,6 +497,22 @@ const normalizeImportedInstructionText = (
   return getReadingV2InstructionText(taskType, instructionSemantics);
 };
 
+const sourceEvidenceLooksLikeQuestionPrompt = (
+  taskType: ReadingV2CanonicalTaskType,
+  sourceText: string,
+): boolean => {
+  if (taskType !== 'multiple-choice' && taskType !== 'multiple-select') {
+    return false;
+  }
+
+  const normalized = sourceText.toLowerCase();
+
+  return /^(?:which|what|who|whom|whose|when|where|why|how)\b/.test(normalized)
+    && !normalized.includes('answer sheet')
+    && !normalized.includes('write the correct')
+    && !normalized.includes('choose the correct');
+};
+
 const customInstructionIssue = (
   taskType: ReadingV2CanonicalTaskType,
   sourceText: string | undefined,
@@ -505,7 +521,11 @@ const customInstructionIssue = (
   semantics: ReadingV2InstructionSemantics,
 ): ReadingV2ValidationIssue | undefined => {
   const source = cleanMarkdown(sourceText ?? '');
-  if (!source || readingV2InstructionLooksStandard(taskType, source, semantics)) {
+  if (
+    !source
+    || readingV2InstructionLooksStandard(taskType, source, semantics)
+    || sourceEvidenceLooksLikeQuestionPrompt(taskType, source)
+  ) {
     return undefined;
   }
 
@@ -576,6 +596,7 @@ const visibleQuestionBlankPattern = /_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:bla
 
 interface StructuredReadingPayload {
   readonly sourceFile?: string;
+  readonly answerKeyText?: string;
   readonly materials?: readonly StructuredReadingMaterial[];
 }
 
@@ -669,6 +690,11 @@ interface StructuredReadingQuestion {
     readonly label?: string;
     readonly text?: string;
   }[];
+}
+
+interface StructuredOptionItem {
+  readonly label?: string;
+  readonly text?: string;
 }
 
 interface StructuredNotePayload {
@@ -1035,6 +1061,53 @@ const labelRangeFromItems = (
   }
 
   return `${labels[0]}-${labels[labels.length - 1]}`;
+};
+
+const labelsFromLetterRange = (range: string | undefined): readonly string[] => {
+  const normalized = cleanMarkdown(range ?? '')
+    .replace(/\s+/g, '')
+    .replace(/\u2013|\u2014/g, '-');
+  const match = normalized.match(/^([A-Za-z])-([A-Za-z])$/);
+
+  if (!match?.[1] || !match[2]) {
+    return [];
+  }
+
+  const start = match[1].toUpperCase().charCodeAt(0);
+  const end = match[2].toUpperCase().charCodeAt(0);
+
+  if (end < start || end - start > 25) {
+    return [];
+  }
+
+  return Array.from({ length: end - start + 1 }, (_, index) =>
+    String.fromCharCode(start + index),
+  );
+};
+
+const defaultOptionLabelsForTaskType = (
+  taskType: ReadingV2CanonicalTaskType,
+  instruction?: StructuredSectionInstruction,
+): readonly string[] => {
+  const rangeLabels = labelsFromLetterRange(
+    taskType === 'multiple-choice' || taskType === 'multiple-select' || taskType === 'summary-completion-list'
+      ? instruction?.optionLabelRange
+      : instruction?.referenceLabelRange,
+  );
+
+  if (rangeLabels.length > 0) {
+    return rangeLabels;
+  }
+
+  if (taskType === 'multiple-select') {
+    return ['A', 'B', 'C', 'D', 'E'];
+  }
+
+  if (taskType === 'multiple-choice') {
+    return ['A', 'B', 'C', 'D'];
+  }
+
+  return ['A', 'B', 'C', 'D', 'E'];
 };
 
 const structuredInstructionSourceText = (instruction: StructuredSectionInstruction): string | undefined =>
@@ -1726,28 +1799,49 @@ const createStructuredDiagramContext = ({
   };
 };
 
-const optionSetFromStructuredQuestions = (
+const isChoiceTaskType = (taskType: ReadingV2CanonicalTaskType): boolean =>
+  taskType === 'multiple-choice' || taskType === 'multiple-select';
+
+const normalizeStructuredOptionItems = (
+  items: readonly StructuredOptionItem[] | undefined,
+): readonly { readonly label: string; readonly text: string }[] =>
+  (items ?? [])
+    .map((item) => {
+      const label = cleanMarkdown(item.label ?? '');
+      return label
+        ? {
+            label,
+            text: item.text ? preserveSourceMarkdown(item.text) : label,
+          }
+        : null;
+    })
+    .filter((item): item is { readonly label: string; readonly text: string } => Boolean(item));
+
+const fallbackOptionText = (
+  taskType: ReadingV2CanonicalTaskType,
+  label: string,
+): string =>
+  taskType === 'matching-information'
+    ? `Paragraph ${label}`
+    : `Imported option ${label}`;
+
+const optionSetFromItems = (
   optionSetId: ReturnType<typeof readingV2Ids.optionSetId>,
   taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>,
-  questions: readonly StructuredReadingQuestion[],
+  taskType: ReadingV2CanonicalTaskType,
+  items: readonly StructuredOptionItem[],
   instruction?: StructuredSectionInstruction,
 ): ReadingV2OptionSet => {
   const optionsByLabel = new Map<string, string>();
 
-  [...(instruction?.sectionReferences ?? []), ...(instruction?.labeledOptions ?? [])].forEach((option) => {
-    if (!option.label) return;
-    optionsByLabel.set(option.label, option.text ? preserveSourceMarkdown(option.text) : option.label);
-  });
-
-  questions.forEach((question) => {
-    [...(question.labeledOptions ?? []), ...(question.sectionReferences ?? [])].forEach((option) => {
-      if (!option.label) return;
-      optionsByLabel.set(option.label, option.text ? preserveSourceMarkdown(option.text) : option.label);
-    });
+  normalizeStructuredOptionItems(items).forEach((option) => {
+    optionsByLabel.set(option.label, option.text);
   });
 
   if (optionsByLabel.size === 0) {
-    ['A', 'B', 'C', 'D', 'E'].forEach((label) => optionsByLabel.set(label, `Imported option ${label}`));
+    defaultOptionLabelsForTaskType(taskType, instruction).forEach((label) =>
+      optionsByLabel.set(label, fallbackOptionText(taskType, label)),
+    );
   }
 
   return {
@@ -1759,6 +1853,105 @@ const optionSetFromStructuredQuestions = (
       text,
     })),
   };
+};
+
+const optionSetFromStructuredQuestions = (
+  optionSetId: ReturnType<typeof readingV2Ids.optionSetId>,
+  taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>,
+  taskType: ReadingV2CanonicalTaskType,
+  questions: readonly StructuredReadingQuestion[],
+  instruction?: StructuredSectionInstruction,
+): ReadingV2OptionSet => {
+  const sourceItems: StructuredOptionItem[] = [
+    ...(instruction?.sectionReferences ?? []),
+    ...(instruction?.labeledOptions ?? []),
+  ];
+
+  questions.forEach((question) => {
+    sourceItems.push(...(question.labeledOptions ?? []), ...(question.sectionReferences ?? []));
+  });
+
+  return optionSetFromItems(optionSetId, taskGroupId, taskType, sourceItems, instruction);
+};
+
+const repeatedInstructionChoiceBanks = (
+  instruction: StructuredSectionInstruction,
+  questionCount: number,
+): readonly (readonly StructuredOptionItem[])[] => {
+  const options = normalizeStructuredOptionItems(instruction.labeledOptions);
+  if (questionCount < 2 || options.length < questionCount * 2) {
+    return [];
+  }
+
+  const firstLabel = options[0]?.label;
+  const cycleLength = options.findIndex((option, index) => index > 0 && option.label === firstLabel);
+
+  if (!firstLabel || cycleLength < 2 || options.length % cycleLength !== 0) {
+    return [];
+  }
+
+  const expectedLabels = options.slice(0, cycleLength).map((option) => option.label).join('\u0000');
+  const banks = Array.from({ length: options.length / cycleLength }, (_, bankIndex) =>
+    options.slice(bankIndex * cycleLength, (bankIndex + 1) * cycleLength),
+  );
+
+  if (banks.length < questionCount || banks.some((bank) => bank.map((option) => option.label).join('\u0000') !== expectedLabels)) {
+    return [];
+  }
+
+  return banks.slice(0, questionCount);
+};
+
+const questionChoiceOptionItems = (
+  question: StructuredReadingQuestion,
+  repeatedBanks: readonly (readonly StructuredOptionItem[])[],
+  questionIndex: number,
+): readonly StructuredOptionItem[] => {
+  const questionItems = [
+    ...(question.labeledOptions ?? []),
+    ...(question.sectionReferences ?? []),
+  ];
+
+  return questionItems.length > 0
+    ? questionItems
+    : repeatedBanks[questionIndex] ?? [];
+};
+
+const createPerQuestionChoiceOptionSets = (input: {
+  readonly idStem: string;
+  readonly instruction: StructuredSectionInstruction;
+  readonly instructionIndex: number;
+  readonly passageNumber: number;
+  readonly taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>;
+  readonly taskType: ReadingV2CanonicalTaskType;
+  readonly questions: readonly StructuredReadingQuestion[];
+}): ReadonlyMap<number, ReadingV2OptionSet> => {
+  if (!isChoiceTaskType(input.taskType)) {
+    return new Map();
+  }
+
+  const repeatedBanks = repeatedInstructionChoiceBanks(input.instruction, input.questions.length);
+  const optionSetsByQuestion = new Map<number, ReadingV2OptionSet>();
+
+  input.questions.forEach((question, questionIndex) => {
+    const questionNumber = structuredQuestionNumber(question);
+    const items = questionChoiceOptionItems(question, repeatedBanks, questionIndex);
+
+    if (!questionNumber || normalizeStructuredOptionItems(items).length < 2) {
+      return;
+    }
+
+    const optionSetId = readingV2Ids.optionSetId(
+      `${input.idStem}-option-set-${input.passageNumber}-${input.instructionIndex + 1}-q${questionNumber}`,
+    );
+
+    optionSetsByQuestion.set(
+      questionNumber,
+      optionSetFromItems(optionSetId, input.taskGroupId, input.taskType, items, input.instruction),
+    );
+  });
+
+  return optionSetsByQuestion;
 };
 
 const normalizeStructuredReadingPayload = (
@@ -1866,6 +2059,22 @@ const normalizeStructuredReadingPayload = (
       const taskType = structuredTaskType(instruction.taskType ?? firstQuestion?.type ?? instructionSourceText);
       const taskGroupId = readingV2Ids.taskGroupId(`${idStem}-task-group-${passageNumber}-${instructionIndex + 1}`);
       const optionSetId = readingV2Ids.optionSetId(`${idStem}-option-set-${passageNumber}-${instructionIndex + 1}`);
+      const perQuestionChoiceOptionSets = createPerQuestionChoiceOptionSets({
+        idStem,
+        instruction,
+        instructionIndex,
+        passageNumber,
+        taskGroupId,
+        taskType,
+        questions: groupQuestions,
+      });
+      const allChoiceQuestionsHavePerOptionSet =
+        isChoiceTaskType(taskType)
+        && groupQuestions.length > 0
+        && perQuestionChoiceOptionSets.size === groupQuestions.length;
+      const defaultOptionSetId = allChoiceQuestionsHavePerOptionSet
+        ? perQuestionChoiceOptionSets.values().next().value?.optionSetId ?? optionSetId
+        : optionSetId;
       const inferredSelectionLimit = taskType === 'multiple-select'
         ? Math.max(1, ...groupQuestions.map((question) => structuredQuestionAnswers(question).length))
         : undefined;
@@ -1880,7 +2089,7 @@ const normalizeStructuredReadingPayload = (
       });
       const responseShape = responseShapeFor(
         taskType,
-        optionSetId,
+        defaultOptionSetId,
         instructionSemantics.wordLimit,
         inferredSelectionLimit,
       );
@@ -1939,6 +2148,15 @@ const normalizeStructuredReadingPayload = (
       const interactionIds = groupQuestions.map((question, questionIndex) => {
         const questionNumber = structuredQuestionNumber(question);
         const interactionId = readingV2Ids.interactionId(`${idStem}-q${questionNumber || `${passageNumber}-${questionIndex + 1}`}`);
+        const perQuestionOptionSet = perQuestionChoiceOptionSets.get(questionNumber);
+        const interactionResponseShape = perQuestionOptionSet
+          ? responseShapeFor(
+              taskType,
+              perQuestionOptionSet.optionSetId,
+              instructionSemantics.wordLimit,
+              inferredSelectionLimit,
+            )
+          : responseShape;
         const tableAnchorId = tableContext?.anchorIdsByQuestionNumber.get(questionNumber);
         const flowchartAnchorId = flowchartContext?.anchorIdsByQuestionNumber.get(questionNumber);
         const diagramAnchorId = diagramContext?.anchorIdsByQuestionNumber.get(questionNumber);
@@ -1949,16 +2167,16 @@ const normalizeStructuredReadingPayload = (
         interactions[interactionId] = {
           interactionId,
           taskGroupId,
-          responseShape,
+          responseShape: interactionResponseShape,
           scoringRule: {
             maxScore: 1,
             acceptableAnswers: normalizeAnswersForResponseShape(
               answerKeyRows.size > 0
                 ? answerKeyRows.get(questionNumber) ?? []
                 : structuredQuestionAnswers(question),
-              responseShape,
+              interactionResponseShape,
             ),
-            orderMatters: responseShape.kind === 'multi-select' ? false : undefined,
+            orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
           },
           reviewLabel: {
             displayNumber: questionNumber || undefined,
@@ -1974,6 +2192,16 @@ const normalizeStructuredReadingPayload = (
 
         return interactionId;
       });
+      const optionSetRefs = taskTypeNeedsOptionSet(taskType)
+        ? Array.from(new Set(interactionIds.flatMap((interactionId) => {
+            const interactionResponseShape = interactions[interactionId]?.responseShape;
+            return interactionResponseShape?.kind === 'single-choice'
+              || interactionResponseShape?.kind === 'multi-select'
+              || interactionResponseShape?.kind === 'matching'
+              ? [interactionResponseShape.optionSetId]
+              : [];
+          })))
+        : [];
 
       const rangeLabel = start && end ? `${start}-${end}` : `${instructionIndex + 1}`;
       const instructionIssue = customInstructionIssue(
@@ -2024,14 +2252,19 @@ const normalizeStructuredReadingPayload = (
                 { stimulusId, anchorIds },
               ]
           : [{ stimulusId, anchorIds }],
-        optionSetRefs: taskTypeNeedsOptionSet(taskType) ? [optionSetId] : [],
+        optionSetRefs,
         interactionIds,
         layoutHint: noteContext?.layoutHint,
         validationState: { issues: instructionIssue ? [instructionIssue] : [] },
       };
 
       if (taskTypeNeedsOptionSet(taskType)) {
-        optionSets[optionSetId] = optionSetFromStructuredQuestions(optionSetId, taskGroupId, groupQuestions, instruction);
+        if (optionSetRefs.includes(optionSetId)) {
+          optionSets[optionSetId] = optionSetFromStructuredQuestions(optionSetId, taskGroupId, taskType, groupQuestions, instruction);
+        }
+        perQuestionChoiceOptionSets.forEach((optionSet) => {
+          optionSets[optionSet.optionSetId] = optionSet;
+        });
       }
 
       return taskGroupId;
@@ -2138,9 +2371,13 @@ export const createReadingV2ImportCandidateFromText = (input: {
     0,
   );
   const unsupportedUpload = sourceKind === 'uploaded-file' && !supportedFileType;
-  const teacherAnswerKey = parseReadingV2TeacherAnswerKey(input.answerKeyText);
+  const structuredPayloadAnswerKeyText = typeof structuredPayload?.answerKeyText === 'string'
+    ? structuredPayload.answerKeyText
+    : undefined;
+  const answerKeyText = input.answerKeyText ?? structuredPayloadAnswerKeyText;
+  const teacherAnswerKey = parseReadingV2TeacherAnswerKey(answerKeyText);
   const validTeacherAnswerRows = answerKeyRowsByQuestion(teacherAnswerKey);
-  const answerKeyRowCount = countAnswerKeyRows(input.answerKeyText);
+  const answerKeyRowCount = countAnswerKeyRows(answerKeyText);
   const answerKeyErrors = teacherAnswerKey.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
   const answerKeyWarnings = teacherAnswerKey.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning');
   const detectedPassageCount = plainTextPassageHeadingCount(input.text);
@@ -2160,8 +2397,8 @@ export const createReadingV2ImportCandidateFromText = (input: {
     fileName: input.fileName,
     supportedFileType,
     rawText: input.text,
-    answerKeyText: input.answerKeyText,
-    teacherAnswerKey: input.answerKeyText !== undefined ? teacherAnswerKey : undefined,
+    answerKeyText,
+    teacherAnswerKey: answerKeyText !== undefined ? teacherAnswerKey : undefined,
     evidence: unsupportedUpload
       ? []
       : structuredInput

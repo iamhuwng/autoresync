@@ -85,6 +85,8 @@ export const buildReadingV2AutoImportPrompt = ({
   '9. For diagram-labeling, preserve diagram labels/targets under sectionInstructions[].diagram.',
   '10. Use labeledOptions for choice/summary-list option banks.',
   '11. Use sectionReferences for matching banks such as headings, paragraph letters, names, or sentence endings.',
+  '11a. For multiple-choice groups with separate A-D choices per question, put choices on each question.labeledOptions, not one merged sectionInstructions[].labeledOptions bank.',
+  '11b. For matching-information, preserve printed paragraph label ranges such as A-H in referenceLabelRange; include sectionReferences when the source prints a paragraph/reference bank.',
   '12. Copy answer-key rows into answerKeyText only when the source contains a visible answer-key section.',
   '13. Fill question.answer only from copied answer-key rows. If no key row exists, use an empty string.',
   '14. If anything is uncertain, include a diagnostic instead of inventing content.',

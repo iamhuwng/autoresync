@@ -22,8 +22,15 @@ const DEFAULT_MIN_INPUT_CHARS = 80;
 const DEFAULT_CHUNK_WAIT_MS = 6_500;
 const GEMINI_MAX_OUTPUT_TOKENS = 65_536;
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
-const ANSWER_KEY_ROW_PATTERN = /^\d{1,2}(?:\\?[\).])?\s+.+/;
-const ANSWER_KEY_ROW_PREFIX_PATTERN = /^(\d{1,2})(?:\\?[\).])?\s+/;
+const ANSWER_KEY_HEADING_PATTERN = /^\s*(?:answers?|answer\s+key|key|solutions?)(?:\s+(?:reading\s+)?test\s+\d+)?\s*:?\s*$/i;
+const ANSWER_KEY_HEADING_SIGNAL_PATTERN = /\b(?:answers?|answer\s+key|key|solutions?)\b/i;
+const ANSWER_KEY_SECTION_MARKER_PATTERN = /^\s*(?:(?:reading\s+)?passage|section|reading\s+test)\s+\d+\s*:?\s*$/i;
+const ANSWER_KEY_ROW_PATTERN = /^\d{1,3}(?:\\?[\).])?\s+.+/;
+const ANSWER_KEY_ROW_PREFIX_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+/;
+const ANSWER_KEY_ROW_CAPTURE_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+(.+)$/;
+const ANSWER_KEY_NEGATIVE_LINE_PATTERN =
+  /\b(?:choose|complete|write\s+no\s+more|which\s+paragraph|do\s+the\s+following|questions?\s+\d+|reading\s+passage)\b/i;
+const ANSWER_KEY_BLANK_PATTERN = /(?:_{3,}|\u2026{1,}|\.{3,}|\[\s*(?:blank|\d+)\s*\])/i;
 
 const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unknown>): void => {
   if (!import.meta.env.DEV || import.meta.env.MODE === 'test') {
@@ -137,6 +144,18 @@ interface SourceChunk {
   readonly text: string;
 }
 
+interface ChunkPayload {
+  readonly chunk: SourceChunk;
+  readonly payload: AutoPayload;
+}
+
+interface AnswerKeyCandidate {
+  readonly rows: readonly string[];
+  readonly score: number;
+  readonly headingScore: number;
+  readonly startIndex: number;
+}
+
 const wait = (ms: number): Promise<void> =>
   ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 
@@ -175,47 +194,161 @@ const payloadDiagnostics = (payload: AutoPayload): readonly ReadingV2AutoImportD
       message: diagnostic.message ?? diagnostic.code ?? 'Gemini reported an import diagnostic.',
     }));
 
-const extractAnswerKeyTextFromRaw = (rawText: string): string | undefined => {
-  const lines = rawText.split(/\r?\n/);
-  let headingIndex = -1;
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    if (/^\s*(?:answers?|answer\s+key|key)\s*:?\s*$/i.test(lines[index]?.trim() ?? '')) {
-      headingIndex = index;
-      break;
-    }
+const answerKeyHeadingScore = (line: string): number => {
+  if (ANSWER_KEY_HEADING_PATTERN.test(line)) {
+    return 35;
   }
 
-  if (headingIndex < 0) {
-    return undefined;
+  const cleaned = compactWhitespace(line);
+  if (
+    cleaned.length <= 80
+    && ANSWER_KEY_HEADING_SIGNAL_PATTERN.test(cleaned)
+    && !ANSWER_KEY_NEGATIVE_LINE_PATTERN.test(cleaned)
+    && !/\b(?:must|written|boxes?|sheet)\b/i.test(cleaned)
+  ) {
+    return 20;
   }
 
+  return 0;
+};
+
+const normalizedAnswerKeyRow = (line: string): string | undefined =>
+  ANSWER_KEY_ROW_PATTERN.test(line)
+    ? line.replace(ANSWER_KEY_ROW_PREFIX_PATTERN, '$1 ')
+    : undefined;
+
+const answerTextFromRow = (row: string): string => {
+  const match = row.match(ANSWER_KEY_ROW_CAPTURE_PATTERN);
+  return match?.[2]?.trim() ?? '';
+};
+
+const isLikelyAnswerValue = (answerText: string): boolean => {
+  const cleaned = compactWhitespace(answerText.replace(/\([^)]*\bcapitals?\s+optional\b[^)]*\)/i, ''));
+  if (!cleaned || cleaned.length > 90 || cleaned.endsWith('?') || ANSWER_KEY_BLANK_PATTERN.test(cleaned)) {
+    return false;
+  }
+
+  if (/^(?:true|false|yes|no|not\s+given)$/i.test(cleaned)) {
+    return true;
+  }
+
+  if (/^[A-Z](?:\s*(?:[|,;/]|or)\s*[A-Z])*$/i.test(cleaned)) {
+    return true;
+  }
+
+  if (/^(?:[ivxlcdm]+)(?:\s*(?:[|,;/]|or)\s*(?:[ivxlcdm]+))*$/i.test(cleaned)) {
+    return true;
+  }
+
+  if (/^\d{3,4}$/.test(cleaned) || /^[\d.,%/-]+$/.test(cleaned)) {
+    return true;
+  }
+
+  const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
+  return wordCount <= 5;
+};
+
+const collectAnswerKeyRows = (
+  lines: readonly string[],
+  startIndex: number,
+): readonly string[] => {
   const rows: string[] = [];
-  for (let index = headingIndex + 1; index < lines.length; index += 1) {
+
+  for (let index = startIndex; index < lines.length; index += 1) {
     const line = lines[index]?.trim() ?? '';
 
-    if (!line) {
-      if (rows.length > 0) {
-        continue;
-      }
+    if (!line || ANSWER_KEY_SECTION_MARKER_PATTERN.test(line) || answerKeyHeadingScore(line) > 0) {
       continue;
     }
 
-    if (/^\s*(?:reading\s+passage|passage|section)\s+\d+\s*:?\s*$/i.test(line)) {
+    const row = normalizedAnswerKeyRow(line);
+    if (row) {
+      rows.push(row);
       continue;
     }
 
-    if (ANSWER_KEY_ROW_PATTERN.test(line)) {
-      rows.push(line.replace(ANSWER_KEY_ROW_PREFIX_PATTERN, '$1 '));
-      continue;
-    }
-
-    if (rows.length > 0 && !ANSWER_KEY_ROW_PATTERN.test(line)) {
+    if (rows.length > 0) {
       break;
     }
+  }
+
+  return rows;
+};
+
+const scoreAnswerKeyCandidate = (
+  rows: readonly string[],
+  headingScore: number,
+  startIndex: number,
+  lineCount: number,
+): AnswerKeyCandidate | null => {
+  if (rows.length === 0) {
+    return null;
   }
 
   const parsed = parseReadingV2TeacherAnswerKey(rows.join('\n'));
+  const validRows = parsed.rows.filter((row) => !row.diagnostics.some((diagnostic) => diagnostic.severity === 'error'));
+  const answerLikeCount = validRows.filter((row) => isLikelyAnswerValue(row.rawAnswerText)).length;
+  const uniqueQuestionCount = new Set(validRows.map((row) => row.questionNumber)).size;
+  const questionNumbers = validRows.map((row) => row.questionNumber);
+  const monotonicPairs = questionNumbers.filter((questionNumber, index) =>
+    index === 0 || questionNumber >= questionNumbers[index - 1]!,
+  ).length;
+  const answerLikeRatio = validRows.length > 0 ? answerLikeCount / validRows.length : 0;
+  const monotonicRatio = questionNumbers.length > 0 ? monotonicPairs / questionNumbers.length : 0;
+  const positionRatio = lineCount > 0 ? startIndex / lineCount : 0;
+  const rowScore = Math.min(validRows.length * 5, 45);
+  const uniqueScore = Math.min(uniqueQuestionCount * 2, 20);
+  const answerLikeScore = answerLikeRatio >= 0.75 ? 20 : Math.round((answerLikeRatio - 0.5) * 30);
+  const monotonicScore = monotonicRatio >= 0.9 ? 10 : 0;
+  const positionScore = positionRatio >= 0.45 ? 10 : 0;
+  const duplicatePenalty = validRows.length - uniqueQuestionCount > 0 ? 25 : 0;
+  const errorPenalty = parsed.diagnostics.some((diagnostic) => diagnostic.severity === 'error') ? 20 : 0;
+  const score = headingScore + rowScore + uniqueScore + answerLikeScore + monotonicScore + positionScore
+    - duplicatePenalty - errorPenalty;
+  const threshold = headingScore > 0 ? 45 : 80;
+
+  return answerLikeRatio >= 0.45 && score >= threshold
+    ? { rows, score, headingScore, startIndex }
+    : null;
+};
+
+const extractAnswerKeyTextFromRaw = (rawText: string): string | undefined => {
+  const lines = rawText.split(/\r?\n/);
+  const candidates: AnswerKeyCandidate[] = [];
+  const earliestUnheadedStart = Math.floor(lines.length * 0.45);
+
+  lines.forEach((rawLine, index) => {
+    const line = rawLine.trim();
+    const headingScore = answerKeyHeadingScore(line);
+    const row = normalizedAnswerKeyRow(line);
+    const canStartWithoutHeading =
+      index >= earliestUnheadedStart
+      && Boolean(row)
+      && !ANSWER_KEY_NEGATIVE_LINE_PATTERN.test(line)
+      && isLikelyAnswerValue(answerTextFromRow(row ?? ''));
+
+    if (headingScore === 0 && !canStartWithoutHeading) {
+      return;
+    }
+
+    const rows = collectAnswerKeyRows(lines, headingScore > 0 ? index + 1 : index);
+    const candidate = scoreAnswerKeyCandidate(rows, headingScore, index, lines.length);
+
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  });
+
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  const bestCandidate = candidates.sort((left, right) =>
+    right.score - left.score
+    || right.headingScore - left.headingScore
+    || right.startIndex - left.startIndex,
+  )[0];
+  const parsed = parseReadingV2TeacherAnswerKey(bestCandidate?.rows.join('\n'));
   return parsed.rows.length > 0 ? parsed.rawText : undefined;
 };
 
@@ -274,12 +407,57 @@ const stripAnswersWhenNoSourceKey = (payload: AutoPayload): AutoPayload => ({
   })),
 });
 
+const materialPassageNumberForChunk = (
+  material: AutoMaterial,
+  chunk: SourceChunk,
+  materialCountInChunk: number,
+  fallbackPassageNumber: number,
+): number => {
+  if (chunk.passageNumber && materialCountInChunk === 1) {
+    return chunk.passageNumber;
+  }
+
+  return normalizeNumber(material.passageNumber) || chunk.passageNumber || fallbackPassageNumber;
+};
+
+const mergeChunkMaterials = (chunkPayloads: readonly ChunkPayload[]): AutoMaterial[] => {
+  const usedPassageNumbers = new Set<number>();
+  const materials: AutoMaterial[] = [];
+
+  chunkPayloads.forEach(({ chunk, payload }) => {
+    const chunkMaterials = payload.materials ?? [];
+
+    chunkMaterials.forEach((material) => {
+      const preferredPassageNumber = materialPassageNumberForChunk(
+        material,
+        chunk,
+        chunkMaterials.length,
+        materials.length + 1,
+      );
+      let passageNumber = preferredPassageNumber;
+
+      while (usedPassageNumbers.has(passageNumber)) {
+        passageNumber += 1;
+      }
+
+      usedPassageNumbers.add(passageNumber);
+      materials.push({
+        ...material,
+        passageNumber,
+      });
+    });
+  });
+
+  return materials;
+};
+
 const structuredPayloadText = (payload: AutoPayload): string =>
   [
     READING_V2_STRUCTURED_MATERIALS_START,
     '```json',
     JSON.stringify({
       sourceFile: payload.sourceFile ?? 'auto-gemini-reading-v2.txt',
+      ...(payload.answerKeyText?.trim() ? { answerKeyText: payload.answerKeyText } : {}),
       materials: payload.materials ?? [],
       diagnostics: payload.diagnostics ?? [],
     }),
@@ -466,7 +644,7 @@ export const generateReadingV2AutoImportCandidate = async (
 
   const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(rawTestText);
   const chunks = splitSourceIntoChunks(rawTestText);
-  const chunkPayloads: AutoPayload[] = [];
+  const chunkPayloads: ChunkPayload[] = [];
   logReadingV2AutoImportDiag('preflight_complete', {
     sourceLength: rawTestText.length,
     chunkCount: chunks.length,
@@ -497,14 +675,14 @@ export const generateReadingV2AutoImportCandidate = async (
       };
     }
 
-    chunkPayloads.push(chunkResult.data);
+    chunkPayloads.push({ chunk, payload: chunkResult.data });
   }
 
   const mergedPayload: AutoPayload = {
     sourceFile: request.sourceName ?? 'auto-gemini-reading-v2.txt',
     answerKeyText: extractedAnswerKeyText ?? '',
-    materials: chunkPayloads.flatMap((payload) => payload.materials ?? []),
-    diagnostics: chunkPayloads.flatMap((payload) => payload.diagnostics ?? []),
+    materials: mergeChunkMaterials(chunkPayloads),
+    diagnostics: chunkPayloads.flatMap(({ payload }) => payload.diagnostics ?? []),
   };
   const payload = extractedAnswerKeyText ? mergedPayload : stripAnswersWhenNoSourceKey(mergedPayload);
   const diagnostics: ReadingV2AutoImportDiagnostic[] = [

@@ -148,6 +148,56 @@ describe('readingV2ImportNormalization.service', () => {
     expect(interaction?.scoringRule.acceptableAnswers).toEqual(['teacher answer', 'accepted alternative']);
   });
 
+  it('uses structured payload answerKeyText when no separate answer key field is supplied', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'structured-with-key',
+        answerKeyText: '1 structured answer',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Structured import',
+            passages: [
+              {
+                title: 'Structured passage',
+                content: 'This structured passage has enough content to create an imported Reading V2 passage paragraph.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'instruction-1',
+                text: 'Complete the sentence with one word.',
+                questionRange: { start: 1, end: 1 },
+              },
+            ],
+            questions: [
+              {
+                number: 1,
+                type: 'sentence-completion',
+                sectionInstructionId: 'instruction-1',
+                questionText: 'The answer is ___.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+
+    const candidate = createReadingV2ImportCandidateFromText({ text: structuredPayload });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interaction = Object.values(result.document.interactions).find(
+      (candidateInteraction) => candidateInteraction.reviewLabel.displayNumber === 1,
+    );
+
+    expect(candidate.answerKeyText).toBe('1 structured answer');
+    expect(candidate.evidence).toContain('Detected 1 teacher answer key rows');
+    expect(interaction?.scoringRule.acceptableAnswers).toEqual(['structured answer']);
+  });
+
   it('keeps teacher answer key values authoritative over structured payload answers', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -877,6 +927,197 @@ describe('readingV2ImportNormalization.service', () => {
       'Detected 1 structured question group',
       'Detected 2 structured questions',
     ]));
+  });
+
+  it('splits repeated section-level multiple-choice banks into per-question option sets', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'repeated-choice-banks.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Choice banks',
+            passages: [
+              {
+                title: 'Choice banks',
+                content: 'This passage has enough content to test repeated multiple-choice option banks from Gemini output.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'multiple-choice',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Choose the correct letter, A, B, C or D.',
+                optionLabelRange: 'A-D',
+                labeledOptions: [
+                  { label: 'A', text: 'Question 1 option A' },
+                  { label: 'B', text: 'Question 1 option B' },
+                  { label: 'C', text: 'Question 1 option C' },
+                  { label: 'D', text: 'Question 1 option D' },
+                  { label: 'A', text: 'Question 2 option A' },
+                  { label: 'B', text: 'Question 2 option B' },
+                  { label: 'C', text: 'Question 2 option C' },
+                  { label: 'D', text: 'Question 2 option D' },
+                ],
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'multiple-choice',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'First question',
+              },
+              {
+                questionNumber: 2,
+                type: 'multiple-choice',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Second question',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A\n2 D',
+    }));
+    const interactions = Object.values(result.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const firstShape = interactions[0]?.responseShape;
+    const secondShape = interactions[1]?.responseShape;
+
+    if (firstShape?.kind !== 'single-choice' || secondShape?.kind !== 'single-choice') {
+      throw new Error('Expected single-choice interactions.');
+    }
+
+    expect(firstShape.optionSetId).not.toBe(secondShape.optionSetId);
+    expect(result.document.optionSets[firstShape.optionSetId]?.options.map((option) => option.text)).toEqual([
+      'Question 1 option A',
+      'Question 1 option B',
+      'Question 1 option C',
+      'Question 1 option D',
+    ]);
+    expect(result.document.optionSets[secondShape.optionSetId]?.options.map((option) => option.text)).toEqual([
+      'Question 2 option A',
+      'Question 2 option B',
+      'Question 2 option C',
+      'Question 2 option D',
+    ]);
+    expect(Object.values(result.document.taskGroups)[0]?.optionSetRefs).toHaveLength(2);
+  });
+
+  it('uses matching-information reference ranges as paragraph option banks without false instruction blockers', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'matching-information-range.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Paragraph range',
+            passages: [
+              {
+                title: 'Paragraph range',
+                content: 'Paragraph A has source text.\n\nParagraph B has source text.\n\nParagraph C has source text.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-information',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'The text has eight paragraphs: A-H. Which paragraph, A-H, has the following information?',
+                referenceLabelRange: 'A-H',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'First information',
+              },
+              {
+                questionNumber: 2,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Second information',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A\n2 H',
+    }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const optionSet = Object.values(result.document.optionSets)[0];
+
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+    expect(optionSet?.options.map((option) => option.text)).toContain('Paragraph H');
+    expect(taskGroup?.instructionBlocks[0]?.text).toContain('A-H');
+    expect(taskGroup?.validationState.issues).toEqual([]);
+  });
+
+  it('treats question-like multiple-choice evidence as a prompt, not a blocking custom instruction', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'question-like-mc-evidence.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Question-like evidence',
+            passages: [
+              {
+                title: 'Question-like evidence',
+                content: 'This passage has enough content to test a single multiple-choice question prompt.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'multiple-choice',
+                questionRange: { start: 1, end: 1 },
+                sourceInstructionEvidence: 'Which plan shows the stages in which Monticello was built?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'multiple-choice',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'Which plan shows the stages in which Monticello was built?',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A',
+    }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const optionSet = Object.values(result.document.optionSets)[0];
+
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D']);
+    expect(taskGroup?.validationState.issues).toEqual([]);
   });
 
   it('imports structured table-completion payloads as table-content with question blank anchors', () => {

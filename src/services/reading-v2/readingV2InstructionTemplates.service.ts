@@ -291,7 +291,9 @@ export const readingV2InstructionLooksStandard = (
     case 'matching-headings':
       return normalized.includes('choose the correct heading') || normalized.includes('list of headings');
     case 'matching-information':
-      return normalized.includes('which paragraph contains') || normalized.includes('matching information');
+      return normalized.includes('matching information')
+        || normalized.includes('which paragraph contains')
+        || (normalized.includes('which paragraph') && normalized.includes('following information'));
     case 'matching-features':
       return normalized.includes('match') && (normalized.includes('option') || normalized.includes('list'));
     case 'matching-sentence-endings':
