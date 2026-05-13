@@ -983,6 +983,32 @@ const structuredPassageHasContent = (passage: StructuredReadingPassage | undefin
 const structuredQuestionNumber = (question: StructuredReadingQuestion): number =>
   Number(question.questionNumber ?? question.number ?? 0);
 
+const positiveStructuredInteger = (value: unknown): number | null => {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value.trim())
+      : NaN;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const structuredMaterialPassageNumber = (
+  material: StructuredReadingMaterial,
+  materialIndex: number,
+  usedPassageNumbers: Set<number>,
+): number => {
+  const preferredPassageNumber = positiveStructuredInteger(material.passageNumber) ?? materialIndex + 1;
+  let passageNumber = preferredPassageNumber;
+
+  while (usedPassageNumbers.has(passageNumber)) {
+    passageNumber += 1;
+  }
+
+  usedPassageNumbers.add(passageNumber);
+  return passageNumber;
+};
+
 const structuredQuestionAnswers = (question: StructuredReadingQuestion): readonly string[] => {
   if (Array.isArray(question.answer)) {
     return question.answer.map((answer) => cleanMarkdown(String(answer))).filter(Boolean);
@@ -1977,8 +2003,9 @@ const normalizeStructuredReadingPayload = (
   const optionSets: Record<string, ReadingV2OptionSet> = {};
   const teacherAnswerKey = answerKeyPayloadForCandidate(candidate);
   const answerKeyRows = answerKeyRowsByQuestion(teacherAnswerKey);
+  const usedPassageNumbers = new Set<number>();
   const sectionIds = materials.map((material, materialIndex) => {
-    const passageNumber = material.passageNumber ?? materialIndex + 1;
+    const passageNumber = structuredMaterialPassageNumber(material, materialIndex, usedPassageNumbers);
     const sectionId = readingV2Ids.sectionId(`${idStem}-section-${passageNumber}`);
     const stimulusId = readingV2Ids.stimulusId(`${idStem}-stimulus-${passageNumber}`);
     const passage = material.passages?.[0];

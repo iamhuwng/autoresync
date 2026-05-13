@@ -198,6 +198,82 @@ describe('readingV2ImportNormalization.service', () => {
     expect(interaction?.scoringRule.acceptableAnswers).toEqual(['structured answer']);
   });
 
+  it('normalizes duplicate structured passage numbers into unique section ids', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'structured duplicate passage numbers',
+        answerKeyText: '1 first answer\n2 second answer',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'First structured import',
+            passages: [
+              {
+                title: 'First passage',
+                content: 'This first structured passage has enough content to create an imported Reading V2 section.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'instruction-1',
+                text: 'Complete the sentence with one word.',
+                questionRange: { start: 1, end: 1 },
+              },
+            ],
+            questions: [
+              {
+                number: 1,
+                type: 'sentence-completion',
+                sectionInstructionId: 'instruction-1',
+                questionText: 'The first answer is ___.',
+              },
+            ],
+          },
+          {
+            passageNumber: 1,
+            title: 'Second structured import',
+            passages: [
+              {
+                title: 'Second passage',
+                content: 'This second structured passage also has enough content to create another imported section.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'instruction-2',
+                text: 'Complete the sentence with one word.',
+                questionRange: { start: 2, end: 2 },
+              },
+            ],
+            questions: [
+              {
+                number: 2,
+                type: 'sentence-completion',
+                sectionInstructionId: 'instruction-2',
+                questionText: 'The second answer is ___.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+
+    const candidate = createReadingV2ImportCandidateFromText({ text: structuredPayload });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+
+    assertValidReadingV2CanonicalDocument(result.document);
+    expect(result.document.sectionIds).toHaveLength(2);
+    expect(new Set(result.document.sectionIds).size).toBe(2);
+    expect(result.document.sectionIds[0]).toContain('section-1');
+    expect(result.document.sectionIds[1]).toContain('section-2');
+    expect(result.document.sections[result.document.sectionIds[0]!]?.title).toBe('Reading Passage 1');
+    expect(result.document.sections[result.document.sectionIds[1]!]?.title).toBe('Reading Passage 2');
+  });
+
   it('keeps teacher answer key values authoritative over structured payload answers', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
