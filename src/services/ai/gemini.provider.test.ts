@@ -37,6 +37,21 @@ vi.mock('./response.validator', () => ({
 vi.mock('../key-cooldown.service', () => ({
   benchKey: vi.fn(),
   isKeyBenched: vi.fn(() => false),
+  shouldBenchGeminiKeyError: vi.fn((message: string) => {
+    const normalized = String(message || '').toLowerCase();
+    return normalized.includes('403')
+      || normalized.includes('forbidden')
+      || normalized.includes('blocked')
+      || normalized.includes('invalid api key')
+      || normalized.includes('api_key_invalid')
+      || normalized.includes('api key invalid')
+      || normalized.includes('api key not valid')
+      || normalized.includes('api key expired')
+      || normalized.includes('key expired')
+      || normalized.includes('429')
+      || normalized.includes('rate limit')
+      || normalized.includes('quota');
+  }),
 }));
 
 describe('Gemini Provider', () => {
@@ -391,6 +406,38 @@ describe('Gemini Provider', () => {
       if (!result.success) {
         expect(result.error).toContain('exhausted');
       }
+    });
+
+    it('rotates structured JSON generation when selected key is expired', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { benchKey } = await import('../key-cooldown.service');
+      const expiredKeyGenerate = vi.fn().mockRejectedValue(
+        new Error('[400] API key expired. Please renew the API key. [{"reason":"API_KEY_INVALID"}]'),
+      );
+      const healthyKeyGenerate = vi.fn().mockResolvedValue({
+        response: { text: () => JSON.stringify({ ok: true }) },
+      });
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation((apiKey: string) => ({
+        getGenerativeModel: vi.fn().mockReturnValue({
+          generateContent: apiKey === 'test-key-2' ? expiredKeyGenerate : healthyKeyGenerate,
+        }),
+      }) as any);
+
+      provider = new GeminiProvider();
+      const result = await provider.generateStructuredJson('Return {"ok": true}');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ ok: true });
+      }
+      expect(expiredKeyGenerate).toHaveBeenCalledTimes(1);
+      expect(healthyKeyGenerate).toHaveBeenCalledTimes(1);
+      expect(benchKey).toHaveBeenCalledWith(
+        'test-key-2',
+        'gemini',
+        expect.stringContaining('API key expired'),
+      );
     });
 
     it('should rotate keys on temporary 503 high-demand errors for questions+answers', async () => {

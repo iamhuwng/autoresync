@@ -128,6 +128,26 @@ Operational consequence:
 - teacher IELTS Reading creation must no longer fail because an expired legacy Google key was included in Gemini round-robin selection
 - if Gemini fails after this point, treat it as a real provider or prompt-size issue, not legacy-key contamination
 
+## 2026-05-13 Amendment - Structured JSON Gemini Rotation
+
+Reading V2 Auto import uses `geminiProvider.generateStructuredJson(...)` directly through `src/services/reading-v2/readingV2AutoImport.service.ts`, not the generic AI router.
+
+Operational finding on May 13, 2026:
+- `generativelanguage.googleapis.com` is enabled for the active Google Cloud project.
+- `VITE_GEMINI_API_KEY_1` maps to Cloud API key `Gemini API Key` in project `171016256749`.
+- `VITE_GEMINI_API_KEY_3` maps to Cloud API key `Generative Language API Key` in project `983020888101`.
+- `VITE_GEMINI_API_KEY_2` did not resolve through the active gcloud account/project lookup and is the likely problematic slot for the observed `API_KEY_INVALID` / "API key expired" Reading V2 Auto failure.
+- `VITE_GOOGLE_API_KEY` is still not part of the Gemini key pool and remains legacy Google Drive-only.
+
+Required rules:
+- `generateStructuredJson(...)` must rotate across available Gemini keys for invalid, expired, forbidden, blocked, quota, rate-limit, and transient availability errors.
+- Expired/invalid Gemini keys must be benched through `key-cooldown.service` so the next Reading V2 Auto chunk can skip them.
+- Error logs and docs may use masked key previews, env slot names, Cloud display names, or key resource IDs, but must never print raw API key strings.
+
+Operational consequence:
+- Reading V2 Auto should continue with another configured Gemini key when one configured key expires.
+- A final Auto failure after this point means all available structured-generation keys failed or were unavailable, not just the first selected key.
+
 ## 2026-04-10 Amendment - Question Extraction Resilience
 
 The Reading creator now has a stricter stage-local recovery contract for the question extraction step.

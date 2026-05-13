@@ -73,7 +73,11 @@ export function shouldBenchGeminiKeyError(errorMessage: string): boolean {
         || normalized.includes('permission_denied')
         || normalized.includes('blocked')
         || normalized.includes('invalid api key')
+        || normalized.includes('api_key_invalid')
+        || normalized.includes('api key invalid')
         || normalized.includes('api key not valid')
+        || normalized.includes('api key expired')
+        || normalized.includes('key expired')
         || normalized.includes('429')
         || normalized.includes('rate limit')
         || normalized.includes('quota')
@@ -104,7 +108,11 @@ function parseCooldownMs(provider: 'groq' | 'gemini', errorMessage: string): num
             normalized.includes('403') ||
             normalized.includes('forbidden') ||
             normalized.includes('invalid api key') ||
+            normalized.includes('api_key_invalid') ||
+            normalized.includes('api key invalid') ||
             normalized.includes('api key not valid') ||
+            normalized.includes('api key expired') ||
+            normalized.includes('key expired') ||
             normalized.includes('permission denied') ||
             normalized.includes('permission_denied') ||
             normalized.includes('blocked')

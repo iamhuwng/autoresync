@@ -11,7 +11,7 @@ import type {
 } from './ai.service';
 import { loadAllGeminiApiKeys } from '../../config/env.config';
 import { validateAIResponse, validatePassagesOnly, validateQuestionsAndAnswers, normalizeQuestionType, normalizeAnswer } from './response.validator';
-import { benchKey, isKeyBenched } from '../key-cooldown.service';
+import { benchKey, isKeyBenched, shouldBenchGeminiKeyError } from '../key-cooldown.service';
 import { jsonrepair } from 'jsonrepair';
 
 // Type-only import to avoid eager loading
@@ -85,6 +85,14 @@ export class GeminiProvider implements IAIService {
       errorMessage.includes('503') ||
       errorMessage.includes('high demand') ||
       errorMessage.includes('temporarily unavailable')
+    );
+  }
+
+  private shouldTryNextStructuredKey(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      this.isRateLimitError(errorMessage) ||
+      this.isTransientAvailabilityError(errorMessage) ||
+      shouldBenchGeminiKeyError(errorMessage)
     );
   }
 
@@ -1902,44 +1910,70 @@ Respond with JSON array only:
     if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
-    this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+    const attemptedKeys = new Set<number>();
+    let nextKeyIndex = this.getNextAvailableKeyRoundRobin();
+    let lastError = '';
 
-    try {
-      this.status.requestCount++;
-      this.status.lastRequestTime = Date.now();
-      const client = this.clients[this.currentKeyIndex];
-      if (!client) throw new Error('No client available');
-
-      const model = client.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          temperature: options.temperature ?? 0.1,
-          maxOutputTokens: options.maxOutputTokens ?? 8192,
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const request = options.systemInstruction
-        ? [
-          { text: `${options.systemInstruction}\n\n${prompt}` },
-        ]
-        : prompt;
-      const result = await model.generateContent(request as any);
-      const text = result.response.text();
-      const parsed = this.extractJSON(text);
-
-      return {
-        success: true,
-        data: parsed,
-      };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+    while (nextKeyIndex >= 0 && attemptedKeys.size < this.clients.length) {
+      if (attemptedKeys.has(nextKeyIndex)) {
+        break;
       }
-      return { success: false, error: `Structured generation failed: ${msg}` };
+
+      this.currentKeyIndex = nextKeyIndex;
+      attemptedKeys.add(nextKeyIndex);
+
+      try {
+        this.status.requestCount++;
+        this.status.lastRequestTime = Date.now();
+        const client = this.clients[this.currentKeyIndex];
+        if (!client) throw new Error('No client available');
+
+        const model = client.getGenerativeModel({
+          model: 'gemini-2.5-flash',
+          generationConfig: {
+            temperature: options.temperature ?? 0.1,
+            maxOutputTokens: options.maxOutputTokens ?? 8192,
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const request = options.systemInstruction
+          ? [
+            { text: `${options.systemInstruction}\n\n${prompt}` },
+          ]
+          : prompt;
+        const result = await model.generateContent(request as any);
+        const text = result.response.text();
+        const parsed = this.extractJSON(text);
+
+        return {
+          success: true,
+          data: parsed,
+        };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        this.status.lastError = msg;
+        lastError = msg;
+
+        if (!this.shouldTryNextStructuredKey(msg)) {
+          return { success: false, error: `Structured generation failed: ${msg}` };
+        }
+
+        if (this.isRateLimitError(msg) || shouldBenchGeminiKeyError(msg)) {
+          this.markKeyExhausted(this.currentKeyIndex, msg);
+        }
+
+        console.warn(
+          `⚠️ Structured generation failed on Gemini key ${this.currentKeyIndex + 1}/${this.clients.length}, trying next key...`,
+        );
+        nextKeyIndex = this.getNextAvailableKey();
+      }
     }
+
+    return {
+      success: false,
+      error: `Structured generation failed after trying ${attemptedKeys.size} Gemini API key(s); all Gemini API keys exhausted or unavailable. Last error: ${lastError || 'All keys unavailable'}`,
+    };
   }
 
   private getWritingSuggestionScopeInstruction(scope: WritingSuggestionScope): string {

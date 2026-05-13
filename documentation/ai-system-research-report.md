@@ -21,6 +21,7 @@
 | `src/services/api-keys.service.ts` | Firestore CRUD for encrypted API keys (AES-256 XOR obfuscation) |
 | `src/services/key-cooldown.service.ts` | Centralized in-memory cooldown registry for rate-limited keys |
 | `src/config/env.config.ts` | Env validation + `loadAllGeminiApiKeys()` (env + Firestore) |
+| `src/services/reading-v2/readingV2AutoImport.service.ts` | Reading V2 Auto import facade that calls Gemini structured JSON generation directly |
 | `src/services/formativeFeedback.service.ts` | Direct Gemini/Groq calls for formative feedback (bypasses router) |
 | `src/services/progressiveFeedback.service.ts` | Direct Gemini calls for progressive narrative feedback (bypasses router) |
 | `src/services/test-creation/thcsDocumentParser.service.ts` | Direct Gemini/Groq calls for THCS document restructuring (bypasses router) |
@@ -40,6 +41,7 @@ User Action → aiService (Router) → Gemini (primary) → Groq (fallback)
 - **Key sources:** `.env` (up to 5 Gemini + 1 Groq) + Firestore (unlimited, encrypted)
 - **Rotation:** Round-robin load balancing + exhausted-key tracking (24h reset)
 - **Cooldown:** Centralized `key-cooldown.service` with provider-specific durations (60s RPM, 1h RPD)
+- **Structured JSON:** As of 2026-05-13, `GeminiProvider.generateStructuredJson(...)` rotates across configured Gemini keys for expired/invalid, forbidden/blocked, quota, rate-limit, and transient availability errors before surfacing failure to direct callers such as Reading V2 Auto.
 
 ### 1.3 AI Capabilities
 

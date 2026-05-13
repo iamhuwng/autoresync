@@ -30,12 +30,15 @@ This task list supplements, but does not replace:
 - [x] Added feature tracking actions for Auto submit/success/failure and Studio Auto import open.
 - [x] Verified student-safe projection guards still pass.
 - [x] Existing `Paste Text` and `Create New Test` routes remain intact in focused tests.
+- [x] Hotfix 2026-05-13: `generateStructuredJson(...)` now rotates to the next Gemini key when the selected key returns `API_KEY_INVALID`, "API key expired", forbidden/blocked, quota, rate-limit, or transient availability errors.
+- [x] Hotfix 2026-05-13: expired/invalid structured-generation keys are benched through `key-cooldown.service` so Reading V2 Auto does not keep retrying the same bad key in the same browser session.
 
 Provider evidence:
 
 - [x] Active Google Cloud account/project checked with `gcloud auth list` and `gcloud config get-value project`.
 - [x] `generativelanguage.googleapis.com` confirmed enabled in active project.
 - [x] API-key listing confirmed a Gemini key with localhost browser referrers exists.
+- [x] 2026-05-13 gcloud lookup mapped `VITE_GEMINI_API_KEY_1` to Cloud display name `Gemini API Key` and `VITE_GEMINI_API_KEY_3` to `Generative Language API Key`; `VITE_GEMINI_API_KEY_2` did not resolve through the active account/project lookup and is the likely problematic env slot for the observed expired-key error. Raw key strings were not recorded.
 - [ ] Real Gemini provider probes from `Clippings/` were not rerun in this implementation turn; prior probe evidence should remain separate from mocked CI tests.
 
 ## Current Baseline To Preserve
@@ -177,6 +180,7 @@ Acceptance:
 - [ ] Add `readingV2AutoImport.service.ts` as the Reading V2-owned facade over the internal Gemini service.
 - [ ] Use Gemini intentionally, not provider fallback by accident. Prefer a `gemini-only` path or a direct `geminiProvider.generateStructuredJson(...)` call wrapped by the Reading V2 service.
 - [ ] Reuse existing key loading, key rotation, cooldown, and retry behavior where possible.
+- [x] 2026-05-13 hotfix: structured JSON generation now reuses shared cooldown classification for invalid/expired keys and retries the next Gemini key before failing Auto import.
 - [ ] Avoid parallel Gemini calls for one teacher request unless rate-limit handling explicitly supports it.
 - [ ] Add config-controlled waits between passage chunks so the flow can respect the current Gemini free-tier limits.
 - [ ] Include a max input size check and a clear error when the pasted source is too large for the configured mode.

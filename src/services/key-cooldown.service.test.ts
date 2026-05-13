@@ -44,6 +44,7 @@ describe('key-cooldown.service', () => {
     const service = await loadService();
 
     expect(service.shouldBenchGeminiKeyError('403 Forbidden')).toBe(true);
+    expect(service.shouldBenchGeminiKeyError('API_KEY_INVALID: API key expired.')).toBe(true);
     expect(service.shouldBenchGeminiKeyError('API key not valid. Please pass a valid API key.')).toBe(true);
     expect(service.shouldBenchGeminiKeyError('429 quota exceeded')).toBe(true);
     expect(service.shouldBenchGeminiKeyError('404 model not found')).toBe(false);
