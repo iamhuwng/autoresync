@@ -157,6 +157,21 @@ const rawSourceWithNumberedQuestionsOnly = [
   '40 Which plan shows the stages in which Monticello was built?',
 ].join('\n');
 
+const rawSourceWithQPrefixAnswerKey = [
+  'READING PASSAGE 1',
+  'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+  'It has a second sentence to avoid being too tiny for guardrails.',
+  '',
+  'Questions 1-2',
+  'Do the following statements agree with the information given in Reading Passage 1?',
+  '1 The first statement is supported by the passage.',
+  '2 The second statement is contradicted by the passage.',
+  '',
+  'Answer key',
+  'Q1: TRUE',
+  'Q2: FALSE',
+].join('\n');
+
 const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
   generateStructuredJson: vi.fn().mockResolvedValue({ success: true, data }),
 });
@@ -306,6 +321,45 @@ describe('readingV2AutoImport.service', () => {
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'answer-key-missing', severity: 'warning' }),
     ]));
+  });
+
+  it('keeps Gemini-copied answerKeyText when local row extraction misses the source key format', async () => {
+    const generator = generatorFor(autoPayload({ answerKeyText: 'Q1: TRUE\nQ2: FALSE' }));
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithQPrefixAnswerKey, sourceName: 'Q-prefix key fixture' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBe('Q1: TRUE\nQ2: FALSE');
+    expect(result.candidate.answerKeyText).toBe('Q1: TRUE\nQ2: FALSE');
+    expect(result.candidate.rawText).toContain('"answerKeyText":"Q1: TRUE\\nQ2: FALSE"');
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'answer-key-returned-by-gemini', severity: 'info' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const firstInteraction = Object.values(normalized.document.interactions).find(
+      (interaction) => interaction.reviewLabel.displayNumber === 1,
+    );
+    expect(firstInteraction?.scoringRule.acceptableAnswers.map((answer) => answer.toLowerCase())).toEqual(['true']);
+  });
+
+  it('synthesizes answerKeyText from Gemini question answers only when the raw source has an answer-key heading', async () => {
+    const generator = generatorFor(autoPayload({ answerKeyText: '' }));
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithQPrefixAnswerKey, sourceName: 'Heading fallback fixture' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    expect(result.candidate.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    expect(result.candidate.rawText).toContain('"answerKeyText":"1 TRUE\\n2 FALSE"');
   });
 
   it('fails closed when Gemini returns malformed JSON', async () => {

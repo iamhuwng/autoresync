@@ -61,6 +61,7 @@ The same Studio contract supports these modes:
 |---|---|---|
 | Create blank | Teacher Lobby create or Studio create route | empty draft with required metadata fields blank or defaulted |
 | Create from import | Teacher Lobby import or Studio import route | import candidate plus metadata setup |
+| Create from Auto | Teacher Lobby create flow -> Reading V2 -> Auto | Gemini-structured import candidate plus effective trusted `answerKeyText` rows when source key evidence exists |
 | Resume draft | draft card or Studio draft route | existing draft, revision token required |
 | Revise published | material card edit/revise or Studio revise route | new or existing draft revision linked to live published material |
 | Duplicate material | existing material duplicate action | independent draft copy with new IDs and source provenance |
@@ -145,6 +146,12 @@ Required behavior:
 - Answer-key editing must not happen in a separate modal that writes a second source of truth.
 
 Small helper modals may be used only for bounded bulk operations such as paste/import answer keys if they write back into the same canonical task-group model.
+
+Auto/import answer-key source rules:
+
+- `answerKeyText` is the canonical import handoff field for copied teacher/effective answer-key rows.
+- `questions[].answer` from structured AI output is not a standalone source of truth. It may be used only as a guarded bridge into `answerKeyText` when the raw source visibly contains an answer-key heading and row extraction missed the exact format.
+- Obsolete wording retired 2026-05-13: docs and code should not say Auto Studio handoff depends only on locally "extracted" answer-key rows. The effective trusted rows can come from local extraction, Gemini-copied top-level `answerKeyText`, or the visible-heading fallback.
 
 ### 4.5 Settings
 

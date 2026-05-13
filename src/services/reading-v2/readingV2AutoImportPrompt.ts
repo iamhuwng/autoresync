@@ -87,7 +87,7 @@ export const buildReadingV2AutoImportPrompt = ({
   '11. Use sectionReferences for matching banks such as headings, paragraph letters, names, or sentence endings.',
   '11a. For multiple-choice groups with separate A-D choices per question, put choices on each question.labeledOptions, not one merged sectionInstructions[].labeledOptions bank.',
   '11b. For matching-information, preserve printed paragraph label ranges such as A-H in referenceLabelRange; include sectionReferences when the source prints a paragraph/reference bank.',
-  '12. Copy answer-key rows into answerKeyText only when the source contains a visible answer-key section.',
+  '12. Copy answer-key rows into answerKeyText only when the source contains a visible answer-key section, either from the pre-detected answer key text or from the raw source.',
   '13. Fill question.answer only from copied answer-key rows. If no key row exists, use an empty string.',
   '14. If anything is uncertain, include a diagnostic instead of inventing content.',
   '15. Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code` in student-visible fields: passages[].content, questions[].questionText, labeledOptions[].text, sectionReferences[].text, note lines, table cell text, and flowchart step text.',
@@ -98,8 +98,8 @@ export const buildReadingV2AutoImportPrompt = ({
   sourceName ? `Source name: ${sourceName}` : 'Source name: Auto pasted Reading V2 source',
   passageNumber ? `Passage chunk: Reading Passage ${passageNumber}` : 'Passage chunk: full source or single passage',
   answerKeyText?.trim()
-    ? ['Visible source answer-key text:', answerKeyText.trim()].join('\n')
-    : 'Visible source answer-key text: none detected. Leave answerKeyText empty and leave question.answer empty.',
+    ? ['Visible source answer-key text detected before AI:', answerKeyText.trim()].join('\n')
+    : 'Visible source answer-key text detected before AI: none. If RAW_READING_SOURCE contains a visible answer-key section, copy its numbered rows into answerKeyText; otherwise leave answerKeyText and question.answer empty. Do not infer answers from passages.',
   '',
   'Raw source text:',
   '<RAW_READING_SOURCE>',

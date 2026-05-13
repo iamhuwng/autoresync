@@ -153,6 +153,29 @@ Deployment evidence:
 - `cmd /c npm run deploy:hosting` built the app and released Firebase Hosting target `kahut1` for project `temp-a1437`.
 - Hosting URL: `https://kahut1.web.app`.
 
+## 2026-05-13 Amendment - Reading V2 Auto Answer-Key Binding
+
+Reading V2 Auto answer-key binding now treats top-level `answerKeyText` as the effective Studio handoff field for copied answer-key rows.
+
+Root-cause finding on May 13, 2026:
+- Studio diagnostics showed `structured_json_payload_detected`, `answer_key_missing`, and `missing-scoring-response-shape` even though Gemini returned structured questions.
+- The Auto service previously passed only local `extractedAnswerKeyText` into `createReadingV2ImportCandidateFromText(...)`.
+- If local raw-text extraction missed a visible answer-key format, Gemini evidence was discarded and Studio received zero answer-key rows.
+
+Required rules:
+- Auto must preserve locally extracted rows plus Gemini-returned top-level `answerKeyText` rows.
+- Gemini prompt contracts must ask for complete numbered answer-key rows in top-level `answerKeyText`, copied only from visible source answer-key text.
+- `questions[].answer` from Gemini is not independently trusted. It may be converted into `answerKeyText` only when the raw source has a visible answer-key heading and no row carrier was otherwise produced.
+- If the raw source has no visible answer-key section, Gemini answers are still stripped before Studio handoff.
+
+Obsolete wording retired 2026-05-13:
+- "extracted answer key" must not be read as "only rows detected by local preflight extraction." It now means effective trusted `answerKeyText` rows passed into Studio after the guarded merge.
+
+Verification:
+- `cmd /c npx vitest run src/services/reading-v2/readingV2AutoImport.service.test.ts src/services/reading-v2/readingV2AutoImportPrompt.test.ts src/services/reading-v2/readingV2ExternalAiPrompt.service.test.ts --reporter=basic` passed in `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`.
+- UTF-8 check passed for the touched code/test files.
+- `git diff --check` passed.
+
 ## 2026-04-10 Amendment - Question Extraction Resilience
 
 The Reading creator now has a stricter stage-local recovery contract for the question extraction step.

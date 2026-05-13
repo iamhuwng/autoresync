@@ -45,6 +45,7 @@ export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error'
 export type ReadingV2AutoImportDiagnosticCode =
   | 'answer-key-missing'
   | 'answer-key-extracted'
+  | 'answer-key-returned-by-gemini'
   | 'empty-input'
   | 'input-too-large'
   | 'gemini-request-failed'
@@ -407,6 +408,67 @@ const stripAnswersWhenNoSourceKey = (payload: AutoPayload): AutoPayload => ({
   })),
 });
 
+const rawTextHasAnswerKeyHeading = (rawText: string): boolean =>
+  rawText.split(/\r?\n/).some((line) => answerKeyHeadingScore(line.trim()) > 0);
+
+const answerKeyValuesForQuestion = (answer: AutoQuestion['answer']): readonly string[] => {
+  if (Array.isArray(answer)) {
+    return answer
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  return typeof answer === 'string' && answer.trim()
+    ? [answer.trim()]
+    : [];
+};
+
+const mergedAnswerKeyTextFromPayloads = (
+  extractedAnswerKeyText: string | undefined,
+  chunkPayloads: readonly ChunkPayload[],
+  options: { readonly allowQuestionAnswerFallback: boolean },
+): string | undefined => {
+  const rows: string[] = [];
+  const seen = new Set<string>();
+  const addRow = (rawLine: string): void => {
+    const line = rawLine.trim();
+    if (!line || ANSWER_KEY_SECTION_MARKER_PATTERN.test(line) || answerKeyHeadingScore(line) > 0) {
+      return;
+    }
+
+    const row = normalizedAnswerKeyRow(line) ?? line;
+    const key = compactWhitespace(row).toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      rows.push(row);
+    }
+  };
+
+  [
+    extractedAnswerKeyText,
+    ...chunkPayloads.map(({ payload }) => payload.answerKeyText),
+  ].forEach((source) => {
+    source?.split(/\r?\n/).forEach(addRow);
+  });
+
+  if (rows.length === 0 && options.allowQuestionAnswerFallback) {
+    chunkPayloads.forEach(({ payload }) => {
+      (payload.materials ?? []).forEach((material) => {
+        (material.questions ?? []).forEach((question) => {
+          const questionNumber = questionNumberFor(question);
+          const values = answerKeyValuesForQuestion(question.answer);
+          if (questionNumber > 0 && values.length > 0) {
+            addRow(`${questionNumber} ${values.join(' | ')}`);
+          }
+        });
+      });
+    });
+  }
+
+  return rows.length > 0 ? rows.join('\n') : undefined;
+};
+
 const materialPassageNumberForChunk = (
   material: AutoMaterial,
   chunk: SourceChunk,
@@ -678,13 +740,16 @@ export const generateReadingV2AutoImportCandidate = async (
     chunkPayloads.push({ chunk, payload: chunkResult.data });
   }
 
+  const answerKeyText = mergedAnswerKeyTextFromPayloads(extractedAnswerKeyText, chunkPayloads, {
+    allowQuestionAnswerFallback: !extractedAnswerKeyText && rawTextHasAnswerKeyHeading(rawTestText),
+  });
   const mergedPayload: AutoPayload = {
     sourceFile: request.sourceName ?? 'auto-gemini-reading-v2.txt',
-    answerKeyText: extractedAnswerKeyText ?? '',
+    answerKeyText: answerKeyText ?? '',
     materials: mergeChunkMaterials(chunkPayloads),
     diagnostics: chunkPayloads.flatMap(({ payload }) => payload.diagnostics ?? []),
   };
-  const payload = extractedAnswerKeyText ? mergedPayload : stripAnswersWhenNoSourceKey(mergedPayload);
+  const payload = answerKeyText ? mergedPayload : stripAnswersWhenNoSourceKey(mergedPayload);
   const diagnostics: ReadingV2AutoImportDiagnostic[] = [
     ...(extractedAnswerKeyText
       ? [{
@@ -692,6 +757,12 @@ export const generateReadingV2AutoImportCandidate = async (
           severity: 'info' as const,
           message: 'Auto extracted answer-key rows from the raw source.',
         }]
+      : answerKeyText
+        ? [{
+            code: 'answer-key-returned-by-gemini' as const,
+            severity: 'info' as const,
+            message: 'Gemini returned copied answer-key rows from the raw source.',
+          }]
       : [{
           code: 'answer-key-missing' as const,
           severity: 'warning' as const,
@@ -721,7 +792,7 @@ export const generateReadingV2AutoImportCandidate = async (
   const text = structuredPayloadText(payload);
   const candidate = createReadingV2ImportCandidateFromText({
     text,
-    answerKeyText: extractedAnswerKeyText,
+    answerKeyText,
     sourceKind: 'auto-gemini',
     fileName: request.sourceName ?? 'Auto Gemini import',
   });
@@ -748,7 +819,7 @@ export const generateReadingV2AutoImportCandidate = async (
   return {
     success: true,
     structuredPayloadText: text,
-    answerKeyText: extractedAnswerKeyText,
+    answerKeyText,
     diagnostics,
     provider: 'gemini',
     model: GEMINI_MODEL_NAME,

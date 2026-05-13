@@ -2,7 +2,7 @@
 title: AI Parsing Extraction
 description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-04-12T00:32:08.060Z'
+updatedAt: '2026-05-13T12:51:05.712Z'
 tags:
   - architecture
   - ai
@@ -218,3 +218,17 @@ Operational consequence:
 Related docs:
 - @doc/architecture/reading-staged-parse-job
 - @doc/architecture/test-system-architecture
+
+
+## 2026-05-13 Amendment - Reading V2 Auto Answer-Key Binding
+
+Reading V2 Auto import uses `src/services/reading-v2/readingV2AutoImport.service.ts` and `geminiProvider.generateStructuredJson(...)` for structured draft creation. For Studio answer-key binding, the effective carrier is top-level `answerKeyText`, not `answerKeyAudit` and not local extraction alone.
+
+Current rules:
+
+- Preserve locally extracted answer-key rows plus Gemini-returned top-level `answerKeyText` rows when they are copied from visible source answer-key text.
+- If both row carriers are missing but the raw source has a visible answer-key heading, Auto may synthesize `answerKeyText` from Gemini `questions[].answer` as a guarded bridge into the normal Studio binding path.
+- If the raw source has no visible answer-key section, Gemini answers are stripped before Studio handoff.
+- Retired wording: "extracted answer key" no longer means only local preflight `extractedAnswerKeyText`; it means the effective trusted `answerKeyText` rows passed to Studio.
+
+Verification from this fix: focused Vitest passed for `readingV2AutoImport.service.test.ts`, `readingV2AutoImportPrompt.test.ts`, and `readingV2ExternalAiPrompt.service.test.ts`; UTF-8 and `git diff --check` passed for touched files.

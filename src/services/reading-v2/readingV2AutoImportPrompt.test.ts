@@ -24,8 +24,17 @@ describe('readingV2AutoImportPrompt', () => {
     expect(prompt).toContain('Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code`');
     expect(prompt).toContain('Remove IELTS source instruction prose from student-visible content fields');
     expect(prompt).toContain('Do not convert Markdown to HTML');
-    expect(prompt).toContain('Visible source answer-key text:');
+    expect(prompt).toContain('Visible source answer-key text detected before AI:');
     expect(prompt).toContain('<RAW_READING_SOURCE>');
     expect(prompt).toContain('</RAW_READING_SOURCE>');
+  });
+
+  it('allows Gemini to copy visible raw-source answer keys when pre-detection misses them', () => {
+    const prompt = buildReadingV2AutoImportPrompt({
+      rawTestText: 'READING PASSAGE 1\nA raw passage.\nAnswer key\nQ1: TRUE',
+    });
+
+    expect(prompt).toContain('If RAW_READING_SOURCE contains a visible answer-key section');
+    expect(prompt).toContain('Do not infer answers from passages');
   });
 });
