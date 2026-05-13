@@ -39,6 +39,7 @@ Provider evidence:
 - [x] `generativelanguage.googleapis.com` confirmed enabled in active project.
 - [x] API-key listing confirmed a Gemini key with localhost browser referrers exists.
 - [x] 2026-05-13 gcloud lookup mapped `VITE_GEMINI_API_KEY_1` to Cloud display name `Gemini API Key` and `VITE_GEMINI_API_KEY_3` to `Generative Language API Key`; `VITE_GEMINI_API_KEY_2` did not resolve through the active account/project lookup and is the likely problematic env slot for the observed expired-key error. Raw key strings were not recorded.
+- [x] 2026-05-13 Firebase Hosting deploy passed: `cmd /c npm run deploy:hosting` built successfully and released target `kahut1` for project `temp-a1437` at `https://kahut1.web.app`.
 - [ ] Real Gemini provider probes from `Clippings/` were not rerun in this implementation turn; prior probe evidence should remain separate from mocked CI tests.
 
 ## Current Baseline To Preserve

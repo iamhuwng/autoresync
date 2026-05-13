@@ -148,6 +148,11 @@ Operational consequence:
 - Reading V2 Auto should continue with another configured Gemini key when one configured key expires.
 - A final Auto failure after this point means all available structured-generation keys failed or were unavailable, not just the first selected key.
 
+Deployment evidence:
+- May 13, 2026: committed as `c984e37` (`fix(ai): rotate structured gemini keys`).
+- `cmd /c npm run deploy:hosting` built the app and released Firebase Hosting target `kahut1` for project `temp-a1437`.
+- Hosting URL: `https://kahut1.web.app`.
+
 ## 2026-04-10 Amendment - Question Extraction Resilience
 
 The Reading creator now has a stricter stage-local recovery contract for the question extraction step.
