@@ -38,9 +38,21 @@ export interface ReadingV2ImportCandidate {
   readonly rawText?: string;
   readonly answerKeyText?: string;
   readonly teacherAnswerKey?: ReadingV2TeacherAnswerKeyPayload;
+  readonly autoImportDiagnostics?: readonly ReadingV2AutoImportCandidateDiagnostic[];
   readonly evidence: readonly string[];
   readonly uncertaintyMarkers: readonly string[];
   readonly publishBlockingPlaceholders: readonly string[];
+}
+
+export interface ReadingV2AutoImportCandidateDiagnostic {
+  readonly code: string;
+  readonly severity: 'info' | 'warning' | 'error';
+  readonly message: string;
+  readonly passageNumber?: number;
+  readonly questionNumber?: number;
+  readonly sourceRange?: string;
+  readonly verifierIssueCodes?: readonly string[];
+  readonly repairScopes?: readonly string[];
 }
 
 export type ReadingV2TeacherAnswerKeyBindingStatus = 'unbound' | 'bound' | 'invalid' | 'duplicate';
@@ -1991,7 +2003,11 @@ const normalizeStructuredReadingPayload = (
     return null;
   }
 
+  const localAutoSourceTitle = candidate.sourceKind === 'auto-gemini'
+    ? cleanMarkdown((candidate.fileName ?? '').replace(/\.(?:md|txt|docx|pdf)$/i, ''))
+    : '';
   const sourceTitle = frontmatterValue(rawText, 'title')
+    ?? (localAutoSourceTitle || null)
     ?? (payload.sourceFile ? payload.sourceFile.replace(/\.md$/i, '') : null)
     ?? 'Imported Reading V2 material';
   const idStem = slug(sourceTitle);
@@ -2077,9 +2093,11 @@ const normalizeStructuredReadingPayload = (
     const taskGroupIds = (material.sectionInstructions ?? []).map((instruction, instructionIndex) => {
       const start = instruction.questionRange?.start ?? 0;
       const end = instruction.questionRange?.end ?? start;
+      const hasLocalQuestionRange = start > 0 && end >= start;
       const groupQuestions = questions.filter((question) =>
-        question.sectionInstructionId === instruction.id ||
-        (structuredQuestionNumber(question) >= start && structuredQuestionNumber(question) <= end),
+        hasLocalQuestionRange
+          ? structuredQuestionNumber(question) >= start && structuredQuestionNumber(question) <= end
+          : question.sectionInstructionId === instruction.id,
       );
       const firstQuestion = groupQuestions[0];
       const instructionSourceText = structuredInstructionSourceText(instruction);

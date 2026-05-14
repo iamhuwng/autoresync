@@ -349,6 +349,62 @@ const diagnosticGroupForIssue = (issue: ReadingV2ValidationIssue): ReadingV2Teac
   return 'publish-readiness';
 };
 
+const diagnosticGroupForAutoCode = (code: string): ReadingV2TeacherImportDiagnosticGroupId => {
+  if (code.startsWith('answer-key')) {
+    return 'answer-key';
+  }
+
+  if (
+    code.includes('answer-row')
+    || code.includes('question-missing')
+    || code.includes('question-extra')
+    || code.includes('question-range')
+  ) {
+    return 'question-binding';
+  }
+
+  if (code.includes('reference-bank')) {
+    return 'option-bank';
+  }
+
+  if (code.includes('instruction')) {
+    return 'task-type';
+  }
+
+  if (code.includes('trim') || code.includes('passage') || code.includes('source-repair') || code.includes('source-ledger')) {
+    return 'source-structure';
+  }
+
+  if (code.includes('canonical-validation')) {
+    return 'publish-readiness';
+  }
+
+  return 'source-structure';
+};
+
+const autoDiagnosticTarget = (diagnostic: {
+  readonly passageNumber?: number;
+  readonly questionNumber?: number;
+}): ReadingV2TeacherImportDiagnosticTarget => {
+  if (diagnostic.questionNumber) {
+    return {
+      kind: 'interaction',
+      questionNumber: diagnostic.questionNumber,
+      step: 'Questions',
+    };
+  }
+
+  if (diagnostic.passageNumber) {
+    return {
+      kind: 'section',
+      questionNumber: diagnostic.passageNumber,
+      step: 'Passages',
+    };
+  }
+
+  return { kind: 'source', step: 'Passages' };
+};
+
 const groupTitle: Record<ReadingV2TeacherImportDiagnosticGroupId, string> = {
   'source-structure': 'Source Structure',
   'answer-key': 'Teacher Answer Key',
@@ -537,6 +593,20 @@ export const buildReadingV2TeacherImportDiagnostics = (
     });
   });
 
+  input.importCandidate?.autoImportDiagnostics?.forEach((diagnostic, index) => {
+    pushItem(diagnosticGroupForAutoCode(diagnostic.code), {
+      id: `auto-import-${index + 1}-${diagnostic.code}`,
+      severity: diagnostic.severity,
+      message: diagnostic.message,
+      detail: [
+        diagnostic.code,
+        diagnostic.sourceRange ? `source: ${diagnostic.sourceRange}` : undefined,
+        diagnostic.repairScopes?.length ? `scope: ${diagnostic.repairScopes.join(', ')}` : undefined,
+      ].filter(Boolean).join(' | '),
+      target: autoDiagnosticTarget(diagnostic),
+    });
+  });
+
   input.validationResult.blockingIssues.forEach((issue, index) => {
     const groupId = diagnosticGroupForIssue(issue);
     pushItem(groupId, {
@@ -687,6 +757,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
       candidateEvidence: input.importCandidate?.evidence ?? [],
       candidateUncertainty: input.importCandidate?.uncertaintyMarkers ?? [],
       candidatePublishBlockers: input.importCandidate?.publishBlockingPlaceholders ?? [],
+      candidateAutoDiagnostics: input.importCandidate?.autoImportDiagnostics ?? [],
     },
     parseState: {
       inputQualityFlags,

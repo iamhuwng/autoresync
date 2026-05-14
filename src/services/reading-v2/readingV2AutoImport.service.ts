@@ -11,15 +11,26 @@ import {
   parseReadingV2TeacherAnswerKey,
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
+import { validateReadingV2Draft } from './readingV2Validation.service';
 import {
   buildReadingV2AutoImportPrompt,
   READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION,
 } from './readingV2AutoImportPrompt';
+import {
+  buildReadingV2AutoLedgerPromptSummary,
+  buildReadingV2AutoSourceLedger,
+  readingV2AutoSourceLedgerEvidence,
+  verifyReadingV2AutoPayloadAgainstLedger,
+  type ReadingV2AutoLedgerPayload,
+  type ReadingV2AutoSourceLedger,
+  type ReadingV2AutoSourceVerifierIssue,
+} from './readingV2AutoImportSourceLedger.service';
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 const DEFAULT_MAX_INPUT_CHARS = 120_000;
 const DEFAULT_MIN_INPUT_CHARS = 80;
 const DEFAULT_CHUNK_WAIT_MS = 6_500;
+const DEFAULT_MAX_REPAIR_ATTEMPTS = 1;
 const GEMINI_MAX_OUTPUT_TOKENS = 65_536;
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
 const ANSWER_KEY_HEADING_PATTERN = /^\s*(?:answers?|answer\s+key|key|solutions?)(?:\s+(?:reading\s+)?test\s+\d+)?\s*:?\s*$/i;
@@ -42,6 +53,13 @@ const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unkno
 
 export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error';
 
+export type ReadingV2AutoRepairScope =
+  | 'passage'
+  | 'question-range'
+  | 'task-group'
+  | 'answer-key-region'
+  | 'structured-layout-block';
+
 export type ReadingV2AutoImportDiagnosticCode =
   | 'answer-key-missing'
   | 'answer-key-extracted'
@@ -56,7 +74,25 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'question-count-mismatch'
   | 'passage-count-mismatch'
   | 'possible-trimmed-passage'
-  | 'guardrail-normalization-failed';
+  | 'guardrail-normalization-failed'
+  | 'source-ledger-warning'
+  | 'source-passage-missing'
+  | 'source-passage-extra'
+  | 'source-question-missing'
+  | 'source-question-extra'
+  | 'source-answer-row-unbound'
+  | 'source-question-range-missing'
+  | 'source-reference-bank-missing'
+  | 'source-reference-bank-mismatch'
+  | 'source-instruction-task-type-mismatch'
+  | 'source-instruction-word-limit-mismatch'
+  | 'source-instruction-vocabulary-mismatch'
+  | 'source-instruction-reuse-mismatch'
+  | 'source-passage-trim-risk'
+  | 'canonical-validation-blocked'
+  | 'source-repair-attempted'
+  | 'source-repair-failed'
+  | 'source-repair-succeeded';
 
 export interface ReadingV2AutoImportDiagnostic {
   readonly code: ReadingV2AutoImportDiagnosticCode;
@@ -64,6 +100,12 @@ export interface ReadingV2AutoImportDiagnostic {
   readonly message: string;
   readonly passageNumber?: number;
   readonly questionNumber?: number;
+  readonly attempt?: number;
+  readonly sourceRange?: string;
+  readonly verifierIssueCodes?: readonly ReadingV2AutoSourceVerifierIssue['code'][];
+  readonly repairScopes?: readonly ReadingV2AutoRepairScope[];
+  readonly providerResult?: 'success' | 'failure';
+  readonly verifierResult?: 'passed' | 'failed';
 }
 
 export interface ReadingV2AutoImportRequest {
@@ -83,6 +125,7 @@ export interface ReadingV2AutoImportOptions {
   readonly waitBetweenChunksMs?: number;
   readonly maxInputChars?: number;
   readonly minInputChars?: number;
+  readonly maxRepairAttempts?: number;
 }
 
 export type ReadingV2AutoImportResult =
@@ -143,11 +186,18 @@ interface AutoQuestion {
 interface SourceChunk {
   readonly passageNumber?: number;
   readonly text: string;
+  readonly expectedQuestionNumbers?: readonly number[];
 }
 
 interface ChunkPayload {
   readonly chunk: SourceChunk;
   readonly payload: AutoPayload;
+}
+
+interface AutoPayloadState {
+  readonly answerKeyText?: string;
+  readonly payload: AutoPayload;
+  readonly verifierIssues: readonly ReadingV2AutoSourceVerifierIssue[];
 }
 
 interface AnswerKeyCandidate {
@@ -168,6 +218,30 @@ const normalizeNumber = (value: unknown): number =>
 
 const questionNumberFor = (question: AutoQuestion): number =>
   normalizeNumber(question.questionNumber ?? question.number);
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const optionalNumberFrom = (value: unknown): number | undefined => {
+  const number = normalizeNumber(value);
+  return number > 0 ? number : undefined;
+};
+
+const ledgerLabelItemsFrom = (value: unknown): readonly { readonly label: string }[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const items = value.flatMap((item) => {
+    if (!isObjectRecord(item) || typeof item.label !== 'string' || !item.label.trim()) {
+      return [];
+    }
+
+    return [{ label: item.label.trim() }];
+  });
+
+  return items.length > 0 ? items : undefined;
+};
 
 const questionCountFor = (payload: AutoPayload): number =>
   (payload.materials ?? []).reduce((count, material) => count + (material.questions?.length ?? 0), 0);
@@ -353,7 +427,32 @@ const extractAnswerKeyTextFromRaw = (rawText: string): string | undefined => {
   return parsed.rows.length > 0 ? parsed.rawText : undefined;
 };
 
-const splitSourceIntoChunks = (rawText: string): readonly SourceChunk[] => {
+const splitSourceIntoChunks = (
+  rawText: string,
+  sourceLedger?: ReadingV2AutoSourceLedger,
+): readonly SourceChunk[] => {
+  if (sourceLedger && sourceLedger.passages.length > 1) {
+    return sourceLedger.passages.map((passage, index) => {
+      const nextPassage = sourceLedger.passages[index + 1];
+      const text = sourceLedger.normalizedText.slice(passage.charStart, nextPassage?.charStart ?? sourceLedger.normalizedText.length);
+      const expectedQuestionNumbers = sourceLedger.questionRanges
+        .filter((range) => range.passageNumber === passage.passageNumber)
+        .flatMap((range) => {
+          const numbers: number[] = [];
+          for (let number = range.start; number <= range.end; number += 1) {
+            numbers.push(number);
+          }
+          return numbers;
+        });
+
+      return {
+        passageNumber: passage.passageNumber,
+        text: text.trim(),
+        expectedQuestionNumbers,
+      };
+    });
+  }
+
   const headingRegex = /^\s*(?:#{0,3}\s*)?READING PASSAGE\s+(\d+)\b.*$/gim;
   const matches = [...rawText.matchAll(headingRegex)];
 
@@ -469,6 +568,23 @@ const mergedAnswerKeyTextFromPayloads = (
   return rows.length > 0 ? rows.join('\n') : undefined;
 };
 
+const answerKeyTextForSourceLedger = (
+  answerKeyText: string | undefined,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): string | undefined => {
+  if (!answerKeyText || sourceLedger.expectedFullTest || sourceLedger.questionNumbers.length === 0) {
+    return answerKeyText;
+  }
+
+  const sourceQuestionNumbers = new Set(sourceLedger.questionNumbers);
+  const rows = answerKeyText.split(/\r?\n/).filter((rawLine) => {
+    const match = rawLine.trim().match(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\\?[\).:\-=])?\s+.+$/i);
+    return match?.[1] && sourceQuestionNumbers.has(Number(match[1]));
+  });
+
+  return rows.length > 0 ? rows.join('\n') : undefined;
+};
+
 const materialPassageNumberForChunk = (
   material: AutoMaterial,
   chunk: SourceChunk,
@@ -511,6 +627,90 @@ const mergeChunkMaterials = (chunkPayloads: readonly ChunkPayload[]): AutoMateri
   });
 
   return materials;
+};
+
+const ledgerPayloadFromAutoPayload = (payload: AutoPayload): ReadingV2AutoLedgerPayload => ({
+  answerKeyText: payload.answerKeyText,
+  materials: (payload.materials ?? []).map((material) => ({
+    passageNumber: optionalNumberFrom(material.passageNumber),
+    passages: (material.passages ?? []).map((passage) => ({ content: passage.content })),
+    sectionInstructions: (material.sectionInstructions ?? []).flatMap((instruction) => {
+      if (!isObjectRecord(instruction) || !isObjectRecord(instruction.questionRange)) {
+        return [];
+      }
+
+      const sourceInstructionEvidence = typeof instruction.sourceInstructionEvidence === 'string'
+        ? instruction.sourceInstructionEvidence
+        : undefined;
+      const taskType = typeof instruction.taskType === 'string'
+        ? instruction.taskType
+        : undefined;
+      const wordLimit = optionalNumberFrom(instruction.wordLimit);
+      const wordLimitText = typeof instruction.wordLimitText === 'string'
+        ? instruction.wordLimitText
+        : undefined;
+      const vocabulary = typeof instruction.vocabulary === 'string'
+        ? instruction.vocabulary
+        : undefined;
+      const optionReuse = typeof instruction.optionReuse === 'string'
+        ? instruction.optionReuse
+        : undefined;
+      const optionLabelRange = typeof instruction.optionLabelRange === 'string'
+        ? instruction.optionLabelRange
+        : undefined;
+      const referenceLabelRange = typeof instruction.referenceLabelRange === 'string'
+        ? instruction.referenceLabelRange
+        : undefined;
+      const sectionReferences = ledgerLabelItemsFrom(instruction.sectionReferences);
+      const labeledOptions = ledgerLabelItemsFrom(instruction.labeledOptions);
+
+      return [{
+        questionRange: {
+          start: optionalNumberFrom(instruction.questionRange.start),
+          end: optionalNumberFrom(instruction.questionRange.end),
+        },
+        ...(sourceInstructionEvidence ? { sourceInstructionEvidence } : {}),
+        ...(taskType ? { taskType } : {}),
+        ...(wordLimit ? { wordLimit } : {}),
+        ...(wordLimitText ? { wordLimitText } : {}),
+        ...(vocabulary ? { vocabulary } : {}),
+        ...(optionReuse ? { optionReuse } : {}),
+        ...(optionLabelRange ? { optionLabelRange } : {}),
+        ...(referenceLabelRange ? { referenceLabelRange } : {}),
+        ...(sectionReferences ? { sectionReferences } : {}),
+        ...(labeledOptions ? { labeledOptions } : {}),
+      }];
+    }),
+    questions: (material.questions ?? []).map((question) => ({
+      number: optionalNumberFrom(question.number),
+      questionNumber: optionalNumberFrom(question.questionNumber),
+    })),
+  })),
+});
+
+const buildAutoPayloadState = (
+  request: ReadingV2AutoImportRequest,
+  extractedAnswerKeyText: string | undefined,
+  sourceLedger: ReadingV2AutoSourceLedger,
+  chunkPayloads: readonly ChunkPayload[],
+): AutoPayloadState => {
+  const mergedAnswerKeyText = mergedAnswerKeyTextFromPayloads(extractedAnswerKeyText, chunkPayloads, {
+    allowQuestionAnswerFallback: !extractedAnswerKeyText && rawTextHasAnswerKeyHeading(sourceLedger.normalizedText),
+  });
+  const answerKeyText = answerKeyTextForSourceLedger(mergedAnswerKeyText, sourceLedger);
+  const mergedPayload: AutoPayload = {
+    sourceFile: request.sourceName ?? 'auto-gemini-reading-v2.txt',
+    answerKeyText: answerKeyText ?? '',
+    materials: mergeChunkMaterials(chunkPayloads),
+    diagnostics: chunkPayloads.flatMap(({ payload }) => payload.diagnostics ?? []),
+  };
+  const payload = answerKeyText ? mergedPayload : stripAnswersWhenNoSourceKey(mergedPayload);
+
+  return {
+    answerKeyText,
+    payload,
+    verifierIssues: verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(payload), sourceLedger),
+  };
 };
 
 const structuredPayloadText = (payload: AutoPayload): string =>
@@ -575,11 +775,197 @@ const possibleTrimDiagnostics = (
       : [];
   });
 
+const ledgerIssueDiagnostics = (
+  sourceLedger: ReadingV2AutoSourceLedger,
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  sourceLedger.issues.map((issue) => {
+    const code: ReadingV2AutoImportDiagnosticCode =
+      issue.code === 'source-empty'
+        ? 'empty-input'
+        : issue.code === 'source-passage-boundary-missing'
+          ? 'no-passages-detected'
+          : issue.code === 'source-question-range-missing'
+            ? 'source-question-range-missing'
+            : issue.code === 'source-question-coverage-gap'
+              ? 'source-question-missing'
+              : issue.code === 'source-answer-key-missing'
+                ? 'answer-key-missing'
+                : 'source-ledger-warning';
+
+    return {
+      code,
+      severity: issue.severity,
+      message: issue.message,
+    };
+  });
+
+const verifierIssueDiagnostics = (
+  issues: readonly ReadingV2AutoSourceVerifierIssue[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  issues.map((issue) => ({
+    code: issue.code,
+    severity: issue.severity,
+    message: issue.message,
+    passageNumber: issue.passageNumber,
+    questionNumber: issue.questionNumber,
+  }));
+
+const retryableVerifierIssueCodes = new Set<ReadingV2AutoSourceVerifierIssue['code']>([
+  'source-passage-missing',
+  'source-question-missing',
+  'source-answer-row-unbound',
+  'source-question-range-missing',
+  'source-reference-bank-missing',
+  'source-reference-bank-mismatch',
+  'source-instruction-task-type-mismatch',
+  'source-instruction-word-limit-mismatch',
+  'source-instruction-vocabulary-mismatch',
+  'source-instruction-reuse-mismatch',
+  'source-passage-trim-risk',
+]);
+
+const chunkIndexForPassageNumber = (
+  passageNumber: number | undefined,
+  chunks: readonly SourceChunk[],
+): number | undefined => {
+  if (!passageNumber) {
+    return undefined;
+  }
+
+  const index = chunks.findIndex((chunk) => chunk.passageNumber === passageNumber);
+  return index >= 0 ? index : undefined;
+};
+
+const chunkIndexForQuestionNumber = (
+  questionNumber: number | undefined,
+  chunks: readonly SourceChunk[],
+): number | undefined => {
+  if (!questionNumber) {
+    return undefined;
+  }
+
+  const index = chunks.findIndex((chunk) => chunk.expectedQuestionNumbers?.includes(questionNumber));
+  return index >= 0 ? index : undefined;
+};
+
+const retryChunkIndexesForVerifierIssues = (
+  issues: readonly ReadingV2AutoSourceVerifierIssue[],
+  chunks: readonly SourceChunk[],
+  payload: AutoPayload,
+): readonly number[] => {
+  const indexes = new Set<number>();
+  const generatedQuestionNumbers = new Set<number>();
+
+  (payload.materials ?? []).forEach((material) => {
+    (material.questions ?? []).forEach((question) => {
+      const questionNumber = questionNumberFor(question);
+      if (questionNumber > 0) {
+        generatedQuestionNumbers.add(questionNumber);
+      }
+    });
+  });
+
+  issues
+    .filter((issue) => issue.severity === 'error' && retryableVerifierIssueCodes.has(issue.code))
+    .forEach((issue) => {
+      const index =
+        chunkIndexForPassageNumber(issue.passageNumber, chunks)
+        ?? chunkIndexForQuestionNumber(issue.questionNumber, chunks)
+        ?? (chunks.length === 1 ? 0 : undefined);
+
+      if (index !== undefined) {
+        indexes.add(index);
+      }
+
+      if (
+        issue.code === 'source-question-missing'
+        || issue.code === 'source-answer-row-unbound'
+        || issue.code === 'source-question-range-missing'
+      ) {
+        chunks.forEach((chunk, chunkIndex) => {
+          if (chunk.expectedQuestionNumbers?.some((questionNumber) => !generatedQuestionNumbers.has(questionNumber))) {
+            indexes.add(chunkIndex);
+          }
+        });
+      }
+    });
+
+  return [...indexes].sort((left, right) => left - right);
+};
+
+const verifierIssueSourceRange = (issue: ReadingV2AutoSourceVerifierIssue): string => {
+  if (issue.questionNumber) {
+    return `Q${issue.questionNumber}`;
+  }
+
+  if (issue.passageNumber) {
+    return `P${issue.passageNumber}`;
+  }
+
+  return 'source';
+};
+
+const repairScopeForVerifierIssue = (issue: ReadingV2AutoSourceVerifierIssue): ReadingV2AutoRepairScope => {
+  switch (issue.code) {
+    case 'source-passage-missing':
+    case 'source-passage-extra':
+    case 'source-passage-trim-risk':
+      return 'passage';
+    case 'source-answer-row-unbound':
+      return 'answer-key-region';
+    case 'source-question-missing':
+    case 'source-question-extra':
+    case 'source-question-range-missing':
+      return 'question-range';
+    case 'source-reference-bank-missing':
+    case 'source-reference-bank-mismatch':
+    case 'source-instruction-task-type-mismatch':
+    case 'source-instruction-word-limit-mismatch':
+    case 'source-instruction-vocabulary-mismatch':
+    case 'source-instruction-reuse-mismatch':
+      return 'task-group';
+  }
+};
+
+const verifierIssueSummary = (
+  issues: readonly ReadingV2AutoSourceVerifierIssue[],
+): {
+  readonly sourceRange: string;
+  readonly verifierIssueCodes: readonly ReadingV2AutoSourceVerifierIssue['code'][];
+  readonly repairScopes: readonly ReadingV2AutoRepairScope[];
+} => ({
+  sourceRange: [...new Set(issues.map(verifierIssueSourceRange))].join(', '),
+  verifierIssueCodes: [...new Set(issues.map((issue) => issue.code))],
+  repairScopes: [...new Set(issues.map(repairScopeForVerifierIssue))],
+});
+
+const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
+  const materialCount = payload.materials?.length ?? 0;
+  const taskGroupCount = (payload.materials ?? []).reduce(
+    (count, material) => count + (material.sectionInstructions?.length ?? 0),
+    0,
+  );
+
+  return [
+    `Generated draft passages: ${materialCount}`,
+    `Generated draft task groups: ${taskGroupCount}`,
+    `Generated draft questions: ${questionCountFor(payload)}`,
+  ];
+};
+
 const validatePayload = (
   payload: AutoPayload,
   chunks: readonly SourceChunk[],
+  sourceLedger: ReadingV2AutoSourceLedger,
+  verifierIssues: readonly ReadingV2AutoSourceVerifierIssue[] = verifyReadingV2AutoPayloadAgainstLedger(
+    ledgerPayloadFromAutoPayload(payload),
+    sourceLedger,
+  ),
 ): readonly ReadingV2AutoImportDiagnostic[] => {
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [...payloadDiagnostics(payload)];
+  const diagnostics: ReadingV2AutoImportDiagnostic[] = [
+    ...ledgerIssueDiagnostics(sourceLedger),
+    ...payloadDiagnostics(payload),
+  ];
   const materialCount = payload.materials?.length ?? 0;
   const questionCount = questionCountFor(payload);
 
@@ -609,6 +995,7 @@ const validatePayload = (
 
   diagnostics.push(...duplicateQuestionDiagnostics(payload));
   diagnostics.push(...possibleTrimDiagnostics(payload, chunks));
+  diagnostics.push(...verifierIssueDiagnostics(verifierIssues));
 
   return diagnostics;
 };
@@ -618,17 +1005,20 @@ const callGeminiForChunk = async (
   chunk: SourceChunk,
   request: ReadingV2AutoImportRequest,
   answerKeyText: string | undefined,
+  sourceLedger: ReadingV2AutoSourceLedger,
 ): Promise<Result<AutoPayload>> => {
   const prompt = buildReadingV2AutoImportPrompt({
     rawTestText: chunk.text,
     sourceName: request.sourceName,
     passageNumber: chunk.passageNumber,
     answerKeyText,
+    sourceLedgerSummary: buildReadingV2AutoLedgerPromptSummary(sourceLedger, chunk.passageNumber),
   });
   logReadingV2AutoImportDiag('gemini_chunk_requested', {
     passageNumber: chunk.passageNumber,
     sourceLength: chunk.text.length,
     answerKeyDetected: Boolean(answerKeyText),
+    expectedQuestionNumbers: chunk.expectedQuestionNumbers ?? [],
   });
   const result = await generator.generateStructuredJson(prompt, {
     systemInstruction: READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION,
@@ -666,6 +1056,121 @@ const callGeminiForChunk = async (
   return { success: true, data: payload };
 };
 
+const repairPayloadAgainstLedger = async (
+  generator: ReadingV2AutoStructuredGenerator,
+  request: ReadingV2AutoImportRequest,
+  extractedAnswerKeyText: string | undefined,
+  sourceLedger: ReadingV2AutoSourceLedger,
+  chunks: readonly SourceChunk[],
+  initialChunkPayloads: readonly ChunkPayload[],
+  options: {
+    readonly maxRepairAttempts: number;
+    readonly waitBetweenChunksMs: number;
+  },
+): Promise<AutoPayloadState & { readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[] }> => {
+  const chunkPayloads = [...initialChunkPayloads];
+  const diagnostics: ReadingV2AutoImportDiagnostic[] = [];
+  let state = buildAutoPayloadState(request, extractedAnswerKeyText, sourceLedger, chunkPayloads);
+  let attemptedRepair = false;
+
+  for (let attempt = 1; attempt <= options.maxRepairAttempts; attempt += 1) {
+    const blockingIssues = state.verifierIssues.filter((issue) =>
+      issue.severity === 'error' && retryableVerifierIssueCodes.has(issue.code),
+    );
+    const issueSummary = verifierIssueSummary(blockingIssues);
+
+    if (blockingIssues.length === 0) {
+      return { ...state, diagnostics };
+    }
+
+    const retryIndexes = retryChunkIndexesForVerifierIssues(blockingIssues, chunks, state.payload);
+    if (retryIndexes.length === 0) {
+      diagnostics.push({
+        code: 'source-repair-failed',
+        severity: 'warning',
+        message: 'Source ledger requested repair, but no specific source chunk could be selected for retry.',
+        attempt,
+        sourceRange: issueSummary.sourceRange,
+        verifierIssueCodes: issueSummary.verifierIssueCodes,
+        repairScopes: issueSummary.repairScopes,
+        verifierResult: 'failed',
+      });
+      return { ...state, diagnostics };
+    }
+
+    attemptedRepair = true;
+    diagnostics.push({
+      code: 'source-repair-attempted',
+      severity: 'info',
+      message: `Retrying source chunks ${retryIndexes.map((index) => chunks[index]?.passageNumber ?? index + 1).join(', ')} after ledger verification failed.`,
+      attempt,
+      sourceRange: issueSummary.sourceRange,
+      verifierIssueCodes: issueSummary.verifierIssueCodes,
+      repairScopes: issueSummary.repairScopes,
+    });
+
+    for (const [retryOrder, chunkIndex] of retryIndexes.entries()) {
+      const chunk = chunks[chunkIndex];
+      if (!chunk) {
+        continue;
+      }
+
+      if (retryOrder > 0) {
+        await wait(options.waitBetweenChunksMs);
+      }
+
+      const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger);
+      if (!chunkResult.success) {
+        diagnostics.push({
+          code: 'source-repair-failed',
+          severity: 'warning',
+          message: chunkResult.error ?? 'Gemini repair retry failed for a source chunk.',
+          passageNumber: chunk.passageNumber,
+          attempt,
+          sourceRange: chunk.passageNumber ? `P${chunk.passageNumber}` : issueSummary.sourceRange,
+          verifierIssueCodes: issueSummary.verifierIssueCodes,
+          repairScopes: issueSummary.repairScopes,
+          providerResult: 'failure',
+        });
+        continue;
+      }
+
+      chunkPayloads[chunkIndex] = { chunk, payload: chunkResult.data };
+    }
+
+    state = buildAutoPayloadState(request, extractedAnswerKeyText, sourceLedger, chunkPayloads);
+    if (!state.verifierIssues.some((issue) => issue.severity === 'error' && retryableVerifierIssueCodes.has(issue.code))) {
+      diagnostics.push({
+        code: 'source-repair-succeeded',
+        severity: 'info',
+        message: 'Source ledger repair retry resolved the missing/trimmed source coverage.',
+        attempt,
+        sourceRange: issueSummary.sourceRange,
+        verifierIssueCodes: issueSummary.verifierIssueCodes,
+        repairScopes: issueSummary.repairScopes,
+        providerResult: 'success',
+        verifierResult: 'passed',
+      });
+      return { ...state, diagnostics };
+    }
+  }
+
+  if (attemptedRepair) {
+    diagnostics.push({
+      code: 'source-repair-failed',
+      severity: 'warning',
+      message: 'Source ledger repair retry did not resolve the source coverage mismatch.',
+      attempt: options.maxRepairAttempts,
+      sourceRange: verifierIssueSummary(state.verifierIssues).sourceRange,
+      verifierIssueCodes: verifierIssueSummary(state.verifierIssues).verifierIssueCodes,
+      repairScopes: verifierIssueSummary(state.verifierIssues).repairScopes,
+      verifierResult: 'failed',
+    });
+  }
+
+  return { ...state, diagnostics };
+};
+
 export const generateReadingV2AutoImportCandidate = async (
   request: ReadingV2AutoImportRequest,
   options: ReadingV2AutoImportOptions = {},
@@ -674,6 +1179,9 @@ export const generateReadingV2AutoImportCandidate = async (
   const maxInputChars = options.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS;
   const minInputChars = options.minInputChars ?? DEFAULT_MIN_INPUT_CHARS;
   const waitBetweenChunksMs = options.waitBetweenChunksMs ?? DEFAULT_CHUNK_WAIT_MS;
+  const maxRepairAttempts = Number.isFinite(options.maxRepairAttempts)
+    ? Math.max(0, Math.floor(options.maxRepairAttempts ?? 0))
+    : DEFAULT_MAX_REPAIR_ATTEMPTS;
   const generator = options.generator ?? geminiProvider;
 
   if (rawTestText.length < minInputChars) {
@@ -704,13 +1212,33 @@ export const generateReadingV2AutoImportCandidate = async (
     };
   }
 
-  const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(rawTestText);
-  const chunks = splitSourceIntoChunks(rawTestText);
+  const sourceLedger = buildReadingV2AutoSourceLedger({
+    rawText: rawTestText,
+    sourceName: request.sourceName,
+  });
+  const sourceLedgerDiagnostics = ledgerIssueDiagnostics(sourceLedger);
+  const fatalSourceDiagnostic = sourceLedgerDiagnostics.find((diagnostic) => diagnostic.severity === 'error');
+  if (fatalSourceDiagnostic) {
+    return {
+      success: false,
+      error: fatalSourceDiagnostic.message,
+      diagnostics: sourceLedgerDiagnostics,
+      provider: 'gemini',
+      model: GEMINI_MODEL_NAME,
+    };
+  }
+
+  const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(sourceLedger.normalizedText);
+  const chunks = splitSourceIntoChunks(sourceLedger.normalizedText, sourceLedger);
   const chunkPayloads: ChunkPayload[] = [];
   logReadingV2AutoImportDiag('preflight_complete', {
     sourceLength: rawTestText.length,
     chunkCount: chunks.length,
     answerKeyDetected: Boolean(extractedAnswerKeyText),
+    sourceLedgerCategory: sourceLedger.category,
+    sourceLedgerPassageCount: sourceLedger.passages.length,
+    sourceLedgerQuestionCount: sourceLedger.questionNumbers.length,
+    sourceLedgerAnswerKeyRowCount: sourceLedger.answerKeyRows.length,
     sourceName: request.sourceName ?? null,
   });
 
@@ -719,7 +1247,7 @@ export const generateReadingV2AutoImportCandidate = async (
       await wait(waitBetweenChunksMs);
     }
 
-    const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText);
+    const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger);
     if (!chunkResult.success) {
       return {
         success: false,
@@ -740,16 +1268,11 @@ export const generateReadingV2AutoImportCandidate = async (
     chunkPayloads.push({ chunk, payload: chunkResult.data });
   }
 
-  const answerKeyText = mergedAnswerKeyTextFromPayloads(extractedAnswerKeyText, chunkPayloads, {
-    allowQuestionAnswerFallback: !extractedAnswerKeyText && rawTextHasAnswerKeyHeading(rawTestText),
+  const repaired = await repairPayloadAgainstLedger(generator, request, extractedAnswerKeyText, sourceLedger, chunks, chunkPayloads, {
+    maxRepairAttempts,
+    waitBetweenChunksMs,
   });
-  const mergedPayload: AutoPayload = {
-    sourceFile: request.sourceName ?? 'auto-gemini-reading-v2.txt',
-    answerKeyText: answerKeyText ?? '',
-    materials: mergeChunkMaterials(chunkPayloads),
-    diagnostics: chunkPayloads.flatMap(({ payload }) => payload.diagnostics ?? []),
-  };
-  const payload = answerKeyText ? mergedPayload : stripAnswersWhenNoSourceKey(mergedPayload);
+  const { answerKeyText, payload } = repaired;
   const diagnostics: ReadingV2AutoImportDiagnostic[] = [
     ...(extractedAnswerKeyText
       ? [{
@@ -768,7 +1291,8 @@ export const generateReadingV2AutoImportCandidate = async (
           severity: 'warning' as const,
           message: 'No source answer-key section was detected. Answers stay empty for Studio review.',
         }]),
-    ...validatePayload(payload, chunks),
+    ...repaired.diagnostics,
+    ...validatePayload(payload, chunks, sourceLedger, repaired.verifierIssues),
   ];
 
   const blocking = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
@@ -796,9 +1320,52 @@ export const generateReadingV2AutoImportCandidate = async (
     sourceKind: 'auto-gemini',
     fileName: request.sourceName ?? 'Auto Gemini import',
   });
+  const candidateWithLedger: ReadingV2ImportCandidate = {
+    ...candidate,
+    autoImportDiagnostics: diagnostics,
+    evidence: [
+      ...candidate.evidence,
+      ...readingV2AutoSourceLedgerEvidence(sourceLedger),
+      ...generatedDraftEvidence(payload),
+    ],
+    uncertaintyMarkers: [
+      ...candidate.uncertaintyMarkers,
+      ...sourceLedger.issues
+        .filter((issue) => issue.severity !== 'info')
+        .map((issue) => `Source ledger: ${issue.message}`),
+    ],
+  };
+  let candidateForStudio = candidateWithLedger;
+  const canonicalValidationDiagnostics: ReadingV2AutoImportDiagnostic[] = [];
 
   try {
-    normalizeReadingV2ImportCandidate(candidate);
+    const normalized = normalizeReadingV2ImportCandidate(candidateWithLedger);
+    const validation = validateReadingV2Draft(normalized.document);
+    const canonicalBlockers = validation.blockingIssues.map((issue) =>
+      `Draft validation: ${issue.message}`,
+    );
+
+    if (canonicalBlockers.length > 0) {
+      candidateForStudio = {
+        ...candidateWithLedger,
+        publishBlockingPlaceholders: [
+          ...candidateWithLedger.publishBlockingPlaceholders,
+          ...canonicalBlockers,
+        ].filter((message, index, messages) => messages.indexOf(message) === index),
+      };
+      canonicalValidationDiagnostics.push(...validation.blockingIssues.map((issue) => ({
+        code: 'canonical-validation-blocked' as const,
+        severity: 'warning' as const,
+        message: `Draft validation remains publish-blocking in Studio: ${issue.message}`,
+      })));
+      candidateForStudio = {
+        ...candidateForStudio,
+        autoImportDiagnostics: [
+          ...diagnostics,
+          ...canonicalValidationDiagnostics,
+        ],
+      };
+    }
   } catch (error) {
     return {
       success: false,
@@ -820,10 +1387,13 @@ export const generateReadingV2AutoImportCandidate = async (
     success: true,
     structuredPayloadText: text,
     answerKeyText,
-    diagnostics,
+    diagnostics: [
+      ...diagnostics,
+      ...canonicalValidationDiagnostics,
+    ],
     provider: 'gemini',
     model: GEMINI_MODEL_NAME,
-    candidate,
+    candidate: candidateForStudio,
     passageCount: payload.materials?.length ?? 0,
     questionCount: questionCountFor(payload),
   };

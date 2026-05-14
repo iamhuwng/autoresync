@@ -15,6 +15,13 @@ This task list supplements, but does not replace:
 - `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 - `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-paste-import-and-answer-key-authority.md`
+- `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md`
+
+## Follow-Up Hardening Batch
+
+The May 13 answer-key hotfix solved the narrow case where Gemini returned visible source answer rows but Studio received none. It does not by itself prove full-source fidelity across bad Clippings structure, material splitting, missing question ranges, or repeated live Gemini runs.
+
+Use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` for the next improvement batch. That tasklist owns the source-ledger, deterministic assembler, verifier, targeted repair loop, Clippings harness, live tests, loop-check protocol, and final perfection checklist.
 
 ## Implementation Result
 
@@ -35,6 +42,14 @@ This task list supplements, but does not replace:
 - [x] Hotfix 2026-05-13: `generateStructuredJson(...)` now rotates to the next Gemini key when the selected key returns `API_KEY_INVALID`, "API key expired", forbidden/blocked, quota, rate-limit, or transient availability errors.
 - [x] Hotfix 2026-05-13: expired/invalid structured-generation keys are benched through `key-cooldown.service` so Reading V2 Auto does not keep retrying the same bad key in the same browser session.
 - [x] Hotfix 2026-05-13: external and Auto prompt contracts now declare top-level `answerKeyText` as the answer-key carrier for Studio binding.
+- [x] Hardening 2026-05-14: Auto now builds a redacted raw-source ledger before Gemini, passes ledger expectations into each Gemini prompt, and verifies Gemini output against passage/question/answer-key topology before Studio handoff.
+- [x] Hardening 2026-05-14: Auto fails closed with `source-passage-missing`, `source-question-missing`, `source-question-extra`, `source-answer-row-unbound`, or `source-question-range-missing` diagnostics when source-ledger coverage is not preserved.
+- [x] Hardening 2026-05-14: Auto retries only the failing source chunk(s) when ledger verification reports missing passage/question/answer coverage, preserves previously valid chunks, reruns the verifier, and emits `source-repair-attempted`, `source-repair-succeeded`, or `source-repair-failed` diagnostics.
+- [x] Hardening 2026-05-14: partial single-passage sources with full answer-key sections now keep only answer-key rows that match detected source questions, preventing unrelated full-test key rows from creating unbound Studio rows.
+- [x] Hardening 2026-05-14: added a local redacted Clippings harness via `npm run reading-v2:clippings-ledger -- --out output/reading-v2-clippings-ledger-report.json`; current ledger-only scan covered 276 files, found 91 supported full-test candidates, and produced 72 accepted / 20 reviewable / 7 rejected / 177 unsupported classifications without raw passage or answer-key text.
+- [x] Hardening 2026-05-14: added mocked-intermediate harness mode via `npm run reading-v2:clippings-ledger -- --mode mocked-intermediate --out output/reading-v2-clippings-ledger-report-mocked.json`; current mocked scan produced 64 accepted / 8 reviewable / 27 rejected / 177 unsupported classifications, 3439 generated interactions, 3062 bound answers, and redacted representative picks.
+- [x] Hardening 2026-05-14: added optional live Gemini harness mode behind `--mode live-gemini --allow-live-gemini`, with `--live-limit` and `--live-tags` for curated representative probes.
+- [x] Hardening 2026-05-14: documented source-ledger, verifier, repair-loop, harness modes, and operational knobs in `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`.
 
 Provider evidence:
 

@@ -176,6 +176,30 @@ Verification:
 - UTF-8 check passed for the touched code/test files.
 - `git diff --check` passed.
 
+## 2026-05-14 Amendment - Reading V2 Auto Source Ledger And Repair
+
+Reading V2 Auto import now treats local source topology as the authority before trusting Gemini structure.
+
+Required rules:
+- build a redacted source ledger before Gemini runs, including strict passage boundaries, question ranges, visible question numbers, answer-key row numbers/hashes, reference-bank labels, and clipped-source issue codes
+- send Gemini source-ledger expectations and require extraction evidence hints instead of canonical Reading V2 IDs
+- verify Gemini output against the ledger before Studio handoff, including passage coverage, question coverage, answer-key binding, instruction semantics, option/reference banks, and structured-layout anchors
+- retry only failing source ranges during bounded repair; preserve valid ranges and rerun full verification after repair
+- fail closed in the modal when verifier errors remain and the draft is not safely reviewable
+- carry only redacted Auto diagnostics into Studio candidates; never store raw prompt text, raw source text, raw answer-key text, or provider payloads in teacher diagnostics, student payloads, or session payloads
+
+Obsolete wording retired 2026-05-14:
+- answer-key binding alone must not be described as solving Auto import fidelity
+- Gemini structured output must not be described as Studio-ready until local source-ledger verification and canonical validation pass
+
+Operational consequence:
+- a partial Gemini extraction that drops Q14-26 or Q27-40 must fail or repair before Studio opens
+- invented extra passages/questions from loose instructional prose must fail before Studio opens
+- accepted Auto drafts carry source/generated summaries and publish-blocking diagnostics when the content remains reviewable but incomplete
+
+Durable companion:
+- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+
 ## 2026-04-10 Amendment - Question Extraction Resilience
 
 The Reading creator now has a stricter stage-local recovery contract for the question extraction step.

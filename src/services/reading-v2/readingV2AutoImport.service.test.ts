@@ -172,6 +172,66 @@ const rawSourceWithQPrefixAnswerKey = [
   'Q2: FALSE',
 ].join('\n');
 
+const syntheticPassageText = (passageNumber: number): string => [
+  `READING PASSAGE ${passageNumber}`,
+  `Synthetic passage ${passageNumber} paragraph A has enough teacher source text for Auto import ledger validation.`,
+  `Synthetic passage ${passageNumber} paragraph B preserves a source-only fixture without copyrighted reading content.`,
+].join('\n');
+
+const syntheticQuestions = (start: number, end: number): string => [
+  `Questions ${start}-${end}`,
+  'Complete the synthetic IELTS Reading task.',
+  ...Array.from({ length: end - start + 1 }, (_, index) => `${start + index} Synthetic question ${start + index}.`),
+].join('\n');
+
+const syntheticAnswers = (start: number, end: number): string =>
+  Array.from({ length: end - start + 1 }, (_, index) => `${start + index} TRUE`).join('\n');
+
+const rawThreePassageSourceWithAnswerKey = [
+  syntheticPassageText(1),
+  syntheticQuestions(1, 13),
+  syntheticPassageText(2),
+  syntheticQuestions(14, 26),
+  syntheticPassageText(3),
+  syntheticQuestions(27, 40),
+  'Answers',
+  syntheticAnswers(1, 40),
+].join('\n\n');
+
+const autoMaterial = (
+  passageNumber: number,
+  start: number,
+  end: number,
+  includeQuestions = true,
+) => ({
+  passageNumber,
+  title: `Synthetic passage ${passageNumber}`,
+  passages: [
+    {
+      title: `Synthetic passage ${passageNumber}`,
+      content: `Synthetic generated passage ${passageNumber} keeps enough text for validation and Studio review.`,
+    },
+  ],
+  sectionInstructions: [
+    {
+      id: `p${passageNumber}-q${start}-${end}`,
+      taskType: 'sentence-completion',
+      questionRange: { start, end },
+      sourceInstructionEvidence: 'Complete the synthetic IELTS Reading task.',
+      wordLimit: 3,
+    },
+  ],
+  questions: includeQuestions
+    ? Array.from({ length: end - start + 1 }, (_, index) => ({
+      questionNumber: start + index,
+      type: 'sentence-completion',
+      sectionInstructionId: `p${passageNumber}-q${start}-${end}`,
+      questionText: `Synthetic generated question ${start + index} ___.`,
+      answer: 'TRUE',
+    }))
+    : [],
+});
+
 const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
   generateStructuredJson: vi.fn().mockResolvedValue({ success: true, data }),
 });
@@ -192,6 +252,14 @@ describe('readingV2AutoImport.service', () => {
     expect(result.candidate.sourceKind).toBe('auto-gemini');
     expect(result.candidate.rawText).toContain('CODEX_IELTS_READING_MATERIALS_START');
     expect(result.candidate.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    expect(result.candidate.evidence).toEqual(expect.arrayContaining([
+      'Source ledger passages: 1',
+      'Source ledger question ranges: 1-2',
+      'Source ledger task groups: 1',
+      'Generated draft passages: 1',
+      'Generated draft task groups: 1',
+      'Generated draft questions: 2',
+    ]));
     expect(result.passageCount).toBe(1);
     expect(result.questionCount).toBe(2);
   });
@@ -214,7 +282,18 @@ describe('readingV2AutoImport.service', () => {
   });
 
   it('extracts book-style answer-key headings with reading test page labels', async () => {
-    const generator = generatorFor(autoPayload());
+    const material = autoMaterial(3, 31, 40);
+    const generator = generatorFor(autoPayload({
+      materials: [{
+        ...material,
+        sectionInstructions: [{
+          ...material.sectionInstructions[0],
+          taskType: 'table-completion',
+          sourceInstructionEvidence: 'Complete the table below. Write NO MORE THAN TWO WORDS OR A DATE for each answer.',
+          wordLimit: 2,
+        }],
+      }],
+    }));
 
     const result = await generateReadingV2AutoImportCandidate(
       {
@@ -226,7 +305,8 @@ describe('readingV2AutoImport.service', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.answerKeyText).toContain('1 D');
+    expect(result.answerKeyText).not.toContain('1 D');
+    expect(result.answerKeyText).not.toContain('23 YES');
     expect(result.answerKeyText).toContain('31 NOT GIVEN');
     expect(result.answerKeyText).toContain('40 A');
     expect(result.answerKeyText).not.toContain('Passage 1');
@@ -237,7 +317,17 @@ describe('readingV2AutoImport.service', () => {
   });
 
   it('extracts dense unheaded answer-key blocks near the end without adding heading exceptions', async () => {
-    const generator = generatorFor(autoPayload());
+    const material = autoMaterial(1, 1, 10);
+    const generator = generatorFor(autoPayload({
+      materials: [{
+        ...material,
+        sectionInstructions: [{
+          ...material.sectionInstructions[0],
+          taskType: 'multiple-choice',
+          sourceInstructionEvidence: 'Choose the correct letter, A, B, C or D.',
+        }],
+      }],
+    }));
 
     const result = await generateReadingV2AutoImportCandidate(
       {
@@ -264,7 +354,9 @@ describe('readingV2AutoImport.service', () => {
   });
 
   it('does not treat trailing numbered question text as an answer key', async () => {
-    const generator = generatorFor(autoPayload());
+    const generator = generatorFor(autoPayload({
+      materials: [autoMaterial(3, 31, 40)],
+    }));
 
     const result = await generateReadingV2AutoImportCandidate(
       {
@@ -432,5 +524,214 @@ describe('readingV2AutoImport.service', () => {
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     assertValidReadingV2CanonicalDocument(normalized.document);
     expect(normalized.document.sectionIds).toHaveLength(2);
+  });
+
+  it('fails closed when Gemini invents an extra material from loose instructional prose', async () => {
+    const generator = generatorFor(autoPayload({
+      materials: [
+        autoMaterial(1, 1, 2),
+        autoMaterial(2, 3, 4),
+      ],
+    }));
+    const raw = [
+      'READING PASSAGE 1',
+      'This source has one strict passage heading and enough text for Auto import.',
+      'This loose sentence says Reading Passage 2 has six paragraphs, but it is not a heading.',
+      '',
+      'Questions 1-2',
+      'Complete the sentence below.',
+      '1 Synthetic question ___.',
+      '2 Synthetic question ___.',
+      '',
+      'Answers',
+      '1 first',
+      '2 second',
+    ].join('\n');
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Loose prose extra material fixture' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-passage-extra', severity: 'error' }),
+      expect.objectContaining({ code: 'source-question-extra', severity: 'error' }),
+    ]));
+  });
+
+  it('keeps canonical IDs stable from local source name instead of Gemini sourceFile drift', async () => {
+    const sourceFiles = ['gemini-random-title-a.md', 'gemini-random-title-b.md'];
+    const generator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockImplementation(() => {
+        const sourceFile = sourceFiles.shift() ?? 'gemini-random-title-c.md';
+
+        return Promise.resolve({
+          success: true,
+          data: autoPayload({ sourceFile }),
+        });
+      }),
+    };
+
+    const first = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithAnswerKey, sourceName: 'Stable local source name.md' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+    const second = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithAnswerKey, sourceName: 'Stable local source name.md' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    if (!first.success || !second.success) return;
+
+    const firstDocument = normalizeReadingV2ImportCandidate(first.candidate).document;
+    const secondDocument = normalizeReadingV2ImportCandidate(second.candidate).document;
+
+    expect(firstDocument.documentId).toBe(secondDocument.documentId);
+    expect(firstDocument.sectionIds).toEqual(secondDocument.sectionIds);
+    expect(Object.keys(firstDocument.taskGroups)).toEqual(Object.keys(secondDocument.taskGroups));
+    expect(Object.keys(firstDocument.interactions)).toEqual(Object.keys(secondDocument.interactions));
+    expect(firstDocument.documentId).toContain('stable-local-source-name');
+  });
+
+  it('carries canonical validation blockers into the Auto Studio candidate when answers are not source-visible', async () => {
+    const generator = generatorFor(autoPayload());
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: rawSourceWithAnswerKey.split('\n').slice(0, 8).join('\n'),
+        sourceName: 'No visible answer key fixture',
+      },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'canonical-validation-blocked', severity: 'warning' }),
+    ]));
+    expect(result.candidate.publishBlockingPlaceholders).toEqual(expect.arrayContaining([
+      expect.stringContaining('Draft validation: Interaction'),
+    ]));
+    expect(result.candidate.answerKeyText).toBeUndefined();
+  });
+
+  it('fails closed when source ledger detects missing later question ranges before Studio handoff', async () => {
+    const generator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockImplementation((prompt: string) => {
+        const passageNumber = prompt.includes('current passage number: 2')
+          ? 2
+          : prompt.includes('current passage number: 3')
+            ? 3
+            : 1;
+        const range = passageNumber === 1
+          ? [1, 13] as const
+          : passageNumber === 2
+            ? [14, 26] as const
+            : [27, 40] as const;
+
+        return Promise.resolve({
+          success: true,
+          data: autoPayload({
+            answerKeyText: syntheticAnswers(1, 40),
+            materials: [autoMaterial(passageNumber, range[0], range[1], passageNumber === 1)],
+          }),
+        });
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Ledger missing ranges fixture' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(generator.generateStructuredJson).toHaveBeenCalledTimes(5);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'source-repair-attempted',
+        severity: 'info',
+        attempt: 1,
+        sourceRange: expect.stringContaining('Q14'),
+        verifierIssueCodes: expect.arrayContaining(['source-question-missing']),
+        repairScopes: expect.arrayContaining(['question-range', 'answer-key-region']),
+      }),
+      expect.objectContaining({
+        code: 'source-repair-failed',
+        severity: 'warning',
+        attempt: 1,
+        verifierResult: 'failed',
+      }),
+      expect.objectContaining({ code: 'source-question-missing', severity: 'error' }),
+      expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'error' }),
+    ]));
+    expect(result.error).toMatch(/questions 14-40/i);
+  });
+
+  it('retries only bad ledger chunks and succeeds when repair returns omitted ranges', async () => {
+    const attemptsByPassage = new Map<number, number>();
+    const generator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockImplementation((prompt: string) => {
+        const passageNumber = prompt.includes('current passage number: 2')
+          ? 2
+          : prompt.includes('current passage number: 3')
+            ? 3
+            : 1;
+        const attempt = (attemptsByPassage.get(passageNumber) ?? 0) + 1;
+        attemptsByPassage.set(passageNumber, attempt);
+        const range = passageNumber === 1
+          ? [1, 13] as const
+          : passageNumber === 2
+            ? [14, 26] as const
+            : [27, 40] as const;
+        const includeQuestions = passageNumber === 1 || attempt > 1;
+
+        return Promise.resolve({
+          success: true,
+          data: autoPayload({
+            answerKeyText: syntheticAnswers(1, 40),
+            materials: [autoMaterial(passageNumber, range[0], range[1], includeQuestions)],
+          }),
+        });
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Ledger repair success fixture' },
+      { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(generator.generateStructuredJson).toHaveBeenCalledTimes(5);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.questionCount).toBe(40);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'source-repair-attempted',
+        severity: 'info',
+        attempt: 1,
+        verifierIssueCodes: expect.arrayContaining(['source-question-missing']),
+        repairScopes: expect.arrayContaining(['question-range', 'answer-key-region']),
+      }),
+      expect.objectContaining({
+        code: 'source-repair-succeeded',
+        severity: 'info',
+        attempt: 1,
+        repairScopes: expect.arrayContaining(['question-range', 'answer-key-region']),
+        providerResult: 'success',
+        verifierResult: 'passed',
+      }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-repair-succeeded', severity: 'info' }),
+    ]));
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(normalized.document.sectionIds).toHaveLength(3);
+    expect(Object.values(normalized.document.interactions)).toHaveLength(40);
   });
 });

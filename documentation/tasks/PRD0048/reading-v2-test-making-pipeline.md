@@ -61,7 +61,7 @@ The same Studio contract supports these modes:
 |---|---|---|
 | Create blank | Teacher Lobby create or Studio create route | empty draft with required metadata fields blank or defaulted |
 | Create from import | Teacher Lobby import or Studio import route | import candidate plus metadata setup |
-| Create from Auto | Teacher Lobby create flow -> Reading V2 -> Auto | Gemini-structured import candidate plus effective trusted `answerKeyText` rows when source key evidence exists |
+| Create from Auto | Teacher Lobby create flow -> Reading V2 -> Auto | Source-ledger-verified Gemini extraction candidate plus effective trusted `answerKeyText` rows when visible source key evidence exists |
 | Resume draft | draft card or Studio draft route | existing draft, revision token required |
 | Revise published | material card edit/revise or Studio revise route | new or existing draft revision linked to live published material |
 | Duplicate material | existing material duplicate action | independent draft copy with new IDs and source provenance |
@@ -152,6 +152,14 @@ Auto/import answer-key source rules:
 - `answerKeyText` is the canonical import handoff field for copied teacher/effective answer-key rows.
 - `questions[].answer` from structured AI output is not a standalone source of truth. It may be used only as a guarded bridge into `answerKeyText` when the raw source visibly contains an answer-key heading and row extraction missed the exact format.
 - Obsolete wording retired 2026-05-13: docs and code should not say Auto Studio handoff depends only on locally "extracted" answer-key rows. The effective trusted rows can come from local extraction, Gemini-copied top-level `answerKeyText`, or the visible-heading fallback.
+- Obsolete wording retired 2026-05-14: answer-key binding alone is not sufficient evidence that Auto import fidelity is solved. Auto must also preserve source topology, task groups, option/reference banks, and structured-layout anchors before Studio treats the draft as reviewable.
+
+Auto/import source-fidelity rules:
+
+- Local source topology is authoritative before Gemini structure: strict passage headings, question ranges, visible question numbers, source answer-key rows, and source reference banks.
+- Gemini output is an extraction witness, not canonical Studio truth. Local normalization owns stable section, task-group, interaction, answer binding, and visible numbering IDs.
+- Auto candidates may reach Studio only after source-ledger verification passes or after the draft is safely reviewable with publish-blocking diagnostics.
+- Unresolved source, numbering, task-type, answer, option/reference bank, or structured-layout issues remain publish-blocking until repaired in Studio.
 
 ### 4.5 Settings
 

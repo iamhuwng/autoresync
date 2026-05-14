@@ -61,6 +61,91 @@ describe('readingV2ImportNormalization.service', () => {
     expect(validation.canPublish).toBe(true);
   });
 
+  it('lets local question ranges own structured task grouping when Gemini section IDs drift', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'drifting-section-ids.md',
+        answerKeyText: '1 first\n2 second\n3 third\n4 fourth',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Synthetic passage',
+            passages: [
+              {
+                title: 'Synthetic passage',
+                content: 'Synthetic passage content is long enough for a stable structured import fixture.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'gemini-group-a',
+                taskType: 'sentence-completion',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Complete the sentences below.',
+              },
+              {
+                id: 'gemini-group-b',
+                taskType: 'sentence-completion',
+                questionRange: { start: 3, end: 4 },
+                sourceInstructionEvidence: 'Complete the sentences below.',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                sectionInstructionId: 'gemini-group-b',
+                type: 'sentence-completion',
+                questionText: 'Question one ___.',
+              },
+              {
+                questionNumber: 2,
+                sectionInstructionId: 'gemini-group-a',
+                type: 'sentence-completion',
+                questionText: 'Question two ___.',
+              },
+              {
+                questionNumber: 3,
+                sectionInstructionId: 'gemini-group-a',
+                type: 'sentence-completion',
+                questionText: 'Question three ___.',
+              },
+              {
+                questionNumber: 4,
+                sectionInstructionId: 'gemini-group-b',
+                type: 'sentence-completion',
+                questionText: 'Question four ___.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      sourceKind: 'auto-gemini',
+      fileName: 'Stable local source.md',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const groups = Object.values(result.document.taskGroups);
+    const groupNumbers = groups.map((taskGroup) =>
+      taskGroup.interactionIds.map((interactionId) =>
+        result.document.interactions[interactionId]?.reviewLabel.displayNumber,
+      ),
+    );
+
+    expect(groupNumbers).toEqual([[1, 2], [3, 4]]);
+    expect(Object.keys(result.document.interactions)).toEqual([
+      'stable-local-source-q1',
+      'stable-local-source-q2',
+      'stable-local-source-q3',
+      'stable-local-source-q4',
+    ]);
+  });
+
   it('keeps import evidence identifiers out of delivery projections', () => {
     const source = READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE.rawText;
     const candidate = createReadingV2ImportCandidateFromText({
@@ -612,6 +697,72 @@ describe('readingV2ImportNormalization.service', () => {
     expect(passageStimulus.content.paragraphs.map((paragraph) => paragraph.label)).toEqual(['A', undefined]);
   });
 
+  it('preserves matching-headings heading bank and source paragraph labels', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Heading bank source',
+            passages: [
+              {
+                title: 'Heading bank source',
+                contentBlocks: [
+                  { kind: 'paragraph', label: 'A', text: 'Paragraph A has enough source text for a heading match.' },
+                  { kind: 'paragraph', label: 'B', text: 'Paragraph B has enough source text for another heading match.' },
+                ],
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-headings',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Choose the correct heading for each paragraph from the list of headings below.',
+                referenceLabelRange: 'i-iii',
+                sectionReferences: [
+                  { label: 'i', text: 'First source heading' },
+                  { label: 'ii', text: 'Second source heading' },
+                  { label: 'iii', text: 'Unused source heading' },
+                ],
+              },
+            ],
+            questions: [
+              { questionNumber: 1, type: 'matching-headings', sectionInstructionId: 'p1-q1-2', questionText: 'Paragraph A' },
+              { questionNumber: 2, type: 'matching-headings', sectionInstructionId: 'p1-q1-2', questionText: 'Paragraph B' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 i\n2 ii',
+    }));
+    const passageStimulus = Object.values(result.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'passage-content',
+    );
+    const optionSet = Object.values(result.document.optionSets)[0];
+    const validation = validateReadingV2Draft(result.document);
+
+    if (!passageStimulus || passageStimulus.content.kind !== 'passage-content') {
+      throw new Error('Expected a passage stimulus.');
+    }
+
+    expect(passageStimulus.content.paragraphs.map((paragraph) => paragraph.label)).toEqual(['A', 'B']);
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['i', 'ii', 'iii']);
+    expect(optionSet?.options.map((option) => option.text)).toEqual([
+      'First source heading',
+      'Second source heading',
+      'Unused source heading',
+    ]);
+    expect(validation.canPublish).toBe(true);
+  });
+
   it('normalizes standard structured TFNG instructions to one source-backed instruction', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -1145,6 +1296,75 @@ describe('readingV2ImportNormalization.service', () => {
     expect(optionSet?.options.map((option) => option.text)).toContain('Paragraph H');
     expect(taskGroup?.instructionBlocks[0]?.text).toContain('A-H');
     expect(taskGroup?.validationState.issues).toEqual([]);
+  });
+
+  it('preserves matching-features people lists as source reference banks', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'matching-features-people.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'People list',
+            passages: [
+              {
+                title: 'People list',
+                content: 'This passage has enough content to test a matching-features people list import.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-features',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-C.',
+                referenceLabelRange: 'A-C',
+                sectionReferences: [
+                  { label: 'A', text: 'Dr First Person' },
+                  { label: 'B', text: 'Professor Second Person' },
+                  { label: 'C', text: 'Researcher Third Person' },
+                ],
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'First source claim.',
+              },
+              {
+                questionNumber: 2,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Second source claim.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A\n2 B',
+    }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const optionSet = Object.values(result.document.optionSets)[0];
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(taskGroup?.officialTaskType).toBe('matching-features');
+    expect(taskGroup?.answerRule.optionReuse).toBe('allowed');
+    expect(optionSet?.options.map((option) => option.text)).toEqual([
+      'Dr First Person',
+      'Professor Second Person',
+      'Researcher Third Person',
+    ]);
+    expect(validation.blockingIssues).toEqual([]);
+    expect(validation.canPublish).toBe(true);
   });
 
   it('treats question-like multiple-choice evidence as a prompt, not a blocking custom instruction', () => {

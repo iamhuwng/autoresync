@@ -32,6 +32,8 @@ playwright-report/
 playwright-results/
 test-results/
 report.json
+output/reading-v2-clippings-ledger-report.json
+output/reading-v2-clippings-ledger-report-*.json
 quiz-data-extracted.json
 security-test-results.json
 .firebase/
