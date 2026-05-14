@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reading V2 Auto V3 Pipeline PRD</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface-dim: #f1f4f6;
+      --surface-muted: #eaeff1;
+      --ink: #0f172a;
+      --ink-soft: #1f2937;
+      --body: #586064;
+      --muted: #737c7f;
+      --line: #d1d5db;
+      --line-soft: #e2e8f0;
+      --primary: #4d44e3;
+      --primary-soft: #e2dfff;
+      --teal: #0f766e;
+      --teal-soft: #d9f2ed;
+      --blue: #1f5f99;
+      --blue-soft: #e7f0fb;
+      --rose: #e11d48;
+      --rose-soft: #ffe4eb;
+      --green: #159447;
+      --green-soft: #e8f7ef;
+      --warn: #9a6700;
+      --warn-soft: #fff4cf;
+      --error: #b42318;
+      --error-soft: #ffe6e2;
+      --code-bg: #101827;
+      --code-ink: #e5edf7;
+      --shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(226, 223, 255, 0.72), rgba(248, 249, 250, 0) 280px),
+        var(--bg);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px 24px 56px;
+    }
+
+    header {
+      padding: 30px 0 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 6px 10px;
+      border: 1px solid rgba(225, 29, 72, 0.28);
+      border-radius: 999px;
+      background: var(--rose-soft);
+      color: var(--rose);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin-bottom: 14px;
+      color: var(--ink);
+      font-size: 40px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 840px;
+      margin-bottom: 20px;
+      color: var(--body);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .hero-panel,
+    .section,
+    .metric,
+    .card,
+    .lane,
+    .example-panel,
+    .callout {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .hero-panel {
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .status-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .status-list li {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border-radius: 6px;
+      background: var(--surface-dim);
+      color: var(--body);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .status-list strong {
+      color: var(--ink);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .jump {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 26px;
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .jump a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      color: var(--ink-soft);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .jump a:hover {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .section {
+      margin-bottom: 22px;
+      padding: 24px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+    }
+
+    .section h2 {
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .section > p {
+      max-width: 900px;
+      color: var(--body);
+      line-height: 1.62;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      padding: 16px;
+      min-height: 124px;
+    }
+
+    .metric .value {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--primary);
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric .label {
+      color: var(--ink-soft);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .metric p {
+      margin: 8px 0 0;
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 212px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .stage::after {
+      content: ">";
+      position: absolute;
+      top: 50%;
+      right: -13px;
+      z-index: 1;
+      display: grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--ink);
+      color: white;
+      font-size: 12px;
+      font-weight: 800;
+      transform: translateY(-50%);
+    }
+
+    .stage:nth-child(4)::after,
+    .stage:last-child::after {
+      display: none;
+    }
+
+    .stage .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      margin-bottom: 12px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    .stage h3 {
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .stage p {
+      margin-bottom: 12px;
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: auto;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: var(--surface-dim);
+      color: var(--ink-soft);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tag.local { background: var(--green-soft); color: var(--green); }
+    .tag.gemini { background: var(--blue-soft); color: var(--blue); }
+    .tag.groq { background: var(--rose-soft); color: var(--rose); }
+    .tag.studio { background: var(--primary-soft); color: var(--primary); }
+    .tag.warn { background: var(--warn-soft); color: var(--warn); }
+
+    .lane-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .lane {
+      overflow: hidden;
+    }
+
+    .lane h3 {
+      margin: 0;
+      padding: 12px 14px;
+      color: var(--ink);
+      font-size: 15px;
+      background: var(--surface-dim);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .lane ul {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 14px;
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .lane li {
+      margin-left: 17px;
+    }
+
+    .flow-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    .fanout {
+      display: grid;
+      gap: 12px;
+    }
+
+    .fanout-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr) 42px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .arrow {
+      display: grid;
+      min-height: 40px;
+      place-items: center;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .card {
+      padding: 14px;
+      min-height: 112px;
+    }
+
+    .card h3 {
+      margin-bottom: 8px;
+      font-size: 15px;
+      line-height: 1.3;
+    }
+
+    .card p,
+    .card li {
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.48;
+    }
+
+    .card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .example-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .example-panel {
+      overflow: hidden;
+    }
+
+    .example-panel h3 {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--surface-dim);
+      font-size: 15px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    code {
+      font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 16px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    th {
+      background: var(--surface-dim);
+      color: var(--ink);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .callout {
+      margin-top: 16px;
+      padding: 16px;
+      border-color: rgba(154, 103, 0, 0.24);
+      background: var(--warn-soft);
+    }
+
+    .callout strong {
+      color: var(--warn);
+    }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--body);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .checklist strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    footer {
+      padding: 12px 0 30px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .flow-wrap,
+      .example-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pipeline,
+      .lane-grid,
+      .metrics,
+      .checklist {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stage:nth-child(4)::after {
+        display: grid;
+      }
+
+      .stage:nth-child(2)::after,
+      .stage:nth-child(4)::after,
+      .stage:nth-child(6)::after {
+        display: none;
+      }
+
+      .fanout-row {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        min-height: 18px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        padding: 18px 14px 40px;
+      }
+
+      h1 {
+        font-size: 31px;
+      }
+
+      .section {
+        padding: 18px;
+      }
+
+      .pipeline,
+      .lane-grid,
+      .metrics,
+      .checklist {
+        grid-template-columns: 1fr;
+      }
+
+      .stage::after {
+        display: none;
+      }
+
+      .jump {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="eyebrow">PRD-0048 Reading V2 Auto V3</div>
+      <div class="hero">
+        <div>
+          <h1>Gemini marks topology. Groq normalizes question areas. Local code owns truth.</h1>
+          <p class="lead">
+            This product requirement document defines the new Reading V2 Auto import pipeline for IELTS Reading
+            Clippings sources. The goal is simple: convert one messy raw test into a complete Studio draft
+            without silent passage loss, question loss, answer-key drift, or unsafe projection leakage.
+          </p>
+        </div>
+        <aside class="hero-panel" aria-label="Current V3 contract summary">
+          <ul class="status-list">
+            <li><strong>Input</strong><span>One raw IELTS Reading source pasted into Auto.</span></li>
+            <li><strong>Gemini</strong><span>One full-source marker call returns line coordinates and answer-key rows.</span></li>
+            <li><strong>Groq</strong><span>Three per-passage question-area calls, preferably on three distinct keys.</span></li>
+            <li><strong>Output</strong><span>Studio draft, or fail-closed diagnostics. No silent partial import.</span></li>
+          </ul>
+        </aside>
+      </div>
+    </header>
+
+    <nav class="jump" aria-label="Document navigation">
+      <a href="#summary">Summary</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#boundaries">Boundaries</a>
+      <a href="#fanout">Groq Fan-Out</a>
+      <a href="#example">Example</a>
+      <a href="#contracts">Contracts</a>
+      <a href="#failure">Failure Gates</a>
+      <a href="#implementation">Implementation</a>
+    </nav>
+
+    <section class="section" id="summary">
+      <h2>1. Product Summary</h2>
+      <p>
+        Reading V2 Auto must stop treating provider JSON as canonical. AI is used only where it is strong:
+        recognizing messy document structure and normalizing inconsistent question formatting. Local code owns
+        exact source slices, canonical V2 objects, answer-key binding, validation, diagnostics, and publish readiness.
+      </p>
+      <div class="metrics" aria-label="Target import invariants">
+        <div class="metric">
+          <span class="value">3</span>
+          <span class="label">passage packages</span>
+          <p>Each package means one passage body plus its own question area and answer rows.</p>
+        </div>
+        <div class="metric">
+          <span class="value">40</span>
+          <span class="label">question numbers</span>
+          <p>Supported full tests must cover the complete IELTS Reading question range.</p>
+        </div>
+        <div class="metric">
+          <span class="value">1</span>
+          <span class="label">Gemini marker call</span>
+          <p>Gemini sees full source, but returns only coordinates and normalized key rows.</p>
+        </div>
+        <div class="metric">
+          <span class="value">3</span>
+          <span class="label">Groq package calls</span>
+          <p>Groq sees question areas only, preferably distributed across three key slots.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Core invariant:</strong>
+        AI handles messy formatting. Code owns exact source, canonical parse, answer binding, validation, and trust.
+      </div>
+    </section>
+
+    <section class="section" id="pipeline">
+      <h2>2. New Pipeline</h2>
+      <p>
+        The pipeline is intentionally staged. Each stage has one owner and one trust boundary. A later stage cannot
+        hide a failure from an earlier one.
+      </p>
+      <div class="pipeline" aria-label="V3 pipeline stages">
+        <article class="stage">
+          <span class="num">1</span>
+          <h3>Raw Source Intake</h3>
+          <p>Teacher pastes one full or partial IELTS Reading source into Auto.</p>
+          <div class="tags"><span class="tag local">local</span><span class="tag warn">untrusted</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">2</span>
+          <h3>Line Index And Ledger</h3>
+          <p>Local code creates stable line numbers, hashes, source summary, pollution hints, and expected topology.</p>
+          <div class="tags"><span class="tag local">source truth</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">3</span>
+          <h3>Gemini Topology Marker</h3>
+          <p>Gemini receives numbered lines and returns package spans, group hints, pollution spans, and answer-key rows.</p>
+          <div class="tags"><span class="tag gemini">marker</span><span class="tag warn">not canonical</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">4</span>
+          <h3>Marker Verification</h3>
+          <p>Local code proves every Gemini coordinate against the line-indexed source before any split occurs.</p>
+          <div class="tags"><span class="tag local">gate</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">5</span>
+          <h3>Three Passage Packages</h3>
+          <p>Local splitter builds exact package 1, 2, and 3 from verified ranges.</p>
+          <div class="tags"><span class="tag local">exact slices</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">6</span>
+          <h3>Groq Question Normalizer</h3>
+          <p>Groq receives only each package question area, then returns a strict transcript.</p>
+          <div class="tags"><span class="tag groq">formatting</span><span class="tag warn">no passage body</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">7</span>
+          <h3>Parser And Assembler</h3>
+          <p>Local code parses transcripts, inserts local passage body text, generates instructions, and binds answer rows.</p>
+          <div class="tags"><span class="tag local">canonical</span></div>
+        </article>
+        <article class="stage">
+          <span class="num">8</span>
+          <h3>Verifier To Studio</h3>
+          <p>Verifier either sends a guarded Studio draft or fail-closed diagnostics with repair scope.</p>
+          <div class="tags"><span class="tag studio">review</span><span class="tag local">publish gate</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="boundaries">
+      <h2>3. Data Ownership And Boundaries</h2>
+      <p>
+        This is the main safety improvement. Provider output can guide local code, but it cannot become source truth.
+      </p>
+      <div class="lane-grid">
+        <article class="lane">
+          <h3>Local Code Owns</h3>
+          <ul>
+            <li>Raw source and line index</li>
+            <li>Passage body text</li>
+            <li>Three package construction</li>
+            <li>Canonical V2 IDs</li>
+            <li>Answer binding and scoring rules</li>
+            <li>Publish readiness</li>
+          </ul>
+        </article>
+        <article class="lane">
+          <h3>Gemini Can Return</h3>
+          <ul>
+            <li>Passage body start/end lines</li>
+            <li>Question-area start/end lines</li>
+            <li>Question-group range hints</li>
+            <li>Task-type hints</li>
+            <li>Pollution/exclusion spans</li>
+            <li>Normalized answer-key rows</li>
+          </ul>
+        </article>
+        <article class="lane">
+          <h3>Groq Can Return</h3>
+          <ul>
+            <li>Strict question transcript</li>
+            <li>Confirmed task type</li>
+            <li>Instruction metadata</li>
+            <li>Exact copied question text</li>
+            <li>Reference banks and options</li>
+            <li>Ambiguity diagnostics</li>
+          </ul>
+        </article>
+        <article class="lane">
+          <h3>Never Allowed</h3>
+          <ul>
+            <li>Groq receives passage body text</li>
+            <li>AI solves or invents answers</li>
+            <li>AI creates final Studio IDs</li>
+            <li>Partial draft is silently accepted</li>
+            <li>Raw diagnostics leak to student runtime</li>
+            <li>Provider text bypasses verifier</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="fanout">
+      <h2>4. Groq Package Fan-Out</h2>
+      <p>
+        Existing Groq behavior is round-robin plus fallback. V3 needs a stronger contract: plan three package jobs,
+        reserve available key slots, run distinct keys in parallel when possible, and retry only failed packages.
+      </p>
+      <div class="flow-wrap">
+        <div class="fanout" aria-label="Groq fan-out diagram">
+          <div class="fanout-row">
+            <div class="card">
+              <h3>Package 1</h3>
+              <p>Q1-13 question area only. Passage body stays local.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Groq key slot 0</h3>
+              <p>Reserved before call. Fingerprint only in diagnostics.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Transcript 1</h3>
+              <p>Strict groups, questions, banks, layout targets.</p>
+            </div>
+          </div>
+          <div class="fanout-row">
+            <div class="card">
+              <h3>Package 2</h3>
+              <p>Q14-26 question area only. Includes marker hints and answer rows.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Groq key slot 1</h3>
+              <p>Runs independently from package 1 and package 3.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Transcript 2</h3>
+              <p>If this fails, only package 2 retries.</p>
+            </div>
+          </div>
+          <div class="fanout-row">
+            <div class="card">
+              <h3>Package 3</h3>
+              <p>Q27-40 question area only. No full test dump to Groq.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Groq key slot 2</h3>
+              <p>Falls back only if the package's assigned key fails.</p>
+            </div>
+            <div class="arrow">></div>
+            <div class="card">
+              <h3>Transcript 3</h3>
+              <p>Successful packages are preserved during repair.</p>
+            </div>
+          </div>
+        </div>
+        <article class="card">
+          <h3>Planning Rules</h3>
+          <p>Before Groq calls, the fan-out service must list non-benched key slots and create package plans.</p>
+          <ul>
+            <li>If 3+ keys are available, assign different keys to package 1, 2, and 3.</li>
+            <li>If fewer keys are available, degrade to bounded round-robin with visible diagnostics.</li>
+            <li>If a key fails, bench it using existing cooldown rules and retry that package on another key.</li>
+            <li>Raw key values must never appear in logs, diagnostics, reports, or Studio.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="example">
+      <h2>5. Clear Synthetic Example</h2>
+      <p>
+        This example uses invented content, not copyrighted Clippings text. It shows how one messy source becomes
+        deterministic local objects.
+      </p>
+      <div class="example-grid">
+        <article class="example-panel">
+          <h3>A. Local line-indexed raw source</h3>
+          <pre><code>001 READING PASSAGE 1
+002 The Lake Machines
+003 [passage paragraph A text kept local]
+004 [passage paragraph B text kept local]
+005 Questions 1-4
+006 Choose NO MORE THAN TWO WORDS from the passage.
+007 1 The first machine was built near the ____.
+008 2 Engineers changed the ____ in winter.
+009 Questions 5-7
+010 Do the following statements agree with the information?
+011 5 The early design was expensive.
+012 6 The machine was used by schools.
+013 READING PASSAGE 2
+014 ...
+070 ANSWER KEY
+071 1 river
+072 2 frame
+073 5 TRUE
+074 6 NOT GIVEN</code></pre>
+        </article>
+        <article class="example-panel">
+          <h3>B. Gemini marker output</h3>
+          <pre><code>{
+  "sourceHash": "src_98a1",
+  "packages": [
+    {
+      "passage": 1,
+      "passageTitleLines": [1, 2],
+      "passageBodyLines": [3, 4],
+      "questionAreaLines": [5, 12],
+      "expectedQuestionRange": [1, 13],
+      "groups": [
+        {
+          "range": [1, 4],
+          "lines": [5, 8],
+          "taskTypeHint": "sentence-completion"
+        },
+        {
+          "range": [5, 7],
+          "lines": [9, 12],
+          "taskTypeHint": "tfng"
+        }
+      ]
+    }
+  ],
+  "answerKeyRows": [
+    { "question": 1, "answer": "river", "line": 71 },
+    { "question": 2, "answer": "frame", "line": 72 },
+    { "question": 5, "answer": "TRUE", "line": 73 },
+    { "question": 6, "answer": "NOT GIVEN", "line": 74 }
+  ]
+}</code></pre>
+        </article>
+        <article class="example-panel">
+          <h3>C. Local passage package sent to Groq</h3>
+          <pre><code>{
+  "package": 1,
+  "expectedQuestionRange": [1, 13],
+  "questionAreaOnly": [
+    "005 Questions 1-4",
+    "006 Choose NO MORE THAN TWO WORDS from the passage.",
+    "007 1 The first machine was built near the ____.",
+    "008 2 Engineers changed the ____ in winter.",
+    "009 Questions 5-7",
+    "010 Do the following statements agree with the information?",
+    "011 5 The early design was expensive.",
+    "012 6 The machine was used by schools."
+  ],
+  "answerRows": [
+    { "question": 1, "answer": "river" },
+    { "question": 2, "answer": "frame" },
+    { "question": 5, "answer": "TRUE" },
+    { "question": 6, "answer": "NOT GIVEN" }
+  ],
+  "notSentToGroq": "passage body lines 3-4"
+}</code></pre>
+        </article>
+        <article class="example-panel">
+          <h3>D. Groq strict transcript</h3>
+          <pre><code>{
+  "package": 1,
+  "groups": [
+    {
+      "range": [1, 4],
+      "taskType": "sentence-completion",
+      "instructionMeta": {
+        "wordLimit": "NO MORE THAN TWO WORDS"
+      },
+      "questions": [
+        {
+          "number": 1,
+          "promptText": "The first machine was built near the ____.",
+          "sourceLines": [7]
+        },
+        {
+          "number": 2,
+          "promptText": "Engineers changed the ____ in winter.",
+          "sourceLines": [8]
+        }
+      ]
+    },
+    {
+      "range": [5, 7],
+      "taskType": "true-false-not-given",
+      "instructionMeta": {
+        "labels": ["TRUE", "FALSE", "NOT GIVEN"]
+      },
+      "questions": [
+        {
+          "number": 5,
+          "promptText": "The early design was expensive.",
+          "sourceLines": [11]
+        },
+        {
+          "number": 6,
+          "promptText": "The machine was used by schools.",
+          "sourceLines": [12]
+        }
+      ]
+    }
+  ]
+}</code></pre>
+        </article>
+      </div>
+      <div class="example-grid">
+        <article class="example-panel">
+          <h3>E. Deterministic assembled V2 group</h3>
+          <pre><code>{
+  "passageId": "auto-src_98a1-p1",
+  "title": "The Lake Machines",
+  "bodyText": "[exact local passage text from lines 3-4]",
+  "taskGroups": [
+    {
+      "id": "auto-src_98a1-p1-q1-4",
+      "taskType": "sentence-completion",
+      "displayInstruction": "Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer.",
+      "questions": [
+        {
+          "number": 1,
+          "promptText": "The first machine was built near the ____.",
+          "answer": "river"
+        }
+      ]
+    }
+  ]
+}</code></pre>
+        </article>
+        <article class="example-panel">
+          <h3>F. Verifier result</h3>
+          <pre><code>{
+  "status": "reviewable",
+  "passageCoverage": "3/3",
+  "questionCoverage": "40/40",
+  "answerRowsBound": "40/40",
+  "publishBlocked": false,
+  "projectionSafe": true,
+  "diagnostics": []
+}</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="contracts">
+      <h2>6. Provider Contracts</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Actor</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Forbidden</th>
+              <th>Local Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Gemini marker</td>
+              <td>Full numbered raw source lines.</td>
+              <td>Line ranges, group hints, pollution spans, answer-key rows.</td>
+              <td>Full passage copies, canonical IDs, publish readiness, answer solving.</td>
+              <td>Every line span exists, ranges do not overlap, expected questions and answer rows are covered.</td>
+            </tr>
+            <tr>
+              <td>Local package splitter</td>
+              <td>Verified marker coordinates and raw source.</td>
+              <td>Three exact passage packages with local passage body and Groq question input.</td>
+              <td>Trusting unverified provider spans.</td>
+              <td>Package hashes, source slices, excluded pollution, question ranges.</td>
+            </tr>
+            <tr>
+              <td>Groq normalizer</td>
+              <td>One passage question area plus marker hints and relevant answer rows.</td>
+              <td>Strict transcript with task type, instruction metadata, exact question/bank/layout text.</td>
+              <td>Passage body text, answer reasoning, paraphrase, invented text, final Studio prose.</td>
+              <td>Every copied text field appears in the question area; every expected question appears once.</td>
+            </tr>
+            <tr>
+              <td>Local assembler</td>
+              <td>Passage package, Groq transcript, answer rows.</td>
+              <td>Canonical V2 passage, groups, interactions, scoring rules.</td>
+              <td>Provider-owned IDs or unbound answer rows.</td>
+              <td>Draft coverage, scoring validity, projection safety, Studio readiness.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="failure">
+      <h2>7. Failure Gates And Recovery</h2>
+      <p>
+        The pipeline fails small. It reports the exact broken unit and keeps successful units when safe.
+      </p>
+      <ul class="checklist">
+        <li><strong>Marker failure</strong> Missing passage span, impossible line range, overlapping question area, or answer rows outside source.</li>
+        <li><strong>Package failure</strong> Package cannot reconstruct exact local passage body or question area from verified line ranges.</li>
+        <li><strong>Groq failure</strong> Key rate limit, invalid key, transcript missing a question, transcript paraphrases source text, or task type conflicts with cues.</li>
+        <li><strong>Assembler failure</strong> Duplicate question numbers, unbound answer rows, missing scoring rule, invalid layout target, or unsafe projection field.</li>
+        <li><strong>Repair scope</strong> Retry only the failed package when Groq fails. Re-run Gemini only when marker verification fails or raw source changes.</li>
+        <li><strong>Studio result</strong> Studio receives either a complete guarded draft or classified fail-closed diagnostics. No silent partial import.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="implementation">
+      <h2>8. Implementation Work Packages</h2>
+      <p>
+        The existing hardening checkpoint stays useful, but V3 replaces the center of the AI pipeline.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Work Package</th>
+              <th>Primary File</th>
+              <th>Purpose</th>
+              <th>Tests</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Topology marker</td>
+              <td><code>readingV2AutoTopologyMarker.service.ts</code></td>
+              <td>Gemini marker orchestration, strict prompt, marker schema, answer-key normalization.</td>
+              <td>Full test, polluted clip, missing passage, overlapping spans, answer-key ambiguity.</td>
+            </tr>
+            <tr>
+              <td>Package splitter</td>
+              <td><code>readingV2AutoPassagePackage.service.ts</code></td>
+              <td>Build exact local packages and Groq question-area inputs from verified coordinates.</td>
+              <td>No passage body sent to Groq, correct answer rows per package, exact local reconstruction.</td>
+            </tr>
+            <tr>
+              <td>Groq fan-out</td>
+              <td><code>readingV2GroqPackageFanout.service.ts</code></td>
+              <td>Assign packages to distinct key slots, run parallel calls, retry failed packages only.</td>
+              <td>Three keys for three packages, fewer-key degradation, raw key redaction, partial retry.</td>
+            </tr>
+            <tr>
+              <td>Question normalizer</td>
+              <td><code>readingV2AutoQuestionAreaNormalizer.service.ts</code></td>
+              <td>Groq prompt, strict transcript schema, task-type confirmation, exact content preservation.</td>
+              <td>All Reading V2 task families, malformed source, unsupported ambiguity.</td>
+            </tr>
+            <tr>
+              <td>Transcript parser</td>
+              <td><code>readingV2AutoQuestionTranscript.service.ts</code></td>
+              <td>Parse strict transcript into deterministic local objects.</td>
+              <td>Paraphrase rejection, blank mismatch, reference bank mismatch, duplicate question detection.</td>
+            </tr>
+            <tr>
+              <td>Assembler and verifier</td>
+              <td><code>readingV2AutoImport.service.ts</code></td>
+              <td>Integrate marker, packages, Groq transcripts, answer-key rows, source verifier, Studio handoff.</td>
+              <td>Mocked full V3 pipeline, fail-closed paths, Studio diagnostics, projection safety.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      Source document: <code>documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md</code>.
+      This HTML uses synthetic examples only and should not contain raw Clippings passage text.
+    </footer>
+  </div>
+</body>
+</html>

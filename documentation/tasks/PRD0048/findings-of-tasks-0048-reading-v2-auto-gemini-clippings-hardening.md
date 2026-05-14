@@ -1,5 +1,11 @@
 # Findings: Reading V2 Auto Gemini Clippings Hardening
 
+> **Status note, 2026-05-14:** This file is historical checkpoint evidence for the pre-V3 hardening pass committed as `6246091 feat(reading-v2): harden auto clippings import`. It is **not** the final target architecture after the V3 pivot.
+>
+> Use these findings as provenance for why V3 exists: source-ledger evidence, non-live test evidence, repair-loop evidence, harness evidence, and remaining live-provider gaps. For current Auto V3 implementation scope, use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` and the visual PRD `documentation/tasks/PRD0048/reading-v2-auto-v3-pipeline-prd.html`.
+>
+> Do not clear this file. After V3 implementation, create a new V3 findings file instead of replacing this checkpoint record.
+
 ## 2026-05-14 Implementation Pass
 
 - Added first-class raw-source ledger and source-fidelity verifier. The reported silent partial-success shape is now covered by a synthetic regression where source has three passages and questions 1-40, but Gemini output only returns questions 1-13; Auto fails before Studio with missing-question and unbound-answer diagnostics.

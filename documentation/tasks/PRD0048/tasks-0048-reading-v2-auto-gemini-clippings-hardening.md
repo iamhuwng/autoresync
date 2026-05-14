@@ -2,7 +2,7 @@
 
 > **Created:** 2026-05-14
 > **Purpose:** Harden Reading V2 Auto import so raw IELTS Reading tests pasted from the local `Clippings` corpus can be converted into Studio drafts without silent passage loss, question loss, answer-key loss, task-type drift, or unsafe publishable output.
-> **Scope:** Follow-up improvement batch for the existing Reading V2 `Auto` start mode. This task list strengthens source analysis, Gemini prompting, deterministic assembly, diagnostics, repair loops, live tests, and Clippings-scale verification.
+> **Scope:** Follow-up improvement batch for the existing Reading V2 `Auto` start mode. This task list strengthens source analysis, Gemini topology marking, Groq question-area normalization, deterministic assembly, diagnostics, repair loops, live tests, and Clippings-scale verification.
 > **Primary source PRD:** `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 > **Pipeline source:** `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 > **Parent Auto task:** `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-import.md`
@@ -40,7 +40,8 @@ Reading V2 Auto must use this invariant:
 
 ```text
 Raw Clippings source = source truth.
-Gemini = structure witness and extraction helper.
+Gemini = full-source topology marker and answer-key normalizer.
+Groq = per-passage question-area formatting normalizer.
 Local ledger = topology authority.
 Deterministic V2 assembler = canonical draft authority.
 Verifier = publish/readiness authority.
@@ -54,6 +55,14 @@ Auto must not treat Gemini as the owner of:
 3. answer-key row existence
 4. source-to-question topology
 5. publish readiness
+
+Auto must not treat Groq as the owner of:
+
+1. passage body text
+2. answer correctness
+3. publish readiness
+4. canonical V2 IDs
+5. source trust
 
 ## Target Outcome
 
@@ -71,7 +80,9 @@ Unsupported or malformed clippings are allowed to fail, but failure must be expl
 - Reading V2 remains metadata-first in `TestCreationModal`.
 - Start choices remain `Paste Text`, `Auto`, and `Create New Test`.
 - `Auto` requires one raw-test textarea, not an external prompt step and not a separate answer-key field.
-- `Auto` uses Gemini through Reading V2-owned service code.
+- `Auto` uses Reading V2-owned service code for provider orchestration.
+- Gemini may inspect the full raw input only to return source markers, passage-package spans, question-area spans, group hints, pollution spans, uncertainty diagnostics, and normalized answer-key rows.
+- Groq may inspect each passage's full question area only to normalize messy question formatting into a strict transcript. Groq must not receive passage body text.
 - Studio remains the only long-lived review, repair, validation, preview, and publish surface.
 - `Paste Text` remains the manual/external-AI fallback path.
 - Student-safe and session-safe projections must not expose raw source, answer-key text, Gemini output, diagnostics, or import evidence.
@@ -82,7 +93,10 @@ Unsupported or malformed clippings are allowed to fail, but failure must be expl
 - Do not replace the V2 canonical model with the V1 flat Reading model.
 - Do not publish directly from Auto.
 - Do not commit raw copyrighted Clippings content unless the repo already permits the exact fixture.
-- Do not make Groq or Mistral providers part of this batch.
+- Do not send passage body text to Groq.
+- Do not ask Groq to solve answers, paraphrase content, invent missing text, or return final Studio instruction prose.
+- Do not send all three passages to Groq in one call; Groq calls must stay per-passage question-area scoped.
+- Do not make Mistral providers part of this batch.
 - Do not make Clippings harness reports expose full passage text or answer-key text in committed artifacts.
 
 ## Required Design From V1 Lessons
@@ -92,11 +106,44 @@ V1 worked because it separated source truth, AI extraction, rules classification
 V2 should adopt the method, not the legacy model:
 
 1. Build a raw-source ledger before Gemini.
-2. Treat Gemini output as one witness.
-3. Assemble canonical V2 data deterministically.
-4. Compare generated structure back to the raw ledger.
-5. Repair or fail by exact range and exact issue.
-6. Send only reviewable, guarded data into Studio.
+2. Line-index the raw source before any provider call.
+3. Treat Gemini output as a topology witness, not a content extractor.
+4. Split exact local source into three passage packages using verified Gemini markers.
+5. Send only each package's question area to Groq for strict transcript normalization.
+6. Assemble canonical V2 data deterministically from local passage text, Groq question transcript, and verified answer-key rows.
+7. Compare generated structure back to the raw ledger.
+8. Repair or fail by exact range and exact issue.
+9. Send only reviewable, guarded data into Studio.
+
+## 2026-05-14 V3 Pivot Amendment
+
+The local commit `6246091 feat(reading-v2): harden auto clippings import` is a safety checkpoint, not the final architecture. Keep its source-ledger, verifier, diagnostics, harness, projection-safety, key-rotation, and validation work. Replace the center of the AI pipeline.
+
+New target architecture:
+
+```text
+Raw source
+-> local line index and source ledger
+-> Gemini full-source topology marker plus answer-key normalizer
+-> local exact split into three passage packages
+-> Groq per-passage question-area normalizer
+-> local deterministic transcript parser and V2 assembler
+-> source-fidelity verifier
+-> guarded Studio draft or fail-closed diagnostics
+```
+
+Important terms:
+
+- `passage package`: one Reading passage's local-only passage body span, full question-area span, question-group hints, reference/option bank spans, relevant answer-key rows, pollution exclusions, line numbers, and hashes.
+- `question area`: all source lines for the passage's questions, including headings, task instructions, reference banks, option lists, numbered questions, table/note/summary/flowchart/diagram text, and local line markers. It excludes passage body text.
+- `canonical transcript`: Groq's strict, parseable representation of the question area. It may copy visible question/reference/option/layout text exactly, but it must not solve, paraphrase, invent, or output final Studio instruction prose.
+
+V3 core rule:
+
+```text
+AI handles messy formatting.
+Code owns exact source, canonical parse, answer binding, validation, and trust.
+```
 
 ## Relevant Files
 
@@ -105,6 +152,12 @@ Expected primary files:
 - `src/services/reading-v2/readingV2AutoImportSourceLedger.service.ts` - raw-source ledger, redacted topology summary, prompt ledger summary, and source-fidelity verifier.
 - `src/services/reading-v2/readingV2AutoImport.service.ts` - Auto orchestration, chunking, Gemini calls, guardrails, candidate creation.
 - `src/services/reading-v2/readingV2AutoImportPrompt.ts` - Gemini prompt contract.
+- `src/services/reading-v2/readingV2AutoTopologyMarker.service.ts` - expected V3 Gemini topology-marker orchestration, marker validation, and answer-key row normalization.
+- `src/services/reading-v2/readingV2AutoQuestionAreaNormalizer.service.ts` - expected V3 Groq per-passage question-area normalizer.
+- `src/services/reading-v2/readingV2GroqPackageFanout.service.ts` - expected V3 Groq key-slot fan-out coordinator for distinct per-package calls, keyed retries, and per-package diagnostics.
+- `src/services/reading-v2/readingV2AutoPassagePackage.service.ts` - expected V3 local splitter for exact three passage packages.
+- `src/services/reading-v2/readingV2AutoQuestionTranscript.service.ts` - expected V3 strict transcript schema, parser, and verifier.
+- `src/services/ai/groq.provider.ts` - extend structured generation or add a focused helper so Reading V2 can target a preferred Groq key slot instead of relying on implicit round-robin/fallback behavior.
 - `src/services/reading-v2/readingV2ImportNormalization.service.ts` - import candidate normalization and answer-key binding.
 - `src/services/reading-v2/readingV2StudioParsingDiagnostics.service.ts` - diagnostic report surface.
 - `src/services/reading-v2/readingV2Validation.service.ts` - publish-blocking validation.
@@ -120,6 +173,10 @@ Expected primary files:
 Expected test files:
 
 - `src/services/reading-v2/readingV2AutoImportSourceLedger.service.test.ts`
+- `src/services/reading-v2/readingV2AutoTopologyMarker.service.test.ts`
+- `src/services/reading-v2/readingV2AutoQuestionAreaNormalizer.service.test.ts`
+- `src/services/reading-v2/readingV2AutoPassagePackage.service.test.ts`
+- `src/services/reading-v2/readingV2AutoQuestionTranscript.service.test.ts`
 - `src/services/reading-v2/readingV2AutoImport.service.test.ts`
 - `src/services/reading-v2/readingV2AutoImportPrompt.test.ts`
 - `src/services/reading-v2/readingV2ImportNormalization.service.test.ts`
@@ -205,7 +262,245 @@ Acceptance:
 - [x] Ledger ignores trailing unrelated answer keys or navigation links when they are outside the detected source answer-key region.
 - [x] Ledger catches a missing Q14-26 or Q27-40 output before Studio handoff.
 
-## Phase 2: Gemini Intermediate Contract
+## Phase 2A: V3 Gemini Full-Source Topology Marker
+
+This phase supersedes the direct Gemini extraction contract as the final Auto architecture.
+
+- [ ] Add a local line-indexing step before the first provider call.
+- [ ] Preserve stable line numbers, raw line text, trimmed line hashes, and source hash.
+- [ ] Pass numbered raw lines to Gemini in one full-source marker call.
+- [ ] Prompt Gemini to return only short JSON coordinates and normalized answer-key rows.
+- [ ] Require Gemini marker output to include exactly three passage packages when the source is a full IELTS test:
+  - passage number
+  - passage title/body start and end lines
+  - question area start and end lines
+  - expected question range
+  - question-group range hints
+  - group task-type hints
+  - reference/option bank line spans
+  - pollution/excluded line spans
+  - uncertainty diagnostics
+- [ ] Require Gemini to normalize visible answer-key rows into:
+  - question number
+  - answer string
+  - source line
+  - optional alternative answers
+  - uncertainty code when ambiguous
+- [ ] Forbid Gemini marker output from copying passage body text, copying full question text, solving answers, returning canonical V2 IDs, or claiming publish readiness.
+- [ ] Verify every marker line range locally:
+  - every referenced line exists
+  - `startLine <= endLine`
+  - passage spans contain strict `READING PASSAGE N` evidence where present
+  - question area spans contain expected `Questions X-Y` or visible numbered questions
+  - answer-key rows exist in source lines and bind to expected question numbers
+  - question ranges cover `1-40` for supported full tests
+  - package spans do not swallow excluded pollution
+- [ ] Fail closed with marker diagnostics when Gemini returns missing, overlapping, impossible, or unverifiable ranges.
+
+Acceptance:
+
+- [ ] Gemini can mark three passage packages and answer-key rows without outputting the full passage or full question text.
+- [ ] Local verification rejects any marker that cannot be proven against raw line-indexed source.
+- [ ] First-call output is small enough to inspect in redacted diagnostics without storing copyrighted body text.
+
+## Phase 2B: V3 Local Three-Package Splitter
+
+- [ ] Build exact local passage packages from verified Gemini marker ranges.
+- [ ] Each package must contain local-only:
+  - passage body/title lines
+  - full question area lines
+  - group hint ranges
+  - reference/option bank hint ranges
+  - relevant normalized answer-key rows
+  - source hash and per-line hashes
+  - pollution exclusions
+- [ ] Keep passage body text local; do not send it to Groq.
+- [ ] Prepare Groq input from question-area lines only.
+- [ ] Include enough context in Groq input to normalize question formatting:
+  - passage number
+  - expected question range
+  - full raw question area lines
+  - task instruction lines
+  - reference/option bank lines
+  - table/note/summary/flowchart/diagram text lines
+  - normalized answer rows for the package
+  - Gemini marker hints
+  - line numbers and hashes
+- [ ] Add redacted diagnostics for package creation without storing full passage body or full answer-key text.
+
+Acceptance:
+
+- [ ] `Part 1`, `Part 2`, and `Part 3` each mean one complete Reading passage package, usually Q1-13, Q14-26, and Q27-40.
+- [ ] Groq receives full question-area text for its passage package, but never receives passage body text.
+- [ ] Local code can reconstruct exact source slices from package metadata.
+
+## Phase 2C: V3 Groq Question-Area Normalizer
+
+- [ ] Add one Groq normalization call per passage package.
+- [ ] Do not rely on the existing Groq provider's implicit round-robin/fallback behavior for V3 package fan-out.
+- [ ] Add a Reading V2-owned Groq package fan-out layer that can assign package 1, package 2, and package 3 to distinct Groq key slots when at least three non-benched keys are available.
+- [ ] Extend or wrap Groq structured generation so a normalizer call can request a preferred key slot and report the slot/fingerprint used without exposing the raw key.
+- [ ] Preserve existing key rotation/cooldown behavior as the fallback path for failed packages, not as the primary package distribution contract.
+- [ ] Keep Groq prompt short and strict:
+  - read one passage's question area
+  - do not solve answers
+  - do not paraphrase
+  - do not invent missing text
+  - do not output passage body
+  - do not output final Studio instruction prose
+  - normalize messy visible question formatting into one strict transcript schema
+  - copy visible question/reference/option/layout text exactly when the schema requires content
+  - return diagnostics instead of guessing
+- [ ] Groq transcript schema must cover all Reading V2 task families:
+  - matching headings
+  - matching information
+  - matching features
+  - matching endings
+  - multiple choice single/multiple answer
+  - TFNG/YNNG
+  - sentence completion
+  - summary completion from text
+  - summary completion from list
+  - note completion
+  - table completion
+  - flowchart completion
+  - diagram labelling
+  - short answer
+- [ ] Groq transcript must include:
+  - passage number
+  - full package question range
+  - group range
+  - task type
+  - instruction metadata only, such as word limit, number allowance, judgement labels, reuse rule, and option cardinality
+  - reference/option banks with labels and exact visible text
+  - normalized question objects with exact prompt text
+  - structured layout blocks with exact visible text and blank/question-number targets
+  - source line references for every copied text field where possible
+  - diagnostics for ambiguous or unsupported formatting
+- [ ] Do not require Groq to emit complete instruction text; Studio standard instructions are generated from task type plus instruction metadata.
+
+Acceptance:
+
+- [ ] Groq converts messy question-area formatting into a strict parseable transcript.
+- [ ] Groq output keeps question/reference/option/layout content exact, not paraphrased.
+- [ ] Groq output omits passage body text and answer-solving reasoning.
+
+## Phase 2D: V3 Deterministic Transcript Parser And Assembler
+
+- [ ] Parse Groq transcript into deterministic local objects before canonical V2 normalization.
+- [ ] Generate Studio standard instructions from `taskType + instructionMeta`.
+- [ ] Build canonical V2 task groups and interactions from Groq transcript, not from provider-owned canonical IDs.
+- [ ] Insert exact local passage body/title text from the local passage package.
+- [ ] Bind Gemini-normalized answer-key rows only after interactions exist.
+- [ ] Preserve answer-key authority and publish-blocking behavior from the current checkpoint.
+- [ ] Keep stable local IDs derived from source name, passage number, group range, and question number.
+- [ ] Keep existing Studio review/repair path for any unresolved source or transcript issue.
+
+Acceptance:
+
+- [ ] Final canonical V2 draft can be built from local passage text plus Groq question transcript plus verified answer-key rows.
+- [ ] Studio instruction text does not depend on Groq returning free-form instruction prose.
+- [ ] No provider owns canonical IDs, publish status, or final scoring authority.
+
+## Phase 2E: V3 Transcript And Source-Fidelity Verifier
+
+- [ ] Verify Groq transcript against the local question area:
+  - every copied text field appears exactly in the package question area
+  - every question number in expected range appears once
+  - no extra question number appears
+  - group ranges do not overlap
+  - reference/option labels match visible banks
+  - blank count matches group range for completion layouts
+  - task type agrees with instruction metadata and deterministic source cues
+- [ ] Verify assembled draft against source ledger:
+  - all detected passages present
+  - all detected question numbers present
+  - all answer-key rows bound
+  - all scoring rules valid
+  - structured layout targets stable
+  - projection-safe data remains clean
+- [ ] Convert every V3 failure into stable diagnostics:
+  - `topology-marker-*`
+  - `passage-package-*`
+  - `question-transcript-*`
+  - `groq-normalizer-*`
+  - existing `source-*` verifier codes where applicable
+- [ ] Redact provider diagnostics so raw source, full passage body, and full answer-key text do not appear in committed reports.
+
+Acceptance:
+
+- [ ] A Groq transcript that changes question text is rejected.
+- [ ] A Groq transcript that misses a question, bank item, option, blank, or answer row is rejected or made reviewable with publish blockers.
+- [ ] Supported full tests cannot silently import as partial drafts.
+
+## Phase 2F: V3 Provider Orchestration, Retry, And Repair
+
+- [ ] Keep one Gemini marker call per raw source, with existing Gemini key rotation/cooldown behavior.
+- [ ] Current Groq service behavior is not enough for V3: `generateStructuredJson` picks a key by internal round-robin and only falls back after failure, so callers cannot deterministically bind passage package 1/2/3 to separate keys.
+- [ ] Add explicit package-key planning before Groq calls:
+  - list non-benched Groq key slots
+  - reserve/lease a slot per package when possible
+  - fall back to round-robin only when there are fewer available keys than packages
+  - release leases after success/failure
+- [ ] Run Groq passage-package normalizers independently and in parallel when distinct key slots are available.
+- [ ] Route package 1, package 2, and package 3 to different Groq keys when available, with deterministic diagnostics proving the assignment.
+- [ ] If one Groq package fails, retry only that package with another available Groq key; do not resend successful packages.
+- [ ] Preserve successful packages while repairing failed packages.
+- [ ] Do not rerun the Gemini full-source marker unless marker verification fails or the raw source changes.
+- [ ] Add per-package diagnostics:
+  - provider name
+  - key slot/fingerprint where safe
+  - package number
+  - question range
+  - attempt count
+  - failure code
+  - verifier result
+- [ ] Keep bounded repair attempts and fail closed when retries do not converge.
+
+Acceptance:
+
+- [ ] Passage 2 normalizer failure does not discard valid passage 1 and passage 3 results.
+- [ ] Groq rate-limit/high-demand/key failure is visible and recoverable per package.
+- [ ] Repeated same-source runs converge to the same accepted or rejected result.
+
+## Phase 2G: V3 Tests And Harness Updates
+
+- [ ] Add Gemini marker tests for:
+  - clean full test with 3 passage packages and answer key
+  - polluted web clip
+  - missing passage range
+  - duplicated `Questions X-Y` headings
+  - answer-key ambiguity
+  - impossible/overlapping line spans
+- [ ] Add passage-package splitter tests proving:
+  - exact local passage body retained
+  - full question area sent to Groq
+  - no passage body sent to Groq
+  - relevant answer rows attached to each package
+- [ ] Add Groq transcript tests for every supported task family.
+- [ ] Add Groq fan-out tests proving:
+  - three packages use three distinct key slots when three available keys exist
+  - fewer keys degrade to bounded round-robin with clear diagnostics
+  - a failed package retries on a different key without rerunning successful packages
+  - raw key values never appear in diagnostics
+- [ ] Add transcript verifier tests for paraphrased text, missing questions, wrong task type, missing reference bank, blank mismatch, and unbound answer rows.
+- [ ] Update Clippings harness modes:
+  - ledger-only
+  - Gemini-marker mocked
+  - Groq-transcript mocked
+  - full mocked V3 pipeline
+  - optional live Gemini marker plus live Groq package normalizers
+- [ ] Update browser smoke to assert the V3 path reaches Studio only after marker, package, transcript, verifier, and projection gates pass.
+
+Acceptance:
+
+- [ ] V3 tests prove AI handles messy question formatting while local code preserves source truth.
+- [ ] Harness reports distinguish marker failures from Groq transcript failures.
+- [ ] Live probes are still opt-in and redacted.
+
+## Phase 2: Gemini Intermediate Contract (Checkpoint, Superseded By V3)
+
+Checkpoint note: these completed items belong to the `6246091` non-live hardening checkpoint. They are useful evidence and reusable test coverage, but the direct Gemini extraction contract is no longer the target final architecture.
 
 - [x] Replace or supplement the current canonical-ish Gemini JSON request with a simpler intermediate extraction contract.
 - [x] Intermediate output must not own canonical IDs.
@@ -238,7 +533,9 @@ Acceptance:
 - [x] Gemini output is easier to validate against the ledger than the current direct canonical-style payload.
 - [x] Prompt tests fail if the source-ledger constraints are removed.
 
-## Phase 3: Deterministic V2 Assembler And Binder
+## Phase 3: Deterministic V2 Assembler And Binder (Checkpoint, Reused By V3)
+
+Checkpoint note: keep the local ownership, stable IDs, answer binding, and validation lessons. V3 must assemble from local passage packages plus Groq transcripts, not from the old direct Gemini extraction payload.
 
 - [x] Add deterministic assembly from ledger plus Gemini intermediate into canonical Reading V2 import candidate data.
 - [x] Let local code own:
@@ -322,7 +619,9 @@ Acceptance:
 - [x] The verifier can distinguish provider/model failure from source-format failure.
 - [x] Diagnostics are actionable enough to drive targeted repair.
 
-## Phase 5: Targeted Repair Loop
+## Phase 5: Targeted Repair Loop (Checkpoint, Adapt For V3 Packages)
+
+Checkpoint note: keep bounded repair, range ownership, and diagnostics. V3 repair units become Gemini marker, passage package, Groq transcript group, answer-key block, or structured layout block.
 
 - [x] Add a bounded repair loop after verifier failure.
 - [x] Group failures by blast radius:
@@ -474,7 +773,7 @@ Acceptance:
 
 ## Phase 9: Live Tests
 
-Blocked note: the remaining Phase 9 boxes require either real Clippings content sent to Google Gemini or a forced provider-failure run. They stay unchecked until the user explicitly approves those live/provider gates.
+Blocked note: the remaining Phase 9 boxes require real Clippings content sent to live providers. V3 sends full raw source markers to Google Gemini and per-passage question areas to Groq. They stay unchecked until the user explicitly approves those live/provider gates.
 
 - [x] Start local dev server on a free port.
 - [x] Use teacher dev quick-login from the login page.
@@ -497,12 +796,14 @@ Blocked note: the remaining Phase 9 boxes require either real Clippings content 
 - [ ] Confirm system either repairs it or shows exact fail-closed diagnostics.
 - [ ] Repeat one accepted source three consecutive times and compare counts, issue codes, and final status.
 - [ ] Test a forced Gemini failure/key exhaustion path and confirm visible recoverable error.
+- [ ] Test a forced Groq package failure/key exhaustion path and confirm visible recoverable per-package retry or fail-closed diagnostics.
 
 Acceptance:
 
 - [ ] Clean Clippings source reaches Studio complete and previewable.
 - [ ] Bad Clippings source fails visibly and reproducibly.
 - [ ] Repeated live runs are stable.
+- [ ] V3 live run distinguishes Gemini marker failures from Groq transcript failures.
 
 ## Phase 10: Loop Check Protocol
 
@@ -564,9 +865,11 @@ Projection/runtime:
 Operational:
 
 - [x] Gemini key rotation still skips invalid/expired/cooling keys.
+- [ ] Groq package normalizer key rotation skips invalid/expired/cooling keys.
 - [x] Rate-limit/high-demand failures are visible and recoverable.
+- [ ] Groq package rate-limit/high-demand failures are visible and recoverable per passage package.
 - [x] Chunk wait and repair-attempt settings are documented.
-- [x] Live Gemini probes are optional and never required for normal unit-test CI.
+- [x] Live provider probes are optional and never required for normal unit-test CI.
 - [x] Reports are redacted and safe to keep local.
 
 Verification note: runtime provider/key-rotation gate passed on 2026-05-14: `src/services/ai/gemini-key-rotation.service.test.ts`, `src/services/key-cooldown.service.test.ts`, and `src/services/ai/gemini.provider.test.ts`; 3 files, 28 tests. The pass includes benched-key skip, invalid/expired-key bench and rotation, rate-limit bench and recovery, high-demand rotation without benching, and a structured-JSON expired-key rotation regression. `gemini.provider.test.ts` now resets mocked key-cooldown state per test to prevent false benched-key leakage between rotation cases.
@@ -576,11 +879,12 @@ Clippings:
 - [x] Ledger-only scan covers the whole Clippings folder.
 - [x] Supported full-test Clippings files either import perfectly or fail with exact diagnostics.
 - [ ] Representative live probe set passes stable repeated-run checks.
+- [ ] Representative V3 live probe set proves Gemini marker plus Groq question-area transcript can process supported full tests.
 - [x] Any unsupported Clippings source is classified with reason.
 
 ## Phase 12: Documentation, Rollout, Commit, Deploy
 
-Rollout note: local commit completed after successful staged diff check. Deploy waits until representative live Gemini Clippings probes are explicitly approved and pass.
+Rollout note: local commit `6246091` completed after successful staged diff check and is now a checkpoint, not the final deploy candidate. Deploy waits until V3 marker/normalizer implementation, representative live provider probes, and final verification pass.
 
 - [x] Update `tasks-0048-reading-v2-auto-gemini-import.md` with implementation notes and link back to this hardening batch.
 - [x] Update `reading-v2-test-making-pipeline.md` only if the frozen pipeline contract changes.
@@ -594,24 +898,30 @@ Rollout note: local commit completed after successful staged diff check. Deploy 
 - [x] Commit with detailed notes.
 - [x] Rebuild only if production code changed.
 - [ ] Deploy only if app code, config, or hosted docs changed and verification passes.
+- [ ] Commit V3 pivot implementation with message naming Gemini topology marker, local package splitter, Groq question-area normalizer, transcript parser/verifier, tests, live probe status, and deploy status.
 
 Acceptance:
 
 - [x] Docs match implementation.
 - [x] No obsolete "Gemini output is Studio-ready" wording remains unqualified.
 - [x] Commit message lists source-ledger, verifier, repair-loop, Clippings harness, tests, and deployment status.
+- [ ] V3 commit message lists marker, package splitter, Groq normalizer, transcript parser/verifier, tests, live probe status, and deployment status.
 
 ## Final Acceptance Criteria
 
 - [x] Auto uses local source topology as authority before trusting Gemini structure.
+- [ ] Auto V3 uses Gemini only for full-source topology marking and answer-key normalization.
+- [ ] Auto V3 sends Groq full question-area text per passage package, but never sends passage body text to Groq.
+- [ ] Auto V3 uses Groq only to normalize messy question formatting into strict transcripts.
+- [ ] Auto V3 local code parses transcripts, inserts local passage body, binds verified answer rows, and owns final canonical V2 draft.
 - [ ] Auto can process supported full-test Clippings files without silent passage/question/answer loss.
 - [x] Any unsupported Clippings file fails closed with clear diagnostics.
 - [x] Reported failure shape is covered by regression tests.
 - [x] Clippings harness can scan the whole folder in redacted mode.
-- [ ] Representative live Gemini probes are stable across repeated runs.
+- [ ] Representative V3 live Gemini-plus-Groq probes are stable across repeated runs.
 - [x] Studio opens only with reviewable guarded drafts.
 - [x] Publish blocks every unresolved structural, scoring, source-fidelity, and projection-safety issue.
 - [x] Student-safe/session-safe projections remain clean.
 - [x] Existing `Paste Text` and `Create New Test` flows remain intact.
 
-Final blocker note: non-live code, docs, harness, build, provider tests, and regression tests are complete and locally committed, but final acceptance remains unchecked until representative live Gemini probes prove real supported Clippings sources do not silently lose passages, questions, task groups, or answer rows.
+Final blocker note: the `6246091` checkpoint code, docs, harness, build, provider tests, and regression tests are locally committed, but final acceptance now targets V3. It remains unchecked until the Gemini topology marker, local three-package splitter, Groq question-area normalizer, transcript parser/verifier, and representative live Gemini-plus-Groq probes prove real supported Clippings sources do not silently lose passages, questions, task groups, or answer rows.
