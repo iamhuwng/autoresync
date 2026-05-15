@@ -422,12 +422,42 @@ const spanContainsQuestionEvidence = (
   lineIndex: ReadingV2AutoLineIndex,
   span: ReadingV2AutoLineSpan,
   range: ReadingV2AutoQuestionRange,
-): boolean =>
-  linesInSpan(lineIndex, span).some((line) => {
-    const compacted = compact(line.text);
-    return new RegExp(`^Questions?\\s+${range.start}\\s*(?:-|\\u2013|\\u2014)\\s*${range.end}\\b`, 'i').test(compacted)
-      || new RegExp(`^(?:[-*]\\s*)?(?:\\*\\*)?${range.start}(?:\\*\\*)?(?:\\\\?[\\).])?(?:\\*\\*)?\\s+\\S+`, 'i').test(compacted);
+): boolean => {
+  const evidenceLines = linesInSpan(lineIndex, span).map((line) => compact(line.text));
+  const directRangePattern = new RegExp(`^(?:#{1,6}\\s*)?(?:\\*\\*)?Questions?\\s+${range.start}\\s*(?:-|\\u2013|\\u2014|\\u00e2\\u20ac\\u201c|\\u00e2\\u20ac\\u201d|to)\\s*${range.end}\\b`, 'i');
+
+  if (evidenceLines.some((line) => directRangePattern.test(line))) {
+    return true;
+  }
+
+  const coveredQuestions = new Set<number>();
+  evidenceLines.forEach((line) => {
+    const rangeMatch = line.match(/^(?:#{1,6}\s*)?(?:\*\*)?Questions?\s+(\d{1,3})\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to)\s*(\d{1,3})\b/i);
+    if (rangeMatch?.[1] && rangeMatch[2]) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      const lower = Math.max(range.start, Math.min(start, end));
+      const upper = Math.min(range.end, Math.max(start, end));
+      for (let questionNumber = lower; questionNumber <= upper; questionNumber += 1) {
+        coveredQuestions.add(questionNumber);
+      }
+      return;
+    }
+
+    const numberedLineMatch = line.match(/^(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:\\?[\).])?(?:\*\*)?\s+\S+/);
+    if (numberedLineMatch?.[1]) {
+      coveredQuestions.add(Number(numberedLineMatch[1]));
+      return;
+    }
+
+    const embeddedBlankMatch = line.match(/(?:^|\s)(?:\*\*)?(\d{1,3})(?:\*\*)?\s*(?:\\?_+|_{3,}|\[\s*blank\s*\])/i);
+    if (embeddedBlankMatch?.[1]) {
+      coveredQuestions.add(Number(embeddedBlankMatch[1]));
+    }
   });
+
+  return rangeNumbers(range).every((questionNumber) => coveredQuestions.has(questionNumber));
+};
 
 const rangeNumbers = (range: ReadingV2AutoQuestionRange): readonly number[] => {
   const numbers: number[] = [];

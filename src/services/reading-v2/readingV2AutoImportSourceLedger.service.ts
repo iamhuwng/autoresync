@@ -153,7 +153,7 @@ export interface ReadingV2AutoSourceVerifierIssue {
 }
 
 const PASSAGE_HEADING_PATTERN = /^\s*(?:#{1,6}\s*)?READING\s+PASSAGE\s+(\d+)\s*(?::\s*(.+?)\s*)?$/i;
-const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014)\s*(\d+)\b/i;
+const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*\*)?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to)\s*(\d+)\b/i;
 const QUESTION_SINGLE_PATTERN = /^\s*(?:#{1,6}\s*)?Question\s+(\d+)\b/i;
 const NUMBERED_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:\\?[\).])?(?:\*\*)?\s+(.+)$/;
 const ALPHA_REFERENCE_ROW_PATTERN = /^\s*(?:[-*]\s*)?([A-Z])(?:[\).:]|\s+[-\u2013\u2014])?\s+\S+/;

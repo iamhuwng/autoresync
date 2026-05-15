@@ -84,6 +84,111 @@ describe('readingV2AutoTopologyMarker.service', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('accepts a passage question area proven by split task-group ranges', () => {
+    const enDash = '\u2013';
+    const sourceLines = [
+      'READING PASSAGE 1',
+      'Synthetic split passage title',
+      'Synthetic split passage body paragraph.',
+      `### Questions 1${enDash}7`,
+      '*Complete the notes below.*',
+      '\u25cf studied art, then worked as a **1** ___________ in various places',
+      '\u25cf created drawings using **2** ___________',
+      "\u25cf painted the city's **3** ___________",
+      '\u25cf produced close-up paintings of **4** ___________',
+      '\u25cf inspired by many **5** ___________',
+      '\u25cf painted dramatic **6** ___________',
+      '\u25cf painted clouds and **7** ___________ seen from above',
+      `**Questions 8${enDash}13**`,
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '**8** Synthetic judgement statement.',
+      '**9** Synthetic judgement statement.',
+      '**10** Synthetic judgement statement.',
+      '**11** Synthetic judgement statement.',
+      '**12** Synthetic judgement statement.',
+      '**13** Synthetic judgement statement.',
+    ];
+    const lineNumber = (needle: string): number => {
+      const index = sourceLines.findIndex((line) => line === needle);
+      if (index < 0) {
+        throw new Error(`Missing source line ${needle}`);
+      }
+      return index + 1;
+    };
+    const questionStart = lineNumber(`### Questions 1${enDash}7`);
+    const questionEnd = lineNumber('**13** Synthetic judgement statement.');
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: sourceLines.join('\n'), sourceName: 'split-ranges.md' });
+    const marker: ReadingV2AutoTopologyMarker = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: { startLine: 1, endLine: 2 },
+        passageBodyLines: { startLine: 1, endLine: questionStart - 1 },
+        questionAreaLines: { startLine: questionStart, endLine: questionEnd },
+        expectedQuestionRange: { start: 1, end: 13 },
+        groups: [{
+          questionRange: { start: 1, end: 7 },
+          lines: { startLine: questionStart, endLine: questionStart + 8 },
+          taskTypeHint: 'note-completion',
+        }, {
+          questionRange: { start: 8, end: 13 },
+          lines: { startLine: questionStart + 9, endLine: questionEnd },
+          taskTypeHint: 'true-false-not-given',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [],
+      diagnostics: [],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('rejects a combined passage range when later split task-group evidence is missing', () => {
+    const enDash = '\u2013';
+    const sourceLines = [
+      'READING PASSAGE 1',
+      'Synthetic split passage title',
+      'Synthetic split passage body paragraph.',
+      `### Questions 1${enDash}7`,
+      '*Complete the notes below.*',
+      '\u25cf studied art, then worked as a **1** ___________ in various places',
+      '\u25cf created drawings using **2** ___________',
+      "\u25cf painted the city's **3** ___________",
+      '\u25cf produced close-up paintings of **4** ___________',
+      '\u25cf inspired by many **5** ___________',
+      '\u25cf painted dramatic **6** ___________',
+      '\u25cf painted clouds and **7** ___________ seen from above',
+    ];
+    const questionStart = 4;
+    const questionEnd = sourceLines.length;
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: sourceLines.join('\n'), sourceName: 'missing-split-ranges.md' });
+    const marker: ReadingV2AutoTopologyMarker = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: { startLine: 1, endLine: 2 },
+        passageBodyLines: { startLine: 1, endLine: questionStart - 1 },
+        questionAreaLines: { startLine: questionStart, endLine: questionEnd },
+        expectedQuestionRange: { start: 1, end: 13 },
+        groups: [{
+          questionRange: { start: 1, end: 7 },
+          lines: { startLine: questionStart, endLine: questionEnd },
+          taskTypeHint: 'note-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [],
+      diagnostics: [],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('topology-marker-question-area-missing');
+  });
+
   it('accepts a polluted clip when pollution is outside package spans', () => {
     const rawText = `${fullSource}\nAdvertisement\nNext post`;
     const ledger = buildReadingV2AutoSourceLedger({ rawText, sourceName: 'polluted.md' });

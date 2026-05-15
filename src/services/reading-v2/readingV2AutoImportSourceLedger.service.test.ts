@@ -51,6 +51,25 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     expect(ledger.issues.map((issue) => issue.code)).not.toContain('source-answer-key-missing');
   });
 
+  it('detects bold markdown question ranges with unicode and mojibake dashes', () => {
+    const enDash = '\u2013';
+    const mojibakeDash = '\u00e2\u20ac\u201c';
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        `### Questions 1${enDash}7`,
+        '*Complete the notes below.*',
+        '1 Synthetic note question ___.',
+        `**Questions 8${mojibakeDash}13**`,
+        'Do the following statements agree with the information given in Reading Passage 1?',
+        '8 Synthetic judgement question.',
+      ].join('\n\n'),
+      sourceName: 'bold-ranges.md',
+    });
+
+    expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toEqual(['1-7', '8-13']);
+  });
+
   it('uses strict passage headings and ignores loose prose mentions', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: [
