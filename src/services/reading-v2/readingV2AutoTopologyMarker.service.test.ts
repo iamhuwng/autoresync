@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildReadingV2AutoSourceLedger } from './readingV2AutoImportSourceLedger.service';
 import {
   buildReadingV2AutoLineIndex,
+  buildReadingV2AutoTopologyMarkerPrompt,
   validateReadingV2AutoTopologyMarker,
   type ReadingV2AutoTopologyMarker,
 } from './readingV2AutoTopologyMarker.service';
@@ -77,6 +78,16 @@ const cleanMarker = (): ReadingV2AutoTopologyMarker => ({
 });
 
 describe('readingV2AutoTopologyMarker.service', () => {
+  it('prompts Gemini to return both package-level and task-group-level ranges', () => {
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'prompt-contract.md' });
+    const prompt = buildReadingV2AutoTopologyMarkerPrompt(ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(prompt).toContain('Mark two levels of question topology for every package.');
+    expect(prompt).toContain('expectedQuestionRange is the full question coverage for one passage package');
+    expect(prompt).toContain('groups[] is the smaller visible task-type blocks inside questionAreaLines');
+    expect(prompt).toContain('return expectedQuestionRange [1, 13], one questionAreaLines span covering both, and two groups');
+  });
+
   it('accepts a clean full-test topology marker with three packages and 40 answer rows', () => {
     const ledger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'clean-full.md' });
     const diagnostics = validateReadingV2AutoTopologyMarker(cleanMarker(), ledger, buildReadingV2AutoLineIndex(ledger));
@@ -187,6 +198,58 @@ describe('readingV2AutoTopologyMarker.service', () => {
     const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
 
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('topology-marker-question-area-missing');
+  });
+
+  it('rejects a package when Gemini marks the passage area but omits a task group range', () => {
+    const enDash = '\u2013';
+    const sourceLines = [
+      'READING PASSAGE 1',
+      'Synthetic split passage title',
+      'Synthetic split passage body paragraph.',
+      `### Questions 1${enDash}7`,
+      '*Complete the notes below.*',
+      '\u25cf studied art, then worked as a **1** ___________ in various places',
+      '\u25cf created drawings using **2** ___________',
+      "\u25cf painted the city's **3** ___________",
+      '\u25cf produced close-up paintings of **4** ___________',
+      '\u25cf inspired by many **5** ___________',
+      '\u25cf painted dramatic **6** ___________',
+      '\u25cf painted clouds and **7** ___________ seen from above',
+      `**Questions 8${enDash}13**`,
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '**8** Synthetic judgement statement.',
+      '**9** Synthetic judgement statement.',
+      '**10** Synthetic judgement statement.',
+      '**11** Synthetic judgement statement.',
+      '**12** Synthetic judgement statement.',
+      '**13** Synthetic judgement statement.',
+    ];
+    const questionStart = 4;
+    const questionEnd = sourceLines.length;
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: sourceLines.join('\n'), sourceName: 'missing-group-range.md' });
+    const marker: ReadingV2AutoTopologyMarker = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: { startLine: 1, endLine: 2 },
+        passageBodyLines: { startLine: 1, endLine: questionStart - 1 },
+        questionAreaLines: { startLine: questionStart, endLine: questionEnd },
+        expectedQuestionRange: { start: 1, end: 13 },
+        groups: [{
+          questionRange: { start: 1, end: 7 },
+          lines: { startLine: questionStart, endLine: questionStart + 8 },
+          taskTypeHint: 'note-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [],
+      diagnostics: [],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('topology-marker-group-coverage-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('topology-marker-question-area-missing');
   });
 
   it('accepts a polluted clip when pollution is outside package spans', () => {

@@ -67,6 +67,7 @@ export type ReadingV2AutoTopologyMarkerDiagnosticCode =
   | 'topology-marker-impossible-span'
   | 'topology-marker-passage-heading-missing'
   | 'topology-marker-question-area-missing'
+  | 'topology-marker-group-coverage-missing'
   | 'topology-marker-question-coverage-missing'
   | 'topology-marker-answer-row-missing'
   | 'topology-marker-answer-row-source-mismatch'
@@ -178,7 +179,8 @@ export const buildReadingV2AutoTopologyMarkerPrompt = (
   '      "questionAreaLines": [21, 45],',
   '      "expectedQuestionRange": [1, 13],',
   '      "groups": [',
-  '        { "questionRange": [1, 5], "lines": [21, 30], "taskTypeHint": "true-false-not-given", "referenceBankLines": [[24, 28]] }',
+  '        { "questionRange": [1, 7], "lines": [21, 32], "taskTypeHint": "note-completion", "referenceBankLines": [] },',
+  '        { "questionRange": [8, 13], "lines": [33, 45], "taskTypeHint": "true-false-not-given", "referenceBankLines": [] }',
   '      ],',
   '      "referenceBankLineSpans": [[24, 28]],',
   '      "excludedLineSpans": [],',
@@ -194,12 +196,16 @@ export const buildReadingV2AutoTopologyMarkerPrompt = (
   'Rules:',
   '1. Return exactly three packages when the source is a full IELTS Reading test.',
   '2. Use line coordinates only. Do not copy passage body or full question text.',
-  '3. Mark questionAreaLines as every line needed to reconstruct question formatting for that passage.',
-  '4. questionAreaLines must include headings, instructions, options, reference banks, tables, notes, summaries, flowcharts, diagrams, and numbered question lines.',
-  '5. passageBodyLines must exclude answer-key and unrelated pollution lines.',
-  '6. Normalize answer-key rows only from visible source answer-key rows. Do not solve answers from the passage.',
-  '7. If a span or answer row is uncertain, keep coordinates conservative and add a short diagnostic code.',
-  '8. passageTitleLines should include the visible READING PASSAGE N heading line when present; passageBodyLines may start at the real passage title/body after heading-only or web-clip noise.',
+  '3. Mark two levels of question topology for every package.',
+  '4. expectedQuestionRange is the full question coverage for one passage package, such as [1, 13].',
+  '5. questionAreaLines is the whole visible question area for that passage package, covering all task groups in expectedQuestionRange.',
+  '6. groups[] is the smaller visible task-type blocks inside questionAreaLines. Add one group for each visible source heading/instruction block, such as Questions 1-7 and Questions 8-13.',
+  '7. Do not collapse split task groups into one group. If a passage has Questions 1-7 and Questions 8-13, return expectedQuestionRange [1, 13], one questionAreaLines span covering both, and two groups.',
+  '8. questionAreaLines and group lines must include headings, instructions, options, reference banks, tables, notes, summaries, flowcharts, diagrams, and numbered question lines needed for that task block.',
+  '9. passageBodyLines must exclude answer-key and unrelated pollution lines.',
+  '10. Normalize answer-key rows only from visible source answer-key rows. Do not solve answers from the passage.',
+  '11. If a span or answer row is uncertain, keep coordinates conservative and add a short diagnostic code.',
+  '12. passageTitleLines should include the visible READING PASSAGE N heading line when present; passageBodyLines may start at the real passage title/body after heading-only or web-clip noise.',
   '',
   'Ledger expectations:',
   ledgerExpectationsForPrompt(ledger),
@@ -467,6 +473,23 @@ const rangeNumbers = (range: ReadingV2AutoQuestionRange): readonly number[] => {
   return numbers;
 };
 
+const groupsCoverExpectedQuestionRange = (
+  groups: readonly ReadingV2AutoTopologyGroupHint[],
+  range: ReadingV2AutoQuestionRange,
+): boolean => {
+  const coveredQuestions = new Set<number>();
+
+  groups.forEach((group) => {
+    rangeNumbers(group.questionRange).forEach((questionNumber) => {
+      if (questionNumber >= range.start && questionNumber <= range.end) {
+        coveredQuestions.add(questionNumber);
+      }
+    });
+  });
+
+  return rangeNumbers(range).every((questionNumber) => coveredQuestions.has(questionNumber));
+};
+
 const spansOverlap = (left: ReadingV2AutoLineSpan, right: ReadingV2AutoLineSpan): boolean =>
   left.startLine <= right.endLine && right.startLine <= left.endLine;
 
@@ -559,6 +582,17 @@ export const validateReadingV2AutoTopologyMarker = (
         code: 'topology-marker-question-area-missing',
         severity: 'error',
         message: `Passage ${packageMarker.passageNumber} question area does not include visible range evidence.`,
+        passageNumber: packageMarker.passageNumber,
+        questionNumber: packageMarker.expectedQuestionRange.start,
+        sourceRange: spanLabel(packageMarker.questionAreaLines),
+      });
+    }
+
+    if (!groupsCoverExpectedQuestionRange(packageMarker.groups, packageMarker.expectedQuestionRange)) {
+      diagnostics.push({
+        code: 'topology-marker-group-coverage-missing',
+        severity: 'error',
+        message: `Passage ${packageMarker.passageNumber} groups do not cover expected question range ${packageMarker.expectedQuestionRange.start}-${packageMarker.expectedQuestionRange.end}.`,
         passageNumber: packageMarker.passageNumber,
         questionNumber: packageMarker.expectedQuestionRange.start,
         sourceRange: spanLabel(packageMarker.questionAreaLines),
