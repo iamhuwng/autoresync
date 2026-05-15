@@ -6,16 +6,46 @@ import {
   type ReadingV2AutoLedgerPayload,
   type ReadingV2AutoSourceLedger,
 } from '../src/services/reading-v2/readingV2AutoImportSourceLedger.service';
-import { generateReadingV2AutoImportCandidate } from '../src/services/reading-v2/readingV2AutoImport.service';
+import {
+  generateReadingV2AutoImportCandidate,
+  type ReadingV2AutoImportDiagnostic,
+} from '../src/services/reading-v2/readingV2AutoImport.service';
+import {
+  buildReadingV2AutoLineIndex,
+  validateReadingV2AutoTopologyMarker,
+  type ReadingV2AutoLineIndex,
+  type ReadingV2AutoTopologyGroupHint,
+  type ReadingV2AutoTopologyMarker,
+} from '../src/services/reading-v2/readingV2AutoTopologyMarker.service';
+import {
+  buildReadingV2AutoPassagePackage,
+  type ReadingV2AutoPassagePackage,
+} from '../src/services/reading-v2/readingV2AutoPassagePackage.service';
+import {
+  buildReadingV2AutoMaterialFromTranscript,
+  verifyReadingV2AutoQuestionTranscript,
+  type ReadingV2AutoQuestionTranscript,
+} from '../src/services/reading-v2/readingV2AutoQuestionTranscript.service';
 
 const DEFAULT_ROOT = 'C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings';
 const MAX_LIVE_GEMINI_PROBES = 5;
+type HarnessMode =
+  | 'ledger-only-offline'
+  | 'ledger-only'
+  | 'mocked-intermediate'
+  | 'gemini-marker-mocked'
+  | 'groq-transcript-mocked'
+  | 'full-mocked-v3'
+  | 'provider-preflight'
+  | 'live-gemini'
+  | 'live-v3-gemini-groq';
 
 interface HarnessArgs {
   readonly root: string;
   readonly out: string;
-  readonly mode: 'ledger-only-offline' | 'mocked-intermediate' | 'live-gemini';
+  readonly mode: HarnessMode;
   readonly allowLiveGemini: boolean;
+  readonly allowLiveV3Providers: boolean;
   readonly liveLimit: number;
   readonly liveTags: readonly string[];
 }
@@ -32,6 +62,10 @@ interface HarnessItem {
   readonly boundAnswerCount: number;
   readonly issueCodes: readonly string[];
   readonly verifierIssueCodes: readonly string[];
+  readonly markerDiagnosticCodes: readonly string[];
+  readonly packageDiagnosticCodes: readonly string[];
+  readonly transcriptDiagnosticCodes: readonly string[];
+  readonly v3Stage: 'not-run' | 'marker' | 'package' | 'transcript' | 'assembled';
   readonly status: 'accepted' | 'repaired' | 'reviewable' | 'rejected' | 'unsupported';
   readonly representativeTags: readonly string[];
 }
@@ -56,14 +90,70 @@ interface HarnessLiveProbe {
   readonly passageCount: number;
   readonly questionCount: number;
   readonly diagnosticCodes: readonly string[];
+  readonly diagnostics: readonly HarnessLiveProbeDiagnostic[];
   readonly errorCode: string | null;
+  readonly quotaStopSignal: boolean;
+  readonly stopReason: 'quota-or-rate-limit' | null;
+}
+
+interface HarnessLiveProbeDiagnostic {
+  readonly code: string;
+  readonly severity: 'info' | 'warning' | 'error';
+  readonly message: string;
+  readonly passageNumber?: number;
+  readonly questionNumber?: number;
+  readonly sourceRange?: unknown;
+  readonly providerResult?: string;
+  readonly verifierResult?: string;
+}
+
+interface HarnessProviderPreflight {
+  readonly checkedAt: string;
+  readonly providerCallsMade: false;
+  readonly clippingsContentSent: false;
+  readonly aiAvailable: boolean;
+  readonly geminiAvailable: boolean;
+  readonly groqAvailable: boolean;
+  readonly totalKeys: number;
+  readonly benchedKeys: number;
+  readonly shortestCooldownRemaining?: number;
+  readonly keyRegistryReadable: boolean;
+  readonly keyRegistryErrorCode: string | null;
+  readonly groqStructuredJsonSlotCount: number;
+  readonly groqDistinctPackageFanoutReady: boolean;
+  readonly groqSlotFingerprints: readonly string[];
+  readonly warnings: readonly string[];
+  readonly errorCode: string | null;
+}
+
+interface HarnessProviderPreflightDependencies {
+  readonly getAIAvailability?: () => Promise<{
+    readonly available: boolean;
+    readonly geminiAvailable: boolean;
+    readonly groqAvailable: boolean;
+    readonly totalKeys: number;
+    readonly benchedKeys: number;
+    readonly shortestCooldownRemaining?: number;
+  }>;
+  readonly getGroqSlots?: () => Promise<readonly {
+    readonly index: number;
+    readonly fingerprint: string;
+    readonly available: boolean;
+  }[]>;
+  readonly getAPIKeys?: () => Promise<unknown>;
+}
+
+interface HarnessLiveProbeDependencies {
+  readonly readSourceText?: (filePath: string) => Promise<string>;
+  readonly generateCandidate?: typeof generateReadingV2AutoImportCandidate;
 }
 
 const parseArgs = (argv: readonly string[]): HarnessArgs => {
   let root = DEFAULT_ROOT;
   let out = path.resolve('output', 'reading-v2-clippings-ledger-report.json');
-  let mode: HarnessArgs['mode'] = 'ledger-only-offline';
+  let mode: HarnessMode = 'ledger-only-offline';
   let allowLiveGemini = false;
+  let allowLiveV3Providers = false;
   let liveLimit = 1;
   let liveTags: readonly string[] = ['clean-full-test'];
 
@@ -85,8 +175,14 @@ const parseArgs = (argv: readonly string[]): HarnessArgs => {
       const requestedMode = argv[index + 1];
       if (
         requestedMode === 'ledger-only-offline'
+        || requestedMode === 'ledger-only'
         || requestedMode === 'mocked-intermediate'
+        || requestedMode === 'gemini-marker-mocked'
+        || requestedMode === 'groq-transcript-mocked'
+        || requestedMode === 'full-mocked-v3'
+        || requestedMode === 'provider-preflight'
         || requestedMode === 'live-gemini'
+        || requestedMode === 'live-v3-gemini-groq'
       ) {
         mode = requestedMode;
       }
@@ -96,6 +192,11 @@ const parseArgs = (argv: readonly string[]): HarnessArgs => {
 
     if (token === '--allow-live-gemini') {
       allowLiveGemini = true;
+      continue;
+    }
+
+    if (token === '--allow-live-v3-providers') {
+      allowLiveV3Providers = true;
       continue;
     }
 
@@ -117,7 +218,7 @@ const parseArgs = (argv: readonly string[]): HarnessArgs => {
     }
   }
 
-  return { root: path.resolve(root), out, mode, allowLiveGemini, liveLimit, liveTags };
+  return { root: path.resolve(root), out, mode, allowLiveGemini, allowLiveV3Providers, liveLimit, liveTags };
 };
 
 const collectMarkdownFiles = async (root: string): Promise<readonly string[]> => {
@@ -141,12 +242,20 @@ const statusFor = (input: {
   readonly issueCodes: readonly string[];
   readonly issueSeverities: readonly string[];
   readonly verifierIssueCodes?: readonly string[];
+  readonly markerDiagnosticCodes?: readonly string[];
+  readonly packageDiagnosticCodes?: readonly string[];
+  readonly transcriptDiagnosticCodes?: readonly string[];
 }): HarnessItem['status'] => {
   if (input.category === 'unsupported-or-ambiguous-source') {
     return 'unsupported';
   }
 
-  if ((input.verifierIssueCodes ?? []).length > 0) {
+  if (
+    (input.verifierIssueCodes ?? []).length > 0
+    || (input.markerDiagnosticCodes ?? []).length > 0
+    || (input.packageDiagnosticCodes ?? []).length > 0
+    || (input.transcriptDiagnosticCodes ?? []).length > 0
+  ) {
     return 'rejected';
   }
 
@@ -348,6 +457,234 @@ const buildMockedIntermediatePayload = (ledger: ReadingV2AutoSourceLedger): Read
   }),
 });
 
+const sourceLinesForLedger = (ledger: ReadingV2AutoSourceLedger): readonly string[] =>
+  ledger.normalizedText.split('\n');
+
+const answerTextFromSourceLine = (
+  ledger: ReadingV2AutoSourceLedger,
+  sourceLine: number,
+): string | undefined => {
+  const text = sourceLinesForLedger(ledger)[sourceLine - 1]?.trim();
+  const match = text?.match(/^(?:Q(?:uestion)?\s*)?\d{1,3}(?:\\?[\).:\-=])?\s+(.+)$/i);
+  return match?.[1]?.trim();
+};
+
+const rangesForPassage = (
+  ledger: ReadingV2AutoSourceLedger,
+  passageNumber: number,
+) => ledger.questionRanges.filter((range) => range.passageNumber === passageNumber);
+
+const taskTypeHintForRange = (
+  range: { readonly instructionPreview?: string },
+): string =>
+  redactedInstructionSemanticsFor(range).taskType ?? 'sentence-completion';
+
+const questionAreaEndLine = (
+  ledger: ReadingV2AutoSourceLedger,
+  passageIndex: number,
+): number => {
+  const nextPassageLine = ledger.passages[passageIndex + 1]?.lineNumber;
+  const firstAnswerLine = ledger.answerKeyRows[0]?.sourceLine;
+  const boundary = nextPassageLine ?? firstAnswerLine ?? (ledger.lineCount + 1);
+  return Math.max(1, boundary - 1);
+};
+
+const markerFromLedger = (ledger: ReadingV2AutoSourceLedger): ReadingV2AutoTopologyMarker => ({
+  sourceHash: ledger.sourceHash,
+  packages: ledger.passages.flatMap((passage, passageIndex) => {
+    const ranges = rangesForPassage(ledger, passage.passageNumber);
+    const firstRange = ranges[0];
+    if (!firstRange) {
+      return [];
+    }
+
+    const questionAreaEnd = questionAreaEndLine(ledger, passageIndex);
+    const expectedQuestionRange = {
+      start: Math.min(...ranges.map((range) => range.start)),
+      end: Math.max(...ranges.map((range) => range.end)),
+    };
+    const groups: readonly ReadingV2AutoTopologyGroupHint[] = ranges.map((range) => ({
+      questionRange: { start: range.start, end: range.end },
+      lines: { startLine: range.lineNumber, endLine: questionAreaEnd },
+      taskTypeHint: taskTypeHintForRange(range),
+      referenceBankLines: ledger.referenceBanks
+        .filter((bank) => bank.passageNumber === passage.passageNumber || rangeOverlaps(range, bank.questionRange))
+        .map((bank) => ({ startLine: bank.lineNumber, endLine: bank.lineNumber })),
+    }));
+
+    return [{
+      passageNumber: passage.passageNumber,
+      passageTitleLines: { startLine: passage.lineNumber, endLine: passage.lineNumber },
+      passageBodyLines: {
+        startLine: passage.lineNumber,
+        endLine: Math.max(passage.lineNumber, firstRange.lineNumber - 1),
+      },
+      questionAreaLines: { startLine: firstRange.lineNumber, endLine: questionAreaEnd },
+      expectedQuestionRange,
+      groups,
+      referenceBankLineSpans: groups.flatMap((group) => group.referenceBankLines ?? []),
+      excludedLineSpans: ledger.pollutionMarkers
+        .filter((marker) => marker.lineNumber < passage.lineNumber || marker.lineNumber > questionAreaEnd)
+        .map((marker) => ({
+          startLine: marker.lineNumber,
+          endLine: marker.lineNumber,
+        })),
+      uncertaintyDiagnostics: [],
+    }];
+  }),
+  answerKeyRows: ledger.answerKeyRows.flatMap((row) => {
+    const answer = answerTextFromSourceLine(ledger, row.sourceLine);
+    return answer
+      ? [{ questionNumber: row.questionNumber, answer, sourceLine: row.sourceLine }]
+      : [];
+  }),
+  diagnostics: [],
+});
+
+const buildMockedV3Packages = (input: {
+  readonly ledger: ReadingV2AutoSourceLedger;
+  readonly marker: ReadingV2AutoTopologyMarker;
+  readonly lineIndex: ReadingV2AutoLineIndex;
+}): readonly ReadingV2AutoPassagePackage[] =>
+  input.marker.packages.map((packageMarker) =>
+    buildReadingV2AutoPassagePackage({
+      marker: packageMarker,
+      lineIndex: input.lineIndex,
+      ledger: input.ledger,
+      answerKeyRows: input.marker.answerKeyRows,
+    }),
+  );
+
+const questionPromptFromPackage = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  questionNumber: number,
+): string => {
+  const pattern = new RegExp(`^\\s*(?:[-*]\\s*)?(?:\\*\\*)?${questionNumber}(?:\\*\\*)?(?:\\\\?[).])?(?:\\*\\*)?\\s+(.+)$`);
+  const line = passagePackage.questionAreaLines.find((candidate) => pattern.test(candidate.text));
+  const match = line?.text.match(pattern);
+  return match?.[1]?.trim() ?? `Question ${questionNumber}`;
+};
+
+const sourceInstructionFromPackage = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  group: ReadingV2AutoTopologyGroupHint,
+): string | undefined =>
+  passagePackage.questionAreaLines.find((line) =>
+    line.lineNumber >= group.lines.startLine
+    && line.lineNumber <= group.lines.endLine
+    && !/^\s*(?:[-*]\s*)?\d{1,3}(?:\\?[\).])?\s+/.test(line.text)
+    && !/^\s*Questions?\s+\d+/.test(line.text)
+    && line.text.trim().length > 0,
+  )?.text.trim();
+
+const mockedTranscriptFromPackage = (
+  passagePackage: ReadingV2AutoPassagePackage,
+): ReadingV2AutoQuestionTranscript => ({
+  passageNumber: passagePackage.passageNumber,
+  groups: passagePackage.groupHints.map((group) => {
+    const questionNumbers = Array.from(
+      { length: group.questionRange.end - group.questionRange.start + 1 },
+      (_, index) => group.questionRange.start + index,
+    );
+
+    return {
+      questionRange: group.questionRange,
+      taskType: (group.taskTypeHint ?? 'sentence-completion') as never,
+      sourceInstructionText: sourceInstructionFromPackage(passagePackage, group),
+      instructionMeta: {},
+      questions: questionNumbers.map((questionNumber) => ({
+        number: questionNumber,
+        promptText: questionPromptFromPackage(passagePackage, questionNumber),
+      })),
+      diagnostics: [],
+    };
+  }),
+  diagnostics: [],
+});
+
+const buildMockedV3Payload = (
+  packages: readonly ReadingV2AutoPassagePackage[],
+): ReadingV2AutoLedgerPayload => ({
+  answerKeyText: packages
+    .flatMap((passagePackage) => passagePackage.answerKeyRows)
+    .map((row) => `${row.questionNumber} ${row.answer}`)
+    .join('\n'),
+  materials: packages.map((passagePackage) =>
+    buildReadingV2AutoMaterialFromTranscript({
+      passagePackage,
+      transcript: mockedTranscriptFromPackage(passagePackage),
+    }),
+  ),
+});
+
+const mockedV3DiagnosticsFor = (input: {
+  readonly ledger: ReadingV2AutoSourceLedger;
+  readonly mode: HarnessMode;
+}) => {
+  const lineIndex = buildReadingV2AutoLineIndex(input.ledger);
+  const marker = markerFromLedger(input.ledger);
+  const markerDiagnosticCodes = validateReadingV2AutoTopologyMarker(marker, input.ledger, lineIndex)
+    .map((diagnostic) => diagnostic.code);
+
+  if (input.mode === 'gemini-marker-mocked') {
+    return {
+      markerDiagnosticCodes,
+      packageDiagnosticCodes: [] as string[],
+      transcriptDiagnosticCodes: [] as string[],
+      verifierIssueCodes: [] as string[],
+      generatedInteractionCount: 0,
+      boundAnswerCount: 0,
+      v3Stage: 'marker' as const,
+    };
+  }
+
+  const packages = markerDiagnosticCodes.length === 0
+    ? buildMockedV3Packages({ ledger: input.ledger, marker, lineIndex })
+    : [];
+  const packageDiagnosticCodes = packages.flatMap((passagePackage) =>
+    passagePackage.diagnostics.map((diagnostic) => diagnostic.code),
+  );
+
+  if (input.mode === 'groq-transcript-mocked') {
+    const transcriptDiagnosticCodes = packages.flatMap((passagePackage) =>
+      verifyReadingV2AutoQuestionTranscript({
+        passagePackage,
+        transcript: mockedTranscriptFromPackage(passagePackage),
+      }).map((diagnostic) => diagnostic.code),
+    );
+
+    return {
+      markerDiagnosticCodes,
+      packageDiagnosticCodes,
+      transcriptDiagnosticCodes,
+      verifierIssueCodes: [] as string[],
+      generatedInteractionCount: packages.reduce((total, passagePackage) =>
+        total + (passagePackage.expectedQuestionRange.end - passagePackage.expectedQuestionRange.start + 1), 0),
+      boundAnswerCount: 0,
+      v3Stage: 'transcript' as const,
+    };
+  }
+
+  const payload = buildMockedV3Payload(packages);
+  const verifierIssueCodes = verifyReadingV2AutoPayloadAgainstLedger(payload, input.ledger)
+    .map((issue) => issue.code);
+  const generatedInteractionCount = (payload.materials ?? [])
+    .reduce((total, material) => total + (material.questions?.length ?? 0), 0);
+  const boundAnswerCount = payload.answerKeyText
+    ? Math.min(input.ledger.answerKeyRows.length, generatedInteractionCount)
+    : 0;
+
+  return {
+    markerDiagnosticCodes,
+    packageDiagnosticCodes,
+    transcriptDiagnosticCodes: [] as string[],
+    verifierIssueCodes,
+    generatedInteractionCount,
+    boundAnswerCount,
+    v3Stage: 'assembled' as const,
+  };
+};
+
 const representativeTagsFor = (item: Omit<HarnessItem, 'representativeTags'>): readonly string[] => {
   const tags: string[] = [];
 
@@ -384,7 +721,12 @@ const representativeTagsFor = (item: Omit<HarnessItem, 'representativeTags'>): r
   return tags;
 };
 
-const scanFile = async (filePath: string, root: string, mode: HarnessArgs['mode']): Promise<HarnessItem> => {
+const isMockedV3Mode = (mode: HarnessMode): boolean =>
+  mode === 'gemini-marker-mocked'
+  || mode === 'groq-transcript-mocked'
+  || mode === 'full-mocked-v3';
+
+const scanFile = async (filePath: string, root: string, mode: HarnessMode): Promise<HarnessItem> => {
   const rawText = await readFile(filePath, 'utf8');
   const relativePath = path.relative(root, filePath).replace(/\\/g, '/');
   const ledger = buildReadingV2AutoSourceLedger({
@@ -399,13 +741,22 @@ const scanFile = async (filePath: string, root: string, mode: HarnessArgs['mode'
   const mockedPayload = mode === 'mocked-intermediate' && category !== 'unsupported-or-ambiguous-source'
     ? buildMockedIntermediatePayload(ledger)
     : null;
-  const verifierIssueCodes = mockedPayload
+  const v3Diagnostics = isMockedV3Mode(mode) && category !== 'unsupported-or-ambiguous-source'
+    ? mockedV3DiagnosticsFor({ ledger, mode })
+    : null;
+  const verifierIssueCodes = v3Diagnostics
+    ? v3Diagnostics.verifierIssueCodes
+    : mockedPayload
     ? verifyReadingV2AutoPayloadAgainstLedger(mockedPayload, ledger).map((issue) => issue.code)
     : [];
-  const generatedInteractionCount = mockedPayload
+  const generatedInteractionCount = v3Diagnostics
+    ? v3Diagnostics.generatedInteractionCount
+    : mockedPayload
     ? (mockedPayload.materials ?? []).reduce((total, material) => total + (material.questions?.length ?? 0), 0)
     : 0;
-  const boundAnswerCount = mockedPayload && mockedPayload.answerKeyText
+  const boundAnswerCount = v3Diagnostics
+    ? v3Diagnostics.boundAnswerCount
+    : mockedPayload && mockedPayload.answerKeyText
     ? Math.min(ledger.answerKeyRows.length, generatedInteractionCount)
     : 0;
   const itemWithoutTags = {
@@ -420,7 +771,19 @@ const scanFile = async (filePath: string, root: string, mode: HarnessArgs['mode'
     boundAnswerCount,
     issueCodes,
     verifierIssueCodes,
-    status: statusFor({ category, issueCodes, issueSeverities, verifierIssueCodes }),
+    markerDiagnosticCodes: v3Diagnostics?.markerDiagnosticCodes ?? [],
+    packageDiagnosticCodes: v3Diagnostics?.packageDiagnosticCodes ?? [],
+    transcriptDiagnosticCodes: v3Diagnostics?.transcriptDiagnosticCodes ?? [],
+    v3Stage: v3Diagnostics?.v3Stage ?? 'not-run',
+    status: statusFor({
+      category,
+      issueCodes,
+      issueSeverities,
+      verifierIssueCodes,
+      markerDiagnosticCodes: v3Diagnostics?.markerDiagnosticCodes,
+      packageDiagnosticCodes: v3Diagnostics?.packageDiagnosticCodes,
+      transcriptDiagnosticCodes: v3Diagnostics?.transcriptDiagnosticCodes,
+    }),
   };
 
   return {
@@ -445,6 +808,9 @@ const summarize = (items: readonly HarnessItem[]) => {
     unsupported: count((item) => item.status === 'unsupported'),
     generatedInteractionCount: items.reduce((total, item) => total + item.generatedInteractionCount, 0),
     boundAnswerCount: items.reduce((total, item) => total + item.boundAnswerCount, 0),
+    markerDiagnosticCount: items.reduce((total, item) => total + item.markerDiagnosticCodes.length, 0),
+    packageDiagnosticCount: items.reduce((total, item) => total + item.packageDiagnosticCodes.length, 0),
+    transcriptDiagnosticCount: items.reduce((total, item) => total + item.transcriptDiagnosticCodes.length, 0),
   };
 };
 
@@ -502,32 +868,172 @@ const selectLiveProbeRepresentatives = (
 const sanitizeLiveError = (error: string): string =>
   error
     .replace(/AIza[0-9A-Za-z_-]+/g, '[redacted-api-key]')
-    .replace(/key=([^&\s]+)/gi, 'key=[redacted]')
+    .replace(/gsk_[0-9A-Za-z]+/g, '[redacted-api-key]')
+    .replace(/sk-[0-9A-Za-z_-]+/g, '[redacted-api-key]')
+    .replace(/org_[0-9A-Za-z_]+/g, '[redacted-org]')
+    .replace(/key=([^&;,\s]+)/gi, 'key=[redacted]')
     .replace(/[A-Z]:\\[^:\n\r"]+/g, '[redacted-windows-path]')
     .slice(0, 240);
+
+const liveProbeDiagnosticFor = (
+  diagnostic: ReadingV2AutoImportDiagnostic,
+): HarnessLiveProbeDiagnostic => ({
+  code: diagnostic.code,
+  severity: diagnostic.severity,
+  message: sanitizeLiveError(diagnostic.message),
+  ...(typeof diagnostic.passageNumber === 'number' ? { passageNumber: diagnostic.passageNumber } : {}),
+  ...(typeof diagnostic.questionNumber === 'number' ? { questionNumber: diagnostic.questionNumber } : {}),
+  ...(diagnostic.sourceRange ? { sourceRange: diagnostic.sourceRange } : {}),
+  ...(diagnostic.providerResult ? { providerResult: diagnostic.providerResult } : {}),
+  ...(diagnostic.verifierResult ? { verifierResult: diagnostic.verifierResult } : {}),
+});
+
+const isProviderQuotaStopSignal = (value: string | null | undefined): boolean => {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return (
+    text.includes('429')
+    || text.includes('rate limit')
+    || text.includes('rate-limit')
+    || text.includes('quota')
+    || text.includes('all gemini api keys exhausted')
+    || text.includes('all groq api keys exhausted')
+    || text.includes('all ai api keys exhausted')
+    || text.includes('all keys exhausted')
+    || text.includes('requests_per_day')
+    || text.includes('per day')
+    || text.includes('per_day')
+    || text.includes('perday')
+    || text.includes('limit: 0')
+    || text.includes('retrydelay')
+  );
+};
+
+const buildProviderPreflight = async (
+  dependencies: HarnessProviderPreflightDependencies = {},
+): Promise<HarnessProviderPreflight> => {
+  const checkedAt = new Date().toISOString();
+  const warnings: string[] = [];
+
+  try {
+    const getAIAvailability = dependencies.getAIAvailability
+      ?? (await import('../src/services/ai-status.service')).getAIAvailability;
+    const getAPIKeys = dependencies.getAPIKeys
+      ?? (await import('../src/services/api-keys.service')).getAPIKeys;
+    const getGroqSlots = dependencies.getGroqSlots
+      ?? (await import('../src/services/ai/groq.provider')).groqProvider.getAvailableStructuredJsonKeySlots.bind(
+        (await import('../src/services/ai/groq.provider')).groqProvider,
+      );
+
+    let keyRegistryReadable = true;
+    let keyRegistryErrorCode: string | null = null;
+    try {
+      await getAPIKeys();
+    } catch (error) {
+      keyRegistryReadable = false;
+      keyRegistryErrorCode = sanitizeLiveError(error instanceof Error ? error.message : String(error));
+      warnings.push('firestore-key-registry-unreadable');
+    }
+
+    const [availability, groqSlots] = await Promise.all([
+      getAIAvailability(),
+      getGroqSlots(),
+    ]);
+    const availableGroqSlots = groqSlots.filter((slot) => slot.available);
+
+    if (!availability.geminiAvailable) {
+      warnings.push('gemini-unavailable');
+    }
+
+    if (!availability.groqAvailable || availableGroqSlots.length === 0) {
+      warnings.push('groq-unavailable');
+    }
+
+    if (availableGroqSlots.length > 0 && availableGroqSlots.length < 3) {
+      warnings.push('groq-distinct-package-fanout-degraded');
+    }
+
+    return {
+      checkedAt,
+      providerCallsMade: false,
+      clippingsContentSent: false,
+      aiAvailable: availability.available,
+      geminiAvailable: availability.geminiAvailable,
+      groqAvailable: availability.groqAvailable,
+      totalKeys: availability.totalKeys,
+      benchedKeys: availability.benchedKeys,
+      shortestCooldownRemaining: availability.shortestCooldownRemaining,
+      keyRegistryReadable,
+      keyRegistryErrorCode,
+      groqStructuredJsonSlotCount: availableGroqSlots.length,
+      groqDistinctPackageFanoutReady: availableGroqSlots.length >= 3,
+      groqSlotFingerprints: availableGroqSlots.map((slot) => slot.fingerprint),
+      warnings,
+      errorCode: null,
+    };
+  } catch (error) {
+    return {
+      checkedAt,
+      providerCallsMade: false,
+      clippingsContentSent: false,
+      aiAvailable: false,
+      geminiAvailable: false,
+      groqAvailable: false,
+      totalKeys: 0,
+      benchedKeys: 0,
+      keyRegistryReadable: false,
+      keyRegistryErrorCode: sanitizeLiveError(error instanceof Error ? error.message : String(error)),
+      groqStructuredJsonSlotCount: 0,
+      groqDistinctPackageFanoutReady: false,
+      groqSlotFingerprints: [],
+      warnings: ['provider-preflight-failed'],
+      errorCode: sanitizeLiveError(error instanceof Error ? error.message : String(error)),
+    };
+  }
+};
 
 const runLiveGeminiProbes = async (
   args: HarnessArgs,
   representatives: readonly HarnessRepresentative[],
+  dependencies: HarnessLiveProbeDependencies = {},
 ): Promise<readonly HarnessLiveProbe[]> => {
-  if (!args.allowLiveGemini) {
+  if (args.mode === 'live-gemini' && !args.allowLiveGemini) {
     throw new Error('Live Gemini harness mode requires --allow-live-gemini. This intentionally prevents accidental provider calls with local Clippings content.');
   }
 
-  const probes = selectLiveProbeRepresentatives(representatives, args);
+  if (args.mode === 'live-v3-gemini-groq' && !args.allowLiveV3Providers) {
+    throw new Error('Live V3 Gemini plus Groq harness mode requires --allow-live-v3-providers. This intentionally prevents accidental provider calls with local Clippings content.');
+  }
 
-  return Promise.all(probes.map(async (representative) => {
-    const rawText = await readFile(path.join(args.root, representative.path), 'utf8');
-    const result = await generateReadingV2AutoImportCandidate({
+  const probes = selectLiveProbeRepresentatives(representatives, args);
+  const results: HarnessLiveProbe[] = [];
+  const readSourceText = dependencies.readSourceText
+    ?? ((filePath: string) => readFile(filePath, 'utf8'));
+  const generateCandidate = dependencies.generateCandidate ?? generateReadingV2AutoImportCandidate;
+
+  for (const representative of probes) {
+    const rawText = await readSourceText(path.join(args.root, representative.path));
+    const result = await generateCandidate({
       rawTestText: rawText,
       sourceName: representative.path,
     }, {
       waitBetweenChunksMs: 0,
       maxRepairAttempts: 1,
+      forceV3Pipeline: args.mode === 'live-v3-gemini-groq',
     });
     const diagnosticCodes = result.diagnostics.map((diagnostic) => diagnostic.code);
+    const diagnostics = result.diagnostics.map(liveProbeDiagnosticFor);
+    const errorCode = result.success ? null : sanitizeLiveError(result.error);
+    const quotaStopSignal = isProviderQuotaStopSignal(errorCode)
+      || diagnostics.some((diagnostic) =>
+        isProviderQuotaStopSignal(diagnostic.code)
+        || isProviderQuotaStopSignal(diagnostic.message),
+      );
 
-    return {
+    results.push({
       tag: representative.tag,
       path: representative.path,
       hash: representative.hash,
@@ -536,16 +1042,41 @@ const runLiveGeminiProbes = async (
       passageCount: result.success ? result.passageCount : 0,
       questionCount: result.success ? result.questionCount : 0,
       diagnosticCodes,
-      errorCode: result.success ? null : sanitizeLiveError(result.error),
-    };
-  }));
+      diagnostics,
+      errorCode,
+      quotaStopSignal,
+      stopReason: quotaStopSignal ? 'quota-or-rate-limit' : null,
+    });
+
+    if (quotaStopSignal) {
+      break;
+    }
+  }
+
+  return results;
 };
 
 const buildReport = async (args: HarnessArgs) => {
+  if (args.mode === 'provider-preflight') {
+    return {
+      generatedAt: new Date().toISOString(),
+      rootPath: args.root,
+      mode: args.mode,
+      summary: summarize([]),
+      representatives: [],
+      providerPreflight: await buildProviderPreflight(),
+      liveProbes: [],
+      items: [],
+    };
+  }
+
   const files = await collectMarkdownFiles(args.root);
   const items = await Promise.all(files.map((filePath) => scanFile(filePath, args.root, args.mode)));
   const representatives = selectRepresentatives(items);
-  const liveProbes = args.mode === 'live-gemini'
+  const providerPreflight = args.mode === 'live-v3-gemini-groq' && args.allowLiveV3Providers
+    ? await buildProviderPreflight()
+    : undefined;
+  const liveProbes = args.mode === 'live-gemini' || args.mode === 'live-v3-gemini-groq'
     ? await runLiveGeminiProbes(args, representatives)
     : [];
 
@@ -555,13 +1086,15 @@ const buildReport = async (args: HarnessArgs) => {
     mode: args.mode,
     summary: summarize(items),
     representatives,
-    liveProbeConfig: args.mode === 'live-gemini'
+    liveProbeConfig: args.mode === 'live-gemini' || args.mode === 'live-v3-gemini-groq'
       ? {
           allowLiveGemini: args.allowLiveGemini,
+          allowLiveV3Providers: args.allowLiveV3Providers,
           liveLimit: args.liveLimit,
           liveTags: args.liveTags,
         }
       : undefined,
+    providerPreflight,
     liveProbes,
     items,
   };
@@ -579,7 +1112,9 @@ const main = async (): Promise<void> => {
 };
 
 if (process.env.VITEST !== 'true') {
-  main().catch((error: unknown) => {
+  main().then(() => {
+    process.exit(0);
+  }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[reading-v2-clippings-harness] failed');
     console.error(message);
@@ -589,9 +1124,12 @@ if (process.env.VITEST !== 'true') {
 
 export {
   buildMockedIntermediatePayload,
+  buildProviderPreflight,
   buildReport,
+  isProviderQuotaStopSignal,
   parseArgs,
   representativeTagsFor,
+  runLiveGeminiProbes,
   sanitizeLiveError,
   summarize,
 };

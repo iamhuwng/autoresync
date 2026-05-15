@@ -43,6 +43,8 @@ describe('readingV2Taxonomy', () => {
   it('normalizes explicit aliases without letting ambiguous labels guess', () => {
     expect(normalizeReadingV2TaskType('TFNG')).toBe('true-false-not-given');
     expect(normalizeReadingV2TaskType('Diagram labelling')).toBe('diagram-labeling');
+    expect(normalizeReadingV2TaskType('flow-chart-completion')).toBe('flowchart-completion');
+    expect(normalizeReadingV2TaskType('Flow chart completion')).toBe('flowchart-completion');
     expect(normalizeReadingV2TaskType('Choose three letters')).toBe('multiple-select');
     expect(normalizeReadingV2TaskType('Summary completion')).toBeNull();
     expect(normalizeReadingV2TaskType('Summary completion', { summaryAnswerMode: 'list' })).toBe(

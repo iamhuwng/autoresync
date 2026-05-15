@@ -177,6 +177,18 @@ export class GroqProvider implements IAIService {
     return true;
   }
 
+  private keyFingerprint(keyIndex: number): string {
+    const key = this.apiKeys[keyIndex] ?? '';
+    let hash = 0x811c9dc5;
+
+    for (let index = 0; index < key.length; index += 1) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+
+    return `groq-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  }
+
   /**
    * Mark a key as exhausted
    */
@@ -186,8 +198,7 @@ export class GroqProvider implements IAIService {
       reason,
     });
     const key = this.apiKeys[keyIndex];
-    const keyPreview = key?.substring(key.length - 8) || 'unknown';
-    console.warn(`⚠️ [Groq] Marked key #${keyIndex + 1} (...${keyPreview}) as exhausted: ${reason}`);
+    console.warn(`⚠️ [Groq] Marked key #${keyIndex + 1} (${this.keyFingerprint(keyIndex)}) as exhausted: ${reason}`);
 
     // Also register in centralized cooldown so other callers skip this key too
     if (key) {
@@ -231,12 +242,47 @@ export class GroqProvider implements IAIService {
     );
   }
 
+  private isHardKeyError(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      errorMessage.includes('403') ||
+      errorMessage.toLowerCase().includes('forbidden') ||
+      errorMessage.toLowerCase().includes('invalid api key') ||
+      errorMessage.toLowerCase().includes('api key expired') ||
+      errorMessage.toLowerCase().includes('unauthorized')
+    );
+  }
+
   private isRequestTooLargeError(errorMessage?: string): boolean {
+    const lower = errorMessage?.toLowerCase() ?? '';
     return !!errorMessage && (
       errorMessage.includes('413') ||
-      errorMessage.includes('Request too large') ||
-      errorMessage.includes('reduce your message size')
+      lower.includes('request too large') ||
+      lower.includes('reduce your message size') ||
+      lower.includes('tokens per minute') ||
+      lower.includes('tpm')
     );
+  }
+
+  private structuredJsonTokenBudgets(requestedMaxTokens: number): number[] {
+    const budgets = [
+      requestedMaxTokens,
+      8192,
+      4096,
+      3072,
+      2048,
+      1024,
+    ];
+    const uniqueBudgets = new Set<number>();
+
+    return budgets.filter((budget) => {
+      const normalized = Math.max(1, Math.floor(budget));
+      if (uniqueBudgets.has(normalized) || normalized > requestedMaxTokens) {
+        return false;
+      }
+
+      uniqueBudgets.add(normalized);
+      return true;
+    });
   }
 
   /**
@@ -1473,7 +1519,7 @@ Respond with JSON array only:
           rawResponse,
           repairedParsedJson,
           finishReason: completion.choices[0]?.finish_reason ?? null,
-          usageMetadata: (completion as unknown as Record<string, unknown>).usage || null,
+          usageMetadata: (completion as unknown as { usage?: Record<string, unknown> }).usage ?? null,
           keyLeaseId: options.keyLeaseId ?? null,
         },
       };
@@ -1495,31 +1541,57 @@ Respond with JSON array only:
     if (this.clients.length === 0) return { success: false, error: 'Groq clients not initialized' };
 
     this.cleanupExhaustedKeys();
-    this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
+    const selectedKeyIndex = (
+      typeof options.preferredKeyIndex === 'number'
+      && this.clients[options.preferredKeyIndex]
+      && !this.isKeyExhausted(options.preferredKeyIndex)
+    )
+      ? options.preferredKeyIndex
+      : this.getNextAvailableKeyRoundRobin();
+    this.currentKeyIndex = selectedKeyIndex;
 
     try {
       this.status.requestCount++;
       this.status.lastRequestTime = Date.now();
-      const client = this.clients[this.currentKeyIndex];
+      const client = this.clients[selectedKeyIndex];
       if (!client) throw new Error('No client available');
 
-      const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: options.systemInstruction || 'Return only valid JSON. Do not use markdown.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: options.temperature ?? 0.1,
-        max_tokens: options.maxOutputTokens ?? 4096,
-      });
+      const requestedMaxTokens = options.maxOutputTokens ?? 4096;
+      const tokenBudgets = this.structuredJsonTokenBudgets(requestedMaxTokens);
+      const modelName = options.model ?? 'llama-3.3-70b-versatile';
+      let completion: any | null = null;
 
-      const text = completion.choices[0]?.message?.content;
+      for (const maxTokens of tokenBudgets) {
+        try {
+          completion = await client.chat.completions.create({
+            model: modelName,
+            messages: [
+              {
+                role: 'system',
+                content: options.systemInstruction || 'Return only valid JSON. Do not use markdown.',
+              },
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            temperature: options.temperature ?? 0.1,
+            max_tokens: maxTokens,
+          });
+          break;
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          const nextBudget = tokenBudgets[tokenBudgets.indexOf(maxTokens) + 1];
+
+          if (!this.isRequestTooLargeError(msg) || !nextBudget) {
+            throw error;
+          }
+
+          console.warn(`⚠️ [Groq structured] Request too large, retrying with max_tokens=${nextBudget}...`);
+        }
+      }
+
+      const text = completion?.choices[0]?.message?.content;
       if (!text) {
         throw new Error('Empty response from Groq');
       }
@@ -1532,10 +1604,29 @@ Respond with JSON array only:
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
       if (msg.includes('429') || msg.includes('rate limit')) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        this.markKeyExhausted(selectedKeyIndex, 'Rate limit');
+      } else if (this.isRequestTooLargeError(msg)) {
+        this.markKeyExhausted(selectedKeyIndex, 'Rate limit');
+      } else if (this.isHardKeyError(msg)) {
+        this.markKeyExhausted(selectedKeyIndex, 'Key rejected');
       }
       return { success: false, error: `Structured generation failed: ${msg}` };
     }
+  }
+
+  async getAvailableStructuredJsonKeySlots(): Promise<readonly {
+    readonly index: number;
+    readonly fingerprint: string;
+    readonly available: boolean;
+  }[]> {
+    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    this.cleanupExhaustedKeys();
+
+    return this.clients.map((_, index) => ({
+      index,
+      fingerprint: this.keyFingerprint(index),
+      available: !this.isKeyExhausted(index),
+    }));
   }
 
   /**

@@ -1,5 +1,6 @@
 import type { AIStructuredGenerationOptions } from '../ai/ai.service';
 import { geminiProvider } from '../ai/gemini.provider';
+import { groqProvider } from '../ai/groq.provider';
 import type { Result } from '../../types/result.types';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
@@ -17,6 +18,10 @@ import {
   READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION,
 } from './readingV2AutoImportPrompt';
 import {
+  normalizeReadingV2TaskType,
+  type ReadingV2CanonicalTaskType,
+} from '../../types/readingV2Taxonomy';
+import {
   buildReadingV2AutoLedgerPromptSummary,
   buildReadingV2AutoSourceLedger,
   readingV2AutoSourceLedgerEvidence,
@@ -25,8 +30,31 @@ import {
   type ReadingV2AutoSourceLedger,
   type ReadingV2AutoSourceVerifierIssue,
 } from './readingV2AutoImportSourceLedger.service';
+import {
+  markReadingV2AutoTopology,
+  type ReadingV2AutoTopologyMarkerDiagnostic,
+} from './readingV2AutoTopologyMarker.service';
+import {
+  buildReadingV2AutoPassagePackages,
+  type ReadingV2AutoPassagePackage,
+  type ReadingV2AutoPassagePackageDiagnostic,
+  type ReadingV2AutoPassagePackageLine,
+} from './readingV2AutoPassagePackage.service';
+import {
+  runReadingV2GroqPackageFanout,
+  type ReadingV2GroqPackageFanoutDiagnostic,
+  type ReadingV2GroqPackageFanoutProvider,
+} from './readingV2GroqPackageFanout.service';
+import {
+  buildReadingV2AutoMaterialFromTranscript,
+  verifyReadingV2AutoQuestionTranscript,
+  type ReadingV2AutoQuestionTranscript,
+  type ReadingV2AutoQuestionTranscriptDiagnostic,
+} from './readingV2AutoQuestionTranscript.service';
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
+const AUTO_V3_PROVIDER = 'gemini-groq';
+const AUTO_V3_MODEL_LABEL = `${GEMINI_MODEL_NAME}+groq-structured-json`;
 const DEFAULT_MAX_INPUT_CHARS = 120_000;
 const DEFAULT_MIN_INPUT_CHARS = 80;
 const DEFAULT_CHUNK_WAIT_MS = 6_500;
@@ -92,7 +120,15 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'canonical-validation-blocked'
   | 'source-repair-attempted'
   | 'source-repair-failed'
-  | 'source-repair-succeeded';
+  | 'source-repair-succeeded'
+  | 'provider-quota-exhausted'
+  | 'topology-marker-failed'
+  | 'passage-package-failed'
+  | 'groq-key-slot-degraded'
+  | 'groq-package-retried'
+  | 'groq-package-failed'
+  | 'groq-quota-exhausted'
+  | 'groq-transcript-failed';
 
 export interface ReadingV2AutoImportDiagnostic {
   readonly code: ReadingV2AutoImportDiagnosticCode;
@@ -107,6 +143,42 @@ export interface ReadingV2AutoImportDiagnostic {
   readonly providerResult?: 'success' | 'failure';
   readonly verifierResult?: 'passed' | 'failed';
 }
+
+const isProviderQuotaFailure = (value: string | undefined): boolean => {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return (
+    text.includes('429')
+    || text.includes('rate limit')
+    || text.includes('rate-limit')
+    || text.includes('quota')
+    || text.includes('all gemini api keys exhausted')
+    || text.includes('all groq api keys exhausted')
+    || text.includes('all ai api keys exhausted')
+    || text.includes('all keys exhausted')
+    || text.includes('requests_per_day')
+    || text.includes('per day')
+    || text.includes('per_day')
+    || text.includes('perday')
+    || text.includes('limit: 0')
+    || text.includes('retrydelay')
+  );
+};
+
+const providerQuotaDiagnosticsFor = (
+  error: string | undefined,
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  isProviderQuotaFailure(error)
+    ? [{
+        code: 'provider-quota-exhausted',
+        severity: 'error',
+        message: 'AI provider quota, rate limit, or key-slot exhaustion was detected. Stop live probing until keys recover or more capacity is configured.',
+        providerResult: 'failure',
+      }]
+    : [];
 
 export interface ReadingV2AutoImportRequest {
   readonly rawTestText: string;
@@ -126,6 +198,8 @@ export interface ReadingV2AutoImportOptions {
   readonly maxInputChars?: number;
   readonly minInputChars?: number;
   readonly maxRepairAttempts?: number;
+  readonly questionAreaNormalizer?: ReadingV2GroqPackageFanoutProvider;
+  readonly forceV3Pipeline?: boolean;
 }
 
 export type ReadingV2AutoImportResult =
@@ -134,7 +208,7 @@ export type ReadingV2AutoImportResult =
       readonly structuredPayloadText: string;
       readonly answerKeyText?: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-      readonly provider: 'gemini';
+      readonly provider: 'gemini' | 'gemini-groq';
       readonly model: string;
       readonly candidate: ReadingV2ImportCandidate;
       readonly passageCount: number;
@@ -144,14 +218,14 @@ export type ReadingV2AutoImportResult =
       readonly success: false;
       readonly error: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-      readonly provider: 'gemini';
+      readonly provider: 'gemini' | 'gemini-groq';
       readonly model?: string;
     };
 
 interface AutoPayload {
   sourceFile?: string;
   answerKeyText?: string;
-  materials?: AutoMaterial[];
+  materials?: readonly AutoMaterial[];
   diagnostics?: AutoPayloadDiagnostic[];
 }
 
@@ -164,7 +238,7 @@ interface AutoPayloadDiagnostic {
 interface AutoMaterial {
   passageNumber?: number;
   title?: string;
-  passages?: {
+  passages?: readonly {
     title?: string;
     content?: string;
     contentBlocks?: unknown;
@@ -172,8 +246,8 @@ interface AutoMaterial {
     media?: unknown;
     images?: unknown;
   }[];
-  sectionInstructions?: unknown[];
-  questions?: AutoQuestion[];
+  sectionInstructions?: readonly unknown[];
+  questions?: readonly AutoQuestion[];
 }
 
 interface AutoQuestion {
@@ -953,6 +1027,242 @@ const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
   ];
 };
 
+const compactAnswerLabel = (value: string): string =>
+  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const answerForTaskVocabulary = (
+  answer: string,
+  taskType: ReadingV2CanonicalTaskType | undefined,
+): string => {
+  const trimmed = answer.trim();
+  const compact = compactAnswerLabel(trimmed);
+
+  if (taskType === 'true-false-not-given') {
+    if (compact === 'yes' || compact === 'y') return 'TRUE';
+    if (compact === 'no' || compact === 'n') return 'FALSE';
+    if (compact === 'notgiven' || compact === 'ng') return 'NOT GIVEN';
+  }
+
+  if (taskType === 'yes-no-not-given') {
+    if (compact === 'true' || compact === 't') return 'YES';
+    if (compact === 'false' || compact === 'f') return 'NO';
+    if (compact === 'notgiven' || compact === 'ng') return 'NOT GIVEN';
+  }
+
+  return trimmed;
+};
+
+const answerKeyTextFromTopologyRows = (
+  rows: readonly { readonly questionNumber: number; readonly answer: string; readonly alternativeAnswers?: readonly string[] }[],
+  taskTypeByQuestionNumber: ReadonlyMap<number, ReadingV2CanonicalTaskType> = new Map(),
+): string | undefined => {
+  const lines = rows
+    .slice()
+    .sort((left, right) => left.questionNumber - right.questionNumber)
+    .map((row) => {
+      const taskType = taskTypeByQuestionNumber.get(row.questionNumber);
+      const answers = [row.answer, ...(row.alternativeAnswers ?? [])]
+        .map((answer) => answerForTaskVocabulary(answer, taskType))
+        .map((answer) => answer.trim())
+        .filter(Boolean);
+      return answers.length > 0 ? `${row.questionNumber} ${answers.join(' | ')}` : '';
+    })
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join('\n') : undefined;
+};
+
+const diagnosticsFromPackageDiagnostics = (
+  diagnostics: readonly ReadingV2AutoPassagePackageDiagnostic[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  diagnostics.map((diagnostic) => ({
+    code: 'passage-package-failed',
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    passageNumber: diagnostic.passageNumber,
+  }));
+
+const diagnosticsFromGroqFanout = (
+  diagnostics: readonly ReadingV2GroqPackageFanoutDiagnostic[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  diagnostics.map((diagnostic) => ({
+    code: diagnostic.code,
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    passageNumber: diagnostic.passageNumber,
+  }));
+
+const diagnosticsFromTranscript = (
+  diagnostics: readonly ReadingV2AutoQuestionTranscriptDiagnostic[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  diagnostics.map((diagnostic) => ({
+    code: 'groq-transcript-failed',
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    passageNumber: diagnostic.passageNumber,
+    questionNumber: diagnostic.questionNumber,
+  }));
+
+const diagnosticsFromTopologyMarker = (
+  diagnostics: readonly ReadingV2AutoTopologyMarkerDiagnostic[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  diagnostics.map((diagnostic) => ({
+    code: 'topology-marker-failed',
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    passageNumber: diagnostic.passageNumber,
+    questionNumber: diagnostic.questionNumber,
+    sourceRange: diagnostic.sourceRange,
+  }));
+
+const chunksFromPassagePackages = (
+  passagePackages: readonly ReadingV2AutoPassagePackage[],
+): readonly SourceChunk[] =>
+  passagePackages.map((passagePackage) => {
+    const expectedQuestionNumbers: number[] = [];
+    for (
+      let questionNumber = passagePackage.expectedQuestionRange.start;
+      questionNumber <= passagePackage.expectedQuestionRange.end;
+      questionNumber += 1
+    ) {
+      expectedQuestionNumbers.push(questionNumber);
+    }
+
+    return {
+      passageNumber: passagePackage.passageNumber,
+      text: [
+        passagePackage.passageBodyText,
+        passagePackage.questionAreaText,
+      ].filter(Boolean).join('\n\n'),
+      expectedQuestionNumbers,
+    };
+  });
+
+const finalizeAutoImportPayload = (input: {
+  readonly request: ReadingV2AutoImportRequest;
+  readonly sourceLedger: ReadingV2AutoSourceLedger;
+  readonly chunks: readonly SourceChunk[];
+  readonly payload: AutoPayload;
+  readonly answerKeyText?: string;
+  readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
+  readonly verifierIssues?: readonly ReadingV2AutoSourceVerifierIssue[];
+  readonly provider?: ReadingV2AutoImportResult['provider'];
+  readonly model?: string;
+}): ReadingV2AutoImportResult => {
+  const provider = input.provider ?? 'gemini';
+  const model = input.model ?? GEMINI_MODEL_NAME;
+  const verifierIssues = input.verifierIssues
+    ?? verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(input.payload), input.sourceLedger);
+  const diagnostics = [
+    ...input.diagnostics,
+    ...validatePayload(input.payload, input.chunks, input.sourceLedger, verifierIssues),
+  ];
+  const blocking = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
+
+  logReadingV2AutoImportDiag('guardrail_result', {
+    blocking,
+    diagnosticCount: diagnostics.length,
+    diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+    passageCount: input.payload.materials?.length ?? 0,
+    questionCount: questionCountFor(input.payload),
+  });
+
+  if (blocking) {
+    return {
+      success: false,
+      error: diagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message ?? 'Auto import failed guardrails.',
+      diagnostics,
+      provider,
+      model,
+    };
+  }
+
+  const text = structuredPayloadText(input.payload);
+  const candidate = createReadingV2ImportCandidateFromText({
+    text,
+    answerKeyText: input.answerKeyText,
+    sourceKind: 'auto-gemini',
+    fileName: input.request.sourceName ?? (provider === AUTO_V3_PROVIDER ? 'Auto V3 import' : 'Auto Gemini import'),
+  });
+  const candidateWithLedger: ReadingV2ImportCandidate = {
+    ...candidate,
+    autoImportDiagnostics: diagnostics,
+    evidence: [
+      ...candidate.evidence,
+      ...readingV2AutoSourceLedgerEvidence(input.sourceLedger),
+      ...generatedDraftEvidence(input.payload),
+    ],
+    uncertaintyMarkers: [
+      ...candidate.uncertaintyMarkers,
+      ...input.sourceLedger.issues
+        .filter((issue) => issue.severity !== 'info')
+        .map((issue) => `Source ledger: ${issue.message}`),
+    ],
+  };
+  let candidateForStudio = candidateWithLedger;
+  const canonicalValidationDiagnostics: ReadingV2AutoImportDiagnostic[] = [];
+
+  try {
+    const normalized = normalizeReadingV2ImportCandidate(candidateWithLedger);
+    const validation = validateReadingV2Draft(normalized.document);
+    const canonicalBlockers = validation.blockingIssues.map((issue) =>
+      `Draft validation: ${issue.message}`,
+    );
+
+    if (canonicalBlockers.length > 0) {
+      candidateForStudio = {
+        ...candidateWithLedger,
+        publishBlockingPlaceholders: [
+          ...candidateWithLedger.publishBlockingPlaceholders,
+          ...canonicalBlockers,
+        ].filter((message, index, messages) => messages.indexOf(message) === index),
+      };
+      canonicalValidationDiagnostics.push(...validation.blockingIssues.map((issue) => ({
+        code: 'canonical-validation-blocked' as const,
+        severity: 'warning' as const,
+        message: `Draft validation remains publish-blocking in Studio: ${issue.message}`,
+      })));
+      candidateForStudio = {
+        ...candidateForStudio,
+        autoImportDiagnostics: [
+          ...diagnostics,
+          ...canonicalValidationDiagnostics,
+        ],
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Auto import could not normalize into Reading V2.',
+      diagnostics: [
+        ...diagnostics,
+        {
+          code: 'guardrail-normalization-failed',
+          severity: 'error',
+          message: 'Auto import output could not normalize into the Reading V2 draft model.',
+        },
+      ],
+      provider,
+      model,
+    };
+  }
+
+  return {
+    success: true,
+    structuredPayloadText: text,
+    answerKeyText: input.answerKeyText,
+    diagnostics: [
+      ...diagnostics,
+      ...canonicalValidationDiagnostics,
+    ],
+    provider,
+    model,
+    candidate: candidateForStudio,
+    passageCount: input.payload.materials?.length ?? 0,
+    questionCount: questionCountFor(input.payload),
+  };
+};
+
 const validatePayload = (
   payload: AutoPayload,
   chunks: readonly SourceChunk[],
@@ -1171,6 +1481,482 @@ const repairPayloadAgainstLedger = async (
   return { ...state, diagnostics };
 };
 
+const groupUsesOptionBank = (taskType: string): boolean =>
+  taskType === 'multiple-choice'
+  || taskType === 'multiple-select'
+  || taskType === 'summary-completion-list';
+
+const groupUsesReferenceBank = (taskType: string): boolean =>
+  taskType === 'matching-headings'
+  || taskType === 'matching-information'
+  || taskType === 'matching-features'
+  || taskType === 'matching-sentence-endings';
+
+const compactText = (value: string): string =>
+  value.replace(/\s+/g, ' ').trim();
+
+const BANK_LINE_PATTERN = /^([A-Z]|\d+|[ivxlcdm]+)(?:[.)])?(?:\s+(.*))?$/i;
+const COMPLETION_BLANK_PATTERN = /(?:_{3,}|\.{3,}|\u2026|\u00e2\u20ac\u00a6|\[\s*(?:blank|\d+)\s*\])/i;
+
+const questionLinePrefixPatternFor = (questionNumber: number): RegExp =>
+  new RegExp(`^${questionNumber}(?:[.)])?(?:\\s|$)`);
+
+const embeddedQuestionBlankPatternFor = (questionNumber: number): RegExp =>
+  new RegExp(`(?:^|\\D)${questionNumber}(?:[.)])?\\s+`);
+
+const lineMatchesQuestionNumber = (
+  lineText: string,
+  questionNumber: number,
+): boolean => {
+  const text = compactText(lineText);
+  return questionLinePrefixPatternFor(questionNumber).test(text)
+    || (
+      embeddedQuestionBlankPatternFor(questionNumber).test(text)
+      && COMPLETION_BLANK_PATTERN.test(text)
+    );
+};
+
+const numbersInRange = (range: { readonly start: number; readonly end: number }): readonly number[] => {
+  const numbers: number[] = [];
+  for (let questionNumber = range.start; questionNumber <= range.end; questionNumber += 1) {
+    numbers.push(questionNumber);
+  }
+  return numbers;
+};
+
+const WORD_LIMIT_BY_TEXT = new Map<string, number>([
+  ['ONE', 1],
+  ['TWO', 2],
+  ['THREE', 3],
+  ['FOUR', 4],
+  ['FIVE', 5],
+]);
+
+const wordLimitDetailsFromInstructionText = (
+  sourceInstructionText: string | undefined,
+): Pick<ReadingV2AutoQuestionTranscript['groups'][number]['instructionMeta'], 'wordLimit' | 'wordLimitText'> => {
+  const source = compactText(sourceInstructionText ?? '');
+  const upper = source.toUpperCase();
+  const wordOnlyMatch = upper.match(/\b(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORD(?:S)?\s+ONLY\b/);
+  const noMoreThanMatch = upper.match(/\bNO\s+MORE\s+THAN\s+(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORD(?:S)?\b/);
+  const match = wordOnlyMatch ?? noMoreThanMatch;
+  const raw = match?.[1];
+
+  if (!raw) {
+    return {};
+  }
+
+  const wordLimit = WORD_LIMIT_BY_TEXT.get(raw) ?? Number(raw);
+  if (!Number.isFinite(wordLimit) || wordLimit <= 0) {
+    return {};
+  }
+
+  const wordLimitText = noMoreThanMatch
+    ? noMoreThanMatch[0]
+    : wordOnlyMatch?.[0];
+
+  return {
+    wordLimit,
+    ...(wordLimitText ? { wordLimitText } : {}),
+  };
+};
+
+const repairedFlowchartFromQuestions = (
+  questions: readonly {
+    readonly number: number;
+    readonly promptText: string;
+  }[],
+): ReadingV2AutoQuestionTranscript['groups'][number]['flowchart'] => ({
+  steps: questions.map((question, index) => ({
+    stepId: `step-q${question.number}`,
+    text: compactText(question.promptText.replace(COMPLETION_BLANK_PATTERN, ' ')).replace(/\s+[.,;:]$/, ''),
+    questionNumber: question.number,
+    ...(index < questions.length - 1
+      ? { nextStepIds: [`step-q${questions[index + 1]?.number}`] }
+      : {}),
+  })),
+});
+
+const uniqueLines = (
+  lines: readonly ReadingV2AutoPassagePackageLine[],
+): readonly ReadingV2AutoPassagePackageLine[] => {
+  const byLineNumber = new Map<number, ReadingV2AutoPassagePackageLine>();
+  lines.forEach((line) => {
+    byLineNumber.set(line.lineNumber, line);
+  });
+  return [...byLineNumber.values()].sort((left, right) => left.lineNumber - right.lineNumber);
+};
+
+const referenceBankLinesForGroup = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  questionRange: ReadingV2AutoQuestionTranscript['groups'][number]['questionRange'],
+): readonly ReadingV2AutoPassagePackageLine[] => {
+  const matchingHint = passagePackage.groupHints.find((groupHint) =>
+    groupHint.questionRange.start === questionRange.start
+    && groupHint.questionRange.end === questionRange.end,
+  );
+  const firstBankGroup = passagePackage.groupHints.find((groupHint) =>
+    groupUsesOptionBank(groupHint.taskTypeHint ?? '')
+    || groupUsesReferenceBank(groupHint.taskTypeHint ?? ''),
+  );
+  const spans = matchingHint?.referenceBankLines?.length
+    ? matchingHint.referenceBankLines
+    : firstBankGroup
+      && firstBankGroup.questionRange.start === questionRange.start
+      && firstBankGroup.questionRange.end === questionRange.end
+        ? passagePackage.referenceBankLineSpans
+        : [];
+
+  if (spans.length === 0) {
+    return firstBankGroup
+      && firstBankGroup.questionRange.start === questionRange.start
+      && firstBankGroup.questionRange.end === questionRange.end
+        ? passagePackage.referenceBankLines
+        : [];
+  }
+
+  return uniqueLines(passagePackage.referenceBankLines.filter((line) =>
+    spans.some((span) => line.lineNumber >= span.startLine && line.lineNumber <= span.endLine),
+  ));
+};
+
+const sourceBankItemsFromLines = (
+  lines: readonly ReadingV2AutoPassagePackageLine[],
+): readonly {
+  readonly label: string;
+  readonly text: string;
+  readonly sourceLines: readonly number[];
+}[] => lines.flatMap((line) => {
+  const match = compactText(line.text).match(BANK_LINE_PATTERN);
+  if (!match) {
+    return [];
+  }
+
+  const label = match[1]?.trim();
+  const text = match[2]?.trim() || label;
+  return label && text
+    ? [{
+        label,
+        text,
+        sourceLines: [line.lineNumber],
+      }]
+    : [];
+});
+
+const enrichTranscriptWithReferenceBanks = (
+  transcript: ReadingV2AutoQuestionTranscript,
+  passagePackage: ReadingV2AutoPassagePackage,
+): ReadingV2AutoQuestionTranscript => ({
+  ...transcript,
+  groups: transcript.groups.map((group) => {
+    const sourceBankItems = sourceBankItemsFromLines(
+      referenceBankLinesForGroup(passagePackage, group.questionRange),
+    );
+
+    if (sourceBankItems.length === 0) {
+      return group;
+    }
+
+    if (groupUsesReferenceBank(group.taskType) && !group.sectionReferences?.length) {
+      return {
+        ...group,
+        sectionReferences: sourceBankItems,
+      };
+    }
+
+    if (groupUsesOptionBank(group.taskType) && !group.labeledOptions?.length) {
+      return {
+        ...group,
+        labeledOptions: sourceBankItems,
+      };
+    }
+
+    return group;
+  }),
+});
+
+const repairTranscriptGroupFromQuestionArea = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
+): ReadingV2AutoQuestionTranscript['groups'][number] | null => {
+  const taskType = normalizeReadingV2TaskType(groupHint.taskTypeHint ?? '', {
+    summaryAnswerMode: undefined,
+  });
+
+  if (!taskType) {
+    return null;
+  }
+
+  const groupLines = passagePackage.questionAreaLines.filter((line) =>
+    line.lineNumber >= groupHint.lines.startLine
+    && line.lineNumber <= groupHint.lines.endLine,
+  );
+  const questionNumbers = numbersInRange(groupHint.questionRange);
+  const questionLines = questionNumbers.map((questionNumber) => {
+    const matchingLine = groupLines.find((line) => lineMatchesQuestionNumber(line.text, questionNumber));
+    return matchingLine
+      ? {
+          number: questionNumber,
+          promptText: matchingLine.text.trim(),
+          sourceLines: [matchingLine.lineNumber],
+        }
+      : null;
+  });
+
+  if (questionLines.some((question) => !question)) {
+    return null;
+  }
+
+  const firstQuestionIndex = groupLines.findIndex((line) =>
+    lineMatchesQuestionNumber(line.text, questionNumbers[0]),
+  );
+  const instructionLines = firstQuestionIndex >= 0
+    ? groupLines.slice(0, firstQuestionIndex)
+    : groupLines;
+  const sourceInstructionText = instructionLines
+    .map((line) => line.text.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim() || undefined;
+  const instructionMeta = wordLimitDetailsFromInstructionText(sourceInstructionText);
+
+  return {
+    questionRange: groupHint.questionRange,
+    taskType,
+    sourceInstructionText,
+    instructionMeta,
+    questions: questionLines.filter((question): question is NonNullable<typeof question> => Boolean(question)),
+    ...(taskType === 'flowchart-completion'
+      ? {
+          flowchart: repairedFlowchartFromQuestions(
+            questionLines.filter((question): question is NonNullable<typeof question> => Boolean(question)),
+          ),
+        }
+      : {}),
+    diagnostics: [],
+  };
+};
+
+const repairMissingTranscriptGroups = (
+  transcript: ReadingV2AutoQuestionTranscript,
+  passagePackage: ReadingV2AutoPassagePackage,
+): ReadingV2AutoQuestionTranscript => {
+  const groupsByRange = new Set(
+    transcript.groups.map((group) => `${group.questionRange.start}-${group.questionRange.end}`),
+  );
+  const repairedGroups = [...transcript.groups];
+
+  passagePackage.groupHints.forEach((groupHint) => {
+    const key = `${groupHint.questionRange.start}-${groupHint.questionRange.end}`;
+    if (groupsByRange.has(key)) {
+      return;
+    }
+
+    const repairedGroup = repairTranscriptGroupFromQuestionArea(passagePackage, groupHint);
+    if (!repairedGroup) {
+      return;
+    }
+
+    repairedGroups.push(repairedGroup);
+    groupsByRange.add(key);
+  });
+
+  return {
+    ...transcript,
+    groups: repairedGroups.sort((left, right) =>
+      left.questionRange.start - right.questionRange.start
+      || left.questionRange.end - right.questionRange.end,
+    ),
+  };
+};
+
+const generateReadingV2AutoImportCandidateV3 = async (input: {
+  readonly request: ReadingV2AutoImportRequest;
+  readonly generator: ReadingV2AutoStructuredGenerator;
+  readonly questionAreaNormalizer: ReadingV2GroqPackageFanoutProvider;
+  readonly sourceLedger: ReadingV2AutoSourceLedger;
+}): Promise<ReadingV2AutoImportResult> => {
+  const topology = await markReadingV2AutoTopology({
+    ledger: input.sourceLedger,
+    generator: input.generator,
+  });
+
+  if (!topology.success) {
+    return {
+      success: false,
+      error: topology.error,
+      diagnostics: [
+        ...providerQuotaDiagnosticsFor(topology.error),
+        {
+          code: 'topology-marker-failed',
+          severity: 'error',
+          message: topology.error,
+        },
+      ],
+      provider: AUTO_V3_PROVIDER,
+      model: AUTO_V3_MODEL_LABEL,
+    };
+  }
+
+  const markerDiagnostics = diagnosticsFromTopologyMarker(topology.data.diagnostics);
+  const passagePackages = buildReadingV2AutoPassagePackages({
+    marker: topology.data.marker,
+    lineIndex: topology.data.lineIndex,
+    ledger: input.sourceLedger,
+  });
+  const packageDiagnostics = diagnosticsFromPackageDiagnostics(
+    passagePackages.flatMap((passagePackage) => passagePackage.diagnostics),
+  );
+  if (packageDiagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+    return {
+      success: false,
+      error: packageDiagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message
+        ?? 'Auto V3 package splitter failed.',
+      diagnostics: [
+        ...markerDiagnostics,
+        ...packageDiagnostics,
+      ],
+      provider: AUTO_V3_PROVIDER,
+      model: AUTO_V3_MODEL_LABEL,
+    };
+  }
+
+  const fanout = await runReadingV2GroqPackageFanout({
+    passagePackages,
+    provider: input.questionAreaNormalizer,
+  });
+
+  if (!fanout.success) {
+    return {
+      success: false,
+      error: fanout.error,
+      diagnostics: [
+        ...markerDiagnostics,
+        ...packageDiagnostics,
+        ...providerQuotaDiagnosticsFor(fanout.error),
+        {
+          code: 'groq-package-failed',
+          severity: 'error',
+          message: fanout.error,
+        },
+      ],
+      provider: AUTO_V3_PROVIDER,
+      model: AUTO_V3_MODEL_LABEL,
+    };
+  }
+
+  const packageResults = fanout.data.packageResults.map((packageResult) => {
+    const passagePackage = passagePackages.find((candidate) => candidate.passageNumber === packageResult.passageNumber);
+    if (!passagePackage) {
+      throw new Error(`Missing passage package ${packageResult.passageNumber}`);
+    }
+
+    return {
+      ...packageResult,
+      passagePackage,
+      transcript: enrichTranscriptWithReferenceBanks(
+        repairMissingTranscriptGroups(packageResult.transcript, passagePackage),
+        passagePackage,
+      ),
+    };
+  });
+
+  const transcriptDiagnostics = packageResults.flatMap(({ transcript, passagePackage }) =>
+    verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage,
+    }),
+  );
+  const mappedTranscriptDiagnostics = diagnosticsFromTranscript(transcriptDiagnostics);
+  if (mappedTranscriptDiagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+    return {
+      success: false,
+      error: mappedTranscriptDiagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message
+        ?? 'Groq transcript failed source-fidelity verification.',
+      diagnostics: [
+        ...markerDiagnostics,
+        ...packageDiagnostics,
+        ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
+        ...mappedTranscriptDiagnostics,
+      ],
+      provider: AUTO_V3_PROVIDER,
+      model: AUTO_V3_MODEL_LABEL,
+    };
+  }
+
+  const materials: AutoMaterial[] = packageResults.map(({ transcript, passagePackage }) => {
+    const material = buildReadingV2AutoMaterialFromTranscript({
+      transcript,
+      passagePackage,
+    });
+    return {
+      passageNumber: material.passageNumber,
+      title: material.title,
+      passages: material.passages.map((passage) => ({
+        title: passage.title,
+        content: passage.content,
+      })),
+      sectionInstructions: material.sectionInstructions,
+      questions: material.questions.map((question) => ({
+        number: question.questionNumber,
+        questionNumber: question.questionNumber,
+        type: question.type,
+        sectionInstructionId: question.sectionInstructionId,
+        questionText: question.questionText,
+        wordLimit: question.wordLimit,
+        labeledOptions: question.labeledOptions,
+        sectionReferences: question.sectionReferences,
+      })),
+    };
+  });
+  const taskTypeByQuestionNumber = new Map<number, ReadingV2CanonicalTaskType>();
+  packageResults.forEach(({ transcript }) => {
+    transcript.groups.forEach((group) => {
+      numbersInRange(group.questionRange).forEach((questionNumber) => {
+        taskTypeByQuestionNumber.set(questionNumber, group.taskType);
+      });
+    });
+  });
+  const answerKeyText = answerKeyTextFromTopologyRows(topology.data.marker.answerKeyRows, taskTypeByQuestionNumber);
+  const payload: AutoPayload = {
+    sourceFile: input.request.sourceName ?? 'auto-v3-reading-v2.txt',
+    answerKeyText: answerKeyText ?? '',
+    materials,
+    diagnostics: [],
+  };
+  const chunks = chunksFromPassagePackages(passagePackages);
+  const diagnostics: ReadingV2AutoImportDiagnostic[] = [
+    ...(answerKeyText
+      ? [{
+          code: 'answer-key-returned-by-gemini' as const,
+          severity: 'info' as const,
+          message: 'Gemini topology marker normalized visible answer-key rows from the raw source.',
+        }]
+      : [{
+          code: 'answer-key-missing' as const,
+          severity: 'warning' as const,
+          message: 'No source answer-key rows were normalized. Answers stay empty for Studio review.',
+        }]),
+    ...markerDiagnostics,
+    ...packageDiagnostics,
+    ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
+    ...mappedTranscriptDiagnostics,
+  ];
+  const verifierIssues = verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(payload), input.sourceLedger);
+
+  return finalizeAutoImportPayload({
+    request: input.request,
+    sourceLedger: input.sourceLedger,
+    chunks,
+    payload: answerKeyText ? payload : stripAnswersWhenNoSourceKey(payload),
+    answerKeyText,
+    diagnostics,
+    verifierIssues,
+    provider: AUTO_V3_PROVIDER,
+    model: AUTO_V3_MODEL_LABEL,
+  });
+};
+
 export const generateReadingV2AutoImportCandidate = async (
   request: ReadingV2AutoImportRequest,
   options: ReadingV2AutoImportOptions = {},
@@ -1183,6 +1969,7 @@ export const generateReadingV2AutoImportCandidate = async (
     ? Math.max(0, Math.floor(options.maxRepairAttempts ?? 0))
     : DEFAULT_MAX_REPAIR_ATTEMPTS;
   const generator = options.generator ?? geminiProvider;
+  const questionAreaNormalizer = options.questionAreaNormalizer ?? groqProvider;
 
   if (rawTestText.length < minInputChars) {
     return {
@@ -1226,6 +2013,16 @@ export const generateReadingV2AutoImportCandidate = async (
       provider: 'gemini',
       model: GEMINI_MODEL_NAME,
     };
+  }
+
+  const useV3Pipeline = options.forceV3Pipeline ?? (!options.generator || Boolean(options.questionAreaNormalizer));
+  if (useV3Pipeline) {
+    return generateReadingV2AutoImportCandidateV3({
+      request,
+      generator,
+      questionAreaNormalizer,
+      sourceLedger,
+    });
   }
 
   const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(sourceLedger.normalizedText);

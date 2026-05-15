@@ -19,6 +19,17 @@ This task list supplements, but does not replace:
 
 ## Follow-Up Hardening Batch
 
+Historical status, 2026-05-15: this file records the original Gemini-only Auto import batch and its May 13/14 hardening lineage. Do not treat the unchecked Gemini-only items below as the active V3 backlog. The active V3 contract now lives in `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` and pivots the shipped Auto path to:
+
+```text
+Gemini topology marker + answer-key normalizer
+-> local three-passage package splitter
+-> Groq question-area transcript normalizer
+-> local deterministic V2 assembler/verifier
+```
+
+Current UI/provider labels: teacher action is `Process with Auto V3`, action metadata uses `auto-v3`, and successful V3 service output reports provider `gemini-groq`. Legacy `Process with Gemini` and `provider: 'gemini'` examples below are historical Gemini-only contract notes unless explicitly scoped to the old path.
+
 The May 13 answer-key hotfix solved the narrow case where Gemini returned visible source answer rows but Studio received none. It does not by itself prove full-source fidelity across bad Clippings structure, material splitting, missing question ranges, or repeated live Gemini runs.
 
 Use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` for the next improvement batch. That tasklist owns the source-ledger, deterministic assembler, verifier, targeted repair loop, Clippings harness, live tests, loop-check protocol, and final perfection checklist.

@@ -34,6 +34,10 @@ test-results/
 report.json
 output/reading-v2-clippings-ledger-report.json
 output/reading-v2-clippings-ledger-report-*.json
+output/reading-v2-clippings-*-report.json
+output/reading-v2-provider-preflight-report.json
+output/reading-v2-provider-preflight-*.json
+output/live-probe-roots/
 quiz-data-extracted.json
 security-test-results.json
 .firebase/

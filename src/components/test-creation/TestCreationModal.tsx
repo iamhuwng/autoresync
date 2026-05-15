@@ -84,6 +84,40 @@ export interface TestCreationModalProps {
 
 const TABLE_PRESENTATION_DIAG_PREFIX = '[Diag][TablePresentationAudit]';
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
+const READING_V2_AUTO_SECRET_PATTERN = /\b(?:AIza[A-Za-z0-9_-]{12,}|gsk_[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{12,})\b/g;
+const READING_V2_AUTO_WINDOWS_PATH_PATTERN = /[A-Z]:\\[^:\n\r"]+/g;
+
+const sanitizeReadingV2AutoDiagString = (value: string): string =>
+    value
+        .replace(READING_V2_AUTO_SECRET_PATTERN, '[redacted-key]')
+        .replace(READING_V2_AUTO_WINDOWS_PATH_PATTERN, '[redacted-windows-path]');
+
+const sanitizeReadingV2AutoDiagValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+        return sanitizeReadingV2AutoDiagString(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value.map(sanitizeReadingV2AutoDiagValue);
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .map(([key, nested]) => [key, sanitizeReadingV2AutoDiagValue(nested)])
+        );
+    }
+
+    return value;
+};
+
+const sanitizeReadingV2AutoDiagnostics = (
+    diagnostics: readonly ReadingV2AutoImportDiagnostic[]
+): readonly ReadingV2AutoImportDiagnostic[] =>
+    diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        message: sanitizeReadingV2AutoDiagString(diagnostic.message),
+    }));
 
 const logTablePresentationDiag = (event: string, payload: Record<string, unknown>): void => {
     if (!import.meta.env.DEV) {
@@ -98,7 +132,7 @@ const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unkno
         return;
     }
 
-    console.log(`${READING_V2_AUTO_IMPORT_DIAG_PREFIX} ${event}`, payload);
+    console.log(`${READING_V2_AUTO_IMPORT_DIAG_PREFIX} ${event}`, sanitizeReadingV2AutoDiagValue(payload));
 };
 
 interface StepConfig {
@@ -719,20 +753,20 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'gemini',
+            provider: 'auto-v3',
         });
         onAction?.('submitReadingV2AutoImport', {
             source: 'test_creation_modal',
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'gemini',
+            provider: 'auto-v3',
         });
 
         try {
             const result = await generateReadingV2AutoImportCandidate({
                 rawTestText: sourceText,
-                sourceName: initialMetadata.title || 'Auto Gemini import',
+                sourceName: initialMetadata.title || 'Auto V3 import',
             });
 
             if (readingV2AutoRequestIdRef.current !== requestId) {
@@ -743,33 +777,37 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 return;
             }
 
+            const safeDiagnostics = sanitizeReadingV2AutoDiagnostics(result.diagnostics);
             setReadingV2AutoProcessing(false);
-            setReadingV2AutoDiagnostics(result.diagnostics);
+            setReadingV2AutoDiagnostics(safeDiagnostics);
+            const safeResultError = result.success
+                ? null
+                : sanitizeReadingV2AutoDiagString(result.error ?? 'Auto V3 import failed');
             logReadingV2AutoImportDiag('submit_result', {
                 requestId,
                 success: result.success,
                 provider: result.provider,
                 model: result.model,
-                diagnosticCount: result.diagnostics.length,
-                error: result.success ? undefined : result.error,
+                diagnosticCount: safeDiagnostics.length,
+                error: safeResultError,
                 passageCount: result.success ? result.passageCount : undefined,
                 questionCount: result.success ? result.questionCount : undefined,
             });
 
             if (!result.success) {
-                setReadingV2AutoError(result.error);
+                setReadingV2AutoError(safeResultError);
                 logReadingV2AutoImportDiag('submit_failed', {
                     requestId,
-                    error: result.error,
-                    diagnosticCount: result.diagnostics.length,
-                    diagnosticCodes: result.diagnostics.map((diagnostic) => diagnostic.code),
+                    error: safeResultError,
+                    diagnosticCount: safeDiagnostics.length,
+                    diagnosticCodes: safeDiagnostics.map((diagnostic) => diagnostic.code),
                 });
                 onAction?.('failReadingV2AutoImport', {
                     source: 'test_creation_modal',
                     testType: stepData.testType,
-                    provider: 'gemini',
-                    error: result.error,
-                    diagnosticCount: result.diagnostics.length,
+                    provider: result.provider,
+                    error: safeResultError,
+                    diagnosticCount: safeDiagnostics.length,
                 });
                 return;
             }
@@ -781,14 +819,14 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 model: result.model,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
-                diagnosticCount: result.diagnostics.length,
+                diagnosticCount: safeDiagnostics.length,
                 answerKeyDetected: Boolean(result.answerKeyText),
             });
             logReadingV2AutoImportDiag('submit_completed', {
                 requestId,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
-                diagnosticCount: result.diagnostics.length,
+                diagnosticCount: safeDiagnostics.length,
                 answerKeyDetected: Boolean(result.answerKeyText),
             });
             onClose();
@@ -800,7 +838,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     startMode: 'create-from-auto',
                     initialMetadata: {
                         ...initialMetadata,
-                        provenanceSummary: 'Generated from Auto Gemini import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V3 import in Test Creation Modal',
                     },
                     initialImportCandidate: result.candidate,
                 },
@@ -814,7 +852,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 return;
             }
 
-            const message = error instanceof Error ? error.message : 'Gemini Auto import failed.';
+            const message = error instanceof Error
+                ? sanitizeReadingV2AutoDiagString(error.message)
+                : 'Auto V3 import failed.';
             setReadingV2AutoProcessing(false);
             setReadingV2AutoError(message);
             setReadingV2AutoDiagnostics([]);
@@ -825,7 +865,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             onAction?.('failReadingV2AutoImport', {
                 source: 'test_creation_modal',
                 testType: stepData.testType,
-                provider: 'gemini',
+                provider: 'auto-v3',
                 error: message,
             });
         }
@@ -1704,7 +1744,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                             onClick={handleReadingV2AutoImportParse}
                             disabled={readingV2AutoProcessing || readingV2AutoSource.trim().length === 0}
                         >
-                            {readingV2AutoProcessing ? 'Processing...' : 'Process with Gemini'}
+                            {readingV2AutoProcessing ? 'Processing...' : 'Process with Auto V3'}
                             {!readingV2AutoProcessing ? (
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '0.5rem' }}>
                                     <polyline points="9 18 15 12 9 6" />
@@ -2433,7 +2473,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                     Auto Reading V2 source
                 </Text>
                 <Text size="sm" c="dimmed">
-                    Paste the raw test text once. Gemini prepares a Studio draft, then Studio stays the review and repair surface.
+                    Paste the raw test text once. Auto V3 prepares a Studio draft, then Studio stays the review and repair surface.
                 </Text>
             </div>
 
@@ -2467,7 +2507,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <Text size="sm" fw={700} style={{ color: '#134e4a' }}>
-                        Internal Gemini import
+                        Auto V3 import
                     </Text>
                     <Text size="xs" c="dimmed">
                         Answers are accepted only when an answer-key section is present in the pasted source.
@@ -2546,7 +2586,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <Text size="xs" c="dimmed">
                     {processing
-                        ? 'Gemini is preparing the Studio draft...'
+                        ? 'Auto V3 is preparing the Studio draft...'
                         : sourceLineCount > 0
                             ? `${sourceLineCount} raw source lines ready`
                             : 'Paste raw test text to continue'}

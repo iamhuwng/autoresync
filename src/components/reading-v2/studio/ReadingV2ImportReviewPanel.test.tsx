@@ -58,16 +58,16 @@ describe('ReadingV2ImportReviewPanel', () => {
     expect(screen.getByRole('button', { name: 'Accept into canonical draft' })).toBeDisabled();
   });
 
-  it('labels Auto Gemini import candidates distinctly for teacher review', () => {
+  it('labels Auto V3 import candidates distinctly for teacher review', () => {
     render(
       <ReadingV2ImportReviewPanel
         teacherFacing
         candidate={{
           sourceKind: 'auto-gemini',
-          fileName: 'Auto Gemini import',
+          fileName: 'Auto V3 import',
           rawText: 'Auto generated structured payload',
           evidence: ['Detected 1 structured passage'],
-          uncertaintyMarkers: ['Teacher should review Gemini output'],
+          uncertaintyMarkers: ['Teacher should review Auto V3 output'],
           publishBlockingPlaceholders: [],
         }}
         onInspectEvidence={vi.fn()}
@@ -76,9 +76,9 @@ describe('ReadingV2ImportReviewPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Auto Gemini')).toBeInTheDocument();
-    expect(screen.getByText(/Gemini-generated import/)).toBeInTheDocument();
-    expect(screen.getByText(/Auto Gemini import/)).toBeInTheDocument();
+    expect(screen.getByText('Auto V3')).toBeInTheDocument();
+    expect(screen.getByText(/Review the Auto V3 import/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Auto V3 import/).length).toBeGreaterThan(0);
   });
 
   it('shows teacher key authority, grouped diagnostics, raw key rows, and jump actions', () => {

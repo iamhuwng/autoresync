@@ -133,6 +133,8 @@ const READING_V2_TASK_ALIASES: Readonly<Record<string, ReadingV2CanonicalTaskTyp
   'diagram labeling': 'diagram-labeling',
   'map labelling': 'diagram-labeling',
   'map labeling': 'diagram-labeling',
+  'flow chart completion': 'flowchart-completion',
+  'flow-chart-completion': 'flowchart-completion',
   'choose two options': 'multiple-select',
   'choose two options x2': 'multiple-select',
   'choose three letters': 'multiple-select',

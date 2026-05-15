@@ -5,18 +5,23 @@
 
 ## Ownership Contract
 
-Reading V2 Auto treats the pasted source as the authority and Gemini as an extraction witness.
+Reading V2 Auto treats the pasted source as the authority and providers as bounded witnesses.
 
 Local code owns:
 
 - source topology: passage boundaries, question ranges, visible question numbers, answer-key rows
 - prompt constraints: expected passage number, expected question range, visible source-key count
-- deterministic merge: chunk order, passage numbering, answer-key filtering
+- deterministic merge: package order, passage numbering, answer-key filtering
 - source-fidelity gate: missing passage, missing/extra question, unbound source key row, missing source range, trim risk
 - repair policy: retry only failing source chunks, keep known-good chunks, rerun full verification before Studio handoff
 
-Gemini owns only the draft extraction of passage blocks, instruction blocks, question rows, and uncertainty diagnostics.
-Gemini should not create canonical Reading V2 IDs; local normalization assigns stable IDs from passage/order/range. Gemini may include source-ledger evidence hints for traceability.
+V3 provider boundaries:
+
+- Gemini owns only full-source topology marking and answer-key row normalization. It returns coordinates and small metadata, not passage body text, full question text, canonical IDs, or publish readiness.
+- Groq owns only per-passage question-area normalization into a strict transcript. It receives question-area text only, never passage body text, and must copy visible question/reference/option/layout text exactly rather than paraphrasing.
+- Local code owns passage text, canonical V2 objects, answer binding, scoring, validation, projection safety, and publish readiness.
+
+Local normalization assigns stable IDs from passage/order/range. Provider evidence is used only after source-fidelity verification.
 
 Studio remains the review, repair, validation, preview, and publish surface.
 
@@ -48,6 +53,13 @@ The prompt requires:
 - no merging across source chunks
 - explicit diagnostics for uncertainty
 - copied top-level `answerKeyText` only when source rows are visible
+
+V3 uses additional bounded prompts:
+
+- `src/services/reading-v2/readingV2AutoTopologyMarker.service.ts` builds the Gemini marker prompt from numbered local source lines and line hashes.
+- `src/services/reading-v2/readingV2AutoQuestionAreaNormalizer.service.ts` builds the Groq question-area prompt from the local package's question-area lines only.
+
+Neither V3 prompt asks a provider to produce Studio-ready canonical Reading V2 objects.
 
 ## Verifier And Repair
 
@@ -101,11 +113,19 @@ Current harness options:
 - `--root <path>`: Clippings root override
 - `--out <path>`: local report output
 - `--mode ledger-only-offline`: default redacted ledger scan
+- `--mode ledger-only`: alias for redacted ledger scan
 - `--mode mocked-intermediate`: offline mocked topology-verifier scan
+- `--mode gemini-marker-mocked`: offline V3 marker-stage scan with marker diagnostic counts
+- `--mode groq-transcript-mocked`: offline V3 package/transcript-stage scan with marker/package/transcript diagnostic counts
+- `--mode full-mocked-v3`: offline V3 marker/package/transcript/assembler scan with marker/package/transcript/verifier diagnostic counts
 - `--mode live-gemini`: curated representative probe mode
-- `--allow-live-gemini`: required hard opt-in for live provider calls
+- `--mode live-v3-gemini-groq`: curated representative V3 provider probe mode
+- `--allow-live-gemini`: required hard opt-in for legacy live Gemini-only probes
+- `--allow-live-v3-providers`: required hard opt-in for live V3 probes that send full source to Gemini and per-passage question areas to Groq
 - `--live-limit <n>`: maximum live probes to run, capped at 5
 - `--live-tags <tag,tag>`: representative tags to probe, such as `clean-full-test`
+
+V3 service tests cover the mocked marker, package splitter, Groq transcript, and end-to-end pipeline. The CLI harness now has V3 mocked report modes for redacted local evidence. Live V3 provider probes remain opt-in because they send real Clippings source to Gemini and per-passage question areas to Groq.
 
 Live Gemini probes are intentionally separate from CI and must be explicit because they consume provider quota and may process copyrighted local Clippings content. Do not commit raw probe inputs or raw provider outputs. Live report errors are capped and redacted for API keys and absolute Windows paths.
 

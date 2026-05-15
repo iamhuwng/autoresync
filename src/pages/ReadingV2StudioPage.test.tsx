@@ -158,7 +158,7 @@ describe('ReadingV2StudioPage', () => {
     })));
   });
 
-  it('uses Auto route state to label Gemini-generated Studio imports', async () => {
+  it('uses Auto route state to label Auto V3 Studio imports', async () => {
     renderRoute({
       pathname: '/teacher/reading-v2/import',
       state: {
@@ -167,21 +167,21 @@ describe('ReadingV2StudioPage', () => {
         initialMetadata: {
           title: 'Auto Import Ready',
           ownerId: 'teacher-modal',
-          provenanceSummary: 'Generated from Auto Gemini import in Test Creation Modal',
+          provenanceSummary: 'Generated from Auto V3 import in Test Creation Modal',
         },
         initialImportCandidate: {
           sourceKind: 'auto-gemini',
           rawText: [
             '## Imported Reading passage',
             '',
-            'This Auto Gemini passage has enough text to become an editable Reading V2 passage paragraph after modal parsing.',
+            'This Auto V3 passage has enough text to become an editable Reading V2 passage paragraph after modal parsing.',
             '',
             '#### Questions 1-1',
             'Complete the sentence.',
             '**1** imported answer',
           ].join('\n'),
           answerKeyText: '1 teacher key',
-          evidence: ['Detected source from Auto Gemini'],
+          evidence: ['Detected source from Auto V3'],
           uncertaintyMarkers: [],
           publishBlockingPlaceholders: [],
         },

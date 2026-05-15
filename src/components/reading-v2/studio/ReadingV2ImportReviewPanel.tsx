@@ -53,7 +53,7 @@ export function ReadingV2ImportReviewPanel({
     candidate.sourceKind === 'uploaded-file'
       ? 'Uploaded file'
       : candidate.sourceKind === 'auto-gemini'
-        ? 'Auto Gemini'
+        ? 'Auto V3'
         : 'Pasted text';
   const teacherSafeItem = (item: string): string =>
     item
@@ -82,7 +82,7 @@ export function ReadingV2ImportReviewPanel({
       <p className="reading-v2-studio__muted">
         {teacherFacing
           ? candidate.sourceKind === 'auto-gemini'
-            ? 'Review the Gemini-generated import, inspect unresolved items, then add it to your draft.'
+            ? 'Review the Auto V3 import, inspect unresolved items, then add it to your draft.'
             : 'Paste a reading test or passage, review what was found, then add it to your draft.'
           : 'Imported content normalizes into the same editable canonical draft model.'}
       </p>
