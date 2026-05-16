@@ -217,6 +217,36 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('accepts generic paragraph aliases when the source proves the label range', () => {
+    const passagePackage = {
+      ...packageFor('matching-information'),
+      questionAreaText: [
+        'Questions 1-1',
+        'Reading Passage 2 has six paragraphs, A-F.',
+        'Which paragraph contains the following information?',
+        'Complete the task.',
+        '1 Exact matching-information prompt ___.',
+      ].join('\n'),
+    };
+    const transcript = transcriptFor('matching-information', {
+      sectionReferences: [
+        { label: 'A', text: 'Paragraph A' },
+        { label: 'B', text: 'Paragraph B' },
+        { label: 'C', text: 'Paragraph C' },
+        { label: 'D', text: 'Paragraph D' },
+        { label: 'E', text: 'Paragraph E' },
+        { label: 'F', text: 'Paragraph F' },
+      ],
+    });
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage,
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-source-text-paraphrased');
+  });
+
   it('rejects paraphrased visible question text', () => {
     const diagnostics = verifyReadingV2AutoQuestionTranscript({
       transcript: transcriptFor('sentence-completion', {
@@ -226,6 +256,47 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     });
 
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-source-text-paraphrased');
+  });
+
+  it('proves IELTS markdown blanks after stripping printed question numbers and emphasis marks', () => {
+    const passagePackage = {
+      ...packageFor('note-completion'),
+      questionAreaText: [
+        '### Questions 1-2',
+        '*Complete the notes below.*',
+        '*Choose **ONE WORD ONLY** from the passage for each answer.*',
+        '### The life and work of Georgia O’Keeffe',
+        '● studied art, then worked as a **1** ___________ in various places in the USA',
+        '● created drawings using **2** ___________ which were exhibited in New York City',
+      ].join('\n'),
+      expectedQuestionRange: { start: 1, end: 2 },
+      groupHints: [{
+        questionRange: { start: 1, end: 2 },
+        lines: { startLine: 1, endLine: 6 },
+        taskTypeHint: 'note-completion',
+      }],
+    };
+    const transcript = transcriptFor('note-completion', {
+      questionRange: { start: 1, end: 2 },
+      sourceInstructionText: 'Complete the notes below.* Choose **ONE WORD ONLY** from the passage for each answer',
+      questions: [
+        { number: 1, promptText: 'studied art, then worked as a ___________ in various places in the USA' },
+        { number: 2, promptText: 'created drawings using ___________ which were exhibited in New York City' },
+      ],
+      note: {
+        sections: [{
+          heading: 'The life and work of Georgia O’Keeffe',
+          lines: [
+            { questionNumber: 1, text: 'studied art, then worked as a ___________ in various places in the USA' },
+            { questionNumber: 2, text: 'created drawings using ___________ which were exhibited in New York City' },
+          ],
+        }],
+      },
+    });
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({ transcript, passagePackage });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-source-text-paraphrased');
   });
 
   it('rejects missing expected questions', () => {

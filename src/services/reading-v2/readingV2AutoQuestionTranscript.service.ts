@@ -589,11 +589,6 @@ export const normalizeReadingV2AutoQuestionTranscript = (
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
 
-const comparable = (value: string): string =>
-  compact(value)
-    .replace(/[.?!:,;]+$/g, '')
-    .toLowerCase();
-
 const blankCount = (value: string): number =>
   (value.match(/_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.\.{3,}/g) ?? []).length;
 
@@ -626,16 +621,63 @@ const sourceTextFrom = (input: {
   .filter((value) => value.trim().length > 0)
   .join('\n');
 
+const comparableForSourceProof = (value: string): string =>
+  value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(
+      /(?:\*\*|__)\s*\d{1,3}\s*(?:\*\*|__)\s*(?=_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,})/g,
+      '',
+    )
+    .replace(
+      /(^|[\r\n])(\s*(?:[-*]|\u2022|\u25cf)?\s*)\d{1,3}(?:[.)])?\s*(?=_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,})/g,
+      '$1$2',
+    )
+    .replace(/_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,}/g, ' blank ')
+    .replace(/[`*_~]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.?!:,;]+$/g, '')
+    .toLowerCase();
+
+const genericReferenceAliasLabel = (value: string): string | undefined => {
+  const match = value.trim().match(/^(?:paragraph|section|option|choice|person|people|candidate|writer)\s+([A-Z])$/i);
+  return match?.[1]?.toUpperCase();
+};
+
+const sourceHasReferenceLabel = (sourceText: string, label: string): boolean => {
+  const upperLabel = label.toUpperCase();
+  const ranges = sourceText.matchAll(/([A-Z])\s*[-–—]\s*([A-Z])/g);
+  for (const range of ranges) {
+    const start = range[1]?.charCodeAt(0) ?? 0;
+    const end = range[2]?.charCodeAt(0) ?? 0;
+    const current = upperLabel.charCodeAt(0);
+    if (current >= Math.min(start, end) && current <= Math.max(start, end)) {
+      return true;
+    }
+  }
+
+  const labelLinePattern = new RegExp(
+    String.raw`(^|[\r\n])\s*(?:[#>*_\-\s]|\d+[.)])*(?:\*\*|__)?${upperLabel}(?:\*\*|__)?(?=\s|[.)\]:-]|[-–—]|$)`,
+    'i',
+  );
+  return labelLinePattern.test(sourceText);
+};
+
 const textAppearsInSourceText = (
   sourceText: string,
   value: string,
 ): boolean => {
-  const needle = comparable(value);
+  const aliasLabel = genericReferenceAliasLabel(value);
+  if (aliasLabel && sourceHasReferenceLabel(sourceText, aliasLabel)) {
+    return true;
+  }
+
+  const needle = comparableForSourceProof(value);
   if (!needle || needle.length <= 2) {
     return true;
   }
 
-  return comparable(sourceText).includes(needle);
+  return comparableForSourceProof(sourceText).includes(needle);
 };
 
 const numbersInRange = (range: ReadingV2AutoTranscriptQuestionRange): readonly number[] => {
