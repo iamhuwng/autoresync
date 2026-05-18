@@ -51,6 +51,11 @@ import {
   type ReadingV2AutoQuestionTranscript,
   type ReadingV2AutoQuestionTranscriptDiagnostic,
 } from './readingV2AutoQuestionTranscript.service';
+import {
+  READING_V2_AUTO_COMPLETION_BLANK_PATTERN,
+  readingV2AutoLineMatchesQuestionNumber,
+  replaceReadingV2AutoCompletionBlanks,
+} from './readingV2AutoTextGuards.service';
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 const AUTO_V3_PROVIDER = 'gemini-groq';
@@ -69,7 +74,7 @@ const ANSWER_KEY_ROW_PREFIX_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+/;
 const ANSWER_KEY_ROW_CAPTURE_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+(.+)$/;
 const ANSWER_KEY_NEGATIVE_LINE_PATTERN =
   /\b(?:choose|complete|write\s+no\s+more|which\s+paragraph|do\s+the\s+following|questions?\s+\d+|reading\s+passage)\b/i;
-const ANSWER_KEY_BLANK_PATTERN = /(?:_{3,}|\u2026{1,}|\.{3,}|\[\s*(?:blank|\d+)\s*\])/i;
+const ANSWER_KEY_BLANK_PATTERN = READING_V2_AUTO_COMPLETION_BLANK_PATTERN;
 
 const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unknown>): void => {
   if (!import.meta.env.DEV || import.meta.env.MODE === 'test') {
@@ -77,6 +82,15 @@ const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unkno
   }
 
   console.log(`${READING_V2_AUTO_IMPORT_DIAG_PREFIX} ${event}`, payload);
+};
+
+const emitReadingV2AutoImportDiag = (
+  options: Pick<ReadingV2AutoImportOptions, 'onDiagnosticEvent'>,
+  event: string,
+  payload: Record<string, unknown>,
+): void => {
+  options.onDiagnosticEvent?.(event, payload);
+  logReadingV2AutoImportDiag(event, payload);
 };
 
 export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error';
@@ -200,6 +214,7 @@ export interface ReadingV2AutoImportOptions {
   readonly maxRepairAttempts?: number;
   readonly questionAreaNormalizer?: ReadingV2GroqPackageFanoutProvider;
   readonly forceV3Pipeline?: boolean;
+  readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
 }
 
 export type ReadingV2AutoImportResult =
@@ -1316,6 +1331,7 @@ const callGeminiForChunk = async (
   request: ReadingV2AutoImportRequest,
   answerKeyText: string | undefined,
   sourceLedger: ReadingV2AutoSourceLedger,
+  options: Pick<ReadingV2AutoImportOptions, 'onDiagnosticEvent'>,
 ): Promise<Result<AutoPayload>> => {
   const prompt = buildReadingV2AutoImportPrompt({
     rawTestText: chunk.text,
@@ -1324,7 +1340,7 @@ const callGeminiForChunk = async (
     answerKeyText,
     sourceLedgerSummary: buildReadingV2AutoLedgerPromptSummary(sourceLedger, chunk.passageNumber),
   });
-  logReadingV2AutoImportDiag('gemini_chunk_requested', {
+  emitReadingV2AutoImportDiag(options, 'gemini_chunk_requested', {
     passageNumber: chunk.passageNumber,
     sourceLength: chunk.text.length,
     answerKeyDetected: Boolean(answerKeyText),
@@ -1337,7 +1353,7 @@ const callGeminiForChunk = async (
   });
 
   if (!result.success) {
-    logReadingV2AutoImportDiag('gemini_chunk_failed', {
+    emitReadingV2AutoImportDiag(options, 'gemini_chunk_failed', {
       passageNumber: chunk.passageNumber,
       error: result.error ?? 'Gemini structured generation failed.',
     });
@@ -1349,7 +1365,7 @@ const callGeminiForChunk = async (
 
   const payload = coercePayload(result.data);
   if (!payload) {
-    logReadingV2AutoImportDiag('gemini_chunk_malformed_json', {
+    emitReadingV2AutoImportDiag(options, 'gemini_chunk_malformed_json', {
       passageNumber: chunk.passageNumber,
     });
     return {
@@ -1358,7 +1374,7 @@ const callGeminiForChunk = async (
     };
   }
 
-  logReadingV2AutoImportDiag('gemini_chunk_succeeded', {
+  emitReadingV2AutoImportDiag(options, 'gemini_chunk_succeeded', {
     passageNumber: chunk.passageNumber,
     materialCount: payload.materials?.length ?? 0,
     questionCount: questionCountFor(payload),
@@ -1376,6 +1392,7 @@ const repairPayloadAgainstLedger = async (
   options: {
     readonly maxRepairAttempts: number;
     readonly waitBetweenChunksMs: number;
+    readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
   },
 ): Promise<AutoPayloadState & { readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[] }> => {
   const chunkPayloads = [...initialChunkPayloads];
@@ -1429,7 +1446,7 @@ const repairPayloadAgainstLedger = async (
         await wait(options.waitBetweenChunksMs);
       }
 
-      const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger);
+      const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger, options);
       if (!chunkResult.success) {
         diagnostics.push({
           code: 'source-repair-failed',
@@ -1496,26 +1513,6 @@ const compactText = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
 
 const BANK_LINE_PATTERN = /^([A-Z]|\d+|[ivxlcdm]+)(?:[.)])?(?:\s+(.*))?$/i;
-const COMPLETION_BLANK_PATTERN = /(?:_{3,}|\.{3,}|\u2026|\u00e2\u20ac\u00a6|\[\s*(?:blank|\d+)\s*\])/i;
-
-const questionLinePrefixPatternFor = (questionNumber: number): RegExp =>
-  new RegExp(`^${questionNumber}(?:[.)])?(?:\\s|$)`);
-
-const embeddedQuestionBlankPatternFor = (questionNumber: number): RegExp =>
-  new RegExp(`(?:^|\\D)${questionNumber}(?:[.)])?\\s+`);
-
-const lineMatchesQuestionNumber = (
-  lineText: string,
-  questionNumber: number,
-): boolean => {
-  const text = compactText(lineText);
-  return questionLinePrefixPatternFor(questionNumber).test(text)
-    || (
-      embeddedQuestionBlankPatternFor(questionNumber).test(text)
-      && COMPLETION_BLANK_PATTERN.test(text)
-    );
-};
-
 const numbersInRange = (range: { readonly start: number; readonly end: number }): readonly number[] => {
   const numbers: number[] = [];
   for (let questionNumber = range.start; questionNumber <= range.end; questionNumber += 1) {
@@ -1561,6 +1558,20 @@ const wordLimitDetailsFromInstructionText = (
   };
 };
 
+const referenceLabelRangeFromInstructionText = (
+  sourceInstructionText: string | undefined,
+): Pick<ReadingV2AutoQuestionTranscript['groups'][number]['instructionMeta'], 'referenceLabelRange'> => {
+  const source = compactText(sourceInstructionText ?? '');
+  const match = source.match(/\b([A-Z])\s*[-–—]\s*([A-Z])\b/);
+  if (!match?.[1] || !match[2]) {
+    return {};
+  }
+
+  return {
+    referenceLabelRange: `${match[1].toUpperCase()}-${match[2].toUpperCase()}`,
+  };
+};
+
 const repairedFlowchartFromQuestions = (
   questions: readonly {
     readonly number: number;
@@ -1569,7 +1580,7 @@ const repairedFlowchartFromQuestions = (
 ): ReadingV2AutoQuestionTranscript['groups'][number]['flowchart'] => ({
   steps: questions.map((question, index) => ({
     stepId: `step-q${question.number}`,
-    text: compactText(question.promptText.replace(COMPLETION_BLANK_PATTERN, ' ')).replace(/\s+[.,;:]$/, ''),
+    text: compactText(replaceReadingV2AutoCompletionBlanks(question.promptText, ' ')).replace(/\s+[.,;:]$/, ''),
     questionNumber: question.number,
     ...(index < questions.length - 1
       ? { nextStepIds: [`step-q${questions[index + 1]?.number}`] }
@@ -1693,7 +1704,7 @@ const repairTranscriptGroupFromQuestionArea = (
   );
   const questionNumbers = numbersInRange(groupHint.questionRange);
   const questionLines = questionNumbers.map((questionNumber) => {
-    const matchingLine = groupLines.find((line) => lineMatchesQuestionNumber(line.text, questionNumber));
+    const matchingLine = groupLines.find((line) => readingV2AutoLineMatchesQuestionNumber(line.text, questionNumber));
     return matchingLine
       ? {
           number: questionNumber,
@@ -1707,8 +1718,13 @@ const repairTranscriptGroupFromQuestionArea = (
     return null;
   }
 
+  const firstQuestionNumber = questionNumbers[0];
+  if (firstQuestionNumber === undefined) {
+    return null;
+  }
+
   const firstQuestionIndex = groupLines.findIndex((line) =>
-    lineMatchesQuestionNumber(line.text, questionNumbers[0]),
+    readingV2AutoLineMatchesQuestionNumber(line.text, firstQuestionNumber),
   );
   const instructionLines = firstQuestionIndex >= 0
     ? groupLines.slice(0, firstQuestionIndex)
@@ -1718,7 +1734,10 @@ const repairTranscriptGroupFromQuestionArea = (
     .filter(Boolean)
     .join('\n')
     .trim() || undefined;
-  const instructionMeta = wordLimitDetailsFromInstructionText(sourceInstructionText);
+  const instructionMeta = {
+    ...wordLimitDetailsFromInstructionText(sourceInstructionText),
+    ...referenceLabelRangeFromInstructionText(sourceInstructionText),
+  };
 
   return {
     questionRange: groupHint.questionRange,
@@ -2028,7 +2047,7 @@ export const generateReadingV2AutoImportCandidate = async (
   const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(sourceLedger.normalizedText);
   const chunks = splitSourceIntoChunks(sourceLedger.normalizedText, sourceLedger);
   const chunkPayloads: ChunkPayload[] = [];
-  logReadingV2AutoImportDiag('preflight_complete', {
+  emitReadingV2AutoImportDiag(options, 'preflight_complete', {
     sourceLength: rawTestText.length,
     chunkCount: chunks.length,
     answerKeyDetected: Boolean(extractedAnswerKeyText),
@@ -2044,7 +2063,7 @@ export const generateReadingV2AutoImportCandidate = async (
       await wait(waitBetweenChunksMs);
     }
 
-    const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger);
+    const chunkResult = await callGeminiForChunk(generator, chunk, request, extractedAnswerKeyText, sourceLedger, options);
     if (!chunkResult.success) {
       return {
         success: false,
@@ -2068,6 +2087,7 @@ export const generateReadingV2AutoImportCandidate = async (
   const repaired = await repairPayloadAgainstLedger(generator, request, extractedAnswerKeyText, sourceLedger, chunks, chunkPayloads, {
     maxRepairAttempts,
     waitBetweenChunksMs,
+    onDiagnosticEvent: options.onDiagnosticEvent,
   });
   const { answerKeyText, payload } = repaired;
   const diagnostics: ReadingV2AutoImportDiagnostic[] = [
@@ -2093,7 +2113,7 @@ export const generateReadingV2AutoImportCandidate = async (
   ];
 
   const blocking = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
-  logReadingV2AutoImportDiag('guardrail_result', {
+  emitReadingV2AutoImportDiag(options, 'guardrail_result', {
     blocking,
     diagnosticCount: diagnostics.length,
     diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),

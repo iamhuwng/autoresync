@@ -11,6 +11,7 @@ interface SoloSettingsModalProps {
     resolvedSettings: ResolvedPracticeSettings;
     studentPrefs: StudentSoloPreferences;
     onPrefsChange: (prefs: StudentSoloPreferences) => void;
+    onExit?: () => void;
 }
 
 export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
@@ -20,6 +21,7 @@ export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
     resolvedSettings,
     studentPrefs,
     onPrefsChange,
+    onExit,
 }) => {
     const [localPrefs, setLocalPrefs] = React.useState<StudentSoloPreferences>(studentPrefs);
 
@@ -44,8 +46,9 @@ export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
     const isSkipLocked = !resolvedSettings.listening.allowSkipSection;
     const isPauseAudioLocked = !resolvedSettings.listening.allowPauseAudio;
 
-    const showReading = true; // Reading settings always shown (font, spacing, dark mode)
-    const showListening = testSkill === 'Listening';
+    const normalizedTestSkill = testSkill.trim().toLowerCase();
+    const showReading = normalizedTestSkill === 'reading';
+    const showListening = normalizedTestSkill === 'listening';
 
     return (
         <Modal
@@ -209,9 +212,14 @@ export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
                 )}
             </Box>
 
-            <Group justify="flex-end">
+            <Group justify={onExit ? "space-between" : "flex-end"}>
+                {onExit && (
+                    <Button variant="outline" color="red" onClick={onExit}>Exit</Button>
+                )}
+                <Group gap="sm">
                 <Button variant="subtle" onClick={onClose} color="gray">Cancel</Button>
                 <Button onClick={handleSave} color="blue">Save Settings</Button>
+                </Group>
             </Group>
         </Modal>
     );

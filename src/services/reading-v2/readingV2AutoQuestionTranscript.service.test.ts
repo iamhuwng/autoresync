@@ -247,6 +247,26 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-source-text-paraphrased');
   });
 
+  it('accepts matching-information reference ranges without explicit section references', () => {
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript: transcriptFor('matching-information', {
+        instructionMeta: { referenceLabelRange: 'A-F' },
+        sectionReferences: undefined,
+      }),
+      passagePackage: {
+        ...packageFor('matching-information'),
+        questionAreaText: [
+          'Questions 1-1',
+          'Reading Passage 2 has six paragraphs, A-F.',
+          'Complete the task.',
+          '1 Exact matching-information prompt ___.',
+        ].join('\n'),
+      },
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-reference-bank-missing');
+  });
+
   it('rejects paraphrased visible question text', () => {
     const diagnostics = verifyReadingV2AutoQuestionTranscript({
       transcript: transcriptFor('sentence-completion', {
@@ -266,8 +286,8 @@ describe('readingV2AutoQuestionTranscript.service', () => {
         '*Complete the notes below.*',
         '*Choose **ONE WORD ONLY** from the passage for each answer.*',
         '### The life and work of Georgia O’Keeffe',
-        '● studied art, then worked as a **1** ___________ in various places in the USA',
-        '● created drawings using **2** ___________ which were exhibited in New York City',
+        '- studied art, then worked as a **1** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ in various places in the USA',
+        '- created drawings using **2** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ which were exhibited in New York City',
       ].join('\n'),
       expectedQuestionRange: { start: 1, end: 2 },
       groupHints: [{

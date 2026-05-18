@@ -102,6 +102,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'clearReadingV2ImportSetup',
       'parseReadingV2ImportSetup',
       'clearReadingV2AutoImportSetup',
+      'copyReadingV2AutoDiagnostics',
       'submitReadingV2AutoImport',
       'completeReadingV2AutoImport',
       'failReadingV2AutoImport',

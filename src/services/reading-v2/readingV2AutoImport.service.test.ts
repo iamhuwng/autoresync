@@ -1321,7 +1321,7 @@ describe('readingV2AutoImport.service', () => {
       '',
       'Questions 4-4',
       'Complete the flowchart below.',
-      'Flow step uses 4 ___.',
+      '**4** Flow step uses ___.',
       '',
       'Answers',
       '1 A',
@@ -1357,7 +1357,7 @@ describe('readingV2AutoImport.service', () => {
             },
             questionAreaLines: {
               startLine: lineNumberOf('Questions 1-2'),
-              endLine: lineNumberOf('Flow step uses 4 ___.'),
+              endLine: lineNumberOf('**4** Flow step uses ___.'),
             },
             expectedQuestionRange: { start: 1, end: 4 },
             groups: [
@@ -1381,7 +1381,7 @@ describe('readingV2AutoImport.service', () => {
                 questionRange: { start: 4, end: 4 },
                 lines: {
                   startLine: lineNumberOf('Questions 4-4'),
-                  endLine: lineNumberOf('Flow step uses 4 ___.'),
+                  endLine: lineNumberOf('**4** Flow step uses ___.'),
                 },
                 taskTypeHint: 'flow-chart-completion',
               },
@@ -1485,6 +1485,187 @@ describe('readingV2AutoImport.service', () => {
     assertValidReadingV2CanonicalDocument(normalized.document);
     expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
     expect(Object.values(normalized.document.interactions)).toHaveLength(4);
+  });
+
+  it('uses Gemini line hints to restore omitted Groq groups and prove escaped completion blanks', async () => {
+    const raw = [
+      'READING PASSAGE 2',
+      'A Coastal paragraph text.',
+      'B Housing paragraph text.',
+      'C Mangrove paragraph text.',
+      'D Floating homes paragraph text.',
+      'E Farming paragraph text.',
+      'F Cooling paragraph text.',
+      '',
+      'Questions 14-17',
+      'Reading Passage 2 has six paragraphs, A-F.',
+      'Which paragraph contains the following information?',
+      '**14** how a type of plant functions as a natural protection for coastlines',
+      '**15** a prediction about how long it could take to stop noticing the effects of climate change',
+      '**16** a reference to the fact that a solution is particularly cost-effective',
+      '**17** a mention of a technology used to locate areas most in need of intervention',
+      '',
+      'Questions 18-22',
+      'Complete the sentences below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      'The stormwater-management programme has involved the installation of efficient **18** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_.',
+      'The construction of **19** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ was the first stage of a project.',
+      'A not-for-profit organisation has been building houses that can **20** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_.',
+      'Rising sea levels have made it necessary to introduce various **21** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_.',
+      'A project has increased the number of **22** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ on the city streets.',
+      '',
+      'Answers',
+      '14 C',
+      '15 A',
+      '16 D',
+      '17 F',
+      '18 pumps',
+      '19 dams',
+      '20 float',
+      '21 crops',
+      '22 trees',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 2,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('READING PASSAGE 2'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('F Cooling paragraph text.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 14-17'),
+              endLine: lineNumberOf('A project has increased the number of **22** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ on the city streets.'),
+            },
+            expectedQuestionRange: { start: 14, end: 22 },
+            groups: [
+              {
+                questionRange: { start: 14, end: 17 },
+                lines: {
+                  startLine: lineNumberOf('Questions 14-17'),
+                  endLine: lineNumberOf('**17** a mention of a technology used to locate areas most in need of intervention'),
+                },
+                taskTypeHint: 'matching-information',
+              },
+              {
+                questionRange: { start: 18, end: 22 },
+                lines: {
+                  startLine: lineNumberOf('Questions 18-22'),
+                  endLine: lineNumberOf('A project has increased the number of **22** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ on the city streets.'),
+                },
+                taskTypeHint: 'sentence-completion',
+              },
+            ],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 14, answer: 'C', sourceLine: lineNumberOf('14 C') },
+            { questionNumber: 15, answer: 'A', sourceLine: lineNumberOf('15 A') },
+            { questionNumber: 16, answer: 'D', sourceLine: lineNumberOf('16 D') },
+            { questionNumber: 17, answer: 'F', sourceLine: lineNumberOf('17 F') },
+            { questionNumber: 18, answer: 'pumps', sourceLine: lineNumberOf('18 pumps') },
+            { questionNumber: 19, answer: 'dams', sourceLine: lineNumberOf('19 dams') },
+            { questionNumber: 20, answer: 'float', sourceLine: lineNumberOf('20 float') },
+            { questionNumber: 21, answer: 'crops', sourceLine: lineNumberOf('21 crops') },
+            { questionNumber: 22, answer: 'trees', sourceLine: lineNumberOf('22 trees') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [0].map((index) => ({
+        index,
+        fingerprint: `groq-slot-${index}`,
+        available: true,
+      })),
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passageNumber: 2,
+          groups: [{
+            questionRange: { start: 18, end: 22 },
+            taskType: 'sentence-completion',
+            sourceInstructionText: [
+              'Complete the sentences below.',
+              'Choose ONE WORD ONLY from the passage for each answer.',
+            ].join('\n'),
+            instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY' },
+            questions: [
+              {
+                number: 18,
+                promptText: 'The stormwater-management programme has involved the installation of efficient **18** ___________.',
+              },
+              {
+                number: 19,
+                promptText: 'The construction of **19** ___________ was the first stage of a project.',
+              },
+              {
+                number: 20,
+                promptText: 'A not-for-profit organisation has been building houses that can **20** ___________.',
+              },
+              {
+                number: 21,
+                promptText: 'Rising sea levels have made it necessary to introduce various **21** ___________.',
+              },
+              {
+                number: 22,
+                promptText: 'A project has increased the number of **22** ___________ on the city streets.',
+              },
+            ],
+          }],
+          diagnostics: [],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 Cam 20 mixed-format fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-transcript-failed' }),
+      expect.objectContaining({ code: 'transcript-question-missing' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+    expect(Object.values(normalized.document.interactions)).toHaveLength(9);
+    const matchingInfoGroup = Object.values(normalized.document.taskGroups)
+      .find((group) => group.officialTaskType === 'matching-information');
+    const matchingInfoOptionSetId = matchingInfoGroup?.optionSetRefs[0];
+    const matchingInfoOptionSet = matchingInfoOptionSetId
+      ? normalized.document.optionSets[matchingInfoOptionSetId]
+      : undefined;
+    expect(matchingInfoGroup?.instructionBlocks.map((block) => block.text).join('\n'))
+      .toContain('A-F');
+    expect(matchingInfoOptionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
   });
 
   it('normalizes live V3 judgement answer-key labels to the source task vocabulary', async () => {

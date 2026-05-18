@@ -7,6 +7,10 @@ import type {
   ReadingV2AutoPassagePackage,
   ReadingV2AutoPassagePackageLine,
 } from './readingV2AutoPassagePackage.service';
+import {
+  countReadingV2AutoCompletionBlanks,
+  normalizeReadingV2AutoSourceProofText,
+} from './readingV2AutoTextGuards.service';
 
 export interface ReadingV2AutoTranscriptQuestionRange {
   readonly start: number;
@@ -589,9 +593,6 @@ export const normalizeReadingV2AutoQuestionTranscript = (
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
 
-const blankCount = (value: string): number =>
-  (value.match(/_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.\.{3,}/g) ?? []).length;
-
 const visibleTextValues = (group: ReadingV2AutoQuestionTranscriptGroup): readonly string[] => [
   group.sourceInstructionText,
   ...(group.labeledOptions ?? []).map((option) => option.text),
@@ -620,24 +621,6 @@ const sourceTextFrom = (input: {
 ]
   .filter((value) => value.trim().length > 0)
   .join('\n');
-
-const comparableForSourceProof = (value: string): string =>
-  value
-    .replace(/<[^>]+>/g, ' ')
-    .replace(
-      /(?:\*\*|__)\s*\d{1,3}\s*(?:\*\*|__)\s*(?=_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,})/g,
-      '',
-    )
-    .replace(
-      /(^|[\r\n])(\s*(?:[-*]|\u2022|\u25cf)?\s*)\d{1,3}(?:[.)])?\s*(?=_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,})/g,
-      '$1$2',
-    )
-    .replace(/_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}|\.{3,}/g, ' blank ')
-    .replace(/[`*_~]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[.?!:,;]+$/g, '')
-    .toLowerCase();
 
 const genericReferenceAliasLabel = (value: string): string | undefined => {
   const match = value.trim().match(/^(?:paragraph|section|option|choice|person|people|candidate|writer)\s+([A-Z])$/i);
@@ -672,12 +655,12 @@ const textAppearsInSourceText = (
     return true;
   }
 
-  const needle = comparableForSourceProof(value);
+  const needle = normalizeReadingV2AutoSourceProofText(value);
   if (!needle || needle.length <= 2) {
     return true;
   }
 
-  return comparableForSourceProof(sourceText).includes(needle);
+  return normalizeReadingV2AutoSourceProofText(sourceText).includes(needle);
 };
 
 const numbersInRange = (range: ReadingV2AutoTranscriptQuestionRange): readonly number[] => {
@@ -698,7 +681,11 @@ const groupRequiresBank = (taskType: ReadingV2CanonicalTaskType): boolean =>
   || taskType === 'multiple-select';
 
 const hasBank = (group: ReadingV2AutoQuestionTranscriptGroup): boolean =>
-  Boolean(group.labeledOptions?.length || group.sectionReferences?.length)
+  Boolean(
+    group.labeledOptions?.length
+    || group.sectionReferences?.length
+    || (group.taskType === 'matching-information' && group.instructionMeta.referenceLabelRange),
+  )
   || group.questions.some((question) => Boolean(question.labeledOptions?.length || question.sectionReferences?.length));
 
 export const verifyReadingV2AutoQuestionTranscript = (input: {
@@ -749,7 +736,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       ...(group.note?.sections ?? []).flatMap((section) => section.lines?.map((line) => line.text) ?? []),
       ...(group.table?.rows ?? []).flatMap((row) => row.map((cell) => cell.text)),
       ...(group.flowchart?.steps ?? []).map((step) => step.text),
-    ].reduce((count, text) => count + blankCount(text), 0);
+    ].reduce((count, text) => count + countReadingV2AutoCompletionBlanks(text), 0);
     const expectedGroupQuestions = numbersInRange(group.questionRange).length;
     if (
       ['sentence-completion', 'summary-completion-text', 'summary-completion-list', 'note-completion', 'table-completion', 'flowchart-completion', 'diagram-labeling'].includes(group.taskType)

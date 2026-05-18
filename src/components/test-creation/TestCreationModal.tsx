@@ -135,6 +135,12 @@ const logReadingV2AutoImportDiag = (event: string, payload: Record<string, unkno
     console.log(`${READING_V2_AUTO_IMPORT_DIAG_PREFIX} ${event}`, sanitizeReadingV2AutoDiagValue(payload));
 };
 
+interface ReadingV2AutoDiagnosticLogEntry {
+    timestamp: string;
+    event: string;
+    payload: unknown;
+}
+
 interface StepConfig {
     id: ModalStep;
     label: string;
@@ -390,6 +396,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const [readingV2AutoSource, setReadingV2AutoSource] = useState('');
     const [readingV2AutoError, setReadingV2AutoError] = useState<string | null>(null);
     const [readingV2AutoDiagnostics, setReadingV2AutoDiagnostics] = useState<readonly ReadingV2AutoImportDiagnostic[]>([]);
+    const [readingV2AutoDiagnosticLogs, setReadingV2AutoDiagnosticLogs] = useState<readonly ReadingV2AutoDiagnosticLogEntry[]>([]);
+    const [readingV2AutoLogsCopied, setReadingV2AutoLogsCopied] = useState(false);
     const [readingV2AutoProcessing, setReadingV2AutoProcessing] = useState(false);
     const readingV2AutoRequestIdRef = useRef(0);
     const { writeText: writeClipboardText } = useClipboard();
@@ -584,6 +592,70 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         };
     }, [stepData.metadata, user?.uid]);
 
+    const appendReadingV2AutoDiagnosticLog = useCallback((event: string, payload: Record<string, unknown>) => {
+        setReadingV2AutoDiagnosticLogs(prev => [
+            ...prev,
+            {
+                timestamp: new Date().toISOString(),
+                event,
+                payload: sanitizeReadingV2AutoDiagValue(payload),
+            },
+        ].slice(-250));
+    }, []);
+
+    const copyReadingV2AutoDiagnosticLogs = useCallback(async () => {
+        const sourceText = readingV2AutoSource.trim();
+        const payload = {
+            version: 1,
+            copiedAt: new Date().toISOString(),
+            surface: 'test_creation_modal.reading_v2_auto',
+            state: {
+                currentStep,
+                processing: readingV2AutoProcessing,
+                hasError: Boolean(readingV2AutoError),
+                sourceLength: sourceText.length,
+                sourceLineCount: sourceText ? sourceText.split('\n').filter((line) => line.trim()).length : 0,
+                diagnosticCount: readingV2AutoDiagnostics.length,
+                requestId: readingV2AutoRequestIdRef.current,
+                testType: stepData.testType,
+                titleLength: createReadingV2InitialMetadata().title.length,
+            },
+            error: readingV2AutoError ? sanitizeReadingV2AutoDiagString(readingV2AutoError) : null,
+            diagnostics: readingV2AutoDiagnostics,
+            events: readingV2AutoDiagnosticLogs,
+        };
+        const copied = await writeClipboardText(JSON.stringify(payload, null, 2));
+
+        appendReadingV2AutoDiagnosticLog(copied ? 'diagnostic_logs_copied' : 'diagnostic_logs_copy_failed', {
+            eventCount: readingV2AutoDiagnosticLogs.length,
+            diagnosticCount: readingV2AutoDiagnostics.length,
+        });
+        onAction?.('copyReadingV2AutoDiagnostics', {
+            source: 'test_creation_modal',
+            testType: stepData.testType,
+            outcome: copied ? 'success' : 'failure',
+            eventCount: readingV2AutoDiagnosticLogs.length,
+            diagnosticCount: readingV2AutoDiagnostics.length,
+        });
+
+        if (copied) {
+            setReadingV2AutoLogsCopied(true);
+            setTimeout(() => setReadingV2AutoLogsCopied(false), 2000);
+        }
+    }, [
+        appendReadingV2AutoDiagnosticLog,
+        createReadingV2InitialMetadata,
+        currentStep,
+        onAction,
+        readingV2AutoDiagnostics,
+        readingV2AutoDiagnosticLogs,
+        readingV2AutoError,
+        readingV2AutoProcessing,
+        readingV2AutoSource,
+        stepData.testType,
+        writeClipboardText,
+    ]);
+
     const handleReadingV2Start = useCallback((mode: 'create-blank' | 'create-from-import' | 'create-from-auto') => {
         const initialMetadata = createReadingV2InitialMetadata();
 
@@ -613,6 +685,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             });
             setReadingV2AutoError(null);
             setReadingV2AutoDiagnostics([]);
+            setReadingV2AutoDiagnosticLogs([]);
+            setReadingV2AutoLogsCopied(false);
             setReadingV2AutoProcessing(false);
             setIsAnimating(true);
             setTimeout(() => {
@@ -681,6 +755,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setReadingV2AutoSource('');
         setReadingV2AutoError(null);
         setReadingV2AutoDiagnostics([]);
+        setReadingV2AutoDiagnosticLogs([]);
+        setReadingV2AutoLogsCopied(false);
         setHasUnsavedChanges(false);
         onAction?.('clearReadingV2AutoImportSetup', {
             source: 'test_creation_modal',
@@ -734,6 +810,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         if (!sourceText) {
             setReadingV2AutoError('Paste raw Reading test text before using Auto.');
             setReadingV2AutoDiagnostics([]);
+            appendReadingV2AutoDiagnosticLog('blocked_empty_input', {
+                source: 'test_creation_modal',
+                testType: stepData.testType,
+            });
             logReadingV2AutoImportDiag('blocked_empty_input', {
                 source: 'test_creation_modal',
                 testType: stepData.testType,
@@ -747,6 +827,14 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setReadingV2AutoProcessing(true);
         setReadingV2AutoError(null);
         setReadingV2AutoDiagnostics([]);
+        appendReadingV2AutoDiagnosticLog('submit_requested', {
+            requestId,
+            source: 'test_creation_modal',
+            testType: stepData.testType,
+            titleLength: initialMetadata.title.length,
+            sourceLength: sourceText.length,
+            provider: 'auto-v3',
+        });
         logReadingV2AutoImportDiag('submit_requested', {
             requestId,
             source: 'test_creation_modal',
@@ -767,9 +855,15 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             const result = await generateReadingV2AutoImportCandidate({
                 rawTestText: sourceText,
                 sourceName: initialMetadata.title || 'Auto V3 import',
+            }, {
+                onDiagnosticEvent: appendReadingV2AutoDiagnosticLog,
             });
 
             if (readingV2AutoRequestIdRef.current !== requestId) {
+                appendReadingV2AutoDiagnosticLog('stale_result_ignored', {
+                    requestId,
+                    activeRequestId: readingV2AutoRequestIdRef.current,
+                });
                 logReadingV2AutoImportDiag('stale_result_ignored', {
                     requestId,
                     activeRequestId: readingV2AutoRequestIdRef.current,
@@ -783,6 +877,16 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             const safeResultError = result.success
                 ? null
                 : sanitizeReadingV2AutoDiagString(result.error ?? 'Auto V3 import failed');
+            appendReadingV2AutoDiagnosticLog('submit_result', {
+                requestId,
+                success: result.success,
+                provider: result.provider,
+                model: result.model,
+                diagnosticCount: safeDiagnostics.length,
+                error: safeResultError,
+                passageCount: result.success ? result.passageCount : undefined,
+                questionCount: result.success ? result.questionCount : undefined,
+            });
             logReadingV2AutoImportDiag('submit_result', {
                 requestId,
                 success: result.success,
@@ -796,6 +900,12 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
             if (!result.success) {
                 setReadingV2AutoError(safeResultError);
+                appendReadingV2AutoDiagnosticLog('submit_failed', {
+                    requestId,
+                    error: safeResultError,
+                    diagnosticCount: safeDiagnostics.length,
+                    diagnosticCodes: safeDiagnostics.map((diagnostic) => diagnostic.code),
+                });
                 logReadingV2AutoImportDiag('submit_failed', {
                     requestId,
                     error: safeResultError,
@@ -817,6 +927,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 testType: stepData.testType,
                 provider: result.provider,
                 model: result.model,
+                passageCount: result.passageCount,
+                questionCount: result.questionCount,
+                diagnosticCount: safeDiagnostics.length,
+                answerKeyDetected: Boolean(result.answerKeyText),
+            });
+            appendReadingV2AutoDiagnosticLog('submit_completed', {
+                requestId,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
@@ -845,6 +962,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             });
         } catch (error) {
             if (readingV2AutoRequestIdRef.current !== requestId) {
+                appendReadingV2AutoDiagnosticLog('stale_exception_ignored', {
+                    requestId,
+                    activeRequestId: readingV2AutoRequestIdRef.current,
+                });
                 logReadingV2AutoImportDiag('stale_exception_ignored', {
                     requestId,
                     activeRequestId: readingV2AutoRequestIdRef.current,
@@ -858,6 +979,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setReadingV2AutoProcessing(false);
             setReadingV2AutoError(message);
             setReadingV2AutoDiagnostics([]);
+            appendReadingV2AutoDiagnosticLog('submit_exception', {
+                requestId,
+                error: message,
+            });
             logReadingV2AutoImportDiag('submit_exception', {
                 requestId,
                 error: message,
@@ -870,6 +995,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             });
         }
     }, [
+        appendReadingV2AutoDiagnosticLog,
         createReadingV2InitialMetadata,
         navigate,
         onAction,
@@ -1469,14 +1595,18 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                             sourceText={readingV2AutoSource}
                             error={readingV2AutoError}
                             diagnostics={readingV2AutoDiagnostics}
+                            diagnosticLogCount={readingV2AutoDiagnosticLogs.length}
+                            diagnosticLogsCopied={readingV2AutoLogsCopied}
                             processing={readingV2AutoProcessing}
                             onSourceTextChange={(value) => {
                                 setReadingV2AutoSource(value);
                                 setReadingV2AutoError(null);
                                 setReadingV2AutoDiagnostics([]);
+                                setReadingV2AutoLogsCopied(false);
                                 setHasUnsavedChanges(true);
                             }}
                             onClear={handleClearReadingV2AutoImportSetup}
+                            onCopyDiagnostics={copyReadingV2AutoDiagnosticLogs}
                         />
                     </div>
                 );
@@ -2449,18 +2579,24 @@ interface ReadingV2AutoImportStepProps {
     sourceText: string;
     error: string | null;
     diagnostics: readonly ReadingV2AutoImportDiagnostic[];
+    diagnosticLogCount: number;
+    diagnosticLogsCopied: boolean;
     processing: boolean;
     onSourceTextChange: (value: string) => void;
     onClear: () => void;
+    onCopyDiagnostics: () => void;
 }
 
 const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
     sourceText,
     error,
     diagnostics,
+    diagnosticLogCount,
+    diagnosticLogsCopied,
     processing,
     onSourceTextChange,
     onClear,
+    onCopyDiagnostics,
 }) => {
     const sourceLineCount = sourceText.split('\n').filter((line) => line.trim()).length;
     const blockingDiagnostics = diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
@@ -2591,13 +2727,22 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                             ? `${sourceLineCount} raw source lines ready`
                             : 'Paste raw test text to continue'}
                 </Text>
-                <Button
-                    variant="secondary"
-                    onClick={onClear}
-                    disabled={processing || sourceText.trim().length === 0}
-                >
-                    Clear
-                </Button>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <Button
+                        variant="secondary"
+                        onClick={onCopyDiagnostics}
+                        disabled={processing && diagnosticLogCount === 0}
+                    >
+                        {diagnosticLogsCopied ? 'Copied logs' : 'Diagnostic logs'}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={onClear}
+                        disabled={processing || sourceText.trim().length === 0}
+                    >
+                        Clear
+                    </Button>
+                </div>
             </div>
         </div>
     );
