@@ -40,8 +40,17 @@ const transcriptFor = (passageNumber: number) => ({
     taskType: 'sentence-completion',
     sourceInstructionText: 'Complete the task.',
     instructionMeta: { wordLimit: 1 },
-    questions: [{ number: passageNumber, promptText: `Exact prompt ${passageNumber} ___.` }],
+    questions: [{
+      number: passageNumber,
+      sourceTextExact: `${passageNumber} Exact prompt ${passageNumber} ___.`,
+      normalizedPromptText: `Exact prompt ${passageNumber} ___.`,
+      promptText: `Exact prompt ${passageNumber} ___.`,
+    }],
   }],
+  coverageSummary: {
+    coveredGroups: [`${passageNumber}-${passageNumber}`],
+    coveredQuestions: [passageNumber],
+  },
   diagnostics: [],
 });
 
@@ -94,6 +103,10 @@ describe('readingV2GroqPackageFanout.service', () => {
     expect(harness.mutableCalls).toEqual([0, 1, 2]);
     if (result.success) {
       expect(result.data.packageResults.map((item) => item.keyFingerprint)).toEqual(['groq-slot-0', 'groq-slot-1', 'groq-slot-2']);
+      expect(result.data.packageResults[0]?.prompt).toContain('READING_V2_AUTO_V3_PASSAGE_PACKAGE 1');
+      expect(result.data.packageResults[0]?.rawStructuredJson).toEqual(transcriptFor(1));
+      expect(result.data.packageResults[0]?.rawGroupRanges).toEqual(['1-1']);
+      expect(result.data.packageResults[0]?.promptHash).toMatch(/^[0-9a-f]{8}$/);
     }
   });
 

@@ -58,6 +58,7 @@ export interface ReadingV2AutoSourceAnswerKeyRow {
   readonly questionNumber: number;
   readonly sourceLine: number;
   readonly answerHash: string;
+  readonly normalizedAnswerHash: string;
 }
 
 export type ReadingV2AutoSourceReferenceBankKind =
@@ -185,6 +186,16 @@ const hashString = (value: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
 
+const canonicalAnswerText = (value: string): string =>
+  compact(value)
+    .replace(/\\([()./|:-])/g, '$1')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s*\|\s*/g, '|')
+    .toLowerCase();
+
+const answerHashFor = (questionNumber: number, answerText: string): string =>
+  hashString(`${questionNumber}:${canonicalAnswerText(answerText)}`);
+
 const normalizeSourceText = (rawText: string): string =>
   rawText
     .replace(/^\uFEFF/, '')
@@ -283,6 +294,11 @@ const answerTextFromPotentialRow = (line: string): string | undefined => {
   return match?.[2]?.trim();
 };
 
+const normalizedAnswerKeyRow = (line: string): string | undefined =>
+  ANSWER_KEY_ROW_PATTERN.test(line)
+    ? line.trim().replace(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\\?[\).:\-=])?\s+/i, '$1 ')
+    : undefined;
+
 const isLikelyAnswerRow = (line: string): boolean => {
   if (!ANSWER_KEY_ROW_PATTERN.test(line)) {
     return false;
@@ -321,9 +337,10 @@ const collectAnswerKeyRows = (
       return;
     }
 
-    if (isLikelyAnswerRow(trimmed)) {
+    const row = afterHeading ? normalizedAnswerKeyRow(trimmed) : undefined;
+    if (row || isLikelyAnswerRow(trimmed)) {
       collecting = true;
-      rowLines.push(trimmed.replace(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\\?[\).:\-=])?\s+/i, '$1 '));
+      rowLines.push(row ?? normalizedAnswerKeyRow(trimmed)!);
       sourceLines.push(line.lineNumber);
       return;
     }
@@ -343,6 +360,7 @@ const collectAnswerKeyRows = (
       questionNumber: row.questionNumber,
       sourceLine: sourceLines[row.sourceLine - 1] ?? row.sourceLine,
       answerHash: hashString(`${row.questionNumber}:${row.rawAnswerText.toLowerCase()}`),
+      normalizedAnswerHash: answerHashFor(row.questionNumber, row.rawAnswerText),
     }));
 };
 
@@ -992,6 +1010,42 @@ const rangesOverlap = (
   return left.start <= right.end && right.start <= left.end;
 };
 
+const taskTypeHintFromReferenceBanks = (
+  range: ReadingV2AutoSourceQuestionRange,
+  ledger: ReadingV2AutoSourceLedger,
+): string | undefined => {
+  const overlappingKinds = ledger.referenceBanks
+    .filter((candidate) =>
+      candidate.questionRange
+      && rangesOverlap(
+        { start: range.start, end: range.end },
+        candidate.questionRange,
+      ),
+    )
+    .map((candidate) => candidate.kind);
+
+  for (const kind of ['matching-endings', 'people-list', 'headings-list', 'paragraph-labels'] as const) {
+    if (!overlappingKinds.includes(kind)) {
+      continue;
+    }
+
+    switch (kind) {
+      case 'paragraph-labels':
+        return 'matching-information';
+      case 'people-list':
+        return 'matching-features';
+      case 'headings-list':
+        return 'matching-headings';
+      case 'matching-endings':
+        return 'matching-sentence-endings';
+      default:
+        break;
+    }
+  }
+
+  return undefined;
+};
+
 const WORD_NUMBER_BY_TEXT = new Map<string, number>([
   ['ONE', 1],
   ['TWO', 2],
@@ -1068,6 +1122,14 @@ const taskTypeHintFromInstructionText = (value: string | undefined): string | un
     return 'summary-completion-text';
   }
 
+  if (
+    (/\bcomplete\b/.test(text) && /\bsentences?\b/.test(text) && /\bcorrect\s+ending\b/.test(text))
+    || /\blist\s+of\s+endings\b/.test(text)
+    || /\bsentence\s+endings?\b/.test(text)
+  ) {
+    return 'matching-sentence-endings';
+  }
+
   if (/\bcomplete\b/.test(text) && /\bsentences?\b/.test(text)) {
     return 'sentence-completion';
   }
@@ -1135,7 +1197,9 @@ const payloadInstructionCoverageIssues = (
 
   return ledger.questionRanges.flatMap((range) => {
     const sourceInstruction = range.instructionPreview ?? '';
-    const expectedTaskType = taskTypeHintFromInstructionText(sourceInstruction);
+    const expectedTaskType =
+      taskTypeHintFromReferenceBanks(range, ledger)
+      ?? taskTypeHintFromInstructionText(sourceInstruction);
     const expectedWordLimit = wordLimitFromInstructionText(sourceInstruction);
     const expectedVocabulary = judgementVocabularyFromInstructionText(sourceInstruction);
     const expectedReuse = instructionAllowsReuse(sourceInstruction);

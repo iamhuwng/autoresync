@@ -29,6 +29,8 @@ const fullSourceLines = [
 ];
 
 const fullSource = fullSourceLines.join('\n');
+const fullLedger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'full-topology-source.md' });
+const fullLineIndex = buildReadingV2AutoLineIndex(fullLedger);
 
 const lineNumberOf = (needle: string): number => {
   const index = fullSourceLines.findIndex((line) => line === needle);
@@ -36,6 +38,14 @@ const lineNumberOf = (needle: string): number => {
     throw new Error(`Missing source line ${needle}`);
   }
   return index + 1;
+};
+
+const lineHashOf = (needle: string): string => {
+  const line = fullLineIndex.lines.find((candidate) => candidate.lineNumber === lineNumberOf(needle));
+  if (!line) {
+    throw new Error(`Missing line hash for ${needle}`);
+  }
+  return line.trimmedTextHash;
 };
 
 const packageMarker = (
@@ -73,6 +83,8 @@ const cleanMarker = (): ReadingV2AutoTopologyMarker => ({
     questionNumber: index + 1,
     answer: `answer${index + 1}`,
     sourceLine: lineNumberOf(`${index + 1} answer${index + 1}`),
+    sourceLineHash: lineHashOf(`${index + 1} answer${index + 1}`),
+    sourceTextExact: `${index + 1} answer${index + 1}`,
   })),
   diagnostics: [],
 });
@@ -86,11 +98,149 @@ describe('readingV2AutoTopologyMarker.service', () => {
     expect(prompt).toContain('expectedQuestionRange is the full question coverage for one passage package');
     expect(prompt).toContain('groups[] is the smaller visible task-type blocks inside questionAreaLines');
     expect(prompt).toContain('return expectedQuestionRange [1, 13], one questionAreaLines span covering both, and two groups');
+    expect(prompt).toContain('"sourceLineHash": "deadbeef"');
+    expect(prompt).toContain('"sourceTextExact": "1 TRUE"');
+    expect(prompt).not.toContain('visibleAnswerKeyRows:');
   });
 
   it('accepts a clean full-test topology marker with three packages and 40 answer rows', () => {
     const ledger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'clean-full.md' });
     const diagnostics = validateReadingV2AutoTopologyMarker(cleanMarker(), ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('accepts answer-key rows when raw source line proves them even without copied witness fields', () => {
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'clean-full-no-witness.md' });
+    const marker = cleanMarker();
+    const diagnostics = validateReadingV2AutoTopologyMarker({
+      ...marker,
+      answerKeyRows: marker.answerKeyRows.map(({ sourceLineHash: _sourceLineHash, sourceTextExact: _sourceTextExact, ...row }) => row),
+    }, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('binds answer-key rows by source line when slash spacing is normalized', () => {
+    const sourceLines = [
+      'READING PASSAGE 1',
+      'Synthetic passage title',
+      'Synthetic passage paragraph with enough local text for topology validation.',
+      'Questions 1-2',
+      'Complete the notes below.',
+      '1 Synthetic spread note ___.',
+      '2 Synthetic frequency note ___.',
+      'Answers',
+      '1 spread',
+      '2\\. 10/ ten times',
+    ];
+    const source = sourceLines.join('\n');
+    const lineNumber = (needle: string): number => {
+      const index = sourceLines.findIndex((line) => line === needle);
+      if (index < 0) {
+        throw new Error(`Missing source line ${needle}`);
+      }
+      return index + 1;
+    };
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: source, sourceName: 'slash-answer-key.md' });
+    const marker: ReadingV2AutoTopologyMarker = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: { startLine: 1, endLine: 2 },
+        passageBodyLines: { startLine: 1, endLine: 3 },
+        questionAreaLines: { startLine: lineNumber('Questions 1-2'), endLine: lineNumber('2 Synthetic frequency note ___.') },
+        expectedQuestionRange: { start: 1, end: 2 },
+        groups: [{
+          questionRange: { start: 1, end: 2 },
+          lines: { startLine: lineNumber('Questions 1-2'), endLine: lineNumber('2 Synthetic frequency note ___.') },
+          taskTypeHint: 'note-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [
+        {
+          questionNumber: 1,
+          answer: 'spread',
+          sourceLine: lineNumber('1 spread'),
+          sourceLineHash: buildReadingV2AutoLineIndex(ledger).lines.find((line) => line.lineNumber === lineNumber('1 spread'))?.trimmedTextHash,
+          sourceTextExact: '1 spread',
+        },
+        {
+          questionNumber: 2,
+          answer: '10 / ten times',
+          sourceLine: lineNumber('2\\. 10/ ten times'),
+          sourceLineHash: buildReadingV2AutoLineIndex(ledger).lines.find((line) => line.lineNumber === lineNumber('2\\. 10/ ten times'))?.trimmedTextHash,
+          sourceTextExact: '2\\. 10/ ten times',
+        },
+      ],
+      diagnostics: [],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('binds answer-key rows when Gemini splits slash alternatives from one source line', () => {
+    const sourceLines = [
+      'READING PASSAGE 1',
+      'Synthetic passage title',
+      'Synthetic passage paragraph with enough local text for topology validation.',
+      'Questions 1-2',
+      'Complete the notes below.',
+      '1 Synthetic spread note ___.',
+      '2 Synthetic frequency note ___.',
+      'Answers',
+      '1 spread',
+      '2\\. 10/ ten times',
+    ];
+    const source = sourceLines.join('\n');
+    const lineNumber = (needle: string): number => {
+      const index = sourceLines.findIndex((line) => line === needle);
+      if (index < 0) {
+        throw new Error(`Missing source line ${needle}`);
+      }
+      return index + 1;
+    };
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: source, sourceName: 'split-slash-answer-key.md' });
+    const lineIndex = buildReadingV2AutoLineIndex(ledger);
+    const marker: ReadingV2AutoTopologyMarker = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: { startLine: 1, endLine: 2 },
+        passageBodyLines: { startLine: 1, endLine: 3 },
+        questionAreaLines: { startLine: lineNumber('Questions 1-2'), endLine: lineNumber('2 Synthetic frequency note ___.') },
+        expectedQuestionRange: { start: 1, end: 2 },
+        groups: [{
+          questionRange: { start: 1, end: 2 },
+          lines: { startLine: lineNumber('Questions 1-2'), endLine: lineNumber('2 Synthetic frequency note ___.') },
+          taskTypeHint: 'note-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [
+        {
+          questionNumber: 1,
+          answer: 'spread',
+          sourceLine: lineNumber('1 spread'),
+          sourceLineHash: lineIndex.lines.find((line) => line.lineNumber === lineNumber('1 spread'))?.trimmedTextHash,
+          sourceTextExact: '1 spread',
+        },
+        {
+          questionNumber: 2,
+          answer: '10',
+          alternativeAnswers: ['ten times'],
+          sourceLine: lineNumber('2\\. 10/ ten times'),
+          sourceLineHash: lineIndex.lines.find((line) => line.lineNumber === lineNumber('2\\. 10/ ten times'))?.trimmedTextHash,
+          sourceTextExact: '2\\. 10/ ten times',
+        },
+      ],
+      diagnostics: [],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, lineIndex);
 
     expect(diagnostics).toEqual([]);
   });
@@ -319,6 +469,24 @@ describe('readingV2AutoTopologyMarker.service', () => {
       ...cleanMarker(),
       answerKeyRows: [
         ...cleanMarker().answerKeyRows.slice(0, 1).map((row) => ({ ...row, answer: 'not-on-source-line' })),
+        ...cleanMarker().answerKeyRows.slice(1),
+      ],
+    };
+    const diagnostics = validateReadingV2AutoTopologyMarker(marker, ledger, buildReadingV2AutoLineIndex(ledger));
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('topology-marker-answer-row-source-mismatch');
+  });
+
+  it('rejects answer-key rows with mismatched source-line proof evidence', () => {
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: fullSource, sourceName: 'bad-answer-proof.md' });
+    const marker = {
+      ...cleanMarker(),
+      answerKeyRows: [
+        ...cleanMarker().answerKeyRows.slice(0, 1).map((row) => ({
+          ...row,
+          sourceLineHash: 'ffffffff',
+          sourceTextExact: '1 wrong proof text',
+        })),
         ...cleanMarker().answerKeyRows.slice(1),
       ],
     };

@@ -250,6 +250,23 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
           message: 'Source option bank was not preserved.',
           questionNumber: 1,
         },
+        {
+          code: 'groq-output-missing-group',
+          severity: 'warning' as const,
+          message: 'Groq output omitted hinted group 1-1.',
+          questionNumber: 1,
+          stage: 'raw-groq',
+          groupRange: '1-1',
+          keyFingerprint: 'groq-slot-0',
+        },
+        {
+          code: 'bank-ownership-heuristic-used',
+          severity: 'warning' as const,
+          message: 'Fallback bank ownership heuristic rebuilt labels for group 1-1.',
+          questionNumber: 1,
+          stage: 'repaired-transcript',
+          groupRange: '1-1',
+        },
       ],
     };
     const normalized = normalizeReadingV2ImportCandidate(candidateWithAutoDiagnostics);
@@ -276,10 +293,19 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
         target: expect.objectContaining({ kind: 'interaction', questionNumber: 1 }),
       }),
     ]));
+    expect(diagnostics.groups.find((group) => group.id === 'question-binding')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        detail: 'groq-output-missing-group | stage: raw-groq | group: 1-1 | slot: groq-slot-0',
+        target: expect.objectContaining({ kind: 'interaction', questionNumber: 1 }),
+      }),
+    ]));
     expect(diagnostics.groups.find((group) => group.id === 'option-bank')?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({
         message: 'Source option bank was not preserved.',
         severity: 'error',
+      }),
+      expect.objectContaining({
+        detail: 'bank-ownership-heuristic-used | stage: repaired-transcript | group: 1-1',
       }),
     ]));
   });

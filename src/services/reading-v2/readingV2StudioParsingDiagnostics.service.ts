@@ -359,19 +359,30 @@ const diagnosticGroupForAutoCode = (code: string): ReadingV2TeacherImportDiagnos
     || code.includes('question-missing')
     || code.includes('question-extra')
     || code.includes('question-range')
+    || code.includes('group-coverage')
+    || code.includes('duplicate-question-number')
+    || code.includes('missing-group')
   ) {
     return 'question-binding';
   }
 
-  if (code.includes('reference-bank')) {
+  if (code.includes('reference-bank') || code.includes('missing-reference-bank') || code.includes('bank-ownership-heuristic')) {
     return 'option-bank';
   }
 
-  if (code.includes('instruction')) {
+  if (code.includes('instruction') || code.includes('task-type-conflict')) {
     return 'task-type';
   }
 
-  if (code.includes('trim') || code.includes('passage') || code.includes('source-repair') || code.includes('source-ledger')) {
+  if (
+    code.includes('trim')
+    || code.includes('passage')
+    || code.includes('source-repair')
+    || code.includes('source-ledger')
+    || code.includes('source-proof')
+    || code.includes('normalized-text-source-drift')
+    || code.includes('repair-')
+  ) {
     return 'source-structure';
   }
 
@@ -600,8 +611,11 @@ export const buildReadingV2TeacherImportDiagnostics = (
       message: diagnostic.message,
       detail: [
         diagnostic.code,
+        diagnostic.stage ? `stage: ${diagnostic.stage}` : undefined,
+        diagnostic.groupRange ? `group: ${diagnostic.groupRange}` : undefined,
         diagnostic.sourceRange ? `source: ${diagnostic.sourceRange}` : undefined,
         diagnostic.repairScopes?.length ? `scope: ${diagnostic.repairScopes.join(', ')}` : undefined,
+        diagnostic.keyFingerprint ? `slot: ${diagnostic.keyFingerprint}` : undefined,
       ].filter(Boolean).join(' | '),
       target: autoDiagnosticTarget(diagnostic),
     });

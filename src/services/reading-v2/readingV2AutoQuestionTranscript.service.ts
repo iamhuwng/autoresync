@@ -20,12 +20,16 @@ export interface ReadingV2AutoTranscriptQuestionRange {
 export interface ReadingV2AutoTranscriptOption {
   readonly label: string;
   readonly text: string;
+  readonly sourceTextExact?: string;
+  readonly normalizedText?: string;
   readonly sourceLines?: readonly number[];
 }
 
 export interface ReadingV2AutoTranscriptQuestion {
   readonly number: number;
   readonly promptText: string;
+  readonly sourceTextExact?: string;
+  readonly normalizedPromptText?: string;
   readonly sourceLines?: readonly number[];
   readonly labeledOptions?: readonly ReadingV2AutoTranscriptOption[];
   readonly sectionReferences?: readonly ReadingV2AutoTranscriptOption[];
@@ -45,6 +49,9 @@ export interface ReadingV2AutoTranscriptInstructionMeta {
 
 export interface ReadingV2AutoTranscriptNoteLine {
   readonly text: string;
+  readonly sourceTextExact?: string;
+  readonly normalizedText?: string;
+  readonly sourceLines?: readonly number[];
   readonly questionNumber?: number;
   readonly questionNumbers?: readonly number[];
 }
@@ -64,6 +71,8 @@ export interface ReadingV2AutoTranscriptNote {
 
 export interface ReadingV2AutoTranscriptTableCell {
   readonly text: string;
+  readonly sourceTextExact?: string;
+  readonly normalizedText?: string;
   readonly role?: string;
   readonly questionNumber?: number;
   readonly questionNumbers?: readonly number[];
@@ -76,6 +85,8 @@ export interface ReadingV2AutoTranscriptTable {
 export interface ReadingV2AutoTranscriptFlowStep {
   readonly stepId?: string;
   readonly text: string;
+  readonly sourceTextExact?: string;
+  readonly normalizedText?: string;
   readonly questionNumber?: number;
   readonly nextStepIds?: readonly string[];
 }
@@ -86,6 +97,8 @@ export interface ReadingV2AutoTranscriptFlowchart {
 
 export interface ReadingV2AutoTranscriptDiagramTarget {
   readonly label: string;
+  readonly sourceLabelExact?: string;
+  readonly normalizedLabel?: string;
   readonly questionNumber: number;
 }
 
@@ -114,16 +127,24 @@ export interface ReadingV2AutoQuestionTranscript {
   readonly passageNumber: number;
   readonly groups: readonly ReadingV2AutoQuestionTranscriptGroup[];
   readonly diagnostics: readonly string[];
+  readonly coverageSummary?: ReadingV2AutoTranscriptCoverageSummary;
+}
+
+export interface ReadingV2AutoTranscriptCoverageSummary {
+  readonly coveredGroups?: readonly string[];
+  readonly coveredQuestions?: readonly number[];
 }
 
 export type ReadingV2AutoQuestionTranscriptDiagnosticCode =
   | 'transcript-malformed'
-  | 'transcript-question-missing'
-  | 'transcript-question-duplicate'
-  | 'transcript-task-type-conflict'
-  | 'transcript-source-text-paraphrased'
-  | 'transcript-reference-bank-missing'
-  | 'transcript-blank-mismatch';
+  | 'group-coverage-mismatch'
+  | 'duplicate-question-number'
+  | 'task-type-conflict'
+  | 'missing-reference-bank'
+  | 'blank-mismatch'
+  | 'source-proof-format-mismatch'
+  | 'source-text-exact-missing'
+  | 'normalized-text-source-drift';
 
 export interface ReadingV2AutoQuestionTranscriptDiagnostic {
   readonly code: ReadingV2AutoQuestionTranscriptDiagnosticCode;
@@ -187,6 +208,17 @@ const numberFrom = (value: unknown): number | undefined => {
 const stringFrom = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
+const firstStringFrom = (...values: readonly unknown[]): string | undefined => {
+  for (const value of values) {
+    const parsed = stringFrom(value);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+};
+
 const stringsFrom = (value: unknown): readonly string[] =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -222,7 +254,18 @@ const optionFrom = (value: unknown): ReadingV2AutoTranscriptOption | null => {
   }
 
   const label = stringFrom(value.label);
-  const text = stringFrom(value.text);
+  const sourceTextExact = firstStringFrom(
+    value.sourceTextExact,
+    value.exactText,
+    value.text,
+  );
+  const normalizedText = firstStringFrom(
+    value.normalizedText,
+    value.text,
+    value.sourceTextExact,
+    value.exactText,
+  );
+  const text = normalizedText ?? sourceTextExact;
   if (!label || !text) {
     return null;
   }
@@ -230,6 +273,8 @@ const optionFrom = (value: unknown): ReadingV2AutoTranscriptOption | null => {
   return {
     label,
     text,
+    ...(sourceTextExact ? { sourceTextExact } : {}),
+    ...(normalizedText ? { normalizedText } : {}),
     sourceLines: numberArrayFrom(value.sourceLines),
   };
 };
@@ -259,6 +304,7 @@ const optionsFromCandidate = (value: unknown): readonly ReadingV2AutoTranscriptO
     ?? value.labeledOptions
     ?? value.references
     ?? value.sectionReferences
+    ?? value.referenceBankLines
     ?? value.items
     ?? value.values
     ?? value.choices
@@ -300,7 +346,22 @@ const questionFrom = (
   }
 
   const number = numberFrom(value.number ?? value.questionNumber);
-  const promptText = stringFrom(value.promptText ?? value.questionText ?? value.text);
+  const sourceTextExact = firstStringFrom(
+    value.sourceTextExact,
+    value.exactText,
+    value.promptText,
+    value.questionText,
+    value.text,
+  );
+  const normalizedPromptText = firstStringFrom(
+    value.normalizedPromptText,
+    value.promptText,
+    value.questionText,
+    value.text,
+    value.sourceTextExact,
+    value.exactText,
+  );
+  const promptText = normalizedPromptText ?? sourceTextExact;
   if (!number || !promptText) {
     return null;
   }
@@ -308,6 +369,8 @@ const questionFrom = (
   return {
     number,
     promptText,
+    ...(sourceTextExact ? { sourceTextExact } : {}),
+    ...(normalizedPromptText ? { normalizedPromptText } : {}),
     sourceLines: numberArrayFrom(value.sourceLines),
     labeledOptions: firstOptionsFromCandidates(
       value.labeledOptions,
@@ -324,6 +387,7 @@ const questionFrom = (
     sectionReferences: firstOptionsFromCandidates(
       value.sectionReferences,
       value.references,
+      value.referenceBankLines,
       value.referenceBank,
       value.referenceBanks,
       value.referenceOptions,
@@ -340,13 +404,27 @@ const noteLineFrom = (value: unknown): ReadingV2AutoTranscriptNoteLine | null =>
     return null;
   }
 
-  const text = stringFrom(value.text);
+  const sourceTextExact = firstStringFrom(
+    value.sourceTextExact,
+    value.exactText,
+    value.text,
+  );
+  const normalizedText = firstStringFrom(
+    value.normalizedText,
+    value.text,
+    value.sourceTextExact,
+    value.exactText,
+  );
+  const text = normalizedText ?? sourceTextExact;
   if (!text) {
     return null;
   }
 
   return {
     text,
+    ...(sourceTextExact ? { sourceTextExact } : {}),
+    ...(normalizedText ? { normalizedText } : {}),
+    sourceLines: numberArrayFrom(value.sourceLines),
     questionNumber: numberFrom(value.questionNumber),
     questionNumbers: numberArrayFrom(value.questionNumbers),
   };
@@ -392,20 +470,40 @@ const noteFrom = (value: unknown): ReadingV2AutoTranscriptNote | undefined => {
 
 const tableCellFrom = (value: unknown): ReadingV2AutoTranscriptTableCell | null => {
   if (typeof value === 'string') {
-    return value.trim() ? { text: value.trim() } : null;
+    const text = value.trim();
+    return text
+      ? {
+          text,
+          sourceTextExact: text,
+          normalizedText: text,
+        }
+      : null;
   }
 
   if (!isRecord(value)) {
     return null;
   }
 
-  const text = stringFrom(value.text);
+  const sourceTextExact = firstStringFrom(
+    value.sourceTextExact,
+    value.exactText,
+    value.text,
+  );
+  const normalizedText = firstStringFrom(
+    value.normalizedText,
+    value.text,
+    value.sourceTextExact,
+    value.exactText,
+  );
+  const text = normalizedText ?? sourceTextExact;
   if (!text) {
     return null;
   }
 
   return {
     text,
+    ...(sourceTextExact ? { sourceTextExact } : {}),
+    ...(normalizedText ? { normalizedText } : {}),
     ...(typeof value.role === 'string' ? { role: value.role } : {}),
     questionNumber: numberFrom(value.questionNumber),
     questionNumbers: numberArrayFrom(value.questionNumbers),
@@ -440,13 +538,26 @@ const flowchartFrom = (value: unknown): ReadingV2AutoTranscriptFlowchart | undef
     if (!isRecord(item)) {
       return [];
     }
-    const text = stringFrom(item.text);
+    const sourceTextExact = firstStringFrom(
+      item.sourceTextExact,
+      item.exactText,
+      item.text,
+    );
+    const normalizedText = firstStringFrom(
+      item.normalizedText,
+      item.text,
+      item.sourceTextExact,
+      item.exactText,
+    );
+    const text = normalizedText ?? sourceTextExact;
     if (!text) {
       return [];
     }
     return [{
       stepId: stringFrom(item.stepId),
       text,
+      ...(sourceTextExact ? { sourceTextExact } : {}),
+      ...(normalizedText ? { normalizedText } : {}),
       questionNumber: numberFrom(item.questionNumber),
       nextStepIds: stringsFrom(item.nextStepIds),
     }];
@@ -464,9 +575,27 @@ const diagramFrom = (value: unknown): ReadingV2AutoTranscriptDiagram | undefined
     if (!isRecord(item)) {
       return [];
     }
-    const label = stringFrom(item.label);
+    const sourceLabelExact = firstStringFrom(
+      item.sourceLabelExact,
+      item.exactLabel,
+      item.label,
+    );
+    const normalizedLabel = firstStringFrom(
+      item.normalizedLabel,
+      item.label,
+      item.sourceLabelExact,
+      item.exactLabel,
+    );
+    const label = normalizedLabel ?? sourceLabelExact;
     const questionNumber = numberFrom(item.questionNumber);
-    return label && questionNumber ? [{ label, questionNumber }] : [];
+    return label && questionNumber
+      ? [{
+          label,
+          ...(sourceLabelExact ? { sourceLabelExact } : {}),
+          ...(normalizedLabel ? { normalizedLabel } : {}),
+          questionNumber,
+        }]
+      : [];
   });
 
   return targets.length > 0
@@ -500,6 +629,37 @@ const metaFrom = (value: unknown): ReadingV2AutoTranscriptInstructionMeta => {
   };
 };
 
+const labelRangeFromInstructionText = (sourceInstructionText: string | undefined): string | undefined => {
+  const source = compact(sourceInstructionText ?? '');
+  const match = source.match(/\b([A-Z])\s*[-–—]\s*([A-Z])\b/);
+  if (!match?.[1] || !match[2]) {
+    return undefined;
+  }
+
+  return `${match[1].toUpperCase()}-${match[2].toUpperCase()}`;
+};
+
+const normalizedInstructionMetaForGroup = (
+  taskType: ReadingV2CanonicalTaskType | null,
+  instructionMeta: ReadingV2AutoTranscriptInstructionMeta,
+  sourceInstructionText: string | undefined,
+): ReadingV2AutoTranscriptInstructionMeta => {
+  if (taskType !== 'matching-information') {
+    return instructionMeta;
+  }
+
+  const referenceLabelRange = instructionMeta.referenceLabelRange
+    ?? instructionMeta.optionLabelRange
+    ?? labelRangeFromInstructionText(sourceInstructionText);
+
+  return referenceLabelRange
+    ? {
+        ...instructionMeta,
+        referenceLabelRange,
+      }
+    : instructionMeta;
+};
+
 const normalizeTaskType = (
   value: unknown,
   meta: ReadingV2AutoTranscriptInstructionMeta,
@@ -515,7 +675,13 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
 
   const questionRange = rangeFrom(value.questionRange ?? value.range);
   const instructionMeta = metaFrom(value.instructionMeta ?? value.meta);
+  const sourceInstructionText = stringFrom(value.sourceInstructionText ?? value.instructionText);
   const taskType = normalizeTaskType(value.taskType, instructionMeta);
+  const normalizedInstructionMeta = normalizedInstructionMetaForGroup(
+    taskType,
+    instructionMeta,
+    sourceInstructionText,
+  );
   const questions = Array.isArray(value.questions)
     ? value.questions.flatMap((item) => {
         const question = questionFrom(item, taskType ?? undefined);
@@ -530,8 +696,8 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
   return {
     questionRange,
     taskType,
-    sourceInstructionText: stringFrom(value.sourceInstructionText ?? value.instructionText),
-    instructionMeta,
+    sourceInstructionText,
+    instructionMeta: normalizedInstructionMeta,
     labeledOptions: firstOptionsFromCandidates(
       value.labeledOptions,
       value.options,
@@ -547,6 +713,7 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
     sectionReferences: firstOptionsFromCandidates(
       value.sectionReferences,
       value.references,
+      value.referenceBankLines,
       value.referenceBank,
       value.referenceBanks,
       value.referenceOptions,
@@ -562,6 +729,21 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
     diagram: diagramFrom(value.diagram),
     diagnostics: stringsFrom(value.diagnostics),
   };
+};
+
+const coverageSummaryFrom = (value: unknown): ReadingV2AutoTranscriptCoverageSummary | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const coveredGroups = stringsFrom(value.coveredGroups);
+  const coveredQuestions = numberArrayFrom(value.coveredQuestions);
+  return coveredGroups.length > 0 || coveredQuestions?.length
+    ? {
+        ...(coveredGroups.length > 0 ? { coveredGroups } : {}),
+        ...(coveredQuestions?.length ? { coveredQuestions } : {}),
+      }
+    : undefined;
 };
 
 export const normalizeReadingV2AutoQuestionTranscript = (
@@ -587,30 +769,12 @@ export const normalizeReadingV2AutoQuestionTranscript = (
     passageNumber,
     groups,
     diagnostics: stringsFrom(data.diagnostics),
+    coverageSummary: coverageSummaryFrom(data.coverageSummary),
   };
 };
 
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
-
-const visibleTextValues = (group: ReadingV2AutoQuestionTranscriptGroup): readonly string[] => [
-  group.sourceInstructionText,
-  ...(group.labeledOptions ?? []).map((option) => option.text),
-  ...(group.sectionReferences ?? []).map((option) => option.text),
-  ...group.questions.map((question) => question.promptText),
-  ...group.questions.flatMap((question) => [
-    ...(question.labeledOptions ?? []).map((option) => option.text),
-    ...(question.sectionReferences ?? []).map((option) => option.text),
-  ]),
-  ...(group.note?.lines ?? []).map((line) => line.text),
-  ...(group.note?.sections ?? []).flatMap((section) => [
-    section.heading,
-    ...(section.lines ?? []).map((line) => line.text),
-  ]),
-  ...(group.table?.rows ?? []).flatMap((row) => row.map((cell) => cell.text)),
-  ...(group.flowchart?.steps ?? []).map((step) => step.text),
-  ...(group.diagram?.targets ?? []).map((target) => target.label),
-].filter((value): value is string => typeof value === 'string' && value.trim().length > 1);
 
 const sourceTextFrom = (input: {
   readonly questionAreaText: string;
@@ -646,7 +810,19 @@ const sourceHasReferenceLabel = (sourceText: string, label: string): boolean => 
   return labelLinePattern.test(sourceText);
 };
 
-const textAppearsInSourceText = (
+const directTextAppearsInSourceText = (
+  sourceText: string,
+  value: string,
+): boolean => {
+  const directNeedle = compact(value);
+  if (!directNeedle || directNeedle.length <= 2) {
+    return true;
+  }
+
+  return compact(sourceText).includes(directNeedle);
+};
+
+const normalizedTextAppearsInSourceText = (
   sourceText: string,
   value: string,
 ): boolean => {
@@ -661,6 +837,18 @@ const textAppearsInSourceText = (
   }
 
   return normalizeReadingV2AutoSourceProofText(sourceText).includes(needle);
+};
+
+const boundedEquivalentText = (left: string, right: string): boolean => {
+  const normalizedLeft = normalizeReadingV2AutoSourceProofText(left);
+  const normalizedRight = normalizeReadingV2AutoSourceProofText(right);
+  if (!normalizedLeft || !normalizedRight) {
+    return true;
+  }
+
+  return normalizedLeft === normalizedRight
+    || normalizedLeft.includes(normalizedRight)
+    || normalizedRight.includes(normalizedLeft);
 };
 
 const numbersInRange = (range: ReadingV2AutoTranscriptQuestionRange): readonly number[] => {
@@ -688,6 +876,134 @@ const hasBank = (group: ReadingV2AutoQuestionTranscriptGroup): boolean =>
   )
   || group.questions.some((question) => Boolean(question.labeledOptions?.length || question.sectionReferences?.length));
 
+export const readingV2AutoQuestionRangeKey = (
+  range: ReadingV2AutoTranscriptQuestionRange,
+): string => `${range.start}-${range.end}`;
+
+export const readingV2AutoTranscriptGroupRangeKeys = (
+  transcript: ReadingV2AutoQuestionTranscript,
+): readonly string[] => transcript.groups.map((group) => readingV2AutoQuestionRangeKey(group.questionRange));
+
+interface SourceProofEntry {
+  readonly exactText?: string;
+  readonly normalizedText?: string;
+  readonly sourceLines?: readonly number[];
+  readonly questionNumber?: number;
+  readonly label: string;
+}
+
+const sourceProofEntriesForGroup = (
+  group: ReadingV2AutoQuestionTranscriptGroup,
+): readonly SourceProofEntry[] => {
+  const requiresBank = groupRequiresBank(group.taskType);
+  return [
+  ...(requiresBank ? (group.labeledOptions ?? []).map((option) => ({
+    label: `group option ${option.label}`,
+    exactText: option.sourceTextExact ?? option.text,
+    normalizedText: option.normalizedText ?? option.text,
+    sourceLines: option.sourceLines,
+    questionNumber: group.questionRange.start,
+  })) : []),
+  ...(requiresBank ? (group.sectionReferences ?? []).map((option) => ({
+    label: `group reference ${option.label}`,
+    exactText: option.sourceTextExact ?? option.text,
+    normalizedText: option.normalizedText ?? option.text,
+    sourceLines: option.sourceLines,
+    questionNumber: group.questionRange.start,
+  })) : []),
+  ...group.questions.map((question) => ({
+    label: `question ${question.number}`,
+    exactText: question.sourceTextExact ?? question.promptText,
+    normalizedText: question.normalizedPromptText ?? question.promptText,
+    sourceLines: question.sourceLines,
+    questionNumber: question.number,
+  })),
+  ...group.questions.flatMap((question) => [
+    ...(requiresBank ? (question.labeledOptions ?? []).map((option) => ({
+      label: `question ${question.number} option ${option.label}`,
+      exactText: option.sourceTextExact ?? option.text,
+      normalizedText: option.normalizedText ?? option.text,
+      sourceLines: option.sourceLines,
+      questionNumber: question.number,
+    })) : []),
+    ...(requiresBank ? (question.sectionReferences ?? []).map((option) => ({
+      label: `question ${question.number} reference ${option.label}`,
+      exactText: option.sourceTextExact ?? option.text,
+      normalizedText: option.normalizedText ?? option.text,
+      sourceLines: option.sourceLines,
+      questionNumber: question.number,
+    })) : []),
+  ]),
+  ...(group.note?.lines ?? []).map((line) => ({
+    label: `note line ${line.questionNumber ?? group.questionRange.start}`,
+    exactText: line.sourceTextExact ?? line.text,
+    normalizedText: line.normalizedText ?? line.text,
+    sourceLines: line.sourceLines,
+    questionNumber: line.questionNumber ?? group.questionRange.start,
+  })),
+  ...(group.note?.sections ?? []).flatMap((section) => [
+    ...(section.heading
+      ? [{
+          label: `note heading ${group.questionRange.start}`,
+          exactText: section.heading,
+          normalizedText: section.heading,
+          questionNumber: group.questionRange.start,
+        }]
+      : []),
+    ...(section.lines ?? []).map((line) => ({
+      label: `note section line ${line.questionNumber ?? group.questionRange.start}`,
+      exactText: line.sourceTextExact ?? line.text,
+      normalizedText: line.normalizedText ?? line.text,
+      sourceLines: line.sourceLines,
+      questionNumber: line.questionNumber ?? group.questionRange.start,
+    })),
+  ]),
+  ...(group.table?.rows ?? []).flatMap((row) =>
+    row.map((cell) => ({
+      label: `table cell ${cell.questionNumber ?? group.questionRange.start}`,
+      exactText: cell.sourceTextExact ?? cell.text,
+      normalizedText: cell.normalizedText ?? cell.text,
+      questionNumber: cell.questionNumber ?? group.questionRange.start,
+    }))),
+  ...(group.flowchart?.steps ?? []).map((step) => ({
+    label: `flowchart step ${step.questionNumber ?? group.questionRange.start}`,
+    exactText: step.sourceTextExact ?? step.text,
+    normalizedText: step.normalizedText ?? step.text,
+    questionNumber: step.questionNumber ?? group.questionRange.start,
+  })),
+  ...(group.diagram?.targets ?? []).map((target) => ({
+    label: `diagram target ${target.questionNumber}`,
+    exactText: target.sourceLabelExact ?? target.label,
+    normalizedText: target.normalizedLabel ?? target.label,
+    questionNumber: target.questionNumber,
+  })),
+];
+};
+
+const blankCountTextsForGroup = (
+  group: ReadingV2AutoQuestionTranscriptGroup,
+): readonly string[] => {
+  if (group.taskType === 'note-completion') {
+    const noteTexts = [
+      ...(group.note?.lines ?? []).map((line) => line.text),
+      ...(group.note?.sections ?? []).flatMap((section) => section.lines?.map((line) => line.text) ?? []),
+    ];
+    return noteTexts.length ? noteTexts : group.questions.map((question) => question.promptText);
+  }
+
+  if (group.taskType === 'table-completion') {
+    const tableTexts = (group.table?.rows ?? []).flatMap((row) => row.map((cell) => cell.text));
+    return tableTexts.length ? tableTexts : group.questions.map((question) => question.promptText);
+  }
+
+  if (group.taskType === 'flowchart-completion') {
+    const flowchartTexts = (group.flowchart?.steps ?? []).map((step) => step.text);
+    return flowchartTexts.length ? flowchartTexts : group.questions.map((question) => question.promptText);
+  }
+
+  return group.questions.map((question) => question.promptText);
+};
+
 export const verifyReadingV2AutoQuestionTranscript = (input: {
   readonly transcript: ReadingV2AutoQuestionTranscript;
   readonly passagePackage: ReadingV2AutoPassagePackage;
@@ -712,7 +1028,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
 
     if (hintType && hintType !== group.taskType) {
       diagnostics.push({
-        code: 'transcript-task-type-conflict',
+        code: 'task-type-conflict',
         severity: 'error',
         message: `Transcript task type ${group.taskType} conflicts with marker hint ${hintType}.`,
         passageNumber: input.passagePackage.passageNumber,
@@ -722,7 +1038,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
 
     if (groupRequiresBank(group.taskType) && !hasBank(group)) {
       diagnostics.push({
-        code: 'transcript-reference-bank-missing',
+        code: 'missing-reference-bank',
         severity: 'error',
         message: `Transcript group ${group.questionRange.start}-${group.questionRange.end} is missing its option/reference bank.`,
         passageNumber: input.passagePackage.passageNumber,
@@ -730,13 +1046,8 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       });
     }
 
-    const groupBlankCount = [
-      ...group.questions.map((question) => question.promptText),
-      ...(group.note?.lines ?? []).map((line) => line.text),
-      ...(group.note?.sections ?? []).flatMap((section) => section.lines?.map((line) => line.text) ?? []),
-      ...(group.table?.rows ?? []).flatMap((row) => row.map((cell) => cell.text)),
-      ...(group.flowchart?.steps ?? []).map((step) => step.text),
-    ].reduce((count, text) => count + countReadingV2AutoCompletionBlanks(text), 0);
+    const groupBlankCount = blankCountTextsForGroup(group)
+      .reduce((count, text) => count + countReadingV2AutoCompletionBlanks(text), 0);
     const expectedGroupQuestions = numbersInRange(group.questionRange).length;
     if (
       ['sentence-completion', 'summary-completion-text', 'summary-completion-list', 'note-completion', 'table-completion', 'flowchart-completion', 'diagram-labeling'].includes(group.taskType)
@@ -744,7 +1055,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       && groupBlankCount !== expectedGroupQuestions
     ) {
       diagnostics.push({
-        code: 'transcript-blank-mismatch',
+        code: 'blank-mismatch',
         severity: 'error',
         message: `Transcript group ${group.questionRange.start}-${group.questionRange.end} has ${groupBlankCount} visible blanks for ${expectedGroupQuestions} questions.`,
         passageNumber: input.passagePackage.passageNumber,
@@ -752,14 +1063,56 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       });
     }
 
-    visibleTextValues(group).forEach((text) => {
-      if (!textAppearsInSourceText(sourceText, text)) {
+    sourceProofEntriesForGroup(group).forEach((entry) => {
+      const sourceEvidence = entry.sourceLines?.length
+        ? entry.sourceLines
+            .map((lineNumber) =>
+              input.passagePackage.questionAreaLines.find((line) => line.lineNumber === lineNumber)?.text
+              ?? input.passagePackage.referenceBankLines.find((line) => line.lineNumber === lineNumber)?.text,
+            )
+            .filter((lineText): lineText is string => typeof lineText === 'string' && lineText.trim().length > 0)
+            .join('\n')
+        : sourceText;
+      const exactText = entry.exactText?.trim();
+      if (!exactText) {
         diagnostics.push({
-          code: 'transcript-source-text-paraphrased',
+          code: 'source-text-exact-missing',
           severity: 'error',
-          message: `Transcript text cannot be proven from the source question area or reference-bank lines: "${text.slice(0, 80)}".`,
+          message: `${entry.label} is missing exact source-proof text.`,
           passageNumber: input.passagePackage.passageNumber,
-          questionNumber: group.questionRange.start,
+          questionNumber: entry.questionNumber ?? group.questionRange.start,
+        });
+        return;
+      }
+
+      if (!directTextAppearsInSourceText(sourceEvidence, exactText)) {
+        if (normalizedTextAppearsInSourceText(sourceEvidence, exactText)) {
+          diagnostics.push({
+            code: 'source-proof-format-mismatch',
+            severity: 'warning',
+            message: `${entry.label} required bounded format equivalence to prove its exact source text.`,
+            passageNumber: input.passagePackage.passageNumber,
+            questionNumber: entry.questionNumber ?? group.questionRange.start,
+          });
+        } else {
+          diagnostics.push({
+            code: 'source-text-exact-missing',
+            severity: 'error',
+            message: `${entry.label} exact source text cannot be proven from the local question-area or reference-bank lines.`,
+            passageNumber: input.passagePackage.passageNumber,
+            questionNumber: entry.questionNumber ?? group.questionRange.start,
+          });
+          return;
+        }
+      }
+
+      if (entry.normalizedText && !boundedEquivalentText(exactText, entry.normalizedText)) {
+        diagnostics.push({
+          code: 'normalized-text-source-drift',
+          severity: 'error',
+          message: `${entry.label} normalized text adds or changes meaning beyond bounded source-format equivalence.`,
+          passageNumber: input.passagePackage.passageNumber,
+          questionNumber: entry.questionNumber ?? group.questionRange.start,
         });
       }
     });
@@ -774,7 +1127,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
 
   duplicates.forEach((questionNumber) => {
     diagnostics.push({
-      code: 'transcript-question-duplicate',
+      code: 'duplicate-question-number',
       severity: 'error',
       message: `Transcript contains duplicate question ${questionNumber}.`,
       passageNumber: input.passagePackage.passageNumber,
@@ -786,7 +1139,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
     .filter((questionNumber) => !seen.has(questionNumber))
     .forEach((questionNumber) => {
       diagnostics.push({
-        code: 'transcript-question-missing',
+        code: 'group-coverage-mismatch',
         severity: 'error',
         message: `Transcript omitted expected question ${questionNumber}.`,
         passageNumber: input.passagePackage.passageNumber,

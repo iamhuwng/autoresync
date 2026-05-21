@@ -4,7 +4,10 @@ import {
   normalizeReadingV2AutoQuestionArea,
   type ReadingV2AutoQuestionAreaNormalizerProvider,
 } from './readingV2AutoQuestionAreaNormalizer.service';
-import type { ReadingV2AutoQuestionTranscript } from './readingV2AutoQuestionTranscript.service';
+import type {
+  ReadingV2AutoQuestionTranscript,
+  ReadingV2AutoTranscriptCoverageSummary,
+} from './readingV2AutoQuestionTranscript.service';
 
 export interface ReadingV2GroqKeySlot {
   readonly index: number;
@@ -34,6 +37,12 @@ export interface ReadingV2GroqPackageFanoutDiagnostic {
 export interface ReadingV2GroqPackageFanoutPackageResult {
   readonly passageNumber: number;
   readonly transcript: ReadingV2AutoQuestionTranscript;
+  readonly prompt: string;
+  readonly promptHash: string;
+  readonly rawStructuredJson: unknown;
+  readonly rawJsonShapeSummary: string;
+  readonly rawGroupRanges: readonly string[];
+  readonly rawCoverageSummary?: ReadingV2AutoTranscriptCoverageSummary;
   readonly preferredKeyIndex?: number;
   readonly keyFingerprint?: string;
   readonly attempts: number;
@@ -114,6 +123,12 @@ const normalizePackageWithSlot = async (
     data: {
       passageNumber: passagePackage.passageNumber,
       transcript: result.data.transcript,
+      prompt: result.data.prompt,
+      promptHash: result.data.promptHash,
+      rawStructuredJson: result.data.rawStructuredJson,
+      rawJsonShapeSummary: result.data.rawJsonShapeSummary,
+      rawGroupRanges: result.data.rawGroupRanges,
+      ...(result.data.rawCoverageSummary ? { rawCoverageSummary: result.data.rawCoverageSummary } : {}),
       preferredKeyIndex: slot?.index,
       keyFingerprint: slot?.fingerprint,
       attempts: 1,

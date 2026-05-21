@@ -5,6 +5,7 @@ import {
   type ReadingV2AutoSourceLedger,
   type ReadingV2AutoSourceLine,
 } from './readingV2AutoImportSourceLedger.service';
+import { normalizeReadingV2AutoSourceProofText } from './readingV2AutoTextGuards.service';
 
 export interface ReadingV2AutoLineIndexLine extends ReadingV2AutoSourceLine {
   readonly trimmedTextHash: string;
@@ -36,6 +37,8 @@ export interface ReadingV2AutoTopologyAnswerKeyRow {
   readonly questionNumber: number;
   readonly answer: string;
   readonly sourceLine: number;
+  readonly sourceTextExact?: string;
+  readonly sourceLineHash?: string;
   readonly alternativeAnswers?: readonly string[];
   readonly uncertaintyCode?: string;
 }
@@ -97,6 +100,14 @@ export interface ReadingV2AutoTopologyMarkerResult {
   readonly diagnostics: readonly ReadingV2AutoTopologyMarkerDiagnostic[];
 }
 
+export type ReadingV2AutoTopologyMarkerRunResult =
+  | { readonly success: true; readonly data: ReadingV2AutoTopologyMarkerResult }
+  | {
+      readonly success: false;
+      readonly error: string;
+      readonly diagnostics?: readonly ReadingV2AutoTopologyMarkerDiagnostic[];
+    };
+
 const TOPOLOGY_MARKER_MAX_OUTPUT_TOKENS = 16_384;
 
 export const READING_V2_AUTO_TOPOLOGY_MARKER_SYSTEM_INSTRUCTION = [
@@ -120,6 +131,90 @@ const hashString = (value: string): string => {
 
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
+
+const canonicalAnswerText = (value: string): string =>
+  compact(value)
+    .replace(/\\([()./|:-])/g, '$1')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s*\|\s*/g, '|')
+    .toLowerCase();
+
+const normalizeAnswerKeySourceProofText = (value: string): string =>
+  normalizeReadingV2AutoSourceProofText(value.replace(/\\([()./|:-])/g, '$1'));
+
+const answerRowMatchFor = (
+  value: string,
+): { readonly questionNumber: number; readonly answerText: string } | null => {
+  const match = compact(value).match(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\\?[\).:\-=])?\s+(.+)$/i);
+  const questionNumber = match?.[1] ? Number(match[1]) : NaN;
+  const answerText = match?.[2]?.trim();
+  if (!Number.isFinite(questionNumber) || questionNumber < 1 || !answerText) {
+    return null;
+  }
+
+  return {
+    questionNumber,
+    answerText,
+  };
+};
+
+const questionNumberMatchesAnswerRow = (value: string, questionNumber: number): boolean =>
+  answerRowMatchFor(value)?.questionNumber === questionNumber;
+
+const answerVariantsFromSourceText = (answerText: string): readonly string[] => {
+  const variants = new Set<string>();
+  const fullAnswer = canonicalAnswerText(answerText);
+  if (fullAnswer) {
+    variants.add(fullAnswer);
+  }
+
+  answerText
+    .split(/\s*(?:\||\/|\bor\b)\s*/i)
+    .map((variant) => canonicalAnswerText(variant))
+    .filter((variant) => variant.length > 0)
+    .forEach((variant) => {
+      variants.add(variant);
+    });
+
+  return [...variants];
+};
+
+const directTextAppearsInSourceLine = (sourceLineText: string, exactText: string): boolean => {
+  const haystack = compact(sourceLineText);
+  const needle = compact(exactText);
+  if (!needle) {
+    return false;
+  }
+
+  return haystack === needle || haystack.includes(needle);
+};
+
+const normalizedTextAppearsInSourceLine = (sourceLineText: string, exactText: string): boolean => {
+  const haystack = normalizeAnswerKeySourceProofText(sourceLineText);
+  const needle = normalizeAnswerKeySourceProofText(exactText);
+  if (!needle) {
+    return false;
+  }
+
+  return haystack === needle || haystack.includes(needle);
+};
+
+const answerRowProvesAnswerSet = (
+  row: ReadingV2AutoTopologyAnswerKeyRow,
+  sourceLineText: string,
+): boolean => {
+  const sourceRow = answerRowMatchFor(sourceLineText);
+  if (!sourceRow || sourceRow.questionNumber !== row.questionNumber) {
+    return false;
+  }
+
+  const sourceVariants = new Set(answerVariantsFromSourceText(sourceRow.answerText));
+  const markerAnswers = [row.answer, ...(row.alternativeAnswers ?? [])]
+    .map((answer) => canonicalAnswerText(answer))
+    .filter((answer) => answer.length > 0);
+
+  return markerAnswers.length > 0 && markerAnswers.every((answer) => sourceVariants.has(answer));
+};
 
 const sourceLinesFor = (normalizedText: string): readonly ReadingV2AutoSourceLine[] => {
   const rawLines = normalizedText ? normalizedText.split('\n') : [];
@@ -158,7 +253,6 @@ const ledgerExpectationsForPrompt = (ledger: ReadingV2AutoSourceLedger): string 
   `expectedPassageCount: ${ledger.passages.length}`,
   `expectedQuestionNumbers: ${formatReadingV2AutoSourceNumberRanges(ledger.questionNumbers) || 'unknown'}`,
   `sourceQuestionRanges: ${ledger.questionRanges.map((range) => `${range.start}-${range.end}`).join(', ') || 'unknown'}`,
-  `visibleAnswerKeyRows: ${ledger.answerKeyRows.length}`,
   `pollutionLines: ${ledger.pollutionMarkers.map((marker) => marker.lineNumber).join(', ') || 'none'}`,
 ].join('\n');
 
@@ -188,7 +282,7 @@ export const buildReadingV2AutoTopologyMarkerPrompt = (
   '    }',
   '  ],',
   '  "answerKeyRows": [',
-  '    { "questionNumber": 1, "answer": "TRUE", "sourceLine": 90, "alternativeAnswers": [], "uncertaintyCode": "" }',
+  '    { "questionNumber": 1, "answer": "TRUE", "sourceLine": 90, "sourceLineHash": "deadbeef", "sourceTextExact": "1 TRUE", "alternativeAnswers": [], "uncertaintyCode": "" }',
   '  ],',
   '  "diagnostics": []',
   '}',
@@ -203,9 +297,11 @@ export const buildReadingV2AutoTopologyMarkerPrompt = (
   '7. Do not collapse split task groups into one group. If a passage has Questions 1-7 and Questions 8-13, return expectedQuestionRange [1, 13], one questionAreaLines span covering both, and two groups.',
   '8. questionAreaLines and group lines must include headings, instructions, options, reference banks, tables, notes, summaries, flowcharts, diagrams, and numbered question lines needed for that task block.',
   '9. passageBodyLines must exclude answer-key and unrelated pollution lines.',
-  '10. Normalize answer-key rows only from visible source answer-key rows. Do not solve answers from the passage.',
-  '11. If a span or answer row is uncertain, keep coordinates conservative and add a short diagnostic code.',
-  '12. passageTitleLines should include the visible READING PASSAGE N heading line when present; passageBodyLines may start at the real passage title/body after heading-only or web-clip noise.',
+  '10. Return one answerKeyRows entry for every visible source question number when answer-key rows are present in the source.',
+  '11. Copy the matching numbered source line hash into sourceLineHash and the exact answer-key row text into sourceTextExact.',
+  '12. You may keep slash-separated alternatives inside answer or split them into alternativeAnswers, but every value must come from the same sourceTextExact row.',
+  '13. If a span or answer row is uncertain, keep coordinates conservative and add a short diagnostic code.',
+  '14. passageTitleLines should include the visible READING PASSAGE N heading line when present; passageBodyLines may start at the real passage title/body after heading-only or web-clip noise.',
   '',
   'Ledger expectations:',
   ledgerExpectationsForPrompt(ledger),
@@ -335,10 +431,19 @@ const normalizeAnswerKeyRow = (value: unknown): ReadingV2AutoTopologyAnswerKeyRo
     return null;
   }
 
+  const sourceTextExact = typeof value.sourceTextExact === 'string' ? value.sourceTextExact.trim() : '';
+  const sourceLineHash = typeof value.sourceLineHash === 'string'
+    ? value.sourceLineHash.trim()
+    : typeof value.lineHash === 'string'
+      ? value.lineHash.trim()
+      : '';
+
   return {
     questionNumber,
     answer,
     sourceLine,
+    ...(sourceTextExact ? { sourceTextExact } : {}),
+    ...(sourceLineHash ? { sourceLineHash } : {}),
     alternativeAnswers: stringsFrom(value.alternativeAnswers ?? value.alternatives),
     ...(typeof value.uncertaintyCode === 'string' && value.uncertaintyCode.trim()
       ? { uncertaintyCode: value.uncertaintyCode.trim() }
@@ -648,13 +753,20 @@ export const validateReadingV2AutoTopologyMarker = (
 
   marker.answerKeyRows.forEach((row) => {
     const sourceLine = lineIndex.lines[row.sourceLine - 1];
-    const answerHash = hashString(`${row.questionNumber}:${row.answer.toLowerCase()}`);
-    const ledgerRow = ledger.answerKeyRows.find((candidate) =>
-      candidate.questionNumber === row.questionNumber
-      && candidate.sourceLine === row.sourceLine
-      && candidate.answerHash === answerHash,
+    const sourceLineText = sourceLine?.text ?? '';
+    const sourceLineHashMatches = !row.sourceLineHash || row.sourceLineHash === sourceLine?.trimmedTextHash;
+    const exactText = row.sourceTextExact?.trim();
+    const exactTextMatches = Boolean(
+      exactText
+      && (
+        directTextAppearsInSourceLine(sourceLineText, exactText)
+        || normalizedTextAppearsInSourceLine(sourceLineText, exactText)
+      ),
     );
-    if (!sourceLine || !ledgerRow) {
+    const exactTextSatisfied = !exactText || exactTextMatches;
+    const questionNumberMatches = questionNumberMatchesAnswerRow(sourceLineText, row.questionNumber);
+    const answerMatches = sourceLine ? answerRowProvesAnswerSet(row, sourceLineText) : false;
+    if (!sourceLine || !sourceLineHashMatches || !exactTextSatisfied || !questionNumberMatches || !answerMatches) {
       diagnostics.push({
         code: 'topology-marker-answer-row-source-mismatch',
         severity: 'error',
@@ -671,7 +783,7 @@ export const validateReadingV2AutoTopologyMarker = (
 export const markReadingV2AutoTopology = async (input: {
   readonly ledger: ReadingV2AutoSourceLedger;
   readonly generator: ReadingV2AutoTopologyMarkerGenerator;
-}): Promise<Result<ReadingV2AutoTopologyMarkerResult>> => {
+}): Promise<ReadingV2AutoTopologyMarkerRunResult> => {
   const lineIndex = buildReadingV2AutoLineIndex(input.ledger);
   const prompt = buildReadingV2AutoTopologyMarkerPrompt(input.ledger, lineIndex);
   const result = await input.generator.generateStructuredJson(prompt, {
@@ -695,6 +807,7 @@ export const markReadingV2AutoTopology = async (input: {
       success: false,
       error: diagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message
         ?? 'Gemini topology marker failed local verification.',
+      diagnostics,
     };
   }
 

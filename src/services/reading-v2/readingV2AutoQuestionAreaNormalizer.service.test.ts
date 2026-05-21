@@ -42,8 +42,17 @@ const transcript = {
     taskType: 'sentence-completion',
     sourceInstructionText: 'Complete the sentence.',
     instructionMeta: { wordLimit: 1 },
-    questions: [{ number: 1, promptText: 'Exact prompt ___.' }],
+    questions: [{
+      number: 1,
+      sourceTextExact: '1 Exact prompt ___.',
+      normalizedPromptText: 'Exact prompt ___.',
+      promptText: 'Exact prompt ___.',
+    }],
   }],
+  coverageSummary: {
+    coveredGroups: ['1-1'],
+    coveredQuestions: [1],
+  },
   diagnostics: [],
 };
 
@@ -53,6 +62,11 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
 
     expect(prompt).toContain('Exact prompt ___.');
     expect(prompt).not.toContain(passagePackage.passageBodyText);
+    expect(prompt).toContain('groupHints are authoritative');
+    expect(prompt).toContain('coverageSummary');
+    expect(prompt).toContain('sourceTextExact');
+    expect(prompt).toContain('normalizedPromptText');
+    expect(prompt).toContain('full visible line context around that blank');
   });
 
   it('passes preferred Groq key slot and normalizes strict transcript JSON', async () => {
@@ -86,6 +100,11 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
     expect(receivedPrompt).not.toContain(passagePackage.passageBodyText);
     if (result.success) {
       expect(result.data.transcript.groups[0]?.taskType).toBe('sentence-completion');
+      expect(result.data.promptHash).toMatch(/^[0-9a-f]{8}$/);
+      expect(result.data.rawStructuredJson).toEqual(transcript);
+      expect(result.data.rawJsonShapeSummary).toContain('groups=1');
+      expect(result.data.rawGroupRanges).toEqual(['1-1']);
+      expect(result.data.rawCoverageSummary?.coveredQuestions).toEqual([1]);
     }
   });
 });

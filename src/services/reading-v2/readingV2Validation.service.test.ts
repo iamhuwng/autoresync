@@ -605,6 +605,41 @@ describe('readingV2Validation.service', () => {
     expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('word limit');
   });
 
+  it('accepts IELTS one-word-and-or-number answers that include one number expression plus one word', () => {
+    const document = fixtureDocument();
+    const [taskGroupId] = Object.keys(document.taskGroups);
+    const [interactionId] = Object.keys(document.interactions);
+    const taskGroup = document.taskGroups[taskGroupId]!;
+    const interaction = document.interactions[interactionId]!;
+    const validDocument: ReadingV2Document = {
+      ...document,
+      taskGroups: {
+        ...document.taskGroups,
+        [taskGroupId]: {
+          ...taskGroup,
+          instructionBlocks: [
+            {
+              id: taskGroup.instructionBlocks[0]!.id,
+              text: 'Choose ONE WORD AND/OR A NUMBER from the passage for each answer.',
+            },
+          ],
+        },
+      },
+      interactions: {
+        ...document.interactions,
+        [interactionId]: {
+          ...interaction,
+          scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['ten times'] },
+        },
+      },
+    };
+
+    const result = validateReadingV2Draft(validDocument);
+
+    expect(result.canPublish).toBe(true);
+    expect(result.blockingIssues).toEqual([]);
+  });
+
   it('blocks note-completion groups that flatten repeated note headings into question text', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['note-completion']) as ReadingV2Document;
     const taskGroup = Object.values(document.taskGroups)[0]!;

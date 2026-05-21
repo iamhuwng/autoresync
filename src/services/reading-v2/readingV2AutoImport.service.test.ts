@@ -53,7 +53,6 @@ const autoPayload = (overrides: Record<string, unknown> = {}) => ({
   diagnostics: [],
   ...overrides,
 });
-
 const rawSourceWithAnswerKey = [
   'READING PASSAGE 1',
   'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
@@ -286,6 +285,97 @@ const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
   generateStructuredJson: vi.fn().mockResolvedValue({ success: true, data }),
 });
 
+const singleSlotQuestionAreaNormalizerFor = (
+  responses: readonly Result<unknown>[],
+) => {
+  let responseIndex = 0;
+  return {
+    getAvailableStructuredJsonKeySlots: async () => [{
+      index: 0,
+      fingerprint: 'groq-slot-0',
+      available: true,
+    }],
+    generateStructuredJson: vi.fn().mockImplementation(() =>
+      Promise.resolve(responses[Math.min(responseIndex++, responses.length - 1)] ?? responses[responses.length - 1]!),
+    ),
+  };
+};
+
+const buildSharedInlineSummaryFixture = () => {
+  const sharedSummaryLine = [
+    'Psychologists have traditionally believed that a personality **14** .......... was impossible',
+    'and that by a **15** .......... the easiest qualities to acquire is **16** .......... around',
+    'different **17** .......... and feel some **18** .......... .',
+  ].join(' ');
+  const raw = [
+    'READING PASSAGE 2',
+    'Synthetic passage body.',
+    '',
+    'Questions 14-18',
+    'Complete the summary below.',
+    'Choose ONE WORD ONLY from the passage for each answer.',
+    sharedSummaryLine,
+    '',
+    'Answers',
+    '14 type',
+    '15 change',
+    '16 openness',
+    '17 situations',
+    '18 empathy',
+  ].join('\n');
+  const sourceLines = raw.split('\n');
+  const lineNumberOf = (lineText: string): number => {
+    const index = sourceLines.findIndex((line) => line === lineText);
+    if (index < 0) {
+      throw new Error(`Missing source line: ${lineText}`);
+    }
+    return index + 1;
+  };
+
+  return {
+    raw,
+    sharedSummaryLine,
+    lineNumberOf,
+    markerData: {
+      packages: [{
+        passageNumber: 2,
+        passageTitleLines: {
+          startLine: lineNumberOf('READING PASSAGE 2'),
+          endLine: lineNumberOf('READING PASSAGE 2'),
+        },
+        passageBodyLines: {
+          startLine: lineNumberOf('READING PASSAGE 2'),
+          endLine: lineNumberOf('Synthetic passage body.'),
+        },
+        questionAreaLines: {
+          startLine: lineNumberOf('Questions 14-18'),
+          endLine: lineNumberOf(sharedSummaryLine),
+        },
+        expectedQuestionRange: { start: 14, end: 18 },
+        groups: [{
+          questionRange: { start: 14, end: 18 },
+          lines: {
+            startLine: lineNumberOf('Questions 14-18'),
+            endLine: lineNumberOf(sharedSummaryLine),
+          },
+          taskTypeHint: 'summary-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [
+        { questionNumber: 14, answer: 'type', sourceLine: lineNumberOf('14 type') },
+        { questionNumber: 15, answer: 'change', sourceLine: lineNumberOf('15 change') },
+        { questionNumber: 16, answer: 'openness', sourceLine: lineNumberOf('16 openness') },
+        { questionNumber: 17, answer: 'situations', sourceLine: lineNumberOf('17 situations') },
+        { questionNumber: 18, answer: 'empathy', sourceLine: lineNumberOf('18 empathy') },
+      ],
+      diagnostics: [],
+    },
+  };
+};
+
 describe('readingV2AutoImport.service', () => {
   it('creates an Auto Gemini import candidate from structured Gemini JSON', async () => {
     const generator = generatorFor(autoPayload());
@@ -295,8 +385,13 @@ describe('readingV2AutoImport.service', () => {
       { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
     );
 
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
     expect(result.success).toBe(true);
-    if (!result.success) return;
     expect(result.provider).toBe('gemini');
     expect(result.model).toBe('gemini-2.5-flash');
     expect(result.candidate.sourceKind).toBe('auto-gemini');
@@ -325,8 +420,10 @@ describe('readingV2AutoImport.service', () => {
       { generator, waitBetweenChunksMs: 0, minInputChars: 10 },
     );
 
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
     expect(result.success).toBe(true);
-    if (!result.success) return;
     expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
     expect(result.candidate.answerKeyText).toBe('1 TRUE\n2 FALSE');
   });
@@ -819,6 +916,45 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
+  it('preserves exact topology marker answer-key diagnostics through auto import', async () => {
+    const markerData = mockedV3MarkerData();
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          ...markerData,
+          answerKeyRows: [
+            { ...markerData.answerKeyRows[0], answer: 'not-on-source-line' },
+            ...markerData.answerKeyRows.slice(1),
+          ],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Mocked V3 exact topology diagnostic' },
+      {
+        generator: markerGenerator,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'topology-marker-answer-row-source-mismatch',
+        severity: 'error',
+        questionNumber: 1,
+      }),
+    ]));
+    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'topology-marker-failed' }),
+    ]));
+  });
+
   it('marks V3 Groq fan-out quota failures with an explicit provider diagnostic', async () => {
     const markerGenerator: ReadingV2AutoStructuredGenerator = {
       generateStructuredJson: vi.fn().mockResolvedValue({
@@ -864,6 +1000,947 @@ describe('readingV2AutoImport.service', () => {
         severity: 'error',
       }),
     ]));
+  });
+
+  it.each([
+    {
+      name: 'missing reference bank',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-1',
+        'Choose the correct letter, A, B, C or D.',
+        '1 which option is correct?',
+        '',
+        'Answers',
+        '1 B',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 which option is correct?') },
+          expectedQuestionRange: { start: 1, end: 1 },
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            lines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 which option is correct?') },
+            taskTypeHint: 'multiple-choice',
+          }],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'B', sourceLine: lineNumberOf('1 B') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [{
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            taskType: 'multiple-choice',
+            sourceInstructionText: 'Choose the correct letter, A, B, C or D.',
+            instructionMeta: { optionLabelRange: 'A-D' },
+            questions: [
+              { number: 1, promptText: '1 which option is correct?' },
+            ],
+          }],
+          coverageSummary: {
+            coveredGroups: ['1-1'],
+            coveredQuestions: [1],
+          },
+          diagnostics: [],
+        },
+      }] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['missing-reference-bank'],
+    },
+    {
+      name: 'omitted expected range',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-4',
+        'Complete the sentences below.',
+        '1 first ___.',
+        '2 second ___.',
+        '3 third ___.',
+        '4 fourth ___.',
+        '',
+        'Answers',
+        '1 alpha',
+        '2 beta',
+        '3 gamma',
+        '4 delta',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-4'), endLine: lineNumberOf('4 fourth ___.') },
+          expectedQuestionRange: { start: 1, end: 4 },
+          groups: [
+            {
+              questionRange: { start: 1, end: 2 },
+              lines: { startLine: lineNumberOf('Questions 1-4'), endLine: lineNumberOf('2 second ___.') },
+              taskTypeHint: 'sentence-completion',
+            },
+            {
+              questionRange: { start: 3, end: 4 },
+              lines: { startLine: lineNumberOf('3 third ___.'), endLine: lineNumberOf('4 fourth ___.') },
+              taskTypeHint: 'mystery-task',
+            },
+          ],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+          { questionNumber: 2, answer: 'beta', sourceLine: lineNumberOf('2 beta') },
+          { questionNumber: 3, answer: 'gamma', sourceLine: lineNumberOf('3 gamma') },
+          { questionNumber: 4, answer: 'delta', sourceLine: lineNumberOf('4 delta') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [
+        {
+          success: true,
+          data: {
+            passageNumber: 1,
+            groups: [{
+              questionRange: { start: 1, end: 2 },
+              taskType: 'sentence-completion',
+              sourceInstructionText: 'Complete the sentences below.',
+              instructionMeta: {},
+              questions: [
+                { number: 1, promptText: '1 first ___.' },
+                { number: 2, promptText: '2 second ___.' },
+              ],
+            }],
+            coverageSummary: {
+              coveredGroups: ['1-2'],
+              coveredQuestions: [1, 2],
+            },
+            diagnostics: [],
+          },
+        },
+        {
+          success: true,
+          data: {
+            passageNumber: 1,
+            groups: [{
+              questionRange: { start: 1, end: 2 },
+              taskType: 'sentence-completion',
+              sourceInstructionText: 'Complete the sentences below.',
+              instructionMeta: {},
+              questions: [
+                { number: 1, promptText: '1 first ___.' },
+                { number: 2, promptText: '2 second ___.' },
+              ],
+            }],
+            coverageSummary: {
+              coveredGroups: ['1-2'],
+              coveredQuestions: [1, 2],
+            },
+            diagnostics: [],
+          },
+        },
+      ] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['groq-output-missing-group', 'group-coverage-mismatch', 'repair-failed'],
+    },
+    {
+      name: 'duplicate numbering',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-2',
+        'Complete the sentences below.',
+        '1 first ___.',
+        '2 second ___.',
+        '',
+        'Answers',
+        '1 alpha',
+        '2 beta',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-2'), endLine: lineNumberOf('2 second ___.') },
+          expectedQuestionRange: { start: 1, end: 2 },
+          groups: [{
+            questionRange: { start: 1, end: 2 },
+            lines: { startLine: lineNumberOf('Questions 1-2'), endLine: lineNumberOf('2 second ___.') },
+            taskTypeHint: 'sentence-completion',
+          }],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+          { questionNumber: 2, answer: 'beta', sourceLine: lineNumberOf('2 beta') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [{
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 2 },
+            taskType: 'sentence-completion',
+            sourceInstructionText: 'Complete the sentences below.',
+            instructionMeta: {},
+            questions: [
+              { number: 1, promptText: '1 first ___.' },
+              { number: 1, promptText: '2 second ___.' },
+            ],
+          }],
+          coverageSummary: {
+            coveredGroups: ['1-2'],
+            coveredQuestions: [1, 1],
+          },
+          diagnostics: [],
+        },
+      }] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['duplicate-question-number', 'group-coverage-mismatch'],
+    },
+    {
+      name: 'malformed transcript',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-1',
+        'Complete the sentence below.',
+        '1 first ___.',
+        '',
+        'Answers',
+        '1 alpha',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 first ___.') },
+          expectedQuestionRange: { start: 1, end: 1 },
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            lines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 first ___.') },
+            taskTypeHint: 'sentence-completion',
+          }],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [{
+        success: true,
+        data: {
+          passageNumber: 1,
+          diagnostics: [],
+        },
+      }] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['groq-package-failed'],
+    },
+    {
+      name: 'provider quota stop',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-1',
+        'Complete the sentence below.',
+        '1 first ___.',
+        '',
+        'Answers',
+        '1 alpha',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 first ___.') },
+          expectedQuestionRange: { start: 1, end: 1 },
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            lines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('1 first ___.') },
+            taskTypeHint: 'sentence-completion',
+          }],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [{
+        success: false,
+        error: 'All Groq API keys exhausted or rate-limited',
+      }] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['provider-quota-exhausted', 'groq-package-failed'],
+    },
+    {
+      name: 'source text hallucination',
+      raw: [
+        'READING PASSAGE 1',
+        'Synthetic passage text.',
+        '',
+        'Questions 1-1',
+        'Complete the sentence below.',
+        'Source sentence without printed question marker ___.',
+        '',
+        'Answers',
+        '1 alpha',
+      ].join('\n'),
+      buildMarkerData: (lineNumberOf: (lineText: string) => number) => ({
+        packages: [{
+          passageNumber: 1,
+          passageTitleLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('READING PASSAGE 1') },
+          passageBodyLines: { startLine: lineNumberOf('READING PASSAGE 1'), endLine: lineNumberOf('Synthetic passage text.') },
+          questionAreaLines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('Source sentence without printed question marker ___.') },
+          expectedQuestionRange: { start: 1, end: 1 },
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            lines: { startLine: lineNumberOf('Questions 1-1'), endLine: lineNumberOf('Source sentence without printed question marker ___.') },
+            taskTypeHint: 'sentence-completion',
+          }],
+          referenceBankLineSpans: [],
+          excludedLineSpans: [],
+          uncertaintyDiagnostics: [],
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+        ],
+        diagnostics: [],
+      }),
+      responses: [{
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            taskType: 'sentence-completion',
+            sourceInstructionText: 'Complete the sentence below.',
+            instructionMeta: {},
+            questions: [{
+              number: 1,
+              sourceTextExact: '1 source sentence ___.',
+              normalizedPromptText: 'source sentence with invented meaning ___.',
+              promptText: 'source sentence with invented meaning ___.',
+            }],
+          }],
+          coverageSummary: {
+            coveredGroups: ['1-1'],
+            coveredQuestions: [1],
+          },
+          diagnostics: [],
+        },
+      }] as const satisfies readonly Result<unknown>[],
+      expectedCodes: ['source-text-exact-missing'],
+    },
+  ])('covers V3 negative matrix: $name', async ({ raw, buildMarkerData, responses, expectedCodes }) => {
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator = generatorFor(buildMarkerData(lineNumberOf));
+    const questionAreaNormalizer = singleSlotQuestionAreaNormalizerFor(responses);
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: `Mocked V3 negative ${expectedCodes.join('-')}` },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.diagnostics).toEqual(expect.arrayContaining(
+      expectedCodes.map((code) => expect.objectContaining({ code })),
+    ));
+  });
+
+  it('repairs unique-line completion prompts from local source when provider crops visible context', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'Synthetic passage body.',
+      '',
+      'Questions 1-3',
+      'Complete the sentences below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      '– movement: **1** ___________ more unpredictably',
+      '– size of fires: **2** ___________ greater on average than two decades ago',
+      '– rainfall: **3** ___________ average',
+      '',
+      'Answers',
+      '1 spread',
+      '2 tenfold',
+      '3 below',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 1,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('READING PASSAGE 1'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('Synthetic passage body.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 1-3'),
+              endLine: lineNumberOf('– rainfall: **3** ___________ average'),
+            },
+            expectedQuestionRange: { start: 1, end: 3 },
+            groups: [{
+              questionRange: { start: 1, end: 3 },
+              lines: {
+                startLine: lineNumberOf('Questions 1-3'),
+                endLine: lineNumberOf('– rainfall: **3** ___________ average'),
+              },
+              taskTypeHint: 'sentence-completion',
+            }],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 1, answer: 'spread', sourceLine: lineNumberOf('1 spread') },
+            { questionNumber: 2, answer: 'tenfold', sourceLine: lineNumberOf('2 tenfold') },
+            { questionNumber: 3, answer: 'below', sourceLine: lineNumberOf('3 below') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [{
+        index: 0,
+        fingerprint: 'groq-slot-0',
+        available: true,
+      }],
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 3 },
+            taskType: 'sentence-completion',
+            sourceInstructionText: 'Complete the sentences below.',
+            instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY' },
+            questions: [
+              {
+                number: 1,
+                sourceTextExact: '**1** ___________ more unpredictably',
+                normalizedPromptText: '1 more unpredictably',
+                promptText: '1 more unpredictably',
+                sourceLines: [lineNumberOf('– movement: **1** ___________ more unpredictably')],
+              },
+              {
+                number: 2,
+                sourceTextExact: '**2** ___________ greater on average than two decades ago',
+                normalizedPromptText: '2 greater on average than two decades ago',
+                promptText: '2 greater on average than two decades ago',
+                sourceLines: [lineNumberOf('– size of fires: **2** ___________ greater on average than two decades ago')],
+              },
+              {
+                number: 3,
+                sourceTextExact: '**3** ___________ average',
+                normalizedPromptText: '3 average',
+                promptText: '3 average',
+                sourceLines: [lineNumberOf('– rainfall: **3** ___________ average')],
+              },
+            ],
+          }],
+          coverageSummary: {
+            coveredGroups: ['1-3'],
+            coveredQuestions: [1, 2, 3],
+          },
+          diagnostics: [],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 source-line context repair fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 1 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 2 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 3 }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'normalized-text-source-drift' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const interactions = Object.values(normalized.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const validation = validateReadingV2Draft(normalized.document);
+
+    expect(interactions[0]?.promptText).toContain('movement: ___ more unpredictably');
+    expect(interactions[1]?.promptText).toContain('size of fires: ___ greater on average than two decades ago');
+    expect(interactions[2]?.promptText).toContain('rainfall: ___ average');
+    expect(validation.blockingIssues).toEqual([]);
+  });
+
+  it('realigns drifted TFNG source-line anchors before final source proof', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'Synthetic passage body.',
+      '',
+      'Questions 7-10',
+      'Do the following statements agree with the information given in Reading Passage?',
+      '',
+      '*In boxes **7-10** on your answer sheet, write*',
+      '',
+      '**TRUE** if the statement agrees with the information',
+      '',
+      '**FALSE** if the statement contradicts the information',
+      '',
+      '**NOT** **GIVEN** if there is no information on this',
+      '',
+      '**7** First exact judgement statement.',
+      '',
+      '**8** Second exact judgement statement.',
+      '',
+      '**9** Third exact judgement statement.',
+      '',
+      '**10** Fourth exact judgement statement.',
+      '',
+      'Answers',
+      '7 TRUE',
+      '8 FALSE',
+      '9 TRUE',
+      '10 NOT GIVEN',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string, occurrence = 1): number => {
+      let seen = 0;
+      for (let index = 0; index < sourceLines.length; index += 1) {
+        if (sourceLines[index] === lineText) {
+          seen += 1;
+          if (seen === occurrence) {
+            return index + 1;
+          }
+        }
+      }
+      throw new Error(`Missing source line: ${lineText}#${occurrence}`);
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 1,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('READING PASSAGE 1'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('Synthetic passage body.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 7-10'),
+              endLine: lineNumberOf('**10** Fourth exact judgement statement.'),
+            },
+            expectedQuestionRange: { start: 7, end: 10 },
+            groups: [{
+              questionRange: { start: 7, end: 10 },
+              lines: {
+                startLine: lineNumberOf('Questions 7-10'),
+                endLine: lineNumberOf('**10** Fourth exact judgement statement.'),
+              },
+              taskTypeHint: 'true-false-not-given',
+            }],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 7, answer: 'TRUE', sourceLine: lineNumberOf('7 TRUE') },
+            { questionNumber: 8, answer: 'FALSE', sourceLine: lineNumberOf('8 FALSE') },
+            { questionNumber: 9, answer: 'TRUE', sourceLine: lineNumberOf('9 TRUE') },
+            { questionNumber: 10, answer: 'NOT GIVEN', sourceLine: lineNumberOf('10 NOT GIVEN') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [{
+        index: 0,
+        fingerprint: 'groq-slot-0',
+        available: true,
+      }],
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 7, end: 10 },
+            taskType: 'true-false-not-given',
+            sourceInstructionText: '*In boxes **7-10** on your answer sheet, write*',
+            instructionMeta: { vocabulary: 'TFNG' },
+            questions: [
+              {
+                number: 7,
+                sourceTextExact: '**7** First exact judgement statement.',
+                normalizedPromptText: '7 First exact judgement statement.',
+                promptText: '7 First exact judgement statement.',
+                sourceLines: [lineNumberOf('**7** First exact judgement statement.')],
+              },
+              {
+                number: 8,
+                sourceTextExact: '**8** Second exact judgement statement.',
+                normalizedPromptText: '8 Second exact judgement statement.',
+                promptText: '8 Second exact judgement statement.',
+                sourceLines: [lineNumberOf('**8** Second exact judgement statement.')],
+              },
+              {
+                number: 9,
+                sourceTextExact: '**9** Third exact judgement statement.',
+                normalizedPromptText: '9 Third exact judgement statement.',
+                promptText: '9 Third exact judgement statement.',
+                sourceLines: [lineNumberOf('', 9)],
+              },
+              {
+                number: 10,
+                sourceTextExact: '**10** Fourth exact judgement statement.',
+                normalizedPromptText: '10 Fourth exact judgement statement.',
+                promptText: '10 Fourth exact judgement statement.',
+                sourceLines: [lineNumberOf('', 10)],
+              },
+            ],
+          }],
+          coverageSummary: {
+            coveredGroups: ['7-10'],
+            coveredQuestions: [7, 8, 9, 10],
+          },
+          diagnostics: [],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 TFNG source-line drift fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 9 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 10 }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-text-exact-missing' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+  });
+
+  it('collapses mojibake ellipsis runs into one blank marker during source-line canonicalization', async () => {
+    const blankRun = 'â€¦â€¦â€¦â€¦â€¦.';
+    const raw = [
+      'READING PASSAGE 1',
+      'Synthetic passage body.',
+      '',
+      'Questions 1-3',
+      'Complete the notes below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      `â€“ movement: **1** ${blankRun} more unpredictably`,
+      `â€“ size of fires: **2** ${blankRun} greater on average than two decades ago`,
+      `â€“ rainfall: **3** ${blankRun} average`,
+      '',
+      'Answers',
+      '1 spread',
+      '2 tenfold',
+      '3 below',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 1,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('READING PASSAGE 1'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('Synthetic passage body.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 1-3'),
+              endLine: lineNumberOf(`â€“ rainfall: **3** ${blankRun} average`),
+            },
+            expectedQuestionRange: { start: 1, end: 3 },
+            groups: [{
+              questionRange: { start: 1, end: 3 },
+              lines: {
+                startLine: lineNumberOf('Questions 1-3'),
+                endLine: lineNumberOf(`â€“ rainfall: **3** ${blankRun} average`),
+              },
+              taskTypeHint: 'note-completion',
+            }],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 1, answer: 'spread', sourceLine: lineNumberOf('1 spread') },
+            { questionNumber: 2, answer: 'tenfold', sourceLine: lineNumberOf('2 tenfold') },
+            { questionNumber: 3, answer: 'below', sourceLine: lineNumberOf('3 below') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [{
+        index: 0,
+        fingerprint: 'groq-slot-0',
+        available: true,
+      }],
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 3 },
+            taskType: 'note-completion',
+            sourceInstructionText: 'Complete the notes below.',
+            instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY' },
+            questions: [
+              {
+                number: 1,
+                sourceTextExact: `**1** ${blankRun} more unpredictably`,
+                normalizedPromptText: '1 more unpredictably',
+                promptText: '1 more unpredictably',
+                sourceLines: [lineNumberOf(`â€“ movement: **1** ${blankRun} more unpredictably`)],
+              },
+              {
+                number: 2,
+                sourceTextExact: `**2** ${blankRun} greater on average than two decades ago`,
+                normalizedPromptText: '2 greater on average than two decades ago',
+                promptText: '2 greater on average than two decades ago',
+                sourceLines: [lineNumberOf(`â€“ size of fires: **2** ${blankRun} greater on average than two decades ago`)],
+              },
+              {
+                number: 3,
+                sourceTextExact: `**3** ${blankRun} average`,
+                normalizedPromptText: '3 average',
+                promptText: '3 average',
+                sourceLines: [lineNumberOf(`â€“ rainfall: **3** ${blankRun} average`)],
+              },
+            ],
+            note: {
+              sections: [{
+                questionNumbers: [1, 2, 3],
+                lines: [
+                  {
+                    sourceTextExact: `â€“ movement: **1** ${blankRun} more unpredictably`,
+                    normalizedText: 'â€“ movement: 1 more unpredictably',
+                    text: 'â€“ movement: 1 more unpredictably',
+                    questionNumber: 1,
+                  },
+                  {
+                    sourceTextExact: `â€“ size of fires: **2** ${blankRun} greater on average than two decades ago`,
+                    normalizedText: 'â€“ size of fires: 2 greater on average than two decades ago',
+                    text: 'â€“ size of fires: 2 greater on average than two decades ago',
+                    questionNumber: 2,
+                  },
+                  {
+                    sourceTextExact: `â€“ rainfall: **3** ${blankRun} average`,
+                    normalizedText: 'â€“ rainfall: 3 average',
+                    text: 'â€“ rainfall: 3 average',
+                    questionNumber: 3,
+                  },
+                ],
+              }],
+            },
+          }],
+          coverageSummary: {
+            coveredGroups: ['1-3'],
+            coveredQuestions: [1, 2, 3],
+          },
+          diagnostics: [],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 mojibake blank canonicalization fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 1 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 2 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 3 }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'blank-mismatch' }),
+      expect.objectContaining({ code: 'normalized-text-source-drift' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const interactions = Object.values(normalized.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const validation = validateReadingV2Draft(normalized.document);
+
+    expect(interactions[0]?.promptText).toContain('movement: ___ more unpredictably');
+    expect(interactions[1]?.promptText).toContain('size of fires: ___ greater on average than two decades ago');
+    expect(interactions[2]?.promptText).toContain('rainfall: ___ average');
+    expect(validation.blockingIssues).toEqual([]);
+  });
+
+  it('scopes shared inline summary lines to one blank per question during source-line canonicalization', async () => {
+    const fixture = buildSharedInlineSummaryFixture();
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: fixture.markerData,
+      }),
+    };
+    const sharedLineNumber = fixture.lineNumberOf(fixture.sharedSummaryLine);
+    const questionAreaNormalizer = singleSlotQuestionAreaNormalizerFor([{
+      success: true,
+      data: {
+        passageNumber: 2,
+        groups: [{
+          questionRange: { start: 14, end: 18 },
+          taskType: 'summary-completion-text',
+          sourceInstructionText: 'Complete the summary below.',
+          instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY', summaryAnswerMode: 'text' },
+          questions: [14, 15, 16, 17, 18].map((questionNumber) => ({
+            number: questionNumber,
+            sourceTextExact: fixture.sharedSummaryLine,
+            normalizedPromptText: fixture.sharedSummaryLine,
+            promptText: fixture.sharedSummaryLine,
+            sourceLines: [sharedLineNumber],
+          })),
+        }],
+        coverageSummary: {
+          coveredGroups: ['14-18'],
+          coveredQuestions: [14, 15, 16, 17, 18],
+        },
+        diagnostics: [],
+      },
+    }]);
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: fixture.raw, sourceName: 'Mocked V3 shared-line summary canonicalization fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 14 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 15 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 16 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 17 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 18 }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'blank-mismatch' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const interactions = Object.values(normalized.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const validation = validateReadingV2Draft(normalized.document);
+
+    expect(interactions).toHaveLength(5);
+    expect(interactions.map((interaction) => (interaction.promptText.match(/___/g) ?? []).length)).toEqual([1, 1, 1, 1, 1]);
+    expect(interactions[0]?.promptText).toContain('personality ___ was impossible and that by a');
+    expect(interactions[1]?.promptText).toContain('by a ___ the easiest qualities to acquire');
+    expect(interactions[2]?.promptText).toContain('acquire is ___ around different');
+    expect(interactions[3]?.promptText).toContain('different ___ and feel some');
+    expect(interactions[4]?.promptText).toContain('feel some ___');
+    expect(validation.blockingIssues).toEqual([]);
   });
 
   it('runs the mocked V3 marker-package-Groq-transcript pipeline when Groq returns option-bank aliases', async () => {
@@ -1163,6 +2240,160 @@ describe('readingV2AutoImport.service', () => {
     expect(Object.values(normalized.document.interactions)).toHaveLength(3);
   });
 
+  it('backfills markdown-emphasized reference banks from package source lines in V3', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'Local passage body stays local.',
+      '',
+      'Questions 1-2',
+      'Look at the following statements and the list of people below.',
+      'Match each statement with the correct person, A-B.',
+      '**1** Exact matching-features prompt ___.',
+      '**2** Another exact matching-features prompt ___.',
+      '**A** Christopher Peterson',
+      '**B** David Fajgenbaum',
+      '',
+      'Answers',
+      '1 A',
+      '2 B',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const bankSpan = {
+      startLine: lineNumberOf('**A** Christopher Peterson'),
+      endLine: lineNumberOf('**B** David Fajgenbaum'),
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 1,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('READING PASSAGE 1'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 1'),
+              endLine: lineNumberOf('Local passage body stays local.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 1-2'),
+              endLine: lineNumberOf('**2** Another exact matching-features prompt ___.'),
+            },
+            expectedQuestionRange: { start: 1, end: 2 },
+            groups: [{
+              questionRange: { start: 1, end: 2 },
+              lines: {
+                startLine: lineNumberOf('Questions 1-2'),
+                endLine: lineNumberOf('**2** Another exact matching-features prompt ___.'),
+              },
+              taskTypeHint: 'matching-features',
+              referenceBankLines: [bankSpan],
+            }],
+            referenceBankLineSpans: [bankSpan],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            {
+              questionNumber: 1,
+              answer: 'A',
+              sourceLine: lineNumberOf('1 A'),
+            },
+            {
+              questionNumber: 2,
+              answer: 'B',
+              sourceLine: lineNumberOf('2 B'),
+            },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const normalizerCalls: number[] = [];
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [0].map((index) => ({
+        index,
+        fingerprint: `groq-slot-${index}`,
+        available: true,
+      })),
+      generateStructuredJson: vi.fn().mockImplementation((prompt: string, options?: { preferredKeyIndex?: number }) => {
+        normalizerCalls.push(options?.preferredKeyIndex ?? -1);
+        expect(prompt).toContain('REFERENCE_BANK_LINES_ONLY:');
+        expect(prompt).toContain('**A** Christopher Peterson');
+        expect(prompt).toContain('**B** David Fajgenbaum');
+        return Promise.resolve({
+          success: true,
+          data: {
+            passageNumber: 1,
+            groups: [{
+              questionRange: { start: 1, end: 2 },
+              taskType: 'matching-features',
+              sourceInstructionText: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-B.',
+              instructionMeta: {
+                optionLabelRange: 'A-B',
+                referenceLabelRange: 'A-B',
+              },
+              questions: [
+                {
+                  number: 1,
+                  promptText: '1 Exact matching-features prompt ___.',
+                },
+                {
+                  number: 2,
+                  promptText: '2 Another exact matching-features prompt ___.',
+                },
+              ],
+            }],
+            diagnostics: [],
+          },
+        });
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 markdown reference-bank fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
+    expect(normalizerCalls).toEqual([0]);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'missing-reference-bank' }),
+      expect.objectContaining({ code: 'source-text-exact-missing' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+    const matchingFeaturesGroup = Object.values(normalized.document.taskGroups)
+      .find((group) => group.officialTaskType === 'matching-features');
+    const matchingFeaturesOptionSetId = matchingFeaturesGroup?.optionSetRefs[0];
+    const matchingFeaturesOptionSet = matchingFeaturesOptionSetId
+      ? normalized.document.optionSets[matchingFeaturesOptionSetId]
+      : undefined;
+    expect(matchingFeaturesOptionSet?.options.map((option) => option.label)).toEqual(['A', 'B']);
+    expect(matchingFeaturesOptionSet?.options.map((option) => option.text)).toEqual([
+      'Christopher Peterson',
+      'David Fajgenbaum',
+    ]);
+  });
+
   it('enriches V3 transcripts from bare body labels when spans are missing', async () => {
     const raw = [
       'READING PASSAGE 1',
@@ -1293,7 +2524,10 @@ describe('readingV2AutoImport.service', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'transcript-reference-bank-missing' }),
+      expect.objectContaining({ code: 'missing-reference-bank' }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'bank-ownership-heuristic-used', stage: 'repaired-transcript' }),
     ]));
 
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
@@ -1464,8 +2698,162 @@ describe('readingV2AutoImport.service', () => {
       }),
     };
 
+    const events: { event: string; payload: Record<string, unknown> }[] = [];
     const result = await generateReadingV2AutoImportCandidate(
       { rawTestText: raw, sourceName: 'Mocked V3 repaired-group fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+        onDiagnosticEvent: (event, payload) => {
+          events.push({ event, payload });
+        },
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'group-coverage-mismatch' }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-output-missing-group', stage: 'raw-groq' }),
+      expect.objectContaining({ code: 'repair-applied', stage: 'repaired-transcript' }),
+    ]));
+    expect(result.candidate.evidence.join('\n')).toContain('Auto V3 replay P1');
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'v3_package_replay',
+        payload: expect.objectContaining({
+          schemaVersion: 'reading-v2-auto-v3-groq-source-proof-v1',
+          passageNumber: 1,
+        }),
+      }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+    expect(Object.values(normalized.document.interactions)).toHaveLength(4);
+  });
+
+  it('repairs a missing shared-line summary group from question-area lines with one blank per question', async () => {
+    const sharedSummaryLine = [
+      'Psychologists have traditionally believed that a personality **14** .......... was impossible',
+      'and that by a **15** .......... the easiest qualities to acquire is **16** .......... around',
+      'different **17** .......... and feel some **18** .......... .',
+    ].join(' ');
+    const raw = [
+      'READING PASSAGE 2',
+      'Synthetic passage body.',
+      '',
+      'Questions 12-13',
+      'Complete the sentences below.',
+      '12 first sentence ___.',
+      '13 second sentence ___.',
+      '',
+      'Questions 14-18',
+      'Complete the summary below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      sharedSummaryLine,
+      '',
+      'Answers',
+      '12 alpha',
+      '13 beta',
+      '14 type',
+      '15 change',
+      '16 openness',
+      '17 situations',
+      '18 empathy',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 2,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('READING PASSAGE 2'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('Synthetic passage body.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 12-13'),
+              endLine: lineNumberOf(sharedSummaryLine),
+            },
+            expectedQuestionRange: { start: 12, end: 18 },
+            groups: [
+              {
+                questionRange: { start: 12, end: 13 },
+                lines: {
+                  startLine: lineNumberOf('Questions 12-13'),
+                  endLine: lineNumberOf('13 second sentence ___.'),
+                },
+                taskTypeHint: 'sentence-completion',
+              },
+              {
+                questionRange: { start: 14, end: 18 },
+                lines: {
+                  startLine: lineNumberOf('Questions 14-18'),
+                  endLine: lineNumberOf(sharedSummaryLine),
+                },
+                taskTypeHint: 'summary-completion',
+              },
+            ],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 12, answer: 'alpha', sourceLine: lineNumberOf('12 alpha') },
+            { questionNumber: 13, answer: 'beta', sourceLine: lineNumberOf('13 beta') },
+            { questionNumber: 14, answer: 'type', sourceLine: lineNumberOf('14 type') },
+            { questionNumber: 15, answer: 'change', sourceLine: lineNumberOf('15 change') },
+            { questionNumber: 16, answer: 'openness', sourceLine: lineNumberOf('16 openness') },
+            { questionNumber: 17, answer: 'situations', sourceLine: lineNumberOf('17 situations') },
+            { questionNumber: 18, answer: 'empathy', sourceLine: lineNumberOf('18 empathy') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = singleSlotQuestionAreaNormalizerFor([{
+      success: true,
+      data: {
+        passageNumber: 2,
+        groups: [{
+          questionRange: { start: 12, end: 13 },
+          taskType: 'sentence-completion',
+          sourceInstructionText: 'Complete the sentences below.',
+          instructionMeta: {},
+          questions: [
+            { number: 12, promptText: '12 first sentence ___.' },
+            { number: 13, promptText: '13 second sentence ___.' },
+          ],
+        }],
+        coverageSummary: {
+          coveredGroups: ['12-13'],
+          coveredQuestions: [12, 13],
+        },
+        diagnostics: [],
+      },
+    }]);
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 shared-line summary repair fixture' },
       {
         generator: markerGenerator,
         questionAreaNormalizer,
@@ -1475,16 +2863,145 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-output-missing-group', questionNumber: 14 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 14, stage: 'repaired-transcript' }),
+    ]));
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'transcript-question-missing' }),
+      expect.objectContaining({ code: 'repair-skipped' }),
+      expect.objectContaining({ code: 'blank-mismatch' }),
     ]));
 
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
-    assertValidReadingV2CanonicalDocument(normalized.document);
-    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
-    expect(Object.values(normalized.document.interactions)).toHaveLength(4);
+    const interactions = Object.values(normalized.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const validation = validateReadingV2Draft(normalized.document);
+
+    expect(interactions).toHaveLength(7);
+    expect(interactions.slice(2).map((interaction) => (interaction.promptText.match(/___/g) ?? []).length)).toEqual([1, 1, 1, 1, 1]);
+    expect(validation.blockingIssues).toEqual([]);
+  });
+
+  it('captures raw prompt/provider payload only when local debug opt-in is enabled', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'Synthetic passage body.',
+      '',
+      'Questions 1-1',
+      'Complete the sentence below.',
+      '1 Exact prompt ___.',
+      '',
+      'Answers',
+      '1 alpha',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerData = {
+      packages: [{
+        passageNumber: 1,
+        passageTitleLines: {
+          startLine: lineNumberOf('READING PASSAGE 1'),
+          endLine: lineNumberOf('READING PASSAGE 1'),
+        },
+        passageBodyLines: {
+          startLine: lineNumberOf('READING PASSAGE 1'),
+          endLine: lineNumberOf('Synthetic passage body.'),
+        },
+        questionAreaLines: {
+          startLine: lineNumberOf('Questions 1-1'),
+          endLine: lineNumberOf('1 Exact prompt ___.'),
+        },
+        expectedQuestionRange: { start: 1, end: 1 },
+        groups: [{
+          questionRange: { start: 1, end: 1 },
+          lines: {
+            startLine: lineNumberOf('Questions 1-1'),
+            endLine: lineNumberOf('1 Exact prompt ___.'),
+          },
+          taskTypeHint: 'sentence-completion',
+        }],
+        referenceBankLineSpans: [],
+        excludedLineSpans: [],
+        uncertaintyDiagnostics: [],
+      }],
+      answerKeyRows: [
+        { questionNumber: 1, answer: 'alpha', sourceLine: lineNumberOf('1 alpha') },
+      ],
+      diagnostics: [],
+    };
+    const transcriptPayload = {
+      passageNumber: 1,
+      groups: [{
+        questionRange: { start: 1, end: 1 },
+        taskType: 'sentence-completion',
+        sourceInstructionText: 'Complete the sentence below.',
+        instructionMeta: {},
+        questions: [{
+          number: 1,
+          sourceTextExact: '1 Exact prompt ___.',
+          normalizedPromptText: 'Exact prompt ___.',
+          promptText: 'Exact prompt ___.',
+        }],
+      }],
+      coverageSummary: {
+        coveredGroups: ['1-1'],
+        coveredQuestions: [1],
+      },
+      diagnostics: [],
+    };
+    const runCapture = async (captureRawProviderDebug: boolean) => {
+      const events: { event: string; payload: Record<string, unknown> }[] = [];
+      const result = await generateReadingV2AutoImportCandidate(
+        { rawTestText: raw, sourceName: 'Mocked V3 local debug capture fixture' },
+        {
+          generator: generatorFor(markerData),
+          questionAreaNormalizer: singleSlotQuestionAreaNormalizerFor([{
+            success: true,
+            data: transcriptPayload,
+          }]),
+          forceV3Pipeline: true,
+          waitBetweenChunksMs: 0,
+          minInputChars: 10,
+          captureRawProviderDebug,
+          onDiagnosticEvent: (event, payload) => {
+            events.push({ event, payload });
+          },
+        },
+      );
+
+      expect(result.success).toBe(true);
+      return events;
+    };
+
+    const defaultEvents = await runCapture(false);
+    expect(defaultEvents.some((entry) => entry.event === 'v3_package_debug_capture')).toBe(false);
+
+    const debugEvents = await runCapture(true);
+    expect(debugEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'v3_package_debug_capture',
+        payload: expect.objectContaining({
+          stage: 'raw-groq',
+          passageNumber: 1,
+          prompt: expect.stringContaining('READING_V2_AUTO_V3_PASSAGE_PACKAGE 1'),
+          providerPayload: expect.objectContaining({
+            passageNumber: 1,
+            coverageSummary: expect.objectContaining({
+              coveredGroups: ['1-1'],
+            }),
+          }),
+        }),
+      }),
+    ]));
   });
 
   it('uses Gemini line hints to restore omitted Groq groups and prove escaped completion blanks', async () => {
@@ -1506,7 +3023,7 @@ describe('readingV2AutoImport.service', () => {
       '**17** a mention of a technology used to locate areas most in need of intervention',
       '',
       'Questions 18-22',
-      'Complete the sentences below.',
+      'Complete the summary below.',
       'Choose ONE WORD ONLY from the passage for each answer.',
       'The stormwater-management programme has involved the installation of efficient **18** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_.',
       'The construction of **19** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ was the first stage of a project.',
@@ -1559,7 +3076,7 @@ describe('readingV2AutoImport.service', () => {
                   startLine: lineNumberOf('Questions 14-17'),
                   endLine: lineNumberOf('**17** a mention of a technology used to locate areas most in need of intervention'),
                 },
-                taskTypeHint: 'matching-information',
+                taskTypeHint: 'paragraph-matching',
               },
               {
                 questionRange: { start: 18, end: 22 },
@@ -1567,7 +3084,7 @@ describe('readingV2AutoImport.service', () => {
                   startLine: lineNumberOf('Questions 18-22'),
                   endLine: lineNumberOf('A project has increased the number of **22** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ on the city streets.'),
                 },
-                taskTypeHint: 'sentence-completion',
+                taskTypeHint: 'summary-completion',
               },
             ],
             referenceBankLineSpans: [],
@@ -1601,9 +3118,9 @@ describe('readingV2AutoImport.service', () => {
           passageNumber: 2,
           groups: [{
             questionRange: { start: 18, end: 22 },
-            taskType: 'sentence-completion',
+            taskType: 'summary-completion-text',
             sourceInstructionText: [
-              'Complete the sentences below.',
+              'Complete the summary below.',
               'Choose ONE WORD ONLY from the passage for each answer.',
             ].join('\n'),
             instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY' },
@@ -1649,8 +3166,12 @@ describe('readingV2AutoImport.service', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'groq-transcript-failed' }),
-      expect.objectContaining({ code: 'transcript-question-missing' }),
+      expect.objectContaining({ code: 'group-coverage-mismatch' }),
+      expect.objectContaining({ code: 'repair-failed' }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-output-missing-group', stage: 'raw-groq' }),
+      expect.objectContaining({ code: 'repair-applied' }),
     ]));
 
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
@@ -1666,6 +3187,195 @@ describe('readingV2AutoImport.service', () => {
     expect(matchingInfoGroup?.instructionBlocks.map((block) => block.text).join('\n'))
       .toContain('A-F');
     expect(matchingInfoOptionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+  });
+
+  it('does not silently lose Q27-31 or Q37-40 when Groq omits those hinted groups', async () => {
+    const raw = [
+      'READING PASSAGE 3',
+      'A Forest paragraph text.',
+      'B River paragraph text.',
+      'C Housing paragraph text.',
+      'D Cooling paragraph text.',
+      'E Mapping paragraph text.',
+      '',
+      'Questions 27-31',
+      'Reading Passage 3 has five paragraphs, A-E.',
+      'Which paragraph contains the following information?',
+      '**27** a reference to a forest-based solution',
+      '**28** a detail about river planning',
+      '**29** a mention of new housing',
+      '**30** a description of urban cooling',
+      '**31** a note about mapping technology',
+      '',
+      'Questions 32-36',
+      'Complete the sentences below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      '**32** City planners installed ___ near the canal.',
+      '**33** Engineers studied ___ before construction.',
+      '**34** Residents planted ___ beside the road.',
+      '**35** Officials monitored ___ after the storm.',
+      '**36** Students recorded ___ in field notebooks.',
+      '',
+      'Questions 37-40',
+      'Complete the summary below.',
+      'Choose ONE WORD ONLY from the passage for each answer.',
+      '**37** The final report highlighted ___ as the main risk.',
+      '**38** Volunteers collected ___ from the flooded area.',
+      '**39** Designers proposed ___ for future shelters.',
+      '**40** Teachers discussed ___ during the workshop.',
+      '',
+      'Answers',
+      '27 A',
+      '28 B',
+      '29 C',
+      '30 D',
+      '31 E',
+      '32 pumps',
+      '33 clay',
+      '34 trees',
+      '35 levels',
+      '36 notes',
+      '37 heat',
+      '38 samples',
+      '39 roofs',
+      '40 safety',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 3,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 3'),
+              endLine: lineNumberOf('READING PASSAGE 3'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 3'),
+              endLine: lineNumberOf('E Mapping paragraph text.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 27-31'),
+              endLine: lineNumberOf('**40** Teachers discussed ___ during the workshop.'),
+            },
+            expectedQuestionRange: { start: 27, end: 40 },
+            groups: [
+              {
+                questionRange: { start: 27, end: 31 },
+                lines: {
+                  startLine: lineNumberOf('Questions 27-31'),
+                  endLine: lineNumberOf('**31** a note about mapping technology'),
+                },
+                taskTypeHint: 'paragraph-matching',
+              },
+              {
+                questionRange: { start: 32, end: 36 },
+                lines: {
+                  startLine: lineNumberOf('Questions 32-36'),
+                  endLine: lineNumberOf('**36** Students recorded ___ in field notebooks.'),
+                },
+                taskTypeHint: 'sentence-completion',
+              },
+              {
+                questionRange: { start: 37, end: 40 },
+                lines: {
+                  startLine: lineNumberOf('Questions 37-40'),
+                  endLine: lineNumberOf('**40** Teachers discussed ___ during the workshop.'),
+                },
+                taskTypeHint: 'summary-completion',
+              },
+            ],
+            referenceBankLineSpans: [],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 27, answer: 'A', sourceLine: lineNumberOf('27 A') },
+            { questionNumber: 28, answer: 'B', sourceLine: lineNumberOf('28 B') },
+            { questionNumber: 29, answer: 'C', sourceLine: lineNumberOf('29 C') },
+            { questionNumber: 30, answer: 'D', sourceLine: lineNumberOf('30 D') },
+            { questionNumber: 31, answer: 'E', sourceLine: lineNumberOf('31 E') },
+            { questionNumber: 32, answer: 'pumps', sourceLine: lineNumberOf('32 pumps') },
+            { questionNumber: 33, answer: 'clay', sourceLine: lineNumberOf('33 clay') },
+            { questionNumber: 34, answer: 'trees', sourceLine: lineNumberOf('34 trees') },
+            { questionNumber: 35, answer: 'levels', sourceLine: lineNumberOf('35 levels') },
+            { questionNumber: 36, answer: 'notes', sourceLine: lineNumberOf('36 notes') },
+            { questionNumber: 37, answer: 'heat', sourceLine: lineNumberOf('37 heat') },
+            { questionNumber: 38, answer: 'samples', sourceLine: lineNumberOf('38 samples') },
+            { questionNumber: 39, answer: 'roofs', sourceLine: lineNumberOf('39 roofs') },
+            { questionNumber: 40, answer: 'safety', sourceLine: lineNumberOf('40 safety') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = {
+      getAvailableStructuredJsonKeySlots: async () => [0].map((index) => ({
+        index,
+        fingerprint: `groq-slot-${index}`,
+        available: true,
+      })),
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passageNumber: 3,
+          groups: [{
+            questionRange: { start: 32, end: 36 },
+            taskType: 'sentence-completion',
+            sourceInstructionText: [
+              'Complete the sentences below.',
+              'Choose ONE WORD ONLY from the passage for each answer.',
+            ].join('\n'),
+            instructionMeta: { wordLimit: 1, wordLimitText: 'ONE WORD ONLY' },
+            questions: [
+              { number: 32, promptText: '32 City planners installed ___ near the canal.' },
+              { number: 33, promptText: '33 Engineers studied ___ before construction.' },
+              { number: 34, promptText: '34 Residents planted ___ beside the road.' },
+              { number: 35, promptText: '35 Officials monitored ___ after the storm.' },
+              { number: 36, promptText: '36 Students recorded ___ in field notebooks.' },
+            ],
+          }],
+          diagnostics: [],
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 distant-range coverage fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'group-coverage-mismatch' }),
+      expect.objectContaining({ code: 'repair-failed' }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-output-missing-group', questionNumber: 27 }),
+      expect.objectContaining({ code: 'groq-output-missing-group', questionNumber: 37 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 27 }),
+      expect.objectContaining({ code: 'repair-applied', questionNumber: 37 }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+    expect(Object.values(normalized.document.interactions)).toHaveLength(14);
   });
 
   it('normalizes live V3 judgement answer-key labels to the source task vocabulary', async () => {

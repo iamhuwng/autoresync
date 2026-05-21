@@ -38,9 +38,47 @@ const fullSource = [
   answerLines(1, 40),
 ].join('\n\n');
 
+const missingBankSource = [
+  '# Synthetic Missing Bank',
+  'READING PASSAGE 1',
+  'Paragraph A text.',
+  'Paragraph B text.',
+  'Paragraph C text.',
+  '',
+  'Questions 1-2',
+  'Reading Passage 1 has three paragraphs, A-C.',
+  'Which paragraph contains the following information?',
+  '1 a reference to forests',
+  '2 a reference to rivers',
+  '',
+  'Answers',
+  '1 A',
+  '2 B',
+].join('\n');
+
+const blankMismatchSource = [
+  '# Synthetic Blank Mismatch',
+  'READING PASSAGE 1',
+  'Paragraph A text.',
+  '',
+  'Questions 3-3',
+  'Complete the sentence below.',
+  '3 one ___ two ___.',
+  '',
+  'Answers',
+  '3 rope',
+].join('\n');
+
 const makeRoot = async (): Promise<string> => {
   const root = await mkdtemp(path.join(tmpdir(), 'reading-v2-harness-'));
   await writeFile(path.join(root, 'synthetic-full-test.md'), fullSource, 'utf8');
+  return root;
+};
+
+const makeRootWithNegativeFixtures = async (): Promise<string> => {
+  const root = await makeRoot();
+  await writeFile(path.join(root, 'synthetic-missing-bank.md'), missingBankSource, 'utf8');
+  await writeFile(path.join(root, 'synthetic-blank-mismatch.md'), blankMismatchSource, 'utf8');
   return root;
 };
 
@@ -117,6 +155,10 @@ describe('reading-v2-clippings-harness', () => {
       accepted: 1,
       generatedInteractionCount: 40,
       boundAnswerCount: 40,
+      sourceProofMismatchCount: 0,
+      groupCoverageMismatchCount: 0,
+      repairOutcomeCount: 0,
+      bankHeuristicUsageCount: 0,
     });
     expect(report.representatives).toEqual(expect.arrayContaining([
       expect.objectContaining({ tag: 'clean-full-test', questionCount: 40, answerKeyRowCount: 40 }),
@@ -146,6 +188,10 @@ describe('reading-v2-clippings-harness', () => {
       markerDiagnosticCount: 0,
       packageDiagnosticCount: 0,
       transcriptDiagnosticCount: 0,
+      sourceProofMismatchCount: 0,
+      groupCoverageMismatchCount: 0,
+      repairOutcomeCount: 0,
+      bankHeuristicUsageCount: 0,
     });
     expect(report.items[0]).toEqual(expect.objectContaining({
       v3Stage: 'assembled',
@@ -155,6 +201,42 @@ describe('reading-v2-clippings-harness', () => {
     }));
     expect(JSON.stringify(report)).not.toContain('Synthetic harness passage');
     expect(JSON.stringify(report)).not.toContain('"answerKeyText"');
+  });
+
+  it('promotes harness coverage from positive-only to positive-plus-negative transcript variants', async () => {
+    const root = await makeRootWithNegativeFixtures();
+    const report = await buildReport({
+      root,
+      out: path.join(root, 'report.json'),
+      mode: 'groq-transcript-mocked',
+      allowLiveGemini: false,
+      allowLiveV3Providers: false,
+      liveLimit: 1,
+      liveTags: ['clean-full-test', 'known-difficult'],
+    });
+
+    expect(report.summary).toMatchObject({
+      totalFilesScanned: 3,
+      supportedFullTests: 1,
+      accepted: 1,
+      rejected: 2,
+    });
+    expect(report.summary.transcriptDiagnosticCount).toBeGreaterThan(0);
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'synthetic-missing-bank.md',
+        transcriptDiagnosticCodes: expect.arrayContaining(['missing-reference-bank']),
+        status: 'rejected',
+      }),
+      expect.objectContaining({
+        path: 'synthetic-blank-mismatch.md',
+        transcriptDiagnosticCodes: expect.arrayContaining(['blank-mismatch']),
+        status: 'rejected',
+      }),
+    ]));
+    expect(report.representatives).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tag: 'known-difficult' }),
+    ]));
   });
 
   it('builds a no-content provider preflight with safe Groq fan-out evidence', async () => {

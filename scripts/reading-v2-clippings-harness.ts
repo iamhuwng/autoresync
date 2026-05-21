@@ -795,6 +795,16 @@ const scanFile = async (filePath: string, root: string, mode: HarnessMode): Prom
 const summarize = (items: readonly HarnessItem[]) => {
   const count = (predicate: (item: HarnessItem) => boolean): number =>
     items.filter(predicate).length;
+  const diagnosticCountFor = (codes: readonly string[], family: 'source-proof' | 'group-coverage' | 'repair' | 'bank-heuristic'): number =>
+    codes.filter((code) => (
+      family === 'source-proof'
+        ? ['source-proof-format-mismatch', 'source-text-exact-missing', 'normalized-text-source-drift'].includes(code)
+        : family === 'group-coverage'
+          ? code === 'group-coverage-mismatch'
+          : family === 'repair'
+            ? ['repair-applied', 'repair-skipped', 'repair-failed', 'source-repair-succeeded', 'source-repair-failed'].includes(code)
+            : code === 'bank-ownership-heuristic-used'
+    )).length;
 
   return {
     totalFilesScanned: items.length,
@@ -811,6 +821,10 @@ const summarize = (items: readonly HarnessItem[]) => {
     markerDiagnosticCount: items.reduce((total, item) => total + item.markerDiagnosticCodes.length, 0),
     packageDiagnosticCount: items.reduce((total, item) => total + item.packageDiagnosticCodes.length, 0),
     transcriptDiagnosticCount: items.reduce((total, item) => total + item.transcriptDiagnosticCodes.length, 0),
+    sourceProofMismatchCount: items.reduce((total, item) => total + diagnosticCountFor(item.transcriptDiagnosticCodes, 'source-proof'), 0),
+    groupCoverageMismatchCount: items.reduce((total, item) => total + diagnosticCountFor(item.transcriptDiagnosticCodes, 'group-coverage'), 0),
+    repairOutcomeCount: items.reduce((total, item) => total + diagnosticCountFor(item.transcriptDiagnosticCodes, 'repair'), 0),
+    bankHeuristicUsageCount: items.reduce((total, item) => total + diagnosticCountFor(item.transcriptDiagnosticCodes, 'bank-heuristic'), 0),
   };
 };
 
@@ -849,7 +863,7 @@ const statusFromLiveResult = (
     return 'rejected';
   }
 
-  if (diagnosticCodes.includes('source-repair-succeeded')) {
+  if (diagnosticCodes.includes('source-repair-succeeded') || diagnosticCodes.includes('repair-applied')) {
     return 'repaired';
   }
 

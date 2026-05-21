@@ -44,7 +44,12 @@ const packageFor = (
 
 const bankFor = (taskType: ReadingV2CanonicalTaskType) => {
   if (taskType === 'multiple-choice' || taskType === 'multiple-select' || taskType === 'summary-completion-list') {
-    return { labeledOptions: [{ label: 'A', text: 'Option A' }, { label: 'B', text: 'Option B' }] };
+    return {
+      labeledOptions: [
+        { label: 'A', sourceTextExact: 'A Option A', normalizedText: 'Option A', text: 'Option A' },
+        { label: 'B', sourceTextExact: 'B Option B', normalizedText: 'Option B', text: 'Option B' },
+      ],
+    };
   }
 
   if (
@@ -53,7 +58,12 @@ const bankFor = (taskType: ReadingV2CanonicalTaskType) => {
     || taskType === 'matching-features'
     || taskType === 'matching-sentence-endings'
   ) {
-    return { sectionReferences: [{ label: 'i', text: 'Heading i' }, { label: 'ii', text: 'Heading ii' }] };
+    return {
+      sectionReferences: [
+        { label: 'i', sourceTextExact: 'i Heading i', normalizedText: 'Heading i', text: 'Heading i' },
+        { label: 'ii', sourceTextExact: 'ii Heading ii', normalizedText: 'Heading ii', text: 'Heading ii' },
+      ],
+    };
   }
 
   return {};
@@ -74,6 +84,8 @@ const transcriptFor = (
     ...bankFor(taskType),
     questions: [{
       number: 1,
+      sourceTextExact: `1 Exact ${taskType} prompt ___.`,
+      normalizedPromptText: `Exact ${taskType} prompt ___.`,
       promptText: `Exact ${taskType} prompt ___.`,
     }],
     ...overrides,
@@ -108,11 +120,22 @@ describe('readingV2AutoQuestionTranscript.service', () => {
         questionRange: [1, 1],
         taskType: 'sentence-completion',
         instructionMeta: { wordLimit: 1 },
-        questions: [{ number: 1, promptText: 'Exact sentence-completion prompt ___.' }],
+        questions: [{
+          number: 1,
+          sourceTextExact: '**1** Exact sentence-completion prompt ___.',
+          normalizedPromptText: 'Exact sentence-completion prompt ___.',
+          promptText: 'Exact sentence-completion prompt ___.',
+        }],
       }],
+      coverageSummary: {
+        coveredGroups: ['1-1'],
+        coveredQuestions: [1],
+      },
     });
 
     expect(transcript?.groups[0]?.taskType).toBe('sentence-completion');
+    expect(transcript?.groups[0]?.questions[0]?.sourceTextExact).toContain('Exact sentence-completion prompt');
+    expect(transcript?.coverageSummary?.coveredGroups).toEqual(['1-1']);
   });
 
   it('accepts option-bank aliases without dropping empty primary arrays', () => {
@@ -140,8 +163,8 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     expect(transcript).not.toBeNull();
     if (!transcript) return;
     expect(transcript.groups[0]?.labeledOptions).toEqual([
-      { label: 'A', text: 'Option A' },
-      { label: 'B', text: 'Option B' },
+      expect.objectContaining({ label: 'A', text: 'Option A' }),
+      expect.objectContaining({ label: 'B', text: 'Option B' }),
     ]);
 
     const diagnostics = verifyReadingV2AutoQuestionTranscript({
@@ -177,8 +200,8 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     expect(transcript).not.toBeNull();
     if (!transcript) return;
     expect(transcript.groups[0]?.sectionReferences).toEqual([
-      { label: 'i', text: 'Heading i' },
-      { label: 'ii', text: 'Heading ii' },
+      expect.objectContaining({ label: 'i', text: 'Heading i' }),
+      expect.objectContaining({ label: 'ii', text: 'Heading ii' }),
     ]);
 
     const diagnostics = verifyReadingV2AutoQuestionTranscript({
@@ -217,6 +240,69 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('accepts referenceBankLines aliases for matching-features groups', () => {
+    const transcript = normalizeReadingV2AutoQuestionTranscript({
+      passageNumber: 1,
+      groups: [{
+        questionRange: [1, 1],
+        taskType: 'matching-features',
+        sourceInstructionText: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-B.',
+        instructionMeta: {
+          optionLabelRange: 'A-B',
+          referenceLabelRange: 'A-B',
+        },
+        sectionReferences: [],
+        referenceBankLines: [
+          {
+            label: 'A',
+            sourceTextExact: '**A** Christopher Peterson',
+            normalizedText: 'Christopher Peterson',
+            text: 'Christopher Peterson',
+            sourceLines: [10],
+          },
+          {
+            label: 'B',
+            sourceTextExact: '**B** David Fajgenbaum',
+            normalizedText: 'David Fajgenbaum',
+            text: 'David Fajgenbaum',
+            sourceLines: [11],
+          },
+        ],
+        questions: [{
+          number: 1,
+          sourceTextExact: '**1** Exact matching-features prompt ___.',
+          normalizedPromptText: 'Exact matching-features prompt ___.',
+          promptText: 'Exact matching-features prompt ___.',
+        }],
+      }],
+    });
+
+    expect(transcript).not.toBeNull();
+    if (!transcript) return;
+    expect(transcript.groups[0]?.sectionReferences).toEqual([
+      expect.objectContaining({ label: 'A', text: 'Christopher Peterson' }),
+      expect.objectContaining({ label: 'B', text: 'David Fajgenbaum' }),
+    ]);
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage: {
+        ...packageFor('matching-features'),
+        questionAreaText: [
+          'Questions 1-1',
+          'Look at the following statements and the list of people below. Match each statement with the correct person, A-B.',
+          '**1** Exact matching-features prompt ___.',
+        ].join('\n'),
+        referenceBankLines: [
+          { lineNumber: 10, text: '**A** Christopher Peterson', trimmedTextHash: 'bank-a' },
+          { lineNumber: 11, text: '**B** David Fajgenbaum', trimmedTextHash: 'bank-b' },
+        ],
+      },
+    });
+
+    expect(diagnostics).toEqual([]);
+  });
+
   it('accepts generic paragraph aliases when the source proves the label range', () => {
     const passagePackage = {
       ...packageFor('matching-information'),
@@ -230,12 +316,12 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     };
     const transcript = transcriptFor('matching-information', {
       sectionReferences: [
-        { label: 'A', text: 'Paragraph A' },
-        { label: 'B', text: 'Paragraph B' },
-        { label: 'C', text: 'Paragraph C' },
-        { label: 'D', text: 'Paragraph D' },
-        { label: 'E', text: 'Paragraph E' },
-        { label: 'F', text: 'Paragraph F' },
+        { label: 'A', sourceTextExact: 'A', normalizedText: 'Paragraph A', text: 'Paragraph A' },
+        { label: 'B', sourceTextExact: 'B', normalizedText: 'Paragraph B', text: 'Paragraph B' },
+        { label: 'C', sourceTextExact: 'C', normalizedText: 'Paragraph C', text: 'Paragraph C' },
+        { label: 'D', sourceTextExact: 'D', normalizedText: 'Paragraph D', text: 'Paragraph D' },
+        { label: 'E', sourceTextExact: 'E', normalizedText: 'Paragraph E', text: 'Paragraph E' },
+        { label: 'F', sourceTextExact: 'F', normalizedText: 'Paragraph F', text: 'Paragraph F' },
       ],
     });
 
@@ -244,7 +330,7 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       passagePackage,
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-source-text-paraphrased');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('normalized-text-source-drift');
   });
 
   it('accepts matching-information reference ranges without explicit section references', () => {
@@ -264,18 +350,178 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       },
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-reference-bank-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('missing-reference-bank');
+  });
+
+  it('normalizes matching-information option label ranges into reference ranges for passage-section groups', () => {
+    const transcript = normalizeReadingV2AutoQuestionTranscript({
+      passageNumber: 1,
+      groups: [{
+        questionRange: [1, 1],
+        taskType: 'matching-information',
+        sourceInstructionText: 'Reading Passage 2 has eight sections, A-H. Which section contains the following information?',
+        instructionMeta: {
+          optionLabelRange: 'A-H',
+        },
+        questions: [{
+          number: 1,
+          sourceTextExact: '**1** Exact matching-information prompt ___.',
+          normalizedPromptText: 'Exact matching-information prompt ___.',
+          promptText: 'Exact matching-information prompt ___.',
+        }],
+      }],
+      coverageSummary: {
+        coveredGroups: ['1-1'],
+        coveredQuestions: [1],
+      },
+    });
+
+    expect(transcript).not.toBeNull();
+    if (!transcript) return;
+    expect(transcript.groups[0]?.instructionMeta.referenceLabelRange).toBe('A-H');
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage: {
+        ...packageFor('matching-information'),
+        questionAreaText: [
+          'Questions 1-1',
+          'Reading Passage 2 has eight sections, A-H.',
+          'Which section contains the following information?',
+          '1 Exact matching-information prompt ___.',
+        ].join('\n'),
+      },
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('missing-reference-bank');
+  });
+
+  it('accepts mojibake quote drift in sentence-ending reference banks via bounded source proof', () => {
+    const passagePackage = {
+      ...packageFor('matching-sentence-endings'),
+      referenceBankLines: [
+        {
+          lineNumber: 10,
+          text: '**G** Dolloâ€™s findings and the convictions held by Lombroso.',
+          trimmedTextHash: 'ref-g',
+        },
+      ],
+    };
+    const transcript = transcriptFor('matching-sentence-endings', {
+      sectionReferences: [
+        {
+          label: 'G',
+          sourceTextExact: '**G** Dollo’s findings and the convictions held by Lombroso.',
+          text: 'Dollo’s findings and the convictions held by Lombroso.',
+          sourceLines: [10],
+        },
+      ],
+    });
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage,
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('source-text-exact-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('source-proof-format-mismatch');
+  });
+
+  it.each([
+    {
+      taskType: 'true-false-not-given' as const,
+      sourceInstructionText: [
+        'Do the following statements agree with the information given in Reading Passage 1?',
+        'TRUE if the statement is true',
+        'FALSE if the statement is false',
+        'NOT GIVEN if the information is not given',
+      ].join(' '),
+      sourceQuestionLines: [
+        '1 Synthetic statement one.',
+        '2 Synthetic statement two.',
+      ],
+      providerOptions: [
+        { label: 'TRUE', sourceTextExact: '**TRUE**', normalizedText: 'TRUE', text: 'TRUE' },
+        { label: 'FALSE', sourceTextExact: '**FALSE**', normalizedText: 'FALSE', text: 'FALSE' },
+        { label: 'NOT GIVEN', sourceTextExact: '**NOT GIVEN**', normalizedText: 'NOT GIVEN', text: 'NOT GIVEN' },
+      ],
+    },
+    {
+      taskType: 'yes-no-not-given' as const,
+      sourceInstructionText: [
+        'Do the following statements agree with the claims of the writer in Reading Passage 1?',
+        'YES if the statement agrees with the claims of the writer',
+        'NO if the statement contradicts the claims of the writer',
+        'NOT GIVEN if it is impossible to say what the writer thinks about this',
+      ].join(' '),
+      sourceQuestionLines: [
+        '1 Synthetic claim one.',
+        '2 Synthetic claim two.',
+      ],
+      providerOptions: [
+        { label: 'YES', sourceTextExact: '**YES**', normalizedText: 'YES', text: 'YES' },
+        { label: 'NO', sourceTextExact: '**NO**', normalizedText: 'NO', text: 'NO' },
+        { label: 'NOT GIVEN', sourceTextExact: '**NOT GIVEN**', normalizedText: 'NOT GIVEN', text: 'NOT GIVEN' },
+      ],
+    },
+  ])('ignores stray provider option arrays for $taskType source proof', ({ taskType, sourceInstructionText, sourceQuestionLines, providerOptions }) => {
+    const transcript: ReadingV2AutoQuestionTranscript = {
+      passageNumber: 1,
+      groups: [{
+        questionRange: { start: 1, end: 2 },
+        taskType,
+        sourceInstructionText,
+        instructionMeta: {},
+        labeledOptions: providerOptions,
+        questions: sourceQuestionLines.map((line, index) => ({
+          number: index + 1,
+          sourceTextExact: line,
+          normalizedPromptText: line.replace(/^\d+\s+/, ''),
+          promptText: line.replace(/^\d+\s+/, ''),
+        })),
+      }],
+      diagnostics: [],
+    };
+
+    const diagnostics = verifyReadingV2AutoQuestionTranscript({
+      transcript,
+      passagePackage: {
+        ...packageFor(taskType),
+        expectedQuestionRange: { start: 1, end: 2 },
+        questionAreaText: [
+          'Questions 1-2',
+          sourceInstructionText,
+          ...sourceQuestionLines,
+        ].join('\n'),
+        groupHints: [{
+          questionRange: { start: 1, end: 2 },
+          lines: { startLine: 2, endLine: 7 },
+          taskTypeHint: taskType,
+        }],
+        answerKeyRows: [
+          { questionNumber: 1, answer: 'answer1', sourceLine: 10 },
+          { questionNumber: 2, answer: 'answer2', sourceLine: 11 },
+        ],
+      },
+    });
+
+    expect(diagnostics).toEqual([]);
   });
 
   it('rejects paraphrased visible question text', () => {
     const diagnostics = verifyReadingV2AutoQuestionTranscript({
       transcript: transcriptFor('sentence-completion', {
-        questions: [{ number: 1, promptText: 'Changed sentence prompt ___.' }],
+        questions: [{
+          number: 1,
+          sourceTextExact: '1 Exact sentence-completion prompt ___.',
+          normalizedPromptText: 'Changed sentence prompt ___.',
+          promptText: 'Changed sentence prompt ___.',
+        }],
       }),
       passagePackage: packageFor('sentence-completion'),
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-source-text-paraphrased');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('normalized-text-source-drift');
   });
 
   it('proves IELTS markdown blanks after stripping printed question numbers and emphasis marks', () => {
@@ -300,15 +546,35 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       questionRange: { start: 1, end: 2 },
       sourceInstructionText: 'Complete the notes below.* Choose **ONE WORD ONLY** from the passage for each answer',
       questions: [
-        { number: 1, promptText: 'studied art, then worked as a ___________ in various places in the USA' },
-        { number: 2, promptText: 'created drawings using ___________ which were exhibited in New York City' },
+        {
+          number: 1,
+          sourceTextExact: '- studied art, then worked as a **1** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ in various places in the USA',
+          normalizedPromptText: 'studied art, then worked as a ___________ in various places in the USA',
+          promptText: 'studied art, then worked as a ___________ in various places in the USA',
+        },
+        {
+          number: 2,
+          sourceTextExact: '- created drawings using **2** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ which were exhibited in New York City',
+          normalizedPromptText: 'created drawings using ___________ which were exhibited in New York City',
+          promptText: 'created drawings using ___________ which were exhibited in New York City',
+        },
       ],
       note: {
         sections: [{
           heading: 'The life and work of Georgia O’Keeffe',
           lines: [
-            { questionNumber: 1, text: 'studied art, then worked as a ___________ in various places in the USA' },
-            { questionNumber: 2, text: 'created drawings using ___________ which were exhibited in New York City' },
+            {
+              questionNumber: 1,
+              sourceTextExact: '- studied art, then worked as a **1** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ in various places in the USA',
+              normalizedText: 'studied art, then worked as a ___________ in various places in the USA',
+              text: 'studied art, then worked as a ___________ in various places in the USA',
+            },
+            {
+              questionNumber: 2,
+              sourceTextExact: '- created drawings using **2** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_ which were exhibited in New York City',
+              normalizedText: 'created drawings using ___________ which were exhibited in New York City',
+              text: 'created drawings using ___________ which were exhibited in New York City',
+            },
           ],
         }],
       },
@@ -316,7 +582,8 @@ describe('readingV2AutoQuestionTranscript.service', () => {
 
     const diagnostics = verifyReadingV2AutoQuestionTranscript({ transcript, passagePackage });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('transcript-source-text-paraphrased');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('source-text-exact-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('normalized-text-source-drift');
   });
 
   it('rejects missing expected questions', () => {
@@ -330,7 +597,7 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       passagePackage,
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-question-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('group-coverage-mismatch');
   });
 
   it('blocks task type conflicts against marker hints', () => {
@@ -339,7 +606,7 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       passagePackage: packageFor('sentence-completion'),
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-task-type-conflict');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('task-type-conflict');
   });
 
   it('blocks missing option/reference banks', () => {
@@ -348,7 +615,7 @@ describe('readingV2AutoQuestionTranscript.service', () => {
       passagePackage: packageFor('matching-headings'),
     });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-reference-bank-missing');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('missing-reference-bank');
   });
 
   it('blocks blank-count mismatches', () => {
@@ -370,6 +637,6 @@ describe('readingV2AutoQuestionTranscript.service', () => {
     });
     const diagnostics = verifyReadingV2AutoQuestionTranscript({ transcript, passagePackage });
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('transcript-blank-mismatch');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('blank-mismatch');
   });
 });

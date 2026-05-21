@@ -51,6 +51,25 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     expect(ledger.issues.map((issue) => issue.code)).not.toContain('source-answer-key-missing');
   });
 
+  it('keeps short slash answer-key rows bindable without treating slash as the alternative separator', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        questionLines(1, 2),
+        'Answers',
+        '1 spread',
+        '2\\. 10/ ten times',
+      ].join('\n\n'),
+      sourceName: 'slash-answer-key.md',
+    });
+
+    expect(ledger.answerKeyRows.map((row) => row.questionNumber)).toEqual([1, 2]);
+    expect(ledger.answerKeyRows[1]).toMatchObject({
+      questionNumber: 2,
+    });
+    expect(ledger.answerKeyRows[1]?.normalizedAnswerHash).toBeDefined();
+  });
+
   it('detects bold markdown question ranges with unicode and mojibake dashes', () => {
     const enDash = '\u2013';
     const mojibakeDash = '\u00e2\u20ac\u201c';
@@ -151,6 +170,65 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     expect(JSON.stringify(ledger.referenceBanks)).not.toContain('Hidden source heading');
     expect(JSON.stringify(ledger.referenceBanks)).not.toContain('Hidden Person');
     expect(JSON.stringify(ledger.referenceBanks)).not.toContain('Hidden option');
+  });
+
+  it('prefers sentence-ending bank ownership over generic choose-the-correct-letter wording', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        'Questions 13-14',
+        'Choose the correct letter, A-C.',
+        '13 Synthetic sentence stem one',
+        '14 Synthetic sentence stem two',
+        'List of endings below.',
+        'A Hidden ending one',
+        'B Hidden ending two',
+        'C Hidden ending three',
+        'Answers',
+        answerRows(1, 14),
+      ].join('\n\n'),
+      sourceName: 'matching-endings-task-type.md',
+    });
+
+    const issues = verifyReadingV2AutoPayloadAgainstLedger({
+      answerKeyText: answerRows(1, 14),
+      materials: [
+        {
+          passageNumber: 1,
+          passages: [{ content: 'Synthetic passage content with enough text.' }],
+          sectionInstructions: [
+            {
+              questionRange: { start: 13, end: 14 },
+              taskType: 'matching-sentence-endings',
+              optionLabelRange: 'A-C',
+            },
+          ],
+          questions: [{ questionNumber: 13 }, { questionNumber: 14 }],
+        },
+      ],
+    }, ledger);
+
+    expect(issues.map((issue) => issue.code)).not.toContain('source-instruction-task-type-mismatch');
+
+    const mismatchedIssues = verifyReadingV2AutoPayloadAgainstLedger({
+      answerKeyText: answerRows(1, 14),
+      materials: [
+        {
+          passageNumber: 1,
+          passages: [{ content: 'Synthetic passage content with enough text.' }],
+          sectionInstructions: [
+            {
+              questionRange: { start: 13, end: 14 },
+              taskType: 'multiple-choice',
+              optionLabelRange: 'A-C',
+            },
+          ],
+          questions: [{ questionNumber: 13 }, { questionNumber: 14 }],
+        },
+      ],
+    }, ledger);
+
+    expect(mismatchedIssues.map((issue) => issue.code)).toContain('source-instruction-task-type-mismatch');
   });
 
   it('verifies missing Gemini question ranges before Studio handoff', () => {

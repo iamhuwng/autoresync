@@ -1,4 +1,4 @@
-const COMPLETION_BLANK_PATTERN_SOURCE = String.raw`(?:\\_){3,}|_{3,}|(?:\\\.){3,}|\.{3,}|\u2026|\u00e2\u20ac\u00a6|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}`;
+const COMPLETION_BLANK_PATTERN_SOURCE = String.raw`(?:\\_){3,}|_{3,}|(?:\\\.){3,}|\.{3,}|(?:\u2026)+(?:\.)*|(?:\u00e2\u20ac\u00a6)+(?:\.)*|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}`;
 const QUESTION_LINE_DECORATION_SOURCE = String.raw`\s*(?:(?:[-*]|\u2022|\u25cf)\s*)?`;
 
 export const READING_V2_AUTO_COMPLETION_BLANK_PATTERN = new RegExp(COMPLETION_BLANK_PATTERN_SOURCE, 'i');
@@ -6,6 +6,14 @@ const READING_V2_AUTO_COMPLETION_BLANK_GLOBAL_PATTERN = new RegExp(COMPLETION_BL
 
 const compactText = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
+
+const normalizeReadingV2AutoEncodingArtifacts = (value: string): string =>
+  value
+    .replace(/Ã¢â‚¬â€œ|â€“|â€”/g, '-')
+    .replace(/Ã¢â‚¬â„¢|â€™|’|‘/g, "'")
+    .replace(/Ã¢â‚¬Å“|Ã¢â‚¬Â|â€œ|â€|“|”/g, '"')
+    .replace(/Ã¢â‚¬Â¦|â€¦|…/g, '...')
+    .replace(/\u00a0|Â/g, ' ');
 
 const questionNumberMarkerSourceFor = (questionNumber: number): string =>
   String.raw`(?:\*\*|__)?${questionNumber}(?:\*\*|__)?(?:[.)])?`;
@@ -46,7 +54,7 @@ export const readingV2AutoLineMatchesQuestionNumber = (
 
 export const normalizeReadingV2AutoSourceProofText = (value: string): string =>
   replaceReadingV2AutoCompletionBlanks(
-    value
+    normalizeReadingV2AutoEncodingArtifacts(value)
       .replace(/<[^>]+>/g, ' ')
       .replace(LINE_START_QUESTION_MARKER_BEFORE_BLANK_PATTERN, '$1$2')
       .replace(QUESTION_MARKER_BEFORE_BLANK_PATTERN, ''),
