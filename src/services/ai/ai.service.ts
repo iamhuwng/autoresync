@@ -96,6 +96,7 @@ export interface AIStructuredGenerationOptions {
   temperature?: number;
   maxOutputTokens?: number;
   preferredKeyIndex?: number;
+  responseFormat?: unknown;
 }
 
 export type WritingSuggestionScope =

@@ -48,6 +48,7 @@ interface HarnessArgs {
   readonly allowLiveV3Providers: boolean;
   readonly liveLimit: number;
   readonly liveTags: readonly string[];
+  readonly liveFile?: string;
 }
 
 interface HarnessItem {
@@ -156,6 +157,7 @@ const parseArgs = (argv: readonly string[]): HarnessArgs => {
   let allowLiveV3Providers = false;
   let liveLimit = 1;
   let liveTags: readonly string[] = ['clean-full-test'];
+  let liveFile: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -215,10 +217,19 @@ const parseArgs = (argv: readonly string[]): HarnessArgs => {
         .map((tag) => tag.trim())
         .filter(Boolean);
       index += 1;
+      continue;
+    }
+
+    if (token === '--live-file') {
+      const requestedLiveFile = argv[index + 1]?.trim();
+      if (requestedLiveFile) {
+        liveFile = requestedLiveFile;
+      }
+      index += 1;
     }
   }
 
-  return { root: path.resolve(root), out, mode, allowLiveGemini, allowLiveV3Providers, liveLimit, liveTags };
+  return { root: path.resolve(root), out, mode, allowLiveGemini, allowLiveV3Providers, liveLimit, liveTags, liveFile };
 };
 
 const collectMarkdownFiles = async (root: string): Promise<readonly string[]> => {
@@ -874,9 +885,42 @@ const selectLiveProbeRepresentatives = (
   representatives: readonly HarnessRepresentative[],
   args: HarnessArgs,
 ): readonly HarnessRepresentative[] => {
+  if (args.liveFile) {
+    return representatives.slice(0, args.liveLimit);
+  }
+
   const tagSet = new Set(args.liveTags);
   const selected = representatives.filter((representative) => tagSet.has(representative.tag));
   return selected.slice(0, args.liveLimit);
+};
+
+const representativeForLiveFile = (
+  items: readonly HarnessItem[],
+  requestedPath: string | undefined,
+): HarnessRepresentative | undefined => {
+  if (!requestedPath) {
+    return undefined;
+  }
+
+  const normalizedRequest = requestedPath.replace(/\\/g, '/').toLowerCase();
+  const item = items.find((candidate) => {
+    const normalizedCandidate = candidate.path.replace(/\\/g, '/').toLowerCase();
+    return normalizedCandidate === normalizedRequest
+      || normalizedCandidate.endsWith(`/${normalizedRequest}`);
+  });
+
+  return item
+    ? {
+        tag: 'exact-file',
+        path: item.path,
+        hash: item.hash,
+        category: item.category,
+        status: item.status,
+        passageCount: item.passageCount,
+        questionCount: item.questionNumbers.length,
+        answerKeyRowCount: item.answerKeyRowCount,
+      }
+    : undefined;
 };
 
 const sanitizeLiveError = (error: string): string =>
@@ -1087,11 +1131,16 @@ const buildReport = async (args: HarnessArgs) => {
   const files = await collectMarkdownFiles(args.root);
   const items = await Promise.all(files.map((filePath) => scanFile(filePath, args.root, args.mode)));
   const representatives = selectRepresentatives(items);
+  const exactLiveRepresentative = representativeForLiveFile(items, args.liveFile);
+  if ((args.mode === 'live-gemini' || args.mode === 'live-v3-gemini-groq') && args.liveFile && !exactLiveRepresentative) {
+    throw new Error(`Requested live Clippings file was not found in harness items: ${args.liveFile}`);
+  }
+  const liveProbeRepresentatives = exactLiveRepresentative ? [exactLiveRepresentative] : representatives;
   const providerPreflight = args.mode === 'live-v3-gemini-groq' && args.allowLiveV3Providers
     ? await buildProviderPreflight()
     : undefined;
   const liveProbes = args.mode === 'live-gemini' || args.mode === 'live-v3-gemini-groq'
-    ? await runLiveGeminiProbes(args, representatives)
+    ? await runLiveGeminiProbes(args, liveProbeRepresentatives)
     : [];
 
   return {
@@ -1106,6 +1155,7 @@ const buildReport = async (args: HarnessArgs) => {
           allowLiveV3Providers: args.allowLiveV3Providers,
           liveLimit: args.liveLimit,
           liveTags: args.liveTags,
+          liveFile: args.liveFile,
         }
       : undefined,
     providerPreflight,
@@ -1143,6 +1193,7 @@ export {
   isProviderQuotaStopSignal,
   parseArgs,
   representativeTagsFor,
+  representativeForLiveFile,
   runLiveGeminiProbes,
   sanitizeLiveError,
   summarize,

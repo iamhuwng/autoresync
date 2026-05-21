@@ -4,6 +4,7 @@ import type { ReadingV2AutoPassagePackage } from './readingV2AutoPassagePackage.
 import {
   READING_V2_AUTO_GROQ_NORMALIZER_MAX_OUTPUT_TOKENS,
   READING_V2_AUTO_GROQ_NORMALIZER_MODEL,
+  READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT,
   buildReadingV2AutoQuestionAreaNormalizerPrompt,
   normalizeReadingV2AutoQuestionArea,
 } from './readingV2AutoQuestionAreaNormalizer.service';
@@ -67,6 +68,20 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
     expect(prompt).toContain('sourceTextExact');
     expect(prompt).toContain('normalizedPromptText');
     expect(prompt).toContain('full visible line context around that blank');
+    expect(prompt).toContain('Never emit raw invalid JSON escapes');
+    expect(prompt).toContain('source text \\_ must be emitted in JSON as "\\\\_"');
+  });
+
+  it('adds targeted retry instructions without changing passage package content', () => {
+    const prompt = buildReadingV2AutoQuestionAreaNormalizerPrompt(
+      passagePackage,
+      'Previous output had bad-escape-sequence. Return valid JSON only.',
+    );
+
+    expect(prompt).toContain('Retry instruction:');
+    expect(prompt).toContain('bad-escape-sequence');
+    expect(prompt).toContain('Exact prompt ___.');
+    expect(prompt).not.toContain(passagePackage.passageBodyText);
   });
 
   it('passes preferred Groq key slot and normalizes strict transcript JSON', async () => {
@@ -75,11 +90,12 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
       preferredKeyIndex?: number;
       model?: string;
       maxOutputTokens?: number;
+      responseFormat?: unknown;
     } | undefined;
     const provider = {
       generateStructuredJson: async (
         prompt: string,
-        options?: { preferredKeyIndex?: number; model?: string; maxOutputTokens?: number },
+        options?: { preferredKeyIndex?: number; model?: string; maxOutputTokens?: number; responseFormat?: unknown },
       ): Promise<Result<unknown>> => {
         receivedPrompt = prompt;
         receivedOptions = options;
@@ -97,6 +113,7 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
     expect(receivedOptions?.preferredKeyIndex).toBe(2);
     expect(receivedOptions?.model).toBe(READING_V2_AUTO_GROQ_NORMALIZER_MODEL);
     expect(receivedOptions?.maxOutputTokens).toBe(READING_V2_AUTO_GROQ_NORMALIZER_MAX_OUTPUT_TOKENS);
+    expect(receivedOptions?.responseFormat).toBe(READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT);
     expect(receivedPrompt).not.toContain(passagePackage.passageBodyText);
     if (result.success) {
       expect(result.data.transcript.groups[0]?.taskType).toBe('sentence-completion');
@@ -106,5 +123,20 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
       expect(result.data.rawGroupRanges).toEqual(['1-1']);
       expect(result.data.rawCoverageSummary?.coveredQuestions).toEqual([1]);
     }
+  });
+
+  it('uses Groq strict schema-compatible model and response format', () => {
+    expect(READING_V2_AUTO_GROQ_NORMALIZER_MODEL).toBe('openai/gpt-oss-120b');
+    expect(READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT).toMatchObject({
+      type: 'json_schema',
+      json_schema: {
+        name: 'reading_v2_question_area_transcript',
+        strict: true,
+        schema: {
+          additionalProperties: false,
+          required: ['passageNumber', 'groups', 'coverageSummary', 'diagnostics'],
+        },
+      },
+    });
   });
 });

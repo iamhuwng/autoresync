@@ -833,7 +833,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v3',
+            provider: 'auto-v4',
         });
         logReadingV2AutoImportDiag('submit_requested', {
             requestId,
@@ -841,20 +841,20 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v3',
+            provider: 'auto-v4',
         });
         onAction?.('submitReadingV2AutoImport', {
             source: 'test_creation_modal',
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v3',
+            provider: 'auto-v4',
         });
 
         try {
             const result = await generateReadingV2AutoImportCandidate({
                 rawTestText: sourceText,
-                sourceName: initialMetadata.title || 'Auto V3 import',
+                sourceName: initialMetadata.title || 'Auto V4 import',
             }, {
                 onDiagnosticEvent: appendReadingV2AutoDiagnosticLog,
             });
@@ -876,7 +876,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setReadingV2AutoDiagnostics(safeDiagnostics);
             const safeResultError = result.success
                 ? null
-                : sanitizeReadingV2AutoDiagString(result.error ?? 'Auto V3 import failed');
+                : sanitizeReadingV2AutoDiagString(result.error ?? 'Auto V4 import failed');
             appendReadingV2AutoDiagnosticLog('submit_result', {
                 requestId,
                 success: result.success,
@@ -955,7 +955,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     startMode: 'create-from-auto',
                     initialMetadata: {
                         ...initialMetadata,
-                        provenanceSummary: 'Generated from Auto V3 import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
                     },
                     initialImportCandidate: result.candidate,
                 },
@@ -975,7 +975,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
             const message = error instanceof Error
                 ? sanitizeReadingV2AutoDiagString(error.message)
-                : 'Auto V3 import failed.';
+                : 'Auto V4 import failed.';
             setReadingV2AutoProcessing(false);
             setReadingV2AutoError(message);
             setReadingV2AutoDiagnostics([]);
@@ -990,7 +990,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             onAction?.('failReadingV2AutoImport', {
                 source: 'test_creation_modal',
                 testType: stepData.testType,
-                provider: 'auto-v3',
+                provider: 'auto-v4',
                 error: message,
             });
         }
@@ -1874,7 +1874,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                             onClick={handleReadingV2AutoImportParse}
                             disabled={readingV2AutoProcessing || readingV2AutoSource.trim().length === 0}
                         >
-                            {readingV2AutoProcessing ? 'Processing...' : 'Process with Auto V3'}
+                            {readingV2AutoProcessing ? 'Processing...' : 'Process with Auto V4'}
                             {!readingV2AutoProcessing ? (
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '0.5rem' }}>
                                     <polyline points="9 18 15 12 9 6" />
@@ -2609,7 +2609,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                     Auto Reading V2 source
                 </Text>
                 <Text size="sm" c="dimmed">
-                    Paste the raw test text once. Auto V3 prepares a Studio draft, then Studio stays the review and repair surface.
+                    Paste the raw test text once. Auto V4 prepares a Studio draft, then Studio stays the review and repair surface.
                 </Text>
             </div>
 
@@ -2643,7 +2643,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <Text size="sm" fw={700} style={{ color: '#134e4a' }}>
-                        Auto V3 import
+                        Auto V4 import
                     </Text>
                     <Text size="xs" c="dimmed">
                         Answers are accepted only when an answer-key section is present in the pasted source.
@@ -2722,7 +2722,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <Text size="xs" c="dimmed">
                     {processing
-                        ? 'Auto V3 is preparing the Studio draft...'
+                        ? 'Auto V4 is preparing the Studio draft...'
                         : sourceLineCount > 0
                             ? `${sourceLineCount} raw source lines ready`
                             : 'Paste raw test text to continue'}

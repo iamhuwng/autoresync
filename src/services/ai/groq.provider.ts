@@ -1577,6 +1577,7 @@ Respond with JSON array only:
             ],
             temperature: options.temperature ?? 0.1,
             max_tokens: maxTokens,
+            response_format: options.responseFormat ?? { type: 'json_object' },
           });
           break;
         } catch (error) {

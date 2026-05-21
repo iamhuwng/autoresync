@@ -7,6 +7,7 @@ import {
   buildReport,
   isProviderQuotaStopSignal,
   parseArgs,
+  representativeForLiveFile,
   runLiveGeminiProbes,
   sanitizeLiveError,
 } from '../../../scripts/reading-v2-clippings-harness';
@@ -96,6 +97,8 @@ describe('reading-v2-clippings-harness', () => {
       '2',
       '--live-tags',
       'clean-full-test,known-difficult',
+      '--live-file',
+      'Practice Cam 20 Reading Test 01.md',
     ]);
 
     expect(args.mode).toBe('live-gemini');
@@ -103,6 +106,37 @@ describe('reading-v2-clippings-harness', () => {
     expect(args.allowLiveV3Providers).toBe(false);
     expect(args.liveLimit).toBe(2);
     expect(args.liveTags).toEqual(['clean-full-test', 'known-difficult']);
+    expect(args.liveFile).toBe('Practice Cam 20 Reading Test 01.md');
+  });
+
+  it('selects exact live-file representatives without storing raw source text', () => {
+    const representative = representativeForLiveFile([{
+      path: 'Nested/Practice Cam 20 Reading Test 01.md',
+      title: 'Practice Cam 20',
+      hash: 'safehash',
+      category: 'full-test-with-answer-key',
+      passageCount: 3,
+      questionNumbers: [1, 2, 3],
+      answerKeyRowCount: 3,
+      generatedInteractionCount: 3,
+      boundAnswerCount: 3,
+      issueCodes: [],
+      verifierIssueCodes: [],
+      markerDiagnosticCodes: [],
+      packageDiagnosticCodes: [],
+      transcriptDiagnosticCodes: [],
+      v3Stage: 'not-run',
+      status: 'accepted',
+      representativeTags: ['polluted-web-clip'],
+    }], 'Practice Cam 20 Reading Test 01.md');
+
+    expect(representative).toEqual(expect.objectContaining({
+      tag: 'exact-file',
+      path: 'Nested/Practice Cam 20 Reading Test 01.md',
+      questionCount: 3,
+      answerKeyRowCount: 3,
+    }));
+    expect(JSON.stringify(representative)).not.toContain('READING PASSAGE');
   });
 
   it('parses V3 mocked and live provider harness modes', () => {
@@ -392,6 +426,53 @@ describe('reading-v2-clippings-harness', () => {
     }));
     expect(JSON.stringify(probes)).not.toContain(fakeGroqKey);
     expect(JSON.stringify(probes)).not.toContain('C:\\Users\\The Lord');
+  });
+
+  it('uses exact live-file representative even when liveTags do not match', async () => {
+    const representatives = [{
+      tag: 'exact-file',
+      path: 'Practice Cam 20 Reading Test 01.md',
+      hash: 'hash-cam20',
+      category: 'full-test-with-answer-key',
+      status: 'accepted',
+      passageCount: 3,
+      questionCount: 40,
+      answerKeyRowCount: 40,
+    }] as const;
+    const calls: string[] = [];
+
+    const probes = await runLiveGeminiProbes({
+      root: 'C:/tmp/source',
+      out: 'C:/tmp/report.json',
+      mode: 'live-v3-gemini-groq',
+      allowLiveGemini: false,
+      allowLiveV3Providers: true,
+      liveLimit: 1,
+      liveTags: ['clean-full-test'],
+      liveFile: 'Practice Cam 20 Reading Test 01.md',
+    }, representatives, {
+      readSourceText: async (filePath) => {
+        calls.push(filePath);
+        return 'synthetic source';
+      },
+      generateCandidate: async () => ({
+        success: false,
+        error: 'synthetic failure',
+        diagnostics: [{
+          code: 'groq-package-failed',
+          severity: 'error',
+          message: 'synthetic failure',
+        }],
+        provider: 'gemini-groq',
+        model: 'test',
+      }),
+    });
+
+    expect(calls).toEqual(['C:\\tmp\\source\\Practice Cam 20 Reading Test 01.md']);
+    expect(probes).toEqual([expect.objectContaining({
+      tag: 'exact-file',
+      path: 'Practice Cam 20 Reading Test 01.md',
+    })]);
   });
 
   it('requires an explicit allow flag before live V3 Gemini plus Groq probes can run', async () => {

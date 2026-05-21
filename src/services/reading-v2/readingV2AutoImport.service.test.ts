@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readingV2Ids } from '../../types/readingV2.types';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
-import { generateReadingV2AutoImportCandidate, type ReadingV2AutoStructuredGenerator } from './readingV2AutoImport.service';
+import {
+  generateReadingV2AutoImportCandidate,
+  type ReadingV2AutoStructuredGenerator,
+  type ReadingV2AutoV4Extractor,
+} from './readingV2AutoImport.service';
 import { normalizeReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 import { generateReadingV2StudentSafeProjection } from './readingV2Projection.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
@@ -285,6 +289,58 @@ const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
   generateStructuredJson: vi.fn().mockResolvedValue({ success: true, data }),
 });
 
+const v4ExtractorFor = (overrides: {
+  readonly answerKey?: Record<number, string | string[]>;
+  readonly passageContent?: string;
+} = {}): ReadingV2AutoV4Extractor => ({
+  parsePassagesOnly: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      passages: [{
+        id: 'passage-1',
+        title: 'Auto passage',
+        content: overrides.passageContent ?? [
+          'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+          'It has a second sentence to avoid being too tiny for guardrails.',
+        ].join('\n'),
+        type: 'text',
+        imageUrl: null,
+        questionStart: 1,
+        questionEnd: 2,
+        wordCount: 23,
+      }],
+      confidence: 0.95,
+    },
+  }),
+  parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      questions: [
+        {
+          questionNumber: 1,
+          questionText: '1 The first statement is supported by the passage.',
+          type: 'true-false-not-given',
+          answer: 'TRUE',
+          passageId: 'passage-1',
+          confidence: 0.95,
+          sectionInstruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+        },
+        {
+          questionNumber: 2,
+          questionText: '2 The second statement is contradicted by the passage.',
+          type: 'true-false-not-given',
+          answer: 'FALSE',
+          passageId: 'passage-1',
+          confidence: 0.95,
+          sectionInstruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+        },
+      ],
+      answerKey: overrides.answerKey ?? { 1: 'TRUE', 2: 'FALSE' },
+      confidence: 0.95,
+    },
+  }),
+});
+
 const singleSlotQuestionAreaNormalizerFor = (
   responses: readonly Result<unknown>[],
 ) => {
@@ -407,6 +463,54 @@ describe('readingV2AutoImport.service', () => {
     ]));
     expect(result.passageCount).toBe(1);
     expect(result.questionCount).toBe(2);
+  });
+
+  it('uses Auto V4 staged parser output as the default V2 Auto path when no structured generator is injected', async () => {
+    const v4Extractor = v4ExtractorFor();
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithAnswerKey, sourceName: 'Auto V4 fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('gemini');
+    expect(result.model).toBe('gemini-2.5-flash+auto-v4-staged-adapter');
+    expect(v4Extractor.parsePassagesOnly).toHaveBeenCalledTimes(1);
+    expect(v4Extractor.parseQuestionsAndAnswers).toHaveBeenCalledTimes(1);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'auto-v4-staged-parser-used', severity: 'info' }),
+      expect.objectContaining({ code: 'answer-key-extracted', severity: 'info' }),
+    ]));
+    expect(result.candidate.rawText).toContain('"type":"true-false-not-given"');
+    expect(result.candidate.rawText).toContain('"answer":"TRUE"');
+    expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('does not bind Auto V4 parser answers when the raw source has no visible answer key', async () => {
+    const v4Extractor = v4ExtractorFor({ answerKey: { 1: 'TRUE', 2: 'FALSE' } });
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawSourceWithAnswerKey.replace(/\nAnswers[\s\S]+$/, ''), sourceName: 'Auto V4 no key fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBeUndefined();
+    expect(result.candidate.answerKeyText).toBeUndefined();
+    expect(result.candidate.rawText).toContain('"answer":""');
+    expect(result.candidate.rawText).not.toContain('"answer":"TRUE"');
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'auto-v4-staged-parser-used', severity: 'info' }),
+      expect.objectContaining({ code: 'answer-key-missing', severity: 'warning' }),
+    ]));
   });
 
   it('extracts escaped markdown answer-key rows from pasted source', async () => {

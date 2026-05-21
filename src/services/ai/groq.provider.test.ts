@@ -404,6 +404,46 @@ describe('Groq Provider', () => {
       expect(result.success).toBe(true);
       expect(create).toHaveBeenCalledWith(expect.objectContaining({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        response_format: { type: 'json_object' },
+      }));
+    });
+
+    it('honors per-call response format for structured generation', async () => {
+      vi.mocked(getEnv).mockReturnValue({
+        VITE_GROQ_API_KEY_1: 'response-format-slot-key',
+      } as any);
+      const create = vi.fn().mockResolvedValue({
+        choices: [{ message: { content: '{"ok":true}' } }],
+      });
+      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(Groq).mockImplementation(() => ({
+        chat: { completions: { create } },
+      }) as any);
+      provider = new GroqProvider();
+      const responseFormat = {
+        type: 'json_schema',
+        json_schema: {
+          name: 'strict_fixture',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: { ok: { type: 'boolean' } },
+            required: ['ok'],
+            additionalProperties: false,
+          },
+        },
+      };
+
+      const result = await provider.generateStructuredJson('{"request":true}', {
+        model: 'openai/gpt-oss-120b',
+        preferredKeyIndex: 0,
+        responseFormat,
+      });
+
+      expect(result.success).toBe(true);
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({
+        model: 'openai/gpt-oss-120b',
+        response_format: responseFormat,
       }));
     });
 

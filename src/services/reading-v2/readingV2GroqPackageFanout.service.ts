@@ -21,6 +21,10 @@ export interface ReadingV2GroqPackageFanoutProvider extends ReadingV2AutoQuestio
 
 export type ReadingV2GroqPackageFanoutDiagnosticCode =
   | 'groq-key-slot-degraded'
+  | 'groq-json-malformed'
+  | 'groq-package-json-retried'
+  | 'groq-package-json-retry-succeeded'
+  | 'groq-package-json-retry-failed'
   | 'groq-package-retried'
   | 'groq-package-failed'
   | 'groq-quota-exhausted';
@@ -54,6 +58,13 @@ export interface ReadingV2GroqPackageFanoutResult {
 }
 
 const rawKeyLikePattern = /\b(?:gsk_[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{12,})\b/g;
+const malformedJsonRetryInstruction = [
+  'Your previous response was not valid JSON.',
+  'Return the same transcript shape as valid JSON only.',
+  'If source text contains backslashes, escape each backslash as \\\\ in JSON strings.',
+  'Never emit raw invalid JSON escapes such as \\_, \\., or \\#.',
+  'Do not use Markdown fences, comments, or prose.',
+].join(' ');
 
 const redact = (value: string): string =>
   value.replace(rawKeyLikePattern, '[redacted-key]');
@@ -77,6 +88,21 @@ const isProviderQuotaStopSignal = (value: string | undefined): boolean => {
     || text.includes('per_day')
     || text.includes('perday')
     || text.includes('limit: 0')
+  );
+};
+
+const isMalformedStructuredJsonFailure = (value: string | undefined): boolean => {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return (
+    text.includes('bad-escape-sequence')
+    || text.includes('malformed-json')
+    || text.includes('truncated-json')
+    || text.includes('no valid json found in ai response')
+    || text.includes('no json object found in ai response')
   );
 };
 
@@ -107,11 +133,13 @@ const normalizePackageWithSlot = async (
   provider: ReadingV2GroqPackageFanoutProvider,
   passagePackage: ReadingV2AutoPassagePackage,
   slot: ReadingV2GroqKeySlot | undefined,
+  retryInstruction?: string,
 ): Promise<Result<ReadingV2GroqPackageFanoutPackageResult>> => {
   const result = await normalizeReadingV2AutoQuestionArea({
     passagePackage,
     provider,
     preferredKeyIndex: slot?.index,
+    retryInstruction,
   });
 
   if (!result.success) {
@@ -135,6 +163,21 @@ const normalizePackageWithSlot = async (
     },
   };
 };
+
+const malformedJsonDiagnosticFor = (
+  attempt: {
+    readonly passagePackage: ReadingV2AutoPassagePackage;
+    readonly slot: ReadingV2GroqKeySlot | undefined;
+    readonly result: Result<ReadingV2GroqPackageFanoutPackageResult>;
+  },
+): ReadingV2GroqPackageFanoutDiagnostic => ({
+  code: 'groq-json-malformed',
+  severity: 'warning',
+  message: redact(`Groq package ${attempt.passagePackage.passageNumber} returned malformed structured JSON: ${attempt.result.success ? 'unknown failure' : attempt.result.error}`),
+  passageNumber: attempt.passagePackage.passageNumber,
+  preferredKeyIndex: attempt.slot?.index,
+  keyFingerprint: attempt.slot?.fingerprint,
+});
 
 const failedDiagnosticFor = (
   attempt: {
@@ -203,24 +246,76 @@ export const runReadingV2GroqPackageFanout = async (input: {
   }
 
   for (const attempt of firstAttempts) {
-    if (attempt.result.success) {
-      packageResults.push(attempt.result.data);
+    let currentAttempt = attempt;
+
+    if (
+      !currentAttempt.result.success
+      && isMalformedStructuredJsonFailure(currentAttempt.result.error)
+      && !isProviderQuotaStopSignal(currentAttempt.result.error)
+    ) {
+      diagnostics.push(malformedJsonDiagnosticFor(currentAttempt));
+      diagnostics.push({
+        code: 'groq-package-json-retried',
+        severity: 'warning',
+        message: `Retrying passage package ${currentAttempt.passagePackage.passageNumber} with stricter JSON escaping after malformed Groq JSON.`,
+        passageNumber: currentAttempt.passagePackage.passageNumber,
+        preferredKeyIndex: currentAttempt.slot?.index,
+        keyFingerprint: currentAttempt.slot?.fingerprint,
+      });
+      const retry = await normalizePackageWithSlot(
+        input.provider,
+        currentAttempt.passagePackage,
+        currentAttempt.slot,
+        malformedJsonRetryInstruction,
+      );
+      if (retry.success) {
+        diagnostics.push({
+          code: 'groq-package-json-retry-succeeded',
+          severity: 'info',
+          message: `Passage package ${currentAttempt.passagePackage.passageNumber} recovered after malformed JSON retry.`,
+          passageNumber: currentAttempt.passagePackage.passageNumber,
+          preferredKeyIndex: currentAttempt.slot?.index,
+          keyFingerprint: currentAttempt.slot?.fingerprint,
+        });
+        packageResults.push({
+          ...retry.data,
+          attempts: currentAttempt.result.success ? retry.data.attempts : retry.data.attempts + 1,
+        });
+        continue;
+      }
+
+      diagnostics.push({
+        code: 'groq-package-json-retry-failed',
+        severity: 'warning',
+        message: redact(`Passage package ${currentAttempt.passagePackage.passageNumber} still returned malformed JSON after retry: ${retry.error}`),
+        passageNumber: currentAttempt.passagePackage.passageNumber,
+        preferredKeyIndex: currentAttempt.slot?.index,
+        keyFingerprint: currentAttempt.slot?.fingerprint,
+      });
+      currentAttempt = {
+        ...currentAttempt,
+        result: retry,
+      };
+    }
+
+    if (currentAttempt.result.success) {
+      packageResults.push(currentAttempt.result.data);
       continue;
     }
 
-    const alternatives = retrySlotsFor(slots, attempt.slot);
+    const alternatives = retrySlotsFor(slots, currentAttempt.slot);
     let retrySucceeded = false;
     diagnostics.push({
       code: 'groq-package-retried',
       severity: 'warning',
-      message: `Retrying passage package ${attempt.passagePackage.passageNumber} on another Groq key slot after package failure.`,
-      passageNumber: attempt.passagePackage.passageNumber,
-      preferredKeyIndex: attempt.slot?.index,
-      keyFingerprint: attempt.slot?.fingerprint,
+      message: `Retrying passage package ${currentAttempt.passagePackage.passageNumber} on another Groq key slot after package failure.`,
+      passageNumber: currentAttempt.passagePackage.passageNumber,
+      preferredKeyIndex: currentAttempt.slot?.index,
+      keyFingerprint: currentAttempt.slot?.fingerprint,
     });
 
     for (const retrySlot of alternatives) {
-      const retry = await normalizePackageWithSlot(input.provider, attempt.passagePackage, retrySlot);
+      const retry = await normalizePackageWithSlot(input.provider, currentAttempt.passagePackage, retrySlot);
       if (!retry.success) {
         continue;
       }
@@ -234,7 +329,7 @@ export const runReadingV2GroqPackageFanout = async (input: {
     }
 
     if (!retrySucceeded) {
-      diagnostics.push(failedDiagnosticFor(attempt));
+      diagnostics.push(failedDiagnosticFor(currentAttempt));
     }
   }
 

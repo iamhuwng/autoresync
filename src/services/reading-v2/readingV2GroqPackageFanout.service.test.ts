@@ -57,18 +57,25 @@ const transcriptFor = (passageNumber: number) => ({
 const providerFor = (input: {
   readonly slots: readonly ReadingV2GroqKeySlot[];
   readonly failOnceForPassage?: number;
+  readonly failOnceMalformedForPassage?: number;
   readonly failAlwaysForPassage?: number;
   readonly rawError?: string;
 }) => {
   const mutableCalls: number[] = [];
+  const prompts: string[] = [];
   const failures = new Set<number>();
   const provider: ReadingV2GroqPackageFanoutProvider = {
     getAvailableStructuredJsonKeySlots: async () => input.slots,
     generateStructuredJson: async (prompt, options): Promise<Result<unknown>> => {
       mutableCalls.push(options?.preferredKeyIndex ?? -1);
+      prompts.push(prompt);
       const passageNumber = Number(prompt.match(/PACKAGE\s+(\d+)/)?.[1] ?? 0);
       if (input.failAlwaysForPassage === passageNumber) {
         return { success: false, error: input.rawError ?? 'package failed' };
+      }
+      if (input.failOnceMalformedForPassage === passageNumber && !failures.has(passageNumber)) {
+        failures.add(passageNumber);
+        return { success: false, error: 'Structured generation failed: No valid JSON found in AI response (bad-escape-sequence)' };
       }
       if (input.failOnceForPassage === passageNumber && !failures.has(passageNumber)) {
         failures.add(passageNumber);
@@ -81,6 +88,7 @@ const providerFor = (input: {
   return {
     provider,
     mutableCalls,
+    prompts,
   };
 };
 
@@ -137,6 +145,45 @@ describe('readingV2GroqPackageFanout.service', () => {
     if (result.success) {
       expect(result.data.packageResults.map((item) => item.passageNumber)).toEqual([1, 2, 3]);
       expect(result.data.packageResults.find((item) => item.passageNumber === 2)?.attempts).toBe(2);
+    }
+  });
+
+  it('retries malformed JSON on the same package even when only one Groq slot is available', async () => {
+    const harness = providerFor({ slots: slots(1), failOnceMalformedForPassage: 1 });
+    const result = await runReadingV2GroqPackageFanout({
+      passagePackages: [passagePackage(1)],
+      provider: harness.provider,
+    });
+
+    expect(result.success).toBe(true);
+    expect(harness.mutableCalls).toEqual([0, 0]);
+    expect(harness.prompts[1]).toContain('Retry instruction:');
+    expect(harness.prompts[1]).toContain('escape each backslash');
+    if (result.success) {
+      expect(result.data.packageResults[0]?.attempts).toBe(2);
+      expect(result.data.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: 'groq-json-malformed', severity: 'warning' }),
+        expect.objectContaining({ code: 'groq-package-json-retried', severity: 'warning' }),
+        expect.objectContaining({ code: 'groq-package-json-retry-succeeded', severity: 'info' }),
+      ]));
+    }
+  });
+
+  it('keeps malformed JSON retry failures distinct before final package failure', async () => {
+    const harness = providerFor({
+      slots: slots(1),
+      failAlwaysForPassage: 1,
+      rawError: 'Structured generation failed: No valid JSON found in AI response (bad-escape-sequence)',
+    });
+    const result = await runReadingV2GroqPackageFanout({
+      passagePackages: [passagePackage(1)],
+      provider: harness.provider,
+    });
+
+    expect(result.success).toBe(false);
+    expect(harness.mutableCalls).toEqual([0, 0]);
+    if (!result.success) {
+      expect(result.error).toContain('bad-escape-sequence');
     }
   });
 

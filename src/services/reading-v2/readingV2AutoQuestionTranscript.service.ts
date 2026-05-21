@@ -205,6 +205,11 @@ const numberFrom = (value: unknown): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const positiveNumberFrom = (value: unknown): number | undefined => {
+  const parsed = numberFrom(value);
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
 const stringFrom = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
@@ -459,13 +464,20 @@ const noteFrom = (value: unknown): ReadingV2AutoTranscriptNote | undefined => {
         }];
       })
     : undefined;
+  const title = stringFrom(value.title);
+  const subheading = stringFrom(value.subheading);
+  const normalizedSections = sections?.filter((section) =>
+    Boolean(section.heading || section.questionNumbers?.length || section.lines?.length),
+  );
 
-  return {
-    title: stringFrom(value.title),
-    subheading: stringFrom(value.subheading),
-    sections,
-    lines,
-  };
+  return title || subheading || lines?.length || normalizedSections?.length
+    ? {
+        title,
+        subheading,
+        sections: normalizedSections,
+        lines,
+      }
+    : undefined;
 };
 
 const tableCellFrom = (value: unknown): ReadingV2AutoTranscriptTableCell | null => {
@@ -617,10 +629,10 @@ const metaFrom = (value: unknown): ReadingV2AutoTranscriptInstructionMeta => {
     : undefined;
 
   return {
-    wordLimit: numberFrom(value.wordLimit),
+    wordLimit: positiveNumberFrom(value.wordLimit),
     wordLimitText: stringFrom(value.wordLimitText),
     vocabulary: stringFrom(value.vocabulary),
-    selectionLimit: numberFrom(value.selectionLimit),
+    selectionLimit: positiveNumberFrom(value.selectionLimit),
     answerSource: stringFrom(value.answerSource),
     optionLabelRange: stringFrom(value.optionLabelRange),
     referenceLabelRange: stringFrom(value.referenceLabelRange),

@@ -1,4 +1,11 @@
-import type { AIStructuredGenerationOptions } from '../ai/ai.service';
+import type {
+  AIQuestion,
+  AIPassage,
+  AIPassagesOnlyResult,
+  AIQuestionsAndAnswersResult,
+  AIStructuredGenerationOptions,
+} from '../ai/ai.service';
+import { aiService } from '../ai/router.service';
 import { geminiProvider } from '../ai/gemini.provider';
 import { groqProvider } from '../ai/groq.provider';
 import type { Result } from '../../types/result.types';
@@ -43,6 +50,7 @@ import {
 import {
   runReadingV2GroqPackageFanout,
   type ReadingV2GroqPackageFanoutDiagnostic,
+  type ReadingV2GroqPackageFanoutPackageResult,
   type ReadingV2GroqPackageFanoutProvider,
 } from './readingV2GroqPackageFanout.service';
 import {
@@ -66,6 +74,7 @@ import {
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 const AUTO_V3_PROVIDER = 'gemini-groq';
 const AUTO_V3_MODEL_LABEL = `${GEMINI_MODEL_NAME}+groq-structured-json`;
+const AUTO_V4_MODEL_LABEL = `${GEMINI_MODEL_NAME}+auto-v4-staged-adapter`;
 const DEFAULT_MAX_INPUT_CHARS = 120_000;
 const DEFAULT_MIN_INPUT_CHARS = 80;
 const DEFAULT_CHUNK_WAIT_MS = 6_500;
@@ -144,9 +153,14 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'source-repair-succeeded'
   | 'provider-quota-exhausted'
   | 'topology-marker-failed'
+  | 'auto-v4-staged-parser-used'
   | ReadingV2AutoTopologyMarkerDiagnostic['code']
   | 'passage-package-failed'
   | 'groq-key-slot-degraded'
+  | 'groq-json-malformed'
+  | 'groq-package-json-retried'
+  | 'groq-package-json-retry-succeeded'
+  | 'groq-package-json-retry-failed'
   | 'groq-package-retried'
   | 'groq-package-failed'
   | 'groq-quota-exhausted'
@@ -232,8 +246,14 @@ export interface ReadingV2AutoStructuredGenerator {
   ): Promise<Result<unknown>>;
 }
 
+export interface ReadingV2AutoV4Extractor {
+  parsePassagesOnly(text: string): Promise<Result<AIPassagesOnlyResult>>;
+  parseQuestionsAndAnswers(text: string): Promise<Result<AIQuestionsAndAnswersResult>>;
+}
+
 export interface ReadingV2AutoImportOptions {
   readonly generator?: ReadingV2AutoStructuredGenerator;
+  readonly v4Extractor?: ReadingV2AutoV4Extractor;
   readonly waitBetweenChunksMs?: number;
   readonly maxInputChars?: number;
   readonly minInputChars?: number;
@@ -900,6 +920,498 @@ const structuredPayloadText = (payload: AutoPayload): string =>
     READING_V2_STRUCTURED_MATERIALS_END,
   ].join('\n');
 
+const OPTION_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+interface AutoV4Question {
+  readonly source: AIQuestion;
+  readonly questionNumber: number;
+  readonly taskType: ReadingV2CanonicalTaskType;
+  readonly instructionText?: string;
+  readonly optionSignature: string;
+}
+
+interface AutoV4QuestionGroup {
+  readonly id: string;
+  readonly passageNumber: number;
+  readonly taskType: ReadingV2CanonicalTaskType;
+  readonly instructionText?: string;
+  readonly questions: readonly AutoV4Question[];
+}
+
+const normalizedQuestionText = (value: string): string =>
+  value
+    .replace(/^\s*(?:\*\*)?\d{1,3}(?:\*\*)?\s*(?:[.)\-:]\s*)?/, '')
+    .trim();
+
+const normalizedTextKey = (value: string | undefined): string =>
+  compactWhitespace(value ?? '').toLowerCase();
+
+const autoV4AnswerKeyText = (
+  answerKey: AIQuestionsAndAnswersResult['answerKey'],
+): string | undefined => {
+  const rows = Object.entries(answerKey ?? {})
+    .map(([questionNumber, answer]) => ({
+      questionNumber: Number(questionNumber),
+      values: Array.isArray(answer) ? answer : [answer],
+    }))
+    .filter((row) => Number.isInteger(row.questionNumber) && row.questionNumber > 0)
+    .sort((left, right) => left.questionNumber - right.questionNumber)
+    .flatMap((row) => {
+      const values = row.values
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      return values.length > 0 ? [`${row.questionNumber} ${values.join(' | ')}`] : [];
+    });
+
+  return rows.length > 0 ? rows.join('\n') : undefined;
+};
+
+const answerValuesByQuestionNumber = (
+  answerKeyText: string | undefined,
+): ReadonlyMap<number, readonly string[]> =>
+  new Map(
+    parseReadingV2TeacherAnswerKey(answerKeyText).rows
+      .filter((row) =>
+        row.parsedAnswerValues.length > 0
+        && !row.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+        && row.bindingStatus !== 'duplicate',
+      )
+      .map((row) => [row.questionNumber, row.parsedAnswerValues]),
+  );
+
+const questionNumberFromAutoV4Question = (question: AIQuestion): number =>
+  normalizeNumber(question.questionNumber);
+
+const autoV4QuestionChoiceItems = (
+  question: AIQuestion,
+): readonly { readonly label: string; readonly text: string }[] => {
+  const labeled = question.labeledOptions ?? [];
+  const labeledItems = labeled
+    .map((option) => ({
+      label: option.label?.trim() ?? '',
+      text: option.text?.trim() ?? '',
+    }))
+    .filter((option) => option.label && option.text);
+
+  if (labeledItems.length > 0) {
+    return labeledItems;
+  }
+
+  return (question.options ?? [])
+    .map((option, index) => {
+      if (typeof option !== 'string') {
+        return {
+          label: option.label?.trim() ?? OPTION_LABELS[index] ?? String(index + 1),
+          text: option.text?.trim() ?? '',
+        };
+      }
+
+      const trimmed = option.trim();
+      const match = trimmed.match(/^([A-Z]|[ivxlcdm]+|\d+)(?:[.)])?\s+(.+)$/i);
+      return {
+        label: (match?.[1] ?? OPTION_LABELS[index] ?? String(index + 1)).trim(),
+        text: (match?.[2] ?? trimmed).trim(),
+      };
+    })
+    .filter((option) => option.label && option.text);
+};
+
+const autoV4QuestionReferenceItems = (
+  question: AIQuestion,
+): readonly { readonly label: string; readonly text: string }[] => {
+  const references = (question.sectionReferences ?? [])
+    .map((reference) => ({
+      label: reference.label?.trim() ?? '',
+      text: (reference.title ?? reference.paragraph ?? reference.label)?.trim() ?? '',
+    }))
+    .filter((reference) => reference.label && reference.text);
+
+  return references.length > 0 ? references : autoV4QuestionChoiceItems(question);
+};
+
+const uniqueOptionItems = (
+  items: readonly { readonly label: string; readonly text: string }[],
+): readonly { readonly label: string; readonly text: string }[] => {
+  const seen = new Set<string>();
+  const uniqueItems: { label: string; text: string }[] = [];
+
+  items.forEach((item) => {
+    const label = item.label.trim();
+    const text = item.text.trim();
+    const key = `${label.toLowerCase()}:${text.toLowerCase()}`;
+    if (!label || !text || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    uniqueItems.push({ label, text });
+  });
+
+  return uniqueItems;
+};
+
+const autoV4QuestionOptionSignature = (question: AIQuestion, taskType: ReadingV2CanonicalTaskType): string => {
+  if (taskType !== 'matching-headings'
+    && taskType !== 'matching-information'
+    && taskType !== 'matching-features'
+    && taskType !== 'matching-sentence-endings'
+    && taskType !== 'summary-completion-list') {
+    return '';
+  }
+
+  return JSON.stringify(uniqueOptionItems([
+    ...autoV4QuestionReferenceItems(question),
+    ...autoV4QuestionChoiceItems(question),
+  ]));
+};
+
+const autoV4TaskTypeFromQuestion = (question: AIQuestion): ReadingV2CanonicalTaskType => {
+  const rawType = question.type?.trim() ?? '';
+  const combined = [
+    rawType,
+    question.sectionInstruction,
+    question.questionText,
+  ].filter(Boolean).join(' ');
+  const lower = combined.toLowerCase();
+  const hasChoices = autoV4QuestionChoiceItems(question).length > 0;
+  const normalized = normalizeReadingV2TaskType(rawType, {
+    summaryAnswerMode: lower.includes('summary') ? (hasChoices ? 'list' : 'text') : undefined,
+  });
+
+  if (normalized) {
+    return normalized;
+  }
+
+  if (/\btrue\b.*\bfalse\b.*\bnot\s+given\b|\btfng\b/.test(lower)) {
+    return 'true-false-not-given';
+  }
+  if (/\byes\b.*\bno\b.*\bnot\s+given\b|\bynng\b/.test(lower)) {
+    return 'yes-no-not-given';
+  }
+  if (lower.includes('matching headings') || lower.includes('list of headings')) {
+    return 'matching-headings';
+  }
+  if (lower.includes('sentence ending')) {
+    return 'matching-sentence-endings';
+  }
+  if (lower.includes('matching features') || lower.includes('which person') || lower.includes('which researcher')) {
+    return 'matching-features';
+  }
+  if (lower.includes('which paragraph contains') || lower.includes('paragraph contains') || lower.includes('matching information')) {
+    return 'matching-information';
+  }
+  if (lower.includes('choose two') || lower.includes('choose three') || /\btwo letters\b|\bthree letters\b/.test(lower)) {
+    return 'multiple-select';
+  }
+  if (hasChoices || lower.includes('choose the correct letter') || /\b[a-d],\s*b,\s*c/.test(lower)) {
+    return 'multiple-choice';
+  }
+  if (lower.includes('summary')) {
+    return hasChoices ? 'summary-completion-list' : 'summary-completion-text';
+  }
+  if (lower.includes('table')) {
+    return 'table-completion';
+  }
+  if (lower.includes('note')) {
+    return 'note-completion';
+  }
+  if (lower.includes('flow')) {
+    return 'flowchart-completion';
+  }
+  if (lower.includes('diagram') || lower.includes('label')) {
+    return 'diagram-labeling';
+  }
+  if (lower.includes('short answer')) {
+    return 'short-answer';
+  }
+
+  return 'sentence-completion';
+};
+
+const passageNumberFromAutoV4Passage = (
+  passage: AIPassage,
+  passageIndex: number,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): number => {
+  const label = `${passage.id ?? ''} ${passage.title ?? ''}`;
+  const explicit = label.match(/\b(?:reading\s+)?(?:passage|section|p)\s*([1-9]\d?)\b/i)?.[1];
+  if (explicit) {
+    return Number(explicit);
+  }
+
+  const start = optionalNumberFrom(passage.questionStart);
+  const end = optionalNumberFrom(passage.questionEnd) ?? start;
+  const ledgerRange = start && end
+    ? sourceLedger.questionRanges.find((range) => range.start <= start && range.end >= end)
+    : undefined;
+  if (ledgerRange?.passageNumber) {
+    return ledgerRange.passageNumber;
+  }
+
+  return sourceLedger.passages[passageIndex]?.passageNumber ?? passageIndex + 1;
+};
+
+const autoV4QuestionInstructionText = (
+  question: AIQuestion,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): string | undefined => {
+  const explicit = question.sectionInstruction?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const questionNumber = questionNumberFromAutoV4Question(question);
+  return sourceLedger.questionRanges.find((range) =>
+    questionNumber >= range.start && questionNumber <= range.end,
+  )?.instructionPreview;
+};
+
+const materialIndexForAutoV4Question = (
+  question: AIQuestion,
+  materials: readonly { readonly passage: AIPassage; readonly passageNumber: number }[],
+  sourceLedger: ReadingV2AutoSourceLedger,
+): number => {
+  const questionNumber = questionNumberFromAutoV4Question(question);
+  const passageId = question.passageId?.trim();
+  const directPassageIndex = passageId
+    ? materials.findIndex(({ passage }) => passage.id === passageId)
+    : -1;
+
+  if (directPassageIndex >= 0) {
+    return directPassageIndex;
+  }
+
+  const rangedPassageIndex = materials.findIndex(({ passage }) => {
+    const start = optionalNumberFrom(passage.questionStart);
+    const end = optionalNumberFrom(passage.questionEnd) ?? start;
+    return Boolean(start && end && questionNumber >= start && questionNumber <= end);
+  });
+
+  if (rangedPassageIndex >= 0) {
+    return rangedPassageIndex;
+  }
+
+  const ledgerRange = sourceLedger.questionRanges.find((range) =>
+    questionNumber >= range.start && questionNumber <= range.end,
+  );
+  const ledgerPassageIndex = ledgerRange?.passageNumber
+    ? materials.findIndex((material) => material.passageNumber === ledgerRange.passageNumber)
+    : -1;
+
+  if (ledgerPassageIndex >= 0) {
+    return ledgerPassageIndex;
+  }
+
+  return materials.length === 1 ? 0 : Math.max(0, materials.length - 1);
+};
+
+const autoV4QuestionGroupsForMaterial = (
+  passageNumber: number,
+  questions: readonly AIQuestion[],
+  sourceLedger: ReadingV2AutoSourceLedger,
+): readonly AutoV4QuestionGroup[] => {
+  const groups: {
+    id: string;
+    passageNumber: number;
+    taskType: ReadingV2CanonicalTaskType;
+    instructionText?: string;
+    optionSignature: string;
+    questions: AutoV4Question[];
+  }[] = [];
+
+  questions
+    .map((question) => ({
+      source: question,
+      questionNumber: questionNumberFromAutoV4Question(question),
+      taskType: autoV4TaskTypeFromQuestion(question),
+      instructionText: autoV4QuestionInstructionText(question, sourceLedger),
+    }))
+    .filter((question) => question.questionNumber > 0)
+    .sort((left, right) => left.questionNumber - right.questionNumber)
+    .forEach((question) => {
+      const optionSignature = autoV4QuestionOptionSignature(question.source, question.taskType);
+      const activeGroup = groups[groups.length - 1];
+      const activeLast = activeGroup?.questions[activeGroup.questions.length - 1];
+      const sameInstruction =
+        normalizedTextKey(activeGroup?.instructionText) === normalizedTextKey(question.instructionText);
+      const belongsToActiveGroup =
+        activeGroup
+        && activeGroup.taskType === question.taskType
+        && activeGroup.optionSignature === optionSignature
+        && sameInstruction
+        && activeLast?.questionNumber === question.questionNumber - 1;
+
+      if (belongsToActiveGroup) {
+        activeGroup.questions.push({ ...question, optionSignature });
+        return;
+      }
+
+      const id = `p${passageNumber}-q${question.questionNumber}-${question.questionNumber}-${question.taskType}`;
+      groups.push({
+        id,
+        passageNumber,
+        taskType: question.taskType,
+        instructionText: question.instructionText,
+        optionSignature,
+        questions: [{ ...question, optionSignature }],
+      });
+    });
+
+  return groups.map((group) => {
+    const start = group.questions[0]?.questionNumber ?? 0;
+    const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
+    return {
+      id: `p${group.passageNumber}-q${start}-${end}-${group.taskType}`,
+      passageNumber: group.passageNumber,
+      taskType: group.taskType,
+      instructionText: group.instructionText,
+      questions: group.questions,
+    };
+  });
+};
+
+const autoV4GroupSectionReferences = (
+  group: AutoV4QuestionGroup,
+): readonly { readonly label: string; readonly text: string }[] | undefined => {
+  if (
+    group.taskType !== 'matching-headings'
+    && group.taskType !== 'matching-information'
+    && group.taskType !== 'matching-features'
+    && group.taskType !== 'matching-sentence-endings'
+  ) {
+    return undefined;
+  }
+
+  const items = uniqueOptionItems(group.questions.flatMap((question) =>
+    autoV4QuestionReferenceItems(question.source),
+  ));
+  return items.length > 0 ? items : undefined;
+};
+
+const autoV4GroupLabeledOptions = (
+  group: AutoV4QuestionGroup,
+): readonly { readonly label: string; readonly text: string }[] | undefined => {
+  if (
+    group.taskType !== 'summary-completion-list'
+    && group.taskType !== 'multiple-select'
+  ) {
+    return undefined;
+  }
+
+  const items = uniqueOptionItems(group.questions.flatMap((question) =>
+    autoV4QuestionChoiceItems(question.source),
+  ));
+  return items.length > 0 ? items : undefined;
+};
+
+const autoV4QuestionLabeledOptions = (
+  question: AIQuestion,
+  taskType: ReadingV2CanonicalTaskType,
+): readonly { readonly label: string; readonly text: string }[] | undefined => {
+  if (taskType !== 'multiple-choice') {
+    return undefined;
+  }
+
+  const items = uniqueOptionItems(autoV4QuestionChoiceItems(question));
+  return items.length > 0 ? items : undefined;
+};
+
+const autoV4VocabularyForTaskType = (
+  taskType: ReadingV2CanonicalTaskType,
+): 'TFNG' | 'YNNG' | undefined => {
+  if (taskType === 'true-false-not-given') {
+    return 'TFNG';
+  }
+  if (taskType === 'yes-no-not-given') {
+    return 'YNNG';
+  }
+  return undefined;
+};
+
+const autoV4SelectionLimitForGroup = (
+  group: AutoV4QuestionGroup,
+  answerValues: ReadonlyMap<number, readonly string[]>,
+): number | undefined =>
+  group.taskType === 'multiple-select'
+    ? Math.max(2, ...group.questions.map((question) => answerValues.get(question.questionNumber)?.length ?? 0))
+    : undefined;
+
+const buildAutoPayloadFromAutoV4Results = (input: {
+  readonly request: ReadingV2AutoImportRequest;
+  readonly sourceLedger: ReadingV2AutoSourceLedger;
+  readonly passagesResult: AIPassagesOnlyResult;
+  readonly questionsResult: AIQuestionsAndAnswersResult;
+  readonly answerKeyText?: string;
+}): AutoPayload => {
+  const answerValues = answerValuesByQuestionNumber(input.answerKeyText);
+  const materials = input.passagesResult.passages
+    .map((passage, passageIndex) => ({
+      passage,
+      passageNumber: passageNumberFromAutoV4Passage(passage, passageIndex, input.sourceLedger),
+    }))
+    .sort((left, right) => left.passageNumber - right.passageNumber);
+  const questionsByMaterialIndex = new Map<number, AIQuestion[]>();
+
+  input.questionsResult.questions.forEach((question) => {
+    const materialIndex = materialIndexForAutoV4Question(question, materials, input.sourceLedger);
+    questionsByMaterialIndex.set(materialIndex, [
+      ...(questionsByMaterialIndex.get(materialIndex) ?? []),
+      question,
+    ]);
+  });
+
+  return {
+    sourceFile: input.request.sourceName ?? 'auto-v4-reading-v2.txt',
+    answerKeyText: input.answerKeyText ?? '',
+    materials: materials.map(({ passage, passageNumber }, materialIndex) => {
+      const materialQuestions = questionsByMaterialIndex.get(materialIndex) ?? [];
+      const groups = autoV4QuestionGroupsForMaterial(passageNumber, materialQuestions, input.sourceLedger);
+
+      return {
+        passageNumber,
+        title: passage.title || `Reading Passage ${passageNumber}`,
+        passages: [{
+          title: passage.title || `Reading Passage ${passageNumber}`,
+          content: passage.content,
+        }],
+        sectionInstructions: groups.map((group) => {
+          const start = group.questions[0]?.questionNumber ?? 0;
+          const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
+          return {
+            id: group.id,
+            taskType: group.taskType,
+            questionRange: { start, end },
+            sourceInstructionEvidence: group.instructionText,
+            vocabulary: autoV4VocabularyForTaskType(group.taskType),
+            selectionLimit: autoV4SelectionLimitForGroup(group, answerValues),
+            sectionReferences: autoV4GroupSectionReferences(group),
+            labeledOptions: autoV4GroupLabeledOptions(group),
+          };
+        }),
+        questions: groups.flatMap((group) =>
+          group.questions.map((question) => {
+            const answers = answerValues.get(question.questionNumber) ?? [];
+            return {
+              questionNumber: question.questionNumber,
+              number: question.questionNumber,
+              type: group.taskType,
+              sectionInstructionId: group.id,
+              questionText: normalizedQuestionText(question.source.questionText),
+              answer: answers.join(' | '),
+              labeledOptions: autoV4QuestionLabeledOptions(question.source, group.taskType),
+              sectionReferences: group.taskType === 'matching-information'
+                ? autoV4QuestionReferenceItems(question.source)
+                : undefined,
+              optionLabelFormat: question.source.optionLabelFormat,
+            };
+          }),
+        ),
+      };
+    }),
+    diagnostics: [],
+  };
+};
+
 const duplicateQuestionDiagnostics = (payload: AutoPayload): readonly ReadingV2AutoImportDiagnostic[] => {
   const seen = new Set<number>();
   const duplicates = new Set<number>();
@@ -1297,7 +1809,12 @@ const finalizeAutoImportPayload = (input: {
     text,
     answerKeyText: input.answerKeyText,
     sourceKind: 'auto-gemini',
-    fileName: input.request.sourceName ?? (provider === AUTO_V3_PROVIDER ? 'Auto V3 import' : 'Auto Gemini import'),
+    fileName: input.request.sourceName
+      ?? (model === AUTO_V4_MODEL_LABEL
+        ? 'Auto V4 import'
+        : provider === AUTO_V3_PROVIDER
+          ? 'Auto V3 import'
+          : 'Auto Gemini import'),
   });
   const candidateWithLedger: ReadingV2ImportCandidate = {
     ...candidate,
@@ -1770,7 +2287,8 @@ const normalizedPromptTextFromSourceText = (
       )
       .replace(/[`*_~]+/g, '')
       .replace(/\\(?=[_.])/g, '')
-      .replaceAll(blankSentinel, '___'),
+      .split(blankSentinel)
+      .join('___'),
   );
 };
 
@@ -2029,8 +2547,9 @@ const canonicalizeTranscriptQuestionsFromSourceLines = (
         let groupChanged = false;
 
         const questions = group.questions.map((question) => {
-          const explicitSourceLine = question.sourceLines?.length === 1
-            ? groupLines.find((line) => line.lineNumber === question.sourceLines[0])
+          const onlySourceLine = question.sourceLines?.length === 1 ? question.sourceLines[0] : undefined;
+          const explicitSourceLine = typeof onlySourceLine === 'number'
+            ? groupLines.find((line) => line.lineNumber === onlySourceLine)
             : undefined;
           const explicitCanonicalSourceTextExact = explicitSourceLine
             ? canonicalQuestionSourceTextFromLine({
@@ -2304,7 +2823,7 @@ const buildTargetedGroqInputText = (input: {
   readonly groupHint: ReadingV2AutoPassagePackage['groupHints'][number];
   readonly questionAreaLines: readonly ReadingV2AutoPassagePackageLine[];
   readonly referenceBankLines: readonly ReadingV2AutoPassagePackageLine[];
-  readonly answerKeyRows: readonly ReadingV2AutoPassagePackage['answerKeyRows'];
+  readonly answerKeyRows: ReadingV2AutoPassagePackage['answerKeyRows'];
 }): string => [
   `READING_V2_AUTO_V3_PASSAGE_PACKAGE ${input.passagePackage.passageNumber}`,
   `sourceHash: ${input.passagePackage.sourceHash}`,
@@ -2398,9 +2917,7 @@ const replayBundleEvidenceLines = (
 
 const recoverTranscriptCoverageForPassage = async (input: {
   readonly passagePackage: ReadingV2AutoPassagePackage;
-  readonly packageResult: Awaited<ReturnType<typeof runReadingV2GroqPackageFanout>> extends Result<infer T>
-    ? T['packageResults'][number]
-    : never;
+  readonly packageResult: ReadingV2GroqPackageFanoutPackageResult;
   readonly provider: ReadingV2GroqPackageFanoutProvider;
   readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
 }): Promise<{
@@ -2666,6 +3183,135 @@ const recoverTranscriptCoverageForPassage = async (input: {
   };
 };
 
+const generateReadingV2AutoImportCandidateV4 = async (input: {
+  readonly request: ReadingV2AutoImportRequest;
+  readonly extractor: ReadingV2AutoV4Extractor;
+  readonly sourceLedger: ReadingV2AutoSourceLedger;
+  readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
+}): Promise<ReadingV2AutoImportResult> => {
+  const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(input.sourceLedger.normalizedText);
+  const chunks = splitSourceIntoChunks(input.sourceLedger.normalizedText, input.sourceLedger);
+  const hasVisibleAnswerKeyHeading = rawTextHasAnswerKeyHeading(input.sourceLedger.normalizedText);
+
+  emitReadingV2AutoImportDiag(input.options, 'auto_v4_preflight_complete', {
+    sourceLength: input.sourceLedger.normalizedText.length,
+    chunkCount: chunks.length,
+    answerKeyDetected: Boolean(extractedAnswerKeyText),
+    answerKeyHeadingDetected: hasVisibleAnswerKeyHeading,
+    sourceLedgerCategory: input.sourceLedger.category,
+    sourceLedgerPassageCount: input.sourceLedger.passages.length,
+    sourceLedgerQuestionCount: input.sourceLedger.questionNumbers.length,
+    sourceLedgerAnswerKeyRowCount: input.sourceLedger.answerKeyRows.length,
+    sourceName: input.request.sourceName ?? null,
+  });
+
+  const passagesResult = await input.extractor.parsePassagesOnly(input.sourceLedger.normalizedText);
+  if (!passagesResult.success) {
+    const error = passagesResult.error ?? 'Auto V4 passage parser failed.';
+    emitReadingV2AutoRawDebug(input.options, 'auto_v4_passages_debug_capture', {
+      stage: 'auto-v4-passages',
+      providerResult: 'failure',
+      error,
+    });
+    return {
+      success: false,
+      error,
+      diagnostics: [
+        ...providerQuotaDiagnosticsFor(error),
+        {
+          code: 'gemini-request-failed',
+          severity: 'error',
+          message: error,
+          providerResult: 'failure',
+        },
+      ],
+      provider: 'gemini',
+      model: AUTO_V4_MODEL_LABEL,
+    };
+  }
+
+  const questionsResult = await input.extractor.parseQuestionsAndAnswers(input.sourceLedger.normalizedText);
+  if (!questionsResult.success) {
+    const error = questionsResult.error ?? 'Auto V4 question parser failed.';
+    emitReadingV2AutoRawDebug(input.options, 'auto_v4_questions_debug_capture', {
+      stage: 'auto-v4-questions',
+      providerResult: 'failure',
+      error,
+    });
+    return {
+      success: false,
+      error,
+      diagnostics: [
+        ...providerQuotaDiagnosticsFor(error),
+        {
+          code: 'gemini-request-failed',
+          severity: 'error',
+          message: error,
+          providerResult: 'failure',
+        },
+      ],
+      provider: 'gemini',
+      model: AUTO_V4_MODEL_LABEL,
+    };
+  }
+
+  const copiedV4AnswerKeyText = hasVisibleAnswerKeyHeading
+    ? autoV4AnswerKeyText(questionsResult.data.answerKey)
+    : undefined;
+  const answerKeyText = extractedAnswerKeyText ?? copiedV4AnswerKeyText;
+  const payload = buildAutoPayloadFromAutoV4Results({
+    request: input.request,
+    sourceLedger: input.sourceLedger,
+    passagesResult: passagesResult.data,
+    questionsResult: questionsResult.data,
+    answerKeyText,
+  });
+  const payloadState = buildAutoPayloadState(
+    input.request,
+    extractedAnswerKeyText,
+    input.sourceLedger,
+    [{
+      chunk: {
+        text: input.sourceLedger.normalizedText,
+        expectedQuestionNumbers: input.sourceLedger.questionNumbers,
+      },
+      payload,
+    }],
+  );
+  const diagnostics: ReadingV2AutoImportDiagnostic[] = [
+    {
+      code: 'auto-v4-staged-parser-used',
+      severity: 'info',
+      message: 'Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload.',
+    },
+    ...(payloadState.answerKeyText
+      ? [{
+          code: extractedAnswerKeyText ? 'answer-key-extracted' as const : 'answer-key-returned-by-gemini' as const,
+          severity: 'info' as const,
+          message: extractedAnswerKeyText
+            ? 'Auto extracted answer-key rows from the raw source.'
+            : 'Auto V4 parser returned copied answer-key rows from a visible source heading.',
+        }]
+      : [{
+          code: 'answer-key-missing' as const,
+          severity: 'warning' as const,
+          message: 'No source answer-key section was detected. Answers stay empty for Studio review.',
+        }]),
+  ];
+
+  return finalizeAutoImportPayload({
+    request: input.request,
+    sourceLedger: input.sourceLedger,
+    chunks,
+    payload: payloadState.payload,
+    answerKeyText: payloadState.answerKeyText,
+    diagnostics,
+    verifierIssues: payloadState.verifierIssues,
+    provider: 'gemini',
+    model: AUTO_V4_MODEL_LABEL,
+  });
+};
+
 const generateReadingV2AutoImportCandidateV3 = async (input: {
   readonly request: ReadingV2AutoImportRequest;
   readonly generator: ReadingV2AutoStructuredGenerator;
@@ -2880,7 +3526,6 @@ export const generateReadingV2AutoImportCandidate = async (
     ? Math.max(0, Math.floor(options.maxRepairAttempts ?? 0))
     : DEFAULT_MAX_REPAIR_ATTEMPTS;
   const generator = options.generator ?? geminiProvider;
-  const questionAreaNormalizer = options.questionAreaNormalizer ?? groqProvider;
 
   if (rawTestText.length < minInputChars) {
     return {
@@ -2926,12 +3571,21 @@ export const generateReadingV2AutoImportCandidate = async (
     };
   }
 
-  const useV3Pipeline = options.forceV3Pipeline ?? (!options.generator || Boolean(options.questionAreaNormalizer));
+  const useV3Pipeline = options.forceV3Pipeline === true;
   if (useV3Pipeline) {
     return generateReadingV2AutoImportCandidateV3({
       request,
       generator,
-      questionAreaNormalizer,
+      questionAreaNormalizer: options.questionAreaNormalizer ?? groqProvider,
+      sourceLedger,
+      options,
+    });
+  }
+
+  if (!options.generator || options.v4Extractor) {
+    return generateReadingV2AutoImportCandidateV4({
+      request,
+      extractor: options.v4Extractor ?? aiService,
       sourceLedger,
       options,
     });

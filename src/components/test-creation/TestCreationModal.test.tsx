@@ -152,15 +152,15 @@ describe('TestCreationModal', () => {
             structuredPayloadText: '<!-- CODEX_IELTS_READING_MATERIALS_START -->{}<!-- CODEX_IELTS_READING_MATERIALS_END -->',
             answerKeyText: '1 TRUE',
             diagnostics: [],
-            provider: 'gemini-groq',
-            model: 'gemini-2.5-flash+groq-structured-json',
+            provider: 'gemini',
+            model: 'gemini-2.5-flash+auto-v4-staged-adapter',
             passageCount: 1,
             questionCount: 1,
             candidate: {
                 sourceKind: 'auto-gemini',
                 rawText: '<!-- CODEX_IELTS_READING_MATERIALS_START -->{}<!-- CODEX_IELTS_READING_MATERIALS_END -->',
                 answerKeyText: '1 TRUE',
-                fileName: 'Auto V3 import',
+                fileName: 'Auto V4 import',
                 evidence: ['Detected 1 structured passage'],
                 uncertaintyMarkers: [],
                 publishBlockingPlaceholders: [],
@@ -434,7 +434,7 @@ describe('TestCreationModal', () => {
             }));
         });
 
-        it('opens Reading V2 Auto setup and routes Auto V3 output into Studio review', async () => {
+        it('opens Reading V2 Auto setup and routes Auto V4 output into Studio review', async () => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -443,7 +443,7 @@ describe('TestCreationModal', () => {
             await openReadingV2AutoImportStep(user);
 
             expect(screen.getByLabelText('Reading V2 Auto raw test text')).toBeInTheDocument();
-            expect(screen.getByText('Auto V3 import')).toBeInTheDocument();
+            expect(screen.getByText('Auto V4 import')).toBeInTheDocument();
             expect(screen.queryByText('Internal Gemini import')).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /Copy Prompt/i })).not.toBeInTheDocument();
             expect(screen.queryByLabelText('Reading V2 teacher answer key')).not.toBeInTheDocument();
@@ -457,7 +457,7 @@ describe('TestCreationModal', () => {
                 target: {
                     value: [
                         'READING PASSAGE 1',
-                        'This raw passage text is long enough for Auto V3 processing and Studio review.',
+                        'This raw passage text is long enough for Auto V4 processing and Studio review.',
                         'Questions 1-1',
                         '1 A statement.',
                         'Answers',
@@ -466,13 +466,18 @@ describe('TestCreationModal', () => {
                 },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Auto V3/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
-                expect(mockGenerateReadingV2AutoImportCandidate).toHaveBeenCalledWith({
-                    rawTestText: expect.stringContaining('READING PASSAGE 1'),
-                    sourceName: 'V2 Auto Metadata',
-                });
+                expect(mockGenerateReadingV2AutoImportCandidate).toHaveBeenCalledWith(
+                    {
+                        rawTestText: expect.stringContaining('READING PASSAGE 1'),
+                        sourceName: 'V2 Auto Metadata',
+                    },
+                    expect.objectContaining({
+                        onDiagnosticEvent: expect.any(Function),
+                    }),
+                );
             });
             expect(onClose).toHaveBeenCalled();
             expect(mockNavigate).toHaveBeenCalledWith('/teacher/reading-v2/import', {
@@ -483,7 +488,7 @@ describe('TestCreationModal', () => {
                     startMode: 'create-from-auto',
                     initialMetadata: expect.objectContaining({
                         title: 'V2 Auto Metadata',
-                        provenanceSummary: 'Generated from Auto V3 import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
                     }),
                     initialImportCandidate: expect.objectContaining({
                         sourceKind: 'auto-gemini',
@@ -492,18 +497,18 @@ describe('TestCreationModal', () => {
                 }),
             });
             expect(onAction).toHaveBeenCalledWith('submitReadingV2AutoImport', expect.objectContaining({
-                provider: 'auto-v3',
+                provider: 'auto-v4',
                 sourceLength: expect.any(Number),
             }));
             expect(onAction).toHaveBeenCalledWith('completeReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini-groq',
-                model: 'gemini-2.5-flash+groq-structured-json',
+                provider: 'gemini',
+                model: 'gemini-2.5-flash+auto-v4-staged-adapter',
                 passageCount: 1,
                 questionCount: 1,
             }));
         });
 
-        it('keeps Auto source in place when Auto V3 fails guardrails', async () => {
+        it('keeps Auto source in place when Auto V4 fails guardrails', async () => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -527,7 +532,7 @@ describe('TestCreationModal', () => {
                 target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Auto V3/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
                 expect(screen.getByRole('alert')).toHaveTextContent('Gemini returned malformed Reading V2 JSON.');
@@ -547,7 +552,7 @@ describe('TestCreationModal', () => {
         it.each([
             ['Gemini marker quota', 'All Gemini API keys exhausted or rate-limited'],
             ['Groq package quota', 'All Groq API keys exhausted or rate-limited'],
-        ])('keeps Auto source recoverable when Auto V3 hits %s', async (_caseName, errorMessage) => {
+        ])('keeps Auto source recoverable when Auto V4 hits %s', async (_caseName, errorMessage) => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -571,7 +576,7 @@ describe('TestCreationModal', () => {
                 target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Auto V3/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
                 expect(screen.getByRole('alert')).toHaveTextContent(errorMessage);
@@ -588,7 +593,7 @@ describe('TestCreationModal', () => {
             }));
         });
 
-        it('redacts provider keys and local paths from Auto V3 visible failure metadata', async () => {
+        it('redacts provider keys and local paths from Auto V4 visible failure metadata', async () => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -614,7 +619,7 @@ describe('TestCreationModal', () => {
                 target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Auto V3/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
                 expect(screen.getByRole('alert')).toHaveTextContent('[redacted-key]');
