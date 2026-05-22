@@ -119,6 +119,24 @@ const sanitizeReadingV2AutoDiagnostics = (
         message: sanitizeReadingV2AutoDiagString(diagnostic.message),
     }));
 
+const readingV2AutoDiagnosticLogDetails = (
+    diagnostics: readonly ReadingV2AutoImportDiagnostic[]
+): readonly Record<string, unknown>[] =>
+    diagnostics.slice(0, 12).map((diagnostic) => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        passageNumber: diagnostic.passageNumber,
+        questionNumber: diagnostic.questionNumber,
+        stage: diagnostic.stage,
+        groupRange: diagnostic.groupRange,
+        sourceRange: diagnostic.sourceRange,
+        verifierIssueCodes: diagnostic.verifierIssueCodes,
+        repairScopes: diagnostic.repairScopes,
+        providerResult: diagnostic.providerResult,
+        verifierResult: diagnostic.verifierResult,
+    }));
+
 const logTablePresentationDiag = (event: string, payload: Record<string, unknown>): void => {
     if (!import.meta.env.DEV) {
         return;
@@ -880,9 +898,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             appendReadingV2AutoDiagnosticLog('submit_result', {
                 requestId,
                 success: result.success,
+                reviewStatus: result.reviewStatus ?? (result.success ? 'ready' : 'blocked'),
                 provider: result.provider,
                 model: result.model,
                 diagnosticCount: safeDiagnostics.length,
+                blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
+                reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+                diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 error: safeResultError,
                 passageCount: result.success ? result.passageCount : undefined,
                 questionCount: result.success ? result.questionCount : undefined,
@@ -890,9 +912,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             logReadingV2AutoImportDiag('submit_result', {
                 requestId,
                 success: result.success,
+                reviewStatus: result.reviewStatus ?? (result.success ? 'ready' : 'blocked'),
                 provider: result.provider,
                 model: result.model,
                 diagnosticCount: safeDiagnostics.length,
+                blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
+                reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+                diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 error: safeResultError,
                 passageCount: result.success ? result.passageCount : undefined,
                 questionCount: result.success ? result.questionCount : undefined,
@@ -905,12 +931,14 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     error: safeResultError,
                     diagnosticCount: safeDiagnostics.length,
                     diagnosticCodes: safeDiagnostics.map((diagnostic) => diagnostic.code),
+                    diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 });
                 logReadingV2AutoImportDiag('submit_failed', {
                     requestId,
                     error: safeResultError,
                     diagnosticCount: safeDiagnostics.length,
                     diagnosticCodes: safeDiagnostics.map((diagnostic) => diagnostic.code),
+                    diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 });
                 onAction?.('failReadingV2AutoImport', {
                     source: 'test_creation_modal',
@@ -934,16 +962,24 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             });
             appendReadingV2AutoDiagnosticLog('submit_completed', {
                 requestId,
+                reviewStatus: result.reviewStatus ?? 'ready',
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
+                blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
+                reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+                diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 answerKeyDetected: Boolean(result.answerKeyText),
             });
             logReadingV2AutoImportDiag('submit_completed', {
                 requestId,
+                reviewStatus: result.reviewStatus ?? 'ready',
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
+                blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
+                reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+                diagnosticDetails: readingV2AutoDiagnosticLogDetails(safeDiagnostics),
                 answerKeyDetected: Boolean(result.answerKeyText),
             });
             onClose();
@@ -2709,7 +2745,7 @@ const ReadingV2AutoImportStep: React.FC<ReadingV2AutoImportStepProps> = ({
                     <Text fw={700} size="sm" style={{ color: blockingDiagnostics > 0 ? '#991b1b' : '#92400e' }}>
                         {blockingDiagnostics > 0
                             ? `${blockingDiagnostics} blocking Auto issue${blockingDiagnostics === 1 ? '' : 's'}`
-                            : `${warningDiagnostics} Auto warning${warningDiagnostics === 1 ? '' : 's'}`}
+                            : `${warningDiagnostics} Studio review item${warningDiagnostics === 1 ? '' : 's'}`}
                     </Text>
                     {diagnostics.slice(0, 5).map((diagnostic, index) => (
                         <Text key={`${diagnostic.code}-${index}`} size="xs" c="dimmed">

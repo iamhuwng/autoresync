@@ -513,6 +513,57 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
+  it('opens an Auto V4 Studio candidate for review when source answer-key rows cannot bind cleanly', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-4',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      'TRUE if the statement agrees with the information',
+      'FALSE if the statement contradicts the information',
+      'NOT GIVEN if there is no information on this',
+      '1 The first statement is supported by the passage.',
+      '2 The second statement is contradicted by the passage.',
+      '3 The third statement needs teacher repair.',
+      '4 The fourth statement needs teacher repair.',
+      '',
+      'Answers',
+      '1 TRUE',
+      '2 FALSE',
+      '3 TRUE',
+      '4 FALSE',
+    ].join('\n');
+    const v4Extractor = v4ExtractorFor();
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 binding drift fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.reviewStatus).toBe('needs_review');
+    expect(result.questionCount).toBe(2);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-question-missing', severity: 'warning' }),
+      expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'warning' }),
+    ]));
+    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error' }),
+    ]));
+    expect(result.candidate.publishBlockingPlaceholders).toEqual(expect.arrayContaining([
+      expect.stringContaining('Source ledger detected questions 3-4'),
+      expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4'),
+    ]));
+    expect(result.candidate.uncertaintyMarkers).toEqual(expect.arrayContaining([
+      expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4'),
+    ]));
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+  });
+
   it('extracts escaped markdown answer-key rows from pasted source', async () => {
     const generator = generatorFor(autoPayload());
 
@@ -900,8 +951,10 @@ describe('readingV2AutoImport.service', () => {
     );
 
     expect(generator.generateStructuredJson).toHaveBeenCalledTimes(5);
-    expect(result.success).toBe(false);
-    if (result.success) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.reviewStatus).toBe('needs_review');
+    expect(result.questionCount).toBe(13);
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'source-repair-attempted',
@@ -917,10 +970,16 @@ describe('readingV2AutoImport.service', () => {
         attempt: 1,
         verifierResult: 'failed',
       }),
-      expect.objectContaining({ code: 'source-question-missing', severity: 'error' }),
-      expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'error' }),
+      expect.objectContaining({ code: 'source-question-missing', severity: 'warning' }),
+      expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'warning' }),
     ]));
-    expect(result.error).toMatch(/questions 14-40/i);
+    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error' }),
+    ]));
+    expect(result.candidate.publishBlockingPlaceholders).toEqual(expect.arrayContaining([
+      expect.stringContaining('questions 14-40'),
+      expect.stringContaining('answer-key rows cannot bind'),
+    ]));
   });
 
   it('retries only bad ledger chunks and succeeds when repair returns omitted ranges', async () => {

@@ -110,6 +110,7 @@ const emitReadingV2AutoImportDiag = (
 };
 
 export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error';
+export type ReadingV2AutoImportReviewStatus = 'ready' | 'needs_review' | 'blocked';
 
 export type ReadingV2AutoRepairScope =
   | 'passage'
@@ -285,6 +286,7 @@ const emitReadingV2AutoRawDebug = (
 export type ReadingV2AutoImportResult =
   | {
       readonly success: true;
+      readonly reviewStatus?: ReadingV2AutoImportReviewStatus;
       readonly structuredPayloadText: string;
       readonly answerKeyText?: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
@@ -296,6 +298,7 @@ export type ReadingV2AutoImportResult =
     }
   | {
       readonly success: false;
+      readonly reviewStatus?: ReadingV2AutoImportReviewStatus;
       readonly error: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
       readonly provider: 'gemini' | 'gemini-groq';
@@ -1624,6 +1627,114 @@ const verifierIssueSummary = (
   repairScopes: [...new Set(issues.map(repairScopeForVerifierIssue))],
 });
 
+const reviewableGuardrailDiagnosticCodes = new Set<ReadingV2AutoImportDiagnosticCode>([
+  'answer-key-missing',
+  'question-count-mismatch',
+  'passage-count-mismatch',
+  'possible-trimmed-passage',
+  'source-passage-missing',
+  'source-question-missing',
+  'source-answer-row-unbound',
+  'source-question-range-missing',
+  'source-reference-bank-missing',
+  'source-reference-bank-mismatch',
+  'source-instruction-task-type-mismatch',
+  'source-instruction-word-limit-mismatch',
+  'source-instruction-vocabulary-mismatch',
+  'source-instruction-reuse-mismatch',
+  'source-passage-trim-risk',
+  'group-coverage-mismatch',
+  'task-type-conflict',
+  'missing-reference-bank',
+  'blank-mismatch',
+  'groq-output-missing-group',
+  'app-normalizer-dropped-group',
+  'repair-failed',
+  'canonical-validation-blocked',
+]);
+
+const publishBlockingReviewDiagnosticCodes = new Set<ReadingV2AutoImportDiagnosticCode>([
+  'answer-key-missing',
+  'question-count-mismatch',
+  'passage-count-mismatch',
+  'possible-trimmed-passage',
+  'source-passage-missing',
+  'source-question-missing',
+  'source-answer-row-unbound',
+  'source-question-range-missing',
+  'source-reference-bank-missing',
+  'source-reference-bank-mismatch',
+  'source-instruction-task-type-mismatch',
+  'source-instruction-word-limit-mismatch',
+  'source-instruction-vocabulary-mismatch',
+  'source-instruction-reuse-mismatch',
+  'source-passage-trim-risk',
+  'group-coverage-mismatch',
+  'task-type-conflict',
+  'missing-reference-bank',
+  'blank-mismatch',
+  'groq-output-missing-group',
+  'app-normalizer-dropped-group',
+  'canonical-validation-blocked',
+]);
+
+const diagnosticLogDetailsFor = (
+  diagnostics: readonly ReadingV2AutoImportDiagnostic[],
+): readonly Record<string, unknown>[] =>
+  diagnostics.slice(0, 12).map((diagnostic) => ({
+    code: diagnostic.code,
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    passageNumber: diagnostic.passageNumber,
+    questionNumber: diagnostic.questionNumber,
+    stage: diagnostic.stage,
+    groupRange: diagnostic.groupRange,
+    sourceRange: diagnostic.sourceRange,
+    verifierIssueCodes: diagnostic.verifierIssueCodes,
+    repairScopes: diagnostic.repairScopes,
+    providerResult: diagnostic.providerResult,
+    verifierResult: diagnostic.verifierResult,
+  }));
+
+const normalizeGuardrailDiagnosticsForStudio = (
+  diagnostics: readonly ReadingV2AutoImportDiagnostic[],
+): {
+  readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
+  readonly blockingDiagnostics: readonly ReadingV2AutoImportDiagnostic[];
+  readonly reviewDiagnostics: readonly ReadingV2AutoImportDiagnostic[];
+  readonly reviewStatus: ReadingV2AutoImportReviewStatus;
+  readonly publishBlockingPlaceholders: readonly string[];
+  readonly uncertaintyMarkers: readonly string[];
+} => {
+  const normalizedDiagnostics = diagnostics.map((diagnostic) =>
+    diagnostic.severity === 'error' && reviewableGuardrailDiagnosticCodes.has(diagnostic.code)
+      ? { ...diagnostic, severity: 'warning' as const }
+      : diagnostic,
+  );
+  const blockingDiagnostics = normalizedDiagnostics.filter((diagnostic) => diagnostic.severity === 'error');
+  const reviewDiagnostics = normalizedDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning');
+  const publishBlockingPlaceholders = reviewDiagnostics
+    .filter((diagnostic) => publishBlockingReviewDiagnosticCodes.has(diagnostic.code))
+    .map((diagnostic) => `Auto import needs teacher review before publish: ${diagnostic.message}`)
+    .filter((message, index, messages) => messages.indexOf(message) === index);
+  const uncertaintyMarkers = reviewDiagnostics
+    .map((diagnostic) => `Auto import review: ${diagnostic.message}`)
+    .filter((message, index, messages) => messages.indexOf(message) === index);
+
+  return {
+    diagnostics: normalizedDiagnostics,
+    blockingDiagnostics,
+    reviewDiagnostics,
+    reviewStatus: blockingDiagnostics.length > 0
+      ? 'blocked'
+      : reviewDiagnostics.length > 0
+        ? 'needs_review'
+        : 'ready',
+    publishBlockingPlaceholders,
+    uncertaintyMarkers,
+  };
+};
+
 const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
   const materialCount = payload.materials?.length ?? 0;
   const taskGroupCount = (payload.materials ?? []).reduce(
@@ -1780,16 +1891,22 @@ const finalizeAutoImportPayload = (input: {
   const model = input.model ?? GEMINI_MODEL_NAME;
   const verifierIssues = input.verifierIssues
     ?? verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(input.payload), input.sourceLedger);
-  const diagnostics = [
+  const rawDiagnostics = [
     ...input.diagnostics,
     ...validatePayload(input.payload, input.chunks, input.sourceLedger, verifierIssues),
   ];
-  const blocking = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
+  const guardrail = normalizeGuardrailDiagnosticsForStudio(rawDiagnostics);
+  const diagnostics = guardrail.diagnostics;
+  const blocking = guardrail.reviewStatus === 'blocked';
 
   logReadingV2AutoImportDiag('guardrail_result', {
     blocking,
+    reviewStatus: guardrail.reviewStatus,
     diagnosticCount: diagnostics.length,
     diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+    blockingDiagnosticCount: guardrail.blockingDiagnostics.length,
+    reviewDiagnosticCount: guardrail.reviewDiagnostics.length,
+    diagnosticDetails: diagnosticLogDetailsFor(diagnostics),
     passageCount: input.payload.materials?.length ?? 0,
     questionCount: questionCountFor(input.payload),
   });
@@ -1797,6 +1914,7 @@ const finalizeAutoImportPayload = (input: {
   if (blocking) {
     return {
       success: false,
+      reviewStatus: 'blocked',
       error: diagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message ?? 'Auto import failed guardrails.',
       diagnostics,
       provider,
@@ -1830,7 +1948,12 @@ const finalizeAutoImportPayload = (input: {
       ...input.sourceLedger.issues
         .filter((issue) => issue.severity !== 'info')
         .map((issue) => `Source ledger: ${issue.message}`),
+      ...guardrail.uncertaintyMarkers,
     ],
+    publishBlockingPlaceholders: [
+      ...candidate.publishBlockingPlaceholders,
+      ...guardrail.publishBlockingPlaceholders,
+    ].filter((message, index, messages) => messages.indexOf(message) === index),
   };
   let candidateForStudio = candidateWithLedger;
   const canonicalValidationDiagnostics: ReadingV2AutoImportDiagnostic[] = [];
@@ -1866,6 +1989,7 @@ const finalizeAutoImportPayload = (input: {
   } catch (error) {
     return {
       success: false,
+      reviewStatus: 'blocked',
       error: error instanceof Error ? error.message : 'Auto import could not normalize into Reading V2.',
       diagnostics: [
         ...diagnostics,
@@ -1879,9 +2003,14 @@ const finalizeAutoImportPayload = (input: {
       model,
     };
   }
+  const reviewStatus: ReadingV2AutoImportReviewStatus =
+    guardrail.reviewStatus === 'ready' && canonicalValidationDiagnostics.length > 0
+      ? 'needs_review'
+      : guardrail.reviewStatus;
 
   return {
     success: true,
+    reviewStatus,
     structuredPayloadText: text,
     answerKeyText: input.answerKeyText,
     diagnostics: [
@@ -3638,7 +3767,7 @@ export const generateReadingV2AutoImportCandidate = async (
     onDiagnosticEvent: options.onDiagnosticEvent,
   });
   const { answerKeyText, payload } = repaired;
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [
+  const rawDiagnostics: ReadingV2AutoImportDiagnostic[] = [
     ...(extractedAnswerKeyText
       ? [{
           code: 'answer-key-extracted' as const,
@@ -3659,18 +3788,25 @@ export const generateReadingV2AutoImportCandidate = async (
     ...repaired.diagnostics,
     ...validatePayload(payload, chunks, sourceLedger, repaired.verifierIssues),
   ];
+  const guardrail = normalizeGuardrailDiagnosticsForStudio(rawDiagnostics);
+  const diagnostics = guardrail.diagnostics;
 
-  const blocking = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
+  const blocking = guardrail.reviewStatus === 'blocked';
   emitReadingV2AutoImportDiag(options, 'guardrail_result', {
     blocking,
+    reviewStatus: guardrail.reviewStatus,
     diagnosticCount: diagnostics.length,
     diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+    blockingDiagnosticCount: guardrail.blockingDiagnostics.length,
+    reviewDiagnosticCount: guardrail.reviewDiagnostics.length,
+    diagnosticDetails: diagnosticLogDetailsFor(diagnostics),
     passageCount: payload.materials?.length ?? 0,
     questionCount: questionCountFor(payload),
   });
   if (blocking) {
     return {
       success: false,
+      reviewStatus: 'blocked',
       error: diagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message ?? 'Auto import failed guardrails.',
       diagnostics,
       provider: 'gemini',
@@ -3698,7 +3834,12 @@ export const generateReadingV2AutoImportCandidate = async (
       ...sourceLedger.issues
         .filter((issue) => issue.severity !== 'info')
         .map((issue) => `Source ledger: ${issue.message}`),
+      ...guardrail.uncertaintyMarkers,
     ],
+    publishBlockingPlaceholders: [
+      ...candidate.publishBlockingPlaceholders,
+      ...guardrail.publishBlockingPlaceholders,
+    ].filter((message, index, messages) => messages.indexOf(message) === index),
   };
   let candidateForStudio = candidateWithLedger;
   const canonicalValidationDiagnostics: ReadingV2AutoImportDiagnostic[] = [];
@@ -3747,9 +3888,14 @@ export const generateReadingV2AutoImportCandidate = async (
       model: GEMINI_MODEL_NAME,
     };
   }
+  const reviewStatus: ReadingV2AutoImportReviewStatus =
+    guardrail.reviewStatus === 'ready' && canonicalValidationDiagnostics.length > 0
+      ? 'needs_review'
+      : guardrail.reviewStatus;
 
   return {
     success: true,
+    reviewStatus,
     structuredPayloadText: text,
     answerKeyText,
     diagnostics: [
