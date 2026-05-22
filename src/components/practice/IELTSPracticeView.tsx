@@ -1613,6 +1613,7 @@ export const IELTSPracticeView: React.FC<IELTSPracticeViewProps> = ({
                     resolvedSettings={resolvedSettings}
                     studentPrefs={studentPrefs}
                     onPrefsChange={handlePrefsChange}
+                    onExit={handleBack}
                 />
             )}
         </div>

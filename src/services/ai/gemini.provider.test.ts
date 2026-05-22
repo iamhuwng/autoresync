@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GeminiProvider } from './gemini.provider';
 import type { Chunk } from '../../types/document.types';
+import { loadAllGeminiApiKeys } from '../../config/env.config';
+import { isKeyBenched } from '../key-cooldown.service';
 
 // Mock Google Generative AI
 vi.mock('@google/generative-ai', () => ({
@@ -68,6 +70,8 @@ describe('Gemini Provider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(loadAllGeminiApiKeys).mockResolvedValue(['test-key-1', 'test-key-2']);
+    vi.mocked(isKeyBenched).mockImplementation(() => false);
     provider = new GeminiProvider();
   });
 

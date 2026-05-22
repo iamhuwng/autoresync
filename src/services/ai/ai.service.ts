@@ -92,8 +92,11 @@ export interface AIQuestionsAndAnswersResult {
 
 export interface AIStructuredGenerationOptions {
   systemInstruction?: string;
+  model?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  preferredKeyIndex?: number;
+  responseFormat?: unknown;
 }
 
 export type WritingSuggestionScope =

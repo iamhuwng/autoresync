@@ -11,6 +11,12 @@ describe('readingV2AutoImportPrompt', () => {
       sourceName: 'Auto source',
       passageNumber: 1,
       answerKeyText: '1 TRUE',
+      sourceLedgerSummary: [
+        'SOURCE_LEDGER_EXPECTATIONS:',
+        '- local ledger is topology authority; Gemini is extraction witness only',
+        '- expected question numbers: 1',
+        '- visible answer-key row count: 1',
+      ].join('\n'),
     });
 
     expect(READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION).toContain('Return valid JSON only');
@@ -19,13 +25,29 @@ describe('readingV2AutoImportPrompt', () => {
     expect(prompt).toContain('true-false-not-given');
     expect(prompt).toContain('matching-headings');
     expect(prompt).toContain('Copy answer-key rows into answerKeyText only');
+    expect(prompt).toContain('Raw source ledger is topology authority');
+    expect(prompt).toContain('local ledger is topology authority; Gemini is extraction witness only');
+    expect(prompt).toContain('expected question numbers: 1');
+    expect(prompt).toContain('Do not create canonical ids');
+    expect(prompt).toContain('sourceLedgerEvidence');
+    expect(prompt).not.toContain('"sectionInstructionId"');
+    expect(prompt).not.toContain('"id": "p1-q1-5"');
     expect(prompt).toContain('For note-completion, preserve note bullets/headings under sectionInstructions[].note');
     expect(prompt).toContain('do not duplicate repeated note headings into every questionText');
     expect(prompt).toContain('Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code`');
     expect(prompt).toContain('Remove IELTS source instruction prose from student-visible content fields');
     expect(prompt).toContain('Do not convert Markdown to HTML');
-    expect(prompt).toContain('Visible source answer-key text:');
+    expect(prompt).toContain('Visible source answer-key text detected before AI:');
     expect(prompt).toContain('<RAW_READING_SOURCE>');
     expect(prompt).toContain('</RAW_READING_SOURCE>');
+  });
+
+  it('allows Gemini to copy visible raw-source answer keys when pre-detection misses them', () => {
+    const prompt = buildReadingV2AutoImportPrompt({
+      rawTestText: 'READING PASSAGE 1\nA raw passage.\nAnswer key\nQ1: TRUE',
+    });
+
+    expect(prompt).toContain('If RAW_READING_SOURCE contains a visible answer-key section');
+    expect(prompt).toContain('Do not infer answers from passages');
   });
 });

@@ -15,6 +15,7 @@ describe('readingV2ExternalAiPrompt.service', () => {
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('one material per passage');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Passage 2');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('sectionInstructionId');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('answerKeyText');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('labeledOptions');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('sectionReferences');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('wordLimit');
@@ -45,6 +46,7 @@ describe('readingV2ExternalAiPrompt.service', () => {
 
   it('keeps teacher answer-key authority and separator rules explicit', () => {
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('the only marking truth');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('complete numbered teacher answer-key rows');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Never infer answers from passages');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Use | only for accepted alternatives');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Keep / as literal answer text');

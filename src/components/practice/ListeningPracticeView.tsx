@@ -1462,6 +1462,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                         resolvedSettings={resolvedSettings}
                         studentPrefs={studentPrefs}
                         onPrefsChange={handlePrefsChange}
+                        onExit={handleBack}
                     />
                 )}
             </div>
@@ -1683,6 +1684,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                     resolvedSettings={resolvedSettings}
                     studentPrefs={studentPrefs}
                     onPrefsChange={handlePrefsChange}
+                    onExit={handleBack}
                 />
             )}
         </div>

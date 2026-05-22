@@ -504,6 +504,42 @@ describe('readingV2Validation.service', () => {
     expect(validateReadingV2Draft(informationReuse).canPublish).toBe(true);
   });
 
+  it('accepts a repaired matching-information answer once option E exists in the bank', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['matching-information']) as ReadingV2Document;
+    const [optionSet] = Object.values(document.optionSets);
+    const [interactionId] = Object.keys(document.interactions);
+    const interaction = document.interactions[interactionId]!;
+    const repairedDocument: ReadingV2Document = {
+      ...document,
+      interactions: {
+        ...document.interactions,
+        [interactionId]: {
+          ...interaction,
+          scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['E'] },
+        },
+      },
+    };
+    const missingEOptionSet = {
+      ...optionSet!,
+      options: optionSet!.options.filter((option) => option.label !== 'E'),
+    };
+    const unrepairedDocument: ReadingV2Document = {
+      ...repairedDocument,
+      optionSets: {
+        ...repairedDocument.optionSets,
+        [missingEOptionSet.optionSetId]: missingEOptionSet,
+      },
+    };
+
+    const repairedResult = validateReadingV2Draft(repairedDocument);
+    const unrepairedResult = validateReadingV2Draft(unrepairedDocument);
+
+    expect(repairedResult.canPublish).toBe(true);
+    expect(repairedResult.blockingIssues.map((issue) => issue.message).join(' ')).not.toContain('matching answer that is not in its option list');
+    expect(unrepairedResult.canPublish).toBe(false);
+    expect(unrepairedResult.blockingIssues.map((issue) => issue.message).join(' ')).toContain('matching answer that is not in its option list');
+  });
+
   it('invalidates stale option labels after relabeling while stable option IDs remain valid', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['multiple-choice']) as ReadingV2Document;
     const [optionSet] = Object.values(document.optionSets);
@@ -567,6 +603,41 @@ describe('readingV2Validation.service', () => {
 
     expect(result.canPublish).toBe(false);
     expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('word limit');
+  });
+
+  it('accepts IELTS one-word-and-or-number answers that include one number expression plus one word', () => {
+    const document = fixtureDocument();
+    const [taskGroupId] = Object.keys(document.taskGroups);
+    const [interactionId] = Object.keys(document.interactions);
+    const taskGroup = document.taskGroups[taskGroupId]!;
+    const interaction = document.interactions[interactionId]!;
+    const validDocument: ReadingV2Document = {
+      ...document,
+      taskGroups: {
+        ...document.taskGroups,
+        [taskGroupId]: {
+          ...taskGroup,
+          instructionBlocks: [
+            {
+              id: taskGroup.instructionBlocks[0]!.id,
+              text: 'Choose ONE WORD AND/OR A NUMBER from the passage for each answer.',
+            },
+          ],
+        },
+      },
+      interactions: {
+        ...document.interactions,
+        [interactionId]: {
+          ...interaction,
+          scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['ten times'] },
+        },
+      },
+    };
+
+    const result = validateReadingV2Draft(validDocument);
+
+    expect(result.canPublish).toBe(true);
+    expect(result.blockingIssues).toEqual([]);
   });
 
   it('blocks note-completion groups that flatten repeated note headings into question text', () => {

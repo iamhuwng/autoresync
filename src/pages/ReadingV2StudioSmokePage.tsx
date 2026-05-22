@@ -129,8 +129,24 @@ const MARKDOWN_FORMATTING_SMOKE_FIXTURE = {
   expectedQuestionCount: 1,
 } as const;
 
+const AUTO_V4_FULL_TEST_SMOKE_FIXTURE = {
+  ...READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE,
+  name: 'auto-v4-valid-full-test',
+} as const;
+
+const AUTO_V4_MALFORMED_KEY_SMOKE_FIXTURE = {
+  ...READING_V2_MALFORMED_KEY_PASTE_IMPORT_FIXTURES.duplicate,
+  name: 'auto-v4-malformed-key',
+} as const;
+
 const smokeFixtureFor = (fixtureName: string | null) => {
   switch (fixtureName) {
+    case 'auto-v4-malformed-key':
+    case 'auto-v3-malformed-key':
+      return AUTO_V4_MALFORMED_KEY_SMOKE_FIXTURE;
+    case 'auto-v4-valid-full-test':
+    case 'auto-v3-valid-full-test':
+      return AUTO_V4_FULL_TEST_SMOKE_FIXTURE;
     case 'valid-full-test':
       return READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE;
     case 'malformed-key':
@@ -290,6 +306,10 @@ const createStructuredRepairSmokeDocument = (): ReadingV2Document => {
 export default function ReadingV2StudioSmokePage() {
   const [searchParams] = useSearchParams();
   const fixtureName = searchParams.get('fixture');
+  const isAutoV4Fixture = fixtureName === 'auto-v4-valid-full-test'
+    || fixtureName === 'auto-v4-malformed-key'
+    || fixtureName === 'auto-v3-valid-full-test'
+    || fixtureName === 'auto-v3-malformed-key';
   const smokeFixture = smokeFixtureFor(fixtureName);
   const structuredRepairDocument = useMemo(
     () => fixtureName === 'structured-repair' ? createStructuredRepairSmokeDocument() : undefined,
@@ -311,7 +331,8 @@ export default function ReadingV2StudioSmokePage() {
       const candidate = createReadingV2ImportCandidateFromText({
         text: smokeFixture.rawText,
         answerKeyText: smokeFixture.answerKeyText,
-        fileName: `${smokeFixture.name}.txt`,
+        fileName: isAutoV4Fixture ? 'Auto V4 import' : `${smokeFixture.name}.txt`,
+        sourceKind: isAutoV4Fixture ? 'auto-gemini' : 'pasted-text',
       });
 
       return {
@@ -319,13 +340,13 @@ export default function ReadingV2StudioSmokePage() {
         document: normalizeReadingV2ImportCandidate(candidate).document,
       };
     },
-    [smokeFixture, structuredRepairDocument],
+    [isAutoV4Fixture, smokeFixture, structuredRepairDocument],
   );
   const fixtureLabel = smokeFixture?.name ?? (structuredRepairDocument ? 'structured-repair' : 'blank');
 
   return (
     <ReadingV2StudioShell
-      mode={importContext ? 'create-from-import' : 'create-blank'}
+      mode={importContext ? (isAutoV4Fixture ? 'create-from-auto' : 'create-from-import') : 'create-blank'}
       document={importContext?.document}
       draftId={importContext ? `smoke-reading-v2-${fixtureLabel}` : 'smoke-reading-v2-draft'}
       importCandidate={importContext?.candidate}

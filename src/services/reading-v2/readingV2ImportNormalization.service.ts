@@ -38,9 +38,25 @@ export interface ReadingV2ImportCandidate {
   readonly rawText?: string;
   readonly answerKeyText?: string;
   readonly teacherAnswerKey?: ReadingV2TeacherAnswerKeyPayload;
+  readonly autoImportDiagnostics?: readonly ReadingV2AutoImportCandidateDiagnostic[];
   readonly evidence: readonly string[];
   readonly uncertaintyMarkers: readonly string[];
   readonly publishBlockingPlaceholders: readonly string[];
+}
+
+export interface ReadingV2AutoImportCandidateDiagnostic {
+  readonly code: string;
+  readonly severity: 'info' | 'warning' | 'error';
+  readonly message: string;
+  readonly passageNumber?: number;
+  readonly questionNumber?: number;
+  readonly stage?: string;
+  readonly groupRange?: string;
+  readonly sourceRange?: string;
+  readonly verifierIssueCodes?: readonly string[];
+  readonly repairScopes?: readonly string[];
+  readonly preferredKeyIndex?: number;
+  readonly keyFingerprint?: string;
 }
 
 export type ReadingV2TeacherAnswerKeyBindingStatus = 'unbound' | 'bound' | 'invalid' | 'duplicate';
@@ -99,6 +115,90 @@ const cleanMarkdown = (value: string): string =>
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
+
+const canonicalAnswerText = (value: string): string =>
+  cleanMarkdown(value).replace(/\s+/g, ' ').trim();
+
+const uniqueAnswerVariants = (values: readonly string[]): readonly string[] => {
+  const seen = new Set<string>();
+  const variants: string[] = [];
+  values.forEach((value) => {
+    const canonical = canonicalAnswerText(value);
+    const key = canonical.toLowerCase();
+    if (!canonical || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    variants.push(canonical);
+  });
+  return variants;
+};
+
+const sharedContextAlternativeVariants = (
+  left: string,
+  right: string,
+): readonly string[] => {
+  const leftTokens = left.split(/\s+/).filter(Boolean);
+  const rightTokens = right.split(/\s+/).filter(Boolean);
+
+  if (leftTokens.length === 1 && rightTokens.length > 1) {
+    return uniqueAnswerVariants([
+      `${leftTokens[0]} ${rightTokens.slice(1).join(' ')}`,
+      right,
+    ]);
+  }
+
+  if (rightTokens.length === 1 && leftTokens.length > 1) {
+    return uniqueAnswerVariants([
+      left,
+      `${leftTokens.slice(0, -1).join(' ')} ${rightTokens[0]}`,
+    ]);
+  }
+
+  return uniqueAnswerVariants([left, right]);
+};
+
+const implicitAlternativeVariantsFromSegment = (value: string): readonly string[] => {
+  const segment = canonicalAnswerText(value);
+  if (!segment) {
+    return [];
+  }
+
+  const orMatch = segment.match(/^(.+?)\s+or\s+(.+)$/i);
+  if (orMatch?.[1] && orMatch[2]) {
+    return sharedContextAlternativeVariants(orMatch[1], orMatch[2]);
+  }
+
+  const slashIndex = segment.indexOf('/');
+  if (slashIndex < 0) {
+    return [segment];
+  }
+
+  const left = canonicalAnswerText(segment.slice(0, slashIndex));
+  const right = canonicalAnswerText(segment.slice(slashIndex + 1));
+  if (!left || !right) {
+    return [segment];
+  }
+
+  const slashHasVisibleSpacing = /\s\/|\/\s/.test(segment);
+  const compactLiteralTokenPair = !slashHasVisibleSpacing
+    && !/\s/.test(left)
+    && !/\s/.test(right)
+    && !/^.+\s+.+$/.test(left)
+    && !/^.+\s+.+$/.test(right);
+  if (compactLiteralTokenPair) {
+    return [segment];
+  }
+
+  return sharedContextAlternativeVariants(left, right);
+};
+
+const acceptedAnswerVariantsFromText = (answerText: string): readonly string[] =>
+  uniqueAnswerVariants(
+    answerText
+      .split('|')
+      .flatMap((segment) => implicitAlternativeVariantsFromSegment(segment)),
+  );
 
 const preserveSourceMarkdown = (value: string): string =>
   normalizeSourceEncoding(value)
@@ -164,12 +264,10 @@ const parsedAnswerValues = (
   readonly diagnostics: readonly ReadingV2TeacherAnswerKeyDiagnostic[];
 } => {
   const diagnostics: ReadingV2TeacherAnswerKeyDiagnostic[] = [];
-  const values = answerText
-    .split('|')
-    .map((value) => cleanMarkdown(value))
-    .filter((value) => value.length > 0);
+  const explicitSegments = answerText.split('|');
+  const values = acceptedAnswerVariantsFromText(answerText);
 
-  if (answerText.includes('|') && values.length !== answerText.split('|').length) {
+  if (answerText.includes('|') && explicitSegments.some((value) => canonicalAnswerText(value).length === 0)) {
     diagnostics.push(
       answerKeyDiagnostic(
         'empty-answer-alternative',
@@ -211,7 +309,7 @@ export const parseReadingV2TeacherAnswerKey = (
       return;
     }
 
-    const match = line.match(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\s*[\).:\-=]\s*|\s+)(.*)$/i);
+    const match = line.match(/^(?:Q(?:uestion)?\s*)?(\d{1,3})(?:\s*\\?[\).:\-=]\s*|\s+)(.*)$/i);
     const questionNumber = match?.[1] ? Number(match[1]) : NaN;
     const answerText = match?.[2]?.trim() ?? '';
 
@@ -460,6 +558,7 @@ const normalizeAnswersForResponseShape = (
   responseShape: ReadingV2ResponseShape,
 ): readonly string[] =>
   answers
+    .flatMap((answer) => acceptedAnswerVariantsFromText(answer))
     .map((answer) => {
       const cleaned = cleanMarkdown(answer);
       return responseShape.kind === 'binary-judgement'
@@ -1980,6 +2079,60 @@ const createPerQuestionChoiceOptionSets = (input: {
   return optionSetsByQuestion;
 };
 
+const synthesizeStructuredSectionInstructions = (
+  material: StructuredReadingMaterial,
+  questions: readonly StructuredReadingQuestion[],
+): readonly StructuredSectionInstruction[] => {
+  if ((material.sectionInstructions ?? []).length > 0) {
+    return material.sectionInstructions ?? [];
+  }
+
+  const groups: {
+    readonly id: string;
+    readonly taskType: ReadingV2CanonicalTaskType;
+    readonly questions: StructuredReadingQuestion[];
+  }[] = [];
+
+  questions.forEach((question) => {
+    const questionNumber = structuredQuestionNumber(question);
+    if (!Number.isInteger(questionNumber) || questionNumber <= 0) {
+      return;
+    }
+
+    const taskType = structuredTaskType(question.type ?? structuredQuestionPromptText(question));
+    const explicitId = question.sectionInstructionId?.trim();
+    const activeGroup = groups[groups.length - 1];
+    const activeLastQuestion = activeGroup?.questions[activeGroup.questions.length - 1];
+    const activeLastNumber = activeLastQuestion ? structuredQuestionNumber(activeLastQuestion) : 0;
+    const belongsToActiveGroup = explicitId
+      ? activeGroup?.id === explicitId
+      : activeGroup?.taskType === taskType && activeLastNumber + 1 === questionNumber;
+
+    if (activeGroup && belongsToActiveGroup) {
+      activeGroup.questions.push(question);
+      return;
+    }
+
+    groups.push({
+      id: explicitId || `auto-q${questionNumber}`,
+      taskType,
+      questions: [question],
+    });
+  });
+
+  return groups.map((group) => {
+    const questionNumbers = group.questions.map(structuredQuestionNumber);
+    const start = Math.min(...questionNumbers);
+    const end = Math.max(...questionNumbers);
+
+    return {
+      id: group.id.startsWith('auto-q') ? `auto-q${start}-${end}` : group.id,
+      taskType: group.taskType,
+      questionRange: { start, end },
+    };
+  });
+};
+
 const normalizeStructuredReadingPayload = (
   candidate: ReadingV2ImportCandidate,
   rawText: string,
@@ -1991,7 +2144,11 @@ const normalizeStructuredReadingPayload = (
     return null;
   }
 
+  const localAutoSourceTitle = candidate.sourceKind === 'auto-gemini'
+    ? cleanMarkdown((candidate.fileName ?? '').replace(/\.(?:md|txt|docx|pdf)$/i, ''))
+    : '';
   const sourceTitle = frontmatterValue(rawText, 'title')
+    ?? (localAutoSourceTitle || null)
     ?? (payload.sourceFile ? payload.sourceFile.replace(/\.md$/i, '') : null)
     ?? 'Imported Reading V2 material';
   const idStem = slug(sourceTitle);
@@ -2074,12 +2231,15 @@ const normalizeStructuredReadingPayload = (
     const questions = [...(material.questions ?? [])].sort(
       (left, right) => structuredQuestionNumber(left) - structuredQuestionNumber(right),
     );
-    const taskGroupIds = (material.sectionInstructions ?? []).map((instruction, instructionIndex) => {
+    const sectionInstructions = synthesizeStructuredSectionInstructions(material, questions);
+    const taskGroupIds = sectionInstructions.map((instruction, instructionIndex) => {
       const start = instruction.questionRange?.start ?? 0;
       const end = instruction.questionRange?.end ?? start;
+      const hasLocalQuestionRange = start > 0 && end >= start;
       const groupQuestions = questions.filter((question) =>
-        question.sectionInstructionId === instruction.id ||
-        (structuredQuestionNumber(question) >= start && structuredQuestionNumber(question) <= end),
+        hasLocalQuestionRange
+          ? structuredQuestionNumber(question) >= start && structuredQuestionNumber(question) <= end
+          : question.sectionInstructionId === instruction.id,
       );
       const firstQuestion = groupQuestions[0];
       const instructionSourceText = structuredInstructionSourceText(instruction);

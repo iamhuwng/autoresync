@@ -153,14 +153,14 @@ describe('TestCreationModal', () => {
             answerKeyText: '1 TRUE',
             diagnostics: [],
             provider: 'gemini',
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-flash+auto-v4-staged-adapter',
             passageCount: 1,
             questionCount: 1,
             candidate: {
                 sourceKind: 'auto-gemini',
                 rawText: '<!-- CODEX_IELTS_READING_MATERIALS_START -->{}<!-- CODEX_IELTS_READING_MATERIALS_END -->',
                 answerKeyText: '1 TRUE',
-                fileName: 'Auto Gemini import',
+                fileName: 'Auto V4 import',
                 evidence: ['Detected 1 structured passage'],
                 uncertaintyMarkers: [],
                 publishBlockingPlaceholders: [],
@@ -434,7 +434,7 @@ describe('TestCreationModal', () => {
             }));
         });
 
-        it('opens Reading V2 Auto setup and routes Gemini output into Studio review', async () => {
+        it('opens Reading V2 Auto setup and routes Auto V4 output into Studio review', async () => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -443,6 +443,8 @@ describe('TestCreationModal', () => {
             await openReadingV2AutoImportStep(user);
 
             expect(screen.getByLabelText('Reading V2 Auto raw test text')).toBeInTheDocument();
+            expect(screen.getByText('Auto V4 import')).toBeInTheDocument();
+            expect(screen.queryByText('Internal Gemini import')).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /Copy Prompt/i })).not.toBeInTheDocument();
             expect(screen.queryByLabelText('Reading V2 teacher answer key')).not.toBeInTheDocument();
             expect(onAction).toHaveBeenCalledWith('startReadingV2AutoImport', expect.objectContaining({
@@ -455,7 +457,7 @@ describe('TestCreationModal', () => {
                 target: {
                     value: [
                         'READING PASSAGE 1',
-                        'This raw passage text is long enough for Auto Gemini processing and Studio review.',
+                        'This raw passage text is long enough for Auto V4 processing and Studio review.',
                         'Questions 1-1',
                         '1 A statement.',
                         'Answers',
@@ -464,13 +466,18 @@ describe('TestCreationModal', () => {
                 },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Gemini/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
-                expect(mockGenerateReadingV2AutoImportCandidate).toHaveBeenCalledWith({
-                    rawTestText: expect.stringContaining('READING PASSAGE 1'),
-                    sourceName: 'V2 Auto Metadata',
-                });
+                expect(mockGenerateReadingV2AutoImportCandidate).toHaveBeenCalledWith(
+                    {
+                        rawTestText: expect.stringContaining('READING PASSAGE 1'),
+                        sourceName: 'V2 Auto Metadata',
+                    },
+                    expect.objectContaining({
+                        onDiagnosticEvent: expect.any(Function),
+                    }),
+                );
             });
             expect(onClose).toHaveBeenCalled();
             expect(mockNavigate).toHaveBeenCalledWith('/teacher/reading-v2/import', {
@@ -481,7 +488,7 @@ describe('TestCreationModal', () => {
                     startMode: 'create-from-auto',
                     initialMetadata: expect.objectContaining({
                         title: 'V2 Auto Metadata',
-                        provenanceSummary: 'Generated from Auto Gemini import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
                     }),
                     initialImportCandidate: expect.objectContaining({
                         sourceKind: 'auto-gemini',
@@ -490,18 +497,18 @@ describe('TestCreationModal', () => {
                 }),
             });
             expect(onAction).toHaveBeenCalledWith('submitReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini',
+                provider: 'auto-v4',
                 sourceLength: expect.any(Number),
             }));
             expect(onAction).toHaveBeenCalledWith('completeReadingV2AutoImport', expect.objectContaining({
                 provider: 'gemini',
-                model: 'gemini-2.5-flash',
+                model: 'gemini-2.5-flash+auto-v4-staged-adapter',
                 passageCount: 1,
                 questionCount: 1,
             }));
         });
 
-        it('keeps Auto source in place when Gemini fails guardrails', async () => {
+        it('keeps Auto source in place when Auto V4 fails guardrails', async () => {
             const onClose = vi.fn();
             const onAction = vi.fn();
             const user = userEvent.setup();
@@ -515,8 +522,8 @@ describe('TestCreationModal', () => {
                         message: 'Gemini returned malformed Reading V2 JSON.',
                     },
                 ],
-                provider: 'gemini',
-                model: 'gemini-2.5-flash',
+                provider: 'gemini-groq',
+                model: 'gemini-2.5-flash+groq-structured-json',
             });
             renderModal({ onClose, onAction });
 
@@ -525,7 +532,7 @@ describe('TestCreationModal', () => {
                 target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
             });
 
-            await user.click(screen.getByRole('button', { name: /Process with Gemini/i }));
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
 
             await waitFor(() => {
                 expect(screen.getByRole('alert')).toHaveTextContent('Gemini returned malformed Reading V2 JSON.');
@@ -537,9 +544,96 @@ describe('TestCreationModal', () => {
             expect(onClose).not.toHaveBeenCalled();
             expect(mockNavigate).not.toHaveBeenCalled();
             expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini',
+                provider: 'gemini-groq',
                 diagnosticCount: 1,
             }));
+        });
+
+        it.each([
+            ['Gemini marker quota', 'All Gemini API keys exhausted or rate-limited'],
+            ['Groq package quota', 'All Groq API keys exhausted or rate-limited'],
+        ])('keeps Auto source recoverable when Auto V4 hits %s', async (_caseName, errorMessage) => {
+            const onClose = vi.fn();
+            const onAction = vi.fn();
+            const user = userEvent.setup();
+            mockGenerateReadingV2AutoImportCandidate.mockResolvedValueOnce({
+                success: false,
+                error: errorMessage,
+                diagnostics: [
+                    {
+                        code: 'provider-quota-exhausted',
+                        severity: 'error',
+                        message: errorMessage,
+                    },
+                ],
+                provider: 'gemini-groq',
+                model: 'gemini-2.5-flash+groq-structured-json',
+            });
+            renderModal({ onClose, onAction });
+
+            await openReadingV2AutoImportStep(user);
+            fireEvent.change(screen.getByLabelText('Reading V2 Auto raw test text'), {
+                target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
+            });
+
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
+
+            await waitFor(() => {
+                expect(screen.getByRole('alert')).toHaveTextContent(errorMessage);
+            });
+            expect(screen.getByLabelText('Reading V2 Auto diagnostics'))
+                .toHaveTextContent(errorMessage);
+            expect((screen.getByLabelText('Reading V2 Auto raw test text') as HTMLTextAreaElement).value)
+                .toContain('READING PASSAGE 1');
+            expect(onClose).not.toHaveBeenCalled();
+            expect(mockNavigate).not.toHaveBeenCalled();
+            expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
+                provider: 'gemini-groq',
+                diagnosticCount: 1,
+            }));
+        });
+
+        it('redacts provider keys and local paths from Auto V4 visible failure metadata', async () => {
+            const onClose = vi.fn();
+            const onAction = vi.fn();
+            const user = userEvent.setup();
+            const fakeRawKey = ['gsk', '_visiblefailurekeymustnotleak1234567890'].join('');
+            const rawError = `Failed with ${fakeRawKey} at C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\source.md`;
+            mockGenerateReadingV2AutoImportCandidate.mockResolvedValueOnce({
+                success: false,
+                error: rawError,
+                diagnostics: [
+                    {
+                        code: 'provider-quota-exhausted',
+                        severity: 'error',
+                        message: rawError,
+                    },
+                ],
+                provider: 'gemini-groq',
+                model: 'gemini-2.5-flash+groq-structured-json',
+            });
+            renderModal({ onClose, onAction });
+
+            await openReadingV2AutoImportStep(user);
+            fireEvent.change(screen.getByLabelText('Reading V2 Auto raw test text'), {
+                target: { value: 'READING PASSAGE 1\nRaw source.\nQuestions 1-1\n1 Prompt.\nAnswers\n1 TRUE' },
+            });
+
+            await user.click(screen.getByRole('button', { name: /Process with Auto V4/i }));
+
+            await waitFor(() => {
+                expect(screen.getByRole('alert')).toHaveTextContent('[redacted-key]');
+            });
+            expect(screen.getByRole('alert')).toHaveTextContent('[redacted-windows-path]');
+            expect(screen.getByLabelText('Reading V2 Auto diagnostics')).toHaveTextContent('[redacted-key]');
+            expect(document.body).not.toHaveTextContent(fakeRawKey);
+            expect(document.body).not.toHaveTextContent('C:\\Users\\The Lord\\Desktop');
+            expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
+                provider: 'gemini-groq',
+                error: expect.stringContaining('[redacted-key]'),
+            }));
+            expect(onClose).not.toHaveBeenCalled();
+            expect(mockNavigate).not.toHaveBeenCalled();
         });
 
         it('copies the Reading V2 external AI prompt from the paste setup step', async () => {

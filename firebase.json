@@ -57,6 +57,15 @@
           ]
         },
         {
+          "source": "/",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
           "source": "/index.html",
           "headers": [
             {
@@ -67,6 +76,14 @@
         }
       ],
       "rewrites": [
+        {
+          "source": "/assets/*.@(js|mjs)",
+          "destination": "/__asset_missing__.js"
+        },
+        {
+          "source": "/assets/*.css",
+          "destination": "/__asset_missing__.css"
+        },
         {
           "source": "**",
           "destination": "/index.html"

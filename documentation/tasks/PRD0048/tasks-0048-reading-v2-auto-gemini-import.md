@@ -15,6 +15,24 @@ This task list supplements, but does not replace:
 - `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 - `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-paste-import-and-answer-key-authority.md`
+- `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md`
+
+## Follow-Up Hardening Batch
+
+Historical status, 2026-05-15: this file records the original Gemini-only Auto import batch and its May 13/14 hardening lineage. Do not treat the unchecked Gemini-only items below as the active V3 backlog. The active V3 contract now lives in `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` and pivots the shipped Auto path to:
+
+```text
+Gemini topology marker + answer-key normalizer
+-> local three-passage package splitter
+-> Groq question-area transcript normalizer
+-> local deterministic V2 assembler/verifier
+```
+
+Current UI/provider labels: teacher action is `Process with Auto V3`, action metadata uses `auto-v3`, and successful V3 service output reports provider `gemini-groq`. Legacy `Process with Gemini` and `provider: 'gemini'` examples below are historical Gemini-only contract notes unless explicitly scoped to the old path.
+
+The May 13 answer-key hotfix solved the narrow case where Gemini returned visible source answer rows but Studio received none. It does not by itself prove full-source fidelity across bad Clippings structure, material splitting, missing question ranges, or repeated live Gemini runs.
+
+Use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` for the next improvement batch. That tasklist owns the source-ledger, deterministic assembler, verifier, targeted repair loop, Clippings harness, live tests, loop-check protocol, and final perfection checklist.
 
 ## Implementation Result
 
@@ -25,6 +43,8 @@ This task list supplements, but does not replace:
 - [x] Added chunked full-test handling by `READING PASSAGE` headings with a configurable wait between Gemini calls.
 - [x] Added guardrails for empty/large input, malformed Gemini JSON, no passages, no questions, duplicate numbers, passage-count mismatch, likely trimmed passages, and failed normalization.
 - [x] Added answer no-hallucination guardrail: when the raw source has no visible answer-key section, Gemini answers are stripped before Studio handoff.
+- [x] Hotfix 2026-05-13: answer-key handoff now preserves trusted top-level `answerKeyText` rows returned by Gemini when they are copied from a visible raw-source answer-key section, even if the local row extractor missed the format.
+- [x] Hotfix 2026-05-13: when raw source has a visible answer-key heading but neither local extraction nor Gemini `answerKeyText` yields rows, Auto may synthesize `answerKeyText` from Gemini `questions[].answer`; this fallback is disabled when no visible source answer-key heading exists.
 - [x] Added `auto-gemini` import provenance and Studio labels.
 - [x] Added `create-from-auto` Studio mode and route-state handoff through `/teacher/reading-v2/import`.
 - [x] Added feature tracking actions for Auto submit/success/failure and Studio Auto import open.
@@ -32,6 +52,15 @@ This task list supplements, but does not replace:
 - [x] Existing `Paste Text` and `Create New Test` routes remain intact in focused tests.
 - [x] Hotfix 2026-05-13: `generateStructuredJson(...)` now rotates to the next Gemini key when the selected key returns `API_KEY_INVALID`, "API key expired", forbidden/blocked, quota, rate-limit, or transient availability errors.
 - [x] Hotfix 2026-05-13: expired/invalid structured-generation keys are benched through `key-cooldown.service` so Reading V2 Auto does not keep retrying the same bad key in the same browser session.
+- [x] Hotfix 2026-05-13: external and Auto prompt contracts now declare top-level `answerKeyText` as the answer-key carrier for Studio binding.
+- [x] Hardening 2026-05-14: Auto now builds a redacted raw-source ledger before Gemini, passes ledger expectations into each Gemini prompt, and verifies Gemini output against passage/question/answer-key topology before Studio handoff.
+- [x] Hardening 2026-05-14: Auto fails closed with `source-passage-missing`, `source-question-missing`, `source-question-extra`, `source-answer-row-unbound`, or `source-question-range-missing` diagnostics when source-ledger coverage is not preserved.
+- [x] Hardening 2026-05-14: Auto retries only the failing source chunk(s) when ledger verification reports missing passage/question/answer coverage, preserves previously valid chunks, reruns the verifier, and emits `source-repair-attempted`, `source-repair-succeeded`, or `source-repair-failed` diagnostics.
+- [x] Hardening 2026-05-14: partial single-passage sources with full answer-key sections now keep only answer-key rows that match detected source questions, preventing unrelated full-test key rows from creating unbound Studio rows.
+- [x] Hardening 2026-05-14: added a local redacted Clippings harness via `npm run reading-v2:clippings-ledger -- --out output/reading-v2-clippings-ledger-report.json`; current ledger-only scan covered 276 files, found 91 supported full-test candidates, and produced 72 accepted / 20 reviewable / 7 rejected / 177 unsupported classifications without raw passage or answer-key text.
+- [x] Hardening 2026-05-14: added mocked-intermediate harness mode via `npm run reading-v2:clippings-ledger -- --mode mocked-intermediate --out output/reading-v2-clippings-ledger-report-mocked.json`; current mocked scan produced 64 accepted / 8 reviewable / 27 rejected / 177 unsupported classifications, 3439 generated interactions, 3062 bound answers, and redacted representative picks.
+- [x] Hardening 2026-05-14: added optional live Gemini harness mode behind `--mode live-gemini --allow-live-gemini`, with `--live-limit` and `--live-tags` for curated representative probes.
+- [x] Hardening 2026-05-14: documented source-ledger, verifier, repair-loop, harness modes, and operational knobs in `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`.
 
 Provider evidence:
 
@@ -67,6 +96,14 @@ Gemini = draft structure helper only.
 Extracted answer key = valid only when traceable to source text.
 Studio = review, repair, validation, preview, publish.
 ```
+
+Current meaning of "extracted answer key":
+
+1. First preference: locally extracted numbered answer-key rows from the raw source.
+2. Second preference: Gemini-returned top-level `answerKeyText`, but only as copied rows from visible raw-source answer-key text.
+3. Last guarded fallback: Gemini `questions[].answer` may be converted into `answerKeyText` only when the raw source visibly contains an answer-key heading and row-level extraction missed the exact format.
+
+Obsolete wording retired 2026-05-13: "extracted answer key" no longer means only `extractedAnswerKeyText` from the local preflight parser. Code and docs must use `answerKeyText` for the effective trusted key rows that Studio receives.
 
 Auto means:
 
@@ -221,7 +258,7 @@ Acceptance:
 - [ ] Include current Reading V2 task taxonomy names and required fields in the prompt.
 - [ ] Instruct Gemini to preserve passage text verbatim except for harmless whitespace normalization.
 - [ ] Instruct Gemini to preserve all question numbers, option labels, table cells, diagram labels, and section instructions.
-- [ ] Instruct Gemini to extract answer-key rows only from visible source answer-key text.
+- [ ] Instruct Gemini to copy answer-key rows into top-level `answerKeyText` only from visible source answer-key text, including cases where app pre-detection missed the row format.
 - [ ] Instruct Gemini to leave answers empty and report `answer_key_missing` when no answer key is present.
 - [ ] Instruct Gemini to add diagnostics instead of inventing missing content.
 - [ ] Wrap or serialize the returned structured payload into the marker format already parsed by `extractStructuredPayload(...)`, unless the normalizer is extended to accept a typed object directly.
@@ -229,7 +266,7 @@ Acceptance:
 Acceptance:
 
 - [ ] Generated payload can be passed into `createReadingV2ImportCandidateFromText(...)`.
-- [ ] No answer appears in `answerKeyText` unless it is traceable to source text.
+- [ ] No answer appears in `answerKeyText` unless it is traceable to visible source answer-key text.
 - [ ] Prompt tests lock the no-hallucination instructions and marker/JSON contract.
 
 ## Phase 5: Chunking And Stability Strategy
@@ -255,7 +292,7 @@ Acceptance:
 - [ ] Decide whether to extend `ReadingV2ImportCandidate.sourceKind` with `auto-gemini`.
 - [ ] If adding `auto-gemini`, update every source-kind label, diagnostic, projection, and test that currently assumes only `pasted-text | uploaded-file`.
 - [ ] If not adding `auto-gemini`, add clear evidence/provenance so Studio still labels the source as Auto-generated from Gemini.
-- [ ] Build `initialImportCandidate` from the structured payload text plus extracted `answerKeyText`.
+- [ ] Build `initialImportCandidate` from the structured payload text plus effective trusted `answerKeyText` rows; this may come from local extraction, Gemini top-level `answerKeyText`, or the guarded visible-heading fallback from `questions[].answer`.
 - [ ] Preserve original raw source as private import evidence or diagnostics only if it is not included in student-safe or session-safe projections.
 - [ ] Navigate to `/teacher/reading-v2/import` with:
   - `entryPoint: 'test-creation-modal'`
@@ -352,6 +389,8 @@ cmd /c npx vitest run src/components/test-creation/TestCreationModal.test.tsx sr
 - [ ] Add or confirm feature flag/config gating for Auto if Gemini availability is not production-stable.
 - [ ] Keep `Paste Text` documented as the manual/external-AI fallback.
 - [ ] Keep `Create New Test` documented as the blank authoring path.
+
+Implementation note 2026-05-13: Auto answer-key binding hotfix is complete for the reported Studio failure where Gemini produced structured questions but Studio saw zero answer-key rows. Root cause: `readingV2AutoImport.service.ts` previously trusted only local `extractedAnswerKeyText`; when preflight row extraction missed a visible key format, the merged payload discarded Gemini answer-key evidence and Studio received empty `answerKeyText`. The service now merges local rows plus Gemini top-level `answerKeyText`, emits `answer-key-returned-by-gemini` diagnostics for that path, and synthesizes rows from `questions[].answer` only when the raw source has a visible answer-key heading. Prompt contracts now tell Gemini to copy raw-source key rows into top-level `answerKeyText`. Files touched: `src/services/reading-v2/readingV2AutoImport.service.ts`, `src/services/reading-v2/readingV2AutoImport.service.test.ts`, `src/services/reading-v2/readingV2AutoImportPrompt.ts`, `src/services/reading-v2/readingV2AutoImportPrompt.test.ts`, `src/services/reading-v2/readingV2ExternalAiPrompt.service.ts`, `src/services/reading-v2/readingV2ExternalAiPrompt.service.test.ts`, and related documentation. Verification: focused Vitest passed for 21 tests across Auto service and prompt contracts; UTF-8 and `git diff --check` passed. Real Gemini provider probes from `Clippings/` were not rerun in this hotfix turn.
 
 ## Final Acceptance Criteria
 

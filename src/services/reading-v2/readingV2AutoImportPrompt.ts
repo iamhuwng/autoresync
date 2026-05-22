@@ -5,6 +5,7 @@ export interface ReadingV2AutoImportPromptInput {
   readonly sourceName?: string;
   readonly passageNumber?: number;
   readonly answerKeyText?: string;
+  readonly sourceLedgerSummary?: string;
 }
 
 const taskTypeList = READING_V2_CANONICAL_TASK_TYPES.join(', ');
@@ -22,8 +23,14 @@ export const buildReadingV2AutoImportPrompt = ({
   sourceName,
   passageNumber,
   answerKeyText,
+  sourceLedgerSummary,
 }: ReadingV2AutoImportPromptInput): string => [
   'Convert the raw IELTS Reading test text into the structured JSON shape consumed by our Reading V2 importer.',
+  '',
+  sourceLedgerSummary ?? [
+    'SOURCE_LEDGER_EXPECTATIONS:',
+    '- local source ledger not supplied; preserve visible source topology and report uncertainty instead of guessing',
+  ].join('\n'),
   '',
   'Canonical task type slugs:',
   taskTypeList,
@@ -39,9 +46,9 @@ export const buildReadingV2AutoImportPrompt = ({
   '      "passages": [{ "title": "Passage title", "content": "Full passage text with paragraph breaks and source Markdown marks" }],',
   '      "sectionInstructions": [',
   '        {',
-  '          "id": "p1-q1-5",',
   '          "taskType": "true-false-not-given",',
   '          "questionRange": { "start": 1, "end": 5 },',
+  '          "sourceLedgerEvidence": { "lineStart": 12, "lineEnd": 18, "questionRange": "1-5" },',
   '          "sourceInstructionEvidence": "copied source instruction",',
   '          "wordLimit": 1,',
   '          "wordLimitText": "ONE WORD ONLY",',
@@ -63,7 +70,7 @@ export const buildReadingV2AutoImportPrompt = ({
   '        {',
   '          "questionNumber": 1,',
   '          "type": "true-false-not-given",',
-  '          "sectionInstructionId": "p1-q1-5",',
+  '          "sourceLedgerEvidence": { "lineStart": 19, "lineEnd": 19, "questionRange": "1-1" },',
   '          "questionText": "Question text exactly as printed, using ___ for blanks",',
   '          "answer": ""',
   '        }',
@@ -74,11 +81,12 @@ export const buildReadingV2AutoImportPrompt = ({
   '}',
   '',
   'Rules:',
+  '0. Raw source ledger is topology authority. Gemini must not own passage count, question-number coverage, answer-key existence, or publish readiness.',
   '1. Preserve every passage and passage paragraph in source order. Do not summarize or paraphrase.',
   '2. For a full test, create one material per Reading Passage.',
   '3. Preserve every visible question number exactly once. Do not renumber.',
   '4. Create one sectionInstructions entry per question group/range.',
-  '5. Every question.sectionInstructionId must reference an existing sectionInstructions.id.',
+  '5. Do not create canonical ids such as sectionInstructions[].id or questions[].sectionInstructionId. The local Reading V2 importer assigns canonical IDs from passage/order/range.',
   '6. For note-completion, preserve note bullets/headings under sectionInstructions[].note; do not duplicate repeated note headings into every questionText.',
   '7. For table-completion, preserve the source table under sectionInstructions[].table.rows.',
   '8. For flowchart-completion, preserve the source flow under sectionInstructions[].flowchart.steps.',
@@ -87,7 +95,8 @@ export const buildReadingV2AutoImportPrompt = ({
   '11. Use sectionReferences for matching banks such as headings, paragraph letters, names, or sentence endings.',
   '11a. For multiple-choice groups with separate A-D choices per question, put choices on each question.labeledOptions, not one merged sectionInstructions[].labeledOptions bank.',
   '11b. For matching-information, preserve printed paragraph label ranges such as A-H in referenceLabelRange; include sectionReferences when the source prints a paragraph/reference bank.',
-  '12. Copy answer-key rows into answerKeyText only when the source contains a visible answer-key section.',
+  '11c. When possible, include sourceLedgerEvidence with source line/range hints for sectionInstructions and questions; do not use evidence fields as canonical IDs.',
+  '12. Copy answer-key rows into answerKeyText only when the source contains a visible answer-key section, either from the pre-detected answer key text or from the raw source.',
   '13. Fill question.answer only from copied answer-key rows. If no key row exists, use an empty string.',
   '14. If anything is uncertain, include a diagnostic instead of inventing content.',
   '15. Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code` in student-visible fields: passages[].content, questions[].questionText, labeledOptions[].text, sectionReferences[].text, note lines, table cell text, and flowchart step text.',
@@ -98,8 +107,8 @@ export const buildReadingV2AutoImportPrompt = ({
   sourceName ? `Source name: ${sourceName}` : 'Source name: Auto pasted Reading V2 source',
   passageNumber ? `Passage chunk: Reading Passage ${passageNumber}` : 'Passage chunk: full source or single passage',
   answerKeyText?.trim()
-    ? ['Visible source answer-key text:', answerKeyText.trim()].join('\n')
-    : 'Visible source answer-key text: none detected. Leave answerKeyText empty and leave question.answer empty.',
+    ? ['Visible source answer-key text detected before AI:', answerKeyText.trim()].join('\n')
+    : 'Visible source answer-key text detected before AI: none. If RAW_READING_SOURCE contains a visible answer-key section, copy its numbered rows into answerKeyText; otherwise leave answerKeyText and question.answer empty. Do not infer answers from passages.',
   '',
   'Raw source text:',
   '<RAW_READING_SOURCE>',

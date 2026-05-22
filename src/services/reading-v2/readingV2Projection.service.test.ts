@@ -271,4 +271,13 @@ describe('readingV2Projection.service', () => {
 
     expect(() => assertReadingV2ProjectionIsStudentSanitized(unsafeProjection as never)).toThrow(/answerKeys/);
   });
+
+  it('fails projection safety checks when Auto import diagnostics are manually introduced', () => {
+    const unsafeProjection = {
+      ...generateReadingV2StudentSafeProjection(snapshot()),
+      autoImportDiagnostics: [{ message: 'Gemini topology marker and Groq package diagnostics must stay teacher-only.' }],
+    };
+
+    expect(() => assertReadingV2ProjectionIsStudentSanitized(unsafeProjection as never)).toThrow(/autoImportDiagnostics/);
+  });
 });

@@ -80,8 +80,116 @@ const structuredEntryKindFor = (
   }
 };
 
-const answerWordCount = (answer: string): number =>
-  answer.trim().split(/\s+/).filter(Boolean).length;
+const NUMERIC_WORD_TOKENS = new Set([
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+  'fourteen',
+  'fifteen',
+  'sixteen',
+  'seventeen',
+  'eighteen',
+  'nineteen',
+  'twenty',
+  'thirty',
+  'forty',
+  'fifty',
+  'sixty',
+  'seventy',
+  'eighty',
+  'ninety',
+  'hundred',
+  'thousand',
+  'million',
+  'billion',
+  'first',
+  'second',
+  'third',
+  'fourth',
+  'fifth',
+  'sixth',
+  'seventh',
+  'eighth',
+  'ninth',
+  'tenth',
+  'eleventh',
+  'twelfth',
+]);
+
+const answerTokens = (answer: string): readonly string[] =>
+  answer
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/^[^a-z0-9-]+|[^a-z0-9-]+$/gi, '').toLowerCase())
+    .filter(Boolean);
+
+const looksLikeNumericToken = (token: string): boolean => {
+  if (!token) {
+    return false;
+  }
+
+  if (/^\d+(?:[.,:/-]\d+)*(?:st|nd|rd|th)?$/i.test(token)) {
+    return true;
+  }
+
+  const parts = token.split('-').filter(Boolean);
+  return parts.length > 0 && parts.every((part) => NUMERIC_WORD_TOKENS.has(part));
+};
+
+const completionAnswerTokenProfile = (answer: string): {
+  readonly wordCount: number;
+  readonly numberExpressionCount: number;
+  readonly tokenCount: number;
+} => {
+  const tokens = answerTokens(answer);
+  let wordCount = 0;
+  let numberExpressionCount = 0;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (!looksLikeNumericToken(tokens[index]!)) {
+      wordCount += 1;
+      continue;
+    }
+
+    numberExpressionCount += 1;
+    while (index + 1 < tokens.length && looksLikeNumericToken(tokens[index + 1]!)) {
+      index += 1;
+    }
+  }
+
+  return {
+    wordCount,
+    numberExpressionCount,
+    tokenCount: tokens.length,
+  };
+};
+
+const taskGroupAllowsNumberExpression = (taskGroup: ReadingV2TaskGroup | undefined): boolean =>
+  taskGroup?.instructionBlocks.some((block) => /\bAND\/OR A NUMBER\b/i.test(block.text)) ?? false;
+
+const answerExceedsWordLimit = (
+  answer: string,
+  wordLimit: number,
+  taskGroup: ReadingV2TaskGroup | undefined,
+): boolean => {
+  const profile = completionAnswerTokenProfile(answer);
+  if (!taskGroupAllowsNumberExpression(taskGroup)) {
+    return profile.tokenCount > wordLimit;
+  }
+
+  return profile.wordCount > wordLimit || profile.numberExpressionCount > 1;
+};
 
 const COMPLETION_TASK_TYPES = new Set([
   'sentence-completion',
@@ -679,7 +787,7 @@ export const validateReadingV2Draft = (
     if (interaction.responseShape.kind === 'free-text' && interaction.responseShape.wordLimit) {
       const wordLimit = interaction.responseShape.wordLimit;
       (interaction.scoringRule.acceptableAnswers ?? []).forEach((answer) => {
-        if (answer.trim() && answerWordCount(answer) > wordLimit) {
+        if (answer.trim() && answerExceedsWordLimit(answer, wordLimit, parentTaskGroup)) {
           issues.push(
             issue(
               'invalid-packaged-material-assembly',

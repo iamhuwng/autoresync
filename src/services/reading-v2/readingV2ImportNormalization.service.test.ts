@@ -61,6 +61,91 @@ describe('readingV2ImportNormalization.service', () => {
     expect(validation.canPublish).toBe(true);
   });
 
+  it('lets local question ranges own structured task grouping when Gemini section IDs drift', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'drifting-section-ids.md',
+        answerKeyText: '1 first\n2 second\n3 third\n4 fourth',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Synthetic passage',
+            passages: [
+              {
+                title: 'Synthetic passage',
+                content: 'Synthetic passage content is long enough for a stable structured import fixture.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'gemini-group-a',
+                taskType: 'sentence-completion',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Complete the sentences below.',
+              },
+              {
+                id: 'gemini-group-b',
+                taskType: 'sentence-completion',
+                questionRange: { start: 3, end: 4 },
+                sourceInstructionEvidence: 'Complete the sentences below.',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                sectionInstructionId: 'gemini-group-b',
+                type: 'sentence-completion',
+                questionText: 'Question one ___.',
+              },
+              {
+                questionNumber: 2,
+                sectionInstructionId: 'gemini-group-a',
+                type: 'sentence-completion',
+                questionText: 'Question two ___.',
+              },
+              {
+                questionNumber: 3,
+                sectionInstructionId: 'gemini-group-a',
+                type: 'sentence-completion',
+                questionText: 'Question three ___.',
+              },
+              {
+                questionNumber: 4,
+                sectionInstructionId: 'gemini-group-b',
+                type: 'sentence-completion',
+                questionText: 'Question four ___.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      sourceKind: 'auto-gemini',
+      fileName: 'Stable local source.md',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const groups = Object.values(result.document.taskGroups);
+    const groupNumbers = groups.map((taskGroup) =>
+      taskGroup.interactionIds.map((interactionId) =>
+        result.document.interactions[interactionId]?.reviewLabel.displayNumber,
+      ),
+    );
+
+    expect(groupNumbers).toEqual([[1, 2], [3, 4]]);
+    expect(Object.keys(result.document.interactions)).toEqual([
+      'stable-local-source-q1',
+      'stable-local-source-q2',
+      'stable-local-source-q3',
+      'stable-local-source-q4',
+    ]);
+  });
+
   it('keeps import evidence identifiers out of delivery projections', () => {
     const source = READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE.rawText;
     const candidate = createReadingV2ImportCandidateFromText({
@@ -146,6 +231,31 @@ describe('readingV2ImportNormalization.service', () => {
     expect(candidate.answerKeyText).toBe('1 teacher answer | accepted alternative');
     expect(candidate.evidence).toContain('Detected 1 teacher answer key rows');
     expect(interaction?.scoringRule.acceptableAnswers).toEqual(['teacher answer', 'accepted alternative']);
+  });
+
+  it('keeps teacher answer key rows bound only to matching imported question numbers', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'This imported passage has enough text to become an editable Reading V2 passage paragraph with one question.',
+        '',
+        '#### Questions 1-1',
+        'Complete the sentence.',
+        '**1** Imported prompt ___.',
+      ].join('\n'),
+      answerKeyText: '1 teacher answer\n2 orphan answer',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const validation = validateReadingV2Draft(result.document);
+    const interaction = Object.values(result.document.interactions).find(
+      (candidateInteraction) => candidateInteraction.reviewLabel.displayNumber === 1,
+    );
+
+    expect(interaction?.scoringRule.acceptableAnswers).toEqual(['teacher answer']);
+    expect(validation.blockingIssues.map((issue) => issue.message)).toContain(
+      'Teacher answer key row for question 2 does not match an imported question.',
+    );
   });
 
   it('uses structured payload answerKeyText when no separate answer key field is supplied', () => {
@@ -612,6 +722,72 @@ describe('readingV2ImportNormalization.service', () => {
     expect(passageStimulus.content.paragraphs.map((paragraph) => paragraph.label)).toEqual(['A', undefined]);
   });
 
+  it('preserves matching-headings heading bank and source paragraph labels', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Heading bank source',
+            passages: [
+              {
+                title: 'Heading bank source',
+                contentBlocks: [
+                  { kind: 'paragraph', label: 'A', text: 'Paragraph A has enough source text for a heading match.' },
+                  { kind: 'paragraph', label: 'B', text: 'Paragraph B has enough source text for another heading match.' },
+                ],
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-headings',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Choose the correct heading for each paragraph from the list of headings below.',
+                referenceLabelRange: 'i-iii',
+                sectionReferences: [
+                  { label: 'i', text: 'First source heading' },
+                  { label: 'ii', text: 'Second source heading' },
+                  { label: 'iii', text: 'Unused source heading' },
+                ],
+              },
+            ],
+            questions: [
+              { questionNumber: 1, type: 'matching-headings', sectionInstructionId: 'p1-q1-2', questionText: 'Paragraph A' },
+              { questionNumber: 2, type: 'matching-headings', sectionInstructionId: 'p1-q1-2', questionText: 'Paragraph B' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 i\n2 ii',
+    }));
+    const passageStimulus = Object.values(result.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'passage-content',
+    );
+    const optionSet = Object.values(result.document.optionSets)[0];
+    const validation = validateReadingV2Draft(result.document);
+
+    if (!passageStimulus || passageStimulus.content.kind !== 'passage-content') {
+      throw new Error('Expected a passage stimulus.');
+    }
+
+    expect(passageStimulus.content.paragraphs.map((paragraph) => paragraph.label)).toEqual(['A', 'B']);
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['i', 'ii', 'iii']);
+    expect(optionSet?.options.map((option) => option.text)).toEqual([
+      'First source heading',
+      'Second source heading',
+      'Unused source heading',
+    ]);
+    expect(validation.canPublish).toBe(true);
+  });
+
   it('normalizes standard structured TFNG instructions to one source-backed instruction', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -903,7 +1079,7 @@ describe('readingV2ImportNormalization.service', () => {
     expect(questionFour?.scoringRule.acceptableAnswers).toEqual(['teacher phrase']);
   });
 
-  it('parses teacher answer keys deterministically without treating slash as an alternative separator', () => {
+  it('parses teacher answer keys into canonical alternative answers while preserving compact literal slash tokens', () => {
     const parsed = parseReadingV2TeacherAnswerKey([
       'Answer key',
       '##### Passage 1',
@@ -912,7 +1088,10 @@ describe('readingV2ImportNormalization.service', () => {
       '3) NOT GIVEN',
       '4 = one answer | accepted alternative',
       '5 A/B',
-      '6:',
+      '6 10/ ten times',
+      '7 negative emotions/ feelings',
+      '8 homes/ housing',
+      '9:',
       'notes without number',
       '4 duplicate',
     ].join('\n'));
@@ -923,7 +1102,10 @@ describe('readingV2ImportNormalization.service', () => {
       [3, ['NOT GIVEN']],
       [4, ['one answer', 'accepted alternative']],
       [5, ['A/B']],
-      [6, []],
+      [6, ['10 times', 'ten times']],
+      [7, ['negative emotions', 'negative feelings']],
+      [8, ['homes', 'housing']],
+      [9, []],
       [4, ['duplicate']],
     ]);
     expect(parsed.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
@@ -935,6 +1117,41 @@ describe('readingV2ImportNormalization.service', () => {
     expect(parsed.diagnostics.some((diagnostic) =>
       diagnostic.code === 'unparsed-answer-key-line' && diagnostic.message.includes('line 2')
     )).toBe(false);
+  });
+
+  it('normalizes teacher answer key slash shorthand into publishable completion variants', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'Imported passage paragraph with enough text for one editable Reading V2 question.',
+        '',
+        '#### Questions 1-3',
+        'Complete the notes below.',
+        'Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage for each answer.',
+        '**1** Frequency was _____.',
+        '**2** Homes were _____.',
+        '**3** Emotional state was _____.',
+      ].join('\n'),
+      answerKeyText: [
+        '1 10/ ten times',
+        '2 homes/ housing',
+        '3 negative emotions/ feelings',
+      ].join('\n'),
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const validation = validateReadingV2Draft(result.document);
+    const acceptableAnswersByNumber = new Map(
+      Object.values(result.document.interactions).map((interaction) => [
+        interaction.reviewLabel.displayNumber,
+        interaction.scoringRule.acceptableAnswers,
+      ]),
+    );
+
+    expect(acceptableAnswersByNumber.get(1)).toEqual(['10 times', 'ten times']);
+    expect(acceptableAnswersByNumber.get(2)).toEqual(['homes', 'housing']);
+    expect(acceptableAnswersByNumber.get(3)).toEqual(['negative emotions', 'negative feelings']);
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).not.toContain('word limit');
   });
 
   it('uses section-level reference banks from structured external-AI payloads', () => {
@@ -1145,6 +1362,75 @@ describe('readingV2ImportNormalization.service', () => {
     expect(optionSet?.options.map((option) => option.text)).toContain('Paragraph H');
     expect(taskGroup?.instructionBlocks[0]?.text).toContain('A-H');
     expect(taskGroup?.validationState.issues).toEqual([]);
+  });
+
+  it('preserves matching-features people lists as source reference banks', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'matching-features-people.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'People list',
+            passages: [
+              {
+                title: 'People list',
+                content: 'This passage has enough content to test a matching-features people list import.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-features',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-C.',
+                referenceLabelRange: 'A-C',
+                sectionReferences: [
+                  { label: 'A', text: 'Dr First Person' },
+                  { label: 'B', text: 'Professor Second Person' },
+                  { label: 'C', text: 'Researcher Third Person' },
+                ],
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'First source claim.',
+              },
+              {
+                questionNumber: 2,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Second source claim.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A\n2 B',
+    }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const optionSet = Object.values(result.document.optionSets)[0];
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(taskGroup?.officialTaskType).toBe('matching-features');
+    expect(taskGroup?.answerRule.optionReuse).toBe('allowed');
+    expect(optionSet?.options.map((option) => option.text)).toEqual([
+      'Dr First Person',
+      'Professor Second Person',
+      'Researcher Third Person',
+    ]);
+    expect(validation.blockingIssues).toEqual([]);
+    expect(validation.canPublish).toBe(true);
   });
 
   it('treats question-like multiple-choice evidence as a prompt, not a blocking custom instruction', () => {
@@ -1679,6 +1965,88 @@ describe('readingV2ImportNormalization.service', () => {
     expect(Object.values(roundTrip.interactions).find(
       (interaction) => interaction.reviewLabel.displayNumber === 6,
     )?.scoringRule.acceptableAnswers).toEqual(['leaf']);
+  });
+
+  it('synthesizes structured task groups when AI returns questions without sectionInstructions', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'missing-section-instructions.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Recovered groups',
+            passages: [
+              {
+                title: 'Recovered groups',
+                content: [
+                  'Paragraph A gives enough source text for recovered matching questions.',
+                  'Paragraph B gives more source text for completion questions and answer proof.',
+                ].join('\n\n'),
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'paragraph-matching',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'a source-backed matching prompt',
+                sectionReferences: [
+                  { label: 'A', text: 'Paragraph A' },
+                  { label: 'B', text: 'Paragraph B' },
+                ],
+              },
+              {
+                questionNumber: 2,
+                type: 'paragraph-matching',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'another source-backed matching prompt',
+                sectionReferences: [
+                  { label: 'A', text: 'Paragraph A' },
+                  { label: 'B', text: 'Paragraph B' },
+                ],
+              },
+              {
+                questionNumber: 3,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q3-4',
+                questionText: 'Recovered summary blank _____.',
+                wordLimit: 1,
+              },
+              {
+                questionNumber: 4,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q3-4',
+                questionText: 'Recovered final blank _____.',
+                wordLimit: 1,
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: ['1 A', '2 B', '3 alpha', '4 beta'].join('\n'),
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const taskGroups = Object.values(result.document.taskGroups);
+    const validation = validateReadingV2Draft(result.document);
+
+    assertValidReadingV2CanonicalDocument(result.document);
+    expect(taskGroups.map((taskGroup) => taskGroup.groupTitle)).toEqual(['Questions 1-2', 'Questions 3-4']);
+    expect(taskGroups.map((taskGroup) => taskGroup.officialTaskType)).toEqual([
+      'matching-information',
+      'summary-completion-text',
+    ]);
+    expect(Object.values(result.document.interactions).map(
+      (interaction) => interaction.reviewLabel.displayNumber,
+    )).toEqual([1, 2, 3, 4]);
+    expect(Object.values(result.document.optionSets)[0]?.options.map((option) => option.label)).toEqual(['A', 'B']);
+    expect(validation.canPublish).toBe(true);
   });
 
   it('blocks duplicate teacher key rows instead of letting the last row silently win', () => {

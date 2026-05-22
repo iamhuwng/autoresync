@@ -151,6 +151,102 @@ test.describe('Reading V2 Studio smoke', () => {
     });
   }
 
+  test('Auto V4 smoke import opens Studio, previews, and publishes without provider calls', async ({ page }) => {
+    test.setTimeout(120_000);
+    const evidence = startEvidenceCapture(page);
+    const providerRequests: string[] = [];
+
+    page.on('request', (request) => {
+      const url = request.url();
+
+      if (url.includes('generativelanguage.googleapis.com') || url.includes('api.groq.com')) {
+        providerRequests.push(url);
+      }
+    });
+
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.goto('/__smoke/reading-v2-studio?fixture=auto-v4-valid-full-test', { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('main').first()).toHaveAttribute('data-mode', 'create-from-auto');
+    await expect(page.getByText('Create from Auto')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reading V2 Smoke auto-v4-valid-full-test' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Passage 1', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Passage 2', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Passage 3', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Validate', exact: true }).click();
+    await expect(page.locator('.reading-v2-build__workflow-pill').filter({ hasText: 'No required issues found.' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Preview', exact: true }).click();
+    const preview = page.getByRole('dialog', { name: 'Reading V2 teacher preview' });
+    await expect(preview).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Reading V2 Runtime Shell' })).toBeVisible();
+    await preview.screenshot({
+      path: join(pasteGateOutputDir, 'desktop-auto-v4-import-preview.png'),
+    });
+    await page.getByRole('button', { name: 'Close Preview' }).click();
+
+    await page.getByRole('button', { name: 'Publish', exact: true }).click();
+    await expect(page.locator('.reading-v2-build__workflow-pill').filter({ hasText: 'Published successfully.' })).toBeVisible();
+    await page.screenshot({
+      path: join(pasteGateOutputDir, 'desktop-auto-v4-import-studio.png'),
+      fullPage: true,
+    });
+
+    expect(providerRequests).toEqual([]);
+    expect(evidence.pageErrors).toEqual([]);
+    expect(evidence.requestFailures).toEqual([]);
+    saveEvidence('desktop-auto-v4-import-evidence', {
+      mode: 'create-from-auto',
+      providerRequests,
+      previewVisible: true,
+      publishSuccess: true,
+      ...evidence,
+    });
+  });
+
+  test('Auto V4 malformed smoke import fails closed without provider calls', async ({ page }) => {
+    test.setTimeout(120_000);
+    const evidence = startEvidenceCapture(page);
+    const providerRequests: string[] = [];
+
+    page.on('request', (request) => {
+      const url = request.url();
+
+      if (url.includes('generativelanguage.googleapis.com') || url.includes('api.groq.com')) {
+        providerRequests.push(url);
+      }
+    });
+
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.goto('/__smoke/reading-v2-studio?fixture=auto-v4-malformed-key', { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('main').first()).toHaveAttribute('data-mode', 'create-from-auto');
+    await expect(page.getByText('Create from Auto')).toBeVisible();
+    await expect(page.getByText('Needs review')).toBeVisible();
+    await expect(page.getByRole('button', { name: '2 validation items' })).toBeVisible();
+    await expect(page.getByText('Missing answer').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Review import details' }).click();
+    const diagnostics = page.getByLabel('Reading V2 import diagnostics');
+    await expect(diagnostics).toBeVisible();
+    await expect(diagnostics).toContainText('Teacher key needs repair');
+    await expect(diagnostics).toContainText('appears more than once');
+    await expect(diagnostics).toContainText('Publish is blocked by teacher answer-key binding.');
+
+    expect(providerRequests).toEqual([]);
+    expect(evidence.pageErrors).toEqual([]);
+    expect(evidence.requestFailures).toEqual([]);
+    saveEvidence('desktop-auto-v4-malformed-evidence', {
+      mode: 'create-from-auto',
+      providerRequests,
+      diagnosticsVisible: true,
+      publishBlocked: true,
+      ...evidence,
+    });
+  });
+
   test('paste import malformed key shows diagnostics, repair jump, and publish block', async ({ page }) => {
     const evidence = startEvidenceCapture(page);
 

@@ -14,6 +14,61 @@
  *                               truncation repair)
  */
 
+export type AIJsonExtractionFailureReason =
+    | 'no-json-object'
+    | 'bad-escape-sequence'
+    | 'truncated-json'
+    | 'malformed-json';
+
+export class AIJsonExtractionError extends Error {
+    readonly reason: AIJsonExtractionFailureReason;
+
+    constructor(reason: AIJsonExtractionFailureReason, message: string) {
+        super(message);
+        this.name = 'AIJsonExtractionError';
+        this.reason = reason;
+    }
+}
+
+const classifyJsonExtractionFailure = (messages: readonly string[]): AIJsonExtractionFailureReason => {
+    const text = messages.join('\n').toLowerCase();
+    if (
+        text.includes('bad escaped character')
+        || text.includes('bad escape')
+        || text.includes('invalid escaped character')
+        || text.includes('invalid escape')
+    ) {
+        return 'bad-escape-sequence';
+    }
+
+    if (
+        text.includes('unexpected end')
+        || text.includes('unterminated')
+        || text.includes('end of json input')
+    ) {
+        return 'truncated-json';
+    }
+
+    return 'malformed-json';
+};
+
+const messageForJsonExtractionFailure = (reason: AIJsonExtractionFailureReason): string => {
+    switch (reason) {
+        case 'no-json-object':
+            return 'No JSON object found in AI response';
+        case 'bad-escape-sequence':
+            return 'No valid JSON found in AI response (bad-escape-sequence)';
+        case 'truncated-json':
+            return 'No valid JSON found in AI response (truncated-json)';
+        case 'malformed-json':
+        default:
+            return 'No valid JSON found in AI response (malformed-json)';
+    }
+};
+
+export const isAIJsonExtractionError = (error: unknown): error is AIJsonExtractionError =>
+    error instanceof AIJsonExtractionError;
+
 /**
  * Sanitize control characters inside JSON string values.
  * LLMs sometimes return JSON with literal newlines, tabs, etc.
@@ -157,7 +212,7 @@ export function extractJSON(text: string): unknown {
         // Extract outermost JSON object
         const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            throw new Error('No valid JSON found in AI response');
+            throw new AIJsonExtractionError('no-json-object', messageForJsonExtractionFailure('no-json-object'));
         }
         const jsonStr = jsonMatch[0]!;
 
@@ -181,15 +236,23 @@ export function extractJSON(text: string): unknown {
                         const truncRepaired = repairTruncatedJson(noTrailingCommas);
                         return JSON.parse(truncRepaired);
                     } catch (e5) {
+                        const reason = classifyJsonExtractionFailure([
+                            (e1 as Error).message,
+                            (e2 as Error).message,
+                            (e3 as Error).message,
+                            (e4 as Error).message,
+                            (e5 as Error).message,
+                        ]);
                         console.warn('[ai-json-repair] All JSON recovery strategies failed:', {
                             strategy1: (e1 as Error).message,
                             strategy2: (e2 as Error).message,
                             strategy3: (e3 as Error).message,
                             strategy4: (e4 as Error).message,
                             strategy5: (e5 as Error).message,
+                            reason,
                             responseLength: jsonStr.length,
                         });
-                        throw new Error('No valid JSON found in AI response');
+                        throw new AIJsonExtractionError(reason, messageForJsonExtractionFailure(reason));
                     }
                 }
             }

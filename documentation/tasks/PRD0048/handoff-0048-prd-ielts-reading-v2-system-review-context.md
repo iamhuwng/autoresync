@@ -1,5 +1,9 @@
 # Handoff: Standalone External Review Context for PRD-0048 IELTS Reading V2 System
 
+> **Scope note, 2026-05-14:** This handoff is the broad PRD-0048 IELTS Reading V2 system-review packet. It is **not** the current handoff for the Reading V2 Auto V3 import pipeline.
+>
+> For the current Auto V3 pipeline, use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md` and `documentation/tasks/PRD0048/reading-v2-auto-v3-pipeline-prd.html`. Keep this file as broad system-review context instead of clearing or rewriting it for Auto V3.
+
 ## 1. Purpose of This Handoff
 
 This document is meant for an external engineer, architect, consultant, or AI assistant who has:

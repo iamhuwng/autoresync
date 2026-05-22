@@ -214,6 +214,102 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
     expect(diagnostics.groups.find((group) => group.id === 'projection-safety')?.severity).toBe('success');
   });
 
+  it('turns redacted Auto diagnostics into teacher repair groups', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
+        '',
+        '#### Questions 1-1',
+        'Complete the sentence below.',
+        '**1** Imported sentence ___.',
+      ].join('\n'),
+      answerKeyText: '1 answer',
+      fileName: 'auto-diagnostics.md',
+      sourceKind: 'auto-gemini',
+    });
+    const candidateWithAutoDiagnostics = {
+      ...candidate,
+      autoImportDiagnostics: [
+        {
+          code: 'source-repair-succeeded',
+          severity: 'info' as const,
+          message: 'Source ledger repair retry resolved the missing source coverage.',
+          passageNumber: 1,
+        },
+        {
+          code: 'source-instruction-word-limit-mismatch',
+          severity: 'warning' as const,
+          message: 'Source instruction requires a two-word limit; review the generated task type.',
+          questionNumber: 1,
+        },
+        {
+          code: 'source-reference-bank-missing',
+          severity: 'error' as const,
+          message: 'Source option bank was not preserved.',
+          questionNumber: 1,
+        },
+        {
+          code: 'groq-output-missing-group',
+          severity: 'warning' as const,
+          message: 'Groq output omitted hinted group 1-1.',
+          questionNumber: 1,
+          stage: 'raw-groq',
+          groupRange: '1-1',
+          keyFingerprint: 'groq-slot-0',
+        },
+        {
+          code: 'bank-ownership-heuristic-used',
+          severity: 'warning' as const,
+          message: 'Fallback bank ownership heuristic rebuilt labels for group 1-1.',
+          questionNumber: 1,
+          stage: 'repaired-transcript',
+          groupRange: '1-1',
+        },
+      ],
+    };
+    const normalized = normalizeReadingV2ImportCandidate(candidateWithAutoDiagnostics);
+    const diagnostics = buildReadingV2TeacherImportDiagnostics({
+      document: normalized.document,
+      metadata: { title: 'Auto Diagnostics' },
+      importCandidate: candidateWithAutoDiagnostics,
+      validationResult: validateReadingV2Draft(normalized.document),
+      mode: 'create-from-import',
+      activeStep: 'Passages',
+      draftId: 'draft-auto-diagnostics',
+      revisionToken: 'rev-auto-diagnostics',
+    });
+
+    expect(diagnostics.groups.find((group) => group.id === 'source-structure')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: 'Source ledger repair retry resolved the missing source coverage.',
+        target: expect.objectContaining({ kind: 'section', step: 'Passages' }),
+      }),
+    ]));
+    expect(diagnostics.groups.find((group) => group.id === 'task-type')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        detail: 'source-instruction-word-limit-mismatch',
+        target: expect.objectContaining({ kind: 'interaction', questionNumber: 1 }),
+      }),
+    ]));
+    expect(diagnostics.groups.find((group) => group.id === 'question-binding')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        detail: 'groq-output-missing-group | stage: raw-groq | group: 1-1 | slot: groq-slot-0',
+        target: expect.objectContaining({ kind: 'interaction', questionNumber: 1 }),
+      }),
+    ]));
+    expect(diagnostics.groups.find((group) => group.id === 'option-bank')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: 'Source option bank was not preserved.',
+        severity: 'error',
+      }),
+      expect.objectContaining({
+        detail: 'bank-ownership-heuristic-used | stage: repaired-transcript | group: 1-1',
+      }),
+    ]));
+  });
+
   it('groups missing editor-display structures as structured-layout repair diagnostics', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
