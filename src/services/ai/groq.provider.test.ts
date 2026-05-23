@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GroqProvider } from './groq.provider';
 import type { Chunk } from '../../types/document.types';
 import { getEnv } from '../../config/env.config';
+import { getDecryptedKeys } from '../api-keys.service';
 
 // Mock Groq SDK
 vi.mock('groq-sdk', () => ({
@@ -47,6 +48,7 @@ describe('Groq Provider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getEnv).mockReturnValue({ VITE_GROQ_API_KEY: 'test-groq-key' });
+    vi.mocked(getDecryptedKeys).mockResolvedValue([]);
     provider = new GroqProvider();
   });
 
@@ -302,6 +304,30 @@ describe('Groq Provider', () => {
   });
 
   describe('Structured JSON key slots', () => {
+    it('combines admin and env Groq keys with dedupe', async () => {
+      vi.mocked(getDecryptedKeys).mockResolvedValue(['admin-slot-key', 'shared-slot-key']);
+      vi.mocked(getEnv).mockReturnValue({
+        VITE_GROQ_API_KEY: 'legacy-slot-key',
+        VITE_GROQ_API_KEY_1: 'shared-slot-key',
+        VITE_GROQ_API_KEY_2: 'numbered-slot-key',
+      } as any);
+      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(Groq).mockImplementation(() => ({
+        chat: { completions: { create: vi.fn() } },
+      }) as any);
+      provider = new GroqProvider();
+
+      const slots = await provider.getAvailableStructuredJsonKeySlots();
+
+      expect(slots).toHaveLength(4);
+      expect(vi.mocked(Groq).mock.calls.map(([options]) => (options as { apiKey: string }).apiKey)).toEqual([
+        'admin-slot-key',
+        'shared-slot-key',
+        'legacy-slot-key',
+        'numbered-slot-key',
+      ]);
+    });
+
     it('honors an explicit preferred key slot for structured generation', async () => {
       const clientsByKey = new Map<string, { chat: { completions: { create: ReturnType<typeof vi.fn> } } }>();
       ['slot-key-1', 'slot-key-2', 'slot-key-3'].forEach((apiKey) => {
@@ -472,6 +498,93 @@ describe('Groq Provider', () => {
       expect(create.mock.calls.map(([payload]) => payload.max_tokens)).toEqual([12_288, 8192]);
       const slots = await provider.getAvailableStructuredJsonKeySlots();
       expect(slots[0]?.available).toBe(true);
+    });
+
+    it('retries structured generation with smaller max tokens after request-size TPD errors', async () => {
+      vi.mocked(getEnv).mockReturnValue({
+        VITE_GROQ_API_KEY_1: 'tpd-retry-slot-key',
+      } as any);
+      const create = vi.fn()
+        .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per day (TPD): Requested 19146. Please try again in 48m4.896s.'))
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        });
+      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(Groq).mockImplementation(() => ({
+        chat: { completions: { create } },
+      }) as any);
+      provider = new GroqProvider();
+
+      const result = await provider.generateStructuredJson('{"request":true}', {
+        preferredKeyIndex: 0,
+        maxOutputTokens: 4096,
+      });
+
+      expect(result.success).toBe(true);
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls.map(([payload]) => payload.max_tokens)).toEqual([4096, 3072]);
+    });
+
+    it('waits and retries temporary structured-generation TPM rate limits before benching the key', async () => {
+      vi.mocked(getEnv).mockReturnValue({
+        VITE_GROQ_API_KEY_1: 'tpm-wait-retry-slot-key',
+      } as any);
+      const create = vi.fn()
+        .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        });
+      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(Groq).mockImplementation(() => ({
+        chat: { completions: { create } },
+      }) as any);
+      provider = new GroqProvider();
+
+      const result = await provider.generateStructuredJson('{"request":true}', {
+        preferredKeyIndex: 0,
+        maxOutputTokens: 4096,
+      });
+      const slots = await provider.getAvailableStructuredJsonKeySlots();
+
+      expect(result.success).toBe(true);
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls.map(([payload]) => payload.max_tokens)).toEqual([4096, 4096]);
+      expect(slots[0]?.available).toBe(true);
+    });
+
+    it('honors repeated Groq retry-after windows during one structured-generation call', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(getEnv).mockReturnValue({
+          VITE_GROQ_API_KEY_1: 'tpm-repeat-wait-retry-slot-key',
+        } as any);
+        const create = vi.fn()
+          .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
+          .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
+          .mockResolvedValueOnce({
+            choices: [{ message: { content: '{"ok":true}' } }],
+          });
+        const Groq = (await import('groq-sdk')).default;
+        vi.mocked(Groq).mockImplementation(() => ({
+          chat: { completions: { create } },
+        }) as any);
+        provider = new GroqProvider();
+
+        const pending = provider.generateStructuredJson('{"request":true}', {
+          preferredKeyIndex: 0,
+          maxOutputTokens: 4096,
+        });
+        await vi.advanceTimersByTimeAsync(1001);
+        await vi.advanceTimersByTimeAsync(1001);
+        const result = await pending;
+        const slots = await provider.getAvailableStructuredJsonKeySlots();
+
+        expect(result.success).toBe(true);
+        expect(create).toHaveBeenCalledTimes(3);
+        expect(slots[0]?.available).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('benches structured generation slots when request-size retries still fail', async () => {

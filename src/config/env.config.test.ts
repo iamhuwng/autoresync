@@ -63,4 +63,15 @@ describe('env.config', () => {
 
     expect(() => loadEnv()).toThrow(/VITE_GEMINI_API_KEY_1-5/);
   });
+
+  it('preserves numbered Groq key slots for shared provider rotation', async () => {
+    vi.stubEnv('VITE_GEMINI_API_KEY_1', 'env-key-1');
+    vi.stubEnv('VITE_GROQ_API_KEY_1', 'groq-slot-1');
+    vi.stubEnv('VITE_GROQ_API_KEY_5', 'groq-slot-5');
+
+    const { getEnv } = await loadConfigModule();
+
+    expect(getEnv().VITE_GROQ_API_KEY_1).toBe('groq-slot-1');
+    expect(getEnv().VITE_GROQ_API_KEY_5).toBe('groq-slot-5');
+  });
 });

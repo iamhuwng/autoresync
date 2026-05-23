@@ -651,6 +651,35 @@ const labelRangeFromInstructionText = (sourceInstructionText: string | undefined
   return `${match[1].toUpperCase()}-${match[2].toUpperCase()}`;
 };
 
+const WORD_LIMIT_BY_TEXT = new Map<string, number>([
+  ['ONE', 1],
+  ['TWO', 2],
+  ['THREE', 3],
+  ['FOUR', 4],
+  ['FIVE', 5],
+]);
+
+const wordLimitDetailsFromInstructionText = (
+  sourceInstructionText: string | undefined,
+): Pick<ReadingV2AutoTranscriptInstructionMeta, 'wordLimit' | 'wordLimitText'> => {
+  const source = compact((sourceInstructionText ?? '').replace(/[*_`]+/g, ' ')).toUpperCase();
+  const match = source.match(/\b((?:NO\s+MORE\s+THAN\s+)?(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORD(?:S)?(?:\s+ONLY)?(?:\s+AND\/OR\s+A\s+NUMBER)?)\b/);
+  const rawLimit = match?.[2];
+  if (!rawLimit) {
+    return {};
+  }
+
+  const wordLimit = WORD_LIMIT_BY_TEXT.get(rawLimit) ?? Number(rawLimit);
+  if (!Number.isFinite(wordLimit) || wordLimit <= 0) {
+    return {};
+  }
+
+  return {
+    wordLimit,
+    ...(match?.[1] ? { wordLimitText: compact(match[1]) } : {}),
+  };
+};
+
 const normalizedInstructionMetaForGroup = (
   taskType: ReadingV2CanonicalTaskType | null,
   instructionMeta: ReadingV2AutoTranscriptInstructionMeta,
@@ -670,6 +699,52 @@ const normalizedInstructionMetaForGroup = (
         referenceLabelRange,
       }
     : instructionMeta;
+};
+
+const matchingGroupHintFor = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  group: ReadingV2AutoQuestionTranscriptGroup,
+): ReadingV2AutoPassagePackage['groupHints'][number] | undefined =>
+  passagePackage.groupHints.find((candidate) =>
+    candidate.questionRange.start === group.questionRange.start
+    && candidate.questionRange.end === group.questionRange.end,
+  );
+
+const hintedInstructionTextFor = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  group: ReadingV2AutoQuestionTranscriptGroup,
+): string | undefined => {
+  const hint = matchingGroupHintFor(passagePackage, group);
+  if (!hint) {
+    return undefined;
+  }
+
+  const firstQuestionLineNumber = passagePackage.questionAreaLines.find((line) =>
+    line.lineNumber >= hint.lines.startLine
+    && line.lineNumber <= hint.lines.endLine
+    && line.text.match(new RegExp(String.raw`(?:^|\s)(?:\*\*)?${group.questionRange.start}(?:\*\*)?[\s.)]`, 'i')),
+  )?.lineNumber;
+  const endLine = firstQuestionLineNumber ? firstQuestionLineNumber - 1 : hint.lines.endLine;
+  const lines = passagePackage.questionAreaLines
+    .filter((line) => line.lineNumber >= hint.lines.startLine && line.lineNumber <= endLine)
+    .map((line) => line.text.trim())
+    .filter(Boolean);
+
+  return lines.join('\n').trim() || undefined;
+};
+
+const sourceInstructionEvidenceFor = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  group: ReadingV2AutoQuestionTranscriptGroup,
+): string | undefined => {
+  const evidence = [
+    hintedInstructionTextFor(passagePackage, group),
+    group.sourceInstructionText,
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .filter((value, index, values) => values.indexOf(value) === index);
+
+  return evidence.join('\n').trim() || undefined;
 };
 
 const normalizeTaskType = (
@@ -701,7 +776,7 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
       })
     : [];
 
-  if (!questionRange || !taskType || questions.length === 0) {
+  if (!questionRange || !taskType) {
     return null;
   }
 
@@ -1178,28 +1253,34 @@ export const buildReadingV2AutoMaterialFromTranscript = (input: {
 }): ReadingV2AutoTranscriptMaterial => {
   const sectionInstructions = input.transcript.groups.map((group) => {
     const id = `p${input.passagePackage.passageNumber}-q${group.questionRange.start}-${group.questionRange.end}`;
+    const sourceInstructionEvidence = sourceInstructionEvidenceFor(input.passagePackage, group);
+    const sourceWordLimit = wordLimitDetailsFromInstructionText(sourceInstructionEvidence);
+    const instructionMeta = {
+      ...group.instructionMeta,
+      ...sourceWordLimit,
+    };
     return {
       id,
       taskType: group.taskType,
       text: getReadingV2InstructionText(group.taskType, {
         questionRange: group.questionRange,
         passageNumber: input.passagePackage.passageNumber,
-        wordLimit: group.instructionMeta.wordLimit,
-        wordLimitText: group.instructionMeta.wordLimitText,
-        selectionLimit: group.instructionMeta.selectionLimit,
-        optionLabelRange: group.instructionMeta.optionLabelRange ?? optionLabelRange(group.labeledOptions),
-        referenceLabelRange: group.instructionMeta.referenceLabelRange ?? optionLabelRange(group.sectionReferences),
-        reuseAllowed: group.instructionMeta.reuseAllowed,
+        wordLimit: instructionMeta.wordLimit,
+        wordLimitText: instructionMeta.wordLimitText,
+        selectionLimit: instructionMeta.selectionLimit,
+        optionLabelRange: instructionMeta.optionLabelRange ?? optionLabelRange(group.labeledOptions),
+        referenceLabelRange: instructionMeta.referenceLabelRange ?? optionLabelRange(group.sectionReferences),
+        reuseAllowed: instructionMeta.reuseAllowed,
       }),
       questionRange: group.questionRange,
-      wordLimit: group.instructionMeta.wordLimit,
-      wordLimitText: group.instructionMeta.wordLimitText,
-      vocabulary: group.instructionMeta.vocabulary,
-      selectionLimit: group.instructionMeta.selectionLimit,
-      answerSource: group.instructionMeta.answerSource,
-      optionLabelRange: group.instructionMeta.optionLabelRange ?? optionLabelRange(group.labeledOptions),
-      referenceLabelRange: group.instructionMeta.referenceLabelRange ?? optionLabelRange(group.sectionReferences),
-      reuseAllowed: group.instructionMeta.reuseAllowed,
+      wordLimit: instructionMeta.wordLimit,
+      wordLimitText: instructionMeta.wordLimitText,
+      vocabulary: instructionMeta.vocabulary,
+      selectionLimit: instructionMeta.selectionLimit,
+      answerSource: instructionMeta.answerSource,
+      optionLabelRange: instructionMeta.optionLabelRange ?? optionLabelRange(group.labeledOptions),
+      referenceLabelRange: instructionMeta.referenceLabelRange ?? optionLabelRange(group.sectionReferences),
+      reuseAllowed: instructionMeta.reuseAllowed,
       note: group.note,
       table: group.table,
       flowchart: group.flowchart,
@@ -1215,7 +1296,9 @@ export const buildReadingV2AutoMaterialFromTranscript = (input: {
       type: group.taskType,
       sectionInstructionId,
       questionText: question.promptText,
-      wordLimit: group.instructionMeta.wordLimit,
+      wordLimit: wordLimitDetailsFromInstructionText(
+        sourceInstructionEvidenceFor(input.passagePackage, group),
+      ).wordLimit ?? group.instructionMeta.wordLimit,
       labeledOptions: question.labeledOptions,
       sectionReferences: question.sectionReferences,
     }));

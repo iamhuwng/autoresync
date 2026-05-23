@@ -444,6 +444,28 @@ describe('Gemini Provider', () => {
       );
     });
 
+    it('waits and retries structured JSON once on temporary 503 high-demand errors', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const generateContent = vi.fn()
+        .mockRejectedValueOnce(new Error('503 This model is currently experiencing high demand. Please try again in 0.001s.'))
+        .mockResolvedValueOnce({
+          response: { text: () => JSON.stringify({ ok: true }) },
+        });
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue({ generateContent }),
+      }) as any);
+
+      provider = new GeminiProvider();
+      const result = await provider.generateStructuredJson('Return {"ok": true}');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ ok: true });
+      }
+      expect(generateContent).toHaveBeenCalledTimes(2);
+    });
+
     it('should rotate keys on temporary 503 high-demand errors for questions+answers', async () => {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       let callCount = 0;

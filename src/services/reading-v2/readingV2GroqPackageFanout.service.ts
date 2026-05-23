@@ -6,8 +6,10 @@ import {
 } from './readingV2AutoQuestionAreaNormalizer.service';
 import type {
   ReadingV2AutoQuestionTranscript,
+  ReadingV2AutoQuestionTranscriptDiagnostic,
   ReadingV2AutoTranscriptCoverageSummary,
 } from './readingV2AutoQuestionTranscript.service';
+import { verifyReadingV2AutoQuestionTranscript } from './readingV2AutoQuestionTranscript.service';
 
 export interface ReadingV2GroqKeySlot {
   readonly index: number;
@@ -25,6 +27,9 @@ export type ReadingV2GroqPackageFanoutDiagnosticCode =
   | 'groq-package-json-retried'
   | 'groq-package-json-retry-succeeded'
   | 'groq-package-json-retry-failed'
+  | 'groq-package-completion-retried'
+  | 'groq-package-completion-retry-succeeded'
+  | 'groq-package-completion-retry-failed'
   | 'groq-package-retried'
   | 'groq-package-failed'
   | 'groq-quota-exhausted';
@@ -59,8 +64,14 @@ export interface ReadingV2GroqPackageFanoutResult {
 
 const rawKeyLikePattern = /\b(?:gsk_[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{12,})\b/g;
 const malformedJsonRetryInstruction = [
-  'Your previous response was not valid JSON.',
+  'Your previous response was not valid JSON or did not satisfy the required JSON Schema.',
   'Return the same transcript shape as valid JSON only.',
+  'The root JSON value must be one object, not an array.',
+  'Always include required top-level fields: passageNumber and groups.',
+  'Do not return coverageSummary or diagnostics; local app code derives coverage diagnostics from emitted groups.',
+  'Return exactly one group for each groupHints item, with every hinted question number exactly once.',
+  'Use only canonical taskType slugs allowed by the JSON Schema enum.',
+  'Every group must include at least one question copied from QUESTION_AREA_LINES_ONLY.',
   'If source text contains backslashes, escape each backslash as \\\\ in JSON strings.',
   'Never emit raw invalid JSON escapes such as \\_, \\., or \\#.',
   'Do not use Markdown fences, comments, or prose.',
@@ -101,9 +112,100 @@ const isMalformedStructuredJsonFailure = (value: string | undefined): boolean =>
     text.includes('bad-escape-sequence')
     || text.includes('malformed-json')
     || text.includes('truncated-json')
+    || text.includes('json_validate_failed')
+    || text.includes('does not match the expected schema')
+    || text.includes('does not validate with /required')
+    || text.includes('malformed reading v2 question transcript')
     || text.includes('no valid json found in ai response')
     || text.includes('no json object found in ai response')
   );
+};
+
+const rangeKey = (range: { readonly start: number; readonly end: number }): string =>
+  `${range.start}-${range.end}`;
+
+const numbersInRange = (range: { readonly start: number; readonly end: number }): readonly number[] => {
+  const numbers: number[] = [];
+  for (let questionNumber = range.start; questionNumber <= range.end; questionNumber += 1) {
+    numbers.push(questionNumber);
+  }
+  return numbers;
+};
+
+const selfFixTranscriptDiagnosticCodes = new Set<ReadingV2AutoQuestionTranscriptDiagnostic['code']>([
+  'group-coverage-mismatch',
+  'duplicate-question-number',
+  'task-type-conflict',
+  'missing-reference-bank',
+  'blank-mismatch',
+  'source-text-exact-missing',
+  'normalized-text-source-drift',
+]);
+
+const verifierFeedbackFor = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  packageResult: ReadingV2GroqPackageFanoutPackageResult,
+): readonly string[] =>
+  verifyReadingV2AutoQuestionTranscript({
+    transcript: packageResult.transcript,
+    passagePackage,
+  })
+    .filter((diagnostic) => selfFixTranscriptDiagnosticCodes.has(diagnostic.code))
+    .map((diagnostic) => {
+      const question = diagnostic.questionNumber ? `q${diagnostic.questionNumber}: ` : '';
+      return `${question}${diagnostic.code}: ${diagnostic.message}`;
+    });
+
+const completionFeedbackFor = (
+  passagePackage: ReadingV2AutoPassagePackage,
+  packageResult: ReadingV2GroqPackageFanoutPackageResult,
+): string | null => {
+  const groupsByRange = new Map(packageResult.transcript.groups.map((group) => [
+    rangeKey(group.questionRange),
+    group,
+  ]));
+  const issues = passagePackage.groupHints.flatMap((groupHint) => {
+    const key = rangeKey(groupHint.questionRange);
+    const group = groupsByRange.get(key);
+    if (!group) {
+      return [`${key}: missing group`];
+    }
+
+    const seenQuestions = new Set(group.questions.map((question) => question.number));
+    const missingQuestions = numbersInRange(groupHint.questionRange)
+      .filter((questionNumber) => !seenQuestions.has(questionNumber));
+    return missingQuestions.length > 0
+      ? [`${key}: missing question(s) ${missingQuestions.join(', ')}`]
+      : [];
+  });
+  const verifierIssues = verifierFeedbackFor(passagePackage, packageResult);
+  const allIssues = [...new Set([...issues, ...verifierIssues])];
+  if (allIssues.length === 0) {
+    return null;
+  }
+
+  const expectedQuestionCount = passagePackage.groupHints
+    .reduce((total, groupHint) => total + numbersInRange(groupHint.questionRange).length, 0);
+  const coveredQuestionCount = passagePackage.groupHints
+    .reduce((total, groupHint) => {
+      const group = groupsByRange.get(rangeKey(groupHint.questionRange));
+      if (!group) {
+        return total;
+      }
+
+      const seenQuestions = new Set(group.questions.map((question) => question.number));
+      return total + numbersInRange(groupHint.questionRange)
+        .filter((questionNumber) => seenQuestions.has(questionNumber)).length;
+    }, 0);
+
+  return [
+    'Previous JSON parsed, but transcript audit found incomplete or unsafe coverage against groupHints, QUESTION_AREA_LINES_ONLY, and REFERENCE_BANK_LINES_ONLY.',
+    `Coverage: ${coveredQuestionCount}/${expectedQuestionCount} expected question(s).`,
+    `Fix: ${allIssues.join('; ')}.`,
+    'Return the full passage package again as strict JSON; do not omit any hinted group/question.',
+    'Use source evidence already provided in QUESTION_AREA_LINES_ONLY and REFERENCE_BANK_LINES_ONLY.',
+    'Repair taskType, banks, blanks, duplicate numbers, and source-proof drift from the evidence instead of leaving local code to infer them.',
+  ].join(' ');
 };
 
 const assignmentFor = (
@@ -161,6 +263,65 @@ const normalizePackageWithSlot = async (
       keyFingerprint: slot?.fingerprint,
       attempts: 1,
     },
+  };
+};
+
+const retryIncompletePackageWithFeedback = async (input: {
+  readonly provider: ReadingV2GroqPackageFanoutProvider;
+  readonly passagePackage: ReadingV2AutoPassagePackage;
+  readonly slot: ReadingV2GroqKeySlot | undefined;
+  readonly result: ReadingV2GroqPackageFanoutPackageResult;
+}): Promise<{
+  readonly result: ReadingV2GroqPackageFanoutPackageResult;
+  readonly diagnostics: readonly ReadingV2GroqPackageFanoutDiagnostic[];
+}> => {
+  const feedback = completionFeedbackFor(input.passagePackage, input.result);
+  if (!feedback) {
+    return { result: input.result, diagnostics: [] };
+  }
+
+  const retry = await normalizePackageWithSlot(input.provider, input.passagePackage, input.slot, feedback);
+  const diagnostics: ReadingV2GroqPackageFanoutDiagnostic[] = [{
+    code: 'groq-package-completion-retried',
+    severity: 'warning',
+    message: `Retrying passage package ${input.passagePackage.passageNumber} after low Groq completion coverage: ${feedback}`,
+    passageNumber: input.passagePackage.passageNumber,
+    preferredKeyIndex: input.slot?.index,
+    keyFingerprint: input.slot?.fingerprint,
+  }];
+
+  if (!retry.success) {
+    diagnostics.push({
+      code: 'groq-package-completion-retry-failed',
+      severity: 'warning',
+      message: redact(`Passage package ${input.passagePackage.passageNumber} completion retry failed: ${retry.error}`),
+      passageNumber: input.passagePackage.passageNumber,
+      preferredKeyIndex: input.slot?.index,
+      keyFingerprint: input.slot?.fingerprint,
+    });
+    return { result: input.result, diagnostics };
+  }
+
+  const retryFeedback = completionFeedbackFor(input.passagePackage, retry.data);
+  diagnostics.push({
+    code: retryFeedback
+      ? 'groq-package-completion-retry-failed'
+      : 'groq-package-completion-retry-succeeded',
+    severity: retryFeedback ? 'warning' : 'info',
+    message: retryFeedback
+      ? `Passage package ${input.passagePackage.passageNumber} completion retry still needs local audit: ${retryFeedback}`
+      : `Passage package ${input.passagePackage.passageNumber} recovered after Groq completion feedback retry.`,
+    passageNumber: input.passagePackage.passageNumber,
+    preferredKeyIndex: input.slot?.index,
+    keyFingerprint: input.slot?.fingerprint,
+  });
+
+  return {
+    result: {
+      ...retry.data,
+      attempts: input.result.attempts + retry.data.attempts,
+    },
+    diagnostics,
   };
 };
 
@@ -232,7 +393,14 @@ export const runReadingV2GroqPackageFanout = async (input: {
       const quotaStopSignal = isProviderQuotaStopSignal(result.success ? undefined : result.error);
 
       if (result.success) {
-        packageResults.push(result.data);
+        const completionRetry = await retryIncompletePackageWithFeedback({
+          provider: input.provider,
+          passagePackage,
+          slot,
+          result: result.data,
+        });
+        diagnostics.push(...completionRetry.diagnostics);
+        packageResults.push(completionRetry.result);
         continue;
       }
 
@@ -277,10 +445,18 @@ export const runReadingV2GroqPackageFanout = async (input: {
           preferredKeyIndex: currentAttempt.slot?.index,
           keyFingerprint: currentAttempt.slot?.fingerprint,
         });
-        packageResults.push({
+        const retriedPackageResult = {
           ...retry.data,
           attempts: currentAttempt.result.success ? retry.data.attempts : retry.data.attempts + 1,
+        };
+        const completionRetry = await retryIncompletePackageWithFeedback({
+          provider: input.provider,
+          passagePackage: currentAttempt.passagePackage,
+          slot: currentAttempt.slot,
+          result: retriedPackageResult,
         });
+        diagnostics.push(...completionRetry.diagnostics);
+        packageResults.push(completionRetry.result);
         continue;
       }
 
@@ -299,7 +475,14 @@ export const runReadingV2GroqPackageFanout = async (input: {
     }
 
     if (currentAttempt.result.success) {
-      packageResults.push(currentAttempt.result.data);
+      const completionRetry = await retryIncompletePackageWithFeedback({
+        provider: input.provider,
+        passagePackage: currentAttempt.passagePackage,
+        slot: currentAttempt.slot,
+        result: currentAttempt.result.data,
+      });
+      diagnostics.push(...completionRetry.diagnostics);
+      packageResults.push(completionRetry.result);
       continue;
     }
 
@@ -320,10 +503,17 @@ export const runReadingV2GroqPackageFanout = async (input: {
         continue;
       }
 
-      packageResults.push({
-        ...retry.data,
-        attempts: 2,
+      const completionRetry = await retryIncompletePackageWithFeedback({
+        provider: input.provider,
+        passagePackage: currentAttempt.passagePackage,
+        slot: retrySlot,
+        result: {
+          ...retry.data,
+          attempts: 2,
+        },
       });
+      diagnostics.push(...completionRetry.diagnostics);
+      packageResults.push(completionRetry.result);
       retrySucceeded = true;
       break;
     }

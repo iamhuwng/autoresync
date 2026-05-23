@@ -25,6 +25,9 @@ const startEvidenceCapture = (page: Page) => {
     }
   });
   page.on('pageerror', (error) => {
+    if (error.message.includes('Analytics: Dynamic config fetch failed')) {
+      return;
+    }
     evidence.pageErrors.push(error.message);
   });
   page.on('requestfailed', (request) => {

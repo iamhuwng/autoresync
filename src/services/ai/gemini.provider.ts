@@ -96,6 +96,22 @@ export class GeminiProvider implements IAIService {
     );
   }
 
+  private parseStructuredRetryDelayMs(errorMessage?: string): number | null {
+    const secondsMatch = errorMessage?.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+    if (!secondsMatch) return null;
+
+    const seconds = Number(secondsMatch[1]);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+    return Math.ceil(seconds * 1000) + 250;
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      globalThis.setTimeout(resolve, ms);
+    });
+  }
+
   /**
    * Initialize Gemini clients with all available API keys.
    * `forceRefresh` reloads the current key inventory so long-lived sessions
@@ -1913,6 +1929,7 @@ Respond with JSON array only:
     const attemptedKeys = new Set<number>();
     let nextKeyIndex = this.getNextAvailableKeyRoundRobin();
     let lastError = '';
+    let didWaitForTransientAvailability = false;
 
     while (nextKeyIndex >= 0 && attemptedKeys.size < this.clients.length) {
       if (attemptedKeys.has(nextKeyIndex)) {
@@ -1954,6 +1971,18 @@ Respond with JSON array only:
         const msg = error instanceof Error ? error.message : 'Unknown error';
         this.status.lastError = msg;
         lastError = msg;
+
+        if (this.isTransientAvailabilityError(msg) && !didWaitForTransientAvailability) {
+          didWaitForTransientAvailability = true;
+          const retryDelayMs = this.parseStructuredRetryDelayMs(msg) ?? 15_000;
+          console.warn(
+            `⚠️ Gemini structured generation hit temporary demand; retrying after ${retryDelayMs}ms before exhausting key slots...`,
+          );
+          await this.wait(retryDelayMs);
+          attemptedKeys.clear();
+          nextKeyIndex = this.getNextAvailableKeyRoundRobin();
+          continue;
+        }
 
         if (!this.shouldTryNextStructuredKey(msg)) {
           return { success: false, error: `Structured generation failed: ${msg}` };

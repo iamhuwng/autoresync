@@ -7,6 +7,7 @@ import {
   type ReadingV2AutoTranscriptCoverageSummary,
   type ReadingV2AutoQuestionTranscript,
 } from './readingV2AutoQuestionTranscript.service';
+import { READING_V2_CANONICAL_TASK_TYPES } from '../../types/readingV2Taxonomy';
 
 export interface ReadingV2AutoQuestionAreaNormalizerOptions extends AIStructuredGenerationOptions {
   readonly preferredKeyIndex?: number;
@@ -34,6 +35,8 @@ export const READING_V2_AUTO_QUESTION_AREA_NORMALIZER_SYSTEM_INSTRUCTION = [
   'You normalize one IELTS Reading question area into a strict transcript.',
   'Return valid JSON only. Do not return Markdown fences, comments, or prose.',
   'The response must conform to the supplied JSON Schema exactly.',
+  'The root JSON value must be one object, not an array.',
+  'Return only top-level passageNumber and groups. Local app code computes root coverage diagnostics from those groups.',
   'When copying source backslashes into JSON strings, escape each backslash as \\\\. Never emit raw invalid JSON escapes such as \\_, \\., or \\#.',
   'Do not solve answers. Do not infer answers. Do not paraphrase visible question, bank, option, or layout text.',
   'Do not output passage body text. Passage body is not in your input and must stay local.',
@@ -41,10 +44,8 @@ export const READING_V2_AUTO_QUESTION_AREA_NORMALIZER_SYSTEM_INSTRUCTION = [
 ].join('\n');
 
 export const READING_V2_AUTO_GROQ_NORMALIZER_MODEL = 'openai/gpt-oss-120b';
-export const READING_V2_AUTO_GROQ_NORMALIZER_MAX_OUTPUT_TOKENS = 16384;
+export const READING_V2_AUTO_GROQ_NORMALIZER_MAX_OUTPUT_TOKENS = 4096;
 
-const stringArraySchema = { type: 'array', items: { type: 'string' } } as const;
-const integerArraySchema = { type: 'array', items: { type: 'integer' } } as const;
 const questionRangeSchema = {
   type: 'object',
   properties: {
@@ -54,6 +55,12 @@ const questionRangeSchema = {
   required: ['start', 'end'],
   additionalProperties: false,
 } as const;
+
+const integerArraySchema = {
+  type: 'array',
+  items: { type: 'integer' },
+} as const;
+
 const transcriptOptionSchema = {
   type: 'object',
   properties: {
@@ -63,7 +70,7 @@ const transcriptOptionSchema = {
     text: { type: 'string' },
     sourceLines: integerArraySchema,
   },
-  required: ['label', 'sourceTextExact', 'normalizedText', 'text', 'sourceLines'],
+  required: ['label', 'sourceTextExact', 'normalizedText', 'text'],
   additionalProperties: false,
 } as const;
 const transcriptQuestionSchema = {
@@ -74,20 +81,128 @@ const transcriptQuestionSchema = {
     normalizedPromptText: { type: 'string' },
     promptText: { type: 'string' },
     sourceLines: integerArraySchema,
-    labeledOptions: { type: 'array', items: transcriptOptionSchema },
-    sectionReferences: { type: 'array', items: transcriptOptionSchema },
   },
   required: [
     'number',
     'sourceTextExact',
     'normalizedPromptText',
     'promptText',
-    'sourceLines',
-    'labeledOptions',
-    'sectionReferences',
   ],
   additionalProperties: false,
 } as const;
+
+const transcriptNoteLineSchema = {
+  type: 'object',
+  properties: {
+    text: { type: 'string' },
+    sourceTextExact: { type: 'string' },
+    normalizedText: { type: 'string' },
+    sourceLines: integerArraySchema,
+    questionNumber: { type: 'integer' },
+    questionNumbers: integerArraySchema,
+  },
+  required: ['text'],
+  additionalProperties: false,
+} as const;
+
+const transcriptNoteSectionSchema = {
+  type: 'object',
+  properties: {
+    heading: { type: 'string' },
+    questionNumbers: integerArraySchema,
+    lines: { type: 'array', items: transcriptNoteLineSchema },
+  },
+  required: [],
+  additionalProperties: false,
+} as const;
+
+const transcriptNoteSchema = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    subheading: { type: 'string' },
+    sections: { type: 'array', items: transcriptNoteSectionSchema },
+    lines: { type: 'array', items: transcriptNoteLineSchema },
+  },
+  required: [],
+  additionalProperties: false,
+} as const;
+
+const transcriptTableCellSchema = {
+  type: 'object',
+  properties: {
+    text: { type: 'string' },
+    sourceTextExact: { type: 'string' },
+    normalizedText: { type: 'string' },
+    role: { type: 'string' },
+    questionNumber: { type: 'integer' },
+    questionNumbers: integerArraySchema,
+  },
+  required: ['text'],
+  additionalProperties: false,
+} as const;
+
+const transcriptTableSchema = {
+  type: 'object',
+  properties: {
+    rows: {
+      type: 'array',
+      items: {
+        type: 'array',
+        items: transcriptTableCellSchema,
+      },
+    },
+  },
+  required: ['rows'],
+  additionalProperties: false,
+} as const;
+
+const transcriptFlowStepSchema = {
+  type: 'object',
+  properties: {
+    stepId: { type: 'string' },
+    text: { type: 'string' },
+    sourceTextExact: { type: 'string' },
+    normalizedText: { type: 'string' },
+    questionNumber: { type: 'integer' },
+    nextStepIds: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['text'],
+  additionalProperties: false,
+} as const;
+
+const transcriptFlowchartSchema = {
+  type: 'object',
+  properties: {
+    steps: { type: 'array', items: transcriptFlowStepSchema },
+  },
+  required: ['steps'],
+  additionalProperties: false,
+} as const;
+
+const transcriptDiagramTargetSchema = {
+  type: 'object',
+  properties: {
+    label: { type: 'string' },
+    sourceLabelExact: { type: 'string' },
+    normalizedLabel: { type: 'string' },
+    questionNumber: { type: 'integer' },
+  },
+  required: ['label', 'questionNumber'],
+  additionalProperties: false,
+} as const;
+
+const transcriptDiagramSchema = {
+  type: 'object',
+  properties: {
+    imageUrl: { type: 'string' },
+    imageAlt: { type: 'string' },
+    targets: { type: 'array', items: transcriptDiagramTargetSchema },
+  },
+  required: ['targets'],
+  additionalProperties: false,
+} as const;
+
 const instructionMetaSchema = {
   type: 'object',
   properties: {
@@ -102,150 +217,27 @@ const instructionMetaSchema = {
     summaryAnswerMode: { type: 'string', enum: ['text', 'list', ''] },
   },
   required: [
-    'wordLimit',
-    'wordLimitText',
-    'vocabulary',
-    'selectionLimit',
-    'answerSource',
-    'optionLabelRange',
-    'referenceLabelRange',
-    'reuseAllowed',
-    'summaryAnswerMode',
   ],
-  additionalProperties: false,
-} as const;
-const noteLineSchema = {
-  type: 'object',
-  properties: {
-    sourceTextExact: { type: 'string' },
-    normalizedText: { type: 'string' },
-    text: { type: 'string' },
-    sourceLines: integerArraySchema,
-    questionNumber: { type: 'integer' },
-    questionNumbers: integerArraySchema,
-  },
-  required: ['sourceTextExact', 'normalizedText', 'text', 'sourceLines', 'questionNumber', 'questionNumbers'],
-  additionalProperties: false,
-} as const;
-const noteSectionSchema = {
-  type: 'object',
-  properties: {
-    heading: { type: 'string' },
-    questionNumbers: integerArraySchema,
-    lines: { type: 'array', items: noteLineSchema },
-  },
-  required: ['heading', 'questionNumbers', 'lines'],
-  additionalProperties: false,
-} as const;
-const noteSchema = {
-  type: 'object',
-  properties: {
-    title: { type: 'string' },
-    subheading: { type: 'string' },
-    sections: { type: 'array', items: noteSectionSchema },
-    lines: { type: 'array', items: noteLineSchema },
-  },
-  required: ['title', 'subheading', 'sections', 'lines'],
-  additionalProperties: false,
-} as const;
-const tableCellSchema = {
-  type: 'object',
-  properties: {
-    sourceTextExact: { type: 'string' },
-    normalizedText: { type: 'string' },
-    text: { type: 'string' },
-    role: { type: 'string' },
-    questionNumber: { type: 'integer' },
-    questionNumbers: integerArraySchema,
-  },
-  required: ['sourceTextExact', 'normalizedText', 'text', 'role', 'questionNumber', 'questionNumbers'],
-  additionalProperties: false,
-} as const;
-const tableSchema = {
-  type: 'object',
-  properties: {
-    rows: {
-      type: 'array',
-      items: {
-        type: 'array',
-        items: tableCellSchema,
-      },
-    },
-  },
-  required: ['rows'],
-  additionalProperties: false,
-} as const;
-const flowStepSchema = {
-  type: 'object',
-  properties: {
-    stepId: { type: 'string' },
-    sourceTextExact: { type: 'string' },
-    normalizedText: { type: 'string' },
-    text: { type: 'string' },
-    questionNumber: { type: 'integer' },
-    nextStepIds: stringArraySchema,
-  },
-  required: ['stepId', 'sourceTextExact', 'normalizedText', 'text', 'questionNumber', 'nextStepIds'],
-  additionalProperties: false,
-} as const;
-const flowchartSchema = {
-  type: 'object',
-  properties: {
-    steps: { type: 'array', items: flowStepSchema },
-  },
-  required: ['steps'],
-  additionalProperties: false,
-} as const;
-const diagramTargetSchema = {
-  type: 'object',
-  properties: {
-    sourceLabelExact: { type: 'string' },
-    normalizedLabel: { type: 'string' },
-    label: { type: 'string' },
-    questionNumber: { type: 'integer' },
-  },
-  required: ['sourceLabelExact', 'normalizedLabel', 'label', 'questionNumber'],
-  additionalProperties: false,
-} as const;
-const diagramSchema = {
-  type: 'object',
-  properties: {
-    imageUrl: { type: 'string' },
-    imageAlt: { type: 'string' },
-    targets: { type: 'array', items: diagramTargetSchema },
-  },
-  required: ['imageUrl', 'imageAlt', 'targets'],
   additionalProperties: false,
 } as const;
 const transcriptGroupSchema = {
   type: 'object',
   properties: {
     questionRange: questionRangeSchema,
-    taskType: { type: 'string' },
+    taskType: { type: 'string', enum: READING_V2_CANONICAL_TASK_TYPES },
     sourceInstructionText: { type: 'string' },
     instructionMeta: instructionMetaSchema,
     labeledOptions: { type: 'array', items: transcriptOptionSchema },
     sectionReferences: { type: 'array', items: transcriptOptionSchema },
     questions: { type: 'array', items: transcriptQuestionSchema },
-    note: noteSchema,
-    table: tableSchema,
-    flowchart: flowchartSchema,
-    diagram: diagramSchema,
-    diagnostics: stringArraySchema,
+    note: transcriptNoteSchema,
+    table: transcriptTableSchema,
+    flowchart: transcriptFlowchartSchema,
+    diagram: transcriptDiagramSchema,
   },
   required: [
     'questionRange',
     'taskType',
-    'sourceInstructionText',
-    'instructionMeta',
-    'labeledOptions',
-    'sectionReferences',
-    'questions',
-    'note',
-    'table',
-    'flowchart',
-    'diagram',
-    'diagnostics',
   ],
   additionalProperties: false,
 } as const;
@@ -254,24 +246,14 @@ export const READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT = {
   type: 'json_schema',
   json_schema: {
     name: 'reading_v2_question_area_transcript',
-    strict: true,
+    strict: false,
     schema: {
       type: 'object',
       properties: {
         passageNumber: { type: 'integer' },
         groups: { type: 'array', items: transcriptGroupSchema },
-        coverageSummary: {
-          type: 'object',
-          properties: {
-            coveredGroups: stringArraySchema,
-            coveredQuestions: integerArraySchema,
-          },
-          required: ['coveredGroups', 'coveredQuestions'],
-          additionalProperties: false,
-        },
-        diagnostics: stringArraySchema,
       },
-      required: ['passageNumber', 'groups', 'coverageSummary', 'diagnostics'],
+      required: ['passageNumber', 'groups'],
       additionalProperties: false,
     },
   },
@@ -296,21 +278,11 @@ const taskTranscriptShape = [
   '        "reuseAllowed": false,',
   '        "summaryAnswerMode": "text"',
   '      },',
-  '      "labeledOptions": [{ "label": "A", "sourceTextExact": "A exact option text", "normalizedText": "exact option text", "text": "exact option text", "sourceLines": [12] }],',
-  '      "sectionReferences": [{ "label": "i", "sourceTextExact": "i exact reference text", "normalizedText": "exact reference text", "text": "exact reference text", "sourceLines": [14] }],',
-  '      "questions": [{ "number": 1, "sourceTextExact": "**1** exact visible prompt text ___", "normalizedPromptText": "exact visible prompt text ___", "promptText": "exact visible prompt text ___", "sourceLines": [20] }],',
-  '      "note": { "sections": [{ "heading": "exact heading", "questionNumbers": [1], "lines": [{ "sourceTextExact": "**1** exact note line ___", "normalizedText": "exact note line ___", "text": "exact note line ___", "questionNumber": 1 }] }] },',
-  '      "table": { "rows": [[{ "sourceTextExact": "Header", "normalizedText": "Header", "text": "Header", "role": "header" }, { "sourceTextExact": "**1** exact blank ___", "normalizedText": "exact blank ___", "text": "exact blank ___", "questionNumber": 1 }]] },',
-  '      "flowchart": { "steps": [{ "stepId": "step-1", "sourceTextExact": "**1** exact step ___", "normalizedText": "exact step ___", "text": "exact step ___", "questionNumber": 1 }] },',
-  '      "diagram": { "imageAlt": "exact printed diagram description", "targets": [{ "sourceLabelExact": "1", "normalizedLabel": "1", "label": "1", "questionNumber": 1 }] },',
-  '      "diagnostics": []',
+  '      "labeledOptions": [{ "label": "A", "sourceTextExact": "A exact option text", "normalizedText": "exact option text", "text": "exact option text" }],',
+  '      "sectionReferences": [{ "label": "i", "sourceTextExact": "i exact reference text", "normalizedText": "exact reference text", "text": "exact reference text" }],',
+  '      "questions": [{ "number": 1, "sourceTextExact": "**1** exact visible prompt text ___", "normalizedPromptText": "exact visible prompt text ___", "promptText": "exact visible prompt text ___" }]',
   '    }',
-  '  ],',
-  '  "coverageSummary": {',
-  '    "coveredGroups": ["1-5"],',
-  '    "coveredQuestions": [1, 2, 3, 4, 5]',
-  '  },',
-  '  "diagnostics": []',
+  '  ]',
   '}',
 ].join('\n');
 
@@ -428,7 +400,8 @@ export const buildReadingV2AutoQuestionAreaNormalizerPrompt = (
   taskTranscriptShape,
   '',
   'Rules:',
-  '1. Copy visible question, option, reference, note, table, flowchart, and diagram label text exactly as printed into sourceTextExact/sourceLabelExact fields.',
+  '0. Root output must be a single JSON object exactly like Output JSON shape. Never wrap it in an array.',
+  '1. Copy visible question, option, reference, note, table, flowchart, and diagram label text exactly as printed into sourceTextExact/sourceLabelExact fields where the schema exposes those fields.',
   '2. Use canonical Reading V2 task type slugs only.',
   '3. For every visible prompt or layout string, also return normalizedPromptText/normalizedText/normalizedLabel with only harmless cleanup: question markers, markdown escape noise, blank placeholders, and whitespace compaction.',
   '3a. When a blank sits inside a longer note, summary, sentence, or table line, sourceTextExact must include the full visible line context around that blank. Do not crop to only the token that starts at the question marker.',
@@ -436,13 +409,13 @@ export const buildReadingV2AutoQuestionAreaNormalizerPrompt = (
   '4. Do not write standard Studio instruction prose. Return instructionMeta and sourceInstructionText only.',
   '5. groupHints are authoritative. Return exactly one transcript group for each groupHints item. Do not merge, split, skip, or reorder hinted groups.',
   '6. Keep every expected question number exactly once.',
-  '7. Preserve reference banks and option banks. Use REFERENCE_BANK_LINES_ONLY when present; missing banks are diagnostics, not guesses.',
+  '7. Preserve reference banks and option banks. Use REFERENCE_BANK_LINES_ONLY when present; missing banks are local diagnostics, not guesses.',
   '7a. Use only labeledOptions for option banks and sectionReferences for reference banks. Do not rename them to optionBank, referenceBank, choiceBank, or bank.',
-  '8. Return coverageSummary.coveredGroups and coverageSummary.coveredQuestions for everything you emitted.',
-  '9. If source text is ambiguous, still return conservative sourceTextExact evidence plus diagnostics. Never silently drop a hinted group.',
+  '8. Do not return root-level coverageSummary or diagnostics; local app code derives coverage diagnostics from emitted groups.',
+  '9. If source text is ambiguous, still return conservative sourceTextExact evidence and preserve the hinted group/questions; local app code will diagnose uncertainty.',
   '10. Passage body text is forbidden in your output.',
-  '11. For absent optional structures, use empty objects with empty arrays for note/table/flowchart/diagram and [] for labeledOptions/sectionReferences/diagnostics.',
-  '12. Every object field required by the JSON Schema must be present; use "", 0, false, or [] when a field has no source evidence.',
+  '11. Preserve visible layout in note/table/flowchart/diagram when that layout is printed in the question area; also keep questions[] complete so Studio can bind each expected question.',
+  '12. Prefer emitting every schema field with "", 0, false, or [] when source evidence is absent. If a field is missing, local completion scoring will ask you to repair it in a retry.',
   '',
   passagePackage.groqInputText,
 ].join('\n');
@@ -473,7 +446,10 @@ export const normalizeReadingV2AutoQuestionArea = async (input: {
   const rawCoverageSummary = rawCoverageSummaryFrom(isRecord(result.data) ? result.data.coverageSummary : undefined);
   const transcript = normalizeReadingV2AutoQuestionTranscript(result.data);
   if (!transcript) {
-    return { success: false, error: 'Groq returned malformed Reading V2 question transcript.' };
+    return {
+      success: false,
+      error: `Groq returned malformed Reading V2 question transcript (${rawJsonShapeSummary}; rawGroups=${rawGroupRanges.join(',') || 'none'}).`,
+    };
   }
 
   return {

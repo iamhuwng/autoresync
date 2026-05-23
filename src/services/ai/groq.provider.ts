@@ -259,7 +259,9 @@ export class GroqProvider implements IAIService {
       lower.includes('request too large') ||
       lower.includes('reduce your message size') ||
       lower.includes('tokens per minute') ||
-      lower.includes('tpm')
+      lower.includes('tokens per day') ||
+      lower.includes('tpm') ||
+      lower.includes('tpd')
     );
   }
 
@@ -282,6 +284,22 @@ export class GroqProvider implements IAIService {
 
       uniqueBudgets.add(normalized);
       return true;
+    });
+  }
+
+  private parseGroqRetryDelayMs(errorMessage?: string): number | null {
+    const secondsMatch = errorMessage?.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+    if (!secondsMatch) return null;
+
+    const seconds = Number(secondsMatch[1]);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+    return Math.ceil(seconds * 1000) + 1000;
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      globalThis.setTimeout(resolve, ms);
     });
   }
 
@@ -1560,36 +1578,60 @@ Respond with JSON array only:
       const tokenBudgets = this.structuredJsonTokenBudgets(requestedMaxTokens);
       const modelName = options.model ?? 'llama-3.3-70b-versatile';
       let completion: any | null = null;
+      let rateLimitRetryCount = 0;
+      let rateLimitRetryWaitMs = 0;
+      const createStructuredCompletion = (maxTokens: number) =>
+        client.chat.completions.create({
+          model: modelName,
+          messages: [
+            {
+              role: 'system',
+              content: options.systemInstruction || 'Return only valid JSON. Do not use markdown.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: options.temperature ?? 0.1,
+          max_tokens: maxTokens,
+          response_format: options.responseFormat ?? { type: 'json_object' },
+        });
 
       for (const maxTokens of tokenBudgets) {
-        try {
-          completion = await client.chat.completions.create({
-            model: modelName,
-            messages: [
-              {
-                role: 'system',
-                content: options.systemInstruction || 'Return only valid JSON. Do not use markdown.',
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: options.temperature ?? 0.1,
-            max_tokens: maxTokens,
-            response_format: options.responseFormat ?? { type: 'json_object' },
-          });
-          break;
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Unknown error';
-          const nextBudget = tokenBudgets[tokenBudgets.indexOf(maxTokens) + 1];
+        while (!completion) {
+          try {
+            completion = await createStructuredCompletion(maxTokens);
+            break;
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            const nextBudget = tokenBudgets[tokenBudgets.indexOf(maxTokens) + 1];
+            const retryDelayMs = this.parseGroqRetryDelayMs(msg);
 
-          if (!this.isRequestTooLargeError(msg) || !nextBudget) {
-            throw error;
+            if (
+              this.isRateLimitError(msg)
+              && retryDelayMs
+              && retryDelayMs <= 60_000
+              && rateLimitRetryCount < 4
+              && rateLimitRetryWaitMs + retryDelayMs <= 180_000
+            ) {
+              rateLimitRetryCount += 1;
+              rateLimitRetryWaitMs += retryDelayMs;
+              console.warn(`⚠️ [Groq structured] Rate limited; retrying after ${retryDelayMs}ms as requested by Groq...`);
+              await this.wait(retryDelayMs);
+              continue;
+            }
+
+            if (!this.isRequestTooLargeError(msg) || !nextBudget) {
+              throw error;
+            }
+
+            console.warn(`⚠️ [Groq structured] Request too large, retrying with max_tokens=${nextBudget}...`);
+            break;
           }
-
-          console.warn(`⚠️ [Groq structured] Request too large, retrying with max_tokens=${nextBudget}...`);
         }
+
+        if (completion) break;
       }
 
       const text = completion?.choices[0]?.message?.content;

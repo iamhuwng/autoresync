@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -51,6 +52,32 @@ interface Args {
 
 const DEFAULT_SOURCE = 'C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 10 Reading Test 04.md';
 const DEFAULT_OUT = 'output/reading-v2-auto-v4-clippings-e2e/report.json';
+
+const enableTrustedAdminKeyLookup = (): void => {
+  process.env.READING_V2_TRUSTED_ADMIN_KEYS ??= 'true';
+  if (process.env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() || process.env.GCLOUD_ACCESS_TOKEN?.trim()) {
+    return;
+  }
+
+  try {
+    const token = execFileSync('cmd.exe', ['/d', '/s', '/c', 'gcloud auth print-access-token'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        CLOUDSDK_CORE_DISABLE_PROMPTS: '1',
+      },
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 90000,
+      windowsHide: true,
+    }).trim();
+
+    if (token) {
+      process.env.GOOGLE_OAUTH_ACCESS_TOKEN = token;
+    }
+  } catch {
+    // The provider key registry will still use authenticated Firestore or .env keys.
+  }
+};
 
 const parseArgs = (argv: readonly string[]): Args => {
   let source = DEFAULT_SOURCE;
@@ -105,6 +132,47 @@ const numberRange = (numbers: readonly number[]): string => {
 
   ranges.push(start === previous ? String(start) : `${start}-${previous}`);
   return ranges.join(', ');
+};
+
+const normalizeAnswerForCompare = (value: string): string =>
+  value.replace(/\s+/g, ' ').trim().toLowerCase();
+
+const splitAnswerAlternatesForCompare = (value: string): readonly string[] => {
+  const variants = new Set<string>();
+  for (const segment of value.split('|')) {
+    const slashParts = segment.split('/').map((part) => part.trim()).filter(Boolean);
+    if (slashParts.length <= 1) {
+      variants.add(normalizeAnswerForCompare(segment));
+      continue;
+    }
+
+    const firstWords = slashParts[0].split(/\s+/).filter(Boolean);
+    const lastWords = slashParts[slashParts.length - 1].split(/\s+/).filter(Boolean);
+    const sharedPrefix = firstWords.length > 1 ? firstWords.slice(0, -1).join(' ') : '';
+    const sharedSuffix = lastWords.length > 1 ? lastWords.slice(1).join(' ') : '';
+
+    slashParts.forEach((part, index) => {
+      const words = part.split(/\s+/).filter(Boolean);
+      if (index === 0 && sharedSuffix && words.length === 1) {
+        variants.add(normalizeAnswerForCompare(`${part} ${sharedSuffix}`));
+        return;
+      }
+      if (index > 0 && sharedPrefix && words.length === 1) {
+        variants.add(normalizeAnswerForCompare(`${sharedPrefix} ${part}`));
+        return;
+      }
+      variants.add(normalizeAnswerForCompare(part));
+    });
+  }
+
+  return [...variants].filter(Boolean).sort();
+};
+
+const answersEquivalentForCompare = (expected: string, actual: string): boolean => {
+  const expectedAlternates = splitAnswerAlternatesForCompare(expected);
+  const actualAlternates = splitAnswerAlternatesForCompare(actual);
+  return expectedAlternates.length === actualAlternates.length
+    && expectedAlternates.every((value, index) => value === actualAlternates[index]);
 };
 
 const goldBaselineFor = (sourcePath: string): GoldBaseline => ({
@@ -240,6 +308,12 @@ const appStructureFor = (result: ReadingV2AutoImportResult) => {
       duplicateQuestionNumbers: answerKey.rows
         .filter((row) => row.bindingStatus === 'duplicate')
         .map((row) => row.questionNumber),
+      answers: answerKey.rows.map((row) => ({
+        question: row.questionNumber,
+        answer: row.rawAnswerText,
+        parsedAnswerValues: row.parsedAnswerValues,
+        bindingStatus: row.bindingStatus,
+      })),
     },
     validation: {
       blockingIssueCount: validation.blockingIssues.length,
@@ -310,6 +384,22 @@ const compareGoldToApp = (
   const warningDiagnostics = result?.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning') ?? [];
   const errorDiagnostics = result?.diagnostics.filter((diagnostic) => diagnostic.severity === 'error') ?? [];
   const hasPublishBlockers = result?.success ? result.candidate.publishBlockingPlaceholders.length > 0 : false;
+  const goldAnswerByQuestion = new Map(gold.answers.map((answer) => [answer.question, answer.answer]));
+  const appAnswerByQuestion = new Map(appStructure?.answerKey.answers.map((answer) => [answer.question, answer.answer]) ?? []);
+  const missingAnswerValues = expectedQuestions.filter((question) => !appAnswerByQuestion.has(question));
+  const mismatchedAnswerValues = expectedQuestions.flatMap((question) => {
+    const expected = goldAnswerByQuestion.get(question);
+    const actual = appAnswerByQuestion.get(question);
+    if (
+      typeof expected !== 'string'
+      || typeof actual !== 'string'
+      || answersEquivalentForCompare(expected, actual)
+    ) {
+      return [];
+    }
+
+    return [{ question, expected, actual }];
+  });
   const hasSilentQuestionLoss = missingQuestions.length > 0
     && warningDiagnostics.length === 0
     && errorDiagnostics.length === 0
@@ -330,8 +420,12 @@ const compareGoldToApp = (
     appPassageCount: result?.success ? result.passageCount : 0,
     expectedQuestionCount: expectedQuestions.length,
     appQuestionCount: result?.success ? result.questionCount : 0,
+    expectedAnswerCount: gold.answers.length,
+    appAnswerCount: appStructure?.answerKey.rowCount ?? 0,
     missingQuestions,
     extraQuestions,
+    missingAnswerValues,
+    mismatchedAnswerValues,
     expectedTaskGroups: gold.groups.map((group) => ({
       passage: group.passage,
       range: group.range,
@@ -361,6 +455,7 @@ const main = async () => {
   let liveResult: ReadingV2AutoImportResult | null = null;
 
   if (args.allowLiveV4Provider) {
+    enableTrustedAdminKeyLookup();
     const { generateReadingV2AutoImportCandidate } = await import('../src/services/reading-v2/readingV2AutoImport.service');
     liveResult = await generateReadingV2AutoImportCandidate({
       rawTestText: rawText,

@@ -513,6 +513,37 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
+  it('prefers Auto V4 copied answer-key rows over partial local source extraction', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '1 The first statement is supported by the passage.',
+      '2 The second statement is contradicted by the passage.',
+      '',
+      'Answers',
+      '1 TRUE',
+      'This explanatory line is not a key row, but the AI-copied answer key still includes the rest.',
+      '2 FALSE',
+    ].join('\n');
+    const v4Extractor = v4ExtractorFor({ answerKey: { 1: 'TRUE', 2: 'FALSE' } });
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 partial local key fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    expect(result.candidate.answerKeyText).toBe('1 TRUE\n2 FALSE');
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
   it('opens an Auto V4 Studio candidate for review when source answer-key rows cannot bind cleanly', async () => {
     const raw = [
       'READING PASSAGE 1',
@@ -1221,6 +1252,7 @@ describe('readingV2AutoImport.service', () => {
         },
       }] as const satisfies readonly Result<unknown>[],
       expectedCodes: ['missing-reference-bank'],
+      expectReviewableSuccess: true,
     },
     {
       name: 'omitted expected range',
@@ -1317,6 +1349,7 @@ describe('readingV2AutoImport.service', () => {
         },
       ] as const satisfies readonly Result<unknown>[],
       expectedCodes: ['groq-output-missing-group', 'group-coverage-mismatch', 'repair-failed'],
+      expectReviewableSuccess: true,
     },
     {
       name: 'duplicate numbering',
@@ -1520,7 +1553,7 @@ describe('readingV2AutoImport.service', () => {
       }] as const satisfies readonly Result<unknown>[],
       expectedCodes: ['source-text-exact-missing'],
     },
-  ])('covers V3 negative matrix: $name', async ({ raw, buildMarkerData, responses, expectedCodes }) => {
+  ])('covers V3 negative matrix: $name', async ({ raw, buildMarkerData, responses, expectedCodes, expectReviewableSuccess }) => {
     const sourceLines = raw.split('\n');
     const lineNumberOf = (lineText: string): number => {
       const index = sourceLines.findIndex((line) => line === lineText);
@@ -1542,6 +1575,16 @@ describe('readingV2AutoImport.service', () => {
         minInputChars: 10,
       },
     );
+
+    if (expectReviewableSuccess) {
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.reviewStatus).toBe('needs_review');
+      expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining(
+        expectedCodes.map((code) => expect.objectContaining({ code, severity: 'warning' })),
+      ));
+      return;
+    }
 
     expect(result.success).toBe(false);
     if (result.success) return;
@@ -1945,21 +1988,21 @@ describe('readingV2AutoImport.service', () => {
             questions: [
               {
                 number: 1,
-                sourceTextExact: `**1** ${blankRun} more unpredictably`,
+                sourceTextExact: `Ã¢â‚¬â€œ movement: **1** ${blankRun} more unpredictably`,
                 normalizedPromptText: '1 more unpredictably',
                 promptText: '1 more unpredictably',
                 sourceLines: [lineNumberOf(`â€“ movement: **1** ${blankRun} more unpredictably`)],
               },
               {
                 number: 2,
-                sourceTextExact: `**2** ${blankRun} greater on average than two decades ago`,
+                sourceTextExact: `Ã¢â‚¬â€œ size of fires: **2** ${blankRun} greater on average than two decades ago`,
                 normalizedPromptText: '2 greater on average than two decades ago',
                 promptText: '2 greater on average than two decades ago',
                 sourceLines: [lineNumberOf(`â€“ size of fires: **2** ${blankRun} greater on average than two decades ago`)],
               },
               {
                 number: 3,
-                sourceTextExact: `**3** ${blankRun} average`,
+                sourceTextExact: `Ã¢â‚¬â€œ rainfall: **3** ${blankRun} average`,
                 normalizedPromptText: '3 average',
                 promptText: '3 average',
                 sourceLines: [lineNumberOf(`â€“ rainfall: **3** ${blankRun} average`)],
@@ -2391,10 +2434,14 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
-    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
-    expect(normalizerCalls).toEqual([0]);
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
+    expect(normalizerCalls).toEqual([0, 0]);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-package-completion-retried' }),
+      expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
+    ]));
     expect(result.passageCount).toBe(1);
     expect(result.questionCount).toBe(3);
 
@@ -2532,10 +2579,14 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
-    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
-    expect(normalizerCalls).toEqual([0]);
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
+    expect(normalizerCalls).toEqual([0, 0]);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-package-completion-retried' }),
+      expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
+    ]));
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'missing-reference-bank' }),
       expect.objectContaining({ code: 'source-text-exact-missing' }),
@@ -2681,11 +2732,15 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
-    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
-    expect(normalizerCalls).toEqual([0]);
-    expect(seenBankSections).toHaveLength(1);
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
+    expect(normalizerCalls).toEqual([0, 0]);
+    expect(seenBankSections).toHaveLength(2);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-package-completion-retried' }),
+      expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
+    ]));
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'missing-reference-bank' }),
     ]));
@@ -3026,10 +3081,12 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
-    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-package-completion-retried' }),
+      expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
       expect.objectContaining({ code: 'groq-output-missing-group', questionNumber: 14 }),
       expect.objectContaining({ code: 'repair-applied', questionNumber: 14, stage: 'repaired-transcript' }),
     ]));
@@ -3046,6 +3103,147 @@ describe('readingV2AutoImport.service', () => {
     expect(interactions).toHaveLength(7);
     expect(interactions.slice(2).map((interaction) => (interaction.promptText.match(/___/g) ?? []).length)).toEqual([1, 1, 1, 1, 1]);
     expect(validation.blockingIssues).toEqual([]);
+  });
+
+  it('repairs an incomplete existing matching group from question-area lines', async () => {
+    const raw = [
+      'READING PASSAGE 2',
+      'Synthetic passage body.',
+      '',
+      'A Alice Example',
+      'B Boris Example',
+      'C Cara Example',
+      'D Dinesh Example',
+      '',
+      'Questions 19-22',
+      'Look at the following statements and the list of people below.',
+      'Match each statement with the correct person, A-D.',
+      '19 First matching-features prompt.',
+      '20 Second matching-features prompt.',
+      '21 Third matching-features prompt.',
+      '22 Fourth matching-features prompt.',
+      '',
+      'Answers',
+      '19 A',
+      '20 B',
+      '21 C',
+      '22 D',
+    ].join('\n');
+    const sourceLines = raw.split('\n');
+    const lineNumberOf = (lineText: string): number => {
+      const index = sourceLines.findIndex((line) => line === lineText);
+      if (index < 0) {
+        throw new Error(`Missing source line: ${lineText}`);
+      }
+      return index + 1;
+    };
+    const bankSpan = {
+      startLine: lineNumberOf('A Alice Example'),
+      endLine: lineNumberOf('D Dinesh Example'),
+    };
+    const markerGenerator: ReadingV2AutoStructuredGenerator = {
+      generateStructuredJson: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          packages: [{
+            passageNumber: 2,
+            passageTitleLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('READING PASSAGE 2'),
+            },
+            passageBodyLines: {
+              startLine: lineNumberOf('READING PASSAGE 2'),
+              endLine: lineNumberOf('Synthetic passage body.'),
+            },
+            questionAreaLines: {
+              startLine: lineNumberOf('Questions 19-22'),
+              endLine: lineNumberOf('22 Fourth matching-features prompt.'),
+            },
+            expectedQuestionRange: { start: 19, end: 22 },
+            groups: [{
+              questionRange: { start: 19, end: 22 },
+              lines: {
+                startLine: lineNumberOf('Questions 19-22'),
+                endLine: lineNumberOf('22 Fourth matching-features prompt.'),
+              },
+              taskTypeHint: 'matching-features',
+              referenceBankLines: [bankSpan],
+            }],
+            referenceBankLineSpans: [bankSpan],
+            excludedLineSpans: [],
+            uncertaintyDiagnostics: [],
+          }],
+          answerKeyRows: [
+            { questionNumber: 19, answer: 'A', sourceLine: lineNumberOf('19 A') },
+            { questionNumber: 20, answer: 'B', sourceLine: lineNumberOf('20 B') },
+            { questionNumber: 21, answer: 'C', sourceLine: lineNumberOf('21 C') },
+            { questionNumber: 22, answer: 'D', sourceLine: lineNumberOf('22 D') },
+          ],
+          diagnostics: [],
+        },
+      }),
+    };
+    const questionAreaNormalizer = singleSlotQuestionAreaNormalizerFor([{
+      success: true,
+      data: {
+        passageNumber: 2,
+        groups: [{
+          questionRange: { start: 19, end: 22 },
+          taskType: 'matching-features',
+          sourceInstructionText: 'Look at the following statements and the list of people below.',
+          instructionMeta: {},
+          sectionReferences: [
+            { label: 'A', sourceTextExact: 'A Alice Example', normalizedText: 'Alice Example', text: 'Alice Example' },
+            { label: 'B', sourceTextExact: 'B Boris Example', normalizedText: 'Boris Example', text: 'Boris Example' },
+            { label: 'C', sourceTextExact: 'C Cara Example', normalizedText: 'Cara Example', text: 'Cara Example' },
+            { label: 'D', sourceTextExact: 'D Dinesh Example', normalizedText: 'Dinesh Example', text: 'Dinesh Example' },
+          ],
+          questions: [{
+            number: 19,
+            promptText: '19 First matching-features prompt.',
+          }],
+        }],
+        diagnostics: [],
+      },
+    }]);
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Mocked V3 incomplete matching repair fixture' },
+      {
+        generator: markerGenerator,
+        questionAreaNormalizer,
+        forceV3Pipeline: true,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+      },
+    );
+
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'groq-package-completion-retried' }),
+      expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
+      expect.objectContaining({
+        code: 'group-coverage-mismatch',
+        severity: 'warning',
+        questionNumber: 20,
+        stage: 'normalized-transcript',
+      }),
+      expect.objectContaining({
+        code: 'repair-applied',
+        questionNumber: 19,
+        stage: 'repaired-transcript',
+      }),
+    ]));
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'group-coverage-mismatch', severity: 'error' }),
+    ]));
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues.map((issue) => issue.message)).toEqual([]);
+    expect(Object.values(normalized.document.interactions)).toHaveLength(4);
   });
 
   it('captures raw prompt/provider payload only when local debug opt-in is enabled', async () => {

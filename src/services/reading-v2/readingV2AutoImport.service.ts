@@ -162,6 +162,9 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'groq-package-json-retried'
   | 'groq-package-json-retry-succeeded'
   | 'groq-package-json-retry-failed'
+  | 'groq-package-completion-retried'
+  | 'groq-package-completion-retry-succeeded'
+  | 'groq-package-completion-retry-failed'
   | 'groq-package-retried'
   | 'groq-package-failed'
   | 'groq-quota-exhausted'
@@ -261,6 +264,7 @@ export interface ReadingV2AutoImportOptions {
   readonly maxRepairAttempts?: number;
   readonly questionAreaNormalizer?: ReadingV2GroqPackageFanoutProvider;
   readonly forceV3Pipeline?: boolean;
+  readonly forceV4Pipeline?: boolean;
   readonly captureRawProviderDebug?: boolean;
   readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
 }
@@ -1706,11 +1710,7 @@ const normalizeGuardrailDiagnosticsForStudio = (
   readonly publishBlockingPlaceholders: readonly string[];
   readonly uncertaintyMarkers: readonly string[];
 } => {
-  const normalizedDiagnostics = diagnostics.map((diagnostic) =>
-    diagnostic.severity === 'error' && reviewableGuardrailDiagnosticCodes.has(diagnostic.code)
-      ? { ...diagnostic, severity: 'warning' as const }
-      : diagnostic,
-  );
+  const normalizedDiagnostics = diagnostics.map(normalizeGuardrailDiagnostic);
   const blockingDiagnostics = normalizedDiagnostics.filter((diagnostic) => diagnostic.severity === 'error');
   const reviewDiagnostics = normalizedDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning');
   const publishBlockingPlaceholders = reviewDiagnostics
@@ -1734,6 +1734,13 @@ const normalizeGuardrailDiagnosticsForStudio = (
     uncertaintyMarkers,
   };
 };
+
+const normalizeGuardrailDiagnostic = (
+  diagnostic: ReadingV2AutoImportDiagnostic,
+): ReadingV2AutoImportDiagnostic =>
+  diagnostic.severity === 'error' && reviewableGuardrailDiagnosticCodes.has(diagnostic.code)
+    ? { ...diagnostic, severity: 'warning' as const }
+    : diagnostic;
 
 const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
   const materialCount = payload.materials?.length ?? 0;
@@ -2690,7 +2697,10 @@ const canonicalizeTranscriptQuestionsFromSourceLines = (
             : null;
           const inferredSourceLine = explicitCanonicalSourceTextExact
             ? explicitSourceLine
-            : groupLines.find((line) => readingV2AutoLineMatchesQuestionNumber(line.text, question.number));
+            : groupLines.find((line) => readingV2AutoLineMatchesQuestionNumber(line.text, question.number))
+              ?? passagePackage.questionAreaLines.find((line) =>
+                readingV2AutoLineMatchesQuestionNumber(line.text, question.number),
+              );
 
           if (!inferredSourceLine) {
             return question;
@@ -2717,7 +2727,12 @@ const canonicalizeTranscriptQuestionsFromSourceLines = (
             canonicalPromptText,
           });
           const currentSourceTextExact = question.sourceTextExact?.trim();
+          const currentPromptText = question.promptText.trim();
+          const currentNormalizedPromptText = question.normalizedPromptText?.trim();
+          const promptTextDriftsFromSource = currentPromptText !== canonicalPromptText
+            || (currentNormalizedPromptText !== undefined && currentNormalizedPromptText !== canonicalPromptText);
           const needsCanonicalization = currentSourceTextExact !== canonicalSourceTextExact
+            || promptTextDriftsFromSource
             || question.sourceLines?.length !== 1
             || question.sourceLines[0] !== inferredSourceLine.lineNumber;
 
@@ -2726,6 +2741,7 @@ const canonicalizeTranscriptQuestionsFromSourceLines = (
           }
 
           const sourceLineDriftOnly = currentSourceTextExact === canonicalSourceTextExact
+            && !promptTextDriftsFromSource
             && question.sourceLines?.length === 1
             && question.sourceLines[0] !== inferredSourceLine.lineNumber;
           groupChanged = true;
@@ -2905,18 +2921,61 @@ const repairTranscriptGroupFromQuestionArea = (
   };
 };
 
+const transcriptGroupForHint = (
+  transcript: ReadingV2AutoQuestionTranscript,
+  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
+): ReadingV2AutoQuestionTranscript['groups'][number] | undefined =>
+  transcript.groups.find((group) =>
+    group.questionRange.start === groupHint.questionRange.start
+    && group.questionRange.end === groupHint.questionRange.end,
+  );
+
+const transcriptGroupCoversHint = (
+  group: ReadingV2AutoQuestionTranscript['groups'][number] | undefined,
+  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
+): boolean => {
+  if (!group) {
+    return false;
+  }
+
+  const seenQuestions = new Set(group.questions.map((question) => question.number));
+  return numbersInRange(groupHint.questionRange).every((questionNumber) => seenQuestions.has(questionNumber));
+};
+
+const transcriptGroupCanUseDeterministicCoverageRepair = (
+  group: ReadingV2AutoQuestionTranscript['groups'][number] | undefined,
+  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
+): boolean => {
+  if (!group) {
+    return false;
+  }
+
+  const questionNumbers = group.questions.map((question) => question.number);
+  const seenQuestions = new Set(questionNumbers);
+  if (seenQuestions.size !== questionNumbers.length) {
+    return false;
+  }
+
+  return questionNumbers.every((questionNumber) =>
+    questionNumber >= groupHint.questionRange.start
+    && questionNumber <= groupHint.questionRange.end,
+  );
+};
+
 const repairMissingTranscriptGroups = (
   transcript: ReadingV2AutoQuestionTranscript,
   passagePackage: ReadingV2AutoPassagePackage,
+  groupHints: readonly ReadingV2AutoPassagePackage['groupHints'][number][] = passagePackage.groupHints,
 ): ReadingV2AutoQuestionTranscript => {
-  const groupsByRange = new Set(
-    transcript.groups.map((group) => `${group.questionRange.start}-${group.questionRange.end}`),
-  );
   const repairedGroups = [...transcript.groups];
 
-  passagePackage.groupHints.forEach((groupHint) => {
+  groupHints.forEach((groupHint) => {
     const key = `${groupHint.questionRange.start}-${groupHint.questionRange.end}`;
-    if (groupsByRange.has(key)) {
+    const existingIndex = repairedGroups.findIndex((group) =>
+      `${group.questionRange.start}-${group.questionRange.end}` === key,
+    );
+    const existingGroup = existingIndex >= 0 ? repairedGroups[existingIndex] : undefined;
+    if (existingGroup && transcriptGroupCoversHint(existingGroup, groupHint)) {
       return;
     }
 
@@ -2925,8 +2984,12 @@ const repairMissingTranscriptGroups = (
       return;
     }
 
+    if (existingIndex >= 0) {
+      repairedGroups[existingIndex] = repairedGroup;
+      return;
+    }
+
     repairedGroups.push(repairedGroup);
-    groupsByRange.add(key);
   });
 
   return {
@@ -3072,9 +3135,22 @@ const recoverTranscriptCoverageForPassage = async (input: {
   const rawCoverageQuestions = coverageSummaryQuestionSet(input.packageResult.rawCoverageSummary);
   const rawGroupRanges = new Set(input.packageResult.rawGroupRanges);
   const normalizedGroupSet = new Set(normalizedGroupRanges);
+  const normalizedGroupsByRange = new Map(
+    transcript.groups.map((group) => [readingV2AutoQuestionRangeKey(group.questionRange), group]),
+  );
   const missingHints = input.passagePackage.groupHints.filter((groupHint) =>
     !normalizedGroupSet.has(readingV2AutoQuestionRangeKey(groupHint.questionRange)),
   );
+  const incompleteHints = input.passagePackage.groupHints.filter((groupHint) => {
+    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
+    if (!normalizedGroupSet.has(groupRange)) {
+      return false;
+    }
+
+    const group = normalizedGroupsByRange.get(groupRange);
+    return !transcriptGroupCoversHint(group, groupHint)
+      && transcriptGroupCanUseDeterministicCoverageRepair(group, groupHint);
+  });
 
   missingHints.forEach((groupHint) => {
     const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
@@ -3093,20 +3169,43 @@ const recoverTranscriptCoverageForPassage = async (input: {
           preferredKeyIndex: input.packageResult.preferredKeyIndex,
           keyFingerprint: input.packageResult.keyFingerprint,
           repairScopes: ['question-range'],
-        });
+      });
       });
 
-  if (missingHints.length > 0) {
-    const repairedTranscript = repairMissingTranscriptGroups(transcript, input.passagePackage);
-    const repairedGroupSet = new Set(readingV2AutoTranscriptGroupRangeKeys(repairedTranscript));
+  incompleteHints.forEach((groupHint) => {
+    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
+    const group = normalizedGroupsByRange.get(groupRange);
+    const missingQuestions = numbersInRange(groupHint.questionRange)
+      .filter((questionNumber) => !new Set(group?.questions.map((question) => question.number) ?? []).has(questionNumber));
+    diagnostics.push({
+      code: 'group-coverage-mismatch',
+      severity: 'warning',
+      message: `Groq output kept hinted group ${groupRange}, but omitted question(s) ${missingQuestions.join(', ')} before local repair.`,
+      passageNumber: input.passagePackage.passageNumber,
+      questionNumber: missingQuestions[0] ?? groupHint.questionRange.start,
+      sourceRange: `Q${groupRange}`,
+      groupRange,
+      stage: 'normalized-transcript',
+      preferredKeyIndex: input.packageResult.preferredKeyIndex,
+      keyFingerprint: input.packageResult.keyFingerprint,
+      repairScopes: ['question-range'],
+    });
+  });
 
-    missingHints.forEach((groupHint) => {
+  const repairHints = unique([...missingHints, ...incompleteHints]);
+  if (repairHints.length > 0) {
+    const repairedTranscript = repairMissingTranscriptGroups(transcript, input.passagePackage, repairHints);
+    const repairedGroupsByRange = new Map(
+      repairedTranscript.groups.map((group) => [readingV2AutoQuestionRangeKey(group.questionRange), group]),
+    );
+
+    repairHints.forEach((groupHint) => {
       const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-      if (repairedGroupSet.has(groupRange)) {
+      if (transcriptGroupCoversHint(repairedGroupsByRange.get(groupRange), groupHint)) {
         diagnostics.push({
           code: 'repair-applied',
           severity: 'info',
-          message: `Local deterministic repair rebuilt missing group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine} with source-proven question coverage.`,
+          message: `Local deterministic repair rebuilt group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine} with source-proven question coverage.`,
           passageNumber: input.passagePackage.passageNumber,
           questionNumber: groupHint.questionRange.start,
           sourceRange: `Q${groupRange}`,
@@ -3120,7 +3219,7 @@ const recoverTranscriptCoverageForPassage = async (input: {
         diagnostics.push({
           code: 'repair-skipped',
           severity: 'warning',
-          message: `Local deterministic repair could not prove every expected line for missing group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine}; targeted Groq retry required.`,
+          message: `Local deterministic repair could not prove every expected line for group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine}; targeted Groq retry required.`,
           passageNumber: input.passagePackage.passageNumber,
           questionNumber: groupHint.questionRange.start,
           sourceRange: `Q${groupRange}`,
@@ -3138,7 +3237,7 @@ const recoverTranscriptCoverageForPassage = async (input: {
   }
 
   const remainingHints = input.passagePackage.groupHints.filter((groupHint) =>
-    !new Set(readingV2AutoTranscriptGroupRangeKeys(transcript)).has(readingV2AutoQuestionRangeKey(groupHint.questionRange)),
+    !transcriptGroupCoversHint(transcriptGroupForHint(transcript, groupHint), groupHint),
   );
   if (remainingHints.length > 0) {
     stageTransitions.push('targeted-retry');
@@ -3251,14 +3350,14 @@ const recoverTranscriptCoverageForPassage = async (input: {
   }
 
   const stillMissingHints = input.passagePackage.groupHints.filter((groupHint) =>
-    !new Set(readingV2AutoTranscriptGroupRangeKeys(transcript)).has(readingV2AutoQuestionRangeKey(groupHint.questionRange)),
+    !transcriptGroupCoversHint(transcriptGroupForHint(transcript, groupHint), groupHint),
   );
   stillMissingHints.forEach((groupHint) => {
     const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
     diagnostics.push({
       code: 'group-coverage-mismatch',
       severity: 'error',
-      message: `Expected group ${groupRange} is still missing after Groq output, local repair, and targeted retry.`,
+      message: `Expected group ${groupRange} is still missing or incomplete after Groq output, local repair, and targeted retry.`,
       passageNumber: input.passagePackage.passageNumber,
       questionNumber: groupHint.questionRange.start,
       sourceRange: `Q${groupRange}`,
@@ -3387,7 +3486,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
   const copiedV4AnswerKeyText = hasVisibleAnswerKeyHeading
     ? autoV4AnswerKeyText(questionsResult.data.answerKey)
     : undefined;
-  const answerKeyText = extractedAnswerKeyText ?? copiedV4AnswerKeyText;
+  const answerKeyText = copiedV4AnswerKeyText ?? extractedAnswerKeyText;
   const payload = buildAutoPayloadFromAutoV4Results({
     request: input.request,
     sourceLedger: input.sourceLedger,
@@ -3551,17 +3650,21 @@ const generateReadingV2AutoImportCandidateV3 = async (input: {
   const transcriptDiagnostics = recoveredPackages.flatMap(({ verifierDiagnostics }) => verifierDiagnostics);
   const mappedTranscriptDiagnostics = diagnosticsFromTranscript(transcriptDiagnostics);
   const replayDiagnostics = recoveredPackages.flatMap(({ packageDiagnostics }) => packageDiagnostics);
-  if ([...replayDiagnostics, ...mappedTranscriptDiagnostics].some((diagnostic) => diagnostic.severity === 'error')) {
+  const normalizedReplayDiagnostics = replayDiagnostics.map(normalizeGuardrailDiagnostic);
+  const normalizedTranscriptDiagnostics = mappedTranscriptDiagnostics.map(normalizeGuardrailDiagnostic);
+  const blockingTranscriptDiagnostics = [...normalizedReplayDiagnostics, ...normalizedTranscriptDiagnostics]
+    .filter((diagnostic) => diagnostic.severity === 'error');
+  if (blockingTranscriptDiagnostics.length > 0) {
     return {
       success: false,
-      error: [...replayDiagnostics, ...mappedTranscriptDiagnostics].find((diagnostic) => diagnostic.severity === 'error')?.message
+      error: blockingTranscriptDiagnostics[0]?.message
         ?? 'Groq transcript failed source-fidelity verification.',
       diagnostics: [
         ...markerDiagnostics,
         ...packageDiagnostics,
         ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
-        ...replayDiagnostics,
-        ...mappedTranscriptDiagnostics,
+        ...normalizedReplayDiagnostics,
+        ...normalizedTranscriptDiagnostics,
       ],
       provider: AUTO_V3_PROVIDER,
       model: AUTO_V3_MODEL_LABEL,
@@ -3624,8 +3727,8 @@ const generateReadingV2AutoImportCandidateV3 = async (input: {
     ...markerDiagnostics,
     ...packageDiagnostics,
     ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
-    ...replayDiagnostics,
-    ...mappedTranscriptDiagnostics,
+    ...normalizedReplayDiagnostics,
+    ...normalizedTranscriptDiagnostics,
   ];
   const verifierIssues = verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(payload), input.sourceLedger);
 
@@ -3700,7 +3803,8 @@ export const generateReadingV2AutoImportCandidate = async (
     };
   }
 
-  const useV3Pipeline = options.forceV3Pipeline === true;
+  const useV3Pipeline = options.forceV3Pipeline === true
+    || (!options.forceV4Pipeline && !options.generator && !options.v4Extractor);
   if (useV3Pipeline) {
     return generateReadingV2AutoImportCandidateV3({
       request,
@@ -3711,7 +3815,7 @@ export const generateReadingV2AutoImportCandidate = async (
     });
   }
 
-  if (!options.generator || options.v4Extractor) {
+  if (options.forceV4Pipeline || options.v4Extractor) {
     return generateReadingV2AutoImportCandidateV4({
       request,
       extractor: options.v4Extractor ?? aiService,

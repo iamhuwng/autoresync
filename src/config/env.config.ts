@@ -29,6 +29,11 @@ const envSchema = z.object({
 
   // Groq fallback (optional)
   VITE_GROQ_API_KEY: z.string().optional(),
+  VITE_GROQ_API_KEY_1: z.string().optional(),
+  VITE_GROQ_API_KEY_2: z.string().optional(),
+  VITE_GROQ_API_KEY_3: z.string().optional(),
+  VITE_GROQ_API_KEY_4: z.string().optional(),
+  VITE_GROQ_API_KEY_5: z.string().optional(),
 }).refine(
   (data) => {
     // At least one Gemini API key must be provided
@@ -70,6 +75,11 @@ export const loadEnv = (): Env => {
     VITE_GEMINI_API_KEY_5: import.meta.env.VITE_GEMINI_API_KEY_5,
     VITE_GOOGLE_DRIVE_CLIENT_ID: import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID,
     VITE_GROQ_API_KEY: import.meta.env.VITE_GROQ_API_KEY,
+    VITE_GROQ_API_KEY_1: import.meta.env.VITE_GROQ_API_KEY_1,
+    VITE_GROQ_API_KEY_2: import.meta.env.VITE_GROQ_API_KEY_2,
+    VITE_GROQ_API_KEY_3: import.meta.env.VITE_GROQ_API_KEY_3,
+    VITE_GROQ_API_KEY_4: import.meta.env.VITE_GROQ_API_KEY_4,
+    VITE_GROQ_API_KEY_5: import.meta.env.VITE_GROQ_API_KEY_5,
   };
 
   const result = envSchema.safeParse(rawEnv);

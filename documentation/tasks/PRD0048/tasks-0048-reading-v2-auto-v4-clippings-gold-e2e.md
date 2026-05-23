@@ -19,6 +19,7 @@ This validation is not a perfection chase. Auto V4 is acceptable when it acts as
 - It hard-blocks only unsafe or non-editable output.
 - It does not require local code to fully parse messy source formats before AI processing. Auto V4 provider output is the primary parse, and local checks are advisory guardrails that should warn/block publish only when output is unsafe or incomplete.
 - It does not treat local ledger structure or answer-key counts as product authority. If local preflight undercounts messy but human-readable question/answer areas, record that as a measurement limitation and compare the AI/app output to the gold baseline plus Studio diagnostics.
+- Groq question-area output must be measured against source topology and Studio parse completion. If completion is low, the app must feed Groq precise coverage feedback so Groq self-fixes its JSON output from the same source evidence. Local code remains auditor/router/guardrail, not a replacement AI parser.
 
 ## Data Boundary
 
@@ -90,6 +91,7 @@ The `--allow-live-v4-provider` flag is required because this sends the Clippings
 - [x] Capture Studio diagnostics and copied diagnostic logs.
 - [x] Compare app output with the gold parse.
 - [x] Write final report with verdict, criticism, and next engineering advice.
+- [ ] Deprecate/remove Cloud Function wording from Reading V2/backend docs and tasklists. Cloud Functions remain off-limits; approved trusted boundary is Cloudflare Worker or another explicitly approved backend service.
 
 ## Final Evidence And Verdict
 
@@ -103,10 +105,12 @@ Source proof:
 
 Live provider run:
 
-- Provider path: Gemini through `generateReadingV2AutoImportCandidate`
-- Model label: `gemini-2.5-flash+auto-v4-staged-adapter`
+- Provider path: `gemini-groq` through `generateReadingV2AutoImportCandidate`
+- Model label: `gemini-2.5-flash+groq-structured-json`
 - Result: `success=true`, `reviewStatus=needs_review`
 - Verdict: `acceptable`
+- Admin key inventory: the local harness first hit unauthenticated Firestore `permission-denied`, then loaded the same admin-site key registry through trusted Node/gcloud lookup.
+- Groq key coverage: live run initialized 7 Groq clients instead of the earlier degraded 1-client `.env` path.
 
 Gold vs app comparison:
 
@@ -116,7 +120,9 @@ Gold vs app comparison:
 | Task groups | 8 | 8 |
 | Questions/interactions | 40 | 40 |
 | Missing questions | 0 | 0 |
-| Teacher answer-key rows bound | 40 expected | 13 detected/bound |
+| Teacher answer-key rows | 40 | 40 |
+| Missing answer values | 0 | 0 |
+| Mismatched answer values | 0 | 0 |
 
 Task-group coverage:
 
@@ -133,12 +139,12 @@ Task-group coverage:
 
 Publish safety:
 
-- Candidate publish blockers: 57
-- Draft validation blockers: 54
+- Candidate publish blockers: 4
+- Canonical validation blockers: 0
 - Silent question loss: false
-- Studio status: `Needs review`
+- Studio status: `needs_review`
 - Publish button: disabled
-- Main user-facing repair item: teacher answer-key binding is incomplete for questions 14-40, so Studio blocks publish and asks teacher review.
+- Main user-facing repair items: Groq/local audit repaired under-covered groups 14-18, 32-36, and 37-40 from source-proven lines; Studio still blocks publish for teacher review because provider output was incomplete or missing a reference bank before repair.
 
 Local ledger advisory:
 
@@ -147,21 +153,24 @@ Local ledger advisory:
 - Local-only missing rows: 2, 6, 14, 17, 18.
 - Interpretation: this is measurement limitation, not product blocker. Local preflight is not product authority for messy source. Auto V4 provider output plus Studio diagnostics owns the user-facing parse/review contract.
 
+Provider self-fix evidence:
+
+- Passage package 2 returned malformed Groq JSON; app retried with stricter JSON escaping and recovered.
+- Passage package 2 then had low completion coverage: 4/13 expected questions, missing groups 14-18 and 23-26.
+- App fed precise coverage and transcript-audit feedback back to Groq. Retry improved passage 2 coverage to 8/13 but still missed 14-18.
+- Passage package 3 retried after low completion coverage: first 11/14, then 9/14 after retry still needed local audit.
+- Local repair rebuilt 14-18, 32-36, and 37-40 from source-proven question-area lines and left publish blockers instead of silently accepting repaired provider output.
+- Source-line canonicalization also restored visible prompt context and blank markers from source lines when provider prompt text dropped them while keeping source anchors.
+
 Chrome evidence:
 
-- Route: `/lobby` -> `Create New Test` -> `IELTS` -> `Reading V2` -> `Auto` -> `Process with Auto V4` -> `/teacher/reading-v2/import`
-- Visible mode: `Create from Auto`
-- Visible diagnostics: 3 structured passages, 8 structured question groups, 40 structured questions, 13 teacher answer key rows, source ledger hash `319139ab`, answer-key binding review required.
-- Provider requests: two `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` calls, both HTTP 200.
-- Residual UI noise: existing Mantine guardrail warnings and repeated React duplicate-key console errors for validation issue IDs around questions 14-18. This did not block Studio handoff, but should be cleaned separately because it can make validation lists unstable.
-
-No-provider Chrome smoke:
-
-- Command: `npx playwright test e2e/reading-v2-studio-smoke.spec.ts -g "Auto V4" --project=chromium --reporter=line`
+- Command: `npx playwright test e2e/reading-v2-studio-smoke.spec.ts -g "Auto V4" --project=chromium --reporter=line --workers=1`
 - Result: 2 passed.
 
 Final advice:
 
 - Keep Auto V4 as safe assistant, not judge.
 - Do not add source-format exceptions just because local preflight undercounts messy human-readable source.
-- Improve provider/Studio answer-key binding and repair summaries for questions 14-40, but keep the broad contract: incomplete areas go to Studio with clear diagnostics and publish blockers.
+- Keep the Groq completion-feedback loop: low completion must trigger AI self-repair before local audit/repair.
+- Keep admin-site keys part of the shared provider inventory. Do not regress Reading V2/Auto V4 to `.env`-only key loading.
+- Treat Cloud Function references as deprecated/off-limits unless a future decision explicitly re-approves them.

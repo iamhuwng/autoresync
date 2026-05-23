@@ -64,12 +64,15 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
     expect(prompt).toContain('Exact prompt ___.');
     expect(prompt).not.toContain(passagePackage.passageBodyText);
     expect(prompt).toContain('groupHints are authoritative');
-    expect(prompt).toContain('coverageSummary');
+    expect(prompt).toContain('derives coverage diagnostics from emitted groups');
     expect(prompt).toContain('sourceTextExact');
     expect(prompt).toContain('normalizedPromptText');
     expect(prompt).toContain('full visible line context around that blank');
     expect(prompt).toContain('Never emit raw invalid JSON escapes');
+    expect(prompt).toContain('Never wrap it in an array');
     expect(prompt).toContain('source text \\_ must be emitted in JSON as "\\\\_"');
+    expect(prompt).toContain('Preserve visible layout in note/table/flowchart/diagram');
+    expect(prompt).not.toContain('Do not return note/table/flowchart/diagram');
   });
 
   it('adds targeted retry instructions without changing passage package content', () => {
@@ -125,18 +128,112 @@ describe('readingV2AutoQuestionAreaNormalizer.service', () => {
     }
   });
 
-  it('uses Groq strict schema-compatible model and response format', () => {
+  it('uses Groq schema-guided JSON response format without strict all-fields rejection', () => {
     expect(READING_V2_AUTO_GROQ_NORMALIZER_MODEL).toBe('openai/gpt-oss-120b');
     expect(READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT).toMatchObject({
       type: 'json_schema',
       json_schema: {
         name: 'reading_v2_question_area_transcript',
-        strict: true,
+        strict: false,
         schema: {
           additionalProperties: false,
-          required: ['passageNumber', 'groups', 'coverageSummary', 'diagnostics'],
+          required: ['passageNumber', 'groups'],
+          properties: {
+            passageNumber: { type: 'integer' },
+            groups: {
+              items: {
+                properties: {
+                  taskType: {
+                    enum: expect.arrayContaining([
+                      'summary-completion-text',
+                      'matching-features',
+                      'multiple-choice',
+                    ]),
+                  },
+                  note: expect.any(Object),
+                  table: expect.any(Object),
+                  flowchart: expect.any(Object),
+                  diagram: expect.any(Object),
+                  questions: {
+                    items: {
+                      properties: expect.objectContaining({
+                        sourceLines: expect.any(Object),
+                      }),
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
+    expect(JSON.stringify(READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT)).not.toContain('coverageSummary');
+    expect(
+      READING_V2_AUTO_GROQ_NORMALIZER_RESPONSE_FORMAT.json_schema.schema.properties.groups.items.required,
+    ).not.toContain('questions');
+  });
+
+  it('accepts layout transcript fields for Studio preservation', async () => {
+    const provider = {
+      generateStructuredJson: async (): Promise<Result<unknown>> => ({
+        success: true,
+        data: {
+          passageNumber: 1,
+          groups: [{
+            questionRange: { start: 1, end: 1 },
+            taskType: 'note-completion',
+            sourceInstructionText: 'Complete the notes.',
+            instructionMeta: { wordLimit: 1 },
+            questions: [{
+              number: 1,
+              sourceTextExact: '1 Exact prompt ___.',
+              normalizedPromptText: 'Exact prompt ___.',
+              promptText: 'Exact prompt ___.',
+            }],
+            note: {
+              lines: [{
+                text: 'Exact prompt ___.',
+                sourceTextExact: '1 Exact prompt ___.',
+                normalizedText: 'Exact prompt ___.',
+                questionNumber: 1,
+              }],
+            },
+          }],
+        },
+      }),
+    };
+
+    const result = await normalizeReadingV2AutoQuestionArea({
+      passagePackage,
+      provider,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.transcript.groups[0]?.note?.lines?.[0]?.text).toBe('Exact prompt ___.');
+    }
+  });
+
+  it('accepts usable Groq groups when optional root coverage metadata is omitted', async () => {
+    const withoutRootCoverage = {
+      passageNumber: transcript.passageNumber,
+      groups: transcript.groups,
+    };
+    const provider = {
+      generateStructuredJson: async (): Promise<Result<unknown>> => ({ success: true, data: withoutRootCoverage }),
+    };
+
+    const result = await normalizeReadingV2AutoQuestionArea({
+      passagePackage,
+      provider,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.transcript.groups[0]?.questionRange).toEqual({ start: 1, end: 1 });
+      expect(result.data.rawCoverageSummary).toBeUndefined();
+      expect(result.data.rawJsonShapeSummary).toContain('coverageQuestions=0');
+    }
   });
 });
