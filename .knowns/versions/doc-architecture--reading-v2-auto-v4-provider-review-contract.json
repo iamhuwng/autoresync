@@ -1,0 +1,51 @@
+{
+  "docPath": "architecture/reading-v2-auto-v4-provider-review-contract",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/reading-v2-auto-v4-provider-review-contract",
+      "version": 1,
+      "timestamp": "2026-05-23T21:41:01.725701Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Reading V2 Auto V4 Provider Review Contract"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reading V2 Auto V4 provider split, Groq self-repair loop, key inventory, Cloudflare backend boundary, and Studio review philosophy."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "reading-v2",
+            "auto-v4",
+            "gemini",
+            "groq",
+            "cloudflare",
+            "studio-review"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Reading V2 Auto V4 Provider Review Contract\n\n## Purpose\n\nReading V2 Auto V4 is a safe assistant, not an autonomous judge. AI owns broad interpretation of messy Reading source. Local code owns source evidence, diagnostics, validation, and Studio handoff.\n\n## Pipeline\n\nRaw source -\u003e local source ledger and line index -\u003e Gemini topology marker and answer-key witness -\u003e local passage packages -\u003e Groq per-passage question-area structured JSON normalizer -\u003e transcript verifier -\u003e Groq self-repair retry when coverage is low or unsafe -\u003e bounded local audit/repair -\u003e guarded Studio draft or fail-closed diagnostics.\n\n## Ownership\n\nGemini owns full-source topology, passage/group coordinates, and visible answer-key row normalization.\n\nGroq owns question-area normalization, strict JSON transcript shape, task group/question coverage, source-proof fields, and visible layout preservation for notes, tables, flowcharts, and diagrams.\n\nLocal code owns source ledger, package construction, key inventory, verifier diagnostics, bounded source-proof equivalence, canonical Reading V2 assembly, Studio review blockers, and publish safety.\n\n## Philosophy\n\nDo not turn local code into a brittle parser for every messy source format. If provider output is incomplete, feed precise coverage/verifier feedback back to Groq first. Local repair is allowed only after that and must remain source-proof bounded.\n\nA successful Auto V4 import may still be `needs_review`. Import success means an editable Studio draft exists. Publish readiness requires clean validation and no unresolved review blockers.\n\n## Key Inventory\n\nReading V2 Auto V4 must use `.env` keys, numbered env keys, and admin-site key registry entries. Trusted Node harness reads the admin registry only when `READING_V2_TRUSTED_ADMIN_KEYS=true`. Browser code must not use this trusted Node fallback.\n\n## Backend Boundary\n\nCloud Functions are off-limit for new Reading V2 work. The approved trusted backend boundary is Cloudflare Worker, currently `r2-backup-worker`, or another explicitly approved small backend service. Historical Firebase Functions wrappers may remain until retired, but must not be expanded or treated as production fallback.\n\n## Current Evidence\n\nThe live Clippings gold E2E for `Practice Cam 10 Reading Test 04.md` used `gemini-groq`, loaded 4 Gemini keys and 7 Groq keys in the trusted harness, produced 3 passages, 8 task groups, 40 questions, and 40 answer rows, with 0 answer mismatches and 0 canonical validation blockers. Studio remained `needs_review` because provider output needed source-proof repair/review blockers.\n",
+        "description": "Reading V2 Auto V4 provider split, Groq self-repair loop, key inventory, Cloudflare backend boundary, and Studio review philosophy.",
+        "tags": [
+          "architecture",
+          "reading-v2",
+          "auto-v4",
+          "gemini",
+          "groq",
+          "cloudflare",
+          "studio-review"
+        ],
+        "title": "Reading V2 Auto V4 Provider Review Contract"
+      }
+    }
+  ]
+}

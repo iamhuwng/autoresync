@@ -2,6 +2,7 @@
 
 > **Created:** 2026-05-14
 > **Scope:** Durable architecture note for Reading V2 Auto source-ledger, source-fidelity verification, targeted repair, and redacted Clippings harness behavior.
+> **Current companion:** `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`
 
 ## Ownership Contract
 
@@ -24,6 +25,13 @@ V3 provider boundaries:
 Local normalization assigns stable IDs from passage/order/range. Provider evidence is used only after source-fidelity verification.
 
 Studio remains the review, repair, validation, preview, and publish surface.
+
+V4 clarification:
+
+- The local ledger is an advisory guardrail, not product authority for messy but human-readable source.
+- Gemini/Groq provider output plus Studio diagnostics form the user-facing parse/review contract.
+- Local code should warn, block publish, or fail closed when output is unsafe; it should not become a broad messy-format parser.
+- Low Groq completion must trigger Groq self-repair with verifier feedback before bounded local audit/repair decides Studio handoff.
 
 ## Source Ledger
 
@@ -60,6 +68,8 @@ V3 uses additional bounded prompts:
 - `src/services/reading-v2/readingV2AutoQuestionAreaNormalizer.service.ts` builds the Groq question-area prompt from the local package's question-area lines only.
 
 Neither V3 prompt asks a provider to produce Studio-ready canonical Reading V2 objects.
+
+V4 keeps the same boundary but makes the Groq stage mandatory for question-area normalization. Groq output is measured against `groupHints`, question coverage, source-proof fields, reference banks, and layout preservation. When coverage is low or unsafe, the app feeds the verifier issues back to Groq for a structured JSON retry before local repair runs.
 
 ## Verifier And Repair
 
@@ -128,6 +138,14 @@ Current harness options:
 V3 service tests cover the mocked marker, package splitter, Groq transcript, and end-to-end pipeline. The CLI harness now has V3 mocked report modes for redacted local evidence. Live V3 provider probes remain opt-in because they send real Clippings source to Gemini and per-passage question areas to Groq.
 
 Live Gemini probes are intentionally separate from CI and must be explicit because they consume provider quota and may process copyrighted local Clippings content. Do not commit raw probe inputs or raw provider outputs. Live report errors are capped and redacted for API keys and absolute Windows paths.
+
+Current V4 Clippings gold E2E command:
+
+```powershell
+npm run reading-v2:auto-v4-clippings-e2e -- --source "C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md" --out output/reading-v2-auto-v4-clippings-e2e/report.json --allow-live-v4-provider
+```
+
+The flag is required because it sends local Clippings source to Gemini and per-passage question areas to Groq.
 
 ## Verification Evidence
 

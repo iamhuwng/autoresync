@@ -91,7 +91,7 @@ The `--allow-live-v4-provider` flag is required because this sends the Clippings
 - [x] Capture Studio diagnostics and copied diagnostic logs.
 - [x] Compare app output with the gold parse.
 - [x] Write final report with verdict, criticism, and next engineering advice.
-- [ ] Deprecate/remove Cloud Function wording from Reading V2/backend docs and tasklists. Cloud Functions remain off-limits; approved trusted boundary is Cloudflare Worker or another explicitly approved backend service.
+- [x] Deprecate/remove Cloud Function wording from Reading V2/backend docs and tasklists. Cloud Functions remain off-limits; approved trusted boundary is Cloudflare Worker or another explicitly approved backend service.
 
 ## Final Evidence And Verdict
 

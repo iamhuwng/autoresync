@@ -2,7 +2,7 @@
 title: AI Parsing Extraction
 description: Dual AI provider (Gemini/Groq), extraction pipeline, IELTS type classification, THCS regex parser, error handling.
 createdAt: '2026-02-27T17:10:22.717Z'
-updatedAt: '2026-05-13T12:51:05.712Z'
+updatedAt: '2026-05-23T21:41:08.977Z'
 tags:
   - architecture
   - ai
@@ -232,3 +232,14 @@ Current rules:
 - Retired wording: "extracted answer key" no longer means only local preflight `extractedAnswerKeyText`; it means the effective trusted `answerKeyText` rows passed to Studio.
 
 Verification from this fix: focused Vitest passed for `readingV2AutoImport.service.test.ts`, `readingV2AutoImportPrompt.test.ts`, and `readingV2ExternalAiPrompt.service.test.ts`; UTF-8 and `git diff --check` passed for touched files.
+
+
+## 2026-05-24 Amendment - Reading V2 Auto V4 Provider Review Contract
+
+Reading V2 Auto V4 uses a split-provider workflow: Gemini is the topology and answer-key witness, Groq is the per-passage question-area structured JSON normalizer, and local code is the verifier/assembler/Studio guardrail.
+
+The durable rule is that local code must not become a brittle parser for every messy source format. Low Groq completion or unsafe transcript output must feed precise coverage/verifier feedback back to Groq for self-repair before bounded local audit/repair decides whether Studio receives a `needs_review` draft or the import fails closed.
+
+Cloud Functions are off-limit for new Reading V2 work. The approved trusted backend boundary is Cloudflare Worker or another explicitly approved small backend service.
+
+See @doc/architecture/reading-v2-auto-v4-provider-review-contract.

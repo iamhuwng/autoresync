@@ -1,6 +1,6 @@
 {
     "name": "functions",
-    "description": "Firebase Cloud Functions for Kahoot Audio Proxy",
+    "description": "Deprecated Firebase Functions wrappers; Reading V2 uses Cloudflare Worker",
     "scripts": {
         "build": "tsc",
         "serve": "npm run build && firebase emulators:start --only functions",

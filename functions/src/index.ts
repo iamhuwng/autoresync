@@ -6,6 +6,9 @@ import {
   parseReadingV2TrustedSubmissionRequest,
 } from './readingV2SubmitCore';
 
+// Deprecated wrapper only. Reading V2 production submit uses the Cloudflare
+// Worker route; Cloud Functions are off-limit for new Reading V2 work.
+
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }

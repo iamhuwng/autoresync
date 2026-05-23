@@ -1,10 +1,11 @@
 # Reading V2 Trusted Submit Backend Decision
 
 Date: 2026-05-11
+Updated: 2026-05-24
 
 ## Decision
 
-Reading V2 needs a trusted submit backend, not Firebase Cloud Functions specifically.
+Reading V2 needs a trusted submit backend, not Firebase Cloud Functions. Cloud Functions are off-limit for new Reading V2 work.
 
 The current production-aligned path is:
 
@@ -14,15 +15,15 @@ The current production-aligned path is:
 
 The PRD requirement is authoritative scoring and result persistence. Student browsers must submit attempt data only. They must not own official scoring, answer-key access, canonical result writes, or live-session completion writes.
 
-Firebase Cloud Functions were the first implementation choice because they fit Firebase Auth and RTDB naturally. That choice blocked on the current Firebase project because Cloud Functions deployment needs APIs/billing capabilities unavailable on the Spark-blocked path.
+Firebase Cloud Functions were the first implementation choice because they fit Firebase Auth and RTDB naturally. That path is now historical only. It blocked on the current Firebase project because Cloud Functions deployment needs APIs/billing capabilities unavailable on the Spark-blocked path, and the approved backend boundary is the existing Cloudflare Worker/small backend path.
 
 The existing Cloudflare Worker can satisfy the same trust boundary without requiring Firebase Cloud Functions deployment.
 
 ## Canonical Rule
 
-Future Reading V2 work should say "trusted submit backend" unless it truly means Firebase Cloud Functions.
+Future Reading V2 work should say "Cloudflare Worker", "trusted submit backend", or "approved small backend" as appropriate. It should not propose Cloud Functions unless a future explicit architecture decision reverses this off-limit rule.
 
-Do not make first-release readiness depend on Firebase Cloud Functions when the Worker endpoint is available and approved.
+Do not make first-release readiness depend on Firebase Cloud Functions when the Worker endpoint is available and approved. Do not add new Cloud Function behavior for Reading V2.
 
 ## Current Endpoint
 
@@ -30,7 +31,7 @@ Production should use:
 
 `VITE_READING_V2_SUBMISSION_ENDPOINT=https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit`
 
-Production must configure this explicit endpoint. If it is absent, the browser must fail closed instead of silently deriving the undeployed Firebase Cloud Functions URL. Vite dev may still derive the local Functions emulator endpoint for local backend tests.
+Production must configure this explicit endpoint. If it is absent, the browser must fail closed instead of silently deriving any Cloud Functions URL. Local backend tests should target an explicit Worker/local trusted-backend endpoint rather than relying on Functions emulator fallback.
 
 ## Required Behavior
 
@@ -58,4 +59,4 @@ Production must configure this explicit endpoint. If it is absent, the browser m
 ## Remaining Work
 
 - Move shared submit core out of `functions/src` into a neutral shared backend/core location.
-- Keep Firebase Functions wrapper only as optional fallback unless an owner approves deleting it.
+- Retire or delete the Firebase Functions wrapper after the shared core has a neutral home. Until then, treat it as deprecated historical code, not an optional production fallback.

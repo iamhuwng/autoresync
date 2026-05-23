@@ -5,8 +5,9 @@
  * The answer keys are still fetched and processed on the client.
  * This prevents casual inspection of page source / React DevTools
  * but does NOT prevent a determined student from intercepting the
- * grading request. True server-side grading requires a trusted backend
- * such as Cloud Functions, Cloudflare Worker, or another approved service.
+ * grading request. True server-side grading requires Cloudflare Worker
+ * or another explicitly approved trusted backend. Cloud Functions are
+ * off-limit for new Reading V2 work.
  */
 
 /**
