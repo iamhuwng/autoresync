@@ -235,6 +235,115 @@ const tableCellAnchorIds = (
 const tableInlineBlankCount = (text: string): number =>
   text.match(/_{3,}|\[\s*blank\s*\]|\{\{\s*blank\s*\}\}|\{\s*blank\s*\}/gi)?.length ?? 0;
 
+const compactText = (value: string): string =>
+  value.replace(/\s+/g, ' ').trim();
+
+const isInvalidPassageTitle = (value: string | undefined): boolean => {
+  const normalized = compactText(value ?? '').toLowerCase();
+  return !normalized
+    || /^reading passage\s+\d+\b/.test(normalized)
+    || /^questions?\s+\d+\b/.test(normalized)
+    || /\byou should spend about\b/.test(normalized)
+    || /\bbased on reading passage\b/.test(normalized)
+    || /\bwrite your answers? in boxes?\b/.test(normalized);
+};
+
+interface SummaryTextLayout {
+  readonly kind?: string;
+  readonly segments?: readonly string[];
+}
+
+const parseSummaryTextLayout = (taskGroup: ReadingV2TaskGroup): SummaryTextLayout | null => {
+  if (!taskGroup.layoutHint) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(taskGroup.layoutHint) as SummaryTextLayout;
+  } catch {
+    return null;
+  }
+};
+
+const promptWithoutBlank = (value: string): string =>
+  compactText(value.replace(visibleBlankPattern, ' ')).toLowerCase();
+
+const promptBlankParts = (value: string): { readonly before: string; readonly after: string } => {
+  const match = value.match(visibleBlankPattern);
+  if (!match || match.index === undefined) {
+    return { before: compactText(value), after: '' };
+  }
+
+  return {
+    before: compactText(value.slice(0, match.index)),
+    after: compactText(value.slice(match.index + match[0].length)),
+  };
+};
+
+const hasOverlappingSummaryFragments = (
+  interactions: readonly ReadingV2Interaction[],
+): boolean => {
+  const parts = interactions.map((interaction) => promptBlankParts(interaction.promptText ?? ''));
+  const hasAdjacentBlankOverlap = parts.some((part, index) => {
+    const next = parts[index + 1];
+    if (!next || part.after.length < 24 || next.before.length < 24) {
+      return false;
+    }
+
+    const left = part.after.toLowerCase();
+    const right = next.before.toLowerCase();
+    return left.includes(right) || right.includes(left);
+  });
+  if (hasAdjacentBlankOverlap) {
+    return true;
+  }
+
+  const prompts = interactions
+    .map((interaction) => promptWithoutBlank(interaction.promptText ?? ''))
+    .filter((prompt) => prompt.length >= 48);
+
+  return prompts.some((prompt, index) => {
+    const next = prompts[index + 1];
+    if (!next) {
+      return false;
+    }
+
+    return prompt.includes(next.slice(0, Math.min(64, next.length)))
+      || next.includes(prompt.slice(Math.max(0, prompt.length - 64)));
+  });
+};
+
+const hasRepeatedSummaryLayoutSegment = (segments: readonly string[]): boolean =>
+  segments.some((segment) => {
+    const normalized = compactText(segment).toLowerCase();
+    if (normalized.length < 48) {
+      return false;
+    }
+
+    for (let length = Math.floor(normalized.length / 2); length >= 24; length -= 1) {
+      const repeated = normalized.slice(0, length).trim();
+      const remainder = normalized.slice(length).trim();
+      if (repeated && remainder.startsWith(repeated)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+const validatePassageTitles = (
+  document: ReadingV2Document,
+): readonly ReadingV2ValidationIssue[] =>
+  Object.values(document.stimuli)
+    .filter((stimulus) => stimulus.kind === 'passage' && isInvalidPassageTitle(stimulus.title))
+    .map((stimulus) =>
+      issue(
+        'student-visible-structured-mismatch',
+        `Passage stimulus ${stimulus.stimulusId} needs the real passage title, not instruction or fallback text.`,
+        stimulus.stimulusId,
+      ),
+    );
+
 const parseNoteCompletionLayout = (taskGroup: ReadingV2TaskGroup): NoteCompletionLayout | null => {
   if (!taskGroup.layoutHint) {
     return null;
@@ -327,6 +436,58 @@ const validateNoteCompletionTaskGroup = (
   });
 
   return issues;
+};
+
+const validateSummaryCompletionTextTaskGroup = (
+  document: ReadingV2Document,
+  taskGroup: ReadingV2TaskGroup,
+): readonly ReadingV2ValidationIssue[] => {
+  if (taskGroup.officialTaskType !== 'summary-completion-text') {
+    return [];
+  }
+
+  const interactions = taskGroup.interactionIds
+    .map((interactionId) => document.interactions[interactionId])
+    .filter((interaction): interaction is ReadingV2Interaction => Boolean(interaction));
+  const layout = parseSummaryTextLayout(taskGroup);
+
+  if (layout) {
+    if (layout.kind !== 'summary-text' || !Array.isArray(layout.segments)) {
+      return [issue(
+        'student-visible-structured-mismatch',
+        'Summary Completion text layout must use summary-text segments.',
+        taskGroup.taskGroupId,
+      )];
+    }
+
+    if (layout.segments.length !== interactions.length + 1) {
+      return [issue(
+        'student-visible-structured-mismatch',
+        `Summary Completion text layout has ${layout.segments.length} segments for ${interactions.length} blanks.`,
+        taskGroup.taskGroupId,
+      )];
+    }
+
+    if (hasRepeatedSummaryLayoutSegment(layout.segments)) {
+      return [issue(
+        'student-visible-structured-mismatch',
+        'Summary Completion text layout contains repeated or overlapping source fragments. Preserve the source summary as one continuous layout before publishing.',
+        taskGroup.taskGroupId,
+      )];
+    }
+
+    return [];
+  }
+
+  if (hasOverlappingSummaryFragments(interactions)) {
+    return [issue(
+      'student-visible-structured-mismatch',
+      'Summary Completion text appears split into overlapping question fragments. Preserve the source summary as one continuous layout before publishing.',
+      taskGroup.taskGroupId,
+    )];
+  }
+
+  return [];
 };
 
 const validateTableCompletionTaskGroup = (
@@ -705,6 +866,8 @@ export const validateReadingV2Draft = (
     }
   });
 
+  issues.push(...validatePassageTitles(document));
+
   Object.values(document.taskGroups).forEach((taskGroup) => {
     if (taskGroup.stimulusRefs.length === 0) {
       issues.push(
@@ -727,6 +890,7 @@ export const validateReadingV2Draft = (
     }
 
     issues.push(...validateNoteCompletionTaskGroup(document, taskGroup));
+    issues.push(...validateSummaryCompletionTextTaskGroup(document, taskGroup));
     issues.push(...validateTableCompletionTaskGroup(document, taskGroup));
     issues.push(...validateFlowchartCompletionTaskGroup(document, taskGroup));
     issues.push(...validateDiagramLabelingTaskGroup(document, taskGroup));

@@ -25,6 +25,7 @@ import {
   READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION,
 } from './readingV2AutoImportPrompt';
 import {
+  READING_V2_CANONICAL_TASK_TYPES,
   normalizeReadingV2TaskType,
   type ReadingV2CanonicalTaskType,
 } from '../../types/readingV2Taxonomy';
@@ -70,6 +71,14 @@ import {
   readingV2AutoLineMatchesQuestionNumber,
   replaceReadingV2AutoCompletionBlanks,
 } from './readingV2AutoTextGuards.service';
+import {
+  readingV2TaskCanUsePackageReferenceBankHeuristic,
+  readingV2TaskUsesBlankMarkers,
+  readingV2TaskUsesImportedLabeledOptions,
+  readingV2TaskUsesPerQuestionLabeledOptions,
+  readingV2TaskUsesPrimarySectionReferenceBank,
+  readingV2TaskUsesSharedLabeledOptionBank,
+} from './readingV2TaskComponentContracts.service';
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 const AUTO_V3_PROVIDER = 'gemini-groq';
@@ -945,10 +954,52 @@ interface AutoV4QuestionGroup {
   readonly questions: readonly AutoV4Question[];
 }
 
+interface AutoV4SummaryLayout {
+  readonly layoutHint: string;
+  readonly questionTextByQuestionNumber: ReadonlyMap<number, string>;
+}
+
 const normalizedQuestionText = (value: string): string =>
   value
     .replace(/^\s*(?:\*\*)?\d{1,3}(?:\*\*)?\s*(?:[.)\-:]\s*)?/, '')
     .trim();
+
+const cleanAutoV4TitleText = (value: string | undefined): string =>
+  compactWhitespace(value ?? '')
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .trim();
+
+const isInstructionLikeAutoV4Title = (value: string | undefined): boolean => {
+  const normalized = cleanAutoV4TitleText(value).toLowerCase();
+  return !normalized
+    || /^questions?\s+\d+\b/.test(normalized)
+    || /^reading passage\s+\d+\b/.test(normalized)
+    || /\byou should spend about\b/.test(normalized)
+    || /\bbased on reading passage\b/.test(normalized)
+    || /\bwrite your answers? in boxes?\b/.test(normalized)
+    || /\bchoose\b.*\bfrom the passage\b/.test(normalized);
+};
+
+const autoV4PassageTitle = (
+  passage: AIPassage,
+  passageNumber: number,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): string => {
+  const ledgerTitle = sourceLedger.passages.find((sourcePassage) =>
+    sourcePassage.passageNumber === passageNumber,
+  )?.title;
+  if (ledgerTitle && !isInstructionLikeAutoV4Title(ledgerTitle)) {
+    return ledgerTitle;
+  }
+
+  if (passage.title && !isInstructionLikeAutoV4Title(passage.title)) {
+    return passage.title;
+  }
+
+  return `Reading Passage ${passageNumber}`;
+};
 
 const normalizedTextKey = (value: string | undefined): string =>
   compactWhitespace(value ?? '').toLowerCase();
@@ -1058,11 +1109,10 @@ const uniqueOptionItems = (
 };
 
 const autoV4QuestionOptionSignature = (question: AIQuestion, taskType: ReadingV2CanonicalTaskType): string => {
-  if (taskType !== 'matching-headings'
-    && taskType !== 'matching-information'
-    && taskType !== 'matching-features'
-    && taskType !== 'matching-sentence-endings'
-    && taskType !== 'summary-completion-list') {
+  if (
+    !readingV2TaskUsesPrimarySectionReferenceBank(taskType)
+    && !readingV2TaskUsesImportedLabeledOptions(taskType)
+  ) {
     return '';
   }
 
@@ -1280,12 +1330,7 @@ const autoV4QuestionGroupsForMaterial = (
 const autoV4GroupSectionReferences = (
   group: AutoV4QuestionGroup,
 ): readonly { readonly label: string; readonly text: string }[] | undefined => {
-  if (
-    group.taskType !== 'matching-headings'
-    && group.taskType !== 'matching-information'
-    && group.taskType !== 'matching-features'
-    && group.taskType !== 'matching-sentence-endings'
-  ) {
+  if (!readingV2TaskUsesPrimarySectionReferenceBank(group.taskType)) {
     return undefined;
   }
 
@@ -1298,10 +1343,7 @@ const autoV4GroupSectionReferences = (
 const autoV4GroupLabeledOptions = (
   group: AutoV4QuestionGroup,
 ): readonly { readonly label: string; readonly text: string }[] | undefined => {
-  if (
-    group.taskType !== 'summary-completion-list'
-    && group.taskType !== 'multiple-select'
-  ) {
+  if (!readingV2TaskUsesSharedLabeledOptionBank(group.taskType)) {
     return undefined;
   }
 
@@ -1315,7 +1357,7 @@ const autoV4QuestionLabeledOptions = (
   question: AIQuestion,
   taskType: ReadingV2CanonicalTaskType,
 ): readonly { readonly label: string; readonly text: string }[] | undefined => {
-  if (taskType !== 'multiple-choice') {
+  if (!readingV2TaskUsesPerQuestionLabeledOptions(taskType)) {
     return undefined;
   }
 
@@ -1342,6 +1384,111 @@ const autoV4SelectionLimitForGroup = (
   group.taskType === 'multiple-select'
     ? Math.max(2, ...group.questions.map((question) => answerValues.get(question.questionNumber)?.length ?? 0))
     : undefined;
+
+const sourceLineTextForSummary = (value: string): string =>
+  cleanAutoV4TitleText(value)
+    .replace(/\\_/g, '_')
+    .replace(/\*\*(\d{1,3})\*\*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const sourceQuestionRangeLineMatches = (line: string, start: number, end: number): boolean => {
+  const normalized = cleanAutoV4TitleText(line)
+    .replace(/â€“|â€”|\u2013|\u2014/g, '-')
+    .replace(/\s+/g, ' ');
+  return new RegExp(`^Questions?\\s+${start}\\s*(?:-|to)\\s*${end}\\b`, 'i').test(normalized);
+};
+
+const isSummarySourceBoundary = (line: string): boolean => {
+  const normalized = cleanAutoV4TitleText(line).toLowerCase();
+  return /^questions?\s+\d+\b/.test(normalized)
+    || /^reading passage\s+\d+\b/.test(normalized)
+    || /^answers?\b/.test(normalized)
+    || /^advertisements?$/.test(normalized)
+    || /^cam\s+\d+\s+reading\s+test\b/.test(normalized);
+};
+
+const summaryMarkerPatternFor = (questionNumber: number): RegExp =>
+  new RegExp(`(?:\\[\\s*)?${questionNumber}(?:\\s*\\])?\\s*(?:_+|\\.{3,}|\\[\\s*blank\\s*\\])`, 'i');
+
+const autoV4SummaryLayoutFromSource = (
+  group: AutoV4QuestionGroup,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): AutoV4SummaryLayout | undefined => {
+  if (group.taskType !== 'summary-completion-text' || group.questions.length === 0) {
+    return undefined;
+  }
+
+  const start = group.questions[0]?.questionNumber ?? 0;
+  const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
+  const lines = sourceLedger.normalizedText.split('\n');
+  const rangeIndex = lines.findIndex((line) => sourceQuestionRangeLineMatches(line, start, end));
+  if (rangeIndex < 0) {
+    return undefined;
+  }
+
+  const sourceWindow: string[] = [];
+  for (let index = rangeIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? '';
+    if (sourceWindow.length > 0 && isSummarySourceBoundary(line)) {
+      break;
+    }
+    sourceWindow.push(line);
+  }
+
+  const questionNumbers = group.questions.map((question) => question.questionNumber);
+  const firstBlankIndex = sourceWindow.findIndex((line) =>
+    questionNumbers.some((questionNumber) => summaryMarkerPatternFor(questionNumber).test(sourceLineTextForSummary(line))),
+  );
+  if (firstBlankIndex < 0) {
+    return undefined;
+  }
+
+  const titleLine = [...sourceWindow.slice(0, firstBlankIndex)]
+    .reverse()
+    .map(sourceLineTextForSummary)
+    .find((line) => line && !isInstructionLikeAutoV4Title(line));
+  const bodyText = [
+    titleLine,
+    ...sourceWindow.slice(firstBlankIndex).map(sourceLineTextForSummary),
+  ].filter(Boolean).join(' ');
+
+  const matches = questionNumbers.map((questionNumber) => {
+    const match = bodyText.match(summaryMarkerPatternFor(questionNumber));
+    return match?.index === undefined
+      ? null
+      : { questionNumber, index: match.index, length: match[0].length };
+  });
+
+  if (matches.some((match) => match === null)) {
+    return undefined;
+  }
+
+  const orderedMatches = matches as readonly { readonly questionNumber: number; readonly index: number; readonly length: number }[];
+  if (orderedMatches.some((match, index) => index > 0 && match.index <= orderedMatches[index - 1]!.index)) {
+    return undefined;
+  }
+
+  const segments = Array.from({ length: orderedMatches.length + 1 }, (_, index) => {
+    const previous = orderedMatches[index - 1];
+    const next = orderedMatches[index];
+    const segmentStart = previous ? previous.index + previous.length : 0;
+    const segmentEnd = next ? next.index : bodyText.length;
+    return compactWhitespace(bodyText.slice(segmentStart, segmentEnd));
+  });
+  const questionTextByQuestionNumber = new Map<number, string>();
+  orderedMatches.forEach((match, index) => {
+    questionTextByQuestionNumber.set(
+      match.questionNumber,
+      compactWhitespace([segments[index], '___', segments[index + 1]].filter(Boolean).join(' ')),
+    );
+  });
+
+  return {
+    layoutHint: JSON.stringify({ kind: 'summary-text', segments }),
+    questionTextByQuestionNumber,
+  };
+};
 
 const buildAutoPayloadFromAutoV4Results = (input: {
   readonly request: ReadingV2AutoImportRequest;
@@ -1373,17 +1520,19 @@ const buildAutoPayloadFromAutoV4Results = (input: {
     materials: materials.map(({ passage, passageNumber }, materialIndex) => {
       const materialQuestions = questionsByMaterialIndex.get(materialIndex) ?? [];
       const groups = autoV4QuestionGroupsForMaterial(passageNumber, materialQuestions, input.sourceLedger);
+      const passageTitle = autoV4PassageTitle(passage, passageNumber, input.sourceLedger);
 
       return {
         passageNumber,
-        title: passage.title || `Reading Passage ${passageNumber}`,
+        title: passageTitle,
         passages: [{
-          title: passage.title || `Reading Passage ${passageNumber}`,
+          title: passageTitle,
           content: passage.content,
         }],
         sectionInstructions: groups.map((group) => {
           const start = group.questions[0]?.questionNumber ?? 0;
           const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
+          const summaryLayout = autoV4SummaryLayoutFromSource(group, input.sourceLedger);
           return {
             id: group.id,
             taskType: group.taskType,
@@ -1393,20 +1542,23 @@ const buildAutoPayloadFromAutoV4Results = (input: {
             selectionLimit: autoV4SelectionLimitForGroup(group, answerValues),
             sectionReferences: autoV4GroupSectionReferences(group),
             labeledOptions: autoV4GroupLabeledOptions(group),
+            layoutHint: summaryLayout?.layoutHint,
           };
         }),
         questions: groups.flatMap((group) =>
           group.questions.map((question) => {
+            const summaryLayout = autoV4SummaryLayoutFromSource(group, input.sourceLedger);
             const answers = answerValues.get(question.questionNumber) ?? [];
             return {
               questionNumber: question.questionNumber,
               number: question.questionNumber,
               type: group.taskType,
               sectionInstructionId: group.id,
-              questionText: normalizedQuestionText(question.source.questionText),
+              questionText: summaryLayout?.questionTextByQuestionNumber.get(question.questionNumber)
+                ?? normalizedQuestionText(question.source.questionText),
               answer: answers.join(' | '),
               labeledOptions: autoV4QuestionLabeledOptions(question.source, group.taskType),
-              sectionReferences: group.taskType === 'matching-information'
+              sectionReferences: readingV2TaskUsesPrimarySectionReferenceBank(group.taskType)
                 ? autoV4QuestionReferenceItems(question.source)
                 : undefined,
               optionLabelFormat: question.source.optionLabelFormat,
@@ -1943,6 +2095,7 @@ const finalizeAutoImportPayload = (input: {
   });
   const candidateWithLedger: ReadingV2ImportCandidate = {
     ...candidate,
+    sourceRawText: input.sourceLedger.normalizedText,
     autoImportDiagnostics: diagnostics,
     evidence: [
       ...candidate.evidence,
@@ -2275,17 +2428,6 @@ const repairPayloadAgainstLedger = async (
   return { ...state, diagnostics };
 };
 
-const groupUsesOptionBank = (taskType: string): boolean =>
-  taskType === 'multiple-choice'
-  || taskType === 'multiple-select'
-  || taskType === 'summary-completion-list';
-
-const groupUsesReferenceBank = (taskType: string): boolean =>
-  taskType === 'matching-headings'
-  || taskType === 'matching-information'
-  || taskType === 'matching-features'
-  || taskType === 'matching-sentence-endings';
-
 const compactText = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
 
@@ -2305,15 +2447,9 @@ const normalizeAutoV3TaskTypeHint = (
     ?? (normalized === 'summary-completion' ? 'summary-completion-text' : null);
 };
 
-const MULTI_MARKER_SOURCE_FRAGMENT_TASK_TYPES = new Set<ReadingV2CanonicalTaskType>([
-  'sentence-completion',
-  'summary-completion-text',
-  'summary-completion-list',
-  'note-completion',
-  'table-completion',
-  'flowchart-completion',
-  'diagram-labeling',
-]);
+const MULTI_MARKER_SOURCE_FRAGMENT_TASK_TYPES = new Set<ReadingV2CanonicalTaskType>(
+  READING_V2_CANONICAL_TASK_TYPES.filter(readingV2TaskUsesBlankMarkers),
+);
 
 interface ReadingV2AutoInlineCompletionOccurrence {
   readonly questionNumber: number;
@@ -2524,6 +2660,22 @@ type ReadingV2AutoBankRecoveryAuthority =
   | 'heuristic-fallback'
   | 'none';
 
+const autoV3TaskTypeUsesImportedBank = (taskTypeHint: string | undefined): boolean => {
+  const taskType = normalizeAutoV3TaskTypeHint(taskTypeHint ?? '');
+  return Boolean(
+    taskType
+    && (
+      readingV2TaskUsesImportedLabeledOptions(taskType)
+      || readingV2TaskUsesPrimarySectionReferenceBank(taskType)
+    ),
+  );
+};
+
+const autoV3TaskTypeCanUsePackageReferenceBankHeuristic = (taskTypeHint: string | undefined): boolean => {
+  const taskType = normalizeAutoV3TaskTypeHint(taskTypeHint ?? '');
+  return Boolean(taskType && readingV2TaskCanUsePackageReferenceBankHeuristic(taskType));
+};
+
 const referenceBankRecoveryForGroup = (
   passagePackage: ReadingV2AutoPassagePackage,
   questionRange: ReadingV2AutoQuestionTranscript['groups'][number]['questionRange'],
@@ -2536,8 +2688,7 @@ const referenceBankRecoveryForGroup = (
     && groupHint.questionRange.end === questionRange.end,
   );
   const firstBankGroup = passagePackage.groupHints.find((groupHint) =>
-    groupUsesOptionBank(groupHint.taskTypeHint ?? '')
-    || groupUsesReferenceBank(groupHint.taskTypeHint ?? ''),
+    autoV3TaskTypeUsesImportedBank(groupHint.taskTypeHint),
   );
   const spans = matchingHint?.referenceBankLines?.length
     ? matchingHint.referenceBankLines
@@ -2612,8 +2763,8 @@ const enrichTranscriptWithReferenceBanks = (
           return group;
         }
 
-        const needsReferenceBank = groupUsesReferenceBank(group.taskType) && !group.sectionReferences?.length;
-        const needsOptionBank = groupUsesOptionBank(group.taskType) && !group.labeledOptions?.length;
+        const needsReferenceBank = readingV2TaskUsesPrimarySectionReferenceBank(group.taskType) && !group.sectionReferences?.length;
+        const needsOptionBank = readingV2TaskUsesImportedLabeledOptions(group.taskType) && !group.labeledOptions?.length;
         if (!needsReferenceBank && !needsOptionBank) {
           return group;
         }
@@ -3042,7 +3193,9 @@ const buildTargetedRetryPassagePackage = (
   const bankRecovery = referenceBankRecoveryForGroup(passagePackage, groupHint.questionRange);
   const referenceBankLines = bankRecovery.lines.length > 0
     ? bankRecovery.lines
-    : passagePackage.referenceBankLines;
+    : autoV3TaskTypeCanUsePackageReferenceBankHeuristic(groupHint.taskTypeHint)
+      ? passagePackage.referenceBankLines
+      : [];
   const answerKeyRows = passagePackage.answerKeyRows.filter((row) =>
     row.questionNumber >= groupHint.questionRange.start
     && row.questionNumber <= groupHint.questionRange.end,

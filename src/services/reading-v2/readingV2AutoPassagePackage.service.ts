@@ -65,6 +65,25 @@ const packageLinesFrom = (
 const textFromLines = (lines: readonly ReadingV2AutoPassagePackageLine[]): string =>
   lines.map((line) => line.text).join('\n').trim();
 
+const cleanTitleText = (value: string): string =>
+  value
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^READING\s+PASSAGE\s+\d+\s*:?\s*/i, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const isInstructionLikeTitle = (value: string | undefined): boolean => {
+  const normalized = cleanTitleText(value ?? '').toLowerCase();
+  return !normalized
+    || /^questions?\s+\d+\b/.test(normalized)
+    || /^reading passage\s+\d+\b/.test(normalized)
+    || /\byou should spend about\b/.test(normalized)
+    || /\bbased on reading passage\b/.test(normalized)
+    || /\bwrite your answers? in boxes?\b/.test(normalized);
+};
+
 const rangeContains = (range: ReadingV2AutoQuestionRange, questionNumber: number): boolean =>
   questionNumber >= range.start && questionNumber <= range.end;
 
@@ -76,11 +95,11 @@ const titleFrom = (
   const titleSpan = marker.passageTitleLines;
   const titleLines = titleSpan ? linesInSpan(lineIndex, titleSpan).map((line) => line.text.trim()).filter(Boolean) : [];
   const explicitTitle = titleLines
-    .map((line) => line.replace(/^#{1,6}\s*/, '').replace(/^READING\s+PASSAGE\s+\d+\s*:?\s*/i, '').trim())
-    .find((line) => Boolean(line));
+    .map(cleanTitleText)
+    .find((line) => Boolean(line) && !isInstructionLikeTitle(line));
   const ledgerTitle = ledger.passages.find((passage) => passage.passageNumber === marker.passageNumber)?.title;
 
-  return explicitTitle || ledgerTitle || `Reading Passage ${marker.passageNumber}`;
+  return explicitTitle || (!isInstructionLikeTitle(ledgerTitle) ? ledgerTitle : undefined) || `Reading Passage ${marker.passageNumber}`;
 };
 
 const redactAnswerRow = (row: ReadingV2AutoTopologyAnswerKeyRow): string =>

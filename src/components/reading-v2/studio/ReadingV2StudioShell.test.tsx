@@ -333,6 +333,58 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     }));
   });
 
+  it('blocks publish while imported candidate has provider repair blockers', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
+        '',
+        '#### Questions 1-2',
+        'Do the following statements agree with the information? TRUE, FALSE, NOT GIVEN',
+        '**1** Imported statement one',
+        '**2** Imported statement two',
+      ].join('\n'),
+      answerKeyText: ['1 TRUE', '2 FALSE'].join('\n'),
+      fileName: 'provider-repaired.md',
+    });
+    const candidateWithProviderBlocker = {
+      ...candidate,
+      autoImportDiagnostics: [
+        {
+          code: 'groq-output-missing-group',
+          severity: 'warning',
+          message: 'Groq output omitted hinted group 1-2.',
+          passageNumber: 1,
+          questionNumber: 1,
+          groupRange: '1-2',
+          sourceRange: 'Q1-2',
+          repairScopes: ['question-range'],
+        },
+      ],
+      publishBlockingPlaceholders: [
+        ...candidate.publishBlockingPlaceholders,
+        'Auto import needs teacher review before publish: Groq output omitted hinted group 1-2.',
+      ],
+    };
+    const normalized = normalizeReadingV2ImportCandidate(candidate);
+
+    render(
+      <ReadingV2StudioShell
+        mode="create-from-import"
+        document={normalized.document}
+        importCandidate={candidateWithProviderBlocker}
+        metadata={{ title: 'Provider Repair Blocker' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
+    expect(within(screen.getByLabelText('Validation messages')).getByText('Questions 1-2')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Validation messages')).getByText(/Provider omitted this question group/)).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText('Questions 1-2')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText(/Local repair rebuilt it from source/)).toBeInTheDocument();
+  });
+
   it('keeps imported review details collapsed by default and accepts import from the developer action row', () => {
     const onAction = vi.fn();
     const candidate = createReadingV2ImportCandidateFromText({

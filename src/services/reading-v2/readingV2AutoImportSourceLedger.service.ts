@@ -224,6 +224,64 @@ const sourceLinesFor = (normalizedText: string): readonly ReadingV2AutoSourceLin
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
 
+const stripMarkdownInline = (value: string): string =>
+  compact(value
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/`([^`]+)`/g, '$1'));
+
+const isInstructionLikeTitle = (value: string): boolean => {
+  const normalized = stripMarkdownInline(value).toLowerCase();
+  return !normalized
+    || /^reading passage\s+\d+\b/.test(normalized)
+    || /^questions?\s+\d+\b/.test(normalized)
+    || /^answers?\b/.test(normalized)
+    || /\byou should spend about\b/.test(normalized)
+    || /\bbased on reading passage\b/.test(normalized)
+    || /\bwrite your answers? in boxes?\b/.test(normalized)
+    || /\bchoose\b.*\bfrom the passage\b/.test(normalized)
+    || /\bcomplete the\b/.test(normalized);
+};
+
+const frontmatterPassageTitle = (
+  lines: readonly ReadingV2AutoSourceLine[],
+  passageNumber: number,
+): string | undefined =>
+  lines
+    .slice(0, 40)
+    .map((line) =>
+      line.text.match(new RegExp(`^p${passageNumber}_title:\\s*"?([^"\\n]+)"?\\s*$`, 'i'))?.[1]?.trim(),
+    )
+    .map((value) => value ? stripMarkdownInline(value) : undefined)
+    .find((value): value is string => Boolean(value && !isInstructionLikeTitle(value)));
+
+const titleAfterPassageHeading = (
+  lines: readonly ReadingV2AutoSourceLine[],
+  passageLineNumber: number,
+): string | undefined => {
+  for (const line of lines.filter((candidate) =>
+    candidate.lineNumber > passageLineNumber && candidate.lineNumber <= passageLineNumber + 8,
+  )) {
+    const trimmed = line.text.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (PASSAGE_HEADING_PATTERN.test(trimmed) || QUESTION_RANGE_PATTERN.test(trimmed)) {
+      return undefined;
+    }
+    if (isInstructionLikeTitle(trimmed)) {
+      continue;
+    }
+
+    return stripMarkdownInline(trimmed);
+  }
+
+  return undefined;
+};
+
 const titleFrom = (
   lines: readonly ReadingV2AutoSourceLine[],
   sourceName?: string,
@@ -378,7 +436,9 @@ const detectPassages = (
       passageNumber: Number(match[1]),
       lineNumber: line.lineNumber,
       charStart: line.charStart,
-      title: match[2]?.trim() || undefined,
+      title: frontmatterPassageTitle(lines, Number(match[1]))
+        ?? (match[2] && !isInstructionLikeTitle(match[2]) ? stripMarkdownInline(match[2]) : undefined)
+        ?? titleAfterPassageHeading(lines, line.lineNumber),
     }];
   });
 

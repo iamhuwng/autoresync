@@ -23,7 +23,10 @@ import {
   READING_V2_TASK_TAXONOMY,
   type ReadingV2CanonicalTaskType,
 } from '../../../types/readingV2Taxonomy';
-import { normalizeReadingV2ImportCandidate } from '../../../services/reading-v2/readingV2ImportNormalization.service';
+import {
+  normalizeReadingV2ImportCandidate,
+  type ReadingV2AutoImportCandidateDiagnostic,
+} from '../../../services/reading-v2/readingV2ImportNormalization.service';
 import { getReadingV2InstructionText } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
 import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
 import type { ReadingV2DerivedProjection } from '../../../services/reading-v2/readingV2Projection.service';
@@ -198,6 +201,83 @@ export interface ReadingV2StudioShellProps {
   ) => ReadingV2StudioExtractionResult | Promise<ReadingV2StudioExtractionResult>;
   readonly onExit?: () => void;
 }
+
+const parseImportReviewQuestionRange = (
+  value: string | undefined,
+): ReadingV2BuildValidationMessage['questionRange'] | undefined => {
+  const match = value?.match(/Q?\s*(\d+)(?:\s*[-–—]\s*(\d+))?/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const first = Number(match[1]);
+  const last = Number(match[2] ?? match[1]);
+  if (!Number.isFinite(first) || !Number.isFinite(last)) {
+    return undefined;
+  }
+
+  return {
+    start: Math.min(first, last),
+    end: Math.max(first, last),
+  };
+};
+
+const formatImportReviewQuestionLabel = (
+  range: ReadingV2BuildValidationMessage['questionRange'],
+): string | undefined => {
+  if (!range) {
+    return undefined;
+  }
+
+  return range.start === range.end ? `Question ${range.start}` : `Questions ${range.start}-${range.end}`;
+};
+
+const findDiagnosticForImportBlocker = (
+  message: string,
+  diagnostics: readonly ReadingV2AutoImportCandidateDiagnostic[] | undefined,
+): ReadingV2AutoImportCandidateDiagnostic | undefined => {
+  const normalizedMessage = message.replace(/^Auto import needs teacher review before publish:\s*/i, '').trim();
+  return diagnostics?.find((diagnostic) => normalizedMessage.includes(diagnostic.message) || message.includes(diagnostic.message));
+};
+
+const getImportReviewDetail = (
+  message: string,
+  diagnostic: ReadingV2AutoImportCandidateDiagnostic | undefined,
+): string => {
+  const sourceMessage = diagnostic?.message ?? message.replace(/^Auto import needs teacher review before publish:\s*/i, '').trim();
+
+  if (diagnostic?.code === 'groq-output-missing-group' || /omitted hinted group/i.test(sourceMessage)) {
+    return 'Provider omitted this question group. Local repair rebuilt it from source; check task type, prompt text, blanks, and answers.';
+  }
+
+  if (diagnostic?.code === 'group-coverage-mismatch' || /omitted question\(s\)/i.test(sourceMessage)) {
+    return 'Provider omitted questions inside this group. Local repair rebuilt them from source; check statements, option bank, and answers.';
+  }
+
+  return sourceMessage;
+};
+
+const buildImportReviewValidationMessage = (
+  message: string,
+  index: number,
+  diagnostics: readonly ReadingV2AutoImportCandidateDiagnostic[] | undefined,
+): ReadingV2BuildValidationMessage => {
+  const diagnostic = findDiagnosticForImportBlocker(message, diagnostics);
+  const questionRange = parseImportReviewQuestionRange(diagnostic?.groupRange)
+    ?? parseImportReviewQuestionRange(diagnostic?.sourceRange)
+    ?? (diagnostic?.questionNumber ? { start: diagnostic.questionNumber, end: diagnostic.questionNumber } : undefined);
+  const reviewLabel = formatImportReviewQuestionLabel(questionRange);
+  const reviewDetail = getImportReviewDetail(message, diagnostic);
+
+  return {
+    key: `import-candidate-blocker-${index}`,
+    message: reviewLabel ? `${reviewLabel}: ${reviewDetail}` : message,
+    reviewLabel,
+    reviewDetail: reviewLabel ? reviewDetail : undefined,
+    questionRange,
+    source: 'import-review',
+  };
+};
 
 const DIAG_PREFIX = '[Diag][ReadingV2Studio]';
 
@@ -2132,6 +2212,9 @@ export function ReadingV2StudioShell({
           },
         ]
       : []),
+    ...(currentImportCandidate?.publishBlockingPlaceholders.map((message, index) =>
+      buildImportReviewValidationMessage(message, index, currentImportCandidate.autoImportDiagnostics),
+    ) ?? []),
     ...passageSlots.flatMap((passage) => [
       ...(passage.hasTitle
         ? []

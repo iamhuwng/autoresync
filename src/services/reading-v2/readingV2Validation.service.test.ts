@@ -674,6 +674,75 @@ describe('readingV2Validation.service', () => {
     );
   });
 
+  it('blocks passage titles that contain timing instruction text', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['true-false-not-given']) as ReadingV2Document;
+    const stimulus = Object.values(document.stimuli)[0]!;
+    document.stimuli[stimulus.stimulusId] = {
+      ...stimulus,
+      title: 'You should spend about 20 minutes on Questions 1-2, which are based on Reading Passage 1 below.',
+    };
+
+    const result = validateReadingV2Draft(document);
+
+    expect(result.canPublish).toBe(false);
+    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('real passage title');
+  });
+
+  it('blocks summary-completion-text groups split into overlapping source fragments', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['summary-completion-text']) as ReadingV2Document;
+    const taskGroup = Object.values(document.taskGroups)[0]!;
+    const [firstInteractionId, secondInteractionId] = taskGroup.interactionIds;
+    const firstText = 'The source summary says the first process depends on ___ and the second result produces';
+    const secondText = 'and the second result produces ___ before the final outcome is reached.';
+    const invalidDocument: ReadingV2Document = {
+      ...document,
+      interactions: {
+        ...document.interactions,
+        [firstInteractionId!]: {
+          ...document.interactions[firstInteractionId!]!,
+          promptText: firstText,
+        },
+        [secondInteractionId!]: {
+          ...document.interactions[secondInteractionId!]!,
+          promptText: secondText,
+        },
+      },
+    };
+
+    const result = validateReadingV2Draft(invalidDocument);
+
+    expect(result.canPublish).toBe(false);
+    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('overlapping question fragments');
+  });
+
+  it('blocks summary-completion-text layouts with repeated source fragments', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['summary-completion-text']) as ReadingV2Document;
+    const taskGroup = Object.values(document.taskGroups)[0]!;
+    const repeated = 'and the copied source fragment continues for enough words';
+    const invalidDocument: ReadingV2Document = {
+      ...document,
+      taskGroups: {
+        ...document.taskGroups,
+        [taskGroup.taskGroupId]: {
+          ...taskGroup,
+          layoutHint: JSON.stringify({
+            kind: 'summary-text',
+            segments: [
+              'Summary starts',
+              `${repeated} ${repeated}`,
+              'Summary ends',
+            ],
+          }),
+        },
+      },
+    };
+
+    const result = validateReadingV2Draft(invalidDocument);
+
+    expect(result.canPublish).toBe(false);
+    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('repeated or overlapping source fragments');
+  });
+
   it('blocks structured-entry task groups when response shape does not match the visible shell', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['table-completion']) as ReadingV2Document;
     const taskGroup = Object.values(document.taskGroups)[0]!;

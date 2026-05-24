@@ -1438,6 +1438,16 @@
   white-space: normal;
 }
 
+.reading-v2-build__warning-popover li {
+  display: grid;
+  gap: 2px;
+}
+
+.reading-v2-build__warning-target {
+  color: #442300;
+  font-weight: 900;
+}
+
 .reading-v2-build__passage-tabs {
   display: flex;
   justify-content: space-between;
@@ -2136,6 +2146,45 @@
 
 .reading-v2-build-card__disabled p {
   margin: 6px 0 0;
+}
+
+.reading-v2-build-card__review-guidance {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #f2c27a;
+  border-radius: 8px;
+  background: #fff8eb;
+  color: #6f3b00;
+}
+
+.reading-v2-build-card__review-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #442300;
+}
+
+.reading-v2-build-card__review-guidance ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reading-v2-build-card__review-guidance li {
+  display: grid;
+  gap: 2px;
+}
+
+.reading-v2-build-card__review-guidance li span {
+  font-weight: 900;
+}
+
+.reading-v2-build-card__review-guidance p {
+  margin: 0;
+  color: #6f3b00;
 }
 
 .reading-v2-build-options {

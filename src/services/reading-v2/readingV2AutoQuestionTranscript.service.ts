@@ -11,6 +11,14 @@ import {
   countReadingV2AutoCompletionBlanks,
   normalizeReadingV2AutoSourceProofText,
 } from './readingV2AutoTextGuards.service';
+import {
+  readingV2TaskRequiresBankEvidence,
+  readingV2TaskUsesReferenceLabelRange,
+  readingV2TaskUsesBlankMarkers,
+  readingV2TaskUsesImportedLabeledOptions,
+  readingV2TaskUsesPrimarySectionReferenceBank,
+  readingV2TaskUsesSharedLabeledOptionBank,
+} from './readingV2TaskComponentContracts.service';
 
 export interface ReadingV2AutoTranscriptQuestionRange {
   readonly start: number;
@@ -331,17 +339,6 @@ const firstOptionsFromCandidates = (
   return undefined;
 };
 
-const taskTypeUsesOptionBank = (taskType: ReadingV2CanonicalTaskType): boolean =>
-  taskType === 'multiple-choice'
-  || taskType === 'multiple-select'
-  || taskType === 'summary-completion-list';
-
-const taskTypeUsesReferenceBank = (taskType: ReadingV2CanonicalTaskType): boolean =>
-  taskType === 'matching-headings'
-  || taskType === 'matching-information'
-  || taskType === 'matching-features'
-  || taskType === 'matching-sentence-endings';
-
 const questionFrom = (
   value: unknown,
   taskType?: ReadingV2CanonicalTaskType,
@@ -387,7 +384,7 @@ const questionFrom = (
       value.choiceOptions,
       value.answerChoices,
       value.choices,
-      taskType && taskTypeUsesOptionBank(taskType) ? value.bank : undefined,
+      taskType && readingV2TaskUsesImportedLabeledOptions(taskType) ? value.bank : undefined,
     ),
     sectionReferences: firstOptionsFromCandidates(
       value.sectionReferences,
@@ -399,7 +396,7 @@ const questionFrom = (
       value.referenceLabels,
       value.choiceOptions,
       value.choices,
-      taskType && taskTypeUsesReferenceBank(taskType) ? value.bank : undefined,
+      taskType && readingV2TaskUsesPrimarySectionReferenceBank(taskType) ? value.bank : undefined,
     ),
   };
 };
@@ -795,7 +792,7 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
       value.choiceOptions,
       value.answerChoices,
       value.choices,
-      taskTypeUsesOptionBank(taskType) ? value.bank : undefined,
+      readingV2TaskUsesSharedLabeledOptionBank(taskType) ? value.bank : undefined,
     ),
     sectionReferences: firstOptionsFromCandidates(
       value.sectionReferences,
@@ -807,7 +804,7 @@ const groupFrom = (value: unknown): ReadingV2AutoQuestionTranscriptGroup | null 
       value.referenceLabels,
       value.choiceOptions,
       value.choices,
-      taskTypeUsesReferenceBank(taskType) ? value.bank : undefined,
+      readingV2TaskUsesPrimarySectionReferenceBank(taskType) ? value.bank : undefined,
     ),
     questions,
     note: noteFrom(value.note),
@@ -946,20 +943,11 @@ const numbersInRange = (range: ReadingV2AutoTranscriptQuestionRange): readonly n
   return numbers;
 };
 
-const groupRequiresBank = (taskType: ReadingV2CanonicalTaskType): boolean =>
-  taskType === 'summary-completion-list'
-  || taskType === 'matching-headings'
-  || taskType === 'matching-information'
-  || taskType === 'matching-features'
-  || taskType === 'matching-sentence-endings'
-  || taskType === 'multiple-choice'
-  || taskType === 'multiple-select';
-
 const hasBank = (group: ReadingV2AutoQuestionTranscriptGroup): boolean =>
   Boolean(
     group.labeledOptions?.length
     || group.sectionReferences?.length
-    || (group.taskType === 'matching-information' && group.instructionMeta.referenceLabelRange),
+    || (readingV2TaskUsesReferenceLabelRange(group.taskType) && group.instructionMeta.referenceLabelRange),
   )
   || group.questions.some((question) => Boolean(question.labeledOptions?.length || question.sectionReferences?.length));
 
@@ -982,7 +970,7 @@ interface SourceProofEntry {
 const sourceProofEntriesForGroup = (
   group: ReadingV2AutoQuestionTranscriptGroup,
 ): readonly SourceProofEntry[] => {
-  const requiresBank = groupRequiresBank(group.taskType);
+  const requiresBank = readingV2TaskRequiresBankEvidence(group.taskType);
   return [
   ...(requiresBank ? (group.labeledOptions ?? []).map((option) => ({
     label: `group option ${option.label}`,
@@ -1123,7 +1111,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       });
     }
 
-    if (groupRequiresBank(group.taskType) && !hasBank(group)) {
+    if (readingV2TaskRequiresBankEvidence(group.taskType) && !hasBank(group)) {
       diagnostics.push({
         code: 'missing-reference-bank',
         severity: 'error',
@@ -1137,7 +1125,7 @@ export const verifyReadingV2AutoQuestionTranscript = (input: {
       .reduce((count, text) => count + countReadingV2AutoCompletionBlanks(text), 0);
     const expectedGroupQuestions = numbersInRange(group.questionRange).length;
     if (
-      ['sentence-completion', 'summary-completion-text', 'summary-completion-list', 'note-completion', 'table-completion', 'flowchart-completion', 'diagram-labeling'].includes(group.taskType)
+      readingV2TaskUsesBlankMarkers(group.taskType)
       && groupBlankCount > 0
       && groupBlankCount !== expectedGroupQuestions
     ) {

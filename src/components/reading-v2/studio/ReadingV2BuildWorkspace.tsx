@@ -42,6 +42,13 @@ export interface ReadingV2BuildPassageSlot {
 export interface ReadingV2BuildValidationMessage {
   readonly key: string;
   readonly message: string;
+  readonly reviewLabel?: string;
+  readonly reviewDetail?: string;
+  readonly questionRange?: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly source?: 'import-review' | 'validation';
 }
 
 export interface ReadingV2QuestionLinkTarget {
@@ -98,6 +105,11 @@ export interface ReadingV2BuildWorkspaceProps {
   readonly onOpenQuestionGroupModal: () => void;
   readonly onCloseQuestionGroupModal: () => void;
 }
+
+const questionRangesOverlap = (
+  left: { readonly start: number; readonly end: number },
+  right: { readonly start: number; readonly end: number },
+): boolean => left.start <= right.end && right.start <= left.end;
 
 const TASK_TYPE_CATEGORIES: readonly {
   readonly category: string;
@@ -4566,6 +4578,7 @@ export function ReadingV2QuestionGroupCard({
   optionSet,
   optionSets,
   visibleRange,
+  reviewMessages,
   numberByInteractionId,
   selected,
   authoringNumbers,
@@ -4589,6 +4602,7 @@ export function ReadingV2QuestionGroupCard({
   readonly optionSet?: ReadingV2OptionSet;
   readonly optionSets: Readonly<Record<string, ReadingV2OptionSet>>;
   readonly visibleRange: string;
+  readonly reviewMessages: readonly ReadingV2BuildValidationMessage[];
   readonly numberByInteractionId: ReadonlyMap<string, number>;
   readonly selected: boolean;
   readonly authoringNumbers: readonly ReadingV2DerivedNumber[];
@@ -4677,6 +4691,23 @@ export function ReadingV2QuestionGroupCard({
           </button>
         </div>
       </header>
+
+      {reviewMessages.length > 0 ? (
+        <section className="reading-v2-build-card__review-guidance" role="note" aria-label={`Review guidance for ${visibleRange}`}>
+          <div className="reading-v2-build-card__review-heading">
+            <IconAlertTriangle aria-hidden="true" size={17} stroke={1.9} />
+            <strong>Review imported content</strong>
+          </div>
+          <ul>
+            {reviewMessages.map((item) => (
+              <li key={item.key}>
+                <span>{item.reviewLabel ?? visibleRange}</span>
+                <p>{item.reviewDetail ?? item.message}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {deletePending ? (
         <section className="reading-v2-build-confirm" role="alert">
@@ -4849,6 +4880,24 @@ export function ReadingV2BuildWorkspace({
     const first = numbers[0]!;
     const last = numbers[numbers.length - 1]!;
     return first === last ? `Question ${first}` : `Questions ${first}-${last}`;
+  };
+
+  const getReviewMessagesForGroup = (
+    interactionsForGroup: readonly ReadingV2Interaction[],
+  ): readonly ReadingV2BuildValidationMessage[] => {
+    const numbers = interactionsForGroup
+      .map((interaction) => numberByInteractionId.get(interaction.interactionId))
+      .filter((number): number is number => number !== undefined)
+      .sort((left, right) => left - right);
+
+    if (numbers.length === 0) {
+      return [];
+    }
+
+    const groupRange = { start: numbers[0]!, end: numbers[numbers.length - 1]! };
+    return validationMessages.filter((message) =>
+      message.questionRange ? questionRangesOverlap(message.questionRange, groupRange) : false,
+    );
   };
 
   const openAddGroupModal = () => {
@@ -5096,7 +5145,14 @@ export function ReadingV2BuildWorkspace({
                 <strong>{validationMessages.length} item{validationMessages.length === 1 ? '' : 's'} need attention.</strong>
                 <ul>
                   {validationMessages.map((item) => (
-                    <li key={item.key}>{item.message}</li>
+                    <li key={item.key}>
+                      {item.reviewLabel ? (
+                        <>
+                          <span className="reading-v2-build__warning-target">{item.reviewLabel}</span>
+                          <span>{item.reviewDetail ?? item.message}</span>
+                        </>
+                      ) : item.message}
+                    </li>
                   ))}
                 </ul>
                 {operationalActionLabel && onOperationalAction ? (
@@ -5353,6 +5409,7 @@ export function ReadingV2BuildWorkspace({
                 const optionSet = taskGroup.optionSetRefs
                   .map((optionSetId) => optionSets[optionSetId])
                   .find((candidate): candidate is ReadingV2OptionSet => Boolean(candidate));
+                const reviewMessages = getReviewMessagesForGroup(groupInteractions);
 
                 return (
                   <ReadingV2QuestionGroupCard
@@ -5363,6 +5420,7 @@ export function ReadingV2BuildWorkspace({
                     optionSet={optionSet}
                     optionSets={optionSets}
                     visibleRange={getGroupRange(taskGroup)}
+                    reviewMessages={reviewMessages}
                     numberByInteractionId={numberByInteractionId}
                     selected={taskGroup.taskGroupId === selectedTaskGroupId}
                     authoringNumbers={authoringNumbers}

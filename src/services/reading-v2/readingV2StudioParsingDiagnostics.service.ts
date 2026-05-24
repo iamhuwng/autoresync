@@ -698,14 +698,16 @@ export const buildReadingV2StudioParsingDiagnostics = (
   const missingAnswerKeyRows = [...parsedQuestionNumbers]
     .filter((questionNumber) => !answerKey.rows.some((row) => row.questionNumber === questionNumber))
     .sort((left, right) => left - right);
-  const sourceText = input.importCandidate?.rawText ?? '';
+  const candidateRawText = input.importCandidate?.rawText ?? '';
+  const sourceText = input.importCandidate?.sourceRawText ?? candidateRawText;
   const answerKeyText = input.importCandidate?.answerKeyText ?? '';
+  const candidateRawTextIsStructured = candidateRawText.includes(READING_V2_STRUCTURED_MATERIALS_START);
   const sourceFormat = sourceText.includes(READING_V2_STRUCTURED_MATERIALS_START)
     ? 'structured-json'
     : sourceText.trim()
       ? 'plain-text'
       : 'none';
-  const structuredSource = sourceFormat === 'structured-json';
+  const structuredSource = candidateRawTextIsStructured || sourceFormat === 'structured-json';
   const questionRangeHeadingCount = (sourceText.match(/####\s+Questions\s+\d+\s*[-\u2013\u2014]\s*\d+/gi) ?? []).length;
   const numberedQuestionLineCount = (sourceText.match(/^\s*(?:\*\*)?\d{1,3}(?:\*\*)?[\).]?\s+\S+/gm) ?? []).length;
   const taskTypeCounts = orderedTaskGroups.reduce<Record<string, number>>((counts, taskGroup) => {
@@ -754,10 +756,13 @@ export const buildReadingV2StudioParsingDiagnostics = (
       supportedFileType: input.importCandidate?.supportedFileType,
       rawTextIncluded: Boolean(sourceText),
       rawText: sourceText,
+      rawTextRole: input.importCandidate?.sourceRawText ? 'original-source' : 'import-candidate-payload',
       rawTextCharCount: sourceText.length,
       rawTextLineCount: countLines(sourceText),
       questionRangeHeadingCount,
       numberedQuestionLineCount,
+      structuredPayloadText: candidateRawTextIsStructured ? candidateRawText : undefined,
+      structuredPayloadCharCount: candidateRawTextIsStructured ? candidateRawText.length : undefined,
       answerKey: {
         rawTextIncluded: Boolean(answerKeyText),
         rawText: answerKeyText,

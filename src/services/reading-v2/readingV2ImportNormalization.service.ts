@@ -30,12 +30,19 @@ import {
   type ReadingV2InstructionSemantics,
 } from './readingV2InstructionTemplates.service';
 import { normalizeReadingV2JudgementAnswerForStorage } from './readingV2JudgementAnswers.service';
+import {
+  readingV2TaskNeedsOptionSet,
+  readingV2TaskUsesImportedLabeledOptions,
+  readingV2TaskUsesImportedSectionReferences,
+  readingV2TaskUsesReferenceLabelRange,
+} from './readingV2TaskComponentContracts.service';
 
 export interface ReadingV2ImportCandidate {
   readonly sourceKind: 'pasted-text' | 'uploaded-file' | 'auto-gemini';
   readonly fileName?: string;
   readonly supportedFileType?: 'txt' | 'docx' | 'pdf';
   readonly rawText?: string;
+  readonly sourceRawText?: string;
   readonly answerKeyText?: string;
   readonly teacherAnswerKey?: ReadingV2TeacherAnswerKeyPayload;
   readonly autoImportDiagnostics?: readonly ReadingV2AutoImportCandidateDiagnostic[];
@@ -567,11 +574,6 @@ const normalizeAnswersForResponseShape = (
     })
     .filter(Boolean);
 
-const taskTypeNeedsOptionSet = (taskType: ReadingV2CanonicalTaskType): boolean => {
-  const family = getReadingV2TaskFamily(taskType);
-  return family === 'choice' || family === 'matching';
-};
-
 const instructionSourceExcerpt = (text: string | undefined): string | undefined => {
   const cleaned = cleanMarkdown(text ?? '');
   if (!cleaned) {
@@ -760,6 +762,7 @@ interface StructuredSectionInstruction {
   readonly table?: StructuredTablePayload;
   readonly flowchart?: StructuredFlowchartPayload;
   readonly diagram?: StructuredDiagramPayload;
+  readonly layoutHint?: string;
   readonly sectionReferences?: readonly {
     readonly label?: string;
     readonly text?: string;
@@ -1210,12 +1213,34 @@ const labelsFromLetterRange = (range: string | undefined): readonly string[] => 
   );
 };
 
+const letterLabelRangeFromInstructionText = (text: string | undefined): string | undefined => {
+  const normalized = cleanMarkdown(text ?? '')
+    .replace(/\u2013|\u2014/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const match = normalized.match(/\b([A-Za-z])\s*(?:-|to)\s*([A-Za-z])\b/);
+  const startLabel = match?.[1]?.toUpperCase();
+  const endLabel = match?.[2]?.toUpperCase();
+
+  if (!startLabel || !endLabel) {
+    return undefined;
+  }
+
+  const start = startLabel.charCodeAt(0);
+  const end = endLabel.charCodeAt(0);
+  if (end <= start || end - start > 25) {
+    return undefined;
+  }
+
+  return `${startLabel}-${endLabel}`;
+};
+
 const defaultOptionLabelsForTaskType = (
   taskType: ReadingV2CanonicalTaskType,
   instruction?: StructuredSectionInstruction,
 ): readonly string[] => {
   const rangeLabels = labelsFromLetterRange(
-    taskType === 'multiple-choice' || taskType === 'multiple-select' || taskType === 'summary-completion-list'
+    readingV2TaskUsesImportedLabeledOptions(taskType)
       ? instruction?.optionLabelRange
       : instruction?.referenceLabelRange,
   );
@@ -1257,6 +1282,9 @@ const structuredInstructionSemantics = (input: {
   readonly selectionLimit?: number;
 }): ReadingV2InstructionSemantics => {
   const sourceText = structuredInstructionSourceText(input.instruction);
+  const referenceLabelRange = input.instruction.referenceLabelRange
+    ?? (readingV2TaskUsesReferenceLabelRange(input.taskType) ? letterLabelRangeFromInstructionText(sourceText) : undefined)
+    ?? labelRangeFromItems(input.instruction.sectionReferences);
 
   return {
     questionRange: questionRangeSemantics(input.start, input.end),
@@ -1269,7 +1297,7 @@ const structuredInstructionSemantics = (input: {
     passageNumber: input.passageNumber,
     selectionLimit: input.instruction.selectionLimit ?? input.selectionLimit,
     optionLabelRange: input.instruction.optionLabelRange ?? labelRangeFromItems(input.instruction.labeledOptions),
-    referenceLabelRange: input.instruction.referenceLabelRange ?? labelRangeFromItems(input.instruction.sectionReferences),
+    referenceLabelRange,
     reuseAllowed: input.instruction.reuseAllowed,
   };
 };
@@ -1474,6 +1502,80 @@ const noteCompletionLayoutContext = (
   }
 
   return inferredNoteLayoutContext(groupQuestions);
+};
+
+const splitSummaryPromptBlank = (
+  promptText: string,
+): { readonly before: string; readonly after: string } | null => {
+  const match = promptText.match(visibleQuestionBlankPattern);
+  if (!match || match.index === undefined) {
+    return null;
+  }
+
+  return {
+    before: preserveSourceMarkdown(promptText.slice(0, match.index)).trim(),
+    after: preserveSourceMarkdown(promptText.slice(match.index + match[0].length)).trim(),
+  };
+};
+
+const mergeSummarySegments = (left: string | undefined, right: string | undefined): string => {
+  const leftText = left?.trim() ?? '';
+  const rightText = right?.trim() ?? '';
+
+  if (!leftText) {
+    return rightText;
+  }
+  if (!rightText) {
+    return leftText;
+  }
+
+  const leftKey = leftText.toLowerCase();
+  const rightKey = rightText.toLowerCase();
+  if (leftKey === rightKey || leftKey.includes(rightKey)) {
+    return leftText;
+  }
+  if (rightKey.includes(leftKey)) {
+    return rightText;
+  }
+
+  const maxOverlap = Math.min(leftText.length, rightText.length);
+  for (let length = maxOverlap; length >= 16; length -= 1) {
+    if (leftKey.slice(-length) === rightKey.slice(0, length)) {
+      return `${leftText}${rightText.slice(length)}`;
+    }
+  }
+
+  return `${leftText} ${rightText}`;
+};
+
+const summaryCompletionLayoutHint = (
+  taskType: ReadingV2CanonicalTaskType,
+  instruction: StructuredSectionInstruction,
+  groupQuestions: readonly StructuredReadingQuestion[],
+): string | undefined => {
+  if (instruction.layoutHint || (taskType !== 'summary-completion-text' && taskType !== 'summary-completion-list')) {
+    return instruction.layoutHint;
+  }
+
+  const splits = groupQuestions.map((question) => splitSummaryPromptBlank(structuredQuestionPromptText(question)));
+  if (splits.length === 0 || splits.some((split) => split === null)) {
+    return undefined;
+  }
+
+  const segments: string[] = [];
+  (splits as readonly { readonly before: string; readonly after: string }[]).forEach((split, index) => {
+    if (index === 0) {
+      segments[0] = split.before;
+    } else {
+      segments[index] = mergeSummarySegments(segments[index], split.before);
+    }
+    segments[index + 1] = mergeSummarySegments(segments[index + 1], split.after);
+  });
+
+  return JSON.stringify({
+    kind: taskType === 'summary-completion-text' ? 'summary-text' : 'summary-list',
+    segments: Array.from({ length: groupQuestions.length + 1 }, (_, index) => segments[index] ?? ''),
+  });
 };
 
 const structuredTableCellText = (cell: StructuredTableCell | string): string =>
@@ -1980,6 +2082,39 @@ const optionSetFromItems = (
   };
 };
 
+const matchingInformationItemsFromReferenceRange = (
+  instruction?: StructuredSectionInstruction,
+): readonly StructuredOptionItem[] => {
+  const referenceLabelRange = instruction?.referenceLabelRange
+    ?? letterLabelRangeFromInstructionText(instruction ? structuredInstructionSourceText(instruction) : undefined);
+
+  return labelsFromLetterRange(referenceLabelRange).map((label) => ({
+    label,
+    text: fallbackOptionText('matching-information', label),
+  }));
+};
+
+const isMatchingInformationParagraphReferenceItem = (item: StructuredOptionItem): boolean => {
+  const label = cleanMarkdown(item.label ?? '').toUpperCase();
+  const text = cleanMarkdown(item.text ?? '');
+
+  if (!/^[A-Z]$/.test(label)) {
+    return false;
+  }
+
+  return !text
+    || text.toUpperCase() === label
+    || new RegExp(`^(?:paragraph|section)\\s+${label}$`, 'i').test(text);
+};
+
+const matchingInformationParagraphReferenceItems = (
+  questions: readonly StructuredReadingQuestion[],
+  instruction?: StructuredSectionInstruction,
+): readonly StructuredOptionItem[] => [
+  ...(instruction?.sectionReferences ?? []),
+  ...questions.flatMap((question) => question.sectionReferences ?? []),
+].filter(isMatchingInformationParagraphReferenceItem);
+
 const optionSetFromStructuredQuestions = (
   optionSetId: ReturnType<typeof readingV2Ids.optionSetId>,
   taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>,
@@ -1987,13 +2122,30 @@ const optionSetFromStructuredQuestions = (
   questions: readonly StructuredReadingQuestion[],
   instruction?: StructuredSectionInstruction,
 ): ReadingV2OptionSet => {
+  if (taskType === 'matching-information') {
+    const referenceRangeItems = matchingInformationItemsFromReferenceRange(instruction);
+    if (referenceRangeItems.length > 0) {
+      return optionSetFromItems(optionSetId, taskGroupId, taskType, referenceRangeItems, instruction);
+    }
+
+    const paragraphReferenceItems = matchingInformationParagraphReferenceItems(questions, instruction);
+    if (paragraphReferenceItems.length > 0) {
+      return optionSetFromItems(optionSetId, taskGroupId, taskType, paragraphReferenceItems, instruction);
+    }
+  }
+
   const sourceItems: StructuredOptionItem[] = [
-    ...(instruction?.sectionReferences ?? []),
-    ...(instruction?.labeledOptions ?? []),
+    ...(readingV2TaskUsesImportedSectionReferences(taskType) ? instruction?.sectionReferences ?? [] : []),
+    ...(readingV2TaskUsesImportedLabeledOptions(taskType) ? instruction?.labeledOptions ?? [] : []),
   ];
 
   questions.forEach((question) => {
-    sourceItems.push(...(question.labeledOptions ?? []), ...(question.sectionReferences ?? []));
+    if (readingV2TaskUsesImportedLabeledOptions(taskType)) {
+      sourceItems.push(...(question.labeledOptions ?? []));
+    }
+    if (readingV2TaskUsesImportedSectionReferences(taskType)) {
+      sourceItems.push(...(question.sectionReferences ?? []));
+    }
   });
 
   return optionSetFromItems(optionSetId, taskGroupId, taskType, sourceItems, instruction);
@@ -2028,13 +2180,14 @@ const repeatedInstructionChoiceBanks = (
 };
 
 const questionChoiceOptionItems = (
+  taskType: ReadingV2CanonicalTaskType,
   question: StructuredReadingQuestion,
   repeatedBanks: readonly (readonly StructuredOptionItem[])[],
   questionIndex: number,
 ): readonly StructuredOptionItem[] => {
   const questionItems = [
-    ...(question.labeledOptions ?? []),
-    ...(question.sectionReferences ?? []),
+    ...(readingV2TaskUsesImportedLabeledOptions(taskType) ? question.labeledOptions ?? [] : []),
+    ...(readingV2TaskUsesImportedSectionReferences(taskType) ? question.sectionReferences ?? [] : []),
   ];
 
   return questionItems.length > 0
@@ -2060,7 +2213,7 @@ const createPerQuestionChoiceOptionSets = (input: {
 
   input.questions.forEach((question, questionIndex) => {
     const questionNumber = structuredQuestionNumber(question);
-    const items = questionChoiceOptionItems(question, repeatedBanks, questionIndex);
+    const items = questionChoiceOptionItems(input.taskType, question, repeatedBanks, questionIndex);
 
     if (!questionNumber || normalizeStructuredOptionItems(items).length < 2) {
       return;
@@ -2379,7 +2532,7 @@ const normalizeStructuredReadingPayload = (
 
         return interactionId;
       });
-      const optionSetRefs = taskTypeNeedsOptionSet(taskType)
+      const optionSetRefs = readingV2TaskNeedsOptionSet(taskType)
         ? Array.from(new Set(interactionIds.flatMap((interactionId) => {
             const interactionResponseShape = interactions[interactionId]?.responseShape;
             return interactionResponseShape?.kind === 'single-choice'
@@ -2441,11 +2594,11 @@ const normalizeStructuredReadingPayload = (
           : [{ stimulusId, anchorIds }],
         optionSetRefs,
         interactionIds,
-        layoutHint: noteContext?.layoutHint,
+        layoutHint: summaryCompletionLayoutHint(taskType, instruction, groupQuestions) ?? noteContext?.layoutHint,
         validationState: { issues: instructionIssue ? [instructionIssue] : [] },
       };
 
-      if (taskTypeNeedsOptionSet(taskType)) {
+      if (readingV2TaskNeedsOptionSet(taskType)) {
         if (optionSetRefs.includes(optionSetId)) {
           optionSets[optionSetId] = optionSetFromStructuredQuestions(optionSetId, taskGroupId, taskType, groupQuestions, instruction);
         }
@@ -2791,7 +2944,7 @@ export const normalizeReadingV2ImportCandidate = (
           punctuation: 'ignored',
         },
         stimulusRefs: [{ stimulusId, anchorIds }],
-        optionSetRefs: taskTypeNeedsOptionSet(block.taskType) ? [optionSetId] : [],
+        optionSetRefs: readingV2TaskNeedsOptionSet(block.taskType) ? [optionSetId] : [],
         interactionIds,
         importEvidenceRefs: [evidenceId],
         validationState: {
@@ -2805,7 +2958,7 @@ export const normalizeReadingV2ImportCandidate = (
         },
       };
 
-      if (taskTypeNeedsOptionSet(block.taskType)) {
+      if (readingV2TaskNeedsOptionSet(block.taskType)) {
         optionSets[optionSetId] = createOptionSet(optionSetId, taskGroupId);
       }
 

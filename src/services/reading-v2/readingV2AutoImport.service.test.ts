@@ -292,13 +292,14 @@ const generatorFor = (data: unknown): ReadingV2AutoStructuredGenerator => ({
 const v4ExtractorFor = (overrides: {
   readonly answerKey?: Record<number, string | string[]>;
   readonly passageContent?: string;
+  readonly passageTitle?: string;
 } = {}): ReadingV2AutoV4Extractor => ({
   parsePassagesOnly: vi.fn().mockResolvedValue({
     success: true,
     data: {
       passages: [{
         id: 'passage-1',
-        title: 'Auto passage',
+        title: overrides.passageTitle ?? 'Auto passage',
         content: overrides.passageContent ?? [
           'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
           'It has a second sentence to avoid being too tiny for guardrails.',
@@ -490,6 +491,111 @@ describe('readingV2AutoImport.service', () => {
     expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('uses source-ledger passage titles instead of Auto V4 timing instruction titles', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      '',
+      'You should spend about 20 minutes on Questions 1-2, which are based on Reading Passage 1 below.',
+      '',
+      '## Real source passage title',
+      '',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '1 The first statement is supported by the passage.',
+      '2 The second statement is contradicted by the passage.',
+      '',
+      'Answers',
+      '1 TRUE',
+      '2 FALSE',
+    ].join('\n');
+    const v4Extractor = v4ExtractorFor({
+      passageTitle: 'You should spend about 20 minutes on Questions 1-2, which are based on Reading Passage 1 below.',
+    });
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 title fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const section = normalized.document.sections[normalized.document.sectionIds[0]!]!;
+    const stimulus = normalized.document.stimuli[section.stimulusIds[0]!]!;
+
+    expect(stimulus.title).toBe('Real source passage title');
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('reconstructs Auto V4 summary-completion-text as one source summary layout', async () => {
+    const fixture = buildSharedInlineSummaryFixture();
+    const summaryQuestions = Array.from({ length: 5 }, (_, index) => {
+      const questionNumber = 14 + index;
+      return {
+        questionNumber,
+        questionText: fixture.sharedSummaryLine,
+        type: 'summary-completion-text',
+        answer: '',
+        passageId: 'passage-2',
+        confidence: 0.95,
+        sectionInstruction: 'Complete the summary below. Choose ONE WORD ONLY from the passage for each answer.',
+      };
+    });
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-2',
+            title: 'Summary source passage',
+            content: 'Synthetic passage body has enough source text for the Auto V4 summary layout test.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 14,
+            questionEnd: 18,
+            wordCount: 14,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: summaryQuestions,
+          answerKey: {
+            14: 'type',
+            15: 'change',
+            16: 'openness',
+            17: 'situations',
+            18: 'empathy',
+          },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: fixture.raw, sourceName: 'Auto V4 summary fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const taskGroup = Object.values(normalized.document.taskGroups).find(
+      (candidate) => candidate.officialTaskType === 'summary-completion-text',
+    )!;
+    const layout = JSON.parse(taskGroup.layoutHint ?? '{}') as { kind?: string; segments?: readonly string[] };
+
+    expect(layout.kind).toBe('summary-text');
+    expect(layout.segments).toHaveLength(6);
+    expect(layout.segments?.join(' ')).toContain('Psychologists have traditionally believed');
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
@@ -2608,7 +2714,7 @@ describe('readingV2AutoImport.service', () => {
     ]);
   });
 
-  it('enriches V3 transcripts from bare body labels when spans are missing', async () => {
+  it('uses matching-information reference ranges instead of heuristic body-label bank recovery when spans are missing', async () => {
     const raw = [
       'READING PASSAGE 1',
       'A',
@@ -2702,8 +2808,8 @@ describe('readingV2AutoImport.service', () => {
             groups: [{
               questionRange: { start: 1, end: 2 },
               taskType: 'matching-information',
-              sourceInstructionText: 'Which paragraph contains the following information?',
-              instructionMeta: {},
+              sourceInstructionText: 'Reading Passage 1 has four paragraphs, A-D. Which paragraph contains the following information?',
+              instructionMeta: { referenceLabelRange: 'A-D' },
               questions: [
                 {
                   number: 1,
@@ -2732,25 +2838,37 @@ describe('readingV2AutoImport.service', () => {
       },
     );
 
-    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(2);
-    expect(normalizerCalls).toEqual([0, 0]);
-    expect(seenBankSections).toHaveLength(2);
+    expect(questionAreaNormalizer.generateStructuredJson).toHaveBeenCalledTimes(1);
+    expect(normalizerCalls).toEqual([0]);
+    expect(seenBankSections).toHaveLength(1);
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'groq-package-completion-retried' }),
       expect.objectContaining({ code: 'groq-package-completion-retry-failed' }),
     ]));
     expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'missing-reference-bank' }),
     ]));
-    expect(result.candidate.autoImportDiagnostics).toEqual(expect.arrayContaining([
+    expect(result.candidate.autoImportDiagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'bank-ownership-heuristic-used', stage: 'repaired-transcript' }),
     ]));
 
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     assertValidReadingV2CanonicalDocument(normalized.document);
     expect(Object.values(normalized.document.interactions)).toHaveLength(2);
+    const matchingInformationGroup = Object.values(normalized.document.taskGroups)
+      .find((group) => group.officialTaskType === 'matching-information');
+    const optionSet = matchingInformationGroup?.optionSetRefs[0]
+      ? normalized.document.optionSets[matchingInformationGroup.optionSetRefs[0]]
+      : undefined;
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D']);
+    expect(optionSet?.options.map((option) => option.text)).toEqual([
+      'Paragraph A',
+      'Paragraph B',
+      'Paragraph C',
+      'Paragraph D',
+    ]);
   });
 
   it('repairs a missing final V3 group from question-area lines', async () => {

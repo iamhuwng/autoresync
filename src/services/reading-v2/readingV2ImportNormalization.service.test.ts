@@ -1222,6 +1222,115 @@ describe('readingV2ImportNormalization.service', () => {
     ]));
   });
 
+  it('uses declared paragraph ranges for matching-information and keeps nearby feature banks separate', () => {
+    const people = [
+      { label: 'A', text: 'Yanira Pineda' },
+      { label: 'B', text: 'Susanna Tol' },
+      { label: 'C', text: 'Elizabeth English' },
+      { label: 'D', text: 'Raisa Chowdhury' },
+      { label: 'E', text: 'Greg Spotts' },
+    ];
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'cam20-test04-passage2.txt',
+        materials: [
+          {
+            passageNumber: 2,
+            title: 'Mixed matching passage',
+            passages: [
+              {
+                title: 'Mixed matching passage',
+                content: [
+                  'Paragraph A contains one source detail.',
+                  '',
+                  'Paragraph B contains another source detail.',
+                  '',
+                  'Paragraph C develops the argument.',
+                  '',
+                  'Paragraph D adds evidence.',
+                  '',
+                  'Paragraph E gives contrast.',
+                  '',
+                  'Paragraph F closes the discussion.',
+                ].join('\n'),
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p2-q14-17',
+                taskType: 'matching-information',
+                sourceInstructionEvidence: 'Reading Passage 2 has six paragraphs, A-F. Which paragraph contains the following information? Write the correct letter, A-F.',
+                questionRange: { start: 14, end: 17 },
+                sectionReferences: people,
+              },
+              {
+                id: 'p2-q23-26',
+                taskType: 'matching-features',
+                sourceInstructionEvidence: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-E.',
+                questionRange: { start: 23, end: 26 },
+                sectionReferences: people,
+              },
+            ],
+            questions: [
+              { questionNumber: 14, type: 'matching-information', sectionInstructionId: 'p2-q14-17', questionText: 'a detail from paragraph A' },
+              { questionNumber: 15, type: 'matching-information', sectionInstructionId: 'p2-q14-17', questionText: 'a detail from paragraph C' },
+              { questionNumber: 16, type: 'matching-information', sectionInstructionId: 'p2-q14-17', questionText: 'a detail from paragraph E' },
+              { questionNumber: 17, type: 'matching-information', sectionInstructionId: 'p2-q14-17', questionText: 'a detail from paragraph F' },
+              { questionNumber: 23, type: 'matching-features', sectionInstructionId: 'p2-q23-26', questionText: 'a statement linked to Yanira' },
+              { questionNumber: 24, type: 'matching-features', sectionInstructionId: 'p2-q23-26', questionText: 'a statement linked to Susanna' },
+              { questionNumber: 25, type: 'matching-features', sectionInstructionId: 'p2-q23-26', questionText: 'a statement linked to Elizabeth' },
+              { questionNumber: 26, type: 'matching-features', sectionInstructionId: 'p2-q23-26', questionText: 'a statement linked to Raisa' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: [
+        '14 A',
+        '15 C',
+        '16 E',
+        '17 F',
+        '23 A',
+        '24 B',
+        '25 C',
+        '26 D',
+      ].join('\n'),
+    }));
+    const groups = Object.values(result.document.taskGroups);
+    const groupByFirstQuestion = (questionNumber: number) =>
+      groups.find((taskGroup) =>
+        taskGroup.interactionIds.some((interactionId) =>
+          result.document.interactions[interactionId]?.reviewLabel.displayNumber === questionNumber,
+        ),
+      );
+    const optionSetForGroup = (taskGroupId: string | undefined) => {
+      const optionSetId = taskGroupId ? result.document.taskGroups[taskGroupId]?.optionSetRefs[0] : undefined;
+      return optionSetId ? result.document.optionSets[optionSetId] : undefined;
+    };
+    const matchingInformationOptions = optionSetForGroup(groupByFirstQuestion(14)?.taskGroupId)?.options ?? [];
+    const matchingFeaturesOptions = optionSetForGroup(groupByFirstQuestion(23)?.taskGroupId)?.options ?? [];
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(matchingInformationOptions.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    expect(matchingInformationOptions.map((option) => option.text)).toEqual([
+      'Paragraph A',
+      'Paragraph B',
+      'Paragraph C',
+      'Paragraph D',
+      'Paragraph E',
+      'Paragraph F',
+    ]);
+    expect(matchingInformationOptions.map((option) => option.text)).not.toContain('Yanira Pineda');
+    expect(matchingFeaturesOptions.map((option) => option.text)).toEqual(people.map((person) => person.text));
+    expect(validation.canPublish).toBe(true);
+  });
+
   it('splits repeated section-level multiple-choice banks into per-question option sets', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -1362,6 +1471,196 @@ describe('readingV2ImportNormalization.service', () => {
     expect(optionSet?.options.map((option) => option.text)).toContain('Paragraph H');
     expect(taskGroup?.instructionBlocks[0]?.text).toContain('A-H');
     expect(taskGroup?.validationState.issues).toEqual([]);
+  });
+
+  it('derives matching-information paragraph ranges from source instruction text when providers omit referenceLabelRange', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'matching-information-source-range.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Source range',
+            passages: [
+              {
+                title: 'Source range',
+                content: 'Paragraph A.\n\nParagraph B.\n\nParagraph C.\n\nParagraph D.\n\nParagraph E.\n\nParagraph F.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'matching-information',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Reading Passage 1 has six paragraphs, A-F. Which paragraph contains the following information?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'First paragraph detail.',
+              },
+              {
+                questionNumber: 2,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Second paragraph detail.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A\n2 F',
+    }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const optionSet = Object.values(result.document.optionSets)[0];
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(optionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    expect(taskGroup?.instructionBlocks[0]?.text).toContain('A-F');
+    expect(validation.blockingIssues).toEqual([]);
+  });
+
+  it('does not let matching-features people banks override matching-information paragraph ranges', () => {
+    const peopleBank = [
+      { label: 'A', text: 'Yanira Pineda' },
+      { label: 'B', text: 'Susanna Tol' },
+      { label: 'C', text: 'Elizabeth English' },
+      { label: 'D', text: 'Raisa Chowdhury' },
+      { label: 'E', text: 'Greg Spotts' },
+    ];
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'matching-information-polluted-bank.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Mixed matching groups',
+            passages: [
+              {
+                title: 'Mixed matching groups',
+                content: 'Paragraph A.\n\nParagraph B.\n\nParagraph C.\n\nParagraph D.\n\nParagraph E.\n\nParagraph F.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q14-17',
+                taskType: 'matching-information',
+                questionRange: { start: 14, end: 17 },
+                sourceInstructionEvidence: 'Reading Passage 2 has six paragraphs, A-F. Which paragraph contains the following information?',
+                referenceLabelRange: 'A-F',
+                sectionReferences: peopleBank,
+              },
+              {
+                id: 'p1-q23-26',
+                taskType: 'matching-features',
+                questionRange: { start: 23, end: 26 },
+                sourceInstructionEvidence: 'Look at the following statements and the list of people below. Match each statement with the correct person, A-E.',
+                referenceLabelRange: 'A-E',
+                sectionReferences: peopleBank,
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 14,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q14-17',
+                questionText: 'First paragraph detail.',
+              },
+              {
+                questionNumber: 15,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q14-17',
+                questionText: 'Second paragraph detail.',
+              },
+              {
+                questionNumber: 16,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q14-17',
+                questionText: 'Third paragraph detail.',
+              },
+              {
+                questionNumber: 17,
+                type: 'matching-information',
+                sectionInstructionId: 'p1-q14-17',
+                questionText: 'Fourth paragraph detail.',
+              },
+              {
+                questionNumber: 23,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q23-26',
+                questionText: 'First feature claim.',
+              },
+              {
+                questionNumber: 24,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q23-26',
+                questionText: 'Second feature claim.',
+              },
+              {
+                questionNumber: 25,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q23-26',
+                questionText: 'Third feature claim.',
+              },
+              {
+                questionNumber: 26,
+                type: 'matching-features',
+                sectionInstructionId: 'p1-q23-26',
+                questionText: 'Fourth feature claim.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '14 C\n15 A\n16 D\n17 F\n23 B\n24 E\n25 A\n26 C',
+    }));
+    const matchingInformationGroup = Object.values(result.document.taskGroups)
+      .find((group) => group.officialTaskType === 'matching-information');
+    const matchingFeaturesGroup = Object.values(result.document.taskGroups)
+      .find((group) => group.officialTaskType === 'matching-features');
+    const matchingInformationOptionSet = matchingInformationGroup?.optionSetRefs[0]
+      ? result.document.optionSets[matchingInformationGroup.optionSetRefs[0]]
+      : undefined;
+    const matchingFeaturesOptionSet = matchingFeaturesGroup?.optionSetRefs[0]
+      ? result.document.optionSets[matchingFeaturesGroup.optionSetRefs[0]]
+      : undefined;
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(matchingInformationOptionSet?.options.map((option) => option.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    expect(matchingInformationOptionSet?.options.map((option) => option.text)).toEqual([
+      'Paragraph A',
+      'Paragraph B',
+      'Paragraph C',
+      'Paragraph D',
+      'Paragraph E',
+      'Paragraph F',
+    ]);
+    expect(matchingFeaturesOptionSet?.options.map((option) => option.text)).toEqual([
+      'Yanira Pineda',
+      'Susanna Tol',
+      'Elizabeth English',
+      'Raisa Chowdhury',
+      'Greg Spotts',
+    ]);
+    expect(validation.blockingIssues).toEqual([]);
+    expect(validation.canPublish).toBe(true);
   });
 
   it('preserves matching-features people lists as source reference banks', () => {
@@ -2046,6 +2345,76 @@ describe('readingV2ImportNormalization.service', () => {
       (interaction) => interaction.reviewLabel.displayNumber,
     )).toEqual([1, 2, 3, 4]);
     expect(Object.values(result.document.optionSets)[0]?.options.map((option) => option.label)).toEqual(['A', 'B']);
+    expect(validation.canPublish).toBe(true);
+  });
+
+  it('deduplicates overlapping summary-completion-text layout segments', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Recovered summary',
+            passages: [
+              {
+                title: 'Recovered summary',
+                content: 'This passage has enough source text for an imported summary completion group.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-3',
+                taskType: 'summary-completion-text',
+                questionRange: { start: 1, end: 3 },
+                text: 'Complete the summary below. Choose ONE WORD ONLY from the passage for each answer.',
+                wordLimit: 1,
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q1-3',
+                questionText: 'The source summary begins _____ and the second clause continues',
+              },
+              {
+                questionNumber: 2,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q1-3',
+                questionText: 'and the second clause continues _____ before the third part',
+              },
+              {
+                questionNumber: 3,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q1-3',
+                questionText: 'before the third part _____ until final clause.',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 alpha\n2 beta\n3 gamma',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const taskGroup = Object.values(result.document.taskGroups).find((group) =>
+      group.officialTaskType === 'summary-completion-text',
+    );
+    const layout = JSON.parse(taskGroup?.layoutHint ?? '{}') as { segments?: string[] };
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(layout.segments).toEqual([
+      'The source summary begins',
+      'and the second clause continues',
+      'before the third part',
+      'until final clause.',
+    ]);
     expect(validation.canPublish).toBe(true);
   });
 
