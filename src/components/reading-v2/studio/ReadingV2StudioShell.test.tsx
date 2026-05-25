@@ -318,9 +318,9 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Import review and answer key authority')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Import review and source verification')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review import details' }));
-    expect(screen.getByLabelText('Import review and answer key authority')).toHaveTextContent('Teacher key partially bound');
+    expect(screen.getByLabelText('Import review and source verification')).toHaveTextContent('Teacher key partially bound');
     expect(onAction).toHaveBeenCalledWith('toggleImportReviewDetails', expect.objectContaining({ outcome: 'expanded' }));
     const missingQuestionRow = screen.getByText('Question 2 has no bound teacher-key answer.').closest('li');
     expect(missingQuestionRow).toBeTruthy();

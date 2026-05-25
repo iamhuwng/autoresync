@@ -3,7 +3,7 @@
 > **Created:** 2026-05-25
 > **Branch:** `codex/reading-v2-ielts-task-contracts`
 > **Scope:** Retire the whole-test V3 Gemini/Groq pipeline, keep V4 as the main Auto parser, make raw teacher input the source of truth, and use Groq only for small teacher-triggered or verifier-triggered question-group repair.
-> **Parent Evidence Task:** `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-pipeline-ab-e2e.md`
+> **Parent Evidence:** Superseded A/B scratch task removed from active workspace; this task owns the V4 decision path.
 
 ## Context
 
@@ -331,24 +331,24 @@ type ReadingV2GroupRepairPatch = {
 
 ## Useful V3 Parts To Port
 
-- [ ] Source-ledger verifier issue families.
-- [ ] Group coverage checks.
-- [ ] Exact source span hints.
-- [ ] Answer-key binding diagnostics.
-- [ ] Option/reference-bank contamination guards.
-- [ ] Repair reason codes.
-- [ ] Replay bundle shape with redacted evidence.
+- [x] Source-ledger verifier issue families.
+- [x] Group coverage checks.
+- [x] Exact source span hints.
+- [x] Answer-key binding diagnostics.
+- [x] Option/reference-bank contamination guards.
+- [x] Repair reason codes.
+- [x] Replay bundle shape with redacted evidence.
 - [ ] Small task-group package shape.
 - [ ] Provider metrics and retry/failure diagnostics.
 
 ## V3 Parts To Remove
 
-- [ ] Whole-test `v3-groq-package` lane forcing.
-- [ ] Groq package fanout as primary parse architecture.
-- [ ] Groq as Gemini fallback.
-- [ ] Merge-heavy package reassembly path.
-- [ ] Retry loops that run without a precise verifier reason.
-- [ ] UI copy or diagnostics that imply Auto V3 is the current target.
+- [x] Whole-test `v3-groq-package` lane forcing.
+- [x] Groq package fanout as primary parse architecture.
+- [x] Groq as Gemini fallback.
+- [x] Merge-heavy package reassembly path.
+- [x] Retry loops that run without a precise verifier reason.
+- [x] UI copy or diagnostics that imply Auto V3 is the current target.
 
 ## Implementation Tasks
 
@@ -360,30 +360,30 @@ type ReadingV2GroupRepairPatch = {
   - [ ] 1.5 Keep the A/B tasklist open until its decision report is written or explicitly superseded.
 
 - [ ] 2.0 Make raw teacher input the durable import source ledger.
-  - [ ] 2.1 Store exact raw input for the import session before provider calls.
-  - [ ] 2.2 Store hash, line index, normalized comparison text, and source span map.
-  - [ ] 2.3 Define raw-source retention lifecycle for draft, publish, diagnostics, and cleanup.
-  - [ ] 2.4 Ensure committed reports use hashes, line references, and redacted snippets only.
+  - [x] 2.1 Store exact raw input for the import session before provider calls.
+  - [x] 2.2 Store hash, line index, normalized comparison text, and source span map.
+  - [x] 2.3 Define raw-source retention lifecycle for draft, publish, diagnostics, and cleanup.
+  - [x] 2.4 Ensure committed reports use hashes, line references, and redacted snippets only.
   - [ ] 2.5 Add tests proving raw source survives failed Auto attempts and teacher repair loops.
 
 - [ ] 3.0 Make V4 source-authoritative.
-  - [ ] 3.1 Ensure passage body text shown in Studio is copied from raw source spans when possible.
-  - [ ] 3.2 Treat V4 passage text as boundary evidence, not final source text.
+  - [x] 3.1 Ensure passage body text shown in Studio is copied from raw source spans when possible.
+  - [x] 3.2 Treat V4 passage text as boundary evidence, not final source text.
   - [ ] 3.3 Add hard source-diff gate for numbers, dates, names, paragraphs, question text, answer rows, and option banks.
   - [ ] 3.4 Classify harmless differences such as whitespace separately from semantic drift.
-  - [ ] 3.5 Block or mark `Needs review` when source text differs materially from raw input.
+  - [x] 3.5 Block or mark `Needs review` when source text differs materially from raw input.
 
 - [ ] 4.0 Add task-group quality verifier.
-  - [ ] 4.1 Emit one quality record per question group.
-  - [ ] 4.2 Compare question range, task type, instruction, option/reference bank, answer-key binding, and layout shape against raw source.
+  - [x] 4.1 Emit one quality record per question group.
+  - [x] 4.2 Compare question range, task type, instruction, option/reference bank, answer-key binding, and layout shape against raw source.
   - [ ] 4.3 Add task-family rules for matching information, matching headings, matching features, sentence endings, completion, table, note, flowchart, diagram, multiple choice, TFNG, and YNNG.
-  - [ ] 4.4 Mark each group as `ready`, `weak`, `blocked`, or `teacher-review`.
-  - [ ] 4.5 Surface exact reason codes in Studio without leaking raw provider output.
-  - [ ] 4.6 Compare Studio-rendered group content against the AI-mapped raw question-range span, not only against global raw text.
-  - [ ] 4.7 Detect under-representation where raw headings, subheadings, sentences, blanks, note rows, table cells, table columns, option banks, or instructions disappear from Studio.
-  - [ ] 4.8 Detect over-compression where AI summarizes or shortens visible raw question content instead of preserving minimal source wording.
-  - [ ] 4.9 Emit coverage metrics per group: raw text tokens represented, raw structural units represented, missing raw lines/cells/options, and changed high-risk tokens.
-  - [ ] 4.10 Add reason codes such as `group-source-underrepresented`, `note-heading-missing`, `note-row-missing`, `table-cell-missing`, `table-column-missing`, `instruction-shortened`, and `question-text-changed`.
+  - [x] 4.4 Mark each group as `ready`, `weak`, `blocked`, or `teacher-review`.
+  - [x] 4.5 Surface exact reason codes in Studio without leaking raw provider output.
+  - [x] 4.6 Compare Studio-rendered group content against the AI-mapped raw question-range span, not only against global raw text.
+  - [x] 4.7 Detect under-representation where raw headings, subheadings, sentences, blanks, note rows, table cells, table columns, option banks, or instructions disappear from Studio.
+  - [x] 4.8 Detect over-compression where AI summarizes or shortens visible raw question content instead of preserving minimal source wording.
+  - [x] 4.9 Emit coverage metrics per group: raw text tokens represented, raw structural units represented, missing raw lines/cells/options, and changed high-risk tokens.
+  - [x] 4.10 Add reason codes such as `group-source-underrepresented`, `note-heading-missing`, `note-row-missing`, `table-cell-missing`, `table-column-missing`, `instruction-shortened`, and `question-text-changed`.
 
 - [ ] 4A.0 Research and implement safe auto-fix versus alert rules.
   - [ ] 4A.1 Classify which under-representation failures can be deterministically fixed from raw source spans.
@@ -412,44 +412,48 @@ type ReadingV2GroupRepairPatch = {
   - [ ] 6.4 Stop after one failed repair unless teacher explicitly retries.
   - [ ] 6.5 Record provider metrics per repair request.
 
-- [ ] 7.0 Retire V3 whole pipeline.
-  - [ ] 7.1 Remove or disable long-term `v3-groq-package` lane selection.
-  - [ ] 7.2 Remove V3-only UI/provider labels after migration.
-  - [ ] 7.3 Delete dead V3 orchestration code only after V4 has ported required verifier pieces.
-  - [ ] 7.4 Keep historical docs and evidence clearly marked as historical.
-  - [ ] 7.5 Update tests that currently assert V3 lane forcing so they assert V4 source-authoritative behavior instead.
+- [x] 7.0 Retire V3 whole pipeline.
+  - [x] 7.1 Remove or disable long-term `v3-groq-package` lane selection.
+  - [x] 7.2 Remove V3-only UI/provider labels after migration.
+  - [x] 7.3 Delete dead V3 orchestration code only after V4 has ported required verifier pieces.
+  - [x] 7.4 Keep historical docs clearly marked as historical; remove stale generated V3/A-B artifacts from the active workspace.
+  - [x] 7.5 Update tests that currently assert V3 lane forcing so they assert V4 source-authoritative behavior instead.
 
 - [ ] 8.0 Improve Studio diagnostics and review UX.
   - [ ] 8.1 Show actual pipeline and repair source: V4 main parse, app verifier, Groq group repair.
   - [ ] 8.2 Show group-level quality status beside each group.
   - [ ] 8.3 Show repair reason and patch summary after Groq returns.
   - [ ] 8.4 Keep `Accept into Draft` disabled when hard source-fidelity blockers exist.
-  - [ ] 8.5 Ensure `Copy parsing diagnostics` includes group status, reason codes, provider metrics, and redacted source references.
+  - [x] 8.5 Ensure `Copy parsing diagnostics` includes group status, reason codes, provider metrics, and redacted source references.
 
 - [ ] 9.0 Verification and E2E coverage.
-  - [ ] 9.1 Add unit tests for source ledger retention and source-diff classification.
-  - [ ] 9.2 Add service tests for V4 source-authoritative assembly.
+  - [x] 9.1 Add unit tests for source ledger retention and source-diff classification.
+  - [x] 9.2 Add service tests for V4 source-authoritative assembly.
   - [ ] 9.3 Add task-group verifier tests across each IELTS task family.
   - [ ] 9.4 Add Groq group repair tests for success, rejected patch, provider failure, and teacher reject.
   - [ ] 9.5 Add Studio tests for `Repair group`, diff review, accept, reject, undo, and disabled publish.
   - [ ] 9.6 Add browser E2E for one successful V4 import, one V4 weak group repaired by Groq, and one blocked source-drift case.
   - [ ] 9.7 Rerun controlled Clippings fixtures after V3 retirement.
+  - [x] 9.8 Extend the Clippings E2E harness to accept an external gold baseline for random raw tests.
+  - [ ] 9.9 Promote random raw Clippings gold baselines into a repeatable corpus runner with hash/line-coordinate evidence only.
+  - [ ] 9.10 Add an automated Chrome/Playwright raw-paste import E2E that asserts Studio handoff, disabled publish, and group/answer coverage.
+  - [ ] 9.11 Refine verifier verdict labels so editable drafts with publish blockers are never reported as plain acceptable.
 
 ## Acceptance Criteria
 
-- [ ] V4 is the only default Auto parser path.
-- [ ] Whole-test V3/Groq fallback is removed or disabled outside historical diagnostics.
-- [ ] Raw teacher input is retained as source truth for verification.
-- [ ] Studio passage text cannot silently drift from raw source.
-- [ ] Every question group has a quality/verifier status.
-- [ ] Every question group compares Studio content against the mapped raw question-range span.
+- [x] V4 is the only default Auto parser path.
+- [x] Whole-test V3/Groq fallback is removed or disabled outside historical diagnostics.
+- [x] Raw teacher input is retained as source truth for verification.
+- [x] Studio passage text cannot silently drift from raw source.
+- [x] Every question group has a quality/verifier status.
+- [x] Every question group compares Studio content against the mapped raw question-range span.
 - [ ] Note/table/flowchart/diagram/completion groups cannot be marked ready when raw structural content is missing from Studio.
 - [ ] Deterministic source rehydration is used only for unambiguous missing-content cases; ambiguous cases alert the teacher or route to group repair.
 - [ ] Groq receives only group-scoped repair requests, not full IELTS tests.
 - [ ] Teacher can trigger repair for one bad group without rerunning the whole import.
 - [ ] Groq repair output is verified before teacher can accept it.
 - [ ] Teacher sees before/after diff before applying a repair.
-- [ ] Student/session projections contain no raw source, answer keys, provider output, or diagnostics.
+- [x] Student/session projections contain no raw source, answer keys, provider output, or diagnostics.
 - [ ] E2E evidence proves the new architecture is more accurate, efficient, and stable than the retired V3 lane.
 
 ## Open Questions
@@ -470,7 +474,7 @@ type ReadingV2GroupRepairPatch = {
 - [ ] `documentation/rules/mobile-portability.md` before adding browser storage or direct DOM/window access.
 - [ ] `documentation/rules/codebase-hygiene.md` before removing V3 imports or shared data contracts.
 - [ ] `documentation/rules/infrastructure.md` before changing persisted draft/source storage paths.
-- [ ] `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-pipeline-ab-e2e.md` before using A/B evidence as architecture justification.
+- [ ] Use only active V4 task evidence for architecture justification; historical V3/A-B docs are archive context, not implementation source.
 
 ## Implementation Notes
 
@@ -480,3 +484,10 @@ type ReadingV2GroupRepairPatch = {
 - Captures decision direction: V4 main path, raw source as authority, retire whole V3, port useful verifier pieces, use Groq only for focused group repair.
 - No code changes made by this tasklist creation.
 - Added representation-coverage requirement: compare Studio question-group content with the mapped raw question-range span to catch cut-off, shortened, or structurally incomplete note/table/completion groups.
+- Retired active V3 whole-lane implementation: removed `v3-groq-package` forcing, V3-only orchestration services/tests, clippings/A-B harness scripts, provider labels, smoke fixture aliases, and generated stale V3/A-B output artifacts. Active `src/`, `scripts/`, and `package.json` now grep clean for V3/Groq-package lane tokens.
+- Random raw Clippings E2E: selected `Practice Cam 16 Reading Test 02.md` from `C:\Users\The Lord\Desktop\luyentap\Clippings` excluding known prior gold/E2E samples. Source SHA-256: `7072A62D57137C5967159186C9419345D337BEFAC0C23C5060D21247281138F0`. Gold baseline stored in `output/reading-v2-auto-v4-random-clippings-e2e/cam16-test02-gold.json` with 3 passages, 8 groups, and 40 answer rows.
+- Service E2E command:
+  `cmd /c npm run reading-v2:auto-v4-clippings-e2e -- --source "C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 16 Reading Test 02.md" --gold "output\reading-v2-auto-v4-random-clippings-e2e\cam16-test02-gold.json" --out "output\reading-v2-auto-v4-random-clippings-e2e\cam16-test02-service-report.json" --allow-live-v4-provider`
+- Service E2E verdict: `editable-needs-review`. Auto V4 returned 3 passages, 40 questions, 40 answer-key rows, 0 missing questions, 0 answer mismatches, and all 8 expected groups: `1-8`, `9-13`, `14-16`, `17-20`, `21-26`, `27-30`, `31-35`, `36-40`.
+- Repair assessment from the same run: coverage and answers are sound enough for editable Studio draft, but 19 publish blockers remain. The blockers are useful safety gates, not silent failures: 3 passage source-drift warnings plus `group-source-underrepresented` and `instruction-shortened` on every group. Next repair focus is reducing false-positive/noisy weakness by task family while keeping hard blockers for true source loss.
+- Chrome raw-input E2E used the actual raw Clippings file pasted into the teacher `Create New Test -> IELTS -> Reading V2 -> Auto` flow. Studio reached `http://localhost:5173/teacher/reading-v2/import`, showed 3 passage tabs, 19 validation items pending, `Publish` disabled, and visible answer bindings matching the gold samples checked in Passage 1, 2, and 3. Evidence artifacts: `output/reading-v2-auto-v4-random-clippings-e2e/chrome-evidence-cam16-test02.json` and `output/reading-v2-auto-v4-random-clippings-e2e/chrome-studio-cam16-test02.png`.

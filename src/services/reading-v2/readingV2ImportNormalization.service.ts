@@ -43,9 +43,35 @@ export interface ReadingV2ImportCandidate {
   readonly supportedFileType?: 'txt' | 'docx' | 'pdf';
   readonly rawText?: string;
   readonly sourceRawText?: string;
+  readonly importSourceArtifact?: {
+    readonly artifactId: string;
+    readonly createdAt: string;
+    readonly sourceKind: 'teacher-paste';
+    readonly rawTextSha256: string;
+    readonly normalizedTextSha256: string;
+    readonly lineIndex: readonly {
+      readonly lineId: string;
+      readonly lineNumber: number;
+      readonly rawText: string;
+      readonly normalizedText: string;
+    }[];
+    readonly retention: {
+      readonly scope: 'draft-author-only';
+      readonly includeInStudentProjection: false;
+      readonly includeInSessionProjection: false;
+      readonly includeInPublicPayload: false;
+    };
+  };
   readonly answerKeyText?: string;
   readonly teacherAnswerKey?: ReadingV2TeacherAnswerKeyPayload;
   readonly autoImportDiagnostics?: readonly ReadingV2AutoImportCandidateDiagnostic[];
+  readonly autoImportGroupQuality?: readonly {
+    readonly groupId: string;
+    readonly status: 'ready' | 'weak' | 'blocked' | 'teacher-review';
+    readonly sourceSpanConfidence: 'high' | 'medium' | 'low';
+    readonly reasonCodes: readonly string[];
+    readonly recommendedAction: 'none' | 'deterministic-rehydrate' | 'teacher-review' | 'teacher-groq-repair' | 'blocked';
+  }[];
   readonly evidence: readonly string[];
   readonly uncertaintyMarkers: readonly string[];
   readonly publishBlockingPlaceholders: readonly string[];
@@ -200,11 +226,49 @@ const implicitAlternativeVariantsFromSegment = (value: string): readonly string[
   return sharedContextAlternativeVariants(left, right);
 };
 
+const expandOptionalAnswerNotation = (value: string): readonly string[] => {
+  const segment = canonicalAnswerText(value);
+  if (!segment || !segment.includes('(') || !segment.includes(')')) {
+    return segment ? [segment] : [];
+  }
+
+  const optionalGroupPattern = /\(([^()]+)\)/g;
+  const variants: string[] = [''];
+  let cursor = 0;
+  let found = false;
+  let match: RegExpExecArray | null;
+
+  while ((match = optionalGroupPattern.exec(segment)) !== null) {
+    const prefix = segment.slice(cursor, match.index);
+    const optionalText = match[1] ?? '';
+    const nextVariants: string[] = [];
+
+    variants.forEach((variant) => {
+      nextVariants.push(`${variant}${prefix}`);
+      nextVariants.push(`${variant}${prefix}${optionalText}`);
+    });
+
+    variants.splice(0, variants.length, ...nextVariants);
+    cursor = match.index + match[0].length;
+    found = true;
+  }
+
+  if (!found) {
+    return [segment];
+  }
+
+  const tail = segment.slice(cursor);
+  return uniqueAnswerVariants(variants.map((variant) => `${variant}${tail}`));
+};
+
 const acceptedAnswerVariantsFromText = (answerText: string): readonly string[] =>
   uniqueAnswerVariants(
     answerText
       .split('|')
-      .flatMap((segment) => implicitAlternativeVariantsFromSegment(segment)),
+      .flatMap((segment) =>
+        expandOptionalAnswerNotation(segment)
+          .flatMap((variant) => implicitAlternativeVariantsFromSegment(variant)),
+      ),
   );
 
 const preserveSourceMarkdown = (value: string): string =>
@@ -563,16 +627,26 @@ const responseShapeFor = (
 const normalizeAnswersForResponseShape = (
   answers: readonly string[],
   responseShape: ReadingV2ResponseShape,
-): readonly string[] =>
-  answers
-    .flatMap((answer) => acceptedAnswerVariantsFromText(answer))
-    .map((answer) => {
+): readonly string[] => {
+  const normalized = uniqueAnswerVariants(
+    answers.flatMap((answer) => {
       const cleaned = cleanMarkdown(answer);
       return responseShape.kind === 'binary-judgement'
-        ? normalizeReadingV2JudgementAnswerForStorage(cleaned, responseShape.vocabulary)
-        : cleaned;
-    })
-    .filter(Boolean);
+        ? [normalizeReadingV2JudgementAnswerForStorage(cleaned, responseShape.vocabulary)]
+        : acceptedAnswerVariantsFromText(cleaned);
+    }),
+  );
+
+  if (responseShape.kind !== 'free-text' || !responseShape.wordLimit) {
+    return normalized;
+  }
+
+  const withinWordLimit = normalized.filter((answer) =>
+    canonicalAnswerText(answer).split(/\s+/).filter(Boolean).length <= responseShape.wordLimit!,
+  );
+
+  return withinWordLimit.length > 0 ? withinWordLimit : normalized;
+};
 
 const instructionSourceExcerpt = (text: string | undefined): string | undefined => {
   const cleaned = cleanMarkdown(text ?? '');
@@ -620,6 +694,7 @@ const customInstructionIssue = (
   taskGroupId: string,
   rangeLabel: string,
   semantics: ReadingV2InstructionSemantics,
+  severity: ReadingV2ValidationIssue['severity'] = 'warning',
 ): ReadingV2ValidationIssue | undefined => {
   const source = cleanMarkdown(sourceText ?? '');
   if (
@@ -631,10 +706,12 @@ const customInstructionIssue = (
   }
 
   const excerpt = instructionSourceExcerpt(source);
-  return unresolvedIssue(
-    `Imported instructions for Questions ${rangeLabel} contain non-standard source wording. Studio used the standard IELTS task-type instruction; review source instruction evidence: "${excerpt}"`,
-    taskGroupId,
-  );
+  return {
+    code: 'unresolved-import-uncertainty',
+    severity,
+    message: `Imported instructions for Questions ${rangeLabel} contain non-standard source wording. Studio used the standard IELTS task-type instruction; review source instruction evidence: "${excerpt}"`,
+    objectId: taskGroupId,
+  };
 };
 
 const answerKeyDiagnosticsAsIssues = (
@@ -693,7 +770,7 @@ const createOptionSet = (
 });
 
 const TABLE_BLANK_MARKER = '_____';
-const visibleQuestionBlankPattern = /_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}/i;
+const visibleQuestionBlankPattern = /_{3,}|(?:\\\.){3,}|\.{3,}|\u2026+|(?:\u00e2\u20ac\u00a6)+|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}/i;
 
 interface StructuredReadingPayload {
   readonly sourceFile?: string;
@@ -849,6 +926,7 @@ interface StructuredFlowchartStep {
 interface StructuredDiagramPayload {
   readonly imageAlt?: string;
   readonly imageUrl?: string;
+  readonly imageUrls?: readonly string[];
   readonly targets?: readonly StructuredDiagramTarget[];
 }
 
@@ -1432,6 +1510,177 @@ const splitFlattenedNotePrefix = (
   return { heading, promptText: remainder };
 };
 
+const numberedNoteBlankPattern = /(?:\*\*)?(\d{1,3})(?:\*\*)?\s*(?:_{3,}|(?:\\\.){3,}|\.{3,}|\u2026+|(?:\u00e2\u20ac\u00a6)+|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\})/gi;
+const noteLineBoundaryPattern = /(?:^|\s)(?:[\u2022\u00b7]|\u00e2\u20ac\u00a2)\s*/g;
+const noteMarkdownHeadingPattern = /(?:^|\s)(?:#{1,6}\s+([^#*]+?)(?=\s+\*\*|$)|\*\*([^*]+)\*\*)/g;
+
+const normalizedNotePromptLine = (value: string): string =>
+  preserveSourceMarkdown(value)
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const numberedNoteBlankMatches = (
+  promptText: string,
+  allowedQuestionNumbers: ReadonlySet<number>,
+): readonly { readonly questionNumber: number; readonly index: number; readonly endIndex: number }[] => {
+  const matches: { questionNumber: number; index: number; endIndex: number }[] = [];
+
+  numberedNoteBlankPattern.lastIndex = 0;
+  for (let match = numberedNoteBlankPattern.exec(promptText); match; match = numberedNoteBlankPattern.exec(promptText)) {
+    const questionNumber = Number(match[1]);
+    if (!allowedQuestionNumbers.has(questionNumber)) {
+      continue;
+    }
+
+    matches.push({
+      questionNumber,
+      index: match.index,
+      endIndex: match.index + match[0].length,
+    });
+  }
+
+  return matches;
+};
+
+const noteLineStartBefore = (promptText: string, index: number): number => {
+  let start = Math.max(0, promptText.lastIndexOf('\n', index) + 1);
+
+  noteLineBoundaryPattern.lastIndex = 0;
+  for (let match = noteLineBoundaryPattern.exec(promptText); match; match = noteLineBoundaryPattern.exec(promptText)) {
+    if (match.index >= index) {
+      break;
+    }
+    start = Math.max(start, match.index + match[0].length);
+  }
+
+  return start;
+};
+
+const noteLineEndAfter = (promptText: string, index: number): number => {
+  const nextNewline = promptText.indexOf('\n', index);
+  let end = nextNewline >= 0 ? nextNewline : promptText.length;
+
+  noteLineBoundaryPattern.lastIndex = index;
+  const bulletMatch = noteLineBoundaryPattern.exec(promptText);
+  if (bulletMatch) {
+    end = Math.min(end, bulletMatch.index);
+  }
+
+  noteMarkdownHeadingPattern.lastIndex = index;
+  for (
+    let headingMatch = noteMarkdownHeadingPattern.exec(promptText);
+    headingMatch;
+    headingMatch = noteMarkdownHeadingPattern.exec(promptText)
+  ) {
+    const heading = cleanMarkdown(headingMatch[1] ?? headingMatch[2] ?? '');
+    if (!heading || /^\d+$/.test(heading)) {
+      continue;
+    }
+
+    end = Math.min(end, headingMatch.index);
+    break;
+  }
+
+  return end;
+};
+
+const flattenedNoteHeadings = (
+  promptText: string,
+): readonly { readonly heading: string; readonly index: number; readonly isDocumentHeading: boolean }[] => {
+  const headings: { heading: string; index: number; isDocumentHeading: boolean }[] = [];
+
+  noteMarkdownHeadingPattern.lastIndex = 0;
+  for (let match = noteMarkdownHeadingPattern.exec(promptText); match; match = noteMarkdownHeadingPattern.exec(promptText)) {
+    const rawHeading = cleanMarkdown(match[1] ?? match[2] ?? '');
+    if (!rawHeading || /^\d+$/.test(rawHeading)) {
+      continue;
+    }
+
+    headings.push({
+      heading: rawHeading,
+      index: match.index,
+      isDocumentHeading: typeof match[1] === 'string' && match[1].trim().length > 0,
+    });
+  }
+
+  return headings;
+};
+
+const flattenedNoteLayoutContext = (
+  groupQuestions: readonly StructuredReadingQuestion[],
+): NoteCompletionLayoutContext | null => {
+  const questionNumbers = uniqueQuestionNumbers(groupQuestions.map(structuredQuestionNumber));
+  if (questionNumbers.length < 2) {
+    return null;
+  }
+
+  const allowedQuestionNumbers = new Set(questionNumbers);
+  const sourcePrompt = groupQuestions
+    .map(structuredQuestionPromptText)
+    .filter((prompt): prompt is string => typeof prompt === 'string' && prompt.length > 0)
+    .map((prompt) => ({
+      prompt,
+      matches: numberedNoteBlankMatches(prompt, allowedQuestionNumbers),
+    }))
+    .filter(({ matches }) => matches.length >= 2)
+    .sort((left, right) => right.matches.length - left.matches.length)[0];
+
+  if (!sourcePrompt) {
+    return null;
+  }
+
+  const promptTextByQuestionNumber = new Map<number, string>();
+  sourcePrompt.matches.forEach((match) => {
+    const promptText = normalizedNotePromptLine(
+      sourcePrompt.prompt.slice(
+        noteLineStartBefore(sourcePrompt.prompt, match.index),
+        noteLineEndAfter(sourcePrompt.prompt, match.endIndex),
+      ),
+    );
+
+    if (promptText && visibleQuestionBlankPattern.test(promptText)) {
+      promptTextByQuestionNumber.set(match.questionNumber, promptText);
+    }
+  });
+
+  if (promptTextByQuestionNumber.size < 2) {
+    return null;
+  }
+
+  const headings = flattenedNoteHeadings(sourcePrompt.prompt);
+  const subheading = headings.find((heading) => heading.isDocumentHeading)?.heading;
+  const sectionHeadings = headings.filter((heading) => !heading.isDocumentHeading);
+  const sections: NoteCompletionLayoutSection[] = [];
+
+  sourcePrompt.matches.forEach((match) => {
+    if (!promptTextByQuestionNumber.has(match.questionNumber)) {
+      return;
+    }
+
+    const heading = [...sectionHeadings].reverse().find((candidate) => candidate.index < match.index)?.heading;
+    if (!heading) {
+      return;
+    }
+
+    const current = sections[sections.length - 1];
+    if (current?.heading === heading) {
+      sections[sections.length - 1] = {
+        ...current,
+        questionNumbers: [...current.questionNumbers, match.questionNumber],
+      };
+      return;
+    }
+
+    sections.push({ heading, questionNumbers: [match.questionNumber] });
+  });
+
+  return {
+    layoutHint: noteLayoutHint({ subheading, sections }),
+    promptTextByQuestionNumber,
+  };
+};
+
 const inferredNoteLayoutContext = (
   groupQuestions: readonly StructuredReadingQuestion[],
 ): NoteCompletionLayoutContext | null => {
@@ -1501,12 +1750,21 @@ const noteCompletionLayoutContext = (
     return explicit;
   }
 
+  const flattened = flattenedNoteLayoutContext(groupQuestions);
+  if (flattened?.layoutHint || flattened?.promptTextByQuestionNumber.size) {
+    return flattened;
+  }
+
   return inferredNoteLayoutContext(groupQuestions);
 };
 
 const splitSummaryPromptBlank = (
-  promptText: string,
+  promptText: string | undefined,
 ): { readonly before: string; readonly after: string } | null => {
+  if (!promptText) {
+    return null;
+  }
+
   const match = promptText.match(visibleQuestionBlankPattern);
   if (!match || match.index === undefined) {
     return null;
@@ -1643,6 +1901,7 @@ interface StructuredFlowchartContext {
 
 interface StructuredDiagramContext {
   readonly stimulus: ReadingV2StimulusNode;
+  readonly extraStimuli: readonly ReadingV2StimulusNode[];
   readonly anchorIds: readonly ReadingV2AnchorId[];
   readonly anchorIdsByQuestionNumber: ReadonlyMap<number, ReadingV2AnchorId>;
 }
@@ -2006,6 +2265,28 @@ const createStructuredDiagramContext = ({
     return null;
   }
 
+  const imageUrls = [
+    ...(instruction.diagram.imageUrls ?? []),
+    instruction.diagram.imageUrl,
+  ]
+    .map((imageUrl) => cleanMarkdown(imageUrl ?? ''))
+    .filter(Boolean)
+    .filter((imageUrl, index, all) => all.indexOf(imageUrl) === index);
+  const primaryImageUrl = imageUrls[0] ?? instruction.diagram.imageUrl;
+  const extraStimuli = imageUrls.slice(1).map((imageUrl, imageIndex): ReadingV2StimulusNode => ({
+    stimulusId: readingV2Ids.stimulusId(`${idStem}-diagram-${passageNumber}-${instructionIndex + 1}-${imageIndex + 2}`),
+    kind: 'media',
+    title: instruction.questionRange?.start && instruction.questionRange.end
+      ? `Questions ${instruction.questionRange.start}-${instruction.questionRange.end} diagram ${imageIndex + 2}`
+      : `Imported diagram ${imageIndex + 2}`,
+    content: {
+      kind: 'media-content',
+      mediaUrl: imageUrl,
+      alt: cleanMarkdown(instruction.diagram.imageAlt ?? 'Imported diagram source image'),
+    },
+    anchorIds: [],
+  }));
+
   return {
     stimulus: {
       stimulusId: diagramStimulusId,
@@ -2016,11 +2297,12 @@ const createStructuredDiagramContext = ({
       content: {
         kind: 'diagram-content',
         imageAlt: cleanMarkdown(instruction.diagram.imageAlt ?? 'Imported diagram with printed label numbers'),
-        imageUrl: instruction.diagram.imageUrl,
+        imageUrl: primaryImageUrl,
         hotspots,
       },
       anchorIds,
     },
+    extraStimuli,
     anchorIds,
     anchorIdsByQuestionNumber,
   };
@@ -2431,7 +2713,7 @@ const normalizeStructuredReadingPayload = (
         taskType,
         defaultOptionSetId,
         instructionSemantics.wordLimit,
-        inferredSelectionLimit,
+        instructionSemantics.selectionLimit,
       );
       const noteContext = noteCompletionLayoutContext(taskType, instruction, groupQuestions);
       const tableContext = taskType === 'table-completion'
@@ -2479,12 +2761,22 @@ const normalizeStructuredReadingPayload = (
         }
       }
       if (diagramContext) {
-        stimuli[diagramContext.stimulus.stimulusId] = diagramContext.stimulus;
-        if (!sectionStimulusIds.includes(diagramContext.stimulus.stimulusId)) {
-          sectionStimulusIds.push(diagramContext.stimulus.stimulusId);
+        for (const diagramStimulus of [diagramContext.stimulus, ...diagramContext.extraStimuli]) {
+          stimuli[diagramStimulus.stimulusId] = diagramStimulus;
+          if (!sectionStimulusIds.includes(diagramStimulus.stimulusId)) {
+            sectionStimulusIds.push(diagramStimulus.stimulusId);
+          }
         }
       }
 
+      const groupMultiSelectAnswerValues = taskType === 'multiple-select'
+        ? Array.from(new Set(groupQuestions.flatMap((question) => {
+            const questionNumber = structuredQuestionNumber(question);
+            return answerKeyRows.size > 0
+              ? answerKeyRows.get(questionNumber) ?? []
+              : structuredQuestionAnswers(question);
+          }).map((answer) => answer.trim()).filter(Boolean)))
+        : [];
       const interactionIds = groupQuestions.map((question, questionIndex) => {
         const questionNumber = structuredQuestionNumber(question);
         const interactionId = readingV2Ids.interactionId(`${idStem}-q${questionNumber || `${passageNumber}-${questionIndex + 1}`}`);
@@ -2494,7 +2786,7 @@ const normalizeStructuredReadingPayload = (
               taskType,
               perQuestionOptionSet.optionSetId,
               instructionSemantics.wordLimit,
-              inferredSelectionLimit,
+              instructionSemantics.selectionLimit,
             )
           : responseShape;
         const tableAnchorId = tableContext?.anchorIdsByQuestionNumber.get(questionNumber);
@@ -2511,9 +2803,12 @@ const normalizeStructuredReadingPayload = (
           scoringRule: {
             maxScore: 1,
             acceptableAnswers: normalizeAnswersForResponseShape(
-              answerKeyRows.size > 0
-                ? answerKeyRows.get(questionNumber) ?? []
-                : structuredQuestionAnswers(question),
+              interactionResponseShape.kind === 'multi-select'
+                && groupMultiSelectAnswerValues.length === interactionResponseShape.selectionLimit
+                ? groupMultiSelectAnswerValues
+                : answerKeyRows.size > 0
+                  ? answerKeyRows.get(questionNumber) ?? []
+                  : structuredQuestionAnswers(question),
               interactionResponseShape,
             ),
             orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
@@ -2550,6 +2845,7 @@ const normalizeStructuredReadingPayload = (
         taskGroupId,
         rangeLabel,
         instructionSemantics,
+        instruction.customInstructionEvidence ? 'error' : 'warning',
       );
 
       taskGroups[taskGroupId] = {
@@ -2589,6 +2885,10 @@ const normalizeStructuredReadingPayload = (
           : diagramContext
             ? [
                 { stimulusId: diagramContext.stimulus.stimulusId, anchorIds: diagramContext.anchorIds },
+                ...diagramContext.extraStimuli.map((diagramStimulus) => ({
+                  stimulusId: diagramStimulus.stimulusId,
+                  anchorIds: [],
+                })),
                 { stimulusId, anchorIds },
               ]
           : [{ stimulusId, anchorIds }],
@@ -2890,6 +3190,7 @@ export const normalizeReadingV2ImportCandidate = (
         taskGroupId,
         block.rangeLabel,
         instructionSemantics,
+        'error',
       );
       const interactionIds = Array.from({ length: block.end - block.start + 1 }, (_, offset) => {
         const questionNumber = block.start + offset;

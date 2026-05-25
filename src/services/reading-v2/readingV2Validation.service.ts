@@ -198,7 +198,7 @@ const COMPLETION_TASK_TYPES = new Set([
   'note-completion',
 ]);
 
-const visibleBlankPattern = /_{3,}|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}/i;
+const visibleBlankPattern = /_{3,}|(?:\\\.){3,}|\.{3,}|\u2026+|(?:\u00e2\u20ac\u00a6)+|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}/i;
 
 interface NoteCompletionLayoutSection {
   readonly heading?: string;

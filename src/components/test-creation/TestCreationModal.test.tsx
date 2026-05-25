@@ -475,6 +475,8 @@ describe('TestCreationModal', () => {
                         sourceName: 'V2 Auto Metadata',
                     },
                     expect.objectContaining({
+                        pipelineLane: 'v4-full-doc',
+                        forceV4Pipeline: true,
                         onDiagnosticEvent: expect.any(Function),
                     }),
                 );
@@ -488,7 +490,7 @@ describe('TestCreationModal', () => {
                     startMode: 'create-from-auto',
                     initialMetadata: expect.objectContaining({
                         title: 'V2 Auto Metadata',
-                        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V4 source-verified import in Test Creation Modal',
                     }),
                     initialImportCandidate: expect.objectContaining({
                         sourceKind: 'auto-gemini',
@@ -498,10 +500,12 @@ describe('TestCreationModal', () => {
             });
             expect(onAction).toHaveBeenCalledWith('submitReadingV2AutoImport', expect.objectContaining({
                 provider: 'auto-v4',
+                pipelineLane: 'v4-full-doc',
                 sourceLength: expect.any(Number),
             }));
             expect(onAction).toHaveBeenCalledWith('completeReadingV2AutoImport', expect.objectContaining({
                 provider: 'gemini',
+                pipelineLane: 'v4-full-doc',
                 model: 'gemini-2.5-flash+auto-v4-staged-adapter',
                 passageCount: 1,
                 questionCount: 1,
@@ -522,8 +526,8 @@ describe('TestCreationModal', () => {
                         message: 'Gemini returned malformed Reading V2 JSON.',
                     },
                 ],
-                provider: 'gemini-groq',
-                model: 'gemini-2.5-flash+groq-structured-json',
+                provider: 'gemini',
+                model: 'gemini-2.5-flash+auto-v4-staged-adapter',
             });
             renderModal({ onClose, onAction });
 
@@ -544,14 +548,13 @@ describe('TestCreationModal', () => {
             expect(onClose).not.toHaveBeenCalled();
             expect(mockNavigate).not.toHaveBeenCalled();
             expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini-groq',
+                provider: 'gemini',
                 diagnosticCount: 1,
             }));
         });
 
         it.each([
-            ['Gemini marker quota', 'All Gemini API keys exhausted or rate-limited'],
-            ['Groq package quota', 'All Groq API keys exhausted or rate-limited'],
+            ['Gemini source verifier quota', 'All Gemini API keys exhausted or rate-limited'],
         ])('keeps Auto source recoverable when Auto V4 hits %s', async (_caseName, errorMessage) => {
             const onClose = vi.fn();
             const onAction = vi.fn();
@@ -566,8 +569,8 @@ describe('TestCreationModal', () => {
                         message: errorMessage,
                     },
                 ],
-                provider: 'gemini-groq',
-                model: 'gemini-2.5-flash+groq-structured-json',
+                provider: 'gemini',
+                model: 'gemini-2.5-flash+auto-v4-staged-adapter',
             });
             renderModal({ onClose, onAction });
 
@@ -588,7 +591,7 @@ describe('TestCreationModal', () => {
             expect(onClose).not.toHaveBeenCalled();
             expect(mockNavigate).not.toHaveBeenCalled();
             expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini-groq',
+                provider: 'gemini',
                 diagnosticCount: 1,
             }));
         });
@@ -609,8 +612,8 @@ describe('TestCreationModal', () => {
                         message: rawError,
                     },
                 ],
-                provider: 'gemini-groq',
-                model: 'gemini-2.5-flash+groq-structured-json',
+                provider: 'gemini',
+                model: 'gemini-2.5-flash+auto-v4-staged-adapter',
             });
             renderModal({ onClose, onAction });
 
@@ -629,7 +632,7 @@ describe('TestCreationModal', () => {
             expect(document.body).not.toHaveTextContent(fakeRawKey);
             expect(document.body).not.toHaveTextContent('C:\\Users\\The Lord\\Desktop');
             expect(onAction).toHaveBeenCalledWith('failReadingV2AutoImport', expect.objectContaining({
-                provider: 'gemini-groq',
+                provider: 'gemini',
                 error: expect.stringContaining('[redacted-key]'),
             }));
             expect(onClose).not.toHaveBeenCalled();

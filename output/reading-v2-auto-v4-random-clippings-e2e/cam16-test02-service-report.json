@@ -1,0 +1,1209 @@
+{
+  "generatedAt": "2026-05-25T13:12:43.348Z",
+  "verdict": "editable-needs-review",
+  "source": {
+    "path": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 16 Reading Test 02.md",
+    "byteLength": 26967,
+    "charLength": 26569,
+    "lineCount": 461,
+    "sha256": "7072a62d57137c5967159186c9419345d337befac0c23c5060d21247281138f0",
+    "fullTextIncluded": false
+  },
+  "method": {
+    "goldParse": [
+      "Read source frontmatter and passage/question headings.",
+      "Used source line coordinates for passage and group boundaries.",
+      "Classified task groups by explicit instruction text and option banks.",
+      "Copied answer-key values from visible answer section only.",
+      "Compared app output by coverage, task group shape, answer-key binding, diagnostics, and publish safety."
+    ],
+    "appParse": "Live Auto V4 provider path via generateReadingV2AutoImportCandidate."
+  },
+  "gold": {
+    "sourceName": "Practice Cam 16 Reading Test 02",
+    "sourcePath": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 16 Reading Test 02.md",
+    "sourceSha256": "7072A62D57137C5967159186C9419345D337BEFAC0C23C5060D21247281138F0",
+    "lineCount": 460,
+    "fullTextIncluded": false,
+    "passages": [
+      {
+        "passage": 1,
+        "title": "The White Horse of Uffington",
+        "sourceLines": "55-151",
+        "questionRange": "1-13"
+      },
+      {
+        "passage": 2,
+        "title": "I contain multitudes",
+        "sourceLines": "153-253",
+        "questionRange": "14-26"
+      },
+      {
+        "passage": 3,
+        "title": "How to make wise decisions",
+        "sourceLines": "255-367",
+        "questionRange": "27-40"
+      }
+    ],
+    "groups": [
+      {
+        "passage": 1,
+        "range": "1-8",
+        "start": 1,
+        "end": 8,
+        "taskType": "true-false-not-given",
+        "answerRule": "TRUE/FALSE/NOT GIVEN",
+        "sourceLines": "85-111"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "start": 9,
+        "end": 13,
+        "taskType": "summary-completion",
+        "answerRule": "ONE WORD ONLY",
+        "sourceLines": "113-145"
+      },
+      {
+        "passage": 2,
+        "range": "14-16",
+        "start": 14,
+        "end": 16,
+        "taskType": "multiple-choice",
+        "answerRule": "A-D per question",
+        "sourceLines": "175-209"
+      },
+      {
+        "passage": 2,
+        "range": "17-20",
+        "start": 17,
+        "end": 20,
+        "taskType": "summary-completion",
+        "answerRule": "A-H option bank",
+        "sourceLines": "211-227"
+      },
+      {
+        "passage": 2,
+        "range": "21-26",
+        "start": 21,
+        "end": 26,
+        "taskType": "yes-no-not-given",
+        "answerRule": "YES/NO/NOT GIVEN",
+        "sourceLines": "229-251"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "start": 27,
+        "end": 30,
+        "taskType": "multiple-choice",
+        "answerRule": "A-D per question",
+        "sourceLines": "281-325"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "start": 31,
+        "end": 35,
+        "taskType": "summary-completion",
+        "answerRule": "A-J option bank",
+        "sourceLines": "327-345"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "start": 36,
+        "end": 40,
+        "taskType": "true-false-not-given",
+        "answerRule": "TRUE/FALSE/NOT GIVEN",
+        "sourceLines": "347-367"
+      }
+    ],
+    "answers": [
+      {
+        "question": 1,
+        "answer": "TRUE"
+      },
+      {
+        "question": 2,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 3,
+        "answer": "TRUE"
+      },
+      {
+        "question": 4,
+        "answer": "FALSE"
+      },
+      {
+        "question": 5,
+        "answer": "FALSE"
+      },
+      {
+        "question": 6,
+        "answer": "TRUE"
+      },
+      {
+        "question": 7,
+        "answer": "TRUE"
+      },
+      {
+        "question": 8,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 9,
+        "answer": "Ridgeway"
+      },
+      {
+        "question": 10,
+        "answer": "documents"
+      },
+      {
+        "question": 11,
+        "answer": "soil"
+      },
+      {
+        "question": 12,
+        "answer": "fertility"
+      },
+      {
+        "question": 13,
+        "answer": "Rhiannon"
+      },
+      {
+        "question": 14,
+        "answer": "D"
+      },
+      {
+        "question": 15,
+        "answer": "C"
+      },
+      {
+        "question": 16,
+        "answer": "A"
+      },
+      {
+        "question": 17,
+        "answer": "G"
+      },
+      {
+        "question": 18,
+        "answer": "B"
+      },
+      {
+        "question": 19,
+        "answer": "H"
+      },
+      {
+        "question": 20,
+        "answer": "E"
+      },
+      {
+        "question": 21,
+        "answer": "YES"
+      },
+      {
+        "question": 22,
+        "answer": "NO"
+      },
+      {
+        "question": 23,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 24,
+        "answer": "YES"
+      },
+      {
+        "question": 25,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 26,
+        "answer": "NO"
+      },
+      {
+        "question": 27,
+        "answer": "B"
+      },
+      {
+        "question": 28,
+        "answer": "C"
+      },
+      {
+        "question": 29,
+        "answer": "B"
+      },
+      {
+        "question": 30,
+        "answer": "D"
+      },
+      {
+        "question": 31,
+        "answer": "D"
+      },
+      {
+        "question": 32,
+        "answer": "A"
+      },
+      {
+        "question": 33,
+        "answer": "C"
+      },
+      {
+        "question": 34,
+        "answer": "F"
+      },
+      {
+        "question": 35,
+        "answer": "G"
+      },
+      {
+        "question": 36,
+        "answer": "FALSE"
+      },
+      {
+        "question": 37,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 38,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 39,
+        "answer": "TRUE"
+      },
+      {
+        "question": 40,
+        "answer": "TRUE"
+      }
+    ]
+  },
+  "ledger": {
+    "category": "full-test-with-answer-key",
+    "expectedFullTest": true,
+    "passageCount": 3,
+    "passageNumbers": [
+      1,
+      2,
+      3
+    ],
+    "questionCount": 40,
+    "questionRange": "1-40",
+    "questionRanges": [
+      {
+        "passageNumber": 1,
+        "range": "1-8",
+        "lineNumber": 85
+      },
+      {
+        "passageNumber": 1,
+        "range": "9-13",
+        "lineNumber": 113
+      },
+      {
+        "passageNumber": 2,
+        "range": "14-16",
+        "lineNumber": 175
+      },
+      {
+        "passageNumber": 2,
+        "range": "17-20",
+        "lineNumber": 211
+      },
+      {
+        "passageNumber": 2,
+        "range": "21-26",
+        "lineNumber": 229
+      },
+      {
+        "passageNumber": 3,
+        "range": "27-30",
+        "lineNumber": 281
+      },
+      {
+        "passageNumber": 3,
+        "range": "31-35",
+        "lineNumber": 327
+      },
+      {
+        "passageNumber": 3,
+        "range": "36-40",
+        "lineNumber": 347
+      }
+    ],
+    "answerKeyRowCount": 40,
+    "answerKeyQuestionRange": "1-40",
+    "referenceBankCount": 0,
+    "pollutionMarkerCount": 2,
+    "issues": [
+      {
+        "code": "source-pollution-detected",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "ledgerAdvisory": {
+    "localPreflightCoverageIsAdvisory": true,
+    "expectedGoldAnswerRows": 40,
+    "detectedLedgerAnswerRows": 40,
+    "missingByLocalLedgerOnly": [],
+    "interpretation": "Local preflight answer-key coverage matched the gold baseline. Auto V4 provider output and Studio diagnostics remain the authoritative user-facing parse contract across source structure, question areas, task groups, and answer-key areas."
+  },
+  "appResult": {
+    "success": true,
+    "reviewStatus": "needs_review",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+    "passageCount": 3,
+    "questionCount": 40,
+    "error": null,
+    "diagnostics": [
+      {
+        "code": "auto-pipeline-lane-selected",
+        "severity": "info",
+        "message": "Auto pipeline lane selected: V4 full-document staged parser."
+      },
+      {
+        "code": "auto-v4-staged-parser-used",
+        "severity": "info",
+        "message": "Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload."
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 passage stage completed with gemini.",
+        "stage": "auto-v4-passages",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 question/answer stage completed with gemini.",
+        "stage": "auto-v4-questions",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 1 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 1,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage, Uffington\n\nThe.",
+        "passageNumber": 1,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 2 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 2,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+        "passageNumber": 2,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 3 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 3,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+        "passageNumber": 3,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "answer-key-extracted",
+        "severity": "info",
+        "message": "Auto extracted answer-key rows from the raw source."
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 1-8 is weak: group-source-underrepresented.",
+        "questionNumber": 1,
+        "groupRange": "1-8",
+        "sourceRange": "line-0085-line-0112",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 1-8 is weak: instruction-shortened.",
+        "questionNumber": 1,
+        "groupRange": "1-8",
+        "sourceRange": "line-0085-line-0112",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: group-source-underrepresented.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0113-line-0148",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: instruction-shortened.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0113-line-0148",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 14-16 is weak: group-source-underrepresented.",
+        "questionNumber": 14,
+        "groupRange": "14-16",
+        "sourceRange": "line-0175-line-0210",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 14-16 is weak: instruction-shortened.",
+        "questionNumber": 14,
+        "groupRange": "14-16",
+        "sourceRange": "line-0175-line-0210",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 17-20 is weak: group-source-underrepresented.",
+        "questionNumber": 17,
+        "groupRange": "17-20",
+        "sourceRange": "line-0211-line-0228",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 17-20 is weak: instruction-shortened.",
+        "questionNumber": 17,
+        "groupRange": "17-20",
+        "sourceRange": "line-0211-line-0228",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 21-26 is weak: group-source-underrepresented.",
+        "questionNumber": 21,
+        "groupRange": "21-26",
+        "sourceRange": "line-0229-line-0254",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 21-26 is weak: instruction-shortened.",
+        "questionNumber": 21,
+        "groupRange": "21-26",
+        "sourceRange": "line-0229-line-0254",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 27-30 is weak: group-source-underrepresented.",
+        "questionNumber": 27,
+        "groupRange": "27-30",
+        "sourceRange": "line-0281-line-0326",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 27-30 is weak: instruction-shortened.",
+        "questionNumber": 27,
+        "groupRange": "27-30",
+        "sourceRange": "line-0281-line-0326",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 31-35 is weak: group-source-underrepresented.",
+        "questionNumber": 31,
+        "groupRange": "31-35",
+        "sourceRange": "line-0327-line-0346",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 31-35 is weak: instruction-shortened.",
+        "questionNumber": 31,
+        "groupRange": "31-35",
+        "sourceRange": "line-0327-line-0346",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 36-40 is weak: group-source-underrepresented.",
+        "questionNumber": 36,
+        "groupRange": "36-40",
+        "sourceRange": "line-0347-line-0376",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "instruction-shortened",
+        "severity": "warning",
+        "message": "Group 36-40 is weak: instruction-shortened.",
+        "questionNumber": 36,
+        "groupRange": "36-40",
+        "sourceRange": "line-0347-line-0376",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "source-ledger-warning",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ],
+    "publishBlockingPlaceholders": [
+      "Auto import needs teacher review before publish: Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage, Uffington\n\nThe.",
+      "Auto import needs teacher review before publish: Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+      "Auto import needs teacher review before publish: Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+      "Auto import needs teacher review before publish: Group 1-8 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 1-8 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 9-13 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 9-13 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 14-16 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 14-16 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 17-20 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 17-20 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 21-26 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 21-26 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 27-30 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 27-30 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 31-35 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 31-35 is weak: instruction-shortened.",
+      "Auto import needs teacher review before publish: Group 36-40 is weak: group-source-underrepresented.",
+      "Auto import needs teacher review before publish: Group 36-40 is weak: instruction-shortened."
+    ],
+    "uncertaintyMarkers": [
+      "Structured JSON payload detected",
+      "Teacher answer key requires binding review",
+      "Question links require teacher review before publish",
+      "Source ledger: Potential clipped web pollution was detected and will be ignored by topology checks.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage, Uffington\n\nThe.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+      "Auto import review: Group 1-8 is weak: group-source-underrepresented.",
+      "Auto import review: Group 1-8 is weak: instruction-shortened.",
+      "Auto import review: Group 9-13 is weak: group-source-underrepresented.",
+      "Auto import review: Group 9-13 is weak: instruction-shortened.",
+      "Auto import review: Group 14-16 is weak: group-source-underrepresented.",
+      "Auto import review: Group 14-16 is weak: instruction-shortened.",
+      "Auto import review: Group 17-20 is weak: group-source-underrepresented.",
+      "Auto import review: Group 17-20 is weak: instruction-shortened.",
+      "Auto import review: Group 21-26 is weak: group-source-underrepresented.",
+      "Auto import review: Group 21-26 is weak: instruction-shortened.",
+      "Auto import review: Group 27-30 is weak: group-source-underrepresented.",
+      "Auto import review: Group 27-30 is weak: instruction-shortened.",
+      "Auto import review: Group 31-35 is weak: group-source-underrepresented.",
+      "Auto import review: Group 31-35 is weak: instruction-shortened.",
+      "Auto import review: Group 36-40 is weak: group-source-underrepresented.",
+      "Auto import review: Group 36-40 is weak: instruction-shortened.",
+      "Auto import review: Potential clipped web pollution was detected and will be ignored by topology checks."
+    ]
+  },
+  "appStructure": {
+    "sectionCount": 3,
+    "taskGroupCount": 8,
+    "interactionCount": 40,
+    "visibleQuestionRange": "1-40",
+    "taskGroups": [
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-1-1",
+        "officialTaskType": "true-false-not-given",
+        "range": "1-8",
+        "interactionCount": 8
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-1-2",
+        "officialTaskType": "summary-completion-text",
+        "range": "9-13",
+        "interactionCount": 5
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-2-1",
+        "officialTaskType": "multiple-choice",
+        "range": "14-16",
+        "interactionCount": 3
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-2-2",
+        "officialTaskType": "summary-completion-list",
+        "range": "17-20",
+        "interactionCount": 4
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-2-3",
+        "officialTaskType": "yes-no-not-given",
+        "range": "21-26",
+        "interactionCount": 6
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-3-1",
+        "officialTaskType": "multiple-choice",
+        "range": "27-30",
+        "interactionCount": 4
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-3-2",
+        "officialTaskType": "summary-completion-list",
+        "range": "31-35",
+        "interactionCount": 5
+      },
+      {
+        "taskGroupId": "practice-cam-16-reading-test-02-task-group-3-3",
+        "officialTaskType": "true-false-not-given",
+        "range": "36-40",
+        "interactionCount": 5
+      }
+    ],
+    "answerKey": {
+      "rowCount": 40,
+      "questionRange": "1-40",
+      "unparsedLineCount": 0,
+      "duplicateQuestionNumbers": [],
+      "answers": [
+        {
+          "question": 1,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 2,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 3,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 4,
+          "answer": "FALSE",
+          "parsedAnswerValues": [
+            "FALSE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 5,
+          "answer": "FALSE",
+          "parsedAnswerValues": [
+            "FALSE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 6,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 7,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 8,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 9,
+          "answer": "Ridgeway",
+          "parsedAnswerValues": [
+            "Ridgeway"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 10,
+          "answer": "documents",
+          "parsedAnswerValues": [
+            "documents"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 11,
+          "answer": "soil",
+          "parsedAnswerValues": [
+            "soil"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 12,
+          "answer": "fertility",
+          "parsedAnswerValues": [
+            "fertility"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 13,
+          "answer": "Rhiannon",
+          "parsedAnswerValues": [
+            "Rhiannon"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 14,
+          "answer": "D",
+          "parsedAnswerValues": [
+            "D"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 15,
+          "answer": "C",
+          "parsedAnswerValues": [
+            "C"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 16,
+          "answer": "A",
+          "parsedAnswerValues": [
+            "A"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 17,
+          "answer": "G",
+          "parsedAnswerValues": [
+            "G"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 18,
+          "answer": "B",
+          "parsedAnswerValues": [
+            "B"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 19,
+          "answer": "H",
+          "parsedAnswerValues": [
+            "H"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 20,
+          "answer": "E",
+          "parsedAnswerValues": [
+            "E"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 21,
+          "answer": "YES",
+          "parsedAnswerValues": [
+            "YES"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 22,
+          "answer": "NO",
+          "parsedAnswerValues": [
+            "NO"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 23,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 24,
+          "answer": "YES",
+          "parsedAnswerValues": [
+            "YES"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 25,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 26,
+          "answer": "NO",
+          "parsedAnswerValues": [
+            "NO"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 27,
+          "answer": "B",
+          "parsedAnswerValues": [
+            "B"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 28,
+          "answer": "C",
+          "parsedAnswerValues": [
+            "C"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 29,
+          "answer": "B",
+          "parsedAnswerValues": [
+            "B"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 30,
+          "answer": "D",
+          "parsedAnswerValues": [
+            "D"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 31,
+          "answer": "D",
+          "parsedAnswerValues": [
+            "D"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 32,
+          "answer": "A",
+          "parsedAnswerValues": [
+            "A"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 33,
+          "answer": "C",
+          "parsedAnswerValues": [
+            "C"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 34,
+          "answer": "F",
+          "parsedAnswerValues": [
+            "F"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 35,
+          "answer": "G",
+          "parsedAnswerValues": [
+            "G"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 36,
+          "answer": "FALSE",
+          "parsedAnswerValues": [
+            "FALSE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 37,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 38,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 39,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 40,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        }
+      ]
+    },
+    "validation": {
+      "blockingIssueCount": 0,
+      "warningIssueCount": 0,
+      "blockingMessages": [],
+      "warningMessages": []
+    }
+  },
+  "diagnosticEvents": [
+    {
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": false,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 26567,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 26567,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 40,
+        "sourceName": "Practice Cam 16 Reading Test 02.md"
+      }
+    }
+  ],
+  "comparison": {
+    "expectedPassageCount": 3,
+    "appPassageCount": 3,
+    "expectedQuestionCount": 40,
+    "appQuestionCount": 40,
+    "expectedAnswerCount": 40,
+    "appAnswerCount": 40,
+    "missingQuestions": [],
+    "extraQuestions": [],
+    "missingAnswerValues": [],
+    "mismatchedAnswerValues": [],
+    "expectedTaskGroups": [
+      {
+        "passage": 1,
+        "range": "1-8",
+        "taskType": "true-false-not-given"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "taskType": "summary-completion"
+      },
+      {
+        "passage": 2,
+        "range": "14-16",
+        "taskType": "multiple-choice"
+      },
+      {
+        "passage": 2,
+        "range": "17-20",
+        "taskType": "summary-completion"
+      },
+      {
+        "passage": 2,
+        "range": "21-26",
+        "taskType": "yes-no-not-given"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "taskType": "multiple-choice"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "taskType": "summary-completion"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "taskType": "true-false-not-given"
+      }
+    ],
+    "appTaskGroups": [
+      {
+        "range": "1-8",
+        "taskType": "true-false-not-given",
+        "interactionCount": 8
+      },
+      {
+        "range": "9-13",
+        "taskType": "summary-completion-text",
+        "interactionCount": 5
+      },
+      {
+        "range": "14-16",
+        "taskType": "multiple-choice",
+        "interactionCount": 3
+      },
+      {
+        "range": "17-20",
+        "taskType": "summary-completion-list",
+        "interactionCount": 4
+      },
+      {
+        "range": "21-26",
+        "taskType": "yes-no-not-given",
+        "interactionCount": 6
+      },
+      {
+        "range": "27-30",
+        "taskType": "multiple-choice",
+        "interactionCount": 4
+      },
+      {
+        "range": "31-35",
+        "taskType": "summary-completion-list",
+        "interactionCount": 5
+      },
+      {
+        "range": "36-40",
+        "taskType": "true-false-not-given",
+        "interactionCount": 5
+      }
+    ],
+    "hasPublishBlockers": true,
+    "hasSilentQuestionLoss": false,
+    "verdict": "editable-needs-review"
+  },
+  "advice": [
+    "Keep Auto V4 as assistant, not judge: open editable drafts when safe, but block publish until repair items are handled.",
+    "Do not turn local preflight into a second brittle source parser; it is an advisory guardrail before the provider-owned parse across passage structure, question areas, task groups, option/reference banks, and answer keys.",
+    "Treat missing answer-key bindings, question coverage, task-group coverage, and ambiguous source areas as review diagnostics unless normalization cannot build an editable draft.",
+    "Improve provider prompts only after report proves which task group or answer range is consistently lost.",
+    "Never accept silent coverage loss: missing questions require diagnostics and publish blockers."
+  ]
+}

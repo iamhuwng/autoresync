@@ -7,7 +7,6 @@ import type {
 } from '../ai/ai.service';
 import { aiService } from '../ai/router.service';
 import { geminiProvider } from '../ai/gemini.provider';
-import { groqProvider } from '../ai/groq.provider';
 import type { Result } from '../../types/result.types';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
@@ -30,6 +29,7 @@ import {
   type ReadingV2CanonicalTaskType,
 } from '../../types/readingV2Taxonomy';
 import {
+  buildReadingV2ImportSourceArtifact,
   buildReadingV2AutoLedgerPromptSummary,
   buildReadingV2AutoSourceLedger,
   readingV2AutoSourceLedgerEvidence,
@@ -37,42 +37,13 @@ import {
   type ReadingV2AutoLedgerPayload,
   type ReadingV2AutoSourceLedger,
   type ReadingV2AutoSourceVerifierIssue,
+  type ReadingV2ImportSourceArtifact,
 } from './readingV2AutoImportSourceLedger.service';
 import {
-  markReadingV2AutoTopology,
-  type ReadingV2AutoTopologyMarkerDiagnostic,
-} from './readingV2AutoTopologyMarker.service';
-import {
-  buildReadingV2AutoPassagePackages,
-  type ReadingV2AutoPassagePackage,
-  type ReadingV2AutoPassagePackageDiagnostic,
-  type ReadingV2AutoPassagePackageLine,
-} from './readingV2AutoPassagePackage.service';
-import {
-  runReadingV2GroqPackageFanout,
-  type ReadingV2GroqPackageFanoutDiagnostic,
-  type ReadingV2GroqPackageFanoutPackageResult,
-  type ReadingV2GroqPackageFanoutProvider,
-} from './readingV2GroqPackageFanout.service';
-import {
-  normalizeReadingV2AutoQuestionArea,
-} from './readingV2AutoQuestionAreaNormalizer.service';
-import {
-  buildReadingV2AutoMaterialFromTranscript,
-  readingV2AutoQuestionRangeKey,
-  readingV2AutoTranscriptGroupRangeKeys,
-  verifyReadingV2AutoQuestionTranscript,
-  type ReadingV2AutoTranscriptCoverageSummary,
-  type ReadingV2AutoQuestionTranscript,
-  type ReadingV2AutoQuestionTranscriptDiagnostic,
-} from './readingV2AutoQuestionTranscript.service';
-import {
   READING_V2_AUTO_COMPLETION_BLANK_PATTERN,
-  readingV2AutoLineMatchesQuestionNumber,
   replaceReadingV2AutoCompletionBlanks,
 } from './readingV2AutoTextGuards.service';
 import {
-  readingV2TaskCanUsePackageReferenceBankHeuristic,
   readingV2TaskUsesBlankMarkers,
   readingV2TaskUsesImportedLabeledOptions,
   readingV2TaskUsesPerQuestionLabeledOptions,
@@ -81,8 +52,6 @@ import {
 } from './readingV2TaskComponentContracts.service';
 
 const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
-const AUTO_V3_PROVIDER = 'gemini-groq';
-const AUTO_V3_MODEL_LABEL = `${GEMINI_MODEL_NAME}+groq-structured-json`;
 const AUTO_V4_MODEL_LABEL = `${GEMINI_MODEL_NAME}+auto-v4-staged-adapter`;
 const DEFAULT_MAX_INPUT_CHARS = 120_000;
 const DEFAULT_MIN_INPUT_CHARS = 80;
@@ -90,7 +59,6 @@ const DEFAULT_CHUNK_WAIT_MS = 6_500;
 const DEFAULT_MAX_REPAIR_ATTEMPTS = 1;
 const GEMINI_MAX_OUTPUT_TOKENS = 65_536;
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
-const AUTO_V3_REPLAY_SCHEMA_VERSION = 'reading-v2-auto-v3-groq-source-proof-v1';
 const ANSWER_KEY_HEADING_PATTERN = /^\s*(?:answers?|answer\s+key|key|solutions?)(?:\s+(?:reading\s+)?test\s+\d+)?\s*:?\s*$/i;
 const ANSWER_KEY_HEADING_SIGNAL_PATTERN = /\b(?:answers?|answer\s+key|key|solutions?)\b/i;
 const ANSWER_KEY_SECTION_MARKER_PATTERN = /^\s*(?:(?:reading\s+)?passage|section|reading\s+test)\s+\d+\s*:?\s*$/i;
@@ -120,6 +88,7 @@ const emitReadingV2AutoImportDiag = (
 
 export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error';
 export type ReadingV2AutoImportReviewStatus = 'ready' | 'needs_review' | 'blocked';
+export type ReadingV2AutoPipelineLane = 'v4-full-doc' | 'legacy-gemini-chunk';
 
 export type ReadingV2AutoRepairScope =
   | 'passage'
@@ -163,35 +132,26 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'source-repair-succeeded'
   | 'provider-quota-exhausted'
   | 'topology-marker-failed'
+  | 'auto-pipeline-lane-selected'
+  | 'auto-v4-provider-stage'
   | 'auto-v4-staged-parser-used'
-  | ReadingV2AutoTopologyMarkerDiagnostic['code']
-  | 'passage-package-failed'
-  | 'groq-key-slot-degraded'
-  | 'groq-json-malformed'
-  | 'groq-package-json-retried'
-  | 'groq-package-json-retry-succeeded'
-  | 'groq-package-json-retry-failed'
-  | 'groq-package-completion-retried'
-  | 'groq-package-completion-retry-succeeded'
-  | 'groq-package-completion-retry-failed'
-  | 'groq-package-retried'
-  | 'groq-package-failed'
-  | 'groq-quota-exhausted'
-  | 'groq-transcript-failed'
-  | 'group-coverage-mismatch'
+  | 'auto-v4-source-authoritative-passage'
+  | 'auto-v4-source-passage-drift'
+  | 'group-quality-ready'
+  | 'group-source-underrepresented'
+  | 'note-heading-missing'
+  | 'note-row-missing'
+  | 'table-cell-missing'
+  | 'table-column-missing'
+  | 'instruction-shortened'
+  | 'question-text-changed'
+  | 'high-risk-token-changed'
   | 'duplicate-question-number'
   | 'task-type-conflict'
-  | 'missing-reference-bank'
   | 'blank-mismatch'
   | 'source-proof-format-mismatch'
   | 'source-text-exact-missing'
-  | 'normalized-text-source-drift'
-  | 'groq-output-missing-group'
-  | 'app-normalizer-dropped-group'
-  | 'repair-applied'
-  | 'repair-skipped'
-  | 'repair-failed'
-  | 'bank-ownership-heuristic-used';
+  | 'normalized-text-source-drift';
 
 export interface ReadingV2AutoImportDiagnostic {
   readonly code: ReadingV2AutoImportDiagnosticCode;
@@ -199,7 +159,7 @@ export interface ReadingV2AutoImportDiagnostic {
   readonly message: string;
   readonly passageNumber?: number;
   readonly questionNumber?: number;
-  readonly stage?: 'raw-groq' | 'normalized-transcript' | 'repaired-transcript' | 'targeted-retry' | 'final-verifier';
+  readonly stage?: 'auto-v4-passages' | 'auto-v4-questions';
   readonly groupRange?: string;
   readonly attempt?: number;
   readonly sourceRange?: string;
@@ -207,8 +167,53 @@ export interface ReadingV2AutoImportDiagnostic {
   readonly repairScopes?: readonly ReadingV2AutoRepairScope[];
   readonly providerResult?: 'success' | 'failure';
   readonly verifierResult?: 'passed' | 'failed';
-  readonly preferredKeyIndex?: number;
-  readonly keyFingerprint?: string;
+}
+
+export type ReadingV2GroupQualityStatus = 'ready' | 'weak' | 'blocked' | 'teacher-review';
+export type ReadingV2GroupSourceSpanConfidence = 'high' | 'medium' | 'low';
+export type ReadingV2GroupQualityRecommendedAction =
+  | 'none'
+  | 'deterministic-rehydrate'
+  | 'teacher-review'
+  | 'teacher-groq-repair'
+  | 'blocked';
+
+export interface ReadingV2GroupSourceSpan {
+  readonly groupId: string;
+  readonly questionRange: { readonly start: number; readonly end: number };
+  readonly taskType: string;
+  readonly confidence: ReadingV2GroupSourceSpanConfidence;
+  readonly startLineId: string;
+  readonly endLineId: string;
+  readonly evidenceLineIds: readonly string[];
+  readonly answerKeyLineIds: readonly string[];
+  readonly optionBankLineIds: readonly string[];
+  readonly warnings: readonly string[];
+}
+
+export interface ReadingV2GroupQualityRecord {
+  readonly groupId: string;
+  readonly questionRange: { readonly start: number; readonly end: number };
+  readonly taskType: string;
+  readonly status: ReadingV2GroupQualityStatus;
+  readonly sourceSpanConfidence: ReadingV2GroupSourceSpanConfidence;
+  readonly reasonCodes: readonly string[];
+  readonly coverage: {
+    readonly rawLineCount: number;
+    readonly representedLineCount: number;
+    readonly missingLineIds: readonly string[];
+    readonly rawStructuralUnitCount: number;
+    readonly representedStructuralUnitCount: number;
+    readonly missingStructuralUnits: readonly string[];
+    readonly highRiskTokenChanges: readonly {
+      readonly tokenKind: 'number' | 'date' | 'name' | 'question-id' | 'answer-label' | 'option-label' | 'blank-id';
+      readonly rawValue: string;
+      readonly studioValue: string;
+      readonly lineId?: string;
+    }[];
+  };
+  readonly recommendedAction: ReadingV2GroupQualityRecommendedAction;
+  readonly sourceSpan?: ReadingV2GroupSourceSpan;
 }
 
 const isProviderQuotaFailure = (value: string | undefined): boolean => {
@@ -233,6 +238,41 @@ const isProviderQuotaFailure = (value: string | undefined): boolean => {
     || text.includes('limit: 0')
     || text.includes('retrydelay')
   );
+};
+
+const autoPipelineLaneMessage = (lane: ReadingV2AutoPipelineLane): string => {
+  switch (lane) {
+    case 'v4-full-doc':
+      return 'Auto pipeline lane selected: V4 full-document staged parser.';
+    case 'legacy-gemini-chunk':
+      return 'Auto pipeline lane selected: legacy Gemini chunk importer.';
+    default:
+      return 'Auto pipeline lane selected.';
+  }
+};
+
+const autoPipelineLaneDiagnostic = (lane: ReadingV2AutoPipelineLane): ReadingV2AutoImportDiagnostic => ({
+  code: 'auto-pipeline-lane-selected',
+  severity: 'info',
+  message: autoPipelineLaneMessage(lane),
+});
+
+const resolveAutoPipelineLane = (
+  options: Pick<ReadingV2AutoImportOptions, 'pipelineLane' | 'forceV4Pipeline' | 'generator' | 'v4Extractor'>,
+): ReadingV2AutoPipelineLane => {
+  if (options.pipelineLane) {
+    return options.pipelineLane;
+  }
+
+  if (options.forceV4Pipeline === true || options.v4Extractor) {
+    return 'v4-full-doc';
+  }
+
+  if (!options.generator) {
+    return 'v4-full-doc';
+  }
+
+  return 'legacy-gemini-chunk';
 };
 
 const providerQuotaDiagnosticsFor = (
@@ -267,12 +307,11 @@ export interface ReadingV2AutoV4Extractor {
 export interface ReadingV2AutoImportOptions {
   readonly generator?: ReadingV2AutoStructuredGenerator;
   readonly v4Extractor?: ReadingV2AutoV4Extractor;
+  readonly pipelineLane?: ReadingV2AutoPipelineLane;
   readonly waitBetweenChunksMs?: number;
   readonly maxInputChars?: number;
   readonly minInputChars?: number;
   readonly maxRepairAttempts?: number;
-  readonly questionAreaNormalizer?: ReadingV2GroqPackageFanoutProvider;
-  readonly forceV3Pipeline?: boolean;
   readonly forceV4Pipeline?: boolean;
   readonly captureRawProviderDebug?: boolean;
   readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
@@ -303,7 +342,9 @@ export type ReadingV2AutoImportResult =
       readonly structuredPayloadText: string;
       readonly answerKeyText?: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-      readonly provider: 'gemini' | 'gemini-groq';
+      readonly sourceArtifact?: ReadingV2ImportSourceArtifact;
+      readonly groupQualityRecords?: readonly ReadingV2GroupQualityRecord[];
+      readonly provider: 'gemini';
       readonly model: string;
       readonly candidate: ReadingV2ImportCandidate;
       readonly passageCount: number;
@@ -314,7 +355,9 @@ export type ReadingV2AutoImportResult =
       readonly reviewStatus?: ReadingV2AutoImportReviewStatus;
       readonly error: string;
       readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-      readonly provider: 'gemini' | 'gemini-groq';
+      readonly sourceArtifact?: ReadingV2ImportSourceArtifact;
+      readonly groupQualityRecords?: readonly ReadingV2GroupQualityRecord[];
+      readonly provider: 'gemini';
       readonly model?: string;
     };
 
@@ -368,29 +411,6 @@ interface AutoPayloadState {
   readonly answerKeyText?: string;
   readonly payload: AutoPayload;
   readonly verifierIssues: readonly ReadingV2AutoSourceVerifierIssue[];
-}
-
-interface ReadingV2AutoV3PackageReplayBundle {
-  readonly schemaVersion: string;
-  readonly passageNumber: number;
-  readonly sourceHash: string;
-  readonly packageHash: string;
-  readonly expectedQuestionRange: string;
-  readonly groupHints: readonly string[];
-  readonly referenceBankLineSpans: readonly string[];
-  readonly questionAreaLineCount: number;
-  readonly promptHash: string;
-  readonly preferredKeyIndex?: number;
-  readonly keyFingerprint?: string;
-  readonly attempts: number;
-  readonly rawJsonShapeSummary: string;
-  readonly rawGroupRanges: readonly string[];
-  readonly rawCoverageGroups: readonly string[];
-  readonly rawCoverageQuestions: readonly number[];
-  readonly normalizedTranscriptGroupRanges: readonly string[];
-  readonly repairedTranscriptGroupRanges: readonly string[];
-  readonly finalVerifierIssueCodes: readonly string[];
-  readonly stageTransitions: readonly string[];
 }
 
 interface AnswerKeyCandidate {
@@ -897,6 +917,371 @@ const ledgerPayloadFromAutoPayload = (payload: AutoPayload): ReadingV2AutoLedger
   })),
 });
 
+const lineIdForSourceLine = (
+  sourceLedger: ReadingV2AutoSourceLedger,
+  lineNumber: number,
+): string => sourceLedger.lineIndex.find((line) => line.lineNumber === lineNumber)?.lineId
+  ?? `line-${String(lineNumber).padStart(4, '0')}`;
+
+const sourceLinesBetween = (
+  sourceLedger: ReadingV2AutoSourceLedger,
+  startLine: number,
+  endLine: number,
+): readonly { readonly lineId: string; readonly lineNumber: number; readonly text: string; readonly normalizedText: string }[] =>
+  sourceLedger.lineIndex
+    .filter((line) => line.lineNumber >= startLine && line.lineNumber <= endLine)
+    .map((line) => ({
+      lineId: line.lineId,
+      lineNumber: line.lineNumber,
+      text: line.rawText,
+      normalizedText: line.normalizedText,
+    }));
+
+const rangesOverlap = (
+  left: { readonly start: number; readonly end: number },
+  right: { readonly start: number; readonly end: number },
+): boolean => left.start <= right.end && right.start <= left.end;
+
+const sourceSpanForGroup = (input: {
+  readonly groupId: string;
+  readonly questionRange: { readonly start: number; readonly end: number };
+  readonly taskType: string;
+  readonly sourceLedger: ReadingV2AutoSourceLedger;
+}): ReadingV2GroupSourceSpan | undefined => {
+  const normalizedRange = {
+    start: Math.min(input.questionRange.start, input.questionRange.end),
+    end: Math.max(input.questionRange.start, input.questionRange.end),
+  };
+  const exactRange = input.sourceLedger.questionRanges.find((range) =>
+    range.start === normalizedRange.start && range.end === normalizedRange.end,
+  );
+  const overlappingRange = exactRange ?? input.sourceLedger.questionRanges.find((range) =>
+    rangesOverlap(normalizedRange, { start: range.start, end: range.end }),
+  );
+
+  if (!overlappingRange) {
+    return undefined;
+  }
+
+  const nextQuestionRangeLine = input.sourceLedger.questionRanges
+    .filter((range) => range.lineNumber > overlappingRange.lineNumber)
+    .map((range) => range.lineNumber)
+    .sort((left, right) => left - right)[0];
+  const nextPassageLine = input.sourceLedger.passages
+    .filter((passage) => passage.lineNumber > overlappingRange.lineNumber)
+    .map((passage) => passage.lineNumber)
+    .sort((left, right) => left - right)[0];
+  const nextAnswerLine = input.sourceLedger.answerKeyRows
+    .filter((row) => row.sourceLine > overlappingRange.lineNumber)
+    .map((row) => row.sourceLine)
+    .sort((left, right) => left - right)[0];
+  const endLine = [
+    nextQuestionRangeLine,
+    nextPassageLine,
+    nextAnswerLine,
+    input.sourceLedger.lineCount + 1,
+  ]
+    .filter((lineNumber): lineNumber is number => Number.isFinite(lineNumber))
+    .sort((left, right) => left - right)[0]! - 1;
+  const evidenceLines = sourceLinesBetween(input.sourceLedger, overlappingRange.lineNumber, Math.max(overlappingRange.lineNumber, endLine))
+    .filter((line) => line.normalizedText.length > 0);
+  const answerKeyLineIds = input.sourceLedger.answerKeyRows
+    .filter((row) => row.questionNumber >= normalizedRange.start && row.questionNumber <= normalizedRange.end)
+    .map((row) => lineIdForSourceLine(input.sourceLedger, row.sourceLine));
+  const optionBankLineIds = input.sourceLedger.referenceBanks
+    .filter((bank) => bank.questionRange && rangesOverlap(normalizedRange, bank.questionRange))
+    .map((bank) => lineIdForSourceLine(input.sourceLedger, bank.lineNumber));
+  const confidence: ReadingV2GroupSourceSpanConfidence = exactRange
+    ? 'high'
+    : overlappingRange
+      ? 'medium'
+      : 'low';
+
+  return {
+    groupId: input.groupId,
+    questionRange: normalizedRange,
+    taskType: input.taskType,
+    confidence,
+    startLineId: lineIdForSourceLine(input.sourceLedger, overlappingRange.lineNumber),
+    endLineId: lineIdForSourceLine(input.sourceLedger, Math.max(overlappingRange.lineNumber, endLine)),
+    evidenceLineIds: evidenceLines.map((line) => line.lineId),
+    answerKeyLineIds,
+    optionBankLineIds,
+    warnings: confidence === 'high'
+      ? []
+      : [`Mapped source range is ${confidence}-confidence; teacher review required before repair.`],
+  };
+};
+
+const stringsFromUnknown = (value: unknown, depth = 0): readonly string[] => {
+  if (depth > 4 || value === null || value === undefined) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() ? [value] : [];
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => stringsFromUnknown(item, depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).flatMap((item) =>
+      stringsFromUnknown(item, depth + 1),
+    );
+  }
+
+  return [];
+};
+
+const normalizedCoverageText = (value: string): string =>
+  value
+    .replace(/\\([()./|:_-])/g, '$1')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const textContainsSourceLine = (representedText: string, sourceLine: string): boolean => {
+  const normalizedSource = normalizedCoverageText(sourceLine);
+  if (!normalizedSource || normalizedSource.length <= 2) {
+    return true;
+  }
+
+  if (representedText.includes(normalizedSource)) {
+    return true;
+  }
+
+  const withoutQuestionNumber = normalizedCoverageText(
+    sourceLine.replace(/^\s*(?:[-*]\s*)?(?:\*\*)?\d{1,3}(?:\*\*)?(?:[).:\-])?\s+/, ''),
+  );
+  return Boolean(withoutQuestionNumber && representedText.includes(withoutQuestionNumber));
+};
+
+const highRiskTokensFromLine = (line: { readonly lineId: string; readonly text: string }): readonly {
+  readonly tokenKind: ReadingV2GroupQualityRecord['coverage']['highRiskTokenChanges'][number]['tokenKind'];
+  readonly rawValue: string;
+  readonly lineId: string;
+}[] => {
+  const tokens: {
+    tokenKind: ReadingV2GroupQualityRecord['coverage']['highRiskTokenChanges'][number]['tokenKind'];
+    rawValue: string;
+    lineId: string;
+  }[] = [];
+  const text = line.text;
+  const questionMatch = text.match(/^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:[).:\-])?\s+\S+/);
+  if (questionMatch?.[1]) {
+    tokens.push({ tokenKind: 'question-id', rawValue: questionMatch[1], lineId: line.lineId });
+  }
+
+  for (const match of text.matchAll(/\b\d{3,4}\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/g)) {
+    tokens.push({ tokenKind: 'date', rawValue: match[0], lineId: line.lineId });
+  }
+
+  const optionMatch = text.match(/^\s*(?:[-*]\s*)?([A-Z]|[ivxlcdm]{1,8})(?:[).:]|\s+[-\u2013\u2014])?\s+\S+/i);
+  if (optionMatch?.[1]) {
+    tokens.push({ tokenKind: 'option-label', rawValue: optionMatch[1].toUpperCase(), lineId: line.lineId });
+  }
+
+  for (const match of text.matchAll(/(?:_{3,}|\.{3,}|\[\s*(?:blank|\d+)\s*\])/gi)) {
+    tokens.push({ tokenKind: 'blank-id', rawValue: match[0], lineId: line.lineId });
+  }
+
+  return tokens;
+};
+
+const representedTextForGroup = (
+  material: AutoMaterial,
+  instruction: unknown,
+): string => {
+  const range = isObjectRecord(instruction) && isObjectRecord(instruction.questionRange)
+    ? {
+        start: optionalNumberFrom(instruction.questionRange.start),
+        end: optionalNumberFrom(instruction.questionRange.end),
+      }
+    : undefined;
+  const questions = (material.questions ?? []).filter((question) => {
+    const questionNumber = questionNumberFor(question);
+    return Boolean(
+      range?.start
+      && range.end
+      && questionNumber >= range.start
+      && questionNumber <= range.end,
+    );
+  });
+
+  return [
+    ...stringsFromUnknown(instruction),
+    ...questions.flatMap((question) => stringsFromUnknown(question)),
+  ].join(' ');
+};
+
+const reasonCodesForMissingSource = (input: {
+  readonly taskType: string;
+  readonly missingLines: readonly { readonly text: string }[];
+  readonly highRiskCount: number;
+}): readonly ReadingV2AutoImportDiagnosticCode[] => {
+  const codes = new Set<ReadingV2AutoImportDiagnosticCode>();
+  if (input.missingLines.length > 0) {
+    codes.add('group-source-underrepresented');
+  }
+  if (input.highRiskCount > 0) {
+    codes.add('high-risk-token-changed');
+    codes.add('question-text-changed');
+  }
+  if (input.missingLines.some((line) => /^questions?\s+\d+/i.test(line.text.trim()) || /\bchoose\b|\bcomplete\b|\bwrite\b/i.test(line.text))) {
+    codes.add('instruction-shortened');
+  }
+  if (input.taskType === 'note-completion') {
+    if (input.missingLines.some((line) => !/^\s*(?:[-*]\s*)?\d{1,3}\b/.test(line.text) && line.text.trim().length > 0)) {
+      codes.add('note-heading-missing');
+    }
+    if (input.missingLines.some((line) => /^\s*(?:[-*]\s*)?\d{1,3}\b/.test(line.text) || /_{3,}|\.{3,}/.test(line.text))) {
+      codes.add('note-row-missing');
+    }
+  }
+  if (input.taskType === 'table-completion') {
+    codes.add('table-cell-missing');
+    if (input.missingLines.some((line) => line.text.includes('|') || /\t/.test(line.text))) {
+      codes.add('table-column-missing');
+    }
+  }
+
+  return [...codes];
+};
+
+const buildReadingV2GroupQualityRecords = (
+  payload: AutoPayload,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): readonly ReadingV2GroupQualityRecord[] =>
+  (payload.materials ?? []).flatMap((material) =>
+    (material.sectionInstructions ?? []).flatMap((instruction) => {
+      if (!isObjectRecord(instruction) || !isObjectRecord(instruction.questionRange)) {
+        return [];
+      }
+
+      const start = optionalNumberFrom(instruction.questionRange.start);
+      const end = optionalNumberFrom(instruction.questionRange.end);
+      const taskType = typeof instruction.taskType === 'string'
+        ? instruction.taskType
+        : 'unknown';
+      if (!start || !end) {
+        return [];
+      }
+
+      const groupId = typeof instruction.id === 'string' && instruction.id.trim()
+        ? instruction.id.trim()
+        : `p${material.passageNumber ?? 'x'}-q${Math.min(start, end)}-${Math.max(start, end)}`;
+      const sourceSpan = sourceSpanForGroup({
+        groupId,
+        questionRange: { start, end },
+        taskType,
+        sourceLedger,
+      });
+      const sourceLines = sourceSpan
+        ? sourceSpan.evidenceLineIds.flatMap((lineId) => {
+            const line = sourceLedger.lineIndex.find((candidate) => candidate.lineId === lineId);
+            return line ? [{ lineId, text: line.rawText, normalizedText: line.normalizedText }] : [];
+          })
+        : [];
+      const representedText = normalizedCoverageText(representedTextForGroup(material, instruction));
+      const comparableLines = sourceLines.filter((line) =>
+        line.normalizedText.length > 0
+        && !/^questions?\s+\d+/i.test(line.normalizedText)
+        && !/^answers?\b/i.test(line.normalizedText)
+        && !/^reading passage\s+\d+\b/i.test(line.normalizedText)
+      );
+      const missingLines = comparableLines.filter((line) => !textContainsSourceLine(representedText, line.text));
+      const highRiskTokenChanges = comparableLines
+        .flatMap(highRiskTokensFromLine)
+        .filter((token) => !representedText.includes(normalizedCoverageText(token.rawValue)))
+        .map((token) => ({
+          tokenKind: token.tokenKind,
+          rawValue: token.rawValue,
+          studioValue: '',
+          lineId: token.lineId,
+        }));
+      const missingStructuralUnits = missingLines.map((line) => line.lineId);
+      const reasonCodes = [
+        ...(sourceSpan ? [] : ['source-question-range-missing' as const]),
+        ...reasonCodesForMissingSource({
+          taskType,
+          missingLines,
+          highRiskCount: highRiskTokenChanges.length,
+        }),
+      ];
+      const sourceSpanConfidence = sourceSpan?.confidence ?? 'low';
+      const status: ReadingV2GroupQualityStatus = sourceSpanConfidence === 'low'
+        ? 'teacher-review'
+        : missingLines.length > 0 || highRiskTokenChanges.length > 0
+          ? 'weak'
+          : 'ready';
+      const recommendedAction: ReadingV2GroupQualityRecommendedAction = status === 'ready'
+        ? 'none'
+        : status === 'blocked'
+          ? 'blocked'
+          : status === 'teacher-review' || sourceSpanConfidence !== 'high' || highRiskTokenChanges.length > 0
+            ? 'teacher-review'
+            : ['note-completion', 'table-completion', 'flowchart-completion', 'diagram-labeling'].includes(taskType)
+              ? 'teacher-groq-repair'
+              : 'deterministic-rehydrate';
+
+      return [{
+        groupId,
+        questionRange: { start: Math.min(start, end), end: Math.max(start, end) },
+        taskType,
+        status,
+        sourceSpanConfidence,
+        reasonCodes: reasonCodes.length > 0 ? reasonCodes : ['group-quality-ready'],
+        coverage: {
+          rawLineCount: comparableLines.length,
+          representedLineCount: comparableLines.length - missingLines.length,
+          missingLineIds: missingLines.map((line) => line.lineId),
+          rawStructuralUnitCount: comparableLines.length,
+          representedStructuralUnitCount: comparableLines.length - missingStructuralUnits.length,
+          missingStructuralUnits,
+          highRiskTokenChanges,
+        },
+        recommendedAction,
+        ...(sourceSpan ? { sourceSpan } : {}),
+      }];
+    }),
+  );
+
+const diagnosticsFromGroupQualityRecords = (
+  records: readonly ReadingV2GroupQualityRecord[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  records.flatMap((record) =>
+    record.reasonCodes.map((reasonCode) => ({
+      code: reasonCode as ReadingV2AutoImportDiagnosticCode,
+      severity: record.status === 'blocked'
+        ? 'error' as const
+        : record.status === 'ready'
+          ? 'info' as const
+          : 'warning' as const,
+      message: record.status === 'ready'
+        ? `Group ${record.questionRange.start}-${record.questionRange.end} is source-verified and ready.`
+        : `Group ${record.questionRange.start}-${record.questionRange.end} is ${record.status}: ${reasonCode}.`,
+      passageNumber: undefined,
+      questionNumber: record.questionRange.start,
+      groupRange: `${record.questionRange.start}-${record.questionRange.end}`,
+      sourceRange: record.sourceSpan
+        ? `${record.sourceSpan.startLineId}-${record.sourceSpan.endLineId}`
+        : undefined,
+      verifierResult: record.status === 'ready' ? 'passed' as const : 'failed' as const,
+      repairScopes: record.recommendedAction === 'deterministic-rehydrate'
+        || record.recommendedAction === 'teacher-groq-repair'
+        ? ['task-group' as const]
+        : undefined,
+    })),
+  );
+
 const buildAutoPayloadState = (
   request: ReadingV2AutoImportRequest,
   extractedAnswerKeyText: string | undefined,
@@ -1001,6 +1386,85 @@ const autoV4PassageTitle = (
   return `Reading Passage ${passageNumber}`;
 };
 
+const autoV4PassageSourceContent = (
+  passageNumber: number,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): string | undefined => {
+  const passage = sourceLedger.passages.find((candidate) => candidate.passageNumber === passageNumber);
+  if (!passage) {
+    return undefined;
+  }
+
+  const firstQuestionLine = sourceLedger.questionRanges
+    .filter((range) => range.passageNumber === passageNumber && range.lineNumber > passage.lineNumber)
+    .map((range) => range.lineNumber)
+    .sort((left, right) => left - right)[0];
+  const nextPassageLine = sourceLedger.passages
+    .filter((candidate) => candidate.lineNumber > passage.lineNumber)
+    .map((candidate) => candidate.lineNumber)
+    .sort((left, right) => left - right)[0];
+  const firstAnswerLine = sourceLedger.answerKeyRows
+    .map((row) => row.sourceLine)
+    .sort((left, right) => left - right)[0];
+  const endLine = [
+    firstQuestionLine,
+    nextPassageLine,
+    firstAnswerLine,
+    sourceLedger.lineCount + 1,
+  ]
+    .filter((lineNumber): lineNumber is number => Number.isFinite(lineNumber) && lineNumber > passage.lineNumber)
+    .sort((left, right) => left - right)[0]! - 1;
+  const body = sourceLinesBetween(sourceLedger, passage.lineNumber + 1, Math.max(passage.lineNumber + 1, endLine))
+    .map((line) => line.text)
+    .join('\n')
+    .trim();
+
+  return body.length > 0 ? body : undefined;
+};
+
+const autoV4PassageHighRiskTokens = (value: string): readonly string[] =>
+  [...new Set(
+    [
+      ...value.matchAll(/\b\d{3,4}\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/g),
+      ...value.matchAll(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b/g),
+    ].map((match) => match[0]),
+  )];
+
+const autoV4PassageSourceDiagnostics = (
+  passagesResult: AIPassagesOnlyResult,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  passagesResult.passages.flatMap((passage, index) => {
+    const passageNumber = passageNumberFromAutoV4Passage(passage, index, sourceLedger);
+    const sourceContent = autoV4PassageSourceContent(passageNumber, sourceLedger);
+    if (!sourceContent) {
+      return [];
+    }
+
+    const aiText = normalizedCoverageText(passage.content ?? '');
+    const missingHighRiskTokens = autoV4PassageHighRiskTokens(sourceContent)
+      .filter((token) => !aiText.includes(normalizedCoverageText(token)));
+    const diagnostics: ReadingV2AutoImportDiagnostic[] = [{
+      code: 'auto-v4-source-authoritative-passage',
+      severity: 'info',
+      message: `Passage ${passageNumber} Studio text was copied from raw source ledger lines instead of provider passage prose.`,
+      passageNumber,
+      verifierResult: 'passed',
+    }];
+
+    if (missingHighRiskTokens.length > 0) {
+      diagnostics.push({
+        code: 'auto-v4-source-passage-drift',
+        severity: 'warning',
+        message: `Auto V4 provider passage text differed from raw source high-risk token(s): ${missingHighRiskTokens.slice(0, 6).join(', ')}.`,
+        passageNumber,
+        verifierResult: 'failed',
+      });
+    }
+
+    return diagnostics;
+  });
+
 const normalizedTextKey = (value: string | undefined): string =>
   compactWhitespace(value ?? '').toLowerCase();
 
@@ -1037,6 +1501,14 @@ const answerValuesByQuestionNumber = (
       )
       .map((row) => [row.questionNumber, row.parsedAnswerValues]),
   );
+
+const providerNameFromStageResult = (data: unknown): string =>
+  typeof data === 'object'
+    && data !== null
+    && 'provider' in data
+    && typeof (data as { readonly provider?: unknown }).provider === 'string'
+    ? (data as { readonly provider: string }).provider
+    : 'custom-extractor';
 
 const questionNumberFromAutoV4Question = (question: AIQuestion): number =>
   normalizeNumber(question.questionNumber);
@@ -1109,6 +1581,10 @@ const uniqueOptionItems = (
 };
 
 const autoV4QuestionOptionSignature = (question: AIQuestion, taskType: ReadingV2CanonicalTaskType): string => {
+  if (taskType === 'multiple-choice' || taskType === 'multiple-select') {
+    return '';
+  }
+
   if (
     !readingV2TaskUsesPrimarySectionReferenceBank(taskType)
     && !readingV2TaskUsesImportedLabeledOptions(taskType)
@@ -1396,7 +1872,7 @@ const sourceQuestionRangeLineMatches = (line: string, start: number, end: number
   const normalized = cleanAutoV4TitleText(line)
     .replace(/â€“|â€”|\u2013|\u2014/g, '-')
     .replace(/\s+/g, ' ');
-  return new RegExp(`^Questions?\\s+${start}\\s*(?:-|to)\\s*${end}\\b`, 'i').test(normalized);
+  return new RegExp(`^Questions?\\s+${start}\\s*(?:-|to|and)\\s*${end}\\b`, 'i').test(normalized);
 };
 
 const isSummarySourceBoundary = (line: string): boolean => {
@@ -1409,13 +1885,13 @@ const isSummarySourceBoundary = (line: string): boolean => {
 };
 
 const summaryMarkerPatternFor = (questionNumber: number): RegExp =>
-  new RegExp(`(?:\\[\\s*)?${questionNumber}(?:\\s*\\])?\\s*(?:_+|\\.{3,}|\\[\\s*blank\\s*\\])`, 'i');
+  new RegExp(`(?:\\[\\s*)?${questionNumber}(?:\\s*\\])?\\s*(?:_+|\\.{3,}|…+|â€¦+|\\[\\s*blank\\s*\\])`, 'i');
 
 const autoV4SummaryLayoutFromSource = (
   group: AutoV4QuestionGroup,
   sourceLedger: ReadingV2AutoSourceLedger,
 ): AutoV4SummaryLayout | undefined => {
-  if (group.taskType !== 'summary-completion-text' || group.questions.length === 0) {
+  if (!['summary-completion-text', 'summary-completion-list'].includes(group.taskType) || group.questions.length === 0) {
     return undefined;
   }
 
@@ -1490,6 +1966,139 @@ const autoV4SummaryLayoutFromSource = (
   };
 };
 
+const autoV4PromptTextForTask = (
+  taskType: ReadingV2CanonicalTaskType,
+  value: string,
+): string => {
+  const text = normalizedQuestionText(value);
+  return readingV2TaskUsesBlankMarkers(taskType)
+    ? compactWhitespace(replaceReadingV2AutoCompletionBlanks(text, ' ___ '))
+    : text;
+};
+
+const autoV4TableFromGroup = (
+  group: AutoV4QuestionGroup,
+): { readonly rows: readonly (readonly ({ readonly text: string; readonly questionNumber?: number; readonly isBlank?: boolean } | string)[])[] } | undefined => {
+  if (group.taskType !== 'table-completion') {
+    return undefined;
+  }
+
+  const rows = group.questions.map((question) => {
+    const promptText = autoV4PromptTextForTask(group.taskType, question.source.questionText);
+    const cells = promptText.includes('|')
+      ? promptText.split('|').map((cell) => compactWhitespace(cell))
+      : [promptText];
+
+    return cells.map((cell, cellIndex) => {
+      const hasBlank = cell.includes('___');
+      if (!hasBlank && cellIndex !== cells.length - 1) {
+        return cell;
+      }
+
+      return {
+        text: hasBlank ? cell : `${cell} ___`,
+        questionNumber: question.questionNumber,
+        isBlank: true,
+      };
+    });
+  });
+
+  return rows.length > 0 ? { rows } : undefined;
+};
+
+const autoV4FlowchartFromGroup = (
+  group: AutoV4QuestionGroup,
+): { readonly steps: readonly { readonly stepId: string; readonly text: string; readonly questionNumber: number; readonly isBlank: true; readonly nextStepIds?: readonly string[] }[] } | undefined => {
+  if (group.taskType !== 'flowchart-completion') {
+    return undefined;
+  }
+
+  const steps = group.questions.map((question, index) => ({
+    stepId: `step-q${question.questionNumber}`,
+    text: autoV4PromptTextForTask(group.taskType, question.source.questionText),
+    questionNumber: question.questionNumber,
+    isBlank: true as const,
+    ...(index < group.questions.length - 1
+      ? { nextStepIds: [`step-q${group.questions[index + 1]?.questionNumber}`] }
+      : {}),
+  }));
+
+  return steps.length > 0 ? { steps } : undefined;
+};
+
+const autoV4SourceWindowForGroup = (
+  group: AutoV4QuestionGroup,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): readonly string[] => {
+  const start = group.questions[0]?.questionNumber ?? 0;
+  const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
+  const lines = sourceLedger.normalizedText.split('\n');
+  const rangeIndex = lines.findIndex((line) => sourceQuestionRangeLineMatches(line, start, end));
+  if (rangeIndex < 0) {
+    return [];
+  }
+
+  const sourceWindow: string[] = [];
+  for (let index = rangeIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? '';
+    if (sourceWindow.length > 0 && isSummarySourceBoundary(line)) {
+      break;
+    }
+    sourceWindow.push(line);
+  }
+
+  return sourceWindow;
+};
+
+const autoV4ImageUrlsFromSourceLines = (lines: readonly string[]): readonly string[] => {
+  const imageUrls: string[] = [];
+  const seen = new Set<string>();
+  const markdownImagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
+  const htmlImagePattern = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+
+  lines.forEach((line) => {
+    for (const pattern of [markdownImagePattern, htmlImagePattern]) {
+      pattern.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(line)) !== null) {
+        const imageUrl = match[1]?.trim();
+        if (imageUrl && !seen.has(imageUrl)) {
+          seen.add(imageUrl);
+          imageUrls.push(imageUrl);
+        }
+      }
+    }
+  });
+
+  return imageUrls;
+};
+
+const autoV4DiagramFromGroup = (
+  group: AutoV4QuestionGroup,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): { readonly imageAlt: string; readonly imageUrl?: string; readonly imageUrls?: readonly string[]; readonly targets: readonly { readonly label: string; readonly questionNumber: number }[] } | undefined => {
+  if (group.taskType !== 'diagram-labeling') {
+    return undefined;
+  }
+
+  const imageUrls = autoV4ImageUrlsFromSourceLines(autoV4SourceWindowForGroup(group, sourceLedger));
+  const targets = group.questions.map((question) => ({
+    label: `Question ${question.questionNumber}`,
+    questionNumber: question.questionNumber,
+  }));
+
+  return targets.length > 0
+    ? {
+        imageAlt: imageUrls.length > 1
+          ? `Imported diagram from source (${imageUrls.length} source images found; review original diagram set)`
+          : 'Imported diagram from source',
+        imageUrl: imageUrls[0],
+        imageUrls,
+        targets,
+      }
+    : undefined;
+};
+
 const buildAutoPayloadFromAutoV4Results = (input: {
   readonly request: ReadingV2AutoImportRequest;
   readonly sourceLedger: ReadingV2AutoSourceLedger;
@@ -1521,18 +2130,22 @@ const buildAutoPayloadFromAutoV4Results = (input: {
       const materialQuestions = questionsByMaterialIndex.get(materialIndex) ?? [];
       const groups = autoV4QuestionGroupsForMaterial(passageNumber, materialQuestions, input.sourceLedger);
       const passageTitle = autoV4PassageTitle(passage, passageNumber, input.sourceLedger);
+      const sourcePassageContent = autoV4PassageSourceContent(passageNumber, input.sourceLedger);
 
       return {
         passageNumber,
         title: passageTitle,
         passages: [{
           title: passageTitle,
-          content: passage.content,
+          content: sourcePassageContent ?? passage.content,
         }],
         sectionInstructions: groups.map((group) => {
           const start = group.questions[0]?.questionNumber ?? 0;
           const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
           const summaryLayout = autoV4SummaryLayoutFromSource(group, input.sourceLedger);
+          const table = autoV4TableFromGroup(group);
+          const flowchart = autoV4FlowchartFromGroup(group);
+          const diagram = autoV4DiagramFromGroup(group, input.sourceLedger);
           return {
             id: group.id,
             taskType: group.taskType,
@@ -1543,6 +2156,9 @@ const buildAutoPayloadFromAutoV4Results = (input: {
             sectionReferences: autoV4GroupSectionReferences(group),
             labeledOptions: autoV4GroupLabeledOptions(group),
             layoutHint: summaryLayout?.layoutHint,
+            table,
+            flowchart,
+            diagram,
           };
         }),
         questions: groups.flatMap((group) =>
@@ -1555,7 +2171,7 @@ const buildAutoPayloadFromAutoV4Results = (input: {
               type: group.taskType,
               sectionInstructionId: group.id,
               questionText: summaryLayout?.questionTextByQuestionNumber.get(question.questionNumber)
-                ?? normalizedQuestionText(question.source.questionText),
+                ?? autoV4PromptTextForTask(group.taskType, question.source.questionText),
               answer: answers.join(' | '),
               labeledOptions: autoV4QuestionLabeledOptions(question.source, group.taskType),
               sectionReferences: readingV2TaskUsesPrimarySectionReferenceBank(group.taskType)
@@ -1799,6 +2415,14 @@ const reviewableGuardrailDiagnosticCodes = new Set<ReadingV2AutoImportDiagnostic
   'source-instruction-vocabulary-mismatch',
   'source-instruction-reuse-mismatch',
   'source-passage-trim-risk',
+  'auto-v4-source-passage-drift',
+  'group-source-underrepresented',
+  'note-heading-missing',
+  'note-row-missing',
+  'table-cell-missing',
+  'table-column-missing',
+  'instruction-shortened',
+  'question-text-changed',
   'group-coverage-mismatch',
   'task-type-conflict',
   'missing-reference-bank',
@@ -1825,6 +2449,14 @@ const publishBlockingReviewDiagnosticCodes = new Set<ReadingV2AutoImportDiagnost
   'source-instruction-vocabulary-mismatch',
   'source-instruction-reuse-mismatch',
   'source-passage-trim-risk',
+  'auto-v4-source-passage-drift',
+  'group-source-underrepresented',
+  'note-heading-missing',
+  'note-row-missing',
+  'table-cell-missing',
+  'table-column-missing',
+  'instruction-shortened',
+  'question-text-changed',
   'group-coverage-mismatch',
   'task-type-conflict',
   'missing-reference-bank',
@@ -1908,135 +2540,10 @@ const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
   ];
 };
 
-const compactAnswerLabel = (value: string): string =>
-  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-const answerForTaskVocabulary = (
-  answer: string,
-  taskType: ReadingV2CanonicalTaskType | undefined,
-): string => {
-  const trimmed = answer.trim();
-  const compact = compactAnswerLabel(trimmed);
-
-  if (taskType === 'true-false-not-given') {
-    if (compact === 'yes' || compact === 'y') return 'TRUE';
-    if (compact === 'no' || compact === 'n') return 'FALSE';
-    if (compact === 'notgiven' || compact === 'ng') return 'NOT GIVEN';
-  }
-
-  if (taskType === 'yes-no-not-given') {
-    if (compact === 'true' || compact === 't') return 'YES';
-    if (compact === 'false' || compact === 'f') return 'NO';
-    if (compact === 'notgiven' || compact === 'ng') return 'NOT GIVEN';
-  }
-
-  return trimmed;
-};
-
-const answerKeyTextFromTopologyRows = (
-  rows: readonly {
-    readonly questionNumber: number;
-    readonly answer: string;
-    readonly alternativeAnswers?: readonly string[];
-    readonly sourceTextExact?: string;
-  }[],
-  taskTypeByQuestionNumber: ReadonlyMap<number, ReadingV2CanonicalTaskType> = new Map(),
-): string | undefined => {
-  const lines = rows
-    .slice()
-    .sort((left, right) => left.questionNumber - right.questionNumber)
-    .map((row) => {
-      const taskType = taskTypeByQuestionNumber.get(row.questionNumber);
-      const sourceRowAnswers = row.sourceTextExact
-        ? parseReadingV2TeacherAnswerKey(row.sourceTextExact).rows.find(
-            (candidate) => candidate.questionNumber === row.questionNumber,
-          )?.parsedAnswerValues ?? []
-        : [];
-      const answers = (sourceRowAnswers.length > 0
-        ? sourceRowAnswers
-        : [row.answer, ...(row.alternativeAnswers ?? [])])
-        .map((answer) => answerForTaskVocabulary(answer, taskType))
-        .map((answer) => answer.trim())
-        .filter(Boolean);
-      return answers.length > 0 ? `${row.questionNumber} ${answers.join(' | ')}` : '';
-    })
-    .filter(Boolean);
-
-  return lines.length > 0 ? lines.join('\n') : undefined;
-};
-
-const diagnosticsFromPackageDiagnostics = (
-  diagnostics: readonly ReadingV2AutoPassagePackageDiagnostic[],
-): readonly ReadingV2AutoImportDiagnostic[] =>
-  diagnostics.map((diagnostic) => ({
-    code: 'passage-package-failed',
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    passageNumber: diagnostic.passageNumber,
-  }));
-
-const diagnosticsFromGroqFanout = (
-  diagnostics: readonly ReadingV2GroqPackageFanoutDiagnostic[],
-): readonly ReadingV2AutoImportDiagnostic[] =>
-  diagnostics.map((diagnostic) => ({
-    code: diagnostic.code,
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    passageNumber: diagnostic.passageNumber,
-    preferredKeyIndex: diagnostic.preferredKeyIndex,
-    keyFingerprint: diagnostic.keyFingerprint,
-  }));
-
-const diagnosticsFromTranscript = (
-  diagnostics: readonly ReadingV2AutoQuestionTranscriptDiagnostic[],
-): readonly ReadingV2AutoImportDiagnostic[] =>
-  diagnostics.map((diagnostic) => ({
-    code: diagnostic.code as ReadingV2AutoImportDiagnosticCode,
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    passageNumber: diagnostic.passageNumber,
-    questionNumber: diagnostic.questionNumber,
-    stage: 'final-verifier',
-  }));
-
-const diagnosticsFromTopologyMarker = (
-  diagnostics: readonly ReadingV2AutoTopologyMarkerDiagnostic[],
-): readonly ReadingV2AutoImportDiagnostic[] =>
-  diagnostics.map((diagnostic) => ({
-    code: diagnostic.code,
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    passageNumber: diagnostic.passageNumber,
-    questionNumber: diagnostic.questionNumber,
-    sourceRange: diagnostic.sourceRange,
-  }));
-
-const chunksFromPassagePackages = (
-  passagePackages: readonly ReadingV2AutoPassagePackage[],
-): readonly SourceChunk[] =>
-  passagePackages.map((passagePackage) => {
-    const expectedQuestionNumbers: number[] = [];
-    for (
-      let questionNumber = passagePackage.expectedQuestionRange.start;
-      questionNumber <= passagePackage.expectedQuestionRange.end;
-      questionNumber += 1
-    ) {
-      expectedQuestionNumbers.push(questionNumber);
-    }
-
-    return {
-      passageNumber: passagePackage.passageNumber,
-      text: [
-        passagePackage.passageBodyText,
-        passagePackage.questionAreaText,
-      ].filter(Boolean).join('\n\n'),
-      expectedQuestionNumbers,
-    };
-  });
-
 const finalizeAutoImportPayload = (input: {
   readonly request: ReadingV2AutoImportRequest;
   readonly sourceLedger: ReadingV2AutoSourceLedger;
+  readonly sourceArtifact?: ReadingV2ImportSourceArtifact;
   readonly chunks: readonly SourceChunk[];
   readonly payload: AutoPayload;
   readonly answerKeyText?: string;
@@ -2048,10 +2555,12 @@ const finalizeAutoImportPayload = (input: {
 }): ReadingV2AutoImportResult => {
   const provider = input.provider ?? 'gemini';
   const model = input.model ?? GEMINI_MODEL_NAME;
+  const groupQualityRecords = buildReadingV2GroupQualityRecords(input.payload, input.sourceLedger);
   const verifierIssues = input.verifierIssues
     ?? verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(input.payload), input.sourceLedger);
   const rawDiagnostics = [
     ...input.diagnostics,
+    ...diagnosticsFromGroupQualityRecords(groupQualityRecords),
     ...validatePayload(input.payload, input.chunks, input.sourceLedger, verifierIssues),
   ];
   const guardrail = normalizeGuardrailDiagnosticsForStudio(rawDiagnostics);
@@ -2076,6 +2585,8 @@ const finalizeAutoImportPayload = (input: {
       reviewStatus: 'blocked',
       error: diagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message ?? 'Auto import failed guardrails.',
       diagnostics,
+      sourceArtifact: input.sourceArtifact,
+      groupQualityRecords,
       provider,
       model,
     };
@@ -2089,17 +2600,26 @@ const finalizeAutoImportPayload = (input: {
     fileName: input.request.sourceName
       ?? (model === AUTO_V4_MODEL_LABEL
         ? 'Auto V4 import'
-        : provider === AUTO_V3_PROVIDER
-          ? 'Auto V3 import'
-          : 'Auto Gemini import'),
+        : 'Auto Gemini import'),
   });
   const candidateWithLedger: ReadingV2ImportCandidate = {
     ...candidate,
     sourceRawText: input.sourceLedger.normalizedText,
+    importSourceArtifact: input.sourceArtifact,
     autoImportDiagnostics: diagnostics,
+    autoImportGroupQuality: groupQualityRecords,
     evidence: [
       ...candidate.evidence,
+      ...(input.sourceArtifact
+        ? [
+            `Import source artifact: ${input.sourceArtifact.artifactId}`,
+            `Import source raw sha256: ${input.sourceArtifact.rawTextSha256}`,
+            `Import source normalized sha256: ${input.sourceArtifact.normalizedTextSha256}`,
+          ]
+        : []),
       ...readingV2AutoSourceLedgerEvidence(input.sourceLedger),
+      `Source ledger line index: ${input.sourceLedger.lineIndex.length}`,
+      `Group quality records: ${groupQualityRecords.length}`,
       ...generatedDraftEvidence(input.payload),
       ...(input.extraEvidence ?? []),
     ],
@@ -2147,6 +2667,10 @@ const finalizeAutoImportPayload = (input: {
       };
     }
   } catch (error) {
+    if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+      console.error('[ReadingV2AutoImport] Guardrail normalization failed:', error);
+    }
+
     return {
       success: false,
       reviewStatus: 'blocked',
@@ -2171,14 +2695,16 @@ const finalizeAutoImportPayload = (input: {
   return {
     success: true,
     reviewStatus,
-    structuredPayloadText: text,
-    answerKeyText: input.answerKeyText,
-    diagnostics: [
-      ...diagnostics,
-      ...canonicalValidationDiagnostics,
-    ],
-    provider,
-    model,
+      structuredPayloadText: text,
+      answerKeyText: input.answerKeyText,
+      diagnostics: [
+        ...diagnostics,
+        ...canonicalValidationDiagnostics,
+      ],
+      sourceArtifact: input.sourceArtifact,
+      groupQualityRecords,
+      provider,
+      model,
     candidate: candidateForStudio,
     passageCount: input.payload.materials?.length ?? 0,
     questionCount: questionCountFor(input.payload),
@@ -2428,1146 +2954,11 @@ const repairPayloadAgainstLedger = async (
   return { ...state, diagnostics };
 };
 
-const compactText = (value: string): string =>
-  value.replace(/\s+/g, ' ').trim();
-
-const normalizeAutoV3TaskTypeHint = (
-  taskTypeHint: string | undefined,
-  options: { readonly summaryAnswerMode?: 'text' | 'list' } = {},
-): ReadingV2CanonicalTaskType | null => {
-  const normalized = compactText(taskTypeHint ?? '').toLowerCase();
-  const summaryAnswerMode = options.summaryAnswerMode
-    ?? (normalized.includes('summary')
-      ? normalized.includes('list') || normalized.includes('box') || normalized.includes('option')
-        ? 'list'
-        : 'text'
-      : undefined);
-
-  return normalizeReadingV2TaskType(taskTypeHint ?? '', { summaryAnswerMode })
-    ?? (normalized === 'summary-completion' ? 'summary-completion-text' : null);
-};
-
-const MULTI_MARKER_SOURCE_FRAGMENT_TASK_TYPES = new Set<ReadingV2CanonicalTaskType>(
-  READING_V2_CANONICAL_TASK_TYPES.filter(readingV2TaskUsesBlankMarkers),
-);
-
-interface ReadingV2AutoInlineCompletionOccurrence {
-  readonly questionNumber: number;
-  readonly markerStart: number;
-  readonly blankEnd: number;
-}
-
-const INLINE_COMPLETION_QUESTION_PATTERN = new RegExp(
-  String.raw`(?:\*\*|__)?\s*(\d{1,3})\s*(?:\*\*|__)?(?:[.)])?\s*(?:${READING_V2_AUTO_COMPLETION_BLANK_PATTERN.source})`,
-  'gi',
-);
-
-const inlineCompletionOccurrencesFromLine = (
-  lineText: string,
-  groupQuestionNumbers: readonly number[],
-): readonly ReadingV2AutoInlineCompletionOccurrence[] => {
-  const groupQuestionNumberSet = new Set(groupQuestionNumbers);
-  const occurrences: ReadingV2AutoInlineCompletionOccurrence[] = [];
-
-  for (const match of lineText.matchAll(INLINE_COMPLETION_QUESTION_PATTERN)) {
-    const questionNumber = Number(match[1]);
-    const markerStart = match.index ?? -1;
-    if (!Number.isFinite(questionNumber) || markerStart < 0 || !groupQuestionNumberSet.has(questionNumber)) {
-      continue;
-    }
-    occurrences.push({
-      questionNumber,
-      markerStart,
-      blankEnd: markerStart + match[0].length,
-    });
-  }
-
-  return occurrences;
-};
-
-const scopedCompletionQuestionSourceTextFromLine = (
-  lineText: string,
-  questionNumber: number,
-  groupQuestionNumbers: readonly number[],
-): string | null => {
-  const occurrences = inlineCompletionOccurrencesFromLine(lineText, groupQuestionNumbers);
-  if (occurrences.length <= 1) {
-    return null;
-  }
-
-  const currentIndex = occurrences.findIndex((occurrence) => occurrence.questionNumber === questionNumber);
-  if (currentIndex < 0) {
-    return null;
-  }
-
-  const start = occurrences[currentIndex - 1]?.blankEnd ?? 0;
-  const end = occurrences[currentIndex + 1]?.markerStart ?? lineText.length;
-  const scopedText = lineText.slice(start, end).trim();
-
-  return scopedText || null;
-};
-
-const canonicalQuestionSourceTextFromLine = (input: {
-  readonly lineText: string;
-  readonly questionNumber: number;
-  readonly groupQuestionNumbers: readonly number[];
-  readonly taskType: ReadingV2CanonicalTaskType;
-}): string | null => {
-  const matchedQuestionNumbers = input.groupQuestionNumbers.filter((candidate) =>
-    readingV2AutoLineMatchesQuestionNumber(input.lineText, candidate),
-  );
-
-  if (!matchedQuestionNumbers.includes(input.questionNumber)) {
-    return null;
-  }
-
-  if (matchedQuestionNumbers.length <= 1) {
-    return input.lineText.trim();
-  }
-
-  if (!MULTI_MARKER_SOURCE_FRAGMENT_TASK_TYPES.has(input.taskType)) {
-    return null;
-  }
-
-  return scopedCompletionQuestionSourceTextFromLine(
-    input.lineText,
-    input.questionNumber,
-    input.groupQuestionNumbers,
-  );
-};
-
-const normalizedPromptTextFromSourceText = (
-  sourceTextExact: string,
-  questionNumber: number,
-): string => {
-  const blankSentinel = '[[BLANK]]';
-  return compactText(
-    replaceReadingV2AutoCompletionBlanks(sourceTextExact, ` ${blankSentinel} `)
-      .replace(
-        new RegExp(
-          String.raw`^\s*(?:(?:[-*]|\u2022|\u25cf)\s*)?(?:\*\*|__)?${questionNumber}(?:\*\*|__)?(?:[.)])?\s*`,
-          'i',
-        ),
-        '',
-      )
-      .replace(
-        new RegExp(
-          String.raw`(?:\*\*|__)?\s*${questionNumber}\s*(?:\*\*|__)?(?:[.)])?\s*(?=\[\[BLANK\]\])`,
-          'gi',
-        ),
-        '',
-      )
-      .replace(/[`*_~]+/g, '')
-      .replace(/\\(?=[_.])/g, '')
-      .split(blankSentinel)
-      .join('___'),
-  );
-};
-
-const BANK_LINE_PATTERN = /^(?:\*\*|__)?([A-Z]|\d+|[ivxlcdm]+)(?:\*\*|__)?(?:[.)])?(?:\s+(.*))?$/i;
-const numbersInRange = (range: { readonly start: number; readonly end: number }): readonly number[] => {
-  const numbers: number[] = [];
-  for (let questionNumber = range.start; questionNumber <= range.end; questionNumber += 1) {
-    numbers.push(questionNumber);
-  }
-  return numbers;
-};
-
-const WORD_LIMIT_BY_TEXT = new Map<string, number>([
-  ['ONE', 1],
-  ['TWO', 2],
-  ['THREE', 3],
-  ['FOUR', 4],
-  ['FIVE', 5],
-]);
-
-const wordLimitDetailsFromInstructionText = (
-  sourceInstructionText: string | undefined,
-): Pick<ReadingV2AutoQuestionTranscript['groups'][number]['instructionMeta'], 'wordLimit' | 'wordLimitText'> => {
-  const source = compactText(sourceInstructionText ?? '');
-  const upper = source.toUpperCase();
-  const wordOnlyMatch = upper.match(/\b(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORD(?:S)?\s+ONLY\b/);
-  const noMoreThanMatch = upper.match(/\bNO\s+MORE\s+THAN\s+(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORD(?:S)?\b/);
-  const match = wordOnlyMatch ?? noMoreThanMatch;
-  const raw = match?.[1];
-
-  if (!raw) {
-    return {};
-  }
-
-  const wordLimit = WORD_LIMIT_BY_TEXT.get(raw) ?? Number(raw);
-  if (!Number.isFinite(wordLimit) || wordLimit <= 0) {
-    return {};
-  }
-
-  const wordLimitText = noMoreThanMatch
-    ? noMoreThanMatch[0]
-    : wordOnlyMatch?.[0];
-
-  return {
-    wordLimit,
-    ...(wordLimitText ? { wordLimitText } : {}),
-  };
-};
-
-const referenceLabelRangeFromInstructionText = (
-  sourceInstructionText: string | undefined,
-): Pick<ReadingV2AutoQuestionTranscript['groups'][number]['instructionMeta'], 'referenceLabelRange'> => {
-  const source = compactText(sourceInstructionText ?? '');
-  const match = source.match(/\b([A-Z])\s*[-–—]\s*([A-Z])\b/);
-  if (!match?.[1] || !match[2]) {
-    return {};
-  }
-
-  return {
-    referenceLabelRange: `${match[1].toUpperCase()}-${match[2].toUpperCase()}`,
-  };
-};
-
-const repairedFlowchartFromQuestions = (
-  questions: readonly {
-    readonly number: number;
-    readonly promptText: string;
-    readonly sourceTextExact?: string;
-    readonly normalizedPromptText?: string;
-  }[],
-): ReadingV2AutoQuestionTranscript['groups'][number]['flowchart'] => ({
-  steps: questions.map((question, index) => ({
-    stepId: `step-q${question.number}`,
-    text: compactText(replaceReadingV2AutoCompletionBlanks(question.promptText, ' ')).replace(/\s+[.,;:]$/, ''),
-    ...(question.sourceTextExact ? { sourceTextExact: question.sourceTextExact } : {}),
-    ...(question.normalizedPromptText ? { normalizedText: question.normalizedPromptText } : {}),
-    questionNumber: question.number,
-    ...(index < questions.length - 1
-      ? { nextStepIds: [`step-q${questions[index + 1]?.number}`] }
-      : {}),
-  })),
-});
-
-const uniqueLines = (
-  lines: readonly ReadingV2AutoPassagePackageLine[],
-): readonly ReadingV2AutoPassagePackageLine[] => {
-  const byLineNumber = new Map<number, ReadingV2AutoPassagePackageLine>();
-  lines.forEach((line) => {
-    byLineNumber.set(line.lineNumber, line);
-  });
-  return [...byLineNumber.values()].sort((left, right) => left.lineNumber - right.lineNumber);
-};
-
-type ReadingV2AutoBankRecoveryAuthority =
-  | 'group-span'
-  | 'package-span'
-  | 'heuristic-fallback'
-  | 'none';
-
-const autoV3TaskTypeUsesImportedBank = (taskTypeHint: string | undefined): boolean => {
-  const taskType = normalizeAutoV3TaskTypeHint(taskTypeHint ?? '');
-  return Boolean(
-    taskType
-    && (
-      readingV2TaskUsesImportedLabeledOptions(taskType)
-      || readingV2TaskUsesPrimarySectionReferenceBank(taskType)
-    ),
-  );
-};
-
-const autoV3TaskTypeCanUsePackageReferenceBankHeuristic = (taskTypeHint: string | undefined): boolean => {
-  const taskType = normalizeAutoV3TaskTypeHint(taskTypeHint ?? '');
-  return Boolean(taskType && readingV2TaskCanUsePackageReferenceBankHeuristic(taskType));
-};
-
-const referenceBankRecoveryForGroup = (
-  passagePackage: ReadingV2AutoPassagePackage,
-  questionRange: ReadingV2AutoQuestionTranscript['groups'][number]['questionRange'],
-): {
-  readonly lines: readonly ReadingV2AutoPassagePackageLine[];
-  readonly authority: ReadingV2AutoBankRecoveryAuthority;
-} => {
-  const matchingHint = passagePackage.groupHints.find((groupHint) =>
-    groupHint.questionRange.start === questionRange.start
-    && groupHint.questionRange.end === questionRange.end,
-  );
-  const firstBankGroup = passagePackage.groupHints.find((groupHint) =>
-    autoV3TaskTypeUsesImportedBank(groupHint.taskTypeHint),
-  );
-  const spans = matchingHint?.referenceBankLines?.length
-    ? matchingHint.referenceBankLines
-    : firstBankGroup
-      && firstBankGroup.questionRange.start === questionRange.start
-      && firstBankGroup.questionRange.end === questionRange.end
-        ? passagePackage.referenceBankLineSpans
-        : [];
-
-  if (spans.length === 0) {
-    return firstBankGroup
-      && firstBankGroup.questionRange.start === questionRange.start
-      && firstBankGroup.questionRange.end === questionRange.end
-        ? {
-            lines: passagePackage.referenceBankLines,
-            authority: passagePackage.referenceBankLines.length > 0 ? 'heuristic-fallback' : 'none',
-          }
-        : {
-            lines: [],
-            authority: 'none',
-          };
-  }
-
-  return {
-    lines: uniqueLines(passagePackage.referenceBankLines.filter((line) =>
-      spans.some((span) => line.lineNumber >= span.startLine && line.lineNumber <= span.endLine),
-    )),
-    authority: matchingHint?.referenceBankLines?.length ? 'group-span' : 'package-span',
-  };
-};
-
-const sourceBankItemsFromLines = (
-  lines: readonly ReadingV2AutoPassagePackageLine[],
-): readonly {
-  readonly label: string;
-  readonly text: string;
-  readonly sourceLines: readonly number[];
-}[] => lines.flatMap((line) => {
-  const match = compactText(line.text).match(BANK_LINE_PATTERN);
-  if (!match) {
-    return [];
-  }
-
-  const label = match[1]?.trim();
-  const text = match[2]?.trim() || label;
-  return label && text
-    ? [{
-        label,
-        text,
-        sourceLines: [line.lineNumber],
-      }]
-    : [];
-});
-
-const enrichTranscriptWithReferenceBanks = (
-  transcript: ReadingV2AutoQuestionTranscript,
-  passagePackage: ReadingV2AutoPassagePackage,
-): {
-  readonly transcript: ReadingV2AutoQuestionTranscript;
-  readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-} => {
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [];
-
-  return {
-    transcript: {
-      ...transcript,
-      groups: transcript.groups.map((group) => {
-        const bankRecovery = referenceBankRecoveryForGroup(passagePackage, group.questionRange);
-        const sourceBankItems = sourceBankItemsFromLines(bankRecovery.lines);
-
-        if (sourceBankItems.length === 0) {
-          return group;
-        }
-
-        const needsReferenceBank = readingV2TaskUsesPrimarySectionReferenceBank(group.taskType) && !group.sectionReferences?.length;
-        const needsOptionBank = readingV2TaskUsesImportedLabeledOptions(group.taskType) && !group.labeledOptions?.length;
-        if (!needsReferenceBank && !needsOptionBank) {
-          return group;
-        }
-
-        if (bankRecovery.authority === 'heuristic-fallback') {
-          diagnostics.push({
-            code: 'bank-ownership-heuristic-used',
-            severity: 'warning',
-            message: `Question range ${readingV2AutoQuestionRangeKey(group.questionRange)} recovered its bank from fallback passage/package bank lines because explicit bank ownership spans were missing.`,
-            passageNumber: passagePackage.passageNumber,
-            questionNumber: group.questionRange.start,
-            sourceRange: `Q${group.questionRange.start}-${group.questionRange.end}`,
-            groupRange: readingV2AutoQuestionRangeKey(group.questionRange),
-            stage: 'repaired-transcript',
-            repairScopes: ['task-group'],
-          });
-        }
-
-        if (needsReferenceBank) {
-          return {
-            ...group,
-            sectionReferences: sourceBankItems,
-          };
-        }
-
-        if (needsOptionBank) {
-          return {
-            ...group,
-            labeledOptions: sourceBankItems,
-          };
-        }
-
-        return group;
-      }),
-    },
-    diagnostics,
-  };
-};
-
-const canonicalizeTranscriptQuestionsFromSourceLines = (
-  transcript: ReadingV2AutoQuestionTranscript,
-  passagePackage: ReadingV2AutoPassagePackage,
-): {
-  readonly transcript: ReadingV2AutoQuestionTranscript;
-  readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-} => {
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [];
-
-  return {
-    transcript: {
-      ...transcript,
-      groups: transcript.groups.map((group) => {
-        const matchingHint = passagePackage.groupHints.find((groupHint) =>
-          groupHint.questionRange.start === group.questionRange.start
-          && groupHint.questionRange.end === group.questionRange.end,
-        );
-        const groupLines = passagePackage.questionAreaLines.filter((line) =>
-          line.lineNumber >= (matchingHint?.lines.startLine ?? group.questionRange.start)
-          && line.lineNumber <= (matchingHint?.lines.endLine ?? group.questionRange.end),
-        );
-        const groupQuestionNumbers = numbersInRange(group.questionRange);
-        const questionProofByNumber = new Map<number, {
-          readonly sourceLine: ReadingV2AutoPassagePackageLine;
-          readonly canonicalSourceTextExact: string;
-          readonly canonicalPromptText: string;
-        }>();
-        let groupChanged = false;
-
-        const questions = group.questions.map((question) => {
-          const onlySourceLine = question.sourceLines?.length === 1 ? question.sourceLines[0] : undefined;
-          const explicitSourceLine = typeof onlySourceLine === 'number'
-            ? groupLines.find((line) => line.lineNumber === onlySourceLine)
-            : undefined;
-          const explicitCanonicalSourceTextExact = explicitSourceLine
-            ? canonicalQuestionSourceTextFromLine({
-                lineText: explicitSourceLine.text,
-                questionNumber: question.number,
-                groupQuestionNumbers,
-                taskType: group.taskType,
-              })
-            : null;
-          const inferredSourceLine = explicitCanonicalSourceTextExact
-            ? explicitSourceLine
-            : groupLines.find((line) => readingV2AutoLineMatchesQuestionNumber(line.text, question.number))
-              ?? passagePackage.questionAreaLines.find((line) =>
-                readingV2AutoLineMatchesQuestionNumber(line.text, question.number),
-              );
-
-          if (!inferredSourceLine) {
-            return question;
-          }
-
-          const canonicalSourceTextExact = explicitCanonicalSourceTextExact
-            ?? canonicalQuestionSourceTextFromLine({
-            lineText: inferredSourceLine.text,
-            questionNumber: question.number,
-            groupQuestionNumbers,
-            taskType: group.taskType,
-          });
-          if (!canonicalSourceTextExact) {
-            return question;
-          }
-
-          const canonicalPromptText = normalizedPromptTextFromSourceText(
-            canonicalSourceTextExact,
-            question.number,
-          );
-          questionProofByNumber.set(question.number, {
-            sourceLine: inferredSourceLine,
-            canonicalSourceTextExact,
-            canonicalPromptText,
-          });
-          const currentSourceTextExact = question.sourceTextExact?.trim();
-          const currentPromptText = question.promptText.trim();
-          const currentNormalizedPromptText = question.normalizedPromptText?.trim();
-          const promptTextDriftsFromSource = currentPromptText !== canonicalPromptText
-            || (currentNormalizedPromptText !== undefined && currentNormalizedPromptText !== canonicalPromptText);
-          const needsCanonicalization = currentSourceTextExact !== canonicalSourceTextExact
-            || promptTextDriftsFromSource
-            || question.sourceLines?.length !== 1
-            || question.sourceLines[0] !== inferredSourceLine.lineNumber;
-
-          if (!needsCanonicalization) {
-            return question;
-          }
-
-          const sourceLineDriftOnly = currentSourceTextExact === canonicalSourceTextExact
-            && !promptTextDriftsFromSource
-            && question.sourceLines?.length === 1
-            && question.sourceLines[0] !== inferredSourceLine.lineNumber;
-          groupChanged = true;
-          diagnostics.push({
-            code: 'repair-applied',
-            severity: 'info',
-            message: sourceLineDriftOnly
-              ? `Local source-line canonicalization realigned question ${question.number} to source line ${inferredSourceLine.lineNumber} because provider source-line anchors drifted away from the local question line.`
-              : `Local source-line canonicalization restored question ${question.number} from source line ${inferredSourceLine.lineNumber} because provider prompt text dropped visible source context.`,
-            passageNumber: passagePackage.passageNumber,
-            questionNumber: question.number,
-            sourceRange: `Q${question.number}`,
-            groupRange: readingV2AutoQuestionRangeKey(group.questionRange),
-            stage: 'repaired-transcript',
-            repairScopes: ['structured-layout-block'],
-          });
-
-          return {
-            ...question,
-            sourceTextExact: canonicalSourceTextExact,
-            normalizedPromptText: canonicalPromptText,
-            promptText: canonicalPromptText,
-            sourceLines: [inferredSourceLine.lineNumber],
-          };
-        });
-
-        const canonicalizeNoteLine = (
-          line: NonNullable<NonNullable<typeof group.note>['lines']>[number],
-        ) => {
-          const questionNumber = line.questionNumber
-            ?? (line.questionNumbers?.length === 1 ? line.questionNumbers[0] : undefined);
-          if (!questionNumber) {
-            return line;
-          }
-
-          const proof = questionProofByNumber.get(questionNumber);
-          if (!proof) {
-            return line;
-          }
-
-          const canonicalSourceTextExact = proof.sourceLine.text.trim();
-          const canonicalNormalizedText = normalizedPromptTextFromSourceText(
-            canonicalSourceTextExact,
-            questionNumber,
-          );
-          const currentSourceLines = line.sourceLines?.join(',') ?? '';
-          const canonicalSourceLines = String(proof.sourceLine.lineNumber);
-          const needsCanonicalization = line.sourceTextExact?.trim() !== canonicalSourceTextExact
-            || (line.normalizedText?.trim() ?? line.text.trim()) !== canonicalNormalizedText
-            || currentSourceLines !== canonicalSourceLines;
-
-          if (!needsCanonicalization) {
-            return line;
-          }
-
-          groupChanged = true;
-          return {
-            ...line,
-            sourceTextExact: canonicalSourceTextExact,
-            normalizedText: canonicalNormalizedText,
-            text: canonicalNormalizedText,
-            sourceLines: [proof.sourceLine.lineNumber],
-            questionNumber,
-          };
-        };
-
-        const note = group.note
-          ? {
-              ...group.note,
-              ...(group.note.lines
-                ? { lines: group.note.lines.map(canonicalizeNoteLine) }
-                : {}),
-              ...(group.note.sections
-                ? {
-                    sections: group.note.sections.map((section) => ({
-                      ...section,
-                      ...(section.lines
-                        ? { lines: section.lines.map(canonicalizeNoteLine) }
-                        : {}),
-                    })),
-                  }
-                : {}),
-            }
-          : undefined;
-
-        return groupChanged
-          ? {
-              ...group,
-              questions,
-              ...(note ? { note } : {}),
-            }
-          : group;
-      }),
-    },
-    diagnostics,
-  };
-};
-
-const repairTranscriptGroupFromQuestionArea = (
-  passagePackage: ReadingV2AutoPassagePackage,
-  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
-): ReadingV2AutoQuestionTranscript['groups'][number] | null => {
-  const taskType = normalizeAutoV3TaskTypeHint(groupHint.taskTypeHint);
-
-  if (!taskType) {
-    return null;
-  }
-
-  const groupLines = passagePackage.questionAreaLines.filter((line) =>
-    line.lineNumber >= groupHint.lines.startLine
-    && line.lineNumber <= groupHint.lines.endLine,
-  );
-  const questionNumbers = numbersInRange(groupHint.questionRange);
-  const questionLines = questionNumbers.map((questionNumber) => {
-    const matchingLine = groupLines.find((line) => readingV2AutoLineMatchesQuestionNumber(line.text, questionNumber));
-    const sourceTextExact = matchingLine
-      ? canonicalQuestionSourceTextFromLine({
-          lineText: matchingLine.text,
-          questionNumber,
-          groupQuestionNumbers: questionNumbers,
-          taskType,
-        })
-      : null;
-    const normalizedPromptText = sourceTextExact
-      ? normalizedPromptTextFromSourceText(sourceTextExact, questionNumber)
-      : undefined;
-    return matchingLine && sourceTextExact
-      ? {
-          number: questionNumber,
-          promptText: normalizedPromptText ?? sourceTextExact,
-          ...(sourceTextExact ? { sourceTextExact } : {}),
-          ...(normalizedPromptText ? { normalizedPromptText } : {}),
-          sourceLines: [matchingLine.lineNumber],
-        }
-      : null;
-  });
-
-  if (questionLines.some((question) => !question)) {
-    return null;
-  }
-
-  const firstQuestionNumber = questionNumbers[0];
-  if (firstQuestionNumber === undefined) {
-    return null;
-  }
-
-  const firstQuestionIndex = groupLines.findIndex((line) =>
-    readingV2AutoLineMatchesQuestionNumber(line.text, firstQuestionNumber),
-  );
-  const instructionLines = firstQuestionIndex >= 0
-    ? groupLines.slice(0, firstQuestionIndex)
-    : groupLines;
-  const sourceInstructionText = instructionLines
-    .map((line) => line.text.trim())
-    .filter(Boolean)
-    .join('\n')
-    .trim() || undefined;
-  const instructionMeta = {
-    ...wordLimitDetailsFromInstructionText(sourceInstructionText),
-    ...referenceLabelRangeFromInstructionText(sourceInstructionText),
-  };
-
-  return {
-    questionRange: groupHint.questionRange,
-    taskType,
-    sourceInstructionText,
-    instructionMeta,
-    questions: questionLines.filter((question): question is NonNullable<typeof question> => Boolean(question)),
-    ...(taskType === 'flowchart-completion'
-      ? {
-          flowchart: repairedFlowchartFromQuestions(
-            questionLines.filter((question): question is NonNullable<typeof question> => Boolean(question)),
-          ),
-        }
-      : {}),
-    diagnostics: [],
-  };
-};
-
-const transcriptGroupForHint = (
-  transcript: ReadingV2AutoQuestionTranscript,
-  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
-): ReadingV2AutoQuestionTranscript['groups'][number] | undefined =>
-  transcript.groups.find((group) =>
-    group.questionRange.start === groupHint.questionRange.start
-    && group.questionRange.end === groupHint.questionRange.end,
-  );
-
-const transcriptGroupCoversHint = (
-  group: ReadingV2AutoQuestionTranscript['groups'][number] | undefined,
-  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
-): boolean => {
-  if (!group) {
-    return false;
-  }
-
-  const seenQuestions = new Set(group.questions.map((question) => question.number));
-  return numbersInRange(groupHint.questionRange).every((questionNumber) => seenQuestions.has(questionNumber));
-};
-
-const transcriptGroupCanUseDeterministicCoverageRepair = (
-  group: ReadingV2AutoQuestionTranscript['groups'][number] | undefined,
-  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
-): boolean => {
-  if (!group) {
-    return false;
-  }
-
-  const questionNumbers = group.questions.map((question) => question.number);
-  const seenQuestions = new Set(questionNumbers);
-  if (seenQuestions.size !== questionNumbers.length) {
-    return false;
-  }
-
-  return questionNumbers.every((questionNumber) =>
-    questionNumber >= groupHint.questionRange.start
-    && questionNumber <= groupHint.questionRange.end,
-  );
-};
-
-const repairMissingTranscriptGroups = (
-  transcript: ReadingV2AutoQuestionTranscript,
-  passagePackage: ReadingV2AutoPassagePackage,
-  groupHints: readonly ReadingV2AutoPassagePackage['groupHints'][number][] = passagePackage.groupHints,
-): ReadingV2AutoQuestionTranscript => {
-  const repairedGroups = [...transcript.groups];
-
-  groupHints.forEach((groupHint) => {
-    const key = `${groupHint.questionRange.start}-${groupHint.questionRange.end}`;
-    const existingIndex = repairedGroups.findIndex((group) =>
-      `${group.questionRange.start}-${group.questionRange.end}` === key,
-    );
-    const existingGroup = existingIndex >= 0 ? repairedGroups[existingIndex] : undefined;
-    if (existingGroup && transcriptGroupCoversHint(existingGroup, groupHint)) {
-      return;
-    }
-
-    const repairedGroup = repairTranscriptGroupFromQuestionArea(passagePackage, groupHint);
-    if (!repairedGroup) {
-      return;
-    }
-
-    if (existingIndex >= 0) {
-      repairedGroups[existingIndex] = repairedGroup;
-      return;
-    }
-
-    repairedGroups.push(repairedGroup);
-  });
-
-  return {
-    ...transcript,
-    groups: repairedGroups.sort((left, right) =>
-      left.questionRange.start - right.questionRange.start
-      || left.questionRange.end - right.questionRange.end,
-    ),
-  };
-};
-
-const lineBlockForGroq = (lines: readonly ReadingV2AutoPassagePackageLine[]): string =>
-  lines
-    .map((line) => `${String(line.lineNumber).padStart(4, '0')} [${line.trimmedTextHash}] ${line.text}`)
-    .join('\n');
-
-const redactAnswerRow = (
-  row: ReadingV2AutoPassagePackage['answerKeyRows'][number],
-): string => `Q${row.questionNumber} answerLength=${row.answer.length} sourceLine=${row.sourceLine}`;
-
-const buildTargetedGroqInputText = (input: {
-  readonly passagePackage: ReadingV2AutoPassagePackage;
-  readonly groupHint: ReadingV2AutoPassagePackage['groupHints'][number];
-  readonly questionAreaLines: readonly ReadingV2AutoPassagePackageLine[];
-  readonly referenceBankLines: readonly ReadingV2AutoPassagePackageLine[];
-  readonly answerKeyRows: ReadingV2AutoPassagePackage['answerKeyRows'];
-}): string => [
-  `READING_V2_AUTO_V3_PASSAGE_PACKAGE ${input.passagePackage.passageNumber}`,
-  `sourceHash: ${input.passagePackage.sourceHash}`,
-  `expectedQuestionRange: ${input.groupHint.questionRange.start}-${input.groupHint.questionRange.end}`,
-  `groupHints: ${JSON.stringify([input.groupHint])}`,
-  `referenceBankLineSpans: ${JSON.stringify(input.groupHint.referenceBankLines ?? input.passagePackage.referenceBankLineSpans)}`,
-  `answerRows: ${input.answerKeyRows.map(redactAnswerRow).join('; ') || 'none'}`,
-  '',
-  'REFERENCE_BANK_LINES_ONLY:',
-  input.referenceBankLines.length > 0 ? lineBlockForGroq(input.referenceBankLines) : 'none',
-  '',
-  'QUESTION_AREA_LINES_ONLY:',
-  lineBlockForGroq(input.questionAreaLines),
-].join('\n');
-
-const buildTargetedRetryPassagePackage = (
-  passagePackage: ReadingV2AutoPassagePackage,
-  groupHint: ReadingV2AutoPassagePackage['groupHints'][number],
-): ReadingV2AutoPassagePackage => {
-  const questionAreaLines = passagePackage.questionAreaLines.filter((line) =>
-    line.lineNumber >= groupHint.lines.startLine
-    && line.lineNumber <= groupHint.lines.endLine,
-  );
-  const bankRecovery = referenceBankRecoveryForGroup(passagePackage, groupHint.questionRange);
-  const referenceBankLines = bankRecovery.lines.length > 0
-    ? bankRecovery.lines
-    : autoV3TaskTypeCanUsePackageReferenceBankHeuristic(groupHint.taskTypeHint)
-      ? passagePackage.referenceBankLines
-      : [];
-  const answerKeyRows = passagePackage.answerKeyRows.filter((row) =>
-    row.questionNumber >= groupHint.questionRange.start
-    && row.questionNumber <= groupHint.questionRange.end,
-  );
-  const targetedPackage: ReadingV2AutoPassagePackage = {
-    ...passagePackage,
-    expectedQuestionRange: groupHint.questionRange,
-    questionAreaLines,
-    questionAreaText: questionAreaLines.map((line) => line.text).join('\n'),
-    groupHints: [groupHint],
-    referenceBankLines,
-    referenceBankLineSpans: groupHint.referenceBankLines ?? passagePackage.referenceBankLineSpans,
-    answerKeyRows,
-    groqInputText: '',
-  };
-
-  return {
-    ...targetedPackage,
-    groqInputText: buildTargetedGroqInputText({
-      passagePackage: targetedPackage,
-      groupHint,
-      questionAreaLines,
-      referenceBankLines,
-      answerKeyRows,
-    }),
-  };
-};
-
-const unique = <T>(values: readonly T[]): readonly T[] => [...new Set(values)];
-
-const coverageSummaryGroupSet = (
-  coverageSummary: ReadingV2AutoTranscriptCoverageSummary | undefined,
-): ReadonlySet<string> => new Set(coverageSummary?.coveredGroups ?? []);
-
-const coverageSummaryQuestionSet = (
-  coverageSummary: ReadingV2AutoTranscriptCoverageSummary | undefined,
-): ReadonlySet<number> => new Set(coverageSummary?.coveredQuestions ?? []);
-
-const replayBundleEvidenceLines = (
-  bundle: ReadingV2AutoV3PackageReplayBundle,
-): readonly string[] => [
-  [
-    `Auto V3 replay P${bundle.passageNumber}`,
-    `schema=${bundle.schemaVersion}`,
-    `sourceHash=${bundle.sourceHash}`,
-    `packageHash=${bundle.packageHash}`,
-    `promptHash=${bundle.promptHash}`,
-    `expected=${bundle.expectedQuestionRange}`,
-    `rawGroups=${bundle.rawGroupRanges.join(',') || 'none'}`,
-    `normalized=${bundle.normalizedTranscriptGroupRanges.join(',') || 'none'}`,
-    `repaired=${bundle.repairedTranscriptGroupRanges.join(',') || 'none'}`,
-    `issues=${bundle.finalVerifierIssueCodes.join(',') || 'none'}`,
-  ].join(' | '),
-  [
-    `Auto V3 replay detail P${bundle.passageNumber}`,
-    `lineCount=${bundle.questionAreaLineCount}`,
-    `slot=${bundle.keyFingerprint ?? 'none'}`,
-    `keyIndex=${bundle.preferredKeyIndex ?? -1}`,
-    `attempts=${bundle.attempts}`,
-    `stages=${bundle.stageTransitions.join(' -> ')}`,
-    `rawShape=${bundle.rawJsonShapeSummary}`,
-  ].join(' | '),
-];
-
-const recoverTranscriptCoverageForPassage = async (input: {
-  readonly passagePackage: ReadingV2AutoPassagePackage;
-  readonly packageResult: ReadingV2GroqPackageFanoutPackageResult;
-  readonly provider: ReadingV2GroqPackageFanoutProvider;
-  readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
-}): Promise<{
-  readonly transcript: ReadingV2AutoQuestionTranscript;
-  readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
-  readonly verifierDiagnostics: readonly ReadingV2AutoQuestionTranscriptDiagnostic[];
-  readonly replayBundle: ReadingV2AutoV3PackageReplayBundle;
-}> => {
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [];
-  const stageTransitions = ['raw-groq', 'normalized-transcript'];
-  let transcript = input.packageResult.transcript;
-  emitReadingV2AutoRawDebug(input.options, 'v3_package_debug_capture', {
-    stage: 'raw-groq',
-    passageNumber: input.passagePackage.passageNumber,
-    preferredKeyIndex: input.packageResult.preferredKeyIndex,
-    keyFingerprint: input.packageResult.keyFingerprint,
-    prompt: input.packageResult.prompt,
-    promptHash: input.packageResult.promptHash,
-    providerPayload: input.packageResult.rawStructuredJson,
-  });
-  const normalizedGroupRanges = readingV2AutoTranscriptGroupRangeKeys(transcript);
-  const rawCoverageGroups = coverageSummaryGroupSet(input.packageResult.rawCoverageSummary);
-  const rawCoverageQuestions = coverageSummaryQuestionSet(input.packageResult.rawCoverageSummary);
-  const rawGroupRanges = new Set(input.packageResult.rawGroupRanges);
-  const normalizedGroupSet = new Set(normalizedGroupRanges);
-  const normalizedGroupsByRange = new Map(
-    transcript.groups.map((group) => [readingV2AutoQuestionRangeKey(group.questionRange), group]),
-  );
-  const missingHints = input.passagePackage.groupHints.filter((groupHint) =>
-    !normalizedGroupSet.has(readingV2AutoQuestionRangeKey(groupHint.questionRange)),
-  );
-  const incompleteHints = input.passagePackage.groupHints.filter((groupHint) => {
-    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-    if (!normalizedGroupSet.has(groupRange)) {
-      return false;
-    }
-
-    const group = normalizedGroupsByRange.get(groupRange);
-    return !transcriptGroupCoversHint(group, groupHint)
-      && transcriptGroupCanUseDeterministicCoverageRepair(group, groupHint);
-  });
-
-  missingHints.forEach((groupHint) => {
-    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-    const rawGroupCovered = rawGroupRanges.has(groupRange) || rawCoverageGroups.has(groupRange);
-        diagnostics.push({
-          code: rawGroupCovered ? 'app-normalizer-dropped-group' : 'groq-output-missing-group',
-          severity: 'warning',
-      message: rawGroupCovered
-        ? `Groq raw output referenced hinted group ${groupRange}, but local transcript normalization lost it before verification.`
-        : `Groq output omitted hinted group ${groupRange}.`,
-      passageNumber: input.passagePackage.passageNumber,
-      questionNumber: groupHint.questionRange.start,
-      sourceRange: `Q${groupRange}`,
-      groupRange,
-          stage: rawGroupCovered ? 'normalized-transcript' : 'raw-groq',
-          preferredKeyIndex: input.packageResult.preferredKeyIndex,
-          keyFingerprint: input.packageResult.keyFingerprint,
-          repairScopes: ['question-range'],
-      });
-      });
-
-  incompleteHints.forEach((groupHint) => {
-    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-    const group = normalizedGroupsByRange.get(groupRange);
-    const missingQuestions = numbersInRange(groupHint.questionRange)
-      .filter((questionNumber) => !new Set(group?.questions.map((question) => question.number) ?? []).has(questionNumber));
-    diagnostics.push({
-      code: 'group-coverage-mismatch',
-      severity: 'warning',
-      message: `Groq output kept hinted group ${groupRange}, but omitted question(s) ${missingQuestions.join(', ')} before local repair.`,
-      passageNumber: input.passagePackage.passageNumber,
-      questionNumber: missingQuestions[0] ?? groupHint.questionRange.start,
-      sourceRange: `Q${groupRange}`,
-      groupRange,
-      stage: 'normalized-transcript',
-      preferredKeyIndex: input.packageResult.preferredKeyIndex,
-      keyFingerprint: input.packageResult.keyFingerprint,
-      repairScopes: ['question-range'],
-    });
-  });
-
-  const repairHints = unique([...missingHints, ...incompleteHints]);
-  if (repairHints.length > 0) {
-    const repairedTranscript = repairMissingTranscriptGroups(transcript, input.passagePackage, repairHints);
-    const repairedGroupsByRange = new Map(
-      repairedTranscript.groups.map((group) => [readingV2AutoQuestionRangeKey(group.questionRange), group]),
-    );
-
-    repairHints.forEach((groupHint) => {
-      const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-      if (transcriptGroupCoversHint(repairedGroupsByRange.get(groupRange), groupHint)) {
-        diagnostics.push({
-          code: 'repair-applied',
-          severity: 'info',
-          message: `Local deterministic repair rebuilt group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine} with source-proven question coverage.`,
-          passageNumber: input.passagePackage.passageNumber,
-          questionNumber: groupHint.questionRange.start,
-          sourceRange: `Q${groupRange}`,
-          groupRange,
-          stage: 'repaired-transcript',
-          preferredKeyIndex: input.packageResult.preferredKeyIndex,
-          keyFingerprint: input.packageResult.keyFingerprint,
-          repairScopes: ['question-range'],
-        });
-      } else {
-        diagnostics.push({
-          code: 'repair-skipped',
-          severity: 'warning',
-          message: `Local deterministic repair could not prove every expected line for group ${groupRange} from source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine}; targeted Groq retry required.`,
-          passageNumber: input.passagePackage.passageNumber,
-          questionNumber: groupHint.questionRange.start,
-          sourceRange: `Q${groupRange}`,
-          groupRange,
-          stage: 'repaired-transcript',
-          preferredKeyIndex: input.packageResult.preferredKeyIndex,
-          keyFingerprint: input.packageResult.keyFingerprint,
-          repairScopes: ['question-range'],
-        });
-      }
-    });
-
-    transcript = repairedTranscript;
-    stageTransitions.push('repaired-transcript');
-  }
-
-  const remainingHints = input.passagePackage.groupHints.filter((groupHint) =>
-    !transcriptGroupCoversHint(transcriptGroupForHint(transcript, groupHint), groupHint),
-  );
-  if (remainingHints.length > 0) {
-    stageTransitions.push('targeted-retry');
-  }
-
-  for (const groupHint of remainingHints) {
-    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-    const targetedPackage = buildTargetedRetryPassagePackage(input.passagePackage, groupHint);
-    const targetedRetry = await normalizeReadingV2AutoQuestionArea({
-      passagePackage: targetedPackage,
-      provider: input.provider,
-      preferredKeyIndex: input.packageResult.preferredKeyIndex,
-    });
-
-    if (!targetedRetry.success) {
-      emitReadingV2AutoRawDebug(input.options, 'v3_package_debug_capture', {
-        stage: 'targeted-retry',
-        passageNumber: input.passagePackage.passageNumber,
-        groupRange,
-        preferredKeyIndex: input.packageResult.preferredKeyIndex,
-        keyFingerprint: input.packageResult.keyFingerprint,
-        providerResult: 'failure',
-        error: targetedRetry.error,
-      });
-      diagnostics.push({
-        code: 'repair-failed',
-        severity: 'error',
-        message: `Targeted Groq retry failed for missing group ${groupRange} after deterministic repair skipped source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine}: ${targetedRetry.error}`,
-        passageNumber: input.passagePackage.passageNumber,
-        questionNumber: groupHint.questionRange.start,
-        sourceRange: `Q${groupRange}`,
-        groupRange,
-        stage: 'targeted-retry',
-        preferredKeyIndex: input.packageResult.preferredKeyIndex,
-        keyFingerprint: input.packageResult.keyFingerprint,
-        providerResult: 'failure',
-        repairScopes: ['question-range'],
-      });
-      continue;
-    }
-
-    emitReadingV2AutoRawDebug(input.options, 'v3_package_debug_capture', {
-      stage: 'targeted-retry',
-      passageNumber: input.passagePackage.passageNumber,
-      groupRange,
-      preferredKeyIndex: input.packageResult.preferredKeyIndex,
-      keyFingerprint: input.packageResult.keyFingerprint,
-      providerResult: 'success',
-      prompt: targetedRetry.data.prompt,
-      promptHash: targetedRetry.data.promptHash,
-      providerPayload: targetedRetry.data.rawStructuredJson,
-    });
-    const targetedGroup = targetedRetry.data.transcript.groups.find((group) =>
-      group.questionRange.start === groupHint.questionRange.start
-      && group.questionRange.end === groupHint.questionRange.end,
-    );
-    if (!targetedGroup) {
-      diagnostics.push({
-        code: 'repair-failed',
-        severity: 'error',
-        message: `Targeted Groq retry returned no transcript group for ${groupRange}.`,
-        passageNumber: input.passagePackage.passageNumber,
-        questionNumber: groupHint.questionRange.start,
-        sourceRange: `Q${groupRange}`,
-        groupRange,
-        stage: 'targeted-retry',
-        preferredKeyIndex: input.packageResult.preferredKeyIndex,
-        keyFingerprint: input.packageResult.keyFingerprint,
-        providerResult: 'failure',
-        repairScopes: ['question-range'],
-      });
-      continue;
-    }
-
-    transcript = {
-      ...transcript,
-      groups: [...transcript.groups, targetedGroup].sort((left, right) =>
-        left.questionRange.start - right.questionRange.start
-        || left.questionRange.end - right.questionRange.end,
-      ),
-    };
-    diagnostics.push({
-      code: 'repair-applied',
-      severity: 'info',
-      message: `Targeted Groq retry restored missing group ${groupRange} after deterministic repair could not prove source lines ${groupHint.lines.startLine}-${groupHint.lines.endLine}.`,
-      passageNumber: input.passagePackage.passageNumber,
-      questionNumber: groupHint.questionRange.start,
-      sourceRange: `Q${groupRange}`,
-      groupRange,
-      stage: 'targeted-retry',
-      preferredKeyIndex: input.packageResult.preferredKeyIndex,
-      keyFingerprint: input.packageResult.keyFingerprint,
-      providerResult: 'success',
-      repairScopes: ['question-range'],
-    });
-  }
-
-  const bankEnrichment = enrichTranscriptWithReferenceBanks(transcript, input.passagePackage);
-  transcript = bankEnrichment.transcript;
-  diagnostics.push(...bankEnrichment.diagnostics);
-  if (bankEnrichment.diagnostics.length > 0 && !stageTransitions.includes('repaired-transcript')) {
-    stageTransitions.push('repaired-transcript');
-  }
-
-  const sourceCanonicalization = canonicalizeTranscriptQuestionsFromSourceLines(transcript, input.passagePackage);
-  transcript = sourceCanonicalization.transcript;
-  diagnostics.push(...sourceCanonicalization.diagnostics);
-  if (sourceCanonicalization.diagnostics.length > 0 && !stageTransitions.includes('repaired-transcript')) {
-    stageTransitions.push('repaired-transcript');
-  }
-
-  const stillMissingHints = input.passagePackage.groupHints.filter((groupHint) =>
-    !transcriptGroupCoversHint(transcriptGroupForHint(transcript, groupHint), groupHint),
-  );
-  stillMissingHints.forEach((groupHint) => {
-    const groupRange = readingV2AutoQuestionRangeKey(groupHint.questionRange);
-    diagnostics.push({
-      code: 'group-coverage-mismatch',
-      severity: 'error',
-      message: `Expected group ${groupRange} is still missing or incomplete after Groq output, local repair, and targeted retry.`,
-      passageNumber: input.passagePackage.passageNumber,
-      questionNumber: groupHint.questionRange.start,
-      sourceRange: `Q${groupRange}`,
-      groupRange,
-      stage: 'final-verifier',
-      preferredKeyIndex: input.packageResult.preferredKeyIndex,
-      keyFingerprint: input.packageResult.keyFingerprint,
-      repairScopes: ['question-range'],
-    });
-  });
-
-  stageTransitions.push('final-verifier');
-  const verifierDiagnostics = verifyReadingV2AutoQuestionTranscript({
-    transcript,
-    passagePackage: input.passagePackage,
-  });
-  const replayBundle: ReadingV2AutoV3PackageReplayBundle = {
-    schemaVersion: AUTO_V3_REPLAY_SCHEMA_VERSION,
-    passageNumber: input.passagePackage.passageNumber,
-    sourceHash: input.passagePackage.sourceHash,
-    packageHash: hashString(input.passagePackage.groqInputText),
-    expectedQuestionRange: readingV2AutoQuestionRangeKey(input.passagePackage.expectedQuestionRange),
-    groupHints: input.passagePackage.groupHints.map((groupHint) =>
-      `${readingV2AutoQuestionRangeKey(groupHint.questionRange)}:${groupHint.taskTypeHint ?? 'unknown'}`,
-    ),
-    referenceBankLineSpans: input.passagePackage.referenceBankLineSpans.map((span) =>
-      `${span.startLine}-${span.endLine}`,
-    ),
-    questionAreaLineCount: input.passagePackage.questionAreaLines.length,
-    promptHash: input.packageResult.promptHash,
-    preferredKeyIndex: input.packageResult.preferredKeyIndex,
-    keyFingerprint: input.packageResult.keyFingerprint,
-    attempts: input.packageResult.attempts,
-    rawJsonShapeSummary: input.packageResult.rawJsonShapeSummary,
-    rawGroupRanges: input.packageResult.rawGroupRanges,
-    rawCoverageGroups: [...rawCoverageGroups],
-    rawCoverageQuestions: [...rawCoverageQuestions],
-    normalizedTranscriptGroupRanges: normalizedGroupRanges,
-    repairedTranscriptGroupRanges: readingV2AutoTranscriptGroupRangeKeys(transcript),
-    finalVerifierIssueCodes: unique(verifierDiagnostics.map((diagnostic) => diagnostic.code)),
-    stageTransitions: unique(stageTransitions),
-  };
-
-  emitReadingV2AutoImportDiag(input.options, 'v3_package_replay', replayBundle as unknown as Record<string, unknown>);
-
-  return {
-    transcript,
-    diagnostics,
-    verifierDiagnostics,
-    replayBundle,
-  };
-};
-
 const generateReadingV2AutoImportCandidateV4 = async (input: {
   readonly request: ReadingV2AutoImportRequest;
   readonly extractor: ReadingV2AutoV4Extractor;
   readonly sourceLedger: ReadingV2AutoSourceLedger;
+  readonly sourceArtifact: ReadingV2ImportSourceArtifact;
   readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
 }): Promise<ReadingV2AutoImportResult> => {
   const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(input.sourceLedger.normalizedText);
@@ -3575,6 +2966,8 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
   const hasVisibleAnswerKeyHeading = rawTextHasAnswerKeyHeading(input.sourceLedger.normalizedText);
 
   emitReadingV2AutoImportDiag(input.options, 'auto_v4_preflight_complete', {
+    pipelineLane: 'v4-full-doc',
+    stageShape: 'full-document',
     sourceLength: input.sourceLedger.normalizedText.length,
     chunkCount: chunks.length,
     answerKeyDetected: Boolean(extractedAnswerKeyText),
@@ -3606,6 +2999,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
           providerResult: 'failure',
         },
       ],
+      sourceArtifact: input.sourceArtifact,
       provider: 'gemini',
       model: AUTO_V4_MODEL_LABEL,
     };
@@ -3631,6 +3025,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
           providerResult: 'failure',
         },
       ],
+      sourceArtifact: input.sourceArtifact,
       provider: 'gemini',
       model: AUTO_V4_MODEL_LABEL,
     };
@@ -3659,12 +3054,29 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
       payload,
     }],
   );
+  const sourcePassageDiagnostics = autoV4PassageSourceDiagnostics(passagesResult.data, input.sourceLedger);
   const diagnostics: ReadingV2AutoImportDiagnostic[] = [
+    autoPipelineLaneDiagnostic('v4-full-doc'),
     {
       code: 'auto-v4-staged-parser-used',
       severity: 'info',
       message: 'Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload.',
     },
+    {
+      code: 'auto-v4-provider-stage',
+      severity: 'info',
+      message: `Auto V4 passage stage completed with ${providerNameFromStageResult(passagesResult.data)}.`,
+      stage: 'auto-v4-passages',
+      providerResult: 'success',
+    },
+    {
+      code: 'auto-v4-provider-stage',
+      severity: 'info',
+      message: `Auto V4 question/answer stage completed with ${providerNameFromStageResult(questionsResult.data)}.`,
+      stage: 'auto-v4-questions',
+      providerResult: 'success',
+    },
+    ...sourcePassageDiagnostics,
     ...(payloadState.answerKeyText
       ? [{
           code: extractedAnswerKeyText ? 'answer-key-extracted' as const : 'answer-key-returned-by-gemini' as const,
@@ -3683,6 +3095,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
   return finalizeAutoImportPayload({
     request: input.request,
     sourceLedger: input.sourceLedger,
+    sourceArtifact: input.sourceArtifact,
     chunks,
     payload: payloadState.payload,
     answerKeyText: payloadState.answerKeyText,
@@ -3693,216 +3106,14 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
   });
 };
 
-const generateReadingV2AutoImportCandidateV3 = async (input: {
-  readonly request: ReadingV2AutoImportRequest;
-  readonly generator: ReadingV2AutoStructuredGenerator;
-  readonly questionAreaNormalizer: ReadingV2GroqPackageFanoutProvider;
-  readonly sourceLedger: ReadingV2AutoSourceLedger;
-  readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
-}): Promise<ReadingV2AutoImportResult> => {
-  const topology = await markReadingV2AutoTopology({
-    ledger: input.sourceLedger,
-    generator: input.generator,
-  });
-
-  if (!topology.success) {
-    const topologyDiagnostics = diagnosticsFromTopologyMarker(topology.diagnostics ?? []);
-    return {
-      success: false,
-      error: topology.error,
-      diagnostics: [
-        ...providerQuotaDiagnosticsFor(topology.error),
-        ...(topologyDiagnostics.length > 0
-          ? topologyDiagnostics
-          : [{
-              code: 'topology-marker-failed' as const,
-              severity: 'error' as const,
-              message: topology.error,
-            }]),
-      ],
-      provider: AUTO_V3_PROVIDER,
-      model: AUTO_V3_MODEL_LABEL,
-    };
-  }
-
-  const markerDiagnostics = diagnosticsFromTopologyMarker(topology.data.diagnostics);
-  const passagePackages = buildReadingV2AutoPassagePackages({
-    marker: topology.data.marker,
-    lineIndex: topology.data.lineIndex,
-    ledger: input.sourceLedger,
-  });
-  const packageDiagnostics = diagnosticsFromPackageDiagnostics(
-    passagePackages.flatMap((passagePackage) => passagePackage.diagnostics),
-  );
-  if (packageDiagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-    return {
-      success: false,
-      error: packageDiagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message
-        ?? 'Auto V3 package splitter failed.',
-      diagnostics: [
-        ...markerDiagnostics,
-        ...packageDiagnostics,
-      ],
-      provider: AUTO_V3_PROVIDER,
-      model: AUTO_V3_MODEL_LABEL,
-    };
-  }
-
-  const fanout = await runReadingV2GroqPackageFanout({
-    passagePackages,
-    provider: input.questionAreaNormalizer,
-  });
-
-  if (!fanout.success) {
-    return {
-      success: false,
-      error: fanout.error,
-      diagnostics: [
-        ...markerDiagnostics,
-        ...packageDiagnostics,
-        ...providerQuotaDiagnosticsFor(fanout.error),
-        {
-          code: 'groq-package-failed',
-          severity: 'error',
-          message: fanout.error,
-        },
-      ],
-      provider: AUTO_V3_PROVIDER,
-      model: AUTO_V3_MODEL_LABEL,
-    };
-  }
-
-  const packageResults = fanout.data.packageResults.map((packageResult) => {
-    const passagePackage = passagePackages.find((candidate) => candidate.passageNumber === packageResult.passageNumber);
-    if (!passagePackage) {
-      throw new Error(`Missing passage package ${packageResult.passageNumber}`);
-    }
-
-    return {
-      ...packageResult,
-      passagePackage,
-    };
-  });
-  const recoveredPackages = await Promise.all(packageResults.map(async (packageResult) => {
-    const recovered = await recoverTranscriptCoverageForPassage({
-      passagePackage: packageResult.passagePackage,
-      packageResult,
-      provider: input.questionAreaNormalizer,
-      options: input.options,
-    });
-
-    return {
-      ...packageResult,
-      transcript: recovered.transcript,
-      packageDiagnostics: recovered.diagnostics,
-      verifierDiagnostics: recovered.verifierDiagnostics,
-      replayBundle: recovered.replayBundle,
-    };
-  }));
-
-  const transcriptDiagnostics = recoveredPackages.flatMap(({ verifierDiagnostics }) => verifierDiagnostics);
-  const mappedTranscriptDiagnostics = diagnosticsFromTranscript(transcriptDiagnostics);
-  const replayDiagnostics = recoveredPackages.flatMap(({ packageDiagnostics }) => packageDiagnostics);
-  const normalizedReplayDiagnostics = replayDiagnostics.map(normalizeGuardrailDiagnostic);
-  const normalizedTranscriptDiagnostics = mappedTranscriptDiagnostics.map(normalizeGuardrailDiagnostic);
-  const blockingTranscriptDiagnostics = [...normalizedReplayDiagnostics, ...normalizedTranscriptDiagnostics]
-    .filter((diagnostic) => diagnostic.severity === 'error');
-  if (blockingTranscriptDiagnostics.length > 0) {
-    return {
-      success: false,
-      error: blockingTranscriptDiagnostics[0]?.message
-        ?? 'Groq transcript failed source-fidelity verification.',
-      diagnostics: [
-        ...markerDiagnostics,
-        ...packageDiagnostics,
-        ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
-        ...normalizedReplayDiagnostics,
-        ...normalizedTranscriptDiagnostics,
-      ],
-      provider: AUTO_V3_PROVIDER,
-      model: AUTO_V3_MODEL_LABEL,
-    };
-  }
-
-  const materials: AutoMaterial[] = recoveredPackages.map(({ transcript, passagePackage }) => {
-    const material = buildReadingV2AutoMaterialFromTranscript({
-      transcript,
-      passagePackage,
-    });
-    return {
-      passageNumber: material.passageNumber,
-      title: material.title,
-      passages: material.passages.map((passage) => ({
-        title: passage.title,
-        content: passage.content,
-      })),
-      sectionInstructions: material.sectionInstructions,
-      questions: material.questions.map((question) => ({
-        number: question.questionNumber,
-        questionNumber: question.questionNumber,
-        type: question.type,
-        sectionInstructionId: question.sectionInstructionId,
-        questionText: question.questionText,
-        wordLimit: question.wordLimit,
-        labeledOptions: question.labeledOptions,
-        sectionReferences: question.sectionReferences,
-      })),
-    };
-  });
-  const taskTypeByQuestionNumber = new Map<number, ReadingV2CanonicalTaskType>();
-  recoveredPackages.forEach(({ transcript }) => {
-    transcript.groups.forEach((group) => {
-      numbersInRange(group.questionRange).forEach((questionNumber) => {
-        taskTypeByQuestionNumber.set(questionNumber, group.taskType);
-      });
-    });
-  });
-  const answerKeyText = answerKeyTextFromTopologyRows(topology.data.marker.answerKeyRows, taskTypeByQuestionNumber);
-  const payload: AutoPayload = {
-    sourceFile: input.request.sourceName ?? 'auto-v3-reading-v2.txt',
-    answerKeyText: answerKeyText ?? '',
-    materials,
-    diagnostics: [],
-  };
-  const chunks = chunksFromPassagePackages(passagePackages);
-  const diagnostics: ReadingV2AutoImportDiagnostic[] = [
-    ...(answerKeyText
-      ? [{
-          code: 'answer-key-returned-by-gemini' as const,
-          severity: 'info' as const,
-          message: 'Gemini topology marker normalized visible answer-key rows from the raw source.',
-        }]
-      : [{
-          code: 'answer-key-missing' as const,
-          severity: 'warning' as const,
-          message: 'No source answer-key rows were normalized. Answers stay empty for Studio review.',
-        }]),
-    ...markerDiagnostics,
-    ...packageDiagnostics,
-    ...diagnosticsFromGroqFanout(fanout.data.diagnostics),
-    ...normalizedReplayDiagnostics,
-    ...normalizedTranscriptDiagnostics,
-  ];
-  const verifierIssues = verifyReadingV2AutoPayloadAgainstLedger(ledgerPayloadFromAutoPayload(payload), input.sourceLedger);
-
-  return finalizeAutoImportPayload({
-    request: input.request,
-    sourceLedger: input.sourceLedger,
-    chunks,
-    payload: answerKeyText ? payload : stripAnswersWhenNoSourceKey(payload),
-    answerKeyText,
-    diagnostics,
-    verifierIssues,
-    provider: AUTO_V3_PROVIDER,
-    model: AUTO_V3_MODEL_LABEL,
-    extraEvidence: recoveredPackages.flatMap(({ replayBundle }) => replayBundleEvidenceLines(replayBundle)),
-  });
-};
-
 export const generateReadingV2AutoImportCandidate = async (
   request: ReadingV2AutoImportRequest,
   options: ReadingV2AutoImportOptions = {},
 ): Promise<ReadingV2AutoImportResult> => {
+  const sourceArtifact = await buildReadingV2ImportSourceArtifact({
+    rawTextOriginal: request.rawTestText,
+    sourceName: request.sourceName,
+  });
   const rawTestText = request.rawTestText.trim();
   const maxInputChars = options.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS;
   const minInputChars = options.minInputChars ?? DEFAULT_MIN_INPUT_CHARS;
@@ -3921,6 +3132,7 @@ export const generateReadingV2AutoImportCandidate = async (
         severity: 'error',
         message: 'Auto requires raw passage and question text.',
       }],
+      sourceArtifact,
       provider: 'gemini',
       model: GEMINI_MODEL_NAME,
     };
@@ -3935,6 +3147,7 @@ export const generateReadingV2AutoImportCandidate = async (
         severity: 'error',
         message: `Input exceeds the ${maxInputChars} character limit for one Auto import.`,
       }],
+      sourceArtifact,
       provider: 'gemini',
       model: GEMINI_MODEL_NAME,
     };
@@ -3951,28 +3164,29 @@ export const generateReadingV2AutoImportCandidate = async (
       success: false,
       error: fatalSourceDiagnostic.message,
       diagnostics: sourceLedgerDiagnostics,
+      sourceArtifact,
       provider: 'gemini',
       model: GEMINI_MODEL_NAME,
     };
   }
 
-  const useV3Pipeline = options.forceV3Pipeline === true
-    || (!options.forceV4Pipeline && !options.generator && !options.v4Extractor);
-  if (useV3Pipeline) {
-    return generateReadingV2AutoImportCandidateV3({
-      request,
-      generator,
-      questionAreaNormalizer: options.questionAreaNormalizer ?? groqProvider,
-      sourceLedger,
-      options,
-    });
-  }
+  const pipelineLane = resolveAutoPipelineLane(options);
+  emitReadingV2AutoImportDiag(options, 'auto_pipeline_lane_selected', {
+    pipelineLane,
+    forceV4Pipeline: options.forceV4Pipeline === true,
+    hasStructuredGenerator: Boolean(options.generator),
+    hasV4Extractor: Boolean(options.v4Extractor),
+    sourceLength: sourceLedger.normalizedText.length,
+    sourceLedgerPassageCount: sourceLedger.passages.length,
+    sourceLedgerQuestionCount: sourceLedger.questionNumbers.length,
+  });
 
-  if (options.forceV4Pipeline || options.v4Extractor) {
+  if (pipelineLane === 'v4-full-doc') {
     return generateReadingV2AutoImportCandidateV4({
       request,
       extractor: options.v4Extractor ?? aiService,
       sourceLedger,
+      sourceArtifact,
       options,
     });
   }
@@ -4001,14 +3215,17 @@ export const generateReadingV2AutoImportCandidate = async (
       return {
         success: false,
         error: chunkResult.error ?? 'Gemini failed to process the Reading V2 source.',
-        diagnostics: [{
-          code: chunkResult.error?.includes('malformed')
-            ? 'malformed-json'
-            : 'gemini-request-failed',
-          severity: 'error',
-          message: chunkResult.error ?? 'Gemini failed to process the Reading V2 source.',
-          passageNumber: chunk.passageNumber,
-        }],
+        diagnostics: [
+          autoPipelineLaneDiagnostic('legacy-gemini-chunk'),
+          {
+            code: chunkResult.error?.includes('malformed')
+              ? 'malformed-json'
+              : 'gemini-request-failed',
+            severity: 'error',
+            message: chunkResult.error ?? 'Gemini failed to process the Reading V2 source.',
+            passageNumber: chunk.passageNumber,
+          },
+        ],
         provider: 'gemini',
         model: GEMINI_MODEL_NAME,
       };
@@ -4025,6 +3242,7 @@ export const generateReadingV2AutoImportCandidate = async (
   });
   const { answerKeyText, payload } = repaired;
   const rawDiagnostics: ReadingV2AutoImportDiagnostic[] = [
+    autoPipelineLaneDiagnostic('legacy-gemini-chunk'),
     ...(extractedAnswerKeyText
       ? [{
           code: 'answer-key-extracted' as const,

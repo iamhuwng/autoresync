@@ -47,6 +47,7 @@ interface GoldBaseline {
 interface Args {
   readonly source: string;
   readonly out: string;
+  readonly gold?: string;
   readonly allowLiveV4Provider: boolean;
 }
 
@@ -82,6 +83,7 @@ const enableTrustedAdminKeyLookup = (): void => {
 const parseArgs = (argv: readonly string[]): Args => {
   let source = DEFAULT_SOURCE;
   let out = DEFAULT_OUT;
+  let gold: string | undefined;
   let allowLiveV4Provider = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -96,6 +98,11 @@ const parseArgs = (argv: readonly string[]): Args => {
       index += 1;
       continue;
     }
+    if (token === '--gold') {
+      gold = argv[index + 1];
+      index += 1;
+      continue;
+    }
     if (token === '--allow-live-v4-provider') {
       allowLiveV4Provider = true;
     }
@@ -104,6 +111,7 @@ const parseArgs = (argv: readonly string[]): Args => {
   return {
     source: path.resolve(source),
     out: path.resolve(out),
+    gold: gold ? path.resolve(gold) : undefined,
     allowLiveV4Provider,
   };
 };
@@ -236,6 +244,30 @@ const goldBaselineFor = (sourcePath: string): GoldBaseline => ({
     { question: 40, answer: 'YES' },
   ],
 });
+
+const readGoldBaseline = async (goldPath: string, sourcePath: string): Promise<GoldBaseline> => {
+  const parsed = JSON.parse(await readFile(goldPath, 'utf8')) as GoldBaseline;
+  if (!Array.isArray(parsed.passages) || !Array.isArray(parsed.groups) || !Array.isArray(parsed.answers)) {
+    throw new Error(`Gold baseline is missing passages, groups, or answers: ${goldPath}`);
+  }
+  if (parsed.answers.length !== 40) {
+    throw new Error(`Gold baseline must include 40 answer rows: ${goldPath}`);
+  }
+  return {
+    ...parsed,
+    sourcePath,
+  };
+};
+
+const loadGoldBaseline = async (args: Args): Promise<GoldBaseline> => {
+  if (args.gold) {
+    return readGoldBaseline(args.gold, args.source);
+  }
+  if (path.basename(args.source) !== 'Practice Cam 10 Reading Test 04.md') {
+    throw new Error('A --gold baseline is required for Clippings sources other than Practice Cam 10 Reading Test 04.md');
+  }
+  return goldBaselineFor(args.source);
+};
 
 const sanitize = (value: string): string =>
   value
@@ -413,7 +445,9 @@ const compareGoldToApp = (
       ? 'needs-code-fix'
       : missingQuestions.length > 0
         ? 'provider-weakness-caught'
-        : 'acceptable';
+        : hasPublishBlockers
+          ? 'editable-needs-review'
+          : 'acceptable';
 
   return {
     expectedPassageCount: gold.passages.length,
@@ -446,7 +480,7 @@ const compareGoldToApp = (
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   const rawText = await readFile(args.source, 'utf8');
-  const gold = goldBaselineFor(args.source);
+  const gold = await loadGoldBaseline(args);
   const ledger = buildReadingV2AutoSourceLedger({
     rawText,
     sourceName: args.source,

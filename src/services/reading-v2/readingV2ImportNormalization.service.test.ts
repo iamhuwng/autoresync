@@ -508,6 +508,131 @@ describe('readingV2ImportNormalization.service', () => {
     expect(validation.canPublish).toBe(true);
   });
 
+  it('splits one flattened note scaffold across note-completion blanks when later prompts are empty', () => {
+    const bullet = '\u00e2\u20ac\u00a2';
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'practice-cam-14-reading-test-02.md',
+        answerKeyText: [
+          '9 merchant',
+          '10 equipment',
+          '11 gifts',
+          '12 canoe',
+          '13 mountains',
+        ].join('\n'),
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Alexander Henderson (1831-1913)',
+            passages: [
+              {
+                title: 'Alexander Henderson (1831-1913)',
+                content: 'Alexander Henderson passage content is long enough for a stable structured import fixture.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q9-13',
+                taskType: 'note-completion',
+                questionRange: { start: 9, end: 13 },
+                sourceInstructionEvidence: 'Complete the notes below. Choose ONE WORD ONLY from the passage.',
+                wordLimit: 1,
+                wordLimitText: 'ONE WORD ONLY',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 9,
+                type: 'note-completion',
+                sectionInstructionId: 'p1-q9-13',
+                questionText: [
+                  '### Alexander Henderson',
+                  '**Early life**',
+                  bullet,
+                  'was born in Scotland in 1831 - father was a **9** ___',
+                  bullet,
+                  'trained as an accountant, emigrated to Canada in 1855',
+                  '**Start of a photographic career**',
+                  bullet,
+                  'people bought Henderson photos because photography took up considerable time and the **10** ___ was heavy',
+                  bullet,
+                  'the photographs Henderson sold were **11** ___ or souvenirs',
+                  '**Travelling as a professional photographer**',
+                  bullet,
+                  'took many trips along eastern rivers in a **12** ___',
+                  bullet,
+                  'worked for CPR in 1885 and photographed the **13** ___ and the railway at Rogers Pass',
+                ].join(' '),
+                answer: 'merchant',
+              },
+              {
+                questionNumber: 10,
+                type: 'note-completion',
+                sectionInstructionId: 'p1-q9-13',
+                questionText: '',
+                answer: 'equipment',
+              },
+              {
+                questionNumber: 11,
+                type: 'note-completion',
+                sectionInstructionId: 'p1-q9-13',
+                questionText: '',
+                answer: 'gifts',
+              },
+              {
+                questionNumber: 12,
+                type: 'note-completion',
+                sectionInstructionId: 'p1-q9-13',
+                questionText: '',
+                answer: 'canoe',
+              },
+              {
+                questionNumber: 13,
+                type: 'note-completion',
+                sectionInstructionId: 'p1-q9-13',
+                questionText: '',
+                answer: 'mountains',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '9 merchant\n10 equipment\n11 gifts\n12 canoe\n13 mountains',
+      fileName: 'flattened-note-scaffold.md',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const validation = validateReadingV2Draft(result.document);
+    const interactions = Object.values(result.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+    const layout = JSON.parse(taskGroup?.layoutHint ?? '{}') as {
+      readonly subheading?: string;
+      readonly sections?: readonly { readonly heading: string; readonly questionNumbers: readonly number[] }[];
+    };
+
+    expect(interactions.map((interaction) => interaction.promptText)).toEqual([
+      'was born in Scotland in 1831 - father was a **9** ___',
+      'people bought Henderson photos because photography took up considerable time and the **10** ___ was heavy',
+      'the photographs Henderson sold were **11** ___ or souvenirs',
+      'took many trips along eastern rivers in a **12** ___',
+      'worked for CPR in 1885 and photographed the **13** ___ and the railway at Rogers Pass',
+    ]);
+    expect(layout.subheading).toBe('Alexander Henderson');
+    expect(layout.sections).toEqual([
+      { heading: 'Early life', questionNumbers: [9] },
+      { heading: 'Start of a photographic career', questionNumbers: [10, 11] },
+      { heading: 'Travelling as a professional photographer', questionNumbers: [12, 13] },
+    ]);
+    expect(validation.canPublish).toBe(true);
+  });
+
   it('detects plain-text notes as note-completion instead of sentence-completion', () => {
     const candidate = createReadingV2ImportCandidateFromText({
       text: [
@@ -936,6 +1061,53 @@ describe('readingV2ImportNormalization.service', () => {
     expect(taskGroup?.validationState.issues[0]?.message).toContain('Use your imagination');
   });
 
+  it('keeps source-copied non-standard instruction wording as review warning, not publish blocker', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Source instruction import',
+            passages: [
+              {
+                title: 'Source instruction passage',
+                content: 'This passage has enough content for a source instruction review warning.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'instruction-1',
+                questionRange: { start: 1, end: 1 },
+                taskType: 'true-false-not-given',
+                sourceInstructionEvidence: 'Do the following statements agree with the unusual printed wording?',
+              },
+            ],
+            questions: [
+              {
+                number: 1,
+                questionText: 'The printed wording is unusual.',
+                type: 'true-false-not-given',
+                sectionInstructionId: 'instruction-1',
+                answer: 'TRUE',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({ text: structuredPayload }));
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+
+    expect(taskGroup?.validationState.issues[0]).toMatchObject({
+      code: 'unresolved-import-uncertainty',
+      severity: 'warning',
+    });
+  });
+
   it('consumes the stronger external-AI schema with multi-material passages, options, references, and word limits', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -1077,6 +1249,77 @@ describe('readingV2ImportNormalization.service', () => {
     expect(questionThree?.scoringRule.acceptableAnswers).toEqual(['A', 'C']);
     expect(questionFour?.responseShape).toMatchObject({ kind: 'free-text', wordLimit: 2 });
     expect(questionFour?.scoringRule.acceptableAnswers).toEqual(['teacher phrase']);
+  });
+
+  it('uses printed multiple-select selection count over per-answer-box scalar keys', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Multiple select passage',
+            passages: [
+              {
+                title: 'Multiple select passage',
+                content: 'This passage has enough text for a two-answer multiple-select import.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q12-13',
+                text: 'Choose TWO letters, A-E. Write the correct letters in boxes 12 and 13.',
+                taskType: 'multiple-select',
+                questionRange: { start: 12, end: 13 },
+                selectionLimit: 2,
+                labeledOptions: [
+                  { label: 'A', text: 'First option' },
+                  { label: 'B', text: 'Second option' },
+                  { label: 'C', text: 'Third option' },
+                  { label: 'D', text: 'Fourth option' },
+                  { label: 'E', text: 'Fifth option' },
+                ],
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 12,
+                type: 'multiple-select',
+                sectionInstructionId: 'p1-q12-13',
+                questionText: 'Which TWO options are correct?',
+                answer: 'B',
+              },
+              {
+                questionNumber: 13,
+                type: 'multiple-select',
+                sectionInstructionId: 'p1-q12-13',
+                questionText: '',
+                answer: 'C',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: ['12 B', '13 C'].join('\n'),
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interactions = Object.values(result.document.interactions)
+      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+
+    expect(interactions.map((interaction) => interaction.responseShape)).toEqual([
+      expect.objectContaining({ kind: 'multi-select', selectionLimit: 2 }),
+      expect.objectContaining({ kind: 'multi-select', selectionLimit: 2 }),
+    ]);
+    expect(interactions.map((interaction) => interaction.scoringRule.acceptableAnswers)).toEqual([
+      ['B', 'C'],
+      ['B', 'C'],
+    ]);
   });
 
   it('parses teacher answer keys into canonical alternative answers while preserving compact literal slash tokens', () => {
@@ -2418,6 +2661,51 @@ describe('readingV2ImportNormalization.service', () => {
     expect(validation.canPublish).toBe(true);
   });
 
+  it('does not crash when summary-completion layout inference sees a missing prompt', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Recovered summary list',
+            passages: [
+              {
+                title: 'Recovered summary list',
+                content: 'This passage has enough source text for an imported summary completion list group.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-1',
+                taskType: 'summary-completion-list',
+                questionRange: { start: 1, end: 1 },
+                text: 'Complete the summary using the list below.',
+                labeledOptions: [{ label: 'A', text: 'alpha' }],
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'summary-completion',
+                sectionInstructionId: 'p1-q1-1',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 A',
+    });
+
+    expect(() => normalizeReadingV2ImportCandidate(candidate)).not.toThrow();
+  });
+
   it('blocks duplicate teacher key rows instead of letting the last row silently win', () => {
     const candidate = createReadingV2ImportCandidateFromText({
       text: [
@@ -2561,6 +2849,67 @@ describe('readingV2ImportNormalization.service', () => {
 
     expect(interaction?.responseShape).toMatchObject({ kind: 'binary-judgement', vocabulary: 'TFNG' });
     expect(interaction?.scoringRule.acceptableAnswers).toEqual(['Not Given']);
+  });
+
+  it('expands IELTS optional answer-key notation before word-limit validation', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Optional answer notation',
+            passages: [
+              {
+                title: 'Optional answer notation',
+                content: 'This passage has enough source text for a short-answer import with optional answer notation.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'short-answer',
+                questionRange: { start: 1, end: 1 },
+                sourceInstructionEvidence: 'Answer the question below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+                wordLimit: 2,
+                wordLimitText: 'NO MORE THAN TWO WORDS',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'short-answer',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'Who was named on the plan?',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: '1 (the) architect(s) (name)',
+    }));
+    const interaction = Object.values(result.document.interactions).find(
+      (candidateInteraction) => candidateInteraction.reviewLabel.displayNumber === 1,
+    );
+    const validation = validateReadingV2Draft(result.document);
+
+    expect(interaction?.responseShape).toMatchObject({ kind: 'free-text', wordLimit: 2 });
+    expect(interaction?.scoringRule.acceptableAnswers).toEqual(expect.arrayContaining([
+      'architect',
+      'architects',
+      'the architect',
+      'the architects',
+    ]));
+    expect(interaction?.scoringRule.acceptableAnswers).not.toContain('(the) architect(s) (name)');
+    expect(interaction?.scoringRule.acceptableAnswers).not.toContain('the architects name');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).not.toContain('word limit');
+    expect(validation.canPublish).toBe(true);
   });
 
   it('normalizes short teacher judgement aliases before validation', () => {

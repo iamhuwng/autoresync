@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildReadingV2AutoLedgerPromptSummary,
+  buildReadingV2ImportSourceArtifact,
   buildReadingV2AutoSourceLedger,
   verifyReadingV2AutoPayloadAgainstLedger,
 } from './readingV2AutoImportSourceLedger.service';
@@ -33,6 +34,37 @@ const fullSyntheticSource = [
 ].join('\n\n');
 
 describe('readingV2AutoImportSourceLedger.service', () => {
+  it('builds a draft-scoped raw source artifact with hashes and line index', async () => {
+    const rawText = [
+      'READING PASSAGE 1',
+      '  Synthetic passage content with extra spacing.  ',
+      'Questions 1-1',
+      '1 Synthetic question text.',
+      'Answers',
+      '1 answer',
+    ].join('\n');
+    const artifact = await buildReadingV2ImportSourceArtifact({
+      rawTextOriginal: rawText,
+      sourceName: 'source-artifact.md',
+    });
+
+    expect(artifact.sourceKind).toBe('teacher-paste');
+    expect(artifact.rawTextOriginal).toBe(rawText);
+    expect(artifact.rawTextSha256).toBeTruthy();
+    expect(artifact.normalizedTextSha256).toBeTruthy();
+    expect(artifact.lineIndex[0]).toMatchObject({
+      lineId: 'line-0001',
+      lineNumber: 1,
+      rawText: 'READING PASSAGE 1',
+    });
+    expect(artifact.retention).toEqual({
+      scope: 'draft-author-only',
+      includeInStudentProjection: false,
+      includeInSessionProjection: false,
+      includeInPublicPayload: false,
+    });
+  });
+
   it('builds a redacted topology ledger for a full three-passage source', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: fullSyntheticSource,
@@ -87,6 +119,27 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     });
 
     expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toEqual(['1-7', '8-13']);
+  });
+
+  it('treats paired question headings as a range for multiple-select topology', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        '#### Questions 12 and 13',
+        'Choose TWO letters, A-E.',
+        'A first option',
+        'B second option',
+        'C third option',
+        'Answers',
+        '12 B',
+        '13 C',
+      ].join('\n\n'),
+      sourceName: 'paired-question-heading.md',
+    });
+
+    expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toContain('12-13');
+    expect(ledger.questionNumbers).toEqual([12, 13]);
+    expect(ledger.issues.map((issue) => issue.code)).not.toContain('source-question-coverage-gap');
   });
 
   it('uses strict passage headings and ignores loose prose mentions', () => {
@@ -229,6 +282,41 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     }, ledger);
 
     expect(mismatchedIssues.map((issue) => issue.code)).toContain('source-instruction-task-type-mismatch');
+  });
+
+  it('recognizes summary completion with a printed word list as summary-completion-list', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        'Questions 18-22',
+        'Complete the summary using the list of words, A-H, below.',
+        '18 Synthetic summary blank.',
+        'A fast B isolated C emotional D worrying',
+        'Answers',
+        answerRows(18, 22),
+      ].join('\n\n'),
+      sourceName: 'summary-list-task-type.md',
+    });
+
+    const issues = verifyReadingV2AutoPayloadAgainstLedger({
+      answerKeyText: answerRows(18, 22),
+      materials: [
+        {
+          passageNumber: 1,
+          passages: [{ content: 'Synthetic passage content with enough text.' }],
+          sectionInstructions: [
+            {
+              questionRange: { start: 18, end: 22 },
+              taskType: 'summary-completion-list',
+              optionLabelRange: 'A-H',
+            },
+          ],
+          questions: Array.from({ length: 5 }, (_, index) => ({ questionNumber: 18 + index })),
+        },
+      ],
+    }, ledger);
+
+    expect(issues.map((issue) => issue.code)).not.toContain('source-instruction-task-type-mismatch');
   });
 
   it('verifies missing Gemini question ranges before Studio handoff', () => {

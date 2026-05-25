@@ -51,5 +51,20 @@ describe('readingV2InstructionTemplates.service', () => {
       'Do the following statements agree with the information given in Reading Passage 1? TRUE if the statement agrees, FALSE if it contradicts, NOT GIVEN if there is no information.',
       { questionRange: { start: 1, end: 5 } },
     )).toBe(true);
+    expect(readingV2InstructionLooksStandard(
+      'true-false-not-given',
+      'Do the following statements agree with the views of the writer? TRUE if the statement agrees with the views of the writer, FALSE if it contradicts them, NOT GIVEN if it is impossible to say.',
+      { questionRange: { start: 23, end: 26 } },
+    )).toBe(true);
+    expect(readingV2InstructionLooksStandard(
+      'matching-information',
+      'Reading Passage 3 has 5 chapters. Which chapter contains the following information?',
+      { questionRange: { start: 27, end: 31 }, referenceLabelRange: 'A-E' },
+    )).toBe(true);
+    expect(readingV2InstructionLooksStandard(
+      'flowchart-completion',
+      'The flow chart below shows the steps in chocolate making. Complete the flow chart using NO MORE THAN THREE WORDS from the passage for each blank.',
+      { questionRange: { start: 37, end: 40 }, wordLimitText: 'NO MORE THAN THREE WORDS' },
+    )).toBe(true);
   });
 });

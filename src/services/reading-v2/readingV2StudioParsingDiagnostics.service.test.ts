@@ -251,21 +251,29 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
           questionNumber: 1,
         },
         {
-          code: 'groq-output-missing-group',
+          code: 'group-source-underrepresented',
           severity: 'warning' as const,
-          message: 'Groq output omitted hinted group 1-1.',
+          message: 'Source verifier found generated group 1-1 weaker than the source span.',
           questionNumber: 1,
-          stage: 'raw-groq',
           groupRange: '1-1',
-          keyFingerprint: 'groq-slot-0',
+          sourceRange: 'lines 4-6',
         },
         {
           code: 'bank-ownership-heuristic-used',
           severity: 'warning' as const,
-          message: 'Fallback bank ownership heuristic rebuilt labels for group 1-1.',
+          message: 'Source verifier rebuilt labels for group 1-1.',
           questionNumber: 1,
-          stage: 'repaired-transcript',
+          stage: 'source-verifier',
           groupRange: '1-1',
+        },
+      ],
+      autoImportGroupQuality: [
+        {
+          groupId: 'p1-q1-1',
+          status: 'weak' as const,
+          sourceSpanConfidence: 'high' as const,
+          reasonCodes: ['group-source-underrepresented', 'note-heading-missing'],
+          recommendedAction: 'teacher-review' as const,
         },
       ],
     };
@@ -295,8 +303,12 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
     ]));
     expect(diagnostics.groups.find((group) => group.id === 'question-binding')?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        detail: 'groq-output-missing-group | stage: raw-groq | group: 1-1 | slot: groq-slot-0',
+        detail: 'group-source-underrepresented | group: 1-1 | source: lines 4-6',
         target: expect.objectContaining({ kind: 'interaction', questionNumber: 1 }),
+      }),
+      expect.objectContaining({
+        message: 'Group p1-q1-1 is weak.',
+        detail: 'confidence: high | reasons: group-source-underrepresented, note-heading-missing | action: teacher-review',
       }),
     ]));
     expect(diagnostics.groups.find((group) => group.id === 'option-bank')?.items).toEqual(expect.arrayContaining([
@@ -305,9 +317,79 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
         severity: 'error',
       }),
       expect.objectContaining({
-        detail: 'bank-ownership-heuristic-used | stage: repaired-transcript | group: 1-1',
+        detail: 'bank-ownership-heuristic-used | stage: source-verifier | group: 1-1',
       }),
     ]));
+  });
+
+  it('includes source artifact summaries in copied parsing diagnostics without raw source text', () => {
+    const candidate = {
+      ...createReadingV2ImportCandidateFromText({
+        text: [
+          '## Imported Reading passage',
+          '',
+          'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
+          '',
+          '#### Questions 1-1',
+          'Complete the sentence below.',
+          '**1** Imported sentence ___.',
+        ].join('\n'),
+        answerKeyText: '1 answer',
+        fileName: 'auto-source-artifact.md',
+        sourceKind: 'auto-gemini',
+      }),
+      importSourceArtifact: {
+        artifactId: 'source-artifact-1',
+        createdAt: '2026-05-25T00:00:00.000Z',
+        sourceKind: 'teacher-paste' as const,
+        rawTextSha256: 'rawhash123',
+        normalizedTextSha256: 'normalizedhash123',
+        lineIndex: [
+          {
+            lineId: 'line-0001',
+            lineNumber: 1,
+            rawText: 'READING PASSAGE 1',
+            normalizedText: 'reading passage 1',
+          },
+        ],
+        retention: {
+          scope: 'draft-author-only' as const,
+          includeInStudentProjection: false as const,
+          includeInSessionProjection: false as const,
+          includeInPublicPayload: false as const,
+        },
+      },
+    };
+    const normalized = normalizeReadingV2ImportCandidate(candidate);
+    const diagnostics = buildReadingV2StudioParsingDiagnostics({
+      document: normalized.document,
+      metadata: { title: 'Auto Source Artifact' },
+      importCandidate: candidate,
+      validationResult: validateReadingV2Draft(normalized.document),
+      mode: 'create-from-import',
+      activeStep: 'Passages',
+      draftId: 'draft-source-artifact',
+      revisionToken: 'rev-source-artifact',
+      generatedAt: '2026-05-25T00:00:00.000Z',
+    });
+    const formatted = formatReadingV2StudioParsingDiagnostics(diagnostics);
+
+    expect(diagnostics.sourceInput.sourceArtifact).toEqual({
+      artifactId: 'source-artifact-1',
+      createdAt: '2026-05-25T00:00:00.000Z',
+      sourceKind: 'teacher-paste',
+      rawTextSha256: 'rawhash123',
+      normalizedTextSha256: 'normalizedhash123',
+      lineCount: 1,
+      retention: {
+        scope: 'draft-author-only',
+        includeInStudentProjection: false,
+        includeInSessionProjection: false,
+        includeInPublicPayload: false,
+      },
+    });
+    expect(formatted).toContain('rawhash123');
+    expect(formatted).not.toContain('READING PASSAGE 1');
   });
 
   it('groups missing editor-display structures as structured-layout repair diagnostics', () => {

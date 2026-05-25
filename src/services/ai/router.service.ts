@@ -55,7 +55,13 @@ class AIRouterService implements IAIService {
 
       if (result.success) {
         console.log(`✅ Passages parsed with ${providerName}`);
-        return result;
+        return {
+          ...result,
+          data: {
+            ...result.data,
+            provider: providerName,
+          },
+        };
       }
 
       console.error(`❌ ${providerName} passages parsing failed: ${result.error}`);
@@ -83,7 +89,13 @@ class AIRouterService implements IAIService {
 
       if (result.success) {
         console.log(`✅ Questions+Answers parsed with ${providerName}`);
-        return result;
+        return {
+          ...result,
+          data: {
+            ...result.data,
+            provider: providerName,
+          },
+        };
       }
 
       console.error(`❌ ${providerName} questions+answers parsing failed: ${result.error}`);
@@ -471,14 +483,14 @@ class AIRouterService implements IAIService {
     if (allSuccess) {
       return {
         success: true,
-        data: undefined,
+        data: 'All providers connected',
       };
     }
 
     if (anySuccess) {
       return {
         success: true,
-        data: undefined,
+        data: 'At least one provider connected',
       };
     }
 

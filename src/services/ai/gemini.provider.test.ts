@@ -145,6 +145,47 @@ describe('Gemini Provider', () => {
   });
 
   describe('Split Parsing Retries', () => {
+    it('retries questions+answers on blocked Gemini key before provider fallback', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      vi.mocked(loadAllGeminiApiKeys).mockResolvedValue(['usable-key', 'blocked-key']);
+      const attemptedKeys: string[] = [];
+
+      vi.mocked(GoogleGenerativeAI).mockImplementation((apiKey: string) => ({
+        getGenerativeModel: vi.fn().mockReturnValue({
+          generateContent: vi.fn().mockImplementation(() => {
+            attemptedKeys.push(apiKey);
+            if (apiKey === 'blocked-key') {
+              return Promise.reject(new Error('403 Forbidden: API_KEY_HTTP_REFERRER_BLOCKED'));
+            }
+
+            return Promise.resolve({
+              response: {
+                text: () => JSON.stringify({
+                  questions: [
+                    {
+                      questionNumber: 35,
+                      questionText: 'removes carbon dioxide as soon as it is produced',
+                      type: 'multiple-choice',
+                      answer: 'A',
+                      options: ['A', 'B', 'C'],
+                      confidence: 90,
+                    },
+                  ],
+                  answerKey: { 35: 'A' },
+                  confidence: 90,
+                }),
+              },
+            });
+          }),
+        }),
+      }) as any);
+
+      const result = await provider.parseQuestionsAndAnswers('Questions 35-40\n**35.** removes carbon dioxide...');
+
+      expect(result.success).toBe(true);
+      expect(attemptedKeys).toEqual(['blocked-key', 'usable-key']);
+    });
+
     it('retries questions+answers on 503 high demand across keys', async () => {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       let callCount = 0;

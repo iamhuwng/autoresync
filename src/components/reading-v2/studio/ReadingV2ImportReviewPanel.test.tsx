@@ -66,6 +66,27 @@ describe('ReadingV2ImportReviewPanel', () => {
           sourceKind: 'auto-gemini',
           fileName: 'Auto V4 import',
           rawText: 'Auto generated structured payload',
+          importSourceArtifact: {
+            artifactId: 'source-artifact-1',
+            createdAt: '2026-05-25T00:00:00.000Z',
+            sourceKind: 'teacher-paste',
+            rawTextSha256: 'abc123def4567890',
+            normalizedTextSha256: 'def456abc1237890',
+            lineIndex: [
+              {
+                lineId: 'line-0001',
+                lineNumber: 1,
+                rawText: 'READING PASSAGE 1',
+                normalizedText: 'reading passage 1',
+              },
+            ],
+            retention: {
+              scope: 'draft-author-only',
+              includeInStudentProjection: false,
+              includeInSessionProjection: false,
+              includeInPublicPayload: false,
+            },
+          },
           evidence: ['Detected 1 structured passage'],
           uncertaintyMarkers: ['Teacher should review Auto V4 output'],
           publishBlockingPlaceholders: [],
@@ -76,8 +97,9 @@ describe('ReadingV2ImportReviewPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Auto V4')).toBeInTheDocument();
-    expect(screen.getByText(/Review the Auto V4 import/)).toBeInTheDocument();
+    expect(screen.getByText('Auto V4 + source verifier')).toBeInTheDocument();
+    expect(screen.getByText(/Review the Auto V4 import, source verifier findings/)).toBeInTheDocument();
+    expect(screen.getByText(/Source verifier: 1 source lines, hash abc123def456/)).toBeInTheDocument();
     expect(screen.getAllByText(/Auto V4 import/).length).toBeGreaterThan(0);
   });
 

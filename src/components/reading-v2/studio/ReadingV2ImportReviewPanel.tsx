@@ -41,6 +41,9 @@ export function ReadingV2ImportReviewPanel({
     setFileName(candidate.fileName ?? '');
   }, [candidate.fileName, candidate.rawText]);
 
+  const autoSourceArtifact = candidate.sourceKind === 'auto-gemini'
+    ? candidate.importSourceArtifact
+    : undefined;
   const handleAnalyzeSource = () => {
     onAnalyzeSource(createReadingV2ImportCandidateFromText({
       text: sourceText,
@@ -53,7 +56,9 @@ export function ReadingV2ImportReviewPanel({
     candidate.sourceKind === 'uploaded-file'
       ? 'Uploaded file'
       : candidate.sourceKind === 'auto-gemini'
-        ? 'Auto V4'
+        ? autoSourceArtifact
+          ? 'Auto V4 + source verifier'
+          : 'Auto V4'
         : 'Pasted text';
   const teacherSafeItem = (item: string): string =>
     item
@@ -82,10 +87,15 @@ export function ReadingV2ImportReviewPanel({
       <p className="reading-v2-studio__muted">
         {teacherFacing
           ? candidate.sourceKind === 'auto-gemini'
-            ? 'Review the Auto V4 import, inspect unresolved items, then add it to your draft.'
+            ? 'Review the Auto V4 import, source verifier findings, and unresolved items before adding it to your draft.'
             : 'Paste a reading test or passage, review what was found, then add it to your draft.'
           : 'Imported content normalizes into the same editable canonical draft model.'}
       </p>
+      {autoSourceArtifact ? (
+        <p className="reading-v2-studio__muted">
+          Source verifier: {autoSourceArtifact.lineIndex.length} source lines, hash {autoSourceArtifact.rawTextSha256.slice(0, 12)}.
+        </p>
+      ) : null}
       <div className="reading-v2-form-grid">
         <label>
           Import file name

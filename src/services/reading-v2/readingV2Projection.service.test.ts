@@ -275,7 +275,7 @@ describe('readingV2Projection.service', () => {
   it('fails projection safety checks when Auto import diagnostics are manually introduced', () => {
     const unsafeProjection = {
       ...generateReadingV2StudentSafeProjection(snapshot()),
-      autoImportDiagnostics: [{ message: 'Gemini topology marker and Groq package diagnostics must stay teacher-only.' }],
+      autoImportDiagnostics: [{ message: 'Auto source verifier diagnostics must stay teacher-only.' }],
     };
 
     expect(() => assertReadingV2ProjectionIsStudentSanitized(unsafeProjection as never)).toThrow(/autoImportDiagnostics/);

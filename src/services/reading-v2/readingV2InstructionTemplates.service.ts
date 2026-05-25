@@ -271,7 +271,7 @@ export const readingV2InstructionLooksStandard = (
   switch (taskType) {
     case 'true-false-not-given':
       return normalized.includes('statements agree')
-        && normalized.includes('information')
+        && (normalized.includes('information') || normalized.includes('views') || normalized.includes('writer'))
         && normalized.includes('true')
         && normalized.includes('false')
         && normalized.includes('not given');
@@ -285,7 +285,9 @@ export const readingV2InstructionLooksStandard = (
     case 'table-completion':
       return normalized.includes('complete the table');
     case 'flowchart-completion':
-      return normalized.includes('complete the flowchart') || normalized.includes('complete the flow-chart');
+      return normalized.includes('complete the flowchart')
+        || normalized.includes('complete the flow-chart')
+        || normalized.includes('complete the flow chart');
     case 'diagram-labeling':
       return normalized.includes('label the diagram');
     case 'matching-headings':
@@ -293,6 +295,7 @@ export const readingV2InstructionLooksStandard = (
     case 'matching-information':
       return normalized.includes('matching information')
         || normalized.includes('which paragraph contains')
+        || normalized.includes('which chapter contains')
         || (normalized.includes('which paragraph') && normalized.includes('following information'));
     case 'matching-features':
       return normalized.includes('match') && (normalized.includes('option') || normalized.includes('list'));

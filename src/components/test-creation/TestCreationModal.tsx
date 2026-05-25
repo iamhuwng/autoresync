@@ -54,6 +54,7 @@ import { createReadingV2ImportCandidateFromText } from '../../services/reading-v
 import {
     generateReadingV2AutoImportCandidate,
     type ReadingV2AutoImportDiagnostic,
+    type ReadingV2AutoPipelineLane,
 } from '../../services/reading-v2/readingV2AutoImport.service';
 import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
@@ -80,10 +81,13 @@ export interface TestCreationModalProps {
     initialWritingDraftId?: string;
     /** Optional feature/action tracking bridge from the host page */
     onAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
+    /** Dev/test override. Auto V4 is the only active Auto lane. */
+    readingV2AutoPipelineLane?: Extract<ReadingV2AutoPipelineLane, 'v4-full-doc'>;
 }
 
 const TABLE_PRESENTATION_DIAG_PREFIX = '[Diag][TablePresentationAudit]';
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
+const READING_V2_AUTO_ACTIVE_PIPELINE_LANE: Extract<ReadingV2AutoPipelineLane, 'v4-full-doc'> = 'v4-full-doc';
 const READING_V2_AUTO_SECRET_PATTERN = /\b(?:AIza[A-Za-z0-9_-]{12,}|gsk_[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{12,})\b/g;
 const READING_V2_AUTO_WINDOWS_PATH_PATTERN = /[A-Z]:\\[^:\n\r"]+/g;
 
@@ -272,7 +276,7 @@ const READING_V2_STEP_CONFIGS: StepConfig[] = [
     {
         id: 'reading-v2-auto',
         label: 'Auto',
-        description: 'Generate a draft with Gemini',
+        description: 'Generate a source-verified Auto V4 draft',
         icon: 'AI',
     },
 ];
@@ -380,6 +384,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     initialData,
     initialWritingDraftId,
     onAction,
+    readingV2AutoPipelineLane = READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
 }) => {
     const navigate = useNavigate();
     // ─── Auth ────────────────────────────────────────────────────
@@ -841,6 +846,12 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
         const initialMetadata = createReadingV2InitialMetadata();
         const requestId = readingV2AutoRequestIdRef.current + 1;
+        const providerLabel = 'auto-v4';
+        const autoImportOptions = {
+            pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
+            forceV4Pipeline: true,
+            onDiagnosticEvent: appendReadingV2AutoDiagnosticLog,
+        };
         readingV2AutoRequestIdRef.current = requestId;
         setReadingV2AutoProcessing(true);
         setReadingV2AutoError(null);
@@ -851,7 +862,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v4',
+            provider: providerLabel,
+            pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
         });
         logReadingV2AutoImportDiag('submit_requested', {
             requestId,
@@ -859,23 +871,23 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v4',
+            provider: providerLabel,
+            pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
         });
         onAction?.('submitReadingV2AutoImport', {
             source: 'test_creation_modal',
             testType: stepData.testType,
             titleLength: initialMetadata.title.length,
             sourceLength: sourceText.length,
-            provider: 'auto-v4',
+            provider: providerLabel,
+            pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
         });
 
         try {
             const result = await generateReadingV2AutoImportCandidate({
                 rawTestText: sourceText,
                 sourceName: initialMetadata.title || 'Auto V4 import',
-            }, {
-                onDiagnosticEvent: appendReadingV2AutoDiagnosticLog,
-            });
+            }, autoImportOptions);
 
             if (readingV2AutoRequestIdRef.current !== requestId) {
                 appendReadingV2AutoDiagnosticLog('stale_result_ignored', {
@@ -901,6 +913,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 reviewStatus: result.reviewStatus ?? (result.success ? 'ready' : 'blocked'),
                 provider: result.provider,
                 model: result.model,
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 diagnosticCount: safeDiagnostics.length,
                 blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
                 reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
@@ -915,6 +928,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 reviewStatus: result.reviewStatus ?? (result.success ? 'ready' : 'blocked'),
                 provider: result.provider,
                 model: result.model,
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 diagnosticCount: safeDiagnostics.length,
                 blockingDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
                 reviewDiagnosticCount: safeDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
@@ -944,6 +958,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     source: 'test_creation_modal',
                     testType: stepData.testType,
                     provider: result.provider,
+                    pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                     error: safeResultError,
                     diagnosticCount: safeDiagnostics.length,
                 });
@@ -955,6 +970,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 testType: stepData.testType,
                 provider: result.provider,
                 model: result.model,
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
@@ -963,6 +979,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             appendReadingV2AutoDiagnosticLog('submit_completed', {
                 requestId,
                 reviewStatus: result.reviewStatus ?? 'ready',
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
@@ -974,6 +991,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             logReadingV2AutoImportDiag('submit_completed', {
                 requestId,
                 reviewStatus: result.reviewStatus ?? 'ready',
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 passageCount: result.passageCount,
                 questionCount: result.questionCount,
                 diagnosticCount: safeDiagnostics.length,
@@ -991,7 +1009,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     startMode: 'create-from-auto',
                     initialMetadata: {
                         ...initialMetadata,
-                        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
+                        provenanceSummary: 'Generated from Auto V4 source-verified import in Test Creation Modal',
                     },
                     initialImportCandidate: result.candidate,
                 },
@@ -1026,7 +1044,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             onAction?.('failReadingV2AutoImport', {
                 source: 'test_creation_modal',
                 testType: stepData.testType,
-                provider: 'auto-v4',
+                provider: providerLabel,
+                pipelineLane: READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
                 error: message,
             });
         }
@@ -1036,6 +1055,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         navigate,
         onAction,
         onClose,
+        readingV2AutoPipelineLane,
         readingV2AutoSource,
         stepData.testType,
     ]);
@@ -2321,7 +2341,7 @@ const READING_V2_START_OPTIONS = [
     {
         id: 'auto',
         title: 'Auto',
-        description: 'Paste one raw test text block and let Gemini prepare the Studio draft.',
+        description: 'Paste one raw test text block and let Auto V4 prepare a source-verified Studio draft.',
         actionLabel: 'Auto',
         icon: 'AI',
     },

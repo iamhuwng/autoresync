@@ -3139,7 +3139,7 @@ export function ReadingV2StudioShell({
           </button>
         </div>
         {hasImportCandidate && showImportReviewDetails ? (
-          <section className="reading-v2-studio__metadata" aria-label="Import review and answer key authority">
+          <section className="reading-v2-studio__metadata" aria-label="Import review and source verification">
             <ReadingV2ImportReviewPanel
               candidate={currentImportCandidate}
               teacherFacing
@@ -3202,7 +3202,7 @@ export function ReadingV2StudioShell({
       <section className="reading-v2-studio__state-card" aria-label="Publish readiness">
         <h2>Publish Readiness</h2>
         <p>{publishBlocked ? 'Publish is blocked until validation issues are resolved.' : 'Ready for Task 5 publish handoff.'}</p>
-        <p>Teacher answer key is authoritative for marking.</p>
+        <p>Teacher answer key is authoritative for marking; Auto source verifier details remain teacher-only.</p>
         <p>Issues: {validationResult.issues.length}</p>
       </section>
 

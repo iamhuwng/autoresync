@@ -27,7 +27,7 @@ const envSchema = z.object({
   // Google Drive OAuth (required for image upload)
   VITE_GOOGLE_DRIVE_CLIENT_ID: z.string().min(1, 'Google Drive client ID required'),
 
-  // Groq fallback (optional)
+  // Groq group repair keys (optional)
   VITE_GROQ_API_KEY: z.string().optional(),
   VITE_GROQ_API_KEY_1: z.string().optional(),
   VITE_GROQ_API_KEY_2: z.string().optional(),

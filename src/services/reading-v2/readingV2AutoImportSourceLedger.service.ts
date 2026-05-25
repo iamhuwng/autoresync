@@ -33,10 +33,34 @@ export type ReadingV2AutoSourceVerifierCode =
   | 'source-passage-trim-risk';
 
 export interface ReadingV2AutoSourceLine {
+  readonly lineId: string;
   readonly lineNumber: number;
   readonly charStart: number;
   readonly charEnd: number;
   readonly text: string;
+}
+
+export interface ReadingV2AutoSourceLineIndexEntry {
+  readonly lineId: string;
+  readonly lineNumber: number;
+  readonly rawText: string;
+  readonly normalizedText: string;
+}
+
+export interface ReadingV2ImportSourceArtifact {
+  readonly artifactId: string;
+  readonly createdAt: string;
+  readonly sourceKind: 'teacher-paste';
+  readonly rawTextOriginal: string;
+  readonly rawTextSha256: string;
+  readonly normalizedTextSha256: string;
+  readonly lineIndex: readonly ReadingV2AutoSourceLineIndexEntry[];
+  readonly retention: {
+    readonly scope: 'draft-author-only';
+    readonly includeInStudentProjection: false;
+    readonly includeInSessionProjection: false;
+    readonly includeInPublicPayload: false;
+  };
 }
 
 export interface ReadingV2AutoSourcePassageBoundary {
@@ -98,6 +122,7 @@ export interface ReadingV2AutoSourceLedger {
   readonly sourceHash: string;
   readonly normalizedText: string;
   readonly lineCount: number;
+  readonly lineIndex: readonly ReadingV2AutoSourceLineIndexEntry[];
   readonly category: ReadingV2AutoSourceCategory;
   readonly passages: readonly ReadingV2AutoSourcePassageBoundary[];
   readonly questionRanges: readonly ReadingV2AutoSourceQuestionRange[];
@@ -154,7 +179,7 @@ export interface ReadingV2AutoSourceVerifierIssue {
 }
 
 const PASSAGE_HEADING_PATTERN = /^\s*(?:#{1,6}\s*)?READING\s+PASSAGE\s+(\d+)\s*(?::\s*(.+?)\s*)?$/i;
-const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*\*)?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to)\s*(\d+)\b/i;
+const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*\*)?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to|and)\s*(\d+)\b/i;
 const QUESTION_SINGLE_PATTERN = /^\s*(?:#{1,6}\s*)?Question\s+(\d+)\b/i;
 const NUMBERED_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:\\?[\).])?(?:\*\*)?\s+(.+)$/;
 const ALPHA_REFERENCE_ROW_PATTERN = /^\s*(?:[-*]\s*)?([A-Z])(?:[\).:]|\s+[-\u2013\u2014])?\s+\S+/;
@@ -186,6 +211,19 @@ const hashString = (value: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
 
+const sha256Hex = async (value: string): Promise<string> => {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.subtle) {
+    return hashString(value);
+  }
+
+  const encoded = new TextEncoder().encode(value);
+  const digest = await cryptoApi.subtle.digest('SHA-256', encoded);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
 const canonicalAnswerText = (value: string): string =>
   compact(value)
     .replace(/\\([()./|:-])/g, '$1')
@@ -210,8 +248,10 @@ const sourceLinesFor = (normalizedText: string): readonly ReadingV2AutoSourceLin
   let charStart = 0;
 
   return rawLines.map((text, index) => {
+    const lineNumber = index + 1;
     const line: ReadingV2AutoSourceLine = {
-      lineNumber: index + 1,
+      lineId: `line-${String(lineNumber).padStart(4, '0')}`,
+      lineNumber,
       charStart,
       charEnd: charStart + text.length,
       text,
@@ -220,6 +260,16 @@ const sourceLinesFor = (normalizedText: string): readonly ReadingV2AutoSourceLin
     return line;
   });
 };
+
+const lineIndexFromSourceLines = (
+  lines: readonly ReadingV2AutoSourceLine[],
+): readonly ReadingV2AutoSourceLineIndexEntry[] =>
+  lines.map((line) => ({
+    lineId: line.lineId,
+    lineNumber: line.lineNumber,
+    rawText: line.text,
+    normalizedText: compact(line.text),
+  }));
 
 const compact = (value: string): string =>
   value.replace(/\s+/g, ' ').trim();
@@ -932,6 +982,7 @@ export const buildReadingV2AutoSourceLedger = (input: {
 }): ReadingV2AutoSourceLedger => {
   const normalizedText = normalizeSourceText(input.rawText);
   const lines = sourceLinesFor(normalizedText);
+  const lineIndex = lineIndexFromSourceLines(lines);
   const passages = detectPassages(lines);
   const answerHeadingLine = firstAnswerHeadingLine(lines);
   const questionRanges = detectQuestionRanges(lines, passages, answerHeadingLine);
@@ -969,6 +1020,7 @@ export const buildReadingV2AutoSourceLedger = (input: {
     sourceHash: hashString(normalizedText),
     normalizedText,
     lineCount: lines.length,
+    lineIndex,
     category,
     passages,
     questionRanges,
@@ -978,6 +1030,38 @@ export const buildReadingV2AutoSourceLedger = (input: {
     pollutionMarkers,
     issues,
     expectedFullTest,
+  };
+};
+
+export const buildReadingV2ImportSourceArtifact = async (input: {
+  readonly rawTextOriginal: string;
+  readonly sourceName?: string;
+  readonly createdAt?: string;
+}): Promise<ReadingV2ImportSourceArtifact> => {
+  const normalizedText = normalizeSourceText(input.rawTextOriginal);
+  const normalizedLines = sourceLinesFor(normalizedText);
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const rawTextSha256 = await sha256Hex(input.rawTextOriginal);
+  const normalizedTextSha256 = await sha256Hex(normalizedText);
+
+  return {
+    artifactId: [
+      'reading-v2-import-source',
+      input.sourceName?.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'teacher-paste',
+      normalizedTextSha256.slice(0, 16),
+    ].join('-'),
+    createdAt,
+    sourceKind: 'teacher-paste',
+    rawTextOriginal: input.rawTextOriginal,
+    rawTextSha256,
+    normalizedTextSha256,
+    lineIndex: lineIndexFromSourceLines(normalizedLines),
+    retention: {
+      scope: 'draft-author-only',
+      includeInStudentProjection: false,
+      includeInSessionProjection: false,
+      includeInPublicPayload: false,
+    },
   };
 };
 
@@ -1176,6 +1260,10 @@ const taskTypeHintFromInstructionText = (value: string | undefined): string | un
 
   if (/\bcomplete\b/.test(text) && /\bnotes?\b/.test(text)) {
     return 'note-completion';
+  }
+
+  if (/\bcomplete\b/.test(text) && /\bsummary\b/.test(text) && /\blist\s+of\s+words?\b/.test(text)) {
+    return 'summary-completion-list';
   }
 
   if (/\bcomplete\b/.test(text) && /\bsummary\b/.test(text)) {

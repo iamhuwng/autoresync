@@ -359,6 +359,9 @@ const diagnosticGroupForAutoCode = (code: string): ReadingV2TeacherImportDiagnos
     || code.includes('question-missing')
     || code.includes('question-extra')
     || code.includes('question-range')
+    || code.includes('group-source-underrepresented')
+    || code.includes('question-text-changed')
+    || code.includes('high-risk-token-changed')
     || code.includes('group-coverage')
     || code.includes('duplicate-question-number')
     || code.includes('missing-group')
@@ -380,6 +383,7 @@ const diagnosticGroupForAutoCode = (code: string): ReadingV2TeacherImportDiagnos
     || code.includes('source-repair')
     || code.includes('source-ledger')
     || code.includes('source-proof')
+    || code.includes('source-passage-drift')
     || code.includes('normalized-text-source-drift')
     || code.includes('repair-')
   ) {
@@ -621,6 +625,28 @@ export const buildReadingV2TeacherImportDiagnostics = (
     });
   });
 
+  input.importCandidate?.autoImportGroupQuality?.forEach((record, index) => {
+    pushItem(record.status === 'ready' ? 'publish-readiness' : 'question-binding', {
+      id: `auto-group-quality-${index + 1}-${record.groupId}`,
+      severity: record.status === 'ready'
+        ? 'success'
+        : record.status === 'blocked'
+          ? 'error'
+          : 'warning',
+      message: `Group ${record.groupId} is ${record.status}.`,
+      detail: [
+        `confidence: ${record.sourceSpanConfidence}`,
+        `reasons: ${record.reasonCodes.join(', ') || 'none'}`,
+        `action: ${record.recommendedAction}`,
+      ].join(' | '),
+      target: {
+        kind: 'task-group',
+        objectId: record.groupId,
+        step: 'Questions',
+      },
+    });
+  });
+
   input.validationResult.blockingIssues.forEach((issue, index) => {
     const groupId = diagnosticGroupForIssue(issue);
     pushItem(groupId, {
@@ -777,6 +803,18 @@ export const buildReadingV2StudioParsingDiagnostics = (
       candidateUncertainty: input.importCandidate?.uncertaintyMarkers ?? [],
       candidatePublishBlockers: input.importCandidate?.publishBlockingPlaceholders ?? [],
       candidateAutoDiagnostics: input.importCandidate?.autoImportDiagnostics ?? [],
+      candidateGroupQuality: input.importCandidate?.autoImportGroupQuality ?? [],
+      sourceArtifact: input.importCandidate?.importSourceArtifact
+        ? {
+            artifactId: input.importCandidate.importSourceArtifact.artifactId,
+            createdAt: input.importCandidate.importSourceArtifact.createdAt,
+            sourceKind: input.importCandidate.importSourceArtifact.sourceKind,
+            rawTextSha256: input.importCandidate.importSourceArtifact.rawTextSha256,
+            normalizedTextSha256: input.importCandidate.importSourceArtifact.normalizedTextSha256,
+            lineCount: input.importCandidate.importSourceArtifact.lineIndex.length,
+            retention: input.importCandidate.importSourceArtifact.retention,
+          }
+        : undefined,
     },
     parseState: {
       inputQualityFlags,

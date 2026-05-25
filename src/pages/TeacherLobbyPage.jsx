@@ -1,7 +1,7 @@
 // TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
 // Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
 import React, { Suspense, useState, useCallback, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
@@ -40,6 +40,14 @@ const WritingTestEditModal = lazyWithRetry(() => import('../components/writing/W
 
 const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
 
+const readingV2AutoPipelineLaneFromParam = (value) => {
+  if (value === 'v4-full-doc') {
+    return value;
+  }
+
+  return undefined;
+};
+
 const overlayFallbackStyle = {
   position: 'fixed',
   inset: 0,
@@ -77,8 +85,12 @@ function OverlayLoader({ label }) {
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
+  const [searchParams] = useSearchParams();
   const { user, profile, logout } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
+  const readingV2AutoPipelineLane = import.meta.env.DEV || import.meta.env.MODE === 'test'
+    ? readingV2AutoPipelineLaneFromParam(searchParams.get('readingV2AutoPipeline'))
+    : undefined;
 
   // ---------- Local UI State ----------
   const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts'
@@ -591,6 +603,7 @@ const TeacherLobbyPage = () => {
                 navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
               }}
               onAction={(actionName, metadata) => trackAction(actionName, metadata)}
+              readingV2AutoPipelineLane={readingV2AutoPipelineLane}
             />
           </Suspense>
         )}

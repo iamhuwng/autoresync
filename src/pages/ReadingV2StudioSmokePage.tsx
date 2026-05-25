@@ -142,10 +142,8 @@ const AUTO_V4_MALFORMED_KEY_SMOKE_FIXTURE = {
 const smokeFixtureFor = (fixtureName: string | null) => {
   switch (fixtureName) {
     case 'auto-v4-malformed-key':
-    case 'auto-v3-malformed-key':
       return AUTO_V4_MALFORMED_KEY_SMOKE_FIXTURE;
     case 'auto-v4-valid-full-test':
-    case 'auto-v3-valid-full-test':
       return AUTO_V4_FULL_TEST_SMOKE_FIXTURE;
     case 'valid-full-test':
       return READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE;
@@ -307,9 +305,7 @@ export default function ReadingV2StudioSmokePage() {
   const [searchParams] = useSearchParams();
   const fixtureName = searchParams.get('fixture');
   const isAutoV4Fixture = fixtureName === 'auto-v4-valid-full-test'
-    || fixtureName === 'auto-v4-malformed-key'
-    || fixtureName === 'auto-v3-valid-full-test'
-    || fixtureName === 'auto-v3-malformed-key';
+    || fixtureName === 'auto-v4-malformed-key';
   const smokeFixture = smokeFixtureFor(fixtureName);
   const structuredRepairDocument = useMemo(
     () => fixtureName === 'structured-repair' ? createStructuredRepairSmokeDocument() : undefined,

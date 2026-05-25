@@ -96,6 +96,29 @@ export class GeminiProvider implements IAIService {
     );
   }
 
+  private splitRetryReason(errorMessage?: string): string | null {
+    if (this.isTransientAvailabilityError(errorMessage)) {
+      return 'temporary provider demand';
+    }
+
+    if (this.isRateLimitError(errorMessage)) {
+      return 'rate limit';
+    }
+
+    if (errorMessage && shouldBenchGeminiKeyError(errorMessage)) {
+      return 'key restriction';
+    }
+
+    return null;
+  }
+
+  private shouldExhaustSplitKey(errorMessage?: string): boolean {
+    return !!errorMessage && (
+      this.isRateLimitError(errorMessage) ||
+      shouldBenchGeminiKeyError(errorMessage)
+    );
+  }
+
   private parseStructuredRetryDelayMs(errorMessage?: string): number | null {
     const secondsMatch = errorMessage?.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
     if (!secondsMatch) return null;
@@ -1190,15 +1213,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       return result;
     }
 
-    // Check for rate limit error
-    const isRateLimitError = this.isRateLimitError(result.error);
-    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
+    const retryReason = this.splitRetryReason(result.error);
 
-    if (isRateLimitError || isTransientAvailabilityError) {
-      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+    if (retryReason) {
       console.warn(`⚠️ [parsePassagesOnly] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      if (isRateLimitError) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (this.shouldExhaustSplitKey(result.error)) {
+        this.markKeyExhausted(this.currentKeyIndex, result.error ?? retryReason);
       }
 
       // Try remaining keys
@@ -1217,12 +1237,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (this.isRateLimitError(retryResult.error)) {
-          this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        if (this.shouldExhaustSplitKey(retryResult.error)) {
+          this.markKeyExhausted(this.currentKeyIndex, retryResult.error ?? 'key unavailable');
           continue;
         }
 
-        if (this.isTransientAvailabilityError(retryResult.error)) {
+        if (this.splitRetryReason(retryResult.error)) {
           continue;
         }
 
@@ -1231,7 +1251,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
 
       return {
         success: false,
-        error: 'All Gemini API keys exhausted or rate-limited',
+        error: 'All Gemini API keys exhausted, blocked, or rate-limited',
       };
     }
 
@@ -1364,15 +1384,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
       return result;
     }
 
-    // Check for rate limit error
-    const isRateLimitError = this.isRateLimitError(result.error);
-    const isTransientAvailabilityError = this.isTransientAvailabilityError(result.error);
+    const retryReason = this.splitRetryReason(result.error);
 
-    if (isRateLimitError || isTransientAvailabilityError) {
-      const retryReason = isTransientAvailabilityError ? 'temporary provider demand' : 'rate limit';
+    if (retryReason) {
       console.warn(`⚠️ [parseQuestionsAndAnswers] ${retryReason} on key ${this.currentKeyIndex + 1}, trying other keys...`);
-      if (isRateLimitError) {
-        this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+      if (this.shouldExhaustSplitKey(result.error)) {
+        this.markKeyExhausted(this.currentKeyIndex, result.error ?? retryReason);
       }
 
       // Try remaining keys
@@ -1391,12 +1408,12 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
           return retryResult;
         }
 
-        if (this.isRateLimitError(retryResult.error)) {
-          this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
+        if (this.shouldExhaustSplitKey(retryResult.error)) {
+          this.markKeyExhausted(this.currentKeyIndex, retryResult.error ?? 'key unavailable');
           continue;
         }
 
-        if (this.isTransientAvailabilityError(retryResult.error)) {
+        if (this.splitRetryReason(retryResult.error)) {
           continue;
         }
 
@@ -1405,7 +1422,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
 
       return {
         success: false,
-        error: 'All Gemini API keys exhausted or rate-limited',
+        error: 'All Gemini API keys exhausted, blocked, or rate-limited',
       };
     }
 
