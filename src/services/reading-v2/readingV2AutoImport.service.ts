@@ -41,6 +41,7 @@ import {
 } from './readingV2AutoImportSourceLedger.service';
 import {
   READING_V2_AUTO_COMPLETION_BLANK_PATTERN,
+  normalizeReadingV2AutoSourceProofText,
   replaceReadingV2AutoCompletionBlanks,
 } from './readingV2AutoTextGuards.service';
 import {
@@ -1040,13 +1041,7 @@ const stringsFromUnknown = (value: unknown, depth = 0): readonly string[] => {
 };
 
 const normalizedCoverageText = (value: string): string =>
-  value
-    .replace(/\\([()./|:_-])/g, '$1')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/__(.*?)__/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  normalizeReadingV2AutoSourceProofText(value.replace(/\\([()./|:_-])/g, '$1'));
 
 const textContainsSourceLine = (representedText: string, sourceLine: string): boolean => {
   const normalizedSource = normalizedCoverageText(sourceLine);

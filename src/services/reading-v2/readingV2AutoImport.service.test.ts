@@ -888,12 +888,92 @@ describe('readingV2AutoImport.service', () => {
         questionRange: { start: 1, end: 2 },
         status: 'weak',
         reasonCodes: expect.arrayContaining(['group-source-underrepresented', 'note-heading-missing']),
-        recommendedAction: 'teacher-review',
+        recommendedAction: 'teacher-groq-repair',
       }),
     ]));
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'group-source-underrepresented', severity: 'warning' }),
       expect.objectContaining({ code: 'note-heading-missing', severity: 'warning' }),
+    ]));
+  });
+
+  it('does not mark source-equivalent mojibake punctuation as group under-representation', async () => {
+    const mojibakeApostrophe = '\u00e2\u20ac\u2122';
+    const raw = [
+      'READING PASSAGE 1',
+      `Scientists${mojibakeApostrophe} theories about microbes changed after the archive study.`,
+      '',
+      'Questions 1-1',
+      'Choose the correct letter, A, B, C or D.',
+      '1 What did the archive study compare?',
+      `A comparing scientists${mojibakeApostrophe} theories about microbes`,
+      'B comparing rainfall totals',
+      'C mapping old buildings',
+      'D checking classroom results',
+      '',
+      'Answers',
+      '1 A',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Archive passage',
+            content: "Scientists' theories about microbes changed after the archive study.",
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 1,
+            wordCount: 9,
+          }],
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [{
+            questionNumber: 1,
+            questionText: 'What did the archive study compare?',
+            type: 'multiple-choice',
+            answer: 'A',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'Choose the correct letter, A, B, C or D.',
+            options: [
+              "A comparing scientists' theories about microbes",
+              'B comparing rainfall totals',
+              'C mapping old buildings',
+              'D checking classroom results',
+            ],
+          }],
+          answerKey: { 1: 'A' },
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 mojibake equivalent fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.groupQualityRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        questionRange: { start: 1, end: 1 },
+        status: 'ready',
+        reasonCodes: ['group-quality-ready'],
+      }),
+    ]));
+    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'group-source-underrepresented' }),
+      expect.objectContaining({ code: 'question-text-changed' }),
     ]));
   });
 
