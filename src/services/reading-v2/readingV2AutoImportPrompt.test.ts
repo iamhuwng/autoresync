@@ -36,6 +36,7 @@ describe('readingV2AutoImportPrompt', () => {
     expect(prompt).toContain('do not duplicate repeated note headings into every questionText');
     expect(prompt).toContain('Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code`');
     expect(prompt).toContain('Remove IELTS source instruction prose from student-visible content fields');
+    expect(prompt).toContain('Do not put word-limit tags or phrases in questionText');
     expect(prompt).toContain('Do not convert Markdown to HTML');
     expect(prompt).toContain('Visible source answer-key text detected before AI:');
     expect(prompt).toContain('<RAW_READING_SOURCE>');

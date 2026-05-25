@@ -1457,6 +1457,68 @@ describe('readingV2ImportNormalization.service', () => {
     expect(passageText).not.toContain('Provider-added note');
   });
 
+  it('keeps sentence-completion word-limit tags out of the sentence text', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Sentence word limit',
+            passages: [
+              {
+                title: 'Sentence word limit',
+                content: 'The passage explains why the project changed direction after weather delays.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1-2',
+                taskType: 'sentence-completion',
+                questionRange: { start: 1, end: 2 },
+                sourceInstructionEvidence: 'Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+                wordLimit: 2,
+                wordLimitText: 'NO MORE THAN TWO WORDS',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'sentence-completion',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'The project was delayed _____. (NO MORE THAN TWO WORDS)',
+                answer: 'bad weather',
+              },
+              {
+                questionNumber: 2,
+                type: 'sentence-completion',
+                sectionInstructionId: 'p1-q1-2',
+                questionText: 'Choose NO MORE THAN TWO WORDS from the passage for each answer: The team changed _____.',
+                answer: 'direction',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({ text: structuredPayload }));
+    const interactions = Object.values(result.document.interactions);
+    const taskGroup = Object.values(result.document.taskGroups)[0];
+
+    expect(interactions.find((interaction) => interaction.reviewLabel.displayNumber === 1)?.promptText)
+      .toBe('The project was delayed _____.');
+    expect(interactions.find((interaction) => interaction.reviewLabel.displayNumber === 2)?.promptText)
+      .toBe('The team changed _____.');
+    interactions.forEach((interaction) => {
+      expect(interaction.promptText).not.toMatch(/NO MORE THAN TWO WORDS|word limit/i);
+      expect(interaction.responseShape).toMatchObject({ kind: 'free-text', wordLimit: 2 });
+    });
+    expect(taskGroup?.instructionBlocks[0]?.text).toContain('Choose NO MORE THAN TWO WORDS from the passage for each answer.');
+  });
+
   it('parses teacher answer keys into canonical alternative answers while preserving compact literal slash tokens', () => {
     const parsed = parseReadingV2TeacherAnswerKey([
       'Answer key',

@@ -58,6 +58,7 @@ describe('readingV2ExternalAiPrompt.service', () => {
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Do not make the final instruction text for our app');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('The app will not display it as the final instruction');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('No source instruction prose appears in passages[].content, questions[].questionText, options, or final student-visible instruction fields');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Keep word-limit phrases out of questionText');
     expect(READING_V2_EXTERNAL_AI_PROMPT).not.toContain('Exact task instruction, including word limits and option/reference-list directions');
   });
 

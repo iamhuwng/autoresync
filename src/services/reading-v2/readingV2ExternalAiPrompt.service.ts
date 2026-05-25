@@ -54,6 +54,7 @@ export const READING_V2_EXTERNAL_AI_PROMPT = [
   '- questionNumber: visible IELTS number printed on the source and answer sheet.',
   '- type: one canonical slug from the task-type recognition table below.',
   '- questionText: the prompt the student sees for that numbered answer. Use ___ for completion blanks.',
+  '- Keep word-limit phrases out of questionText. Store ONE WORD ONLY, NO MORE THAN TWO WORDS, and similar phrases only in sectionInstructions[].wordLimit/wordLimitText.',
   '- answer: teacher-key answer only. Empty string only when teacher key row is missing or malformed.',
   '- labeledOptions: option bank for choice tasks where students choose A/B/C/etc from answer choices.',
   '- sectionReferences: reference/matching bank for matching tasks where students choose headings, paragraph letters, names, features, or sentence endings.',

@@ -880,6 +880,25 @@ const createOptionSet = (
 const TABLE_BLANK_MARKER = '_____';
 const visibleQuestionBlankPattern = /_{3,}|(?:\\\.){3,}|\.{3,}|\u2026+|(?:\u00e2\u20ac\u00a6)+|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}/i;
 
+const WORD_LIMIT_PROMPT_TASK_TYPES = new Set<ReadingV2CanonicalTaskType>([
+  'sentence-completion',
+  'summary-completion-text',
+  'note-completion',
+  'short-answer',
+]);
+const WORD_LIMIT_PHRASE_SOURCE =
+  '(?:NO\\s+MORE\\s+THAN\\s+(?:ONE|TWO|THREE|FOUR|FIVE|\\d+)\\s+WORDS?(?:\\s+AND\\/OR\\s+A\\s+NUMBER)?|(?:ONE|TWO|THREE|FOUR|FIVE|\\d+)\\s+WORDS?(?:\\s+ONLY|\\s+AND\\/OR\\s+A\\s+NUMBER)?|ONE\\s+WORD\\s+ONLY)';
+const WORD_LIMIT_PROMPT_CLEANUP_PATTERNS = [
+  new RegExp(`^\\s*(?:Choose|Write)\\s+${WORD_LIMIT_PHRASE_SOURCE}(?:\\s+from\\s+the\\s+passage)?(?:\\s+for\\s+(?:each|the)\\s+answers?)?\\s*[:.;-]*\\s*`, 'i'),
+  new RegExp(`\\s*(?:Choose|Write)\\s+${WORD_LIMIT_PHRASE_SOURCE}(?:\\s+from\\s+the\\s+passage)?(?:\\s+for\\s+(?:each|the)\\s+answers?)?\\s*[.;]?\\s*$`, 'i'),
+  new RegExp(`^\\s*[\\[(]?\\s*(?:word\\s+limit|answer\\s+limit|max(?:imum)?\\s+words?)\\s*:?\\s*${WORD_LIMIT_PHRASE_SOURCE}\\s*[\\])]?\\s*[:.;-]*\\s*`, 'i'),
+  new RegExp(`\\s*[\\[(]?\\s*(?:word\\s+limit|answer\\s+limit|max(?:imum)?\\s+words?)\\s*:?\\s*${WORD_LIMIT_PHRASE_SOURCE}\\s*[\\])]?\\s*[.;]?\\s*$`, 'i'),
+  new RegExp(`^\\s*[\\[(]\\s*${WORD_LIMIT_PHRASE_SOURCE}\\s*[\\])]\\s*[:.;-]*\\s*`, 'i'),
+  new RegExp(`\\s*[\\[(]\\s*${WORD_LIMIT_PHRASE_SOURCE}\\s*[\\])]\\s*[.;]?\\s*$`, 'i'),
+  /^\s*[\[(]?\s*(?:word\s+limit|answer\s+limit|max(?:imum)?\s+words?)\s*:?\s*\d+\s*(?:words?)?\s*[\])]?\s*[:.;-]*\s*/i,
+  /\s*[\[(]?\s*(?:word\s+limit|answer\s+limit|max(?:imum)?\s+words?)\s*:?\s*\d+\s*(?:words?)?\s*[\])]?\s*[.;]?\s*$/i,
+] as const;
+
 interface StructuredReadingPayload {
   readonly sourceFile?: string;
   readonly answerKeyText?: string;
@@ -1514,9 +1533,41 @@ const structuredInstructionSemantics = (input: {
   };
 };
 
-const structuredQuestionPromptText = (question: StructuredReadingQuestion): string | undefined => {
+const compactPromptText = (text: string): string =>
+  text
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+const stripWordLimitTagsFromPrompt = (
+  text: string,
+  taskType: ReadingV2CanonicalTaskType,
+): string => {
+  if (!WORD_LIMIT_PROMPT_TASK_TYPES.has(taskType)) {
+    return text;
+  }
+
+  let cleaned = text;
+  let previous: string;
+
+  do {
+    previous = cleaned;
+    WORD_LIMIT_PROMPT_CLEANUP_PATTERNS.forEach((pattern) => {
+      cleaned = cleaned.replace(pattern, '');
+    });
+    cleaned = compactPromptText(cleaned);
+  } while (cleaned !== previous);
+
+  return cleaned;
+};
+
+const structuredQuestionPromptText = (
+  question: StructuredReadingQuestion,
+  taskType: ReadingV2CanonicalTaskType,
+): string | undefined => {
   const prompt = preserveSourceMarkdown(question.questionText ?? question.question ?? '');
-  return prompt.length > 0 ? prompt : undefined;
+  const cleanedPrompt = stripWordLimitTagsFromPrompt(prompt, taskType);
+  return cleanedPrompt.length > 0 ? cleanedPrompt : undefined;
 };
 
 const NOTE_LAYOUT_KIND = 'note-completion-layout';
@@ -1751,7 +1802,7 @@ const flattenedNoteLayoutContext = (
 
   const allowedQuestionNumbers = new Set(questionNumbers);
   const sourcePrompt = groupQuestions
-    .map(structuredQuestionPromptText)
+    .map((question) => structuredQuestionPromptText(question, 'note-completion'))
     .filter((prompt): prompt is string => typeof prompt === 'string' && prompt.length > 0)
     .map((prompt) => ({
       prompt,
@@ -1820,7 +1871,7 @@ const inferredNoteLayoutContext = (
 ): NoteCompletionLayoutContext | null => {
   const splits = groupQuestions.map((question) => ({
     questionNumber: structuredQuestionNumber(question),
-    split: splitFlattenedNotePrefix(structuredQuestionPromptText(question)),
+    split: splitFlattenedNotePrefix(structuredQuestionPromptText(question, 'note-completion')),
   }));
   const headingCounts = new Map<string, number>();
 
@@ -1949,7 +2000,9 @@ const summaryCompletionLayoutHint = (
     return instruction.layoutHint;
   }
 
-  const splits = groupQuestions.map((question) => splitSummaryPromptBlank(structuredQuestionPromptText(question)));
+  const splits = groupQuestions.map((question) =>
+    splitSummaryPromptBlank(structuredQuestionPromptText(question, 'summary-completion-text')),
+  );
   if (splits.length === 0 || splits.some((split) => split === null)) {
     return undefined;
   }
@@ -2668,7 +2721,8 @@ const synthesizeStructuredSectionInstructions = (
       return;
     }
 
-    const taskType = structuredTaskType(question.type ?? structuredQuestionPromptText(question));
+    const rawQuestionPrompt = preserveSourceMarkdown(question.questionText ?? question.question ?? '');
+    const taskType = structuredTaskType(question.type ?? rawQuestionPrompt);
     const explicitId = question.sectionInstructionId?.trim();
     const activeGroup = groups[groups.length - 1];
     const activeLastQuestion = activeGroup?.questions[activeGroup.questions.length - 1];
@@ -2931,7 +2985,7 @@ const normalizeStructuredReadingPayload = (
         const diagramAnchorId = diagramContext?.anchorIdsByQuestionNumber.get(questionNumber);
         const primaryAnchorId = tableAnchorId ?? flowchartAnchorId ?? diagramAnchorId ?? anchorIds[questionIndex % anchorIds.length];
         const promptText = noteContext?.promptTextByQuestionNumber.get(questionNumber)
-          ?? structuredQuestionPromptText(question);
+          ?? structuredQuestionPromptText(question, taskType);
 
         interactions[interactionId] = {
           interactionId,
@@ -3333,7 +3387,10 @@ export const normalizeReadingV2ImportCandidate = (
         const questionNumber = block.start + offset;
         const interactionId = readingV2Ids.interactionId(`${idStem}-q${questionNumber}`);
         const primaryAnchorId = anchorIds[offset % anchorIds.length];
-        const promptText = prompts[questionNumber];
+        const sourcePromptText = prompts[questionNumber];
+        const promptText = sourcePromptText
+          ? stripWordLimitTagsFromPrompt(sourcePromptText, block.taskType) || undefined
+          : undefined;
 
         interactions[interactionId] = {
           interactionId,
