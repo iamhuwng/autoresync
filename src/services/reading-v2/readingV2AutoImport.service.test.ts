@@ -811,6 +811,79 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
+  it('removes clipped sibling-test headings from Auto V4 source-backed passage text', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'The archive opened in 1998 under Alice Morgan.',
+      'The advertisement changed how visitors interpreted the museum display.',
+      'A second source sentence keeps the passage substantial for Studio import.',
+      'Advertisements',
+      '### Cam 13 ReadingTest 04',
+      '### Practice Cam 14 Reading Test 02',
+      '',
+      'Questions 1-1',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '1 The archive opened in 1998.',
+      '',
+      'Answers',
+      '1 TRUE',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Archive passage',
+            content: 'Provider passage drift should be replaced by source-backed text.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 1,
+            wordCount: 9,
+          }],
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [{
+            questionNumber: 1,
+            questionText: 'The archive opened in 1998.',
+            type: 'true-false-not-given',
+            answer: 'TRUE',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+          }],
+          answerKey: { 1: 'TRUE' },
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 clipped pollution fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.candidate.rawText).toContain('The archive opened in 1998 under Alice Morgan.');
+    expect(result.candidate.rawText).toContain('The advertisement changed how visitors interpreted the museum display.');
+    expect(result.candidate.rawText).toContain('A second source sentence keeps the passage substantial for Studio import.');
+    expect(result.candidate.rawText).not.toContain('Advertisements');
+    expect(result.candidate.rawText).not.toContain('Cam 13 ReadingTest 04');
+    expect(result.candidate.rawText).not.toContain('Practice Cam 14 Reading Test 02');
+    expect(result.sourceArtifact?.rawTextOriginal).toContain('Cam 13 ReadingTest 04');
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'auto-v4-source-authoritative-passage', severity: 'info' }),
+    ]));
+  });
+
   it('marks under-represented Auto V4 question groups for teacher review without failing import', async () => {
     const raw = [
       'READING PASSAGE 1',
@@ -888,12 +961,21 @@ describe('readingV2AutoImport.service', () => {
         questionRange: { start: 1, end: 2 },
         status: 'weak',
         reasonCodes: expect.arrayContaining(['group-source-underrepresented', 'note-heading-missing']),
+        coverage: expect.objectContaining({
+          missingFields: expect.arrayContaining([
+            expect.objectContaining({ fieldId: 'question:line-0007', fieldKind: 'question' }),
+          ]),
+        }),
         recommendedAction: 'teacher-groq-repair',
       }),
     ]));
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'group-source-underrepresented', severity: 'warning' }),
       expect.objectContaining({ code: 'note-heading-missing', severity: 'warning' }),
+    ]));
+    expect(result.candidate.publishBlockingPlaceholders).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('group-source-underrepresented'),
+      expect.stringContaining('note-heading-missing'),
     ]));
   });
 
@@ -968,12 +1050,99 @@ describe('readingV2AutoImport.service', () => {
       expect.objectContaining({
         questionRange: { start: 1, end: 1 },
         status: 'ready',
-        reasonCodes: ['group-quality-ready'],
+        reasonCodes: expect.arrayContaining(['source-encoding-artifact-preserved']),
+        coverage: expect.objectContaining({
+          missingFields: [],
+          missingLineIds: [],
+        }),
       }),
     ]));
     expect(result.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'group-source-underrepresented' }),
       expect.objectContaining({ code: 'question-text-changed' }),
+    ]));
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-encoding-artifact-preserved', severity: 'info' }),
+    ]));
+  });
+
+  it('keeps simple Auto V4 choice groups ready when only canonical instruction wording is shortened', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This passage has enough source text for simple choice instruction tolerance.',
+      'It keeps a second sentence so guardrails treat it as a real passage.',
+      '',
+      'Questions 1-1',
+      'Choose the correct letter, A, B, C or D. Write the correct letter in box 1 on your answer sheet.',
+      '1 Which result was recorded?',
+      'A A stable reading',
+      'B A missing entry',
+      'C A repeated heading',
+      'D A damaged table',
+      '',
+      'Answers',
+      '1 A',
+    ].join('\n');
+    const labeledOptions = [
+      { label: 'A', text: 'A stable reading' },
+      { label: 'B', text: 'A missing entry' },
+      { label: 'C', text: 'A repeated heading' },
+      { label: 'D', text: 'A damaged table' },
+    ];
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Choice passage',
+            content: 'This passage has enough source text for simple choice instruction tolerance.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 1,
+            wordCount: 11,
+          }],
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [{
+            questionNumber: 1,
+            questionText: 'Which result was recorded?',
+            type: 'multiple-choice',
+            answer: 'A',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'Choose the correct letter.',
+            labeledOptions,
+          }],
+          answerKey: { 1: 'A' },
+          confidence: 0.95,
+          provider: 'gemini',
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 simple choice instruction fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.groupQualityRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        questionRange: { start: 1, end: 1 },
+        status: 'ready',
+      }),
+    ]));
+    expect(result.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'instruction-shortened' }),
+      expect.objectContaining({ code: 'group-source-underrepresented' }),
     ]));
   });
 
@@ -1153,11 +1322,13 @@ describe('readingV2AutoImport.service', () => {
     const taskGroup = Object.values(normalized.document.taskGroups).find(
       (candidate) => candidate.officialTaskType === 'summary-completion-list',
     )!;
+    const layout = JSON.parse(taskGroup.layoutHint ?? '{}') as { kind?: string; segments?: readonly string[] };
     const prompts = taskGroup.interactionIds.map((interactionId) =>
       normalized.document.interactions[interactionId]?.promptText,
     );
 
-    expect(JSON.parse(taskGroup.layoutHint ?? '{}')).toMatchObject({ kind: 'summary-list' });
+    expect(layout).toMatchObject({ kind: 'summary-list' });
+    expect(layout.segments?.join(' ')).not.toContain('A fast B hard C worrying D isolated');
     expect(prompts).toEqual([
       expect.stringContaining('___'),
       expect.stringContaining('___'),

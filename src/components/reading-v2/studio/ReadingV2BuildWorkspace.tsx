@@ -4910,6 +4910,16 @@ export function ReadingV2BuildWorkspace({
     onCloseQuestionGroupModal();
   };
 
+  const validationTooltipText = validationMessages.length > 0
+    ? [
+        `${validationMessages.length} item${validationMessages.length === 1 ? '' : 's'} need attention.`,
+        ...validationMessages.map((item) =>
+          item.reviewLabel
+            ? `${item.reviewLabel}: ${item.reviewDetail ?? item.message}`
+            : item.message),
+      ].join('\n')
+    : undefined;
+
   const continueAddGroup = (taskType: ReadingV2CanonicalTaskType) => {
     onAddQuestionGroup(taskType);
     closeAddGroupModal();
@@ -5137,6 +5147,7 @@ export function ReadingV2BuildWorkspace({
                 className="reading-v2-build__warning-pill"
                 type="button"
                 aria-label={`${validationMessages.length} validation item${validationMessages.length === 1 ? '' : 's'}`}
+                title={validationTooltipText}
               >
                 <IconAlertTriangle aria-hidden="true" size={18} stroke={1.9} />
                 <span>{validationMessages.length} item{validationMessages.length === 1 ? '' : 's'}</span>

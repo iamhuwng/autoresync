@@ -6,6 +6,7 @@ import {
   buildReadingV2AutoSourceLedger,
   type ReadingV2AutoSourceLedger,
 } from '../src/services/reading-v2/readingV2AutoImportSourceLedger.service';
+import { normalizeReadingV2AutoSourceProofText } from '../src/services/reading-v2/readingV2AutoTextGuards.service';
 import type {
   ReadingV2AutoImportDiagnostic,
   ReadingV2AutoImportResult,
@@ -142,6 +143,18 @@ const numberRange = (numbers: readonly number[]): string => {
   return ranges.join(', ');
 };
 
+const sourceQualityRangeKey = (range: { readonly start: number; readonly end: number }): string =>
+  `${Math.min(range.start, range.end)}-${Math.max(range.start, range.end)}`;
+
+const taskGroupQualityRangeKey = (numbers: readonly number[]): string => {
+  const sorted = [...new Set(numbers)].sort((left, right) => left - right);
+  if (sorted.length === 0) {
+    return '';
+  }
+
+  return `${sorted[0]}-${sorted[sorted.length - 1]}`;
+};
+
 const normalizeAnswerForCompare = (value: string): string =>
   value.replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -182,6 +195,14 @@ const answersEquivalentForCompare = (expected: string, actual: string): boolean 
   return expectedAlternates.length === actualAlternates.length
     && expectedAlternates.every((value, index) => value === actualAlternates[index]);
 };
+
+const taskTypeKeyForCompare = (taskType: string): string =>
+  taskType
+    .replace(/^notes-completion$/, 'note-completion')
+    .replace(/^summary-completion-(?:text|list)$/, 'summary-completion');
+
+const taskGroupKeyForCompare = (range: string, taskType: string): string =>
+  `${range}:${taskTypeKeyForCompare(taskType)}`;
 
 const goldBaselineFor = (sourcePath: string): GoldBaseline => ({
   sourceName: 'Practice Cam 10 Reading Test 04',
@@ -277,6 +298,44 @@ const sanitize = (value: string): string =>
     .replace(/[A-Z]:\\[^:\n\r"]+/g, '[redacted-windows-path]')
     .slice(0, 500);
 
+const fieldExcerpt = (value: string | undefined): string | null => {
+  const compact = sanitize(value ?? '').replace(/\s+/g, ' ').trim();
+  return compact ? compact.slice(0, 180) : null;
+};
+
+const normalizedFieldHash = (value: string | undefined): string | null => {
+  const normalized = normalizeReadingV2AutoSourceProofText(value ?? '');
+  return normalized ? sha256(normalized) : null;
+};
+
+const normalizedFieldCoverage = (sourceText: string, fieldText: string | undefined): boolean | null => {
+  const normalizedField = normalizeReadingV2AutoSourceProofText(fieldText ?? '');
+  if (!normalizedField || normalizedField.length < 3) {
+    return null;
+  }
+
+  const normalizedSource = normalizeReadingV2AutoSourceProofText(sourceText);
+  return normalizedSource.includes(normalizedField);
+};
+
+const lineNumberFromId = (lineId: string | undefined): number | null => {
+  const match = lineId?.match(/^line-(\d+)$/);
+  return match ? Number(match[1]) : null;
+};
+
+const sourceSpanTextFor = (
+  rawLines: readonly string[],
+  sourceSpan: { readonly startLineId?: string; readonly endLineId?: string } | undefined,
+): string => {
+  const start = lineNumberFromId(sourceSpan?.startLineId);
+  const end = lineNumberFromId(sourceSpan?.endLineId);
+  if (start === null || end === null) {
+    return '';
+  }
+
+  return rawLines.slice(Math.max(0, start - 1), Math.max(start, end)).join('\n');
+};
+
 const safeDiagnostics = (
   diagnostics: readonly ReadingV2AutoImportDiagnostic[],
 ): readonly Record<string, unknown>[] =>
@@ -303,7 +362,7 @@ const orderedTaskGroupsFor = (document: ReadingV2Document): readonly ReadingV2Ta
       .filter((taskGroup): taskGroup is ReadingV2TaskGroup => Boolean(taskGroup));
   });
 
-const appStructureFor = (result: ReadingV2AutoImportResult) => {
+const appStructureFor = (result: ReadingV2AutoImportResult, rawText: string) => {
   if (!result.success) {
     return null;
   }
@@ -315,6 +374,11 @@ const appStructureFor = (result: ReadingV2AutoImportResult) => {
   const numberByInteraction = new Map(visibleNumbers.map((entry) => [entry.interactionId, entry.displayNumber]));
   const answerKey = parseReadingV2TeacherAnswerKey(result.candidate.answerKeyText);
   const validation = validateReadingV2Draft(document);
+  const rawLines = rawText.split(/\r?\n/);
+  const qualityByRange = new Map((result.groupQualityRecords ?? []).map((record) => [
+    sourceQualityRangeKey(record.questionRange),
+    record,
+  ]));
 
   return {
     sectionCount: document.sectionIds.length,
@@ -325,12 +389,84 @@ const appStructureFor = (result: ReadingV2AutoImportResult) => {
       const numbers = taskGroup.interactionIds
         .map((interactionId) => numberByInteraction.get(interactionId))
         .filter((value): value is number => typeof value === 'number');
+      const range = numberRange(numbers);
+      const quality = qualityByRange.get(taskGroupQualityRangeKey(numbers));
+      const sourceSpanText = sourceSpanTextFor(rawLines, quality?.sourceSpan);
+      const instructionBlocks = taskGroup.instructionBlocks.map((block) => ({
+        id: block.id,
+        excerpt: fieldExcerpt(block.text),
+        normalizedHash: normalizedFieldHash(block.text),
+        coveredByRawSpan: normalizedFieldCoverage(sourceSpanText, block.text),
+      }));
+      const layoutHintText = taskGroup.layoutHint ?? '';
+      const layoutHintParsed = (() => {
+        if (!layoutHintText) {
+          return null;
+        }
+        try {
+          const parsed = JSON.parse(layoutHintText) as Record<string, unknown>;
+          return {
+            kind: typeof parsed.kind === 'string' ? parsed.kind : null,
+            keys: Object.keys(parsed).sort(),
+          };
+        } catch {
+          return {
+            kind: null,
+            keys: [],
+          };
+        }
+      })();
+      const optionSets = taskGroup.optionSetRefs
+        .map((optionSetId) => document.optionSets[optionSetId])
+        .filter((optionSet): optionSet is NonNullable<typeof optionSet> => Boolean(optionSet))
+        .map((optionSet) => ({
+          optionSetId: optionSet.optionSetId,
+          optionCount: optionSet.options.length,
+          labels: optionSet.options.map((option) => option.label),
+          options: optionSet.options.map((option) => ({
+            label: option.label,
+            excerpt: fieldExcerpt(option.text),
+            normalizedHash: normalizedFieldHash(option.text),
+            coveredByRawSpan: normalizedFieldCoverage(sourceSpanText, `${option.label} ${option.text}`)
+              ?? normalizedFieldCoverage(sourceSpanText, option.text),
+          })),
+        }));
+      const interactions = taskGroup.interactionIds
+        .map((interactionId) => document.interactions[interactionId])
+        .filter((interaction): interaction is NonNullable<typeof interaction> => Boolean(interaction))
+        .map((interaction) => ({
+          question: numberByInteraction.get(interaction.interactionId) ?? null,
+          responseKind: interaction.responseShape.kind,
+          promptExcerpt: fieldExcerpt(interaction.promptText),
+          promptNormalizedHash: normalizedFieldHash(interaction.promptText),
+          promptCoveredByRawSpan: normalizedFieldCoverage(sourceSpanText, interaction.promptText),
+          acceptableAnswers: interaction.scoringRule.acceptableAnswers ?? [],
+        }));
       return {
         taskGroupId: taskGroup.taskGroupId,
         officialTaskType: taskGroup.officialTaskType,
-        range: numberRange(numbers),
+        range,
         interactionCount: numbers.length,
         publishValidationState: taskGroup.validationState.status,
+        fieldContent: {
+          sourceRange: quality?.sourceSpan
+            ? `${quality.sourceSpan.startLineId}-${quality.sourceSpan.endLineId}`
+            : null,
+          instructionBlocks,
+          layoutHint: {
+            present: Boolean(layoutHintText),
+            excerpt: fieldExcerpt(layoutHintText),
+            normalizedHash: normalizedFieldHash(layoutHintText),
+            parsed: layoutHintParsed,
+          },
+          optionSets,
+          interactions,
+          uncoveredInstructionCount: instructionBlocks.filter((field) => field.coveredByRawSpan === false).length,
+          uncoveredOptionCount: optionSets
+            .flatMap((optionSet) => optionSet.options)
+            .filter((field) => field.coveredByRawSpan === false).length,
+          uncoveredPromptCount: interactions.filter((field) => field.promptCoveredByRawSpan === false).length,
+        },
       };
     }),
     answerKey: {
@@ -436,6 +572,56 @@ const compareGoldToApp = (
     && warningDiagnostics.length === 0
     && errorDiagnostics.length === 0
     && !hasPublishBlockers;
+  const expectedTaskGroupKeys = gold.groups.map((group) =>
+    taskGroupKeyForCompare(group.range, group.taskType));
+  const appTaskGroupKeys = appStructure?.taskGroups.map((group) =>
+    taskGroupKeyForCompare(group.range, group.officialTaskType)) ?? [];
+  const appTaskGroupKeySet = new Set(appTaskGroupKeys);
+  const expectedTaskGroupKeySet = new Set(expectedTaskGroupKeys);
+  const missingTaskGroups = expectedTaskGroupKeys.filter((key) => !appTaskGroupKeySet.has(key));
+  const extraTaskGroups = appTaskGroupKeys.filter((key) => !expectedTaskGroupKeySet.has(key));
+  const hasTaskGroupShapeMismatch = missingTaskGroups.length > 0 || extraTaskGroups.length > 0;
+  const fieldContentCoverageIssues = appStructure?.taskGroups
+    .map((group) => {
+      const issueCounts = {
+        uncoveredInstructions: group.fieldContent.uncoveredInstructionCount,
+        uncoveredOptions: group.fieldContent.uncoveredOptionCount,
+        uncoveredPrompts: group.fieldContent.uncoveredPromptCount,
+      };
+      const total = issueCounts.uncoveredInstructions + issueCounts.uncoveredOptions + issueCounts.uncoveredPrompts;
+      return {
+        range: group.range,
+        taskType: group.officialTaskType,
+        ...issueCounts,
+        total,
+      };
+    })
+    .filter((group) => group.total > 0) ?? [];
+  const hasReviewableDiagnostics = warningDiagnostics.length > 0
+    || (result?.success ? result.reviewStatus === 'needs_review' : false);
+  const fieldScan = result?.success
+    ? (result.groupQualityRecords ?? []).map((record) => ({
+        groupId: record.groupId,
+        questionRange: record.questionRange,
+        taskType: record.taskType,
+        status: record.status,
+        sourceSpanConfidence: record.sourceSpanConfidence,
+        sourceRange: record.sourceSpan
+          ? `${record.sourceSpan.startLineId}-${record.sourceSpan.endLineId}`
+          : null,
+        rawLineCount: record.coverage.rawLineCount,
+        representedLineCount: record.coverage.representedLineCount,
+        missingFieldIds: record.coverage.missingFields.map((field) => field.fieldId),
+        missingLineIds: record.coverage.missingLineIds,
+        highRiskTokenChanges: record.coverage.highRiskTokenChanges.map((token) => ({
+          tokenKind: token.tokenKind,
+          rawValue: token.rawValue,
+          lineId: token.lineId ?? null,
+        })),
+        reasonCodes: record.reasonCodes,
+        recommendedAction: record.recommendedAction,
+      }))
+    : [];
 
   const verdict = !result
     ? 'not-run'
@@ -445,9 +631,13 @@ const compareGoldToApp = (
       ? 'needs-code-fix'
       : missingQuestions.length > 0
         ? 'provider-weakness-caught'
-        : hasPublishBlockers
-          ? 'editable-needs-review'
-          : 'acceptable';
+    : hasPublishBlockers
+      ? 'editable-needs-review'
+    : hasTaskGroupShapeMismatch
+      ? 'editable-needs-review'
+    : fieldContentCoverageIssues.length > 0 || hasReviewableDiagnostics
+      ? 'editable-needs-review'
+      : 'acceptable';
 
   return {
     expectedPassageCount: gold.passages.length,
@@ -460,6 +650,11 @@ const compareGoldToApp = (
     extraQuestions,
     missingAnswerValues,
     mismatchedAnswerValues,
+    missingTaskGroups,
+    extraTaskGroups,
+    hasTaskGroupShapeMismatch,
+    fieldContentCoverageIssues,
+    hasReviewableDiagnostics,
     expectedTaskGroups: gold.groups.map((group) => ({
       passage: group.passage,
       range: group.range,
@@ -471,6 +666,7 @@ const compareGoldToApp = (
       interactionCount: group.interactionCount,
       publishValidationState: group.publishValidationState,
     })) ?? [],
+    fieldScan,
     hasPublishBlockers,
     hasSilentQuestionLoss,
     verdict,
@@ -509,7 +705,7 @@ const main = async () => {
     });
   }
 
-  const appStructure = liveResult ? appStructureFor(liveResult) : null;
+  const appStructure = liveResult ? appStructureFor(liveResult, rawText) : null;
   const comparison = compareGoldToApp(gold, liveResult, appStructure);
   const report = {
     generatedAt: new Date().toISOString(),

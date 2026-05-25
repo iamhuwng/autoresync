@@ -378,20 +378,24 @@ const pollutionMarkerForLine = (
     return null;
   }
 
-  if (/^advertisements?$/.test(value) || value.includes('advertisement')) {
+  if (/^advertisements?$/.test(value)) {
     return { code: 'advertisement', lineNumber: line.lineNumber };
   }
 
-  if (/\b(?:previous|next)\s+(?:post|article|test)\b/.test(value)) {
+  if (/^(?:previous|next)\s+(?:post|article|test)\b/.test(value)) {
     return { code: 'navigation', lineNumber: line.lineNumber };
   }
 
-  if (/\b(?:share this|follow us|comments?|leave a reply)\b/.test(value)) {
+  if (/^(?:share this|follow us|comments?|leave a reply)\b/.test(value)) {
     return { code: 'share-footer', lineNumber: line.lineNumber };
   }
 
-  if (/\b(?:related posts?|you may also like|more ielts reading|ielts reading practice test)\b/.test(value)) {
+  if (/^(?:related posts?|you may also like|more ielts reading|ielts reading practice test)\b/.test(value)) {
     return { code: 'related-link', lineNumber: line.lineNumber };
+  }
+
+  if (/^(?:#{1,6}\s*)?(?:practice\s+)?(?:cam|cambridge)\s*\d{1,2}\s+reading\s*test\s+\d{1,2}\b/.test(value)) {
+    return { code: 'repeated-title', lineNumber: line.lineNumber };
   }
 
   return null;

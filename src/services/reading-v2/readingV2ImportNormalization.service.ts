@@ -67,9 +67,40 @@ export interface ReadingV2ImportCandidate {
   readonly autoImportDiagnostics?: readonly ReadingV2AutoImportCandidateDiagnostic[];
   readonly autoImportGroupQuality?: readonly {
     readonly groupId: string;
+    readonly questionRange?: { readonly start: number; readonly end: number };
+    readonly taskType?: string;
     readonly status: 'ready' | 'weak' | 'blocked' | 'teacher-review';
     readonly sourceSpanConfidence: 'high' | 'medium' | 'low';
     readonly reasonCodes: readonly string[];
+    readonly coverage?: {
+      readonly rawLineCount: number;
+      readonly representedLineCount: number;
+      readonly missingLineIds: readonly string[];
+      readonly missingFields?: readonly {
+        readonly fieldId: string;
+        readonly fieldKind: 'instruction' | 'question' | 'option-bank' | 'answer-key' | 'layout';
+        readonly lineId: string;
+        readonly sourceText: string;
+        readonly normalizedText: string;
+      }[];
+      readonly rawStructuralUnitCount?: number;
+      readonly representedStructuralUnitCount?: number;
+      readonly missingStructuralUnits?: readonly string[];
+      readonly highRiskTokenChanges?: readonly {
+        readonly tokenKind: string;
+        readonly rawValue: string;
+        readonly studioValue: string;
+        readonly lineId?: string;
+      }[];
+    };
+    readonly sourceSpan?: {
+      readonly startLineId: string;
+      readonly endLineId: string;
+      readonly evidenceLineIds: readonly string[];
+      readonly answerKeyLineIds: readonly string[];
+      readonly optionBankLineIds: readonly string[];
+      readonly warnings: readonly string[];
+    };
     readonly recommendedAction: 'none' | 'deterministic-rehydrate' | 'teacher-review' | 'teacher-groq-repair' | 'blocked';
   }[];
   readonly evidence: readonly string[];
@@ -515,6 +546,83 @@ const passageParagraphs = (passageBlock: string): readonly string[] => {
       && !paragraph.startsWith('You should spend')
       && !paragraph.startsWith('Advertisements'),
     );
+};
+
+const isRepeatedTestTitlePollution = (value: string): boolean =>
+  /^(?:#{1,6}\s*)?(?:practice\s+)?(?:cam|cambridge)\s*\d{1,2}\s+reading\s*test\s+\d{1,2}\b/i.test(
+    value.trim(),
+  );
+
+const isSkippablePassagePollutionLine = (value: string): boolean => {
+  const text = cleanMarkdown(value).trim();
+  if (!text) {
+    return false;
+  }
+
+  return /^advertisements?$/i.test(text)
+    || /^(?:previous|next)\s+(?:post|article|test)\b/i.test(text)
+    || /^(?:share this|follow us|comments?|leave a reply)\b/i.test(text)
+    || /^(?:related posts?|you may also like|more ielts reading|ielts reading practice test)\b/i.test(text);
+};
+
+const cleanStructuredPassageContent = (content: string | undefined): string => {
+  const keptLines: string[] = [];
+
+  for (const rawLine of (content ?? '').split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (isRepeatedTestTitlePollution(trimmed)) {
+      break;
+    }
+    if (isSkippablePassagePollutionLine(trimmed)) {
+      continue;
+    }
+    keptLines.push(rawLine);
+  }
+
+  return keptLines.join('\n').trim();
+};
+
+const sourceBackedStructuredPassageContent = (
+  candidate: ReadingV2ImportCandidate,
+  passageNumber: number,
+): string | undefined => {
+  if (candidate.sourceKind !== 'auto-gemini' || !candidate.sourceRawText?.trim()) {
+    return undefined;
+  }
+
+  const lines = candidate.sourceRawText.split(/\r?\n/);
+  const headingIndexes = lines.flatMap((line, index) => {
+    const match = cleanMarkdown(line).replace(/^#{1,6}\s*/, '').match(/^reading passage\s+(\d+)\b/i);
+    return match && Number(match[1]) === passageNumber ? [index] : [];
+  });
+  const startIndex = headingIndexes[0];
+
+  if (startIndex === undefined) {
+    return undefined;
+  }
+
+  const keptLines: string[] = [];
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const rawLine = lines[index] ?? '';
+    const text = cleanMarkdown(rawLine).replace(/^#{1,6}\s*/, '').trim();
+
+    if (/^reading passage\s+\d+\b/i.test(text)
+      || /^questions?\s+\d+\b/i.test(text)
+      || isAnswerKeyHeading(text)
+      || isRepeatedTestTitlePollution(text)
+    ) {
+      break;
+    }
+
+    if (/^you should spend\b/i.test(text) || isSkippablePassagePollutionLine(text)) {
+      continue;
+    }
+
+    keptLines.push(rawLine);
+  }
+
+  const content = keptLines.join('\n').trim();
+  return content.length > 0 ? content : undefined;
 };
 
 interface QuestionBlock {
@@ -1034,7 +1142,7 @@ const normalizePassageBlockFromRawText = (rawText: string): NormalizedStructured
 const structuredContentBlocks = (content: string | undefined): readonly NormalizedStructuredPassageBlock[] => {
   const blocks: NormalizedStructuredPassageBlock[] = [];
 
-  (content ?? '')
+  cleanStructuredPassageContent(content)
     .split(/\n{2,}/)
     .forEach((chunk) => {
       const lines = chunk.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -1057,6 +1165,24 @@ const structuredContentBlocks = (content: string | undefined): readonly Normaliz
     });
 
   return blocks;
+};
+
+const cleanNormalizedStructuredPassageBlocks = (
+  blocks: readonly NormalizedStructuredPassageBlock[],
+): readonly NormalizedStructuredPassageBlock[] => {
+  const cleaned: NormalizedStructuredPassageBlock[] = [];
+
+  for (const block of blocks) {
+    if (isRepeatedTestTitlePollution(block.text)) {
+      break;
+    }
+    if (isSkippablePassagePollutionLine(block.text)) {
+      continue;
+    }
+    cleaned.push(block);
+  }
+
+  return cleaned;
 };
 
 const normalizeStructuredPassageBlock = (
@@ -1101,12 +1227,20 @@ const normalizeStructuredPassageBlock = (
 
 const structuredPassageBlocks = (
   passage: StructuredReadingPassage | undefined,
+  sourceBackedContent?: string,
 ): readonly NormalizedStructuredPassageBlock[] => {
+  if (sourceBackedContent?.trim()) {
+    const sourceBlocks = structuredContentBlocks(sourceBackedContent);
+    if (sourceBlocks.length > 0) {
+      return sourceBlocks;
+    }
+  }
+
   const explicitBlocks = (passage?.contentBlocks ?? [])
     .map((block) => normalizeStructuredPassageBlock(block))
     .filter((block): block is NormalizedStructuredPassageBlock => Boolean(block));
   const sourceBlocks = explicitBlocks.length > 0
-    ? explicitBlocks
+    ? cleanNormalizedStructuredPassageBlocks(explicitBlocks)
     : structuredContentBlocks(passage?.content);
   const noteBlocks = (passage?.notes ?? [])
     .map((block) => normalizeStructuredPassageBlock(block, 'Note'))
@@ -2602,7 +2736,10 @@ const normalizeStructuredReadingPayload = (
     const stimulusId = readingV2Ids.stimulusId(`${idStem}-stimulus-${passageNumber}`);
     const passage = material.passages?.[0];
     const passageTitleText = cleanMarkdown(passage?.title ?? material.title ?? `Reading passage ${passageNumber}`);
-    const passageBlocks = structuredPassageBlocks(passage);
+    const passageBlocks = structuredPassageBlocks(
+      passage,
+      sourceBackedStructuredPassageContent(candidate, passageNumber),
+    );
     const passageMedia = structuredPassageMedia(passage);
     const anchorIds = passageBlocks.map((_, paragraphIndex) =>
       readingV2Ids.anchorId(`${idStem}-p${passageNumber}-${paragraphIndex + 1}`),

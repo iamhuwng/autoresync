@@ -42,6 +42,7 @@ import {
 import {
   READING_V2_AUTO_COMPLETION_BLANK_PATTERN,
   normalizeReadingV2AutoSourceProofText,
+  readingV2AutoLineMatchesQuestionNumber,
   replaceReadingV2AutoCompletionBlanks,
 } from './readingV2AutoTextGuards.service';
 import {
@@ -147,6 +148,8 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'instruction-shortened'
   | 'question-text-changed'
   | 'high-risk-token-changed'
+  | 'source-encoding-artifact-preserved'
+  | 'option-bank-duplicated'
   | 'duplicate-question-number'
   | 'task-type-conflict'
   | 'blank-mismatch'
@@ -203,6 +206,13 @@ export interface ReadingV2GroupQualityRecord {
     readonly rawLineCount: number;
     readonly representedLineCount: number;
     readonly missingLineIds: readonly string[];
+    readonly missingFields: readonly {
+      readonly fieldId: string;
+      readonly fieldKind: 'instruction' | 'question' | 'option-bank' | 'answer-key' | 'layout';
+      readonly lineId: string;
+      readonly sourceText: string;
+      readonly normalizedText: string;
+    }[];
     readonly rawStructuralUnitCount: number;
     readonly representedStructuralUnitCount: number;
     readonly missingStructuralUnits: readonly string[];
@@ -938,6 +948,19 @@ const sourceLinesBetween = (
       normalizedText: line.normalizedText,
     }));
 
+const sourcePollutionLineNumbers = (
+  sourceLedger: ReadingV2AutoSourceLedger,
+): ReadonlySet<number> => new Set(sourceLedger.pollutionMarkers.map((marker) => marker.lineNumber));
+
+const firstRepeatedTitlePollutionLineAfter = (
+  sourceLedger: ReadingV2AutoSourceLedger,
+  lineNumber: number,
+): number | undefined =>
+  sourceLedger.pollutionMarkers
+    .filter((marker) => marker.code === 'repeated-title' && marker.lineNumber > lineNumber)
+    .map((marker) => marker.lineNumber)
+    .sort((left, right) => left - right)[0];
+
 const rangesOverlap = (
   left: { readonly start: number; readonly end: number },
   right: { readonly start: number; readonly end: number },
@@ -976,16 +999,20 @@ const sourceSpanForGroup = (input: {
     .filter((row) => row.sourceLine > overlappingRange.lineNumber)
     .map((row) => row.sourceLine)
     .sort((left, right) => left - right)[0];
+  const nextRepeatedTitleLine = firstRepeatedTitlePollutionLineAfter(input.sourceLedger, overlappingRange.lineNumber);
   const endLine = [
     nextQuestionRangeLine,
     nextPassageLine,
     nextAnswerLine,
+    nextRepeatedTitleLine,
     input.sourceLedger.lineCount + 1,
   ]
     .filter((lineNumber): lineNumber is number => Number.isFinite(lineNumber))
     .sort((left, right) => left - right)[0]! - 1;
+  const pollutionLineNumbers = sourcePollutionLineNumbers(input.sourceLedger);
   const evidenceLines = sourceLinesBetween(input.sourceLedger, overlappingRange.lineNumber, Math.max(overlappingRange.lineNumber, endLine))
-    .filter((line) => line.normalizedText.length > 0);
+    .filter((line) => line.normalizedText.length > 0)
+    .filter((line) => !pollutionLineNumbers.has(line.lineNumber));
   const answerKeyLineIds = input.sourceLedger.answerKeyRows
     .filter((row) => row.questionNumber >= normalizedRange.start && row.questionNumber <= normalizedRange.end)
     .map((row) => lineIdForSourceLine(input.sourceLedger, row.sourceLine));
@@ -1059,6 +1086,86 @@ const textContainsSourceLine = (representedText: string, sourceLine: string): bo
   return Boolean(withoutQuestionNumber && representedText.includes(withoutQuestionNumber));
 };
 
+const simpleInstructionFlexibleTaskTypes = new Set<string>([
+  'multiple-choice',
+  'multiple-select',
+  'true-false-not-given',
+  'yes-no-not-given',
+]);
+
+const structuralCompletionTaskTypes = new Set<string>([
+  'summary-completion-text',
+  'summary-completion-list',
+  'note-completion',
+  'table-completion',
+  'flowchart-completion',
+  'diagram-labeling',
+]);
+
+const sourceEncodingArtifactPattern =
+  /Ã|Â|\u00e2\u20ac|\u00e2\u20ac\u2122|\u00e2\u20ac\u0153|\u00e2\u20ac\u009d|â€|â€™|â€œ|â€|â€¦/;
+
+const looksLikeInlineOptionBank = (lineText: string): boolean => {
+  const text = compactWhitespace(cleanAutoV4TitleText(lineText));
+  if (text.length > 260 || /[?]$/.test(text)) {
+    return false;
+  }
+
+  const alphaItems = [...text.matchAll(/(?:^|\s)([A-Z])(?:[).:]|\s+)(?=\S)/g)];
+  const romanItems = [...text.matchAll(/(?:^|\s)([ivxlcdm]{1,8})(?:[).:]|\s+)(?=\S)/gi)];
+  return alphaItems.length >= 3 || romanItems.length >= 3;
+};
+
+const isInstructionLikeSourceLine = (lineText: string): boolean => {
+  const text = normalizedCoverageText(lineText);
+  return /\bchoose\b|\bcomplete\b|\bwrite\b|\bdo the following\b|\bin boxes?\b|\banswer sheet\b/.test(text);
+};
+
+const isQuestionRangeSourceLine = (lineText: string): boolean =>
+  /^questions?\s+\d+/i.test(normalizedCoverageText(lineText));
+
+const isAnswerKeySourceLine = (lineText: string): boolean =>
+  /^answers?\b/i.test(normalizedCoverageText(lineText));
+
+const sourceLineFieldKind = (
+  line: { readonly lineId: string; readonly text: string },
+  sourceSpan: ReadingV2GroupSourceSpan | undefined,
+): 'instruction' | 'question' | 'option-bank' | 'answer-key' | 'layout' => {
+  if (sourceSpan?.answerKeyLineIds.includes(line.lineId) || isAnswerKeySourceLine(line.text)) {
+    return 'answer-key';
+  }
+  if (sourceSpan?.optionBankLineIds.includes(line.lineId) || looksLikeInlineOptionBank(line.text)) {
+    return 'option-bank';
+  }
+  if (isInstructionLikeSourceLine(line.text) || isQuestionRangeSourceLine(line.text)) {
+    return 'instruction';
+  }
+  if (
+    sourceSpan
+    && Array.from(
+      { length: sourceSpan.questionRange.end - sourceSpan.questionRange.start + 1 },
+      (_, index) => sourceSpan.questionRange.start + index,
+    ).some((questionNumber) => readingV2AutoLineMatchesQuestionNumber(line.text, questionNumber))
+  ) {
+    return structuralCompletionTaskTypes.has(sourceSpan.taskType) ? 'layout' : 'question';
+  }
+  if (READING_V2_AUTO_COMPLETION_BLANK_PATTERN.test(line.text)) {
+    return 'layout';
+  }
+  return 'question';
+};
+
+const sourceMissingFieldFor = (
+  line: { readonly lineId: string; readonly text: string },
+  sourceSpan: ReadingV2GroupSourceSpan | undefined,
+): ReadingV2GroupQualityRecord['coverage']['missingFields'][number] => ({
+  fieldId: `${sourceLineFieldKind(line, sourceSpan)}:${line.lineId}`,
+  fieldKind: sourceLineFieldKind(line, sourceSpan),
+  lineId: line.lineId,
+  sourceText: line.text,
+  normalizedText: normalizedCoverageText(line.text),
+});
+
 const highRiskTokensFromLine = (line: { readonly lineId: string; readonly text: string }): readonly {
   readonly tokenKind: ReadingV2GroupQualityRecord['coverage']['highRiskTokenChanges'][number]['tokenKind'];
   readonly rawValue: string;
@@ -1117,10 +1224,73 @@ const representedTextForGroup = (
   ].join(' ');
 };
 
+const visibleFieldTextForGroup = (
+  material: AutoMaterial,
+  instruction: unknown,
+): string => {
+  const range = isObjectRecord(instruction) && isObjectRecord(instruction.questionRange)
+    ? {
+        start: optionalNumberFrom(instruction.questionRange.start),
+        end: optionalNumberFrom(instruction.questionRange.end),
+      }
+    : undefined;
+  const questions = (material.questions ?? []).filter((question) => {
+    const questionNumber = questionNumberFor(question);
+    return Boolean(
+      range?.start
+      && range.end
+      && questionNumber >= range.start
+      && questionNumber <= range.end,
+    );
+  });
+  const instructionRecord = isObjectRecord(instruction) ? instruction : {};
+
+  return [
+    instructionRecord.layoutHint,
+    instructionRecord.note,
+    instructionRecord.table,
+    instructionRecord.flowchart,
+    instructionRecord.diagram,
+    ...questions.map((question) => question.questionText),
+  ].flatMap((value) => stringsFromUnknown(value)).join(' ');
+};
+
+const hasStructuredOptionBankForGroup = (
+  taskType: string,
+  instruction: unknown,
+  material: AutoMaterial,
+): boolean => {
+  const canonicalTaskType = normalizeReadingV2TaskType(taskType);
+  if (
+    !canonicalTaskType
+    || (
+      !readingV2TaskUsesImportedLabeledOptions(canonicalTaskType)
+      && !readingV2TaskUsesPrimarySectionReferenceBank(canonicalTaskType)
+    )
+  ) {
+    return false;
+  }
+
+  const instructionRecord = isObjectRecord(instruction) ? instruction : {};
+  if (
+    (Array.isArray(instructionRecord.labeledOptions) && instructionRecord.labeledOptions.length > 0)
+    || (Array.isArray(instructionRecord.sectionReferences) && instructionRecord.sectionReferences.length > 0)
+  ) {
+    return true;
+  }
+
+  return (material.questions ?? []).some((question) =>
+    (Array.isArray(question.labeledOptions) && question.labeledOptions.length > 0)
+    || (Array.isArray(question.sectionReferences) && question.sectionReferences.length > 0),
+  );
+};
+
 const reasonCodesForMissingSource = (input: {
   readonly taskType: string;
   readonly missingLines: readonly { readonly text: string }[];
   readonly highRiskCount: number;
+  readonly optionBankDuplicated: boolean;
+  readonly encodingArtifactPreserved: boolean;
 }): readonly ReadingV2AutoImportDiagnosticCode[] => {
   const codes = new Set<ReadingV2AutoImportDiagnosticCode>();
   if (input.missingLines.length > 0) {
@@ -1146,6 +1316,12 @@ const reasonCodesForMissingSource = (input: {
     if (input.missingLines.some((line) => line.text.includes('|') || /\t/.test(line.text))) {
       codes.add('table-column-missing');
     }
+  }
+  if (input.optionBankDuplicated) {
+    codes.add('option-bank-duplicated');
+  }
+  if (input.encodingArtifactPreserved) {
+    codes.add('source-encoding-artifact-preserved');
   }
 
   return [...codes];
@@ -1185,45 +1361,80 @@ const buildReadingV2GroupQualityRecords = (
             return line ? [{ lineId, text: line.rawText, normalizedText: line.normalizedText }] : [];
           })
         : [];
+      const answerKeyLines = sourceSpan
+        ? sourceSpan.answerKeyLineIds.flatMap((lineId) => {
+            const line = sourceLedger.lineIndex.find((candidate) => candidate.lineId === lineId);
+            return line ? [{ lineId, text: line.rawText, normalizedText: line.normalizedText }] : [];
+          })
+        : [];
+      const optionBankLines = sourceSpan
+        ? sourceSpan.optionBankLineIds.flatMap((lineId) => {
+            const line = sourceLedger.lineIndex.find((candidate) => candidate.lineId === lineId);
+            return line ? [{ lineId, text: line.rawText, normalizedText: line.normalizedText }] : [];
+          })
+        : [];
       const representedText = normalizedCoverageText(representedTextForGroup(material, instruction));
-      const comparableLines = sourceLines.filter((line) =>
-        line.normalizedText.length > 0
-        && !/^questions?\s+\d+/i.test(line.normalizedText)
-        && !/^answers?\b/i.test(line.normalizedText)
-        && !/^reading passage\s+\d+\b/i.test(line.normalizedText)
-      );
+      const comparableLines = [...sourceLines, ...answerKeyLines, ...optionBankLines]
+        .filter((line, index, lines) => lines.findIndex((candidate) => candidate.lineId === line.lineId) === index)
+        .filter((line) =>
+          line.normalizedText.length > 0
+          && !/^questions?\s+\d+/i.test(line.normalizedText)
+          && !/^answers?\b/i.test(line.normalizedText)
+          && !/^reading passage\s+\d+\b/i.test(line.normalizedText)
+        );
       const missingLines = comparableLines.filter((line) => !textContainsSourceLine(representedText, line.text));
+      const toleratedInstructionLineIds = new Set(
+        simpleInstructionFlexibleTaskTypes.has(taskType)
+          ? missingLines
+              .filter((line) => isInstructionLikeSourceLine(line.text) || isQuestionRangeSourceLine(line.text))
+              .map((line) => line.lineId)
+          : [],
+      );
+      const statusMissingLines = missingLines.filter((line) => !toleratedInstructionLineIds.has(line.lineId));
       const highRiskTokenChanges = comparableLines
         .flatMap(highRiskTokensFromLine)
         .filter((token) => !representedText.includes(normalizedCoverageText(token.rawValue)))
+        .filter((token) => !toleratedInstructionLineIds.has(token.lineId))
         .map((token) => ({
           tokenKind: token.tokenKind,
           rawValue: token.rawValue,
           studioValue: '',
           lineId: token.lineId,
         }));
-      const missingStructuralUnits = missingLines.map((line) => line.lineId);
+      const missingStructuralUnits = statusMissingLines.map((line) => line.lineId);
+      const duplicatedOptionBank = hasStructuredOptionBankForGroup(taskType, instruction, material)
+        && comparableLines
+          .filter((line) => sourceLineFieldKind(line, sourceSpan) === 'option-bank')
+          .some((line) => textContainsSourceLine(normalizedCoverageText(visibleFieldTextForGroup(material, instruction)), line.text));
+      const encodingArtifactPreserved = comparableLines.some((line) => sourceEncodingArtifactPattern.test(line.text))
+        && statusMissingLines.length === 0
+        && highRiskTokenChanges.length === 0
+        && !duplicatedOptionBank;
       const reasonCodes = [
         ...(sourceSpan ? [] : ['source-question-range-missing' as const]),
         ...reasonCodesForMissingSource({
           taskType,
-          missingLines,
+          missingLines: statusMissingLines,
           highRiskCount: highRiskTokenChanges.length,
+          optionBankDuplicated: duplicatedOptionBank,
+          encodingArtifactPreserved,
         }),
       ];
       const sourceSpanConfidence = sourceSpan?.confidence ?? 'low';
       const status: ReadingV2GroupQualityStatus = sourceSpanConfidence === 'low'
         ? 'teacher-review'
-        : missingLines.length > 0 || highRiskTokenChanges.length > 0
+        : statusMissingLines.length > 0 || highRiskTokenChanges.length > 0 || duplicatedOptionBank
           ? 'weak'
           : 'ready';
       const recommendedAction: ReadingV2GroupQualityRecommendedAction = status === 'ready'
         ? 'none'
         : status === 'blocked'
           ? 'blocked'
-          : status === 'teacher-review' || sourceSpanConfidence !== 'high' || highRiskTokenChanges.length > 0
+          : duplicatedOptionBank
+            ? 'deterministic-rehydrate'
+            : status === 'teacher-review' || sourceSpanConfidence !== 'high' || highRiskTokenChanges.length > 0
             ? 'teacher-review'
-            : ['note-completion', 'table-completion', 'flowchart-completion', 'diagram-labeling'].includes(taskType)
+            : structuralCompletionTaskTypes.has(taskType)
               ? 'teacher-groq-repair'
               : 'deterministic-rehydrate';
 
@@ -1236,8 +1447,9 @@ const buildReadingV2GroupQualityRecords = (
         reasonCodes: reasonCodes.length > 0 ? reasonCodes : ['group-quality-ready'],
         coverage: {
           rawLineCount: comparableLines.length,
-          representedLineCount: comparableLines.length - missingLines.length,
-          missingLineIds: missingLines.map((line) => line.lineId),
+          representedLineCount: comparableLines.length - statusMissingLines.length,
+          missingLineIds: statusMissingLines.map((line) => line.lineId),
+          missingFields: statusMissingLines.map((line) => sourceMissingFieldFor(line, sourceSpan)),
           rawStructuralUnitCount: comparableLines.length,
           representedStructuralUnitCount: comparableLines.length - missingStructuralUnits.length,
           missingStructuralUnits,
@@ -1401,15 +1613,19 @@ const autoV4PassageSourceContent = (
   const firstAnswerLine = sourceLedger.answerKeyRows
     .map((row) => row.sourceLine)
     .sort((left, right) => left - right)[0];
+  const firstRepeatedTitleLine = firstRepeatedTitlePollutionLineAfter(sourceLedger, passage.lineNumber);
   const endLine = [
     firstQuestionLine,
     nextPassageLine,
     firstAnswerLine,
+    firstRepeatedTitleLine,
     sourceLedger.lineCount + 1,
   ]
     .filter((lineNumber): lineNumber is number => Number.isFinite(lineNumber) && lineNumber > passage.lineNumber)
     .sort((left, right) => left - right)[0]! - 1;
+  const pollutionLineNumbers = sourcePollutionLineNumbers(sourceLedger);
   const body = sourceLinesBetween(sourceLedger, passage.lineNumber + 1, Math.max(passage.lineNumber + 1, endLine))
+    .filter((line) => !pollutionLineNumbers.has(line.lineNumber))
     .map((line) => line.text)
     .join('\n')
     .trim();
@@ -1919,9 +2135,12 @@ const autoV4SummaryLayoutFromSource = (
     .reverse()
     .map(sourceLineTextForSummary)
     .find((line) => line && !isInstructionLikeAutoV4Title(line));
+  const sourceBodyLines = sourceWindow
+    .slice(firstBlankIndex)
+    .filter((line) => group.taskType !== 'summary-completion-list' || !looksLikeInlineOptionBank(line));
   const bodyText = [
     titleLine,
-    ...sourceWindow.slice(firstBlankIndex).map(sourceLineTextForSummary),
+    ...sourceBodyLines.map(sourceLineTextForSummary),
   ].filter(Boolean).join(' ');
 
   const matches = questionNumbers.map((questionNumber) => {
@@ -1956,7 +2175,10 @@ const autoV4SummaryLayoutFromSource = (
   });
 
   return {
-    layoutHint: JSON.stringify({ kind: 'summary-text', segments }),
+    layoutHint: JSON.stringify({
+      kind: group.taskType === 'summary-completion-list' ? 'summary-list' : 'summary-text',
+      segments,
+    }),
     questionTextByQuestionNumber,
   };
 };
@@ -2411,6 +2633,7 @@ const reviewableGuardrailDiagnosticCodes = new Set<ReadingV2AutoImportDiagnostic
   'source-instruction-reuse-mismatch',
   'source-passage-trim-risk',
   'auto-v4-source-passage-drift',
+  'source-encoding-artifact-preserved',
   'group-source-underrepresented',
   'note-heading-missing',
   'note-row-missing',
@@ -2418,6 +2641,7 @@ const reviewableGuardrailDiagnosticCodes = new Set<ReadingV2AutoImportDiagnostic
   'table-column-missing',
   'instruction-shortened',
   'question-text-changed',
+  'option-bank-duplicated',
   'group-coverage-mismatch',
   'task-type-conflict',
   'missing-reference-bank',
@@ -2444,14 +2668,6 @@ const publishBlockingReviewDiagnosticCodes = new Set<ReadingV2AutoImportDiagnost
   'source-instruction-vocabulary-mismatch',
   'source-instruction-reuse-mismatch',
   'source-passage-trim-risk',
-  'auto-v4-source-passage-drift',
-  'group-source-underrepresented',
-  'note-heading-missing',
-  'note-row-missing',
-  'table-cell-missing',
-  'table-column-missing',
-  'instruction-shortened',
-  'question-text-changed',
   'group-coverage-mismatch',
   'task-type-conflict',
   'missing-reference-bank',

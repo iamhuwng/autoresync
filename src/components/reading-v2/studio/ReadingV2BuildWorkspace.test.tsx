@@ -4,7 +4,11 @@ import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fi
 import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
 import { readingV2Ids, type ReadingV2Document } from '../../../types/readingV2.types';
 import type { ReadingV2CanonicalTaskType } from '../../../types/readingV2Taxonomy';
-import type { ReadingV2BuildPassageSlot, ReadingV2QuestionLinkTarget } from './ReadingV2BuildWorkspace';
+import type {
+  ReadingV2BuildPassageSlot,
+  ReadingV2BuildValidationMessage,
+  ReadingV2QuestionLinkTarget,
+} from './ReadingV2BuildWorkspace';
 
 vi.mock('./ReadingV2PassageEditor', () => ({
   ReadingV2PassageEditor: ({
@@ -51,6 +55,7 @@ const renderWorkspace = (
     readonly withoutPrimaryAnchor?: boolean;
     readonly withImageBlock?: boolean;
     readonly layoutHint?: string;
+    readonly validationMessages?: readonly ReadingV2BuildValidationMessage[];
   } = {},
 ) => {
   let document = createReadingV2CanonicalFixture(taskType);
@@ -184,7 +189,7 @@ const renderWorkspace = (
       authoringNumbers={visibleNumbers}
       selectedTaskGroupId={taskGroup.taskGroupId}
       selectedQuestionLink={options.selectedQuestionLink}
-      validationMessages={[]}
+      validationMessages={options.validationMessages ?? []}
       publishBlocked={false}
       publishState="idle"
       onSaveDraft={vi.fn()}
@@ -228,6 +233,39 @@ const renderWorkspace = (
 };
 
 describe('ReadingV2BuildWorkspace task-type editors', () => {
+  it('shows question-level validation details on the attention pill tooltip', () => {
+    renderWorkspace('summary-completion-text', {
+      validationMessages: [
+        {
+          key: 'q12-answer',
+          message: 'Question 12 needs an answer.',
+          reviewLabel: 'Question 12',
+          reviewDetail: 'Add the missing answer before publishing.',
+          questionRange: { start: 12, end: 12 },
+        },
+        {
+          key: 'q14-16-source',
+          message: 'Questions 14-16 need source review.',
+          reviewLabel: 'Questions 14-16',
+          reviewDetail: 'Check prompt text and answer key.',
+          questionRange: { start: 14, end: 16 },
+        },
+      ],
+    });
+
+    const pill = screen.getByRole('button', { name: '2 validation items' });
+    expect(pill).toHaveAttribute(
+      'title',
+      expect.stringContaining('Question 12: Add the missing answer before publishing.'),
+    );
+    expect(pill).toHaveAttribute(
+      'title',
+      expect.stringContaining('Questions 14-16: Check prompt text and answer key.'),
+    );
+    expect(screen.getByLabelText('Validation messages')).toHaveTextContent('Question 12');
+    expect(screen.getByLabelText('Validation messages')).toHaveTextContent('Questions 14-16');
+  });
+
   it('hides question link checks when linked questions do not need attention', () => {
     renderWorkspace('true-false-not-given');
 

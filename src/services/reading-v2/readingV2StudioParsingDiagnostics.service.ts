@@ -637,8 +637,14 @@ export const buildReadingV2TeacherImportDiagnostics = (
       detail: [
         `confidence: ${record.sourceSpanConfidence}`,
         `reasons: ${record.reasonCodes.join(', ') || 'none'}`,
+        record.coverage
+          ? `fields: ${record.coverage.representedLineCount}/${record.coverage.rawLineCount}`
+          : undefined,
+        record.coverage?.missingFields?.length
+          ? `missing: ${record.coverage.missingFields.map((field) => field.fieldId).slice(0, 6).join(', ')}`
+          : undefined,
         `action: ${record.recommendedAction}`,
-      ].join(' | '),
+      ].filter(Boolean).join(' | '),
       target: {
         kind: 'task-group',
         objectId: record.groupId,

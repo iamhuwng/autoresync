@@ -175,6 +175,37 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     ]));
   });
 
+  it('does not mark passage sentences about advertisements as pollution', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        'READING PASSAGE 1',
+        'The advertisement changed how visitors interpreted the museum display.',
+        'A second source sentence keeps this passage body substantial.',
+        questionLines(1, 2),
+      ].join('\n'),
+      sourceName: 'advertising-passage.md',
+    });
+
+    expect(ledger.pollutionMarkers).toEqual([]);
+  });
+
+  it('marks clipped sibling test headings as repeated-title pollution', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(1),
+        '### Cam 13 ReadingTest 04',
+        '### Practice Cam 14 Reading Test 02',
+        questionLines(1, 2),
+      ].join('\n\n'),
+      sourceName: 'clipped-sibling-tests.md',
+    });
+
+    expect(ledger.pollutionMarkers.map((marker) => marker.code)).toEqual(['repeated-title', 'repeated-title']);
+    expect(ledger.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-pollution-detected', severity: 'warning' }),
+    ]));
+  });
+
   it('detects redacted section reference banks without storing bank text', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: [

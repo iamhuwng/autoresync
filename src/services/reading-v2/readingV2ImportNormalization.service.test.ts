@@ -1322,6 +1322,141 @@ describe('readingV2ImportNormalization.service', () => {
     ]);
   });
 
+  it('cleans clipped web pollution from structured passage content while preserving passage text', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Clean passage',
+            passages: [
+              {
+                title: 'Clean passage',
+                content: [
+                  'The archive opened in 1998 under Alice Morgan.',
+                  'The advertisement changed how visitors interpreted the museum display.',
+                  'A second source sentence keeps the passage substantial for Studio import.',
+                  'Advertisements',
+                  '### Cam 13 ReadingTest 04',
+                  '### Practice Cam 14 Reading Test 02',
+                ].join('\n'),
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'true-false-not-given',
+                questionRange: { start: 1, end: 1 },
+                text: 'Do the following statements agree with the information given in Reading Passage 1?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'true-false-not-given',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'The archive opened in 1998.',
+                answer: 'TRUE',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({ text: structuredPayload });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const section = result.document.sections[result.document.sectionIds[0]!]!;
+    const stimulus = result.document.stimuli[section.stimulusIds[0]!]!;
+    const passageText = stimulus.content.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(passageText).toContain('The archive opened in 1998 under Alice Morgan.');
+    expect(passageText).toContain('The advertisement changed how visitors interpreted the museum display.');
+    expect(passageText).toContain('A second source sentence keeps the passage substantial for Studio import.');
+    expect(passageText).not.toContain('Advertisements');
+    expect(passageText).not.toContain('Cam 13 ReadingTest 04');
+    expect(passageText).not.toContain('Practice Cam 14 Reading Test 02');
+  });
+
+  it('uses Auto source text instead of provider-added structured passage text', () => {
+    const sourceRawText = [
+      '### READING PASSAGE 1',
+      'You should spend about 20 minutes on Questions 1-1.',
+      'The archive opened in 1998 under Alice Morgan.',
+      'The advertisement changed how visitors interpreted the museum display.',
+      'A second source sentence keeps the passage substantial for Studio import.',
+      '',
+      'Questions 1-1',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '1 The archive opened in 1998.',
+      '',
+      'Answers',
+      '1 TRUE',
+    ].join('\n');
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Clean passage',
+            passages: [
+              {
+                title: 'Clean passage',
+                content: 'Provider-added passage overview that is not present in the teacher source.',
+                contentBlocks: [
+                  { kind: 'paragraph', text: 'Provider-added content block that should not enter the passage.' },
+                ],
+                notes: [
+                  { kind: 'note', text: 'Provider-added note that should not enter the passage.' },
+                ],
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'true-false-not-given',
+                questionRange: { start: 1, end: 1 },
+                text: 'Do the following statements agree with the information given in Reading Passage 1?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'true-false-not-given',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'The archive opened in 1998.',
+                answer: 'TRUE',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = {
+      ...createReadingV2ImportCandidateFromText({ text: structuredPayload, sourceKind: 'auto-gemini' }),
+      sourceRawText,
+    };
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const section = result.document.sections[result.document.sectionIds[0]!]!;
+    const stimulus = result.document.stimuli[section.stimulusIds[0]!]!;
+    const passageText = stimulus.content.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(passageText).toContain('The archive opened in 1998 under Alice Morgan.');
+    expect(passageText).toContain('The advertisement changed how visitors interpreted the museum display.');
+    expect(passageText).toContain('A second source sentence keeps the passage substantial for Studio import.');
+    expect(passageText).not.toContain('You should spend about 20 minutes');
+    expect(passageText).not.toContain('Provider-added passage overview');
+    expect(passageText).not.toContain('Provider-added content block');
+    expect(passageText).not.toContain('Provider-added note');
+  });
+
   it('parses teacher answer keys into canonical alternative answers while preserving compact literal slash tokens', () => {
     const parsed = parseReadingV2TeacherAnswerKey([
       'Answer key',

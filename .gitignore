@@ -38,6 +38,7 @@ output/reading-v2-clippings-*-report.json
 output/reading-v2-provider-preflight-report.json
 output/reading-v2-provider-preflight-*.json
 output/reading-v2-auto-v3-groq-source-proof-harness.json
+output/reading-v2-auto-v4-random-clippings-e2e/
 output/reading-v2-harness-temp/
 output/groq-*-response.json
 output/playwright-*.png
