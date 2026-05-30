@@ -1,5 +1,4 @@
-// TeacherLobbyPage — Composition Layer (PRD-0033 refactor)
-// Rule 15 Exception: AppShell, Modal, Select — moved code, see PRD-0033 NG-1
+// TeacherLobbyPage composition layer (PRD-0033 refactor)
 import React, { Suspense, useState, useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
@@ -7,7 +6,6 @@ import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
-import { AppShell } from '@mantine/core';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import { logTeacherMaterialsDiagnostic } from '../utils/teacherMaterialsDiagnostics';
 import { Card, CardBody } from '../components/modern';
@@ -27,6 +25,8 @@ import ThcsTestCard from '../components/modern/ThcsTestCard';
 import DraftCard from '../components/modern/DraftCard';
 import ContentTabs from '../components/modern/ContentTabs';
 import SearchFilterBar from '../components/modern/SearchFilterBar';
+import MaterialListView from '../components/modern/MaterialListView';
+import { buildTestMaterialListRow } from '../components/modern/materialListAdapter';
 import SessionBanner from '../components/SessionBanner';
 import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
@@ -98,6 +98,7 @@ const TeacherLobbyPage = () => {
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
+  const [materialsViewMode, setMaterialsViewMode] = useState('grid');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
 
   // ---------- Hooks ----------
@@ -148,6 +149,7 @@ const TeacherLobbyPage = () => {
     logTeacherMaterialsDiagnostic('grid_rendered', {
       tab: contentFilter,
       dataScope: loadedScope,
+      viewMode: materialsViewMode,
       loadedCount: tests.length,
       filteredCount: filteredTests.length,
       visibleCount: visibleTests.length,
@@ -163,6 +165,7 @@ const TeacherLobbyPage = () => {
     contentLoading,
     filteredTests.length,
     loadedScope,
+    materialsViewMode,
     searchTerm,
     tests.length,
     testTypeFilter,
@@ -176,6 +179,15 @@ const TeacherLobbyPage = () => {
     trackAction('createTest', { source: 'teacher_lobby' });
     modals.openTestCreation();
   }, [modals.openTestCreation, trackAction]);
+
+  const handleMaterialsViewModeChange = useCallback((nextMode) => {
+    setMaterialsViewMode(nextMode);
+    trackAction('changeMaterialsViewMode', {
+      source: 'teacher_lobby_materials_toolbar',
+      tab: contentFilter,
+      viewMode: nextMode,
+    });
+  }, [contentFilter, trackAction]);
 
   const handleCloseTestCreation = useCallback(() => {
     modals.closeTestCreation();
@@ -323,6 +335,21 @@ const TeacherLobbyPage = () => {
     return isOwner(item) || profile?.role === 'super_admin';
   }, [isOwner, profile]);
 
+  const materialListRows = visibleTests.map((test, index) => buildTestMaterialListRow(test, {
+    index,
+    canEdit: canEdit(test),
+    isOwner: isOwner(test),
+    isPublicLibrary: contentFilter === 'public',
+    handlers: {
+      onEdit: handleEditTest,
+      onDelete: handleDeleteTest,
+      onStartTest: handleStartTest,
+      onUseAsIs: modals.openUseAsIs,
+      onClone: handleCloneTest,
+      onAssignHw: modals.openHwDialog,
+    },
+  }));
+
   // ---------- Render ----------
   return (
     <div style={{
@@ -330,7 +357,7 @@ const TeacherLobbyPage = () => {
       background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
       backgroundAttachment: 'fixed',
     }}>
-      <AppShell padding="md">
+      <div style={{ padding: '1rem' }}>
         <TeacherHeader
           pageTitle="Materials"
           userId={user?.uid}
@@ -341,7 +368,7 @@ const TeacherLobbyPage = () => {
           onLogout={handleLogout}
         />
 
-        <AppShell.Main>
+        <main>
           {/* Session Loading State */}
           {sessionCode && session.sessionLoading && (
             <div style={{
@@ -467,6 +494,8 @@ const TeacherLobbyPage = () => {
                         thcsExamTypeFilter={thcsExamTypeFilter}
                         onThcsExamTypeFilterChange={setThcsExamTypeFilter}
                         onCreateNew={handleOpenTestCreation}
+                        viewMode={materialsViewMode}
+                        onViewModeChange={handleMaterialsViewModeChange}
                       />
                     </CardBody>
                   </Card>
@@ -500,6 +529,11 @@ const TeacherLobbyPage = () => {
                           : 'Create your first test to get started'}
                       </p>
                     </Card>
+                  ) : materialsViewMode === 'list' ? (
+                    <MaterialListView
+                      rows={materialListRows}
+                      itemLabel={contentFilter === 'public' ? 'public tests' : 'tests'}
+                    />
                   ) : (
                     <div style={{
                       display: 'grid',
@@ -546,7 +580,7 @@ const TeacherLobbyPage = () => {
               )}
             </div>
           )}
-        </AppShell.Main>
+        </main>
 
         {/* ===== Modals ===== */}
 
@@ -649,7 +683,7 @@ const TeacherLobbyPage = () => {
           onAssignHomework={handleUseAsIsAssignHW}
           userId={user?.uid}
         />
-      </AppShell>
+      </div>
     </div>
   );
 };

@@ -21,7 +21,7 @@ Current anchors:
 - `src/components/test-creation/TestCreationModal.tsx`
 - `src/components/thcs-editor/THCSSetupStep.tsx`
 
-The Teacher Lobby is both a material listing surface and the normal teacher entry point for creating tests. Data-loading scope is documented separately in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
+The Teacher Lobby is both a material listing surface and the normal teacher entry point for creating tests. Data-loading scope is documented separately in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Compact list-view rendering is documented separately in `documentation/architecture/teacher-materials-list-view-contract.md`.
 
 ## Creation Entry Contract
 
@@ -67,9 +67,9 @@ Required rules:
 - The icon must be visually inside the search input chrome, not hidden under the text caret or left padding.
 - `Create New Test` remains in the same row so the search/filter action area stays one coherent control band.
 
-## Material Card Contract
+## Material Grid Card Contract
 
-Teacher-lobby material cards are summary cards, not canonical document readers.
+Teacher-lobby material grid cards are summary cards, not canonical document readers.
 
 Required rules:
 
@@ -78,6 +78,8 @@ Required rules:
 - Full title remains available through the native `title` tooltip on hover/focus.
 - Card badges should stay summary-level: question/task count, skill/type, duration, grade/exam when present.
 - Cards must not hydrate Reading V2 canonical drafts, student-safe projections, session payloads, or result payloads just to render the grid.
+
+List mode is not a widened card implementation. It must follow `documentation/architecture/teacher-materials-list-view-contract.md` for grid columns, action slots, typography, and desktop overflow gates.
 
 ## Teacher Header Responsive Contract
 
@@ -105,6 +107,8 @@ These patterns are obsolete for the current Teacher Lobby create/navigation flow
 - text-glyph `Advanced Settings` triangle as the only disclosure icon
 - material-card titles expanding beyond two lines and pushing card controls downward
 - full teacher tab row on narrow desktop widths where it collides with user/profile controls
+- compact list rows implemented as widened one-column cards
+- list action rails sized by button text or by whether `Assign HW` is present
 
 Historical docs may still mention these patterns as original PRD targets or pre-refactor behavior. Treat those references as historical unless this document explicitly delegates ownership elsewhere.
 
@@ -118,10 +122,12 @@ Use these checks when changing this surface:
 - `Create New Test` opens `TestCreationModal`, not a new creation page.
 - THCS setup quick-start row has breathing room below it and `Advanced Settings` uses an SVG chevron.
 - Long card titles show two lines and expose the full title through hover/focus tooltip.
+- List view keeps `Material`, `Items`, `Updated`, and `Actions` columns aligned through the fixed-grid contract.
 
 ## Related Docs
 
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
+- `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`

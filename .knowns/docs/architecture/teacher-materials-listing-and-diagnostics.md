@@ -2,7 +2,7 @@
 title: Teacher Materials Listing And Diagnostics
 description: 'Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns.'
 createdAt: '2026-05-11T17:23:18.736Z'
-updatedAt: '2026-05-11T17:23:18.736Z'
+updatedAt: '2026-05-30T11:54:46.765Z'
 tags:
   - architecture
   - teacher-lobby
@@ -106,3 +106,12 @@ Shipped as `f57580c chore(teacher): add materials diagnostics` and deployed to F
 - Keep cards on summary/index rows; heavy canonical payloads belong behind explicit open/edit/preview actions.
 - Preserve gated diagnostics for live browser proof.
 - Add pagination or a dedicated material-summary index before indexed reads exceed UI budget.
+
+
+## PRD-0050 List View Boundary
+
+Compact Materials list-view rendering is owned by @doc/architecture/teacher-materials-list-view-contract.
+
+The list view is a rendering mode over existing listing rows. It must not change normal-teacher indexed owner/public reads, Drafts active-tab loading, Reading V2 summary-only listing behavior, or gated diagnostics.
+
+Retired: treating list mode as permission to hydrate heavier payloads or rewrite the materials loading contract.

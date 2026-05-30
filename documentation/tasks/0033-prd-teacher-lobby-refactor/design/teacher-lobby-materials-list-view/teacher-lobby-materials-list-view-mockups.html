@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Teacher Lobby Materials Compact List Mockup</title>
+  <style>
+    :root {
+      --ink: #1e293b;
+      --muted: #64748b;
+      --soft: #94a3b8;
+      --line: rgba(203, 213, 225, 0.55);
+      --purple: #8b5cf6;
+      --purple-strong: #7c3aed;
+      --danger: #f43f5e;
+      --success: #16a34a;
+      --warning: #b45309;
+      --sky: #0ea5e9;
+      --mint: #14b8a6;
+      --rose: #f43f5e;
+      --peach: #f97316;
+      --radius: 0.5rem;
+      --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%);
+      background-attachment: fixed;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .teacher-header {
+      min-height: 78px;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.9rem 2rem;
+      background: rgba(255, 255, 255, 0.95);
+      border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .teacher-header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .teacher-nav {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .teacher-nav > .btn {
+      min-width: 127px;
+    }
+
+    .divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(203, 213, 225, 0.5);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 34px;
+      border: 0;
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 700;
+      white-space: nowrap;
+      transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-md {
+      min-height: 48px;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.9375rem;
+    }
+
+    .btn-sm {
+      height: 34px;
+      min-height: 34px;
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--purple);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-glass {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(12px);
+    }
+
+    .btn-danger {
+      color: #fff;
+      background: var(--danger);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-outline-purple {
+      color: var(--purple-strong);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .notification {
+      width: 34px;
+      height: 34px;
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+      margin-left: 2.5rem;
+      border: 0;
+      background: transparent;
+      color: #475569;
+    }
+
+    .notification::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      position: absolute;
+      top: 5px;
+      right: 4px;
+      border-radius: 999px;
+      background: #ef4444;
+      box-shadow: 0 0 0 2px #fff;
+    }
+
+    .profile {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 0;
+      background: transparent;
+      border-radius: 999px;
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 700;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #0f172a;
+      font-weight: 700;
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+      box-shadow: 0 0 0 3px #fff, 0 0 0 4px rgba(203, 213, 225, 0.8);
+    }
+
+    .page {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 2.35rem 2.3rem 3rem;
+    }
+
+    .page-header {
+      margin-bottom: 1.1rem;
+    }
+
+    .page-title {
+      margin: 0 0 0.45rem;
+      color: var(--ink);
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0 0 1.45rem;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .tabs {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 0;
+    }
+
+    .tabs .btn {
+      min-width: 118px;
+      height: 42px;
+      min-height: 42px;
+      padding-inline: 1.25rem;
+      font-size: 0.94rem;
+    }
+
+    .card-glass {
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(203, 213, 225, 0.3);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px) saturate(180%);
+    }
+
+    .toolbar-card {
+      margin-bottom: 1.05rem;
+      padding: 1.35rem 1.5rem;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 443px 200px 214px 214px 112px 195px;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .search {
+      height: 48px;
+      position: relative;
+      min-width: 0;
+    }
+
+    .search input {
+      width: 100%;
+      height: 100%;
+      border: 1px solid rgba(203, 213, 225, 0.65);
+      border-radius: var(--radius);
+      padding: 0 1rem 0 3.1rem;
+      outline: 0;
+      color: #334155;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(12px);
+      font-size: 0.9375rem;
+    }
+
+    .search input::placeholder {
+      color: #94a3b8;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      width: 1.75rem;
+      height: 1.75rem;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      transform: translateY(-50%);
+      color: #0f172a;
+    }
+
+    .filter {
+      height: 48px;
+      width: 100%;
+      min-width: 0;
+      border: 1px solid rgba(203, 213, 225, 0.65);
+      border-radius: var(--radius);
+      padding: 0 2rem 0 1rem;
+      color: #334155;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.03);
+    }
+
+    .view-toggle {
+      height: 48px;
+      width: 112px;
+      display: inline-flex;
+      overflow: hidden;
+      border: 1px solid rgba(203, 213, 225, 0.65);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .view-toggle .btn {
+      width: 56px;
+      height: 48px;
+      min-height: 48px;
+      padding: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      border-right: 1px solid rgba(203, 213, 225, 0.5);
+      color: #475569;
+    }
+
+    .view-toggle .btn:last-child {
+      border-right: 0;
+    }
+
+    .view-toggle .active {
+      color: #0f766e;
+      background: rgba(20, 184, 166, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.5);
+    }
+
+    .create-btn {
+      min-height: 48px;
+      background: linear-gradient(135deg, var(--purple) 0%, #6366f1 100%);
+      box-shadow: 0 8px 20px rgba(124, 58, 237, 0.28);
+    }
+
+    .list-wrap {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .list-header {
+      display: grid;
+      grid-template-columns: 5px 54px minmax(420px, 552px) 145px 145px 210px minmax(260px, 1fr);
+      align-items: center;
+      gap: 1rem;
+      padding: 0 1.25rem 0 0;
+      margin-bottom: 0.45rem;
+      color: #64748b;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .list-header .material-col {
+      grid-column: 1 / 4;
+      padding-left: 1.05rem;
+    }
+
+    .list-header .actions-col {
+      justify-self: center;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 5px 54px minmax(420px, 552px) 145px 145px 210px minmax(260px, 1fr);
+      align-items: center;
+      gap: 1rem;
+      min-height: 64px;
+      overflow: hidden;
+      border-radius: var(--radius);
+      padding: 0.46rem 1.25rem 0.46rem 0;
+      backdrop-filter: blur(16px) saturate(200%);
+    }
+
+    .row-lavender {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(196, 181, 253, 0.15) 100%);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      box-shadow: 0 8px 24px -18px rgba(139, 92, 246, 0.36);
+    }
+
+    .row-sky {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(125, 211, 252, 0.15) 100%);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      box-shadow: 0 8px 24px -18px rgba(14, 165, 233, 0.34);
+    }
+
+    .row-mint {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(45, 212, 191, 0.2) 0%, rgba(94, 234, 212, 0.15) 100%);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+      box-shadow: 0 8px 24px -18px rgba(20, 184, 166, 0.34);
+    }
+
+    .row-rose {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(251, 113, 133, 0.2) 0%, rgba(253, 164, 175, 0.15) 100%);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      box-shadow: 0 8px 24px -18px rgba(244, 63, 94, 0.34);
+    }
+
+    .row-peach {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(253, 186, 116, 0.15) 100%);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      box-shadow: 0 8px 24px -18px rgba(249, 115, 22, 0.34);
+    }
+
+    .row-incomplete {
+      opacity: 0.78;
+      filter: grayscale(25%);
+      border: 2px dashed rgba(148, 163, 184, 0.55);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 8px 28px -18px rgba(15, 23, 42, 0.24);
+    }
+
+    .accent {
+      height: 100%;
+      align-self: stretch;
+      background: var(--purple);
+    }
+
+    .row-sky .accent { background: var(--sky); }
+    .row-mint .accent { background: var(--mint); }
+    .row-rose .accent { background: var(--rose); }
+    .row-peach .accent { background: var(--peach); }
+    .row-incomplete .accent { background: #94a3b8; }
+
+    .type-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      margin-left: 0.75rem;
+      border-radius: var(--radius);
+      color: var(--purple-strong);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .row-sky .type-icon { color: #0284c7; }
+    .row-mint .type-icon { color: #0f766e; }
+    .row-rose .type-icon { color: #be123c; }
+    .row-peach .type-icon { color: #c2410c; }
+    .row-incomplete .type-icon { color: #7c3aed; }
+
+    .title {
+      margin: 0 0 0.36rem;
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 0.96rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-incomplete .title {
+      color: #64748b;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0.14rem 0.62rem;
+      border-radius: 9999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chip-gray {
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .chip-purple {
+      color: var(--purple-strong);
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.22);
+    }
+
+    .chip-green {
+      color: var(--success);
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .chip-warning {
+      color: var(--warning);
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+      color: #475569;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .date {
+      color: #334155;
+      font-size: 0.84rem;
+      line-height: 1.32;
+    }
+
+    .date span {
+      display: block;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.55rem;
+    }
+
+    .actions .btn {
+      padding-inline: 0.9rem;
+      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 0.9rem;
+      color: #475569;
+      font-size: 0.875rem;
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .rows-per-page {
+      height: 38px;
+      min-width: 150px;
+      border: 1px solid rgba(203, 213, 225, 0.75);
+      border-radius: var(--radius);
+      padding: 0 2rem 0 0.9rem;
+      color: #334155;
+      background: rgba(255, 255, 255, 0.86);
+      font-weight: 600;
+    }
+
+    .pager {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .pager .btn {
+      width: 38px;
+      min-width: 38px;
+      padding: 0;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    @media (min-width: 1361px) and (max-width: 1560px) {
+      .toolbar {
+        grid-template-columns: minmax(300px, 1fr) 170px 180px 180px 112px 190px;
+        gap: 1rem;
+      }
+
+      .create-btn {
+        min-width: 0;
+      }
+
+      .row,
+      .list-header {
+        grid-template-columns: 5px 54px minmax(300px, 1fr) 120px 110px 150px minmax(250px, auto);
+        gap: 0.75rem;
+      }
+
+      .actions {
+        gap: 0.45rem;
+      }
+
+      .actions .btn {
+        padding-inline: 0.72rem;
+      }
+    }
+
+    @media (max-width: 1360px) {
+      .teacher-header {
+        grid-template-columns: 1fr auto;
+      }
+
+      .teacher-nav .btn:not(.btn-primary),
+      .teacher-nav .divider {
+        display: none;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+
+      .search {
+        grid-column: 1 / -1;
+      }
+
+      .view-toggle {
+        justify-self: start;
+      }
+
+      .create-btn {
+        grid-column: span 2;
+      }
+
+      .row,
+      .list-header {
+        grid-template-columns: 5px 54px minmax(220px, 1fr) 116px 104px auto;
+      }
+
+      .date {
+        display: none;
+      }
+
+      .actions {
+        grid-column: 3 / -1;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .teacher-header {
+        min-height: 66px;
+        padding: 1rem;
+      }
+
+      .teacher-header h1 {
+        font-size: 1.25rem;
+      }
+
+      .teacher-nav {
+        display: none;
+      }
+
+      .page {
+        padding: 2rem 1rem 3rem;
+      }
+
+      .page-title {
+        font-size: 2rem;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+        padding: 0;
+      }
+
+      .filter,
+      .view-toggle,
+      .create-btn {
+        width: 100%;
+      }
+
+      .create-btn {
+        grid-column: auto;
+      }
+
+      .view-toggle .btn {
+        flex: 1;
+      }
+
+      .row,
+      .list-header {
+        grid-template-columns: 5px 48px minmax(0, 1fr);
+        gap: 0.75rem;
+        min-height: 0;
+        padding: 0.9rem 1rem 0.9rem 0;
+      }
+
+      .type-icon {
+        width: 44px;
+        height: 44px;
+        margin-left: 0.55rem;
+      }
+
+      .metric,
+      .date,
+      .actions,
+      .list-header span:nth-child(n + 4) {
+        grid-column: 3;
+      }
+
+      .list-header {
+        display: none;
+      }
+
+      .date {
+        display: block;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .actions .btn-primary,
+      .actions .btn-outline-purple {
+        grid-column: auto;
+      }
+
+      .footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .footer-actions {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="teacher-header">
+    <h1>Materials</h1>
+    <nav class="teacher-nav" aria-label="Teacher navigation">
+      <button class="btn btn-md btn-primary">Materials</button>
+      <div class="divider"></div>
+      <button class="btn btn-md btn-glass">Students</button>
+      <button class="btn btn-md btn-glass">Classes</button>
+      <button class="btn btn-md btn-glass">Courses</button>
+      <button class="btn btn-md btn-glass">Homework</button>
+      <button class="btn btn-md btn-glass">Grading</button>
+      <div class="divider"></div>
+      <button class="btn btn-md btn-glass">Sessions</button>
+      <div class="divider"></div>
+      <button class="notification" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <button class="profile" aria-label="Open profile menu">
+        <span class="avatar">TT</span>
+        <span>Teacher Test</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="page-header">
+      <h2 class="page-title">Test Dashboard</h2>
+      <p class="subtitle">Manage your tests and start formal assessment sessions</p>
+      <div class="tabs" role="tablist" aria-label="Content">
+        <button class="btn btn-sm btn-primary">📁 My Content</button>
+        <button class="btn btn-sm btn-glass">🌐 Public Library</button>
+        <button class="btn btn-sm btn-glass">📝 Drafts</button>
+      </div>
+    </section>
+
+    <section class="toolbar-card card-glass" aria-label="Search filters and view controls">
+      <div class="toolbar">
+        <label class="search">
+          <span class="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          </span>
+          <input placeholder="Search by title or keyword..." aria-label="Search by title or keyword">
+        </label>
+        <select class="filter" aria-label="Type filter"><option>All Types</option></select>
+        <select class="filter" aria-label="Status filter"><option>All Statuses</option></select>
+        <select class="filter" aria-label="Folder filter"><option>All Folders</option></select>
+        <div class="view-toggle" aria-label="View mode">
+          <button class="btn" aria-label="Grid view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+          <button class="btn active" aria-label="List view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+        </div>
+        <button class="btn btn-md btn-primary create-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Create New Test
+        </button>
+      </div>
+    </section>
+
+    <section class="list-wrap" aria-label="Materials list">
+      <div class="list-header" aria-hidden="true">
+        <span class="material-col">Material</span>
+        <span>Items</span>
+        <span>Duration</span>
+        <span>Updated</span>
+        <span class="actions-col">Actions</span>
+      </div>
+      <article class="row row-lavender">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 5 4 4L8 20H4v-4z"/><path d="m13 7 4 4"/></svg></div>
+        <div>
+          <h3 class="title" title="Codex import live check writing">Codex import live check writing</h3>
+          <div class="chips"><span class="chip chip-gray">1 task</span><span class="chip chip-purple">IELTS - Writing</span><span class="chip chip-green">40 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>1 task</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>40 min</div>
+        <div class="date">May 12, 2025<span>10:15 AM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+      </article>
+
+      <article class="row row-sky">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21h16"/><path d="M6 21V9l6-4 6 4v12"/><path d="M9 21v-7h6v7"/><path d="M9 10h.01M15 10h.01"/></svg></div>
+        <div>
+          <h3 class="title" title="G10 - CK2 - Test 3 - Set 1">G10 - CK2 - Test 3 - Set 1</h3>
+          <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">THCS-THPT</span><span class="chip chip-purple">Grade 10 - cuối kì</span><span class="chip chip-green">45 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>40 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>45 min</div>
+        <div class="date">May 11, 2025<span>4:30 PM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button><button class="btn btn-sm btn-outline-purple">Assign HW</button></div>
+      </article>
+
+      <article class="row row-mint">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
+        <div>
+          <h3 class="title" title="IELTS Reading Table Audit - Huarango v2">IELTS Reading Table Audit - Huarango v2</h3>
+          <div class="chips"><span class="chip chip-gray">3 questions</span><span class="chip chip-purple">IELTS - Reading</span><span class="chip chip-green">60 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>3 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</div>
+        <div class="date">May 9, 2025<span>9:22 AM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+      </article>
+
+      <article class="row row-lavender">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
+        <div>
+          <h3 class="title" title="IELTS Reading Test - April 2026">IELTS Reading Test - April 2026</h3>
+          <div class="chips"><span class="chip chip-gray">47 questions</span><span class="chip chip-purple">IELTS - Reading</span><span class="chip chip-green">60 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>47 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</div>
+        <div class="date">May 7, 2025<span>3:18 PM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+      </article>
+
+      <article class="row row-rose">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
+        <div>
+          <h3 class="title" title="PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Academic reading package">PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Academic reading package</h3>
+          <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">IELTS - Reading</span><span class="chip chip-purple">Reading V2</span><span class="chip chip-green">60 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>40 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</div>
+        <div class="date">May 6, 2025<span>11:05 AM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+      </article>
+
+      <article class="row row-incomplete">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 4.4 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <div>
+          <h3 class="title" title="Listening Section 1 - Incomplete">Listening Section 1 - Incomplete</h3>
+          <div class="chips"><span class="chip chip-gray">8 questions</span><span class="chip chip-gray">IELTS - Listening</span><span class="chip chip-warning">Incomplete</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>8 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>10 min</div>
+        <div class="date">May 6, 2025<span>11:05 AM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Complete</button><button class="btn btn-sm btn-glass" aria-label="More actions">...</button></div>
+      </article>
+
+      <article class="row row-peach">
+        <div class="accent"></div>
+        <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h3"/></svg></div>
+        <div>
+          <h3 class="title" title="TEST 3">TEST 3</h3>
+          <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">THCS-THPT</span><span class="chip chip-purple">Grade 12 - giữa kì</span><span class="chip chip-green">60 min</span></div>
+        </div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>40 questions</div>
+        <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>60 min</div>
+        <div class="date">May 5, 2025<span>8:45 AM</span></div>
+        <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button><button class="btn btn-sm btn-outline-purple">Assign HW</button></div>
+      </article>
+    </section>
+
+    <div class="footer">
+      <span>Showing 1 to 7 of 7 tests</span>
+      <div class="footer-actions">
+        <select class="rows-per-page" aria-label="Rows per page">
+          <option>10 per page</option>
+        </select>
+        <div class="pager" aria-label="Pagination">
+          <button class="btn btn-sm btn-glass">‹</button>
+          <button class="btn btn-sm btn-primary">1</button>
+          <button class="btn btn-sm btn-glass">›</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

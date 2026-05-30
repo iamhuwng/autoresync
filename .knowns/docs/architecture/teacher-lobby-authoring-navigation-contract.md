@@ -2,7 +2,7 @@
 title: Teacher Lobby Authoring Navigation Contract
 description: Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-05-11T17:29:15.396Z'
+updatedAt: '2026-05-30T11:54:52.416Z'
 tags:
   - architecture
   - teacher-lobby
@@ -55,3 +55,12 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`
+
+
+## PRD-0050 List View Boundary
+
+Compact Materials list mode is owned by @doc/architecture/teacher-materials-list-view-contract.
+
+Grid cards remain summary cards with two-line title clamp. List mode must not be implemented as widened cards; it uses fixed columns, a four-slot icon action rail, and restrained typography.
+
+Retired: list action rails sized by button text or by whether `Assign HW` is present.

@@ -22,7 +22,11 @@ Database/index anchors:
 
 The Teacher Lobby list is a material index/read surface. It must not hydrate canonical Reading V2 drafts, passage assets, student-safe payloads, session-safe payloads, or result projections just to render cards.
 
-UI chrome, modal authoring entry, card title clamp, search icon, and responsive teacher navigation are governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`. Keep this document focused on data loading, cache scope, realtime scope, and diagnostics.
+UI chrome, modal authoring entry, card title clamp, search icon, and responsive teacher navigation are governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+
+Compact Materials list-view layout, fixed row grid, action slots, and typography are governed by `documentation/architecture/teacher-materials-list-view-contract.md`.
+
+Keep this document focused on data loading, cache scope, realtime scope, and diagnostics.
 
 ## Listing Contract
 
@@ -121,6 +125,7 @@ These patterns are obsolete for normal Teacher Lobby material loading:
 - hydrating Reading V2 canonical documents or projections just to render material cards
 - logging grid readiness before the loaded data scope matches the active tab
 - adding always-on console timing logs outside the gated diagnostics helper
+- treating the compact list view as a data-contract rewrite or as permission to hydrate heavier payloads
 
 Old PRD-0033 references to `useTeacherTests` using `queryOptimizer.getAllTests()` are historical extraction requirements, not current architecture.
 
@@ -149,5 +154,6 @@ Keep this path healthy with these rules:
 ## Related Docs
 
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
+- `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`

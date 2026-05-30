@@ -1,7 +1,7 @@
 # Codebase Hygiene Rules
 
 > Rules for codebase-wide patterns, import bans, feature registration, and data contracts.
-> **Load this file when:** PRD says "replace ALL", writing import statements, creating user-facing features, or writing data to paths existing code reads.
+> **Load this file when:** PRD says "replace ALL", writing import statements, touching code that imports `@mantine/*`, creating user-facing features, or writing data to paths existing code reads.
 
 ---
 
@@ -23,9 +23,9 @@ If yes → grep the codebase. Don't assume only one file needs updating.
 
 ---
 
-## Rule 15 — No Mantine: Absolute Import Ban
+## Rule 15 — No Mantine: Import Ban And Encountered-Use Replacement
 
-**Trigger:** Writing ANY `import` statement or `npm install` for `@mantine/*`.
+**Trigger:** Writing ANY `import` statement or `npm install` for `@mantine/*`, or modifying a UI file/component that already imports `@mantine/*`.
 
 **The rule:**
 DO NOT import, use, or recommend ANY `@mantine/*` package in new code.
@@ -37,16 +37,23 @@ DO NOT import, use, or recommend ANY `@mantine/*` package in new code.
 | `TextInput` / `Textarea` | `<input>` / `<textarea>` |
 | `Select` | `<select>` or custom dropdown |
 | `Stack` / `Group` | `<div>` with flexbox CSS |
-| `useMediaQuery` | `window.matchMedia()` or `@media` CSS |
+| `useMediaQuery` | `@media` CSS or the approved repo responsive helper |
 | `notifications` | Custom toast system |
 
 **Scope:**
-- **New files:** ❌ ZERO Mantine imports
-- **Modifying existing files:** ⚠️ Do NOT add new Mantine imports
-- **Full rewrites:** ❌ Replace Mantine with native alternatives
+- **New files:** zero Mantine imports.
+- **Modifying existing files:** do not add Mantine imports.
+- **Encountering existing Mantine in the edited UI path:** replace the Mantine component/hook in the touched component or touched region with native HTML/CSS, shared repo primitives, or approved platform helpers.
+- **Teacher-facing UI:** same rule as student-facing UI. Do not leave Mantine in the touched teacher surface just because the older rule was student-oriented.
+- **Full rewrites:** replace Mantine with native alternatives.
+
+If replacement would expand the task beyond the touched surface, stop and document the deferred Mantine residue with file path, component name, and why it is out of scope. Do not add new Mantine while deferring old Mantine.
 
 **Self-check:** *"Am I about to write `import { ... } from '@mantine/...'`?"*
 If yes → STOP. Use native HTML/CSS.
+
+**Encounter self-check:** *"Am I editing a teacher or student UI file that already imports `@mantine/*`?"*
+If yes, replace the encountered Mantine in the touched area or record the explicit deferred residue.
 
 
 ---

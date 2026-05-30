@@ -86,6 +86,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     ],
     actions: [
       'createTest',
+      'changeMaterialsViewMode',
       'editTest',
       'toggleVisibility',
       'saveDraft',

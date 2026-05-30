@@ -1,12 +1,29 @@
 # UI Design Standards
 
+## Teacher Mantine Replacement Standard
+
+Teacher-facing UI follows the same no-Mantine rule as student-facing UI.
+
+Required behavior:
+
+- do not add new `@mantine/*` imports in teacher pages, shells, modals, forms, or cards
+- when editing a teacher component or route region that already uses Mantine, replace the Mantine component/hook in the touched area with native HTML/CSS, shared repo primitives, or approved platform helpers
+- treat remaining Mantine on teacher routes as transitional residue, not a design-system option
+- if replacement would expand beyond the touched teacher surface, document the deferred residue with file path, component name, and reason
+
+Forbidden patterns:
+
+- using Mantine as the default implementation for new teacher UI
+- adding nested Mantine providers to make a teacher surface work
+- preserving touched Mantine wrappers in a teacher UI rewrite without a documented deferral
+
 ## Teacher Full-Page Result Standard
 
 Teacher-facing result history and result detail pages opened from Teacher view must render as teacher pages, not detached standalone screens.
 
 Required layout:
 
-- `AppShell`
+- teacher shell wrapper or native AppShell-equivalent container; legacy Mantine `AppShell` is transitional only
 - `TeacherHeader`
 - teacher page title/introduction block
 - teacher page content container for analytics, filters, history, and detail content

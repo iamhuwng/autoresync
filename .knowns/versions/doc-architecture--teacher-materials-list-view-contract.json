@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/teacher-materials-list-view-contract",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/teacher-materials-list-view-contract",
+      "version": 1,
+      "timestamp": "2026-05-30T11:54:40.7045367Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher Materials List View Contract"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Teacher Lobby Materials compact list-view contract for PRD-0050: fixed grid columns, four-slot icon action rail, typography hierarchy, tab scope, and retired widened-card patterns."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher-lobby",
+            "materials",
+            "list-view",
+            "prd-0050"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher Materials List View Contract\n\n## Purpose\n\nDefines the Teacher Lobby Materials compact list-view contract introduced by PRD-0050.\n\nThe list view is not a widened one-column card grid. It is a scan/comparison mode with fixed column geometry, icon-only actions, restrained typography, and summary-only material metadata.\n\nRepo architecture mirror: `documentation/architecture/teacher-materials-list-view-contract.md`.\n\n## Runtime Anchors\n\n- `src/pages/TeacherLobbyPage.jsx`\n- `src/components/modern/SearchFilterBar.jsx`\n- `src/components/modern/MaterialViewModeToggle.jsx`\n- `src/components/modern/MaterialListView.jsx`\n- `src/components/modern/MaterialListRow.jsx`\n- `src/components/modern/materialListAdapter.js`\n\nData-loading scope remains owned by @doc/architecture/teacher-materials-listing-and-diagnostics.\n\nAuthoring entry, grid-card behavior, search ownership, and teacher navigation remain owned by @doc/architecture/teacher-lobby-authoring-navigation-contract.\n\n## View Mode Contract\n\nTeacher Lobby Materials supports:\n\n- `grid`: default browsing mode using existing cards.\n- `list`: compact scan mode using normalized row view models.\n\nView mode is memory-only local component state in PRD-0050. Do not persist it in browser storage without a separate portability review.\n\nSwitching view mode must not reset active tab, search query, filters, or loaded material data.\n\n## List Geometry Contract\n\nHeader and rows share one CSS grid definition through `--material-list-grid`.\n\nVisible columns:\n\n1. `Material`\n2. `Items`\n3. `Updated`\n4. `Actions`\n\nDuration is badge-only inside the Material cell. It is not a scan column.\n\nRequired desktop widths: `1280`, `1366`, `1440`, `1536`, `1586`, `1600`, `1920`.\n\nAt those widths:\n\n- no document horizontal overflow\n- header `Items`, `Updated`, and `Actions` x positions match first-row cells within `1px`\n- normal row height stays `64px` to `68px`\n\nDo not hide horizontal overflow as a substitute for fixing grid geometry.\n\n## Action Rail Contract\n\nList actions use a fixed four-slot icon rail. Missing actions leave empty slots and must not resize the rail.\n\nSlot ownership belongs in the row view model from `materialListAdapter.js`.\n\n| Slot | Action family |\n| --- | --- |\n| 1 | `Edit`, `View`, `Use as-is`, `Complete` |\n| 2 | `Delete` |\n| 3 | `Start Test`, `Clone` |\n| 4 | `Assign HW` |\n\nButtons are visually icon-only. Keep `aria-label` and `title`; visually hidden text may remain for accessibility/fallback.\n\n## Typography Contract\n\nDo not make all visible list text bold.\n\nCurrent hierarchy:\n\n- row title: `600`\n- headers: `500`\n- badges: `500`\n- action fallback text: `500`, visually hidden\n- metrics, updated date, footer: `400`\n\nUse color, iconography, and slot position for priority before increasing font weight.\n\n## Tab Scope\n\nMy Content and Public Library support grid and list modes.\n\nDrafts remain grid-only in PRD-0050. `useTeacherDrafts` still runs only when Drafts tab is active.\n\nPublic Library rows must not expose owner-only actions such as `Delete`.\n\n## Retired Patterns\n\nObsolete for Teacher Lobby Materials list mode:\n\n- list rows as widened grid cards\n- action columns sized by button text or row action count\n- `Assign HW` widening THCS rows\n- dedicated `Duration` scan column while duration is already a badge\n- blanket `font-weight: 700` or `800` across headers, titles, badges, metrics, actions\n- desktop action overflow menus used to hide broken rail geometry\n- fake status/folder filters without backed data and handlers\n\n## Verification Anchors\n\nRun focused tests:\n\n```powershell\ncmd /c \"cd /d C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased \u0026\u0026 npx vitest run src/components/modern/materialListAdapter.test.js src/components/modern/MaterialListRow.test.jsx src/components/modern/MaterialListView.test.jsx src/pages/TeacherLobbyPage.test.jsx --reporter=basic\"\n```\n\nAlso run targeted UTF-8, `git diff --check`, browser width probe, and computed-style proof after typography changes.\n",
+        "description": "Teacher Lobby Materials compact list-view contract for PRD-0050: fixed grid columns, four-slot icon action rail, typography hierarchy, tab scope, and retired widened-card patterns.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "materials",
+          "list-view",
+          "prd-0050"
+        ],
+        "title": "Teacher Materials List View Contract"
+      }
+    }
+  ]
+}

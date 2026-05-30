@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Teacher Materials Compact List Component Master</title>
+  <style>
+    :root {
+      --ink: #1e293b;
+      --muted: #64748b;
+      --soft: #94a3b8;
+      --line: rgba(203, 213, 225, 0.55);
+      --purple: #8b5cf6;
+      --purple-strong: #7c3aed;
+      --danger: #f43f5e;
+      --success: #16a34a;
+      --warning: #b45309;
+      --sky: #0ea5e9;
+      --mint: #14b8a6;
+      --rose: #f43f5e;
+      --peach: #f97316;
+      --radius: 0.5rem;
+      --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--font);
+      background:
+        linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%);
+      background-attachment: fixed;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .wrap {
+      max-width: none;
+      margin: 0;
+      padding: 40px 37px 80px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 860px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding: 24px;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(203, 213, 225, 0.3);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px) saturate(180%);
+    }
+
+    .section h2 {
+      margin: 0 0 16px;
+      font-size: 20px;
+    }
+
+    .mapping {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .mapping th,
+    .mapping td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(203, 213, 225, 0.55);
+      text-align: left;
+      vertical-align: top;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .mapping th {
+      color: #475569;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    code {
+      color: #334155;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .swatch {
+      min-height: 74px;
+      border-radius: var(--radius);
+      padding: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .swatch span {
+      display: block;
+      margin-top: 18px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .tone-lavender { background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(196, 181, 253, 0.15)); }
+    .tone-sky { background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(125, 211, 252, 0.15)); }
+    .tone-mint { background: linear-gradient(135deg, rgba(45, 212, 191, 0.2), rgba(94, 234, 212, 0.15)); }
+    .tone-rose { background: linear-gradient(135deg, rgba(251, 113, 133, 0.2), rgba(253, 164, 175, 0.15)); }
+    .tone-peach { background: linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(253, 186, 116, 0.15)); }
+    .tone-glass { background: rgba(255, 255, 255, 0.95); }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 443px 200px 214px 214px 112px 190px;
+      gap: clamp(1.1rem, calc((100% - 1373px) / 5), 1.5rem);
+      align-items: center;
+    }
+
+    .field {
+      height: 48px;
+      border: 1px solid rgba(203, 213, 225, 0.65);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.82);
+      color: #334155;
+    }
+
+    .search {
+      position: relative;
+      min-width: 0;
+    }
+
+    .search input {
+      width: 100%;
+      height: 48px;
+      padding: 0 1rem 0 3rem;
+      outline: 0;
+    }
+
+    .search svg {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #0f172a;
+    }
+
+    select.field {
+      padding: 0 1rem;
+    }
+
+    .view-toggle {
+      width: 112px;
+      height: 48px;
+      display: inline-flex;
+      overflow: hidden;
+      border: 1px solid rgba(203, 213, 225, 0.65);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 34px;
+      border: 0;
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .btn-sm {
+      height: 34px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.875rem;
+    }
+
+    .btn-md {
+      height: 48px;
+      padding: 0 1.2rem;
+      font-size: 0.9375rem;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--purple);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-glass {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-danger {
+      color: #fff;
+      background: var(--danger);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-outline-purple {
+      color: var(--purple-strong);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .view-toggle .btn {
+      width: 56px;
+      height: 48px;
+      min-height: 48px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #475569;
+      box-shadow: none;
+    }
+
+    .view-toggle .active {
+      color: #0f766e;
+      background: rgba(20, 184, 166, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.5);
+    }
+
+    .list {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .list-header {
+      display: grid;
+      grid-template-columns: 5px 54px minmax(420px, 552px) 145px 145px 210px minmax(260px, 1fr);
+      align-items: center;
+      gap: 1rem;
+      padding: 0 1.25rem 0.45rem 0;
+      color: #64748b;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .list-header .material-col {
+      grid-column: 1 / 4;
+      padding-left: 1.05rem;
+    }
+
+    .list-header .actions-col {
+      justify-self: center;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 5px 54px minmax(420px, 552px) 145px 145px 210px minmax(260px, 1fr);
+      align-items: center;
+      gap: 1rem;
+      min-height: 64px;
+      overflow: hidden;
+      border-radius: var(--radius);
+      padding: 0.46rem 1.25rem 0.46rem 0;
+      backdrop-filter: blur(16px) saturate(200%);
+    }
+
+    .row-lavender {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(196, 181, 253, 0.15) 100%);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .row-sky {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(125, 211, 252, 0.15) 100%);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+    }
+
+    .row-mint {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(45, 212, 191, 0.2) 0%, rgba(94, 234, 212, 0.15) 100%);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+    }
+
+    .row-rose {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(251, 113, 133, 0.2) 0%, rgba(253, 164, 175, 0.15) 100%);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .row-peach {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.72) 100%),
+        linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(253, 186, 116, 0.15) 100%);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .row-incomplete {
+      opacity: 0.78;
+      filter: grayscale(25%);
+      border: 2px dashed rgba(148, 163, 184, 0.55);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .accent {
+      height: 100%;
+      align-self: stretch;
+      background: var(--purple);
+    }
+
+    .row-sky .accent { background: var(--sky); }
+    .row-mint .accent { background: var(--mint); }
+    .row-rose .accent { background: var(--rose); }
+    .row-peach .accent { background: var(--peach); }
+    .row-incomplete .accent { background: #94a3b8; }
+
+    .type-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      margin-left: 0.75rem;
+      border-radius: var(--radius);
+      color: var(--purple-strong);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .row-sky .type-icon { color: #0284c7; }
+    .row-mint .type-icon { color: #0f766e; }
+    .row-rose .type-icon { color: #be123c; }
+    .row-peach .type-icon { color: #c2410c; }
+
+    .title {
+      margin: 0 0 0.36rem;
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 0.96rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0.14rem 0.62rem;
+      border-radius: 9999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chip-gray {
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .chip-purple {
+      color: var(--purple-strong);
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.22);
+    }
+
+    .chip-green {
+      color: var(--success);
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .chip-warning {
+      color: var(--warning);
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #475569;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .date {
+      color: #334155;
+      font-size: 0.84rem;
+      line-height: 1.32;
+    }
+
+    .date span {
+      display: block;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.55rem;
+    }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .state-card {
+      min-height: 122px;
+      padding: 16px;
+      border: 1px solid rgba(203, 213, 225, 0.45);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .state-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .state-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 1560px) {
+      .toolbar {
+        grid-template-columns: minmax(300px, 1fr) 170px 180px 180px 112px 190px;
+        gap: 1rem;
+      }
+
+      .list-header,
+      .row {
+        grid-template-columns: 5px 54px minmax(300px, 1fr) 120px 110px 150px minmax(250px, auto);
+        gap: 0.75rem;
+      }
+
+      .actions {
+        gap: 0.45rem;
+      }
+
+      .actions .btn {
+        padding-inline: 0.72rem;
+      }
+    }
+
+    @media (max-width: 1320px) {
+      .toolbar {
+        grid-template-columns: minmax(280px, 1fr) 145px 155px 155px 104px 168px;
+        gap: 0.75rem;
+      }
+
+      .view-toggle {
+        width: 104px;
+      }
+
+      .view-toggle .btn {
+        width: 52px;
+      }
+
+      .list-header,
+      .row {
+        grid-template-columns: 5px 50px minmax(260px, 1fr) 110px 96px 132px minmax(235px, auto);
+      }
+
+      .btn-md {
+        padding-inline: 1rem;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Teacher Materials Compact List Component Master</h1>
+    <p class="lead">List mode reuses Teacher Lobby primitives for unity, but uses list-specific structure for compact scanning and comparison.</p>
+
+    <section class="section">
+      <h2>Implementation Mapping</h2>
+      <table class="mapping">
+        <thead>
+          <tr>
+            <th>Part</th>
+            <th>Reuse</th>
+            <th>List-Specific Choice</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Shell</td>
+            <td><code>TeacherHeader</code>, <code>TeacherNavigation</code></td>
+            <td>No separate app shell.</td>
+          </tr>
+          <tr>
+            <td>Toolbar</td>
+            <td><code>SearchFilterBar</code>, <code>Input</code>, <code>NativeSelect</code>, <code>Button</code></td>
+            <td>Add grid/list view toggle. Search, type, status, folder, and create button match approved mockup geometry.</td>
+          </tr>
+          <tr>
+            <td>Grid</td>
+            <td><code>TestCard</code>, <code>ThcsTestCard</code>, <code>DraftCard</code></td>
+            <td>Keep current browsing cards.</td>
+          </tr>
+          <tr>
+            <td>List row</td>
+            <td><code>Card</code> color tokens, <code>Button</code>, <code>icons.jsx</code>, <code>TestCard.css</code> badges</td>
+            <td>Compact row grid with accent, type icon, metadata columns, right actions.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Token Reuse</h2>
+      <div class="swatches">
+        <div class="swatch tone-lavender">lavender<span>writing / first row</span></div>
+        <div class="swatch tone-sky">sky<span>THCS rows</span></div>
+        <div class="swatch tone-mint">mint<span>reading rows</span></div>
+        <div class="swatch tone-rose">rose<span>alert / V2 rows</span></div>
+        <div class="swatch tone-peach">peach<span>later THCS rows</span></div>
+        <div class="swatch tone-glass">glass<span>toolbar</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Approved Desktop Contract</h2>
+      <table class="mapping">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Contract</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Canvas</td>
+            <td>Teacher desktop, 1586px x 992px reference render. No mobile optimization for this proposal.</td>
+          </tr>
+          <tr>
+            <td>Toolbar</td>
+            <td><code>443 / 200 / 214 / 214 / 112 / 190</code> columns for search, type, status, folder, toggle, create.</td>
+          </tr>
+          <tr>
+            <td>List grid</td>
+            <td><code>5 / 54 / minmax(420,552) / 145 / 145 / 210 / minmax(260,1fr)</code> for accent, icon, material, items, duration, updated, actions.</td>
+          </tr>
+          <tr>
+            <td>Row density</td>
+            <td>64-68px normal rows. Long titles never increase row height; use single-line ellipsis and native title tooltip.</td>
+          </tr>
+          <tr>
+            <td>Header</td>
+            <td><code>Material</code> spans accent, icon, and title. Metric labels align to their row columns.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Toolbar Candidate</h2>
+      <div class="toolbar">
+        <label class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="field" placeholder="Search by title or keyword..." aria-label="Search by title or keyword">
+        </label>
+        <select class="field"><option>All Types</option></select>
+        <select class="field"><option>All Statuses</option></select>
+        <select class="field"><option>All Folders</option></select>
+        <div class="view-toggle" aria-label="View mode">
+          <button class="btn" aria-label="Grid view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+          <button class="btn active" aria-label="List view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+        </div>
+        <button class="btn btn-md btn-primary">Create New Test</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Compact Row Pattern</h2>
+      <div class="list">
+        <div class="list-header" aria-hidden="true">
+          <span class="material-col">Material</span>
+          <span>Items</span>
+          <span>Duration</span>
+          <span>Updated</span>
+          <span class="actions-col">Actions</span>
+        </div>
+        <article class="row row-lavender">
+          <div class="accent"></div>
+          <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 5 4 4L8 20H4v-4z"/><path d="m13 7 4 4"/></svg></div>
+          <div>
+            <h3 class="title">Codex import live check writing</h3>
+            <div class="chips"><span class="chip chip-gray">1 task</span><span class="chip chip-purple">IELTS - Writing</span><span class="chip chip-green">40 min</span></div>
+          </div>
+          <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>1 task</div>
+          <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>40 min</div>
+          <div class="date">May 12, 2025<span>10:15 AM</span></div>
+          <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+        </article>
+
+        <article class="row row-sky">
+          <div class="accent"></div>
+          <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21h16"/><path d="M6 21V9l6-4 6 4v12"/><path d="M9 21v-7h6v7"/></svg></div>
+          <div>
+            <h3 class="title">G10 - CK2 - Test 3 - Set 1</h3>
+            <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">THCS-THPT</span><span class="chip chip-purple">Grade 10 - cuối kì</span><span class="chip chip-green">45 min</span></div>
+          </div>
+          <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>40 questions</div>
+          <div class="metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>45 min</div>
+          <div class="date">May 11, 2025<span>4:30 PM</span></div>
+          <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button><button class="btn btn-sm btn-outline-purple">Assign HW</button></div>
+        </article>
+
+        <article class="row row-rose">
+          <div class="accent"></div>
+          <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
+          <div>
+            <h3 class="title" title="PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Academic reading package">PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Academic reading package</h3>
+            <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">IELTS - Reading</span><span class="chip chip-purple">Reading V2</span><span class="chip chip-green">60 min</span></div>
+          </div>
+          <div class="metric">40 questions</div>
+          <div class="metric">60 min</div>
+          <div class="date">May 6, 2025<span>11:05 AM</span></div>
+          <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button></div>
+        </article>
+
+        <article class="row row-incomplete">
+          <div class="accent"></div>
+          <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 4.4 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+          <div>
+            <h3 class="title">Listening Section 1 - Incomplete</h3>
+            <div class="chips"><span class="chip chip-gray">8 questions</span><span class="chip chip-gray">IELTS - Listening</span><span class="chip chip-warning">Incomplete</span></div>
+          </div>
+          <div class="metric">8 questions</div>
+          <div class="metric">10 min</div>
+          <div class="date">May 6, 2025<span>11:05 AM</span></div>
+          <div class="actions"><button class="btn btn-sm btn-glass">Complete</button><button class="btn btn-sm btn-glass">...</button></div>
+        </article>
+
+        <article class="row row-peach">
+          <div class="accent"></div>
+          <div class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h3"/></svg></div>
+          <div>
+            <h3 class="title">TEST 3</h3>
+            <div class="chips"><span class="chip chip-gray">40 questions</span><span class="chip chip-purple">THCS-THPT</span><span class="chip chip-purple">Grade 12 - giữa kì</span><span class="chip chip-green">60 min</span></div>
+          </div>
+          <div class="metric">40 questions</div>
+          <div class="metric">60 min</div>
+          <div class="date">May 5, 2025<span>8:45 AM</span></div>
+          <div class="actions"><button class="btn btn-sm btn-glass">Edit</button><button class="btn btn-sm btn-danger">Delete</button><button class="btn btn-sm btn-primary">Start Test</button><button class="btn btn-sm btn-outline-purple">Assign HW</button></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Action Matrix</h2>
+      <table class="mapping">
+        <thead>
+          <tr>
+            <th>Row Source</th>
+            <th>Actions</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>My Content</td>
+            <td><code>Edit</code>, <code>Delete</code>, <code>Start Test</code></td>
+            <td>Default owned material action set.</td>
+          </tr>
+          <tr>
+            <td>THCS My Content</td>
+            <td><code>Edit</code>, <code>Delete</code>, <code>Start Test</code>, <code>Assign HW</code></td>
+            <td>Keep homework assignment visible without row expansion.</td>
+          </tr>
+          <tr>
+            <td>Incomplete</td>
+            <td><code>Complete</code>, overflow menu</td>
+            <td>No active start action until material is recoverable.</td>
+          </tr>
+          <tr>
+            <td>Public Library</td>
+            <td><code>Use as-is</code>, <code>Clone & Customize</code></td>
+            <td>Reuse existing public-library ownership rules.</td>
+          </tr>
+          <tr>
+            <td>Drafts</td>
+            <td><code>Resume Editing</code>, <code>Delete</code></td>
+            <td>Keep draft source separate from published tests.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>States</h2>
+      <div class="state-grid">
+        <div class="state-card">
+          <h3>Grid mode</h3>
+          <p>Browse-first cards. More visual breathing room. Existing components stay intact.</p>
+        </div>
+        <div class="state-card">
+          <h3>List mode</h3>
+          <p>Scan-first rows. Parallel columns for count, duration, date, and right-side actions.</p>
+        </div>
+        <div class="state-card">
+          <h3>Teacher desktop scope</h3>
+          <p>No mobile behavior needed for this teacher list proposal. Keep desktop density, fixed columns, and compact actions.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

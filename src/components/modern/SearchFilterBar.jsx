@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, Button, NativeSelect } from './index';
 import { PlusIcon, SearchIcon } from './icons.jsx';
+import MaterialViewModeToggle from './MaterialViewModeToggle';
 import './SearchFilterBar.css';
 
 const SearchFilterBar = ({
@@ -14,7 +15,11 @@ const SearchFilterBar = ({
   thcsExamTypeFilter,
   onThcsExamTypeFilterChange,
   onCreateNew,
+  viewMode,
+  onViewModeChange,
 }) => {
+  const showViewModeToggle = viewMode && typeof onViewModeChange === 'function';
+
   return (
     <div className="search-filter-bar">
       <div className="search-filter-bar__search">
@@ -28,7 +33,6 @@ const SearchFilterBar = ({
         />
       </div>
 
-      {/* Type filters - only in public library mode */}
       {contentFilter === 'public' && (
         <>
           <NativeSelect
@@ -81,6 +85,12 @@ const SearchFilterBar = ({
             </>
           )}
         </>
+      )}
+
+      {showViewModeToggle && (
+        <div className="search-filter-bar__view-toggle">
+          <MaterialViewModeToggle value={viewMode} onChange={onViewModeChange} />
+        </div>
       )}
 
       <Button

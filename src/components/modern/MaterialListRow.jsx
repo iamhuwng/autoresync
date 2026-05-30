@@ -1,0 +1,92 @@
+import React from 'react';
+import {
+  AlertTriangleIcon,
+  CloneIcon,
+  DeleteIcon,
+  EditIcon,
+  FileIcon,
+  HomeIcon,
+  PlayIcon,
+  UseAsIsIcon,
+  ViewIcon,
+} from './icons.jsx';
+import './MaterialListRow.css';
+
+const ICONS = {
+  edit: EditIcon,
+  delete: DeleteIcon,
+  play: PlayIcon,
+  view: ViewIcon,
+  clone: CloneIcon,
+  'use-as-is': UseAsIsIcon,
+};
+
+const ROW_ICONS = {
+  school: HomeIcon,
+  reading: FileIcon,
+  writing: EditIcon,
+  incomplete: AlertTriangleIcon,
+  test: FileIcon,
+};
+
+const MaterialListRow = ({ row }) => {
+  const RowIcon = ROW_ICONS[row.iconKind] || FileIcon;
+
+  const renderActionButton = (item) => {
+    const ActionIcon = ICONS[item.iconKind] || null;
+    return (
+      <button
+        key={item.key}
+        type="button"
+        className={`material-list-row__action material-list-row__action--${item.variant || 'secondary'}`}
+        style={{ gridColumn: item.slot || 'auto' }}
+        aria-label={item.label}
+        disabled={item.disabled}
+        title={item.disabled ? item.disabledReason : item.label}
+        onClick={() => {
+          if (!item.disabled) {
+            item.onSelect?.();
+          }
+        }}
+      >
+        {ActionIcon && <ActionIcon size={14} />}
+        <span className="material-list-row__action-label">{item.label}</span>
+      </button>
+    );
+  };
+
+  return (
+    <div className={`material-list-row material-list-row--${row.accentKind || 'lavender'}`} data-testid={`material-list-row-${row.id}`}>
+      <div className="material-list-row__accent" aria-hidden="true" />
+      <div className="material-list-row__icon-tile" aria-hidden="true">
+        <RowIcon size={20} />
+      </div>
+
+      <div className="material-list-row__material">
+        <div className="material-list-row__title" title={row.titleTooltip || row.title}>
+          {row.title}
+        </div>
+        <div className="material-list-row__badges" aria-label={`${row.title} metadata`}>
+          {row.badges.map((badge) => (
+            <span key={badge.key} className={`material-list-row__badge material-list-row__badge--${badge.tone || 'neutral'}`}>
+              {badge.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="material-list-row__metric material-list-row__metric--items">
+        <FileIcon size={16} />
+        <span>{row.itemLabel}</span>
+      </div>
+      <div className="material-list-row__updated">
+        {row.updatedLabel}
+      </div>
+      <div className="material-list-row__actions" aria-label={`${row.title} actions`}>
+        {row.actions.map((item) => renderActionButton(item))}
+      </div>
+    </div>
+  );
+};
+
+export default React.memo(MaterialListRow);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherLobbyPage from './TeacherLobbyPage';
@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   openUseAsIs: vi.fn(),
   openHwDialog: vi.fn(),
   startSession: vi.fn(),
+  logDiagnostic: vi.fn(),
+  loadedScope: 'owned',
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -39,6 +41,10 @@ vi.mock('../utils/lazyWithRetry.ts', () => ({
   lazyWithRetry: () => function MockLazyComponent() {
     return <div data-testid="legacy-lazy-component">Legacy lazy component</div>;
   },
+}));
+
+vi.mock('../utils/teacherMaterialsDiagnostics', () => ({
+  logTeacherMaterialsDiagnostic: (event, payload) => mocks.logDiagnostic(event, payload),
 }));
 
 vi.mock('../hooks/useNavigation', () => ({
@@ -85,6 +91,7 @@ vi.mock('../hooks/test/useTeacherTests', () => ({
   useTeacherTests: () => ({
     tests: mocks.tests,
     loading: false,
+    loadedScope: mocks.loadedScope,
     deleteTest: vi.fn(),
     togglePublic: vi.fn(),
     refresh: mocks.refreshTests,
@@ -176,10 +183,52 @@ vi.mock('../components/modern/ContentTabs', () => ({
 }));
 
 vi.mock('../components/modern/SearchFilterBar', () => ({
-  default: ({ onCreateNew }) => (
-    <div>
+  default: ({ onCreateNew, viewMode, onViewModeChange }) => (
+    <div data-testid="search-filter-bar" data-view-mode={viewMode}>
       <button type="button" onClick={onCreateNew}>Create New</button>
+      {viewMode && (
+        <>
+          <button
+            type="button"
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
+            onClick={() => onViewModeChange('grid')}
+          >
+            Grid view
+          </button>
+          <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
+            onClick={() => onViewModeChange('list')}
+          >
+            List view
+          </button>
+        </>
+      )}
     </div>
+  ),
+}));
+
+vi.mock('../components/modern/MaterialListView', () => ({
+  default: ({ rows }) => (
+    <section data-testid="material-list-view">
+      {rows.map((row) => (
+        <article key={row.id} data-testid={`material-list-row-${row.id}`}>
+          <h2>{row.title}</h2>
+          {row.actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              disabled={action.disabled}
+              onClick={action.onSelect}
+            >
+              {action.label}
+            </button>
+          ))}
+        </article>
+      ))}
+    </section>
   ),
 }));
 
@@ -200,6 +249,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     vi.clearAllMocks();
     mocks.tests = [];
     mocks.drafts = [];
+    mocks.loadedScope = 'owned';
   });
 
   it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {
@@ -286,6 +336,73 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     expect(screen.queryByTestId('test-card-passage-asset-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('test-card-material-v2')).toBeInTheDocument();
+  });
+
+  it('switches Materials into list view and keeps existing actions wired', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'legacy-reading-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        title: 'Legacy Reading',
+        questionCount: 40,
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    expect(screen.getByTestId('test-card-legacy-reading-1')).toBeInTheDocument();
+    expect(screen.getByTestId('search-filter-bar')).toHaveAttribute('data-view-mode', 'grid');
+
+    await user.click(screen.getByRole('button', { name: 'List view' }));
+
+    expect(screen.getByTestId('material-list-view')).toBeInTheDocument();
+    expect(screen.getByTestId('material-list-row-legacy-reading-1')).toBeInTheDocument();
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'changeMaterialsViewMode',
+      expect.objectContaining({
+        source: 'teacher_lobby_materials_toolbar',
+        tab: 'my',
+        viewMode: 'list',
+      })
+    );
+
+    await user.click(within(screen.getByTestId('material-list-row-legacy-reading-1')).getByRole('button', { name: 'Start Test' }));
+    expect(mocks.startSession).toHaveBeenCalledWith('legacy-reading-1', 'test');
+  });
+
+  it('includes viewMode in Teacher Materials render diagnostics', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'legacy-reading-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        title: 'Legacy Reading',
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    await waitFor(() => {
+      expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+        'grid_rendered',
+        expect.objectContaining({ viewMode: 'grid', visibleCount: 1 })
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: 'List view' }));
+
+    await waitFor(() => {
+      expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+        'grid_rendered',
+        expect.objectContaining({ viewMode: 'list', visibleCount: 1 })
+      );
+    });
   });
 
   it('does not expose Reading V2 drafts through Teacher Lobby draft cards', async () => {

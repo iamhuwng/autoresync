@@ -4,6 +4,8 @@
 
 This note documents the runtime guards that keep teacher routes from failing blank when a secondary modal, provider dependency, or lazy route import breaks during development or deployment transitions.
 
+This is a transitional runtime-safety note, not permission to keep expanding Mantine. When a teacher route or teacher UI region that still uses Mantine is touched, follow `documentation/rules/codebase-hygiene.md` and replace the encountered Mantine usage in the touched area.
+
 ## Failure Modes Addressed
 
 - a teacher route lazy import fails because the browser fetches a stale or outdated optimized dependency bundle
@@ -44,6 +46,7 @@ Current repo anchor:
 ## Working Rules
 
 - if a route still depends on Mantine, do not remove the global provider until all Mantine usage on that route tree is gone
+- if a touched teacher route region still depends on Mantine, replace the encountered Mantine component/hook before adding new UI behavior
 - if a modal is opened from a button or card action rather than page mount, prefer lazy-loading the modal component
 - if `lazyWithRetry` exhausts its retry path, the route wrapper must still show an error boundary fallback instead of collapsing the screen
 - route hardening fixes should be verified in a real browser session, not only through unit tests

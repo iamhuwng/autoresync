@@ -7,6 +7,8 @@
 
 **DO NOT import, use, or recommend ANY `@mantine/*` package for NEW code.**
 
+This applies to both student-facing and teacher-facing surfaces. The student-view rule is not a special carveout; teacher view follows the same no-Mantine migration rule.
+
 This includes but is not limited to:
 - `@mantine/core` (Button, Modal, TextInput, Select, Stack, Group, Text, Badge, etc.)
 - `@mantine/hooks` (useMediaQuery, useDisclosure, etc.)
@@ -36,8 +38,10 @@ This includes but is not limited to:
 |-------|------|
 | **New files** | ❌ ZERO Mantine imports allowed |
 | **New components** | ❌ ZERO Mantine components allowed |
-| **Existing files being modified** | ⚠️ Do NOT add new Mantine imports. Existing usage may remain temporarily. |
+| **Existing files being modified** | Do NOT add new Mantine imports. Replace Mantine encountered in the touched UI component or touched region. |
 | **Full rewrites/refactors** | ❌ Replace Mantine with native alternatives |
+
+If replacing encountered Mantine would expand beyond the requested surface, document the deferred residue with file path, component name, and reason. Do not add new Mantine while deferring old Mantine.
 
 ## Why
 
@@ -49,3 +53,4 @@ Before writing ANY import statement, ask:
 1. Does this import from `@mantine/*`? → **STOP. Use an alternative.**
 2. Am I about to suggest installing a `@mantine/*` package? → **STOP. Find another way.**
 3. Am I copying code from an existing file that uses Mantine? → **Replace Mantine components with native equivalents.**
+4. Am I editing a teacher UI area that already uses Mantine? → **Replace the encountered Mantine in the touched area or document the explicit deferred residue.**

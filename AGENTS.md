@@ -61,8 +61,9 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
-| Writing ANY `import` - `@mantine/*` is **banned** | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing ANY `import` or touching UI code that already imports `@mantine/*` - `@mantine/*` is **banned** and encountered usage must be replaced | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Changing teacher shell, Teacher Lobby, teacher result/history/detail pages, or teacher UI that still uses Mantine | [`architecture/ui-design-standards.md`](documentation/architecture/ui-design-standards.md) |
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
