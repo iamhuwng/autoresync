@@ -1,10 +1,14 @@
-## Integration Safety Rules (22 rules - ZERO BYPASS)
+## Integration Safety Rules (23 rules - ZERO BYPASS)
 
 When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
 
 ## Design Gate (MANDATORY)
 
 Before any UI or UX work, read [`DESIGN.md`](DESIGN.md). Treat it as the active repo-wide design gate and source classifier before using student, teacher, `.stitch`, archive, or agent-overlay design notes.
+
+## Teacher Header Shell Boundary (MANDATORY)
+
+For teacher pages, `TeacherHeader` owns shared header design and must stay attached to the top page/shell edge. Put page padding, max-width, and content spacing inside `main` or a content wrapper, never around `TeacherHeader`.
 
 ## Test Command Execution On Windows (MANDATORY)
 
@@ -64,6 +68,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Writing ANY `import` or touching UI code that already imports `@mantine/*` - `@mantine/*` is **banned** and encountered usage must be replaced | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Changing teacher shell, Teacher Lobby, teacher result/history/detail pages, or teacher UI that still uses Mantine | [`architecture/ui-design-standards.md`](documentation/architecture/ui-design-standards.md) |
+| Changing `TeacherHeader` placement or teacher page shell spacing | [`architecture/teacher-lobby-authoring-and-navigation.md`](documentation/architecture/teacher-lobby-authoring-and-navigation.md) |
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |

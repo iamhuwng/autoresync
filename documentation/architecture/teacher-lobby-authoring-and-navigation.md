@@ -93,6 +93,8 @@ Responsive rules:
 
 Required behavior:
 
+- `TeacherHeader` is the shared header design owner and must render as a top-level page/shell child attached to the viewport edge.
+- Page padding, max-width, and lobby content spacing belong inside `main` or its content wrapper, not around `TeacherHeader`.
 - The compact hamburger dropdown is for narrow desktop/tablet overflow, not only phone layouts.
 - The profile menu and compact navigation menu close on outside click and Escape.
 - Teacher pages should not allow nav tab text to squeeze or wrap into broken header layouts.
@@ -109,6 +111,7 @@ These patterns are obsolete for the current Teacher Lobby create/navigation flow
 - full teacher tab row on narrow desktop widths where it collides with user/profile controls
 - compact list rows implemented as widened one-column cards
 - list action rails sized by button text or by whether `Assign HW` is present
+- wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
 
 Historical docs may still mention these patterns as original PRD targets or pre-refactor behavior. Treat those references as historical unless this document explicitly delegates ownership elsewhere.
 

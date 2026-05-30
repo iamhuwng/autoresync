@@ -137,7 +137,7 @@ vi.mock('../hooks/test/useTestFilters', () => ({
 }));
 
 vi.mock('../components/navigation', () => ({
-  TeacherHeader: () => <header>Teacher Header</header>,
+  TeacherHeader: () => <header data-testid="teacher-header">Teacher Header</header>,
 }));
 
 vi.mock('../components/modern', () => ({
@@ -250,6 +250,16 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.tests = [];
     mocks.drafts = [];
     mocks.loadedScope = 'owned';
+  });
+
+  it('keeps the unified TeacherHeader attached to the page root', () => {
+    const { container } = render(<TeacherLobbyPage />);
+    const pageRoot = container.firstElementChild;
+    const teacherHeader = screen.getByTestId('teacher-header');
+
+    expect(teacherHeader.parentElement).toBe(pageRoot);
+    expect(pageRoot.firstElementChild).toBe(teacherHeader);
+    expect(teacherHeader.nextElementSibling?.tagName).toBe('MAIN');
   });
 
   it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {

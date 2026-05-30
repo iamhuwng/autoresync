@@ -2,7 +2,7 @@
 title: Teacher Lobby Authoring Navigation Contract
 description: Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-05-30T15:08:01.167Z'
+updatedAt: '2026-05-30T15:27:48.888Z'
 tags:
   - architecture
   - teacher-lobby
@@ -35,6 +35,8 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - Reading V2 uses the same modal entry and forwards metadata/start mode into Studio.
 - `SearchFilterBar` search input uses the shared SVG `SearchIcon`; do not use emoji-only input icons.
 - Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.
+- `TeacherHeader` owns the shared teacher header design and must render as a top-level page/shell child attached to the top edge.
+- Page padding, max-width, and lobby content spacing belong inside `main` or a content wrapper, never around `TeacherHeader`.
 - `TeacherHeader` renders full inline tabs only at `>=1280px`; `769px-1279px` uses the compact teacher-navigation hamburger dropdown; `<=768px` uses the mobile drawer.
 - THCS setup quick-start cards use SVG icon art and stay compact with breathing room below the card row.
 - `Advanced Settings` uses a rotating SVG chevron, not a text triangle glyph.
@@ -47,6 +49,7 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - text-glyph `Advanced Settings` triangle
 - material-card titles expanding beyond two lines
 - full teacher tab row on narrow desktop widths where it collides with user/profile controls
+- wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
 
 ## Repo Docs
 
@@ -56,7 +59,6 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`
 
-
 ## PRD-0050 List View Boundary
 
 Compact Materials list mode is owned by @doc/architecture/teacher-materials-list-view-contract.
@@ -64,7 +66,6 @@ Compact Materials list mode is owned by @doc/architecture/teacher-materials-list
 Grid cards remain summary cards with two-line title clamp. List mode must not be implemented as widened cards; it uses fixed columns, a four-slot icon action rail, and restrained typography.
 
 Retired: list action rails sized by button text or by whether `Assign HW` is present.
-
 
 ## Material Visual Taxonomy Boundary
 

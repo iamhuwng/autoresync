@@ -357,18 +357,17 @@ const TeacherLobbyPage = () => {
       background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
       backgroundAttachment: 'fixed',
     }}>
-      <div style={{ padding: '1rem' }}>
-        <TeacherHeader
-          pageTitle="Materials"
-          userId={user?.uid}
-          userRole={profile?.role}
-          userDisplayName={profile?.displayName || user?.displayName || user?.email}
-          userEmail={profile?.email || user?.email}
-          userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
-          onLogout={handleLogout}
-        />
+      <TeacherHeader
+        pageTitle="Materials"
+        userId={user?.uid}
+        userRole={profile?.role}
+        userDisplayName={profile?.displayName || user?.displayName || user?.email}
+        userEmail={profile?.email || user?.email}
+        userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
+        onLogout={handleLogout}
+      />
 
-        <main>
+      <main>
           {/* Session Loading State */}
           {sessionCode && session.sessionLoading && (
             <div style={{
@@ -580,7 +579,7 @@ const TeacherLobbyPage = () => {
               )}
             </div>
           )}
-        </main>
+      </main>
 
         {/* ===== Modals ===== */}
 
@@ -683,7 +682,6 @@ const TeacherLobbyPage = () => {
           onAssignHomework={handleUseAsIsAssignHW}
           userId={user?.uid}
         />
-      </div>
     </div>
   );
 };
