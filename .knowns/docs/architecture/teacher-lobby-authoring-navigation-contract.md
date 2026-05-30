@@ -2,7 +2,7 @@
 title: Teacher Lobby Authoring Navigation Contract
 description: Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-05-30T11:54:52.416Z'
+updatedAt: '2026-05-30T15:08:01.167Z'
 tags:
   - architecture
   - teacher-lobby
@@ -64,3 +64,10 @@ Compact Materials list mode is owned by @doc/architecture/teacher-materials-list
 Grid cards remain summary cards with two-line title clamp. List mode must not be implemented as widened cards; it uses fixed columns, a four-slot icon action rail, and restrained typography.
 
 Retired: list action rails sized by button text or by whether `Assign HW` is present.
+
+
+## Material Visual Taxonomy Boundary
+
+Leading material icons and accents use @doc/architecture/teacher-material-visual-taxonomy.
+
+Grid cards and list rows may share the taxonomy, but action icons stay in action controls and never replace the leading material marker.

@@ -18,7 +18,8 @@ describe('materialListAdapter', () => {
     expect(row).toMatchObject({
       id: 'ielts-1',
       title: 'IELTS Reading Practice',
-      iconKind: 'test',
+      iconKind: 'reading',
+      accentKind: 'rose',
       itemLabel: '40 questions',
       durationLabel: '60 min',
       updatedLabel: 'May 12, 2026',
@@ -50,6 +51,7 @@ describe('materialListAdapter', () => {
 
     expect(row.title).toBe('Grade 10 Midterm');
     expect(row.iconKind).toBe('school');
+    expect(row.accentKind).toBe('sky');
     expect(row.itemLabel).toBe('40 questions');
     expect(row.badges.map((badge) => badge.label)).toContain('Grade 10');
     expect(row.badges.map((badge) => badge.label)).toContain('Giữa Kì');
@@ -89,6 +91,7 @@ describe('materialListAdapter', () => {
 
     expect(row.statusKind).toBe('incomplete');
     expect(row.iconKind).toBe('incomplete');
+    expect(row.accentKind).toBe('incomplete');
     expect(row.badges.map((badge) => badge.label)).toEqual([
       '8 questions',
       'IELTS - Listening',
@@ -119,8 +122,26 @@ describe('materialListAdapter', () => {
     const row = buildTestMaterialListRow({ id: 'unknown-1' });
 
     expect(row.title).toBe('Untitled Test');
+    expect(row.iconKind).toBe('test');
+    expect(row.accentKind).toBe('indigo');
     expect(row.itemLabel).toBe('0 questions');
     expect(row.durationLabel).toBe('--');
     expect(row.updatedLabel).toBe('--');
+  });
+
+  it('uses semantic accents instead of row-position colors', () => {
+    const material = {
+      id: 'listening-1',
+      title: 'IELTS Listening',
+      testType: 'IELTS',
+      skill: 'Listening',
+    };
+
+    const firstRow = buildTestMaterialListRow(material, { index: 0 });
+    const laterRow = buildTestMaterialListRow(material, { index: 4 });
+
+    expect(firstRow.iconKind).toBe('test');
+    expect(firstRow.accentKind).toBe('indigo');
+    expect(laterRow.accentKind).toBe(firstRow.accentKind);
   });
 });

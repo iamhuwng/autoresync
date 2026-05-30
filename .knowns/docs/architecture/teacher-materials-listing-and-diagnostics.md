@@ -2,7 +2,7 @@
 title: Teacher Materials Listing And Diagnostics
 description: 'Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns.'
 createdAt: '2026-05-11T17:23:18.736Z'
-updatedAt: '2026-05-30T11:54:46.765Z'
+updatedAt: '2026-05-30T15:08:01.141Z'
 tags:
   - architecture
   - teacher-lobby
@@ -115,3 +115,12 @@ Compact Materials list-view rendering is owned by @doc/architecture/teacher-mate
 The list view is a rendering mode over existing listing rows. It must not change normal-teacher indexed owner/public reads, Drafts active-tab loading, Reading V2 summary-only listing behavior, or gated diagnostics.
 
 Retired: treating list mode as permission to hydrate heavier payloads or rewrite the materials loading contract.
+
+
+## Visual Taxonomy Boundary
+
+Leading material icon and accent semantics are governed by @doc/architecture/teacher-material-visual-taxonomy.
+
+This listing contract owns what material rows load and diagnose, not how visual type/status markers are selected.
+
+Retired: using list order, search order, or filtered row position to choose material accent colors.

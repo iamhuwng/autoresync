@@ -26,6 +26,8 @@ UI chrome, modal authoring entry, card title clamp, search icon, and responsive 
 
 Compact Materials list-view layout, fixed row grid, action slots, and typography are governed by `documentation/architecture/teacher-materials-list-view-contract.md`.
 
+Leading material icon and accent semantics are governed by `documentation/architecture/teacher-material-visual-taxonomy.md`.
+
 Keep this document focused on data loading, cache scope, realtime scope, and diagnostics.
 
 ## Listing Contract

@@ -57,6 +57,7 @@ Required behavior:
 - the compact teacher-navigation hamburger is valid for narrow desktop/tablet overflow, not only mobile
 - `SearchFilterBar` search inputs use the shared SVG `SearchIcon`
 - long material-card titles clamp to two visible lines and expose the full title through tooltip/title text
+- leading material icons and accents use the semantic taxonomy in `documentation/architecture/teacher-material-visual-taxonomy.md`
 - Teacher Lobby card chrome remains summary-level and does not hydrate canonical Reading V2 drafts or student-safe/runtime payloads just to render cards
 
 Forbidden patterns:

@@ -1,4 +1,4 @@
-const ACCENT_SEQUENCE = ['lavender', 'sky', 'mint', 'rose', 'peach'];
+import { getMaterialVisuals } from './materialVisualTaxonomy';
 
 const EMPTY_LABEL = '--';
 
@@ -21,35 +21,11 @@ function isReadingV2Material(item) {
 }
 
 function getAccentKind(item, index = 0) {
-  if (item?.isComplete === false) {
-    return 'incomplete';
-  }
-  if (item?.testType === 'THCS-THPT') {
-    return 'sky';
-  }
-  if (isReadingV2Material(item)) {
-    return 'rose';
-  }
-  if (isWritingMaterial(item)) {
-    return 'lavender';
-  }
-  return ACCENT_SEQUENCE[index % ACCENT_SEQUENCE.length];
+  return getMaterialVisuals(item || { id: `material-${index}` }).accentKind;
 }
 
 function getIconKind(item) {
-  if (item?.isComplete === false) {
-    return 'incomplete';
-  }
-  if (item?.testType === 'THCS-THPT') {
-    return 'school';
-  }
-  if (isReadingV2Material(item)) {
-    return 'reading';
-  }
-  if (isWritingMaterial(item)) {
-    return 'writing';
-  }
-  return 'test';
+  return getMaterialVisuals(item).iconKind;
 }
 
 function pluralize(count, singular, plural = `${singular}s`) {

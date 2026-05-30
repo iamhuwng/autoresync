@@ -5,8 +5,8 @@ import {
   DeleteIcon,
   EditIcon,
   FileIcon,
-  HomeIcon,
   PlayIcon,
+  SchoolIcon,
   UseAsIsIcon,
   ViewIcon,
 } from './icons.jsx';
@@ -22,9 +22,10 @@ const ICONS = {
 };
 
 const ROW_ICONS = {
-  school: HomeIcon,
+  school: SchoolIcon,
   reading: FileIcon,
   writing: EditIcon,
+  draft: EditIcon,
   incomplete: AlertTriangleIcon,
   test: FileIcon,
 };

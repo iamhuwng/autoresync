@@ -2,7 +2,7 @@
 title: Teacher Materials List View Contract
 description: 'Teacher Lobby Materials compact list-view contract for PRD-0050: fixed grid columns, four-slot icon action rail, typography hierarchy, tab scope, and retired widened-card patterns.'
 createdAt: '2026-05-30T11:54:40.699Z'
-updatedAt: '2026-05-30T11:54:40.699Z'
+updatedAt: '2026-05-30T15:08:01.111Z'
 tags:
   - architecture
   - teacher-lobby
@@ -126,3 +126,12 @@ cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx v
 ```
 
 Also run targeted UTF-8, `git diff --check`, browser width probe, and computed-style proof after typography changes.
+
+
+## Material Visual Taxonomy
+
+Leading row icon and color accent semantics are governed by @doc/architecture/teacher-material-visual-taxonomy.
+
+Rows receive semantic `iconKind` and `accentKind` from `materialVisualTaxonomy.js` through `materialListAdapter.js`.
+
+Retired: positional accent rotation by row index, `HomeIcon` for school/test categories, and action icons in the leading material slot.

@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/teacher-material-visual-taxonomy",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/teacher-material-visual-taxonomy",
+      "version": 1,
+      "timestamp": "2026-05-30T15:07:50.7974236Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Teacher Material Visual Taxonomy"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Canonical Teacher material leading-icon and accent taxonomy: semantic visual kinds, marker/action separation, forbidden positional colors, and change protocol."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher-lobby",
+            "materials",
+            "visual-taxonomy",
+            "icons"
+          ]
+        }
+      ],
+      "snapshot": {
+        "content": "# Teacher Material Visual Taxonomy\n\n## Purpose\n\nTeacher material surfaces need one stable visual language for the leading material marker.\n\nThe marker at the beginning of a material row or card is not an action. It is a compact type/status signal that helps teachers scan mixed material lists without reading every badge.\n\nRepo architecture mirror: `documentation/architecture/teacher-material-visual-taxonomy.md`.\n\n## Runtime Owner\n\n- `src/components/modern/materialVisualTaxonomy.js`\n- `src/components/modern/materialListAdapter.js`\n- `src/components/modern/MaterialListRow.jsx`\n- `src/components/modern/MaterialListRow.css`\n\n`materialVisualTaxonomy.js` owns semantic mapping. Row/card components only render the resolved `iconKind` and `accentKind`.\n\n## Meaning Split\n\nKeep these channels separate:\n\n- left icon: material type or blocking status\n- accent color: material family or blocking status\n- badges: exact metadata such as item count, exam, grade, skill, duration, or completeness\n- action icons: operations such as edit, delete, start, clone, or assign\n\nDo not use the left icon for operations. Do not use row order to choose accent color.\n\n## Current Taxonomy\n\n| Visual kind | Applies when | `iconKind` | `accentKind` |\n| --- | --- | --- | --- |\n| `thcs` | `testType === \"THCS-THPT\"` | `school` | `sky` |\n| `readingV2` | `deliveryEngine === \"reading-v2\"` | `reading` | `rose` |\n| `ieltsReading` | IELTS material with `skill === \"Reading\"` | `reading` | `rose` |\n| `ieltsWriting` | IELTS material with `skill === \"Writing\"` | `writing` | `lavender` |\n| `genericTest` | fallback tests and unclassified material | `test` | `indigo` |\n| `draft` | future draft list/card support | `draft` | `peach` |\n| `incomplete` | `isComplete === false` | `incomplete` | `incomplete` |\n\n`incomplete` overrides material family because it is a blocking status.\n\n## Rendering Contract\n\nThe Teacher Lobby list view currently renders:\n\n- a `5px` accent strip\n- a fixed `44px x 44px` icon tile\n- a `20px` icon inside the tile\n- variant-tinted tile color and border\n\nThese dimensions are part of the compact scan contract. Do not let icon choice resize the row, column, or row height.\n\n## Forbidden Patterns\n\n- positional accent rotation based on row index\n- `HomeIcon` or other place/navigation icons for school/test categories\n- action icons in the leading material slot\n- new per-component icon mapping that bypasses `materialVisualTaxonomy.js`\n- using badge text as the only material-family signal when the surface has a leading marker\n\n## Change Protocol\n\nWhen adding a new material family:\n\n1. Add a new visual kind to `MATERIAL_VISUAL_KIND`.\n2. Update `resolveMaterialVisualKind`.\n3. Add or reuse one row icon in `MaterialListRow.jsx`.\n4. Add CSS for the new `accentKind` if it is new.\n5. Add adapter or taxonomy tests that prove the mapping is semantic and stable across row order.\n6. Update this document.",
+        "description": "Canonical Teacher material leading-icon and accent taxonomy: semantic visual kinds, marker/action separation, forbidden positional colors, and change protocol.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "materials",
+          "visual-taxonomy",
+          "icons"
+        ],
+        "title": "Teacher Material Visual Taxonomy"
+      }
+    }
+  ]
+}

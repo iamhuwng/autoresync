@@ -14,6 +14,7 @@ It exists because the list view is not a widened one-column card grid. It is a s
 - `src/components/modern/MaterialListView.jsx`
 - `src/components/modern/MaterialListRow.jsx`
 - `src/components/modern/materialListAdapter.js`
+- `src/components/modern/materialVisualTaxonomy.js`
 
 Data-loading scope remains owned by `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
 
@@ -42,6 +43,16 @@ Visible columns are:
 4. `Actions`
 
 Duration is not a scan column. It remains a compact metadata badge in the material cell. This avoids duplicate information and preserves stable action geometry at desktop widths.
+
+## Material Visual Taxonomy
+
+The leading row icon and color accent are governed by `documentation/architecture/teacher-material-visual-taxonomy.md`.
+
+Rows receive semantic `iconKind` and `accentKind` from `materialVisualTaxonomy.js` through `materialListAdapter.js`.
+
+Do not choose material row colors by row index. A material must keep the same visual family when search, filters, sorting, or tab changes move its position.
+
+The left icon is a material type/status marker, not an action. Action icons belong only in the fixed action rail.
 
 Required desktop widths:
 

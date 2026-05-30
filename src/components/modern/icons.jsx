@@ -76,6 +76,14 @@ export const HomeIcon = ({ size = 14, style = {}, className = '' }) => (
   </svg>
 );
 
+export const SchoolIcon = ({ size = 14, style = {}, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
+    <path d="M4 10.5 12 6l8 4.5-8 4.5-8-4.5z" strokeLinejoin="round" />
+    <path d="M7 13v4c1.4 1 3 1.5 5 1.5s3.6-.5 5-1.5v-4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 10.5v5" strokeLinecap="round" />
+  </svg>
+);
+
 export const AlertTriangleIcon = ({ size = 14, style = {}, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" strokeLinejoin="round" />
