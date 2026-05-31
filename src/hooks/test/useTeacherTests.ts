@@ -10,7 +10,7 @@ import {
   logTeacherMaterialsDiagnostic,
 } from '../../utils/teacherMaterialsDiagnostics';
 
-type TeacherContentFilter = 'my' | 'public' | 'drafts';
+type TeacherContentFilter = 'my' | 'public' | 'drafts' | 'reading-passage' | 'book';
 
 interface UseTeacherTestsOptions {
   realtime?: boolean;

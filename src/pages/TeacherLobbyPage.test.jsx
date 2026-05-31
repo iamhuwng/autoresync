@@ -262,6 +262,18 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(teacherHeader.nextElementSibling?.tagName).toBe('MAIN');
   });
 
+  it('keeps content tabs on the same header row as the dashboard subtitle', () => {
+    const { container } = render(<TeacherLobbyPage />);
+
+    const subtitle = screen.getByText('Manage your tests and start formal assessment sessions');
+    const tabNav = screen.getByRole('navigation', { name: 'Teacher lobby content tabs' });
+    const subhead = container.querySelector('.teacher-lobby-page-subhead');
+
+    expect(subhead).not.toBeNull();
+    expect(subhead).toContainElement(subtitle);
+    expect(subhead).toContainElement(tabNav);
+  });
+
   it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {
     const user = userEvent.setup();
     mocks.tests = [

@@ -8,6 +8,9 @@ const mockTests = [
   { id: '3', testType: 'THCS-THPT', ownerId: 'user-1', isPublic: true, metadata: { title: 'Grade 9 Test', gradeLevel: 9, examType: 'Giữa Kì' }, publishedAt: 2000 },
   { id: '4', testType: 'THCS-THPT', ownerId: 'user-2', isPublic: true, metadata: { title: 'Grade 7 Final', gradeLevel: 7, examType: 'Cuối Kì' }, publishedAt: 4000 },
   { id: '5', title: 'Legacy Test', isPublic: false }, // No owner
+  { id: '6', title: 'Passage Asset', ownerId: 'user-1', isPublic: false, materialKind: 'passage-asset' },
+  { id: '7', title: 'Book Package', ownerId: 'user-1', isPublic: false, materialKind: 'book' },
+  { id: '8', title: 'Public Passage Asset', ownerId: 'user-2', isPublic: true, materialKind: 'passage-asset' },
 ];
 
 const defaultFilters = {
@@ -50,6 +53,26 @@ describe('useTestFilters', () => {
   it('applies search on THCS metadata title', () => {
     const { result } = renderHook(() => useTestFilters(mockTests, { ...defaultFilters, searchTerm: 'Grade 9' }));
     expect(result.current.filteredTests.some(t => t.id === '3')).toBe(true);
+  });
+
+  it('filters the reading passage tab to owned passage assets only', () => {
+    const { result } = renderHook(() => useTestFilters(mockTests, {
+      ...defaultFilters,
+      contentFilter: 'reading-passage',
+    }));
+    const ids = result.current.filteredTests.map(t => t.id);
+
+    expect(ids).toEqual(['6']);
+  });
+
+  it('filters the book tab to owned book packages only', () => {
+    const { result } = renderHook(() => useTestFilters(mockTests, {
+      ...defaultFilters,
+      contentFilter: 'book',
+    }));
+    const ids = result.current.filteredTests.map(t => t.id);
+
+    expect(ids).toEqual(['7']);
   });
 
   it('filters by test type in public library', () => {

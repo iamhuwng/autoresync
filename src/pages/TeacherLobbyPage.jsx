@@ -30,6 +30,7 @@ import { buildTestMaterialListRow } from '../components/modern/materialListAdapt
 import SessionBanner from '../components/SessionBanner';
 import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
+import './TeacherLobbyPage.css';
 
 // Modals kept as direct imports (heavy components)
 // NOTE: QuizEditor removed — no legacy quiz items remain (PRD-0033 Task 2)
@@ -93,7 +94,7 @@ const TeacherLobbyPage = () => {
     : undefined;
 
   // ---------- Local UI State ----------
-  const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts'
+  const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts' | 'reading-passage' | 'book'
   const [searchTerm, setSearchTerm] = useState('');
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
@@ -402,18 +403,23 @@ const TeacherLobbyPage = () => {
           {(!sessionCode || (!session.sessionLoading && !session.sessionError)) && (
             <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1rem' }}>
               {/* Page Header */}
-              <div style={{ marginBottom: '2.5rem', animation: 'slideDown 0.5s ease-out' }}>
+              <div
+                className="teacher-lobby-page-header"
+                style={{ marginBottom: '2.5rem', animation: 'slideDown 0.5s ease-out' }}
+              >
                 <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
                   Test Dashboard
                 </h1>
-                <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
-                  Manage your tests and start formal assessment sessions
-                </p>
+                <div className="teacher-lobby-page-subhead">
+                  <p className="teacher-lobby-page-subtitle">
+                    Manage your tests and start formal assessment sessions
+                  </p>
 
-                <ContentTabs
-                  activeTab={contentFilter}
-                  onTabChange={setContentFilter}
-                />
+                  <ContentTabs
+                    activeTab={contentFilter}
+                    onTabChange={setContentFilter}
+                  />
+                </div>
               </div>
 
               {/* Session Banner */}

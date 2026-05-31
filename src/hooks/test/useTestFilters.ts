@@ -3,12 +3,41 @@ import { useMemo, useCallback } from 'react';
 interface FilterParams {
   userId: string;
   userRole: string;
-  contentFilter: 'my' | 'public' | 'drafts';
+  contentFilter: 'my' | 'public' | 'drafts' | 'reading-passage' | 'book';
   searchTerm: string;
   testTypeFilter: string;
   thcsGradeFilter: string;
   thcsExamTypeFilter: string;
 }
+
+const ownedContentFilters = new Set(['my', 'reading-passage', 'book']);
+const readingPassageKinds = new Set(['passage-asset', 'reading-passage', 'reading-passage-asset']);
+const bookKinds = new Set(['book', 'material-book']);
+
+const getMaterialKinds = (item: any): string[] => [
+  item?.materialKind,
+  item?.itemKind,
+  item?.contentKind,
+  item?.type,
+  item?.metadata?.materialKind,
+  item?.metadata?.itemKind,
+  item?.metadata?.contentKind,
+  item?.metadata?.type,
+]
+  .filter(Boolean)
+  .map((value) => String(value).toLowerCase());
+
+const matchesMaterialTab = (item: any, contentFilter: FilterParams['contentFilter']): boolean => {
+  if (contentFilter === 'reading-passage') {
+    return getMaterialKinds(item).some((kind) => readingPassageKinds.has(kind));
+  }
+
+  if (contentFilter === 'book') {
+    return getMaterialKinds(item).some((kind) => bookKinds.has(kind));
+  }
+
+  return true;
+};
 
 export function useTestFilters(tests: any[], filters: FilterParams) {
   const { userId, userRole, contentFilter, searchTerm, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter } = filters;
@@ -17,20 +46,24 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
     if (!userId) return items;
 
     // Super admins see ALL content when "My Content" is selected
-    if (userRole === 'super_admin' && contentFilter === 'my') {
+    if (userRole === 'super_admin' && ownedContentFilters.has(contentFilter)) {
       return items;
     }
 
-    if (contentFilter === 'my') {
+    if (ownedContentFilters.has(contentFilter)) {
       return items.filter(item => {
         const hasOwnership = item.ownerId || item.createdBy;
         const isOwned = item.ownerId === userId || item.createdBy === userId;
         return isOwned || !hasOwnership;
       });
-    } else {
-      // Public: only public content not owned by current user
-      return items.filter(item => item.isPublic === true && item.ownerId !== userId);
     }
+
+    if (contentFilter === 'drafts') {
+      return [];
+    }
+
+    // Public: only public content not owned by current user
+    return items.filter(item => item.isPublic === true && item.ownerId !== userId);
   }, [userId, userRole, contentFilter]);
 
   const filteredTests = useMemo(() => {
@@ -41,6 +74,8 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
       const title = test.metadata?.title || test.title;
       return (title || '').toLowerCase().includes(searchTerm.toLowerCase());
     });
+
+    searchFiltered = searchFiltered.filter((test) => matchesMaterialTab(test, contentFilter));
 
     // Type filter — only in public library mode
     if (contentFilter === 'public' && testTypeFilter !== 'all') {
