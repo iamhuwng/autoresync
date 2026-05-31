@@ -4,7 +4,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 
 ## Design Gate (MANDATORY)
 
-Before any UI or UX work, read [`DESIGN.md`](DESIGN.md). Treat it as the active repo-wide design gate and source classifier before using student, teacher, `.stitch`, archive, or agent-overlay design notes.
+Before any UI or UX work, read [`documentation/architecture/ui-design-standards.md`](documentation/architecture/ui-design-standards.md) plus the matching rule-linked architecture doc for the surface being edited. If root [`DESIGN.md`](DESIGN.md) exists, read it first; if it is absent, do not block on it.
 
 ## Teacher Header Shell Boundary (MANDATORY)
 

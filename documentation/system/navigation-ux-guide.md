@@ -122,6 +122,8 @@ import { TeacherHeader } from '@/components/navigation';
 - **Narrow desktop/tablet (769px-1279px)**: Compact teacher-navigation hamburger dropdown, with notification/profile controls still visible
 - **Mobile (≤768px)**: Hamburger menu with slide-in drawer
 
+**Density Rule**: `TeacherHeader` may be compacted through smaller padding, gaps, title/back/profile sizing, and small sharper nav buttons, but the shared white/glass header style, navigation order, and profile/notification placement stay unchanged unless a header redesign is explicitly requested.
+
 ---
 
 ### 2. AdminLayout

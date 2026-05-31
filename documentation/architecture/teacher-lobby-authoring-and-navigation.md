@@ -99,6 +99,18 @@ Required behavior:
 - The profile menu and compact navigation menu close on outside click and Escape.
 - Teacher pages should not allow nav tab text to squeeze or wrap into broken header layouts.
 
+### Compact Header Density Contract
+
+The accepted compact header treatment is a density adjustment to the existing shared teacher header, not a header redesign.
+
+Required rules:
+
+- Preserve the current `TeacherHeader` visual language: white/glass header chrome, dark slate title, existing active/inactive button variants, profile control shape, notification/profile placement, and navigation order.
+- Reduce space through tighter padding, smaller gaps, smaller title/back/profile sizing, and `min-width: 0` flex constraints before changing component identity or layout.
+- Header navigation tabs may use the existing small button size with sharper 3px-5px corners; keep them more square-like than pill-shaped but not fully square.
+- Do not move page-level library tabs, search controls, or material filters into `TeacherHeader`; those belong to the page content header or filter area.
+- Do not restyle `TeacherHeader` as part of page-tab, search-bar, or dashboard-content polish unless the request explicitly targets shared teacher header branding.
+
 ## Retired Patterns
 
 These patterns are obsolete for the current Teacher Lobby create/navigation flow:
@@ -112,6 +124,8 @@ These patterns are obsolete for the current Teacher Lobby create/navigation flow
 - compact list rows implemented as widened one-column cards
 - list action rails sized by button text or by whether `Assign HW` is present
 - wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
+- replacing the shared teacher header visual language when only compact density was requested
+- moving page-level library tabs or filter controls into `TeacherHeader`
 
 Historical docs may still mention these patterns as original PRD targets or pre-refactor behavior. Treat those references as historical unless this document explicitly delegates ownership elsewhere.
 

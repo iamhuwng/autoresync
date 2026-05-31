@@ -25,16 +25,20 @@ export interface TeacherNavigationProps {
 
 /**
  * TeacherNavigation Component
- * 
+ *
  * Navigation button group with visual dividers between logical groups:
  * - Primary: Materials
  * - Management: Students, Classes, Courses
  * - Activity: Sessions
  * - User Actions: Notifications, Logout
- * 
+ *
  * Uses text-only buttons (no icons) as per PRD requirements.
  * Active page uses variant="primary", inactive uses variant="glass".
  */
+const headerTabButtonStyle: React.CSSProperties = {
+    borderRadius: '0.3rem',
+};
+
 export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
     userId,
     onNavigate,
@@ -165,7 +169,8 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.75rem',
+                gap: '0.45rem',
+                minWidth: 0,
             }}
         >
             {compact && (
@@ -181,8 +186,8 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                width: '44px',
-                                height: '44px',
+                                width: '36px',
+                                height: '36px',
                                 border: '1px solid rgba(203, 213, 225, 0.85)',
                                 background: '#ffffff',
                                 borderRadius: '0.75rem',
@@ -191,7 +196,7 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                                 boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
                             }}
                         >
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                             </svg>
                         </button>
@@ -254,83 +259,96 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                     {/* Primary Group: Materials */}
                     <Button
                         variant={isMaterialsActive ? 'primary' : 'glass'}
+                        size="sm"
+                        style={headerTabButtonStyle}
                         onClick={() => onNavigate(ROUTES.LOBBY, 'nav_to_materials')}
                     >
                         Materials
                     </Button>
 
-            {/* Divider */}
-            <div
-                style={{
-                    width: '1px',
-                    height: '24px',
-                    background: 'rgba(203, 213, 225, 0.5)',
-                }}
-            />
+                    {/* Divider */}
+                    <div
+                        style={{
+                            width: '1px',
+                            height: '24px',
+                            background: 'rgba(203, 213, 225, 0.5)',
+                        }}
+                    />
 
-            {/* Management Group: Students, Classes, Courses, Homework */}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button
-                    variant={isActive(ROUTES.TEACHER_STUDENTS) ? 'primary' : 'glass'}
-                    onClick={() => {
-                        // Security: Route based on role
-                        // Super admins use /admin/users, teachers use /teacher/students
-                        if (userRole === 'super_admin') {
-                            onNavigate(ROUTES.ADMIN_USERS, 'nav_to_users');
-                        } else {
-                            onNavigate(ROUTES.TEACHER_STUDENTS, 'nav_to_students');
-                        }
-                    }}
-                >
-                    Students
-                </Button>
+                    {/* Management Group: Students, Classes, Courses, Homework */}
+                    <div style={{ display: 'flex', gap: '0.35rem', minWidth: 0 }}>
+                        <Button
+                            variant={isActive(ROUTES.TEACHER_STUDENTS) ? 'primary' : 'glass'}
+                            size="sm"
+                            style={headerTabButtonStyle}
+                            onClick={() => {
+                                // Security: Route based on role
+                                // Super admins use /admin/users, teachers use /teacher/students
+                                if (userRole === 'super_admin') {
+                                    onNavigate(ROUTES.ADMIN_USERS, 'nav_to_users');
+                                } else {
+                                    onNavigate(ROUTES.TEACHER_STUDENTS, 'nav_to_students');
+                                }
+                            }}
+                        >
+                            Students
+                        </Button>
 
-                <Button
-                    variant={isActive(ROUTES.TEACHER_CLASSES) ? 'primary' : 'glass'}
-                    onClick={() => onNavigate(ROUTES.TEACHER_CLASSES, 'nav_to_classes')}
-                >
-                    Classes
-                </Button>
+                        <Button
+                            variant={isActive(ROUTES.TEACHER_CLASSES) ? 'primary' : 'glass'}
+                            size="sm"
+                            style={headerTabButtonStyle}
+                            onClick={() => onNavigate(ROUTES.TEACHER_CLASSES, 'nav_to_classes')}
+                        >
+                            Classes
+                        </Button>
 
-                <Button
-                    variant={isActive(ROUTES.TEACHER_COURSES) ? 'primary' : 'glass'}
-                    onClick={() => onNavigate(ROUTES.TEACHER_COURSES, 'nav_to_courses')}
-                >
-                    Courses
-                </Button>
+                        <Button
+                            variant={isActive(ROUTES.TEACHER_COURSES) ? 'primary' : 'glass'}
+                            size="sm"
+                            style={headerTabButtonStyle}
+                            onClick={() => onNavigate(ROUTES.TEACHER_COURSES, 'nav_to_courses')}
+                        >
+                            Courses
+                        </Button>
 
-                <Button
-                    variant={isActive(ROUTES.TEACHER_HOMEWORK) ? 'primary' : 'glass'}
-                    onClick={() => onNavigate(ROUTES.TEACHER_HOMEWORK, 'nav_to_homework')}
-                >
-                    Homework
-                </Button>
+                        <Button
+                            variant={isActive(ROUTES.TEACHER_HOMEWORK) ? 'primary' : 'glass'}
+                            size="sm"
+                            style={headerTabButtonStyle}
+                            onClick={() => onNavigate(ROUTES.TEACHER_HOMEWORK, 'nav_to_homework')}
+                        >
+                            Homework
+                        </Button>
 
-                <Button
-                    variant={isActive(ROUTES.TEACHER_GRADING) ? 'primary' : 'glass'}
-                    onClick={() => onNavigate(ROUTES.TEACHER_GRADING, 'nav_to_grading')}
-                >
-                    Grading
-                </Button>
+                        <Button
+                            variant={isActive(ROUTES.TEACHER_GRADING) ? 'primary' : 'glass'}
+                            size="sm"
+                            style={headerTabButtonStyle}
+                            onClick={() => onNavigate(ROUTES.TEACHER_GRADING, 'nav_to_grading')}
+                        >
+                            Grading
+                        </Button>
+                    </div>
 
-            </div>
+                    {/* Divider */}
+                    <div
+                        style={{
+                            width: '1px',
+                            height: '24px',
+                            background: 'rgba(203, 213, 225, 0.5)',
+                        }}
+                    />
 
-            {/* Divider */}
-            <div
-                style={{
-                    width: '1px',
-                    height: '24px',
-                    background: 'rgba(203, 213, 225, 0.5)',
-                }}
-            />
-
-            {/* Activity Group: Sessions */}
-            <Button
-                variant={isActive(ROUTES.SESSIONS) ? 'primary' : 'glass'}
-                onClick={() => onNavigate(ROUTES.SESSIONS, 'nav_to_sessions')}
-            >
-                Sessions
-            </Button>
+                    {/* Activity Group: Sessions */}
+                    <Button
+                        variant={isActive(ROUTES.SESSIONS) ? 'primary' : 'glass'}
+                        size="sm"
+                        style={headerTabButtonStyle}
+                        onClick={() => onNavigate(ROUTES.SESSIONS, 'nav_to_sessions')}
+                    >
+                        Sessions
+                    </Button>
 
                     {/* Divider */}
                     <div
@@ -344,7 +362,7 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
             )}
 
             {/* User Actions: Notifications, Profile Menu */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                 {userId && (
                     <div style={{ marginRight: '0.25rem' }}>
                         <NotificationBell userId={userId} />
@@ -365,21 +383,21 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                             border: '1px solid rgba(203, 213, 225, 0.8)',
                             background: '#ffffff',
                             borderRadius: '999px',
-                            padding: '0.3rem 0.75rem 0.3rem 0.3rem',
+                            padding: '0.22rem 0.6rem 0.22rem 0.22rem',
                             cursor: 'pointer',
                         }}
                     >
                         <div
                             style={{
-                                width: '32px',
-                                height: '32px',
+                                width: '28px',
+                                height: '28px',
                                 borderRadius: '50%',
                                 background: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
                                 color: '#0f172a',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.875rem',
+                                fontSize: '0.8125rem',
                                 fontWeight: 700,
                                 overflow: 'hidden',
                             }}
@@ -397,13 +415,13 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
 
                         <span
                             style={{
-                                maxWidth: '140px',
+                                maxWidth: '116px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
                                 color: '#1e293b',
                                 fontWeight: 600,
-                                fontSize: '0.875rem',
+                                fontSize: '0.8125rem',
                             }}
                         >
                             {displayName}

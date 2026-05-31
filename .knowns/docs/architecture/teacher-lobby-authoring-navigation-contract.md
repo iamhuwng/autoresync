@@ -1,8 +1,8 @@
 ---
 title: Teacher Lobby Authoring Navigation Contract
-description: Current Teacher Lobby authoring, material-card, search, THCS setup, and responsive teacher-header contract.
+description: Current Teacher Lobby authoring, material-card, search, compact header, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-05-30T15:27:48.888Z'
+updatedAt: '2026-05-31T15:36:35.237Z'
 tags:
   - architecture
   - teacher-lobby
@@ -15,7 +15,7 @@ tags:
 
 ## Purpose
 
-Defines current Teacher Lobby authoring, card, search, and responsive navigation contract after May 2026 lobby polish.
+Defines current Teacher Lobby authoring, card, search, compact header, and responsive navigation contract after May 2026 lobby polish.
 
 ## Current Anchors
 
@@ -37,6 +37,10 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.
 - `TeacherHeader` owns the shared teacher header design and must render as a top-level page/shell child attached to the top edge.
 - Page padding, max-width, and lobby content spacing belong inside `main` or a content wrapper, never around `TeacherHeader`.
+- Compacting `TeacherHeader` is a density change only: preserve the existing white/glass chrome, dark slate title, navigation order, active/inactive variants, and profile/notification placement.
+- Reduce header space through tighter padding, smaller gaps, smaller title/back/profile sizing, and `min-width: 0` flex constraints before changing layout identity.
+- Header navigation tabs may use small buttons with sharper 3px-5px corners; keep them more square-like than pill-shaped but not fully square.
+- Do not move page-level library tabs, search controls, or material filters into `TeacherHeader`; those belong to page content/header regions.
 - `TeacherHeader` renders full inline tabs only at `>=1280px`; `769px-1279px` uses the compact teacher-navigation hamburger dropdown; `<=768px` uses the mobile drawer.
 - THCS setup quick-start cards use SVG icon art and stay compact with breathing room below the card row.
 - `Advanced Settings` uses a rotating SVG chevron, not a text triangle glyph.
@@ -50,6 +54,8 @@ Defines current Teacher Lobby authoring, card, search, and responsive navigation
 - material-card titles expanding beyond two lines
 - full teacher tab row on narrow desktop widths where it collides with user/profile controls
 - wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
+- replacing the shared teacher header visual language when only compact density was requested
+- moving page-level library tabs or filter controls into `TeacherHeader`
 
 ## Repo Docs
 

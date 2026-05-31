@@ -1,16 +1,16 @@
 /**
  * TeacherHeader Component
- * 
+ *
  * Unified header component for all teacher pages combining:
  * - Left section: Back button + Page Title
  * - Center section: TeacherNavigation (navigation buttons) - desktop only
  * - Right section: NotificationBell + Logout (desktop) / Hamburger menu (mobile)
  * - Bottom section: Breadcrumbs (displayed below header)
- * 
+ *
  * Responsive Behavior:
  * - Desktop (>768px): Full navigation bar with buttons
  * - Mobile (≤768px): Hamburger menu with slide-in drawer
- * 
+ *
  * This component provides consistent navigation across all teacher pages.
  */
 
@@ -49,7 +49,7 @@ export interface TeacherHeaderProps {
 
 /**
  * TeacherHeader Component
- * 
+ *
  * @example
  * <TeacherHeader
  *   pageTitle="Classes"
@@ -118,8 +118,8 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '1rem 1.5rem',
-                    gap: '1.5rem',
+                    padding: '0.55rem 1rem',
+                    gap: '0.75rem',
                 }}
             >
                 {/* Left Section: Back Button + Page Title */}
@@ -127,7 +127,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                     style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '1rem',
+                        gap: '0.75rem',
                         minWidth: '0', // Allow flex shrinking
                     }}
                 >
@@ -136,8 +136,8 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                             variant="glass"
                             onClick={navigateToParent}
                             style={{
-                                padding: '0.5rem 1rem',
-                                fontSize: '0.875rem',
+                                padding: '0.4rem 0.75rem',
+                                fontSize: '0.8125rem',
                                 flexShrink: 0,
                             }}
                         >
@@ -148,7 +148,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                     <h1
                         style={{
                             margin: 0,
-                            fontSize: useMobileDrawerNavigation ? '1.25rem' : '1.5rem',
+                            fontSize: useMobileDrawerNavigation ? '1.0625rem' : '1.25rem',
                             fontWeight: '700',
                             color: '#1e293b',
                             whiteSpace: 'nowrap',
@@ -168,6 +168,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
                             alignItems: 'center',
                             flex: 1,
                             justifyContent: 'flex-end',
+                            minWidth: 0,
                         }}
                     >
                         <TeacherNavigation

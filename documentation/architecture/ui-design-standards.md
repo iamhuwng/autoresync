@@ -55,6 +55,8 @@ Required layout:
 Required behavior:
 
 - the compact teacher-navigation hamburger is valid for narrow desktop/tablet overflow, not only mobile
+- compacting `TeacherHeader` is a density change only: preserve the existing white/glass header chrome, navigation order, active/inactive variants, and profile/notification placement
+- header tab corners may be sharper, around the 3px-5px range, but must remain recognizably the same shared header buttons
 - `SearchFilterBar` search inputs use the shared SVG `SearchIcon`
 - long material-card titles clamp to two visible lines and expose the full title through tooltip/title text
 - leading material icons and accents use the semantic taxonomy in `documentation/architecture/teacher-material-visual-taxonomy.md`
@@ -63,6 +65,7 @@ Required behavior:
 Forbidden patterns:
 
 - full teacher tab rows that wrap, squeeze, or overlap user controls on narrow screens
+- shared `TeacherHeader` visual redesigns bundled into page-tab, search-bar, or content-area polish without an explicit header-branding request
 - emoji-only input icons where a shared SVG icon exists
 - card titles expanding past two lines and pushing action controls down
 - nested modal/card chrome inside the shared `TestCreationModal` setup step
