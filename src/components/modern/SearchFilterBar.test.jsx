@@ -19,25 +19,41 @@ const defaultProps = {
 };
 
 describe('SearchFilterBar', () => {
-  it('renders optional view toggle and create action', async () => {
+  it('renders create action and hides view toggle unless explicitly provided', async () => {
     const user = userEvent.setup();
-    const onViewModeChange = vi.fn();
     const onCreateNew = vi.fn();
 
     render(
       <SearchFilterBar
         {...defaultProps}
         onCreateNew={onCreateNew}
-        viewMode="grid"
-        onViewModeChange={onViewModeChange}
       />
     );
 
-    await user.click(screen.getByRole('button', { name: 'List view' }));
-    expect(onViewModeChange).toHaveBeenCalledWith('list');
+    expect(screen.queryByRole('button', { name: 'List view' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /create new test/i }));
     expect(onCreateNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports Book-specific create label and Reading Passage no-create mode', () => {
+    const { rerender } = render(
+      <SearchFilterBar
+        {...defaultProps}
+        createLabel="Create New Book"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /create new book/i })).toBeInTheDocument();
+
+    rerender(
+      <SearchFilterBar
+        {...defaultProps}
+        showCreateButton={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /create new/i })).not.toBeInTheDocument();
   });
 
   it('keeps public THCS filters backed by existing values with readable labels', () => {

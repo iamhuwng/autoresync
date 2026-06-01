@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { READING_V2_ENGINE, READING_V2_PRODUCT_LABEL } from '../../config/readingV2FeatureFlags';
+import { reportingService } from '../../services/reportingService';
 import type {
   ReadingV2GroupedReviewPayload,
   ReadingV2ReviewTaskGroup,
@@ -63,18 +65,65 @@ const groupScore = (taskGroup: ReadingV2ReviewTaskGroup): string => {
 const hasStimulusContext = (taskGroup: ReadingV2ReviewTaskGroup): boolean =>
   Array.isArray(taskGroup.stimulusContext) && taskGroup.stimulusContext.length > 0;
 
+const materialLabelForPayload = (payload: ReadingV2GroupedReviewPayload): string => {
+  if (payload.materialLabel) {
+    return payload.materialLabel;
+  }
+
+  if (payload.materialKind === 'reading-passage') {
+    return 'Reading Passage';
+  }
+
+  if (payload.materialKind === 'reading-passage-set') {
+    return 'Reading Passage Set';
+  }
+
+  return READING_V2_PRODUCT_LABEL;
+};
+
+const passageMetaLine = (taskGroup: ReadingV2ReviewTaskGroup): string => {
+  const section = taskGroup.passageSection;
+  if (!section) {
+    return '';
+  }
+
+  return [
+    section.sourceOrderDisplay,
+    section.sourceFullTestTitle,
+    section.snapshotVersionId ? `Snapshot ${section.snapshotVersionId}` : null,
+  ].filter(Boolean).join(', ');
+};
+
 export function ReadingV2ReviewContentAdapter(
   props: ReadingV2ReviewContentAdapterProps,
 ) {
   useEffect(() => {
+    const hasReadingV2Payload = isReadingV2ReviewPayload(props.reviewPayload);
     logDiag('review_adapter_rendered', {
       resultId: props.resultId ?? null,
       variant: props.variant ?? 'teacher',
-      hasPayload: isReadingV2ReviewPayload(props.reviewPayload),
-      taskGroupCount: isReadingV2ReviewPayload(props.reviewPayload)
+      hasPayload: hasReadingV2Payload,
+      taskGroupCount: hasReadingV2Payload
         ? props.reviewPayload.taskGroups.length
         : 0,
     });
+
+    if (
+      hasReadingV2Payload &&
+      (props.reviewPayload.materialKind === 'reading-passage' ||
+        props.reviewPayload.materialKind === 'reading-passage-set')
+    ) {
+      reportingService.trackAction(
+        FEATURE_IDS.results,
+        'teacher_materials_reading_passage_result_viewed',
+        {
+          resultId: props.resultId ?? null,
+          variant: props.variant ?? 'teacher',
+          materialKind: props.reviewPayload.materialKind,
+          taskGroupCount: props.reviewPayload.taskGroups.length,
+        },
+      );
+    }
   }, [props.resultId, props.reviewPayload, props.variant]);
 
   if (!isReadingV2ReviewPayload(props.reviewPayload)) {
@@ -89,6 +138,7 @@ export function ReadingV2ReviewContentAdapter(
     || props.reviewPayload.taskGroups.some((taskGroup) =>
       taskGroup.interactions.some((interaction) => interaction.reviewState === 'released'),
     );
+  const materialLabel = materialLabelForPayload(props.reviewPayload);
 
   return (
     <div
@@ -109,7 +159,7 @@ export function ReadingV2ReviewContentAdapter(
       >
         <div>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-            {READING_V2_PRODUCT_LABEL} Review
+            {materialLabel} Review
           </div>
           <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
             {props.reviewPayload.title}
@@ -143,6 +193,28 @@ export function ReadingV2ReviewContentAdapter(
             }}
           >
             <div>
+              {taskGroup.passageSection ? (
+                <div
+                  data-testid={`reading-v2-review-passage-section-${taskGroup.taskGroupId}`}
+                  style={{
+                    marginBottom: '0.75rem',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #dbeafe',
+                    borderRadius: 8,
+                    background: '#eff6ff',
+                    color: '#1e3a8a',
+                  }}
+                >
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 800 }}>
+                    {taskGroup.passageSection.title || 'Reading Passage'}
+                  </div>
+                  {passageMetaLine(taskGroup) ? (
+                    <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#475569' }}>
+                      {passageMetaLine(taskGroup)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
                 {taskGroup.title || taskGroup.officialTaskType.replace(/-/g, ' ')}
               </div>

@@ -6,11 +6,12 @@
  * Route: /admin/settings
  * Allowed Roles: super_admin only
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { onValue, ref, set } from 'firebase/database';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { get, onValue, ref, set } from 'firebase/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
-import { AdminTagManager } from '../components/admin';
+import { AdminTagManager } from '../components/admin/AdminTagManager';
+import { TestTypeAdminPanel } from '../components/admin/TestTypeAdminPanel';
 import { AdminLayout } from '../components/navigation';
 import { Card, Button, Input } from '../components/modern';
 import {
@@ -37,6 +38,7 @@ import {
 import { getEnv } from '../config/env.config';
 import { database } from '../services/firebase';
 import { reportingService } from '../services/reportingService';
+import { createMaterialTestTypeConfigRepository } from '../services/materialCatalog/testTypeConfig.service';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ============================================================================
@@ -690,12 +692,27 @@ const AdminSettingsPage: React.FC = () => {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [addModalProvider, setAddModalProvider] = useState<AIProvider | null>(null);
     const [envKeys, setEnvKeys] = useState<{ gemini: string[]; groq: string[] }>({ gemini: [], groq: [] });
-    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags' | 'reporting'>('api_keys');
+    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags' | 'reporting' | 'test_types'>('api_keys');
 
     const isSuperAdmin = profile?.role === 'super_admin';
+    const testTypeRepository = useMemo(
+        () =>
+            createMaterialTestTypeConfigRepository({
+                read: async (path) => {
+                    const snapshot = await get(ref(database, path));
+                    return snapshot.val();
+                },
+                write: async (path, value) => {
+                    await set(ref(database, path), value);
+                },
+            }),
+        []
+    );
 
     // Load .env keys on mount
     useEffect(() => {
+        if (!isSuperAdmin) return;
+
         try {
             const env = getEnv();
             const geminiKeys: string[] = [];
@@ -717,25 +734,29 @@ const AdminSettingsPage: React.FC = () => {
         } catch (error) {
             console.warn('[Settings] Failed to load env keys:', error);
         }
-    }, []);
+    }, [isSuperAdmin]);
 
     // Subscribe to Firestore keys
     useEffect(() => {
+        if (!isSuperAdmin) return;
+
         const unsubscribe = subscribeToAPIKeys((newConfig) => {
             setConfig(newConfig);
             setLoading(false);
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [isSuperAdmin]);
 
     // Initial load
     useEffect(() => {
+        if (!isSuperAdmin) return;
+
         getAPIKeys().then((data) => {
             setConfig(data);
             setLoading(false);
         }).catch(() => setLoading(false));
-    }, []);
+    }, [isSuperAdmin]);
 
     const handleLogout = async () => {
         await logout();
@@ -781,6 +802,17 @@ const AdminSettingsPage: React.FC = () => {
             reportingService.trackAction('adminPanel', actionName, metadata);
         },
         []
+    );
+
+    const handleSectionChange = useCallback(
+        (section: 'api_keys' | 'tags' | 'reporting' | 'test_types') => {
+            setActiveSection(section);
+
+            if (section === 'test_types') {
+                trackAdminAction('switchTestTypeSettingsSection', { section });
+            }
+        },
+        [trackAdminAction]
     );
 
     const openReportsWorkspace = useCallback(() => {
@@ -875,23 +907,30 @@ const AdminSettingsPage: React.FC = () => {
                     <Button
                         variant={activeSection === 'api_keys' ? 'primary' : 'glass'}
                         aria-label="Show API keys settings section"
-                        onClick={() => setActiveSection('api_keys')}
+                        onClick={() => handleSectionChange('api_keys')}
                     >
                         API Keys
                     </Button>
                     <Button
                         variant={activeSection === 'tags' ? 'primary' : 'glass'}
                         aria-label="Show tags settings section"
-                        onClick={() => setActiveSection('tags')}
+                        onClick={() => handleSectionChange('tags')}
                     >
                         Tags
                     </Button>
                     <Button
                         variant={activeSection === 'reporting' ? 'primary' : 'glass'}
                         aria-label="Show reporting settings section"
-                        onClick={() => setActiveSection('reporting')}
+                        onClick={() => handleSectionChange('reporting')}
                     >
                         Reporting
+                    </Button>
+                    <Button
+                        variant={activeSection === 'test_types' ? 'primary' : 'glass'}
+                        aria-label="Show Test Types settings section"
+                        onClick={() => handleSectionChange('test_types')}
+                    >
+                        Test Types
                     </Button>
                 </div>
 
@@ -907,6 +946,12 @@ const AdminSettingsPage: React.FC = () => {
                     />
                 ) : activeSection === 'tags' ? (
                     <AdminTagManager />
+                ) : activeSection === 'test_types' ? (
+                    <TestTypeAdminPanel
+                        context={{ uid: user?.uid || '', role: profile?.role || '' }}
+                        repository={testTypeRepository}
+                        onTrackAction={trackAdminAction}
+                    />
                 ) : (
                     <>
                         {/* Gemini API Keys */}

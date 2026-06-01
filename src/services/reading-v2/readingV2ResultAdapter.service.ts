@@ -123,9 +123,19 @@ export interface ReadingV2ReviewStimulusContext {
   readonly excerpt: string;
 }
 
+export interface ReadingV2ReviewPassageSection {
+  readonly order?: number;
+  readonly title?: string;
+  readonly passageMaterialId?: string;
+  readonly snapshotVersionId?: string;
+  readonly sourceOrderDisplay?: string | null;
+  readonly sourceFullTestTitle?: string | null;
+}
+
 export interface ReadingV2ReviewTaskGroup {
   readonly taskGroupId: string;
   readonly title?: string;
+  readonly passageSection?: ReadingV2ReviewPassageSection | null;
   readonly officialTaskType: string;
   readonly engineeringFamily: string;
   readonly instructionText: string;
@@ -139,6 +149,8 @@ export interface ReadingV2GroupedReviewPayload {
   readonly resultId: string;
   readonly sourceSnapshotVersionId: string;
   readonly materialId?: string;
+  readonly materialKind?: string;
+  readonly materialLabel?: string;
   readonly title: string;
   readonly taskGroups: readonly ReadingV2ReviewTaskGroup[];
 }
@@ -270,20 +282,21 @@ const answerMatches = (
   optionSet?: ReadingV2OptionSet,
 ): boolean => {
   const acceptableAnswers = interaction.scoringRule.acceptableAnswers ?? [];
+  const responseShape = interaction.responseShape;
   if (acceptableAnswers.length === 0) {
     return false;
   }
 
-  if (interaction.responseShape.kind === 'binary-judgement') {
+  if (responseShape.kind === 'binary-judgement') {
     if (Array.isArray(studentAnswer)) {
       return false;
     }
     return acceptableAnswers.some((answer) =>
-      readingV2JudgementAnswersMatch(studentAnswer, answer, interaction.responseShape.vocabulary),
+      readingV2JudgementAnswersMatch(studentAnswer, answer, responseShape.vocabulary),
     );
   }
 
-  if (interaction.responseShape.kind === 'multi-select') {
+  if (responseShape.kind === 'multi-select') {
     if (!Array.isArray(studentAnswer)) {
       return false;
     }
@@ -581,6 +594,7 @@ export const buildReadingV2GroupedReviewPayload = (input: {
     taskGroups: input.projection.content.taskGroups.map((taskGroup) => ({
       taskGroupId: taskGroup.taskGroupId,
       title: taskGroup.groupTitle,
+      passageSection: (taskGroup as { passageSection?: ReadingV2ReviewPassageSection }).passageSection ?? null,
       officialTaskType: taskGroup.officialTaskType,
       engineeringFamily: taskGroup.engineeringFamily,
       instructionText: taskGroup.instructionBlocks.map((block) => block.text).join('\n'),

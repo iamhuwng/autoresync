@@ -169,6 +169,12 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         allowedRoles: ['teacher', 'super_admin'],
         description: 'Teacher results dashboard'
     },
+    '/teacher/materials/books/:bookId': {
+        path: '/teacher/materials/books/:bookId',
+        accessLevel: 'role-restricted',
+        allowedRoles: ['teacher', 'super_admin'],
+        description: 'Teacher material Book editor'
+    },
     '/create-test': {
         path: '/create-test',
         accessLevel: 'role-restricted',

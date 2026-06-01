@@ -13,6 +13,8 @@ import {
 import './MaterialListRow.css';
 
 const ICONS = {
+  archive: DeleteIcon,
+  'assign-homework': CloneIcon,
   edit: EditIcon,
   delete: DeleteIcon,
   play: PlayIcon,
@@ -59,6 +61,18 @@ const MaterialListRow = ({ row }) => {
   return (
     <div className={`material-list-row material-list-row--${row.accentKind || 'lavender'}`} data-testid={`material-list-row-${row.id}`}>
       <div className="material-list-row__accent" aria-hidden="true" />
+      <div className="material-list-row__select-slot">
+        {row.selection && (
+          <input
+            type="checkbox"
+            className="material-list-row__checkbox"
+            aria-label={row.selection.label}
+            checked={row.selection.checked}
+            disabled={row.selection.disabled}
+            onChange={() => row.selection.onChange?.()}
+          />
+        )}
+      </div>
       <div className="material-list-row__icon-tile" aria-hidden="true">
         <RowIcon size={20} />
       </div>

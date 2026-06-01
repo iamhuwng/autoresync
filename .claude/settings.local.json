@@ -13,9 +13,30 @@
       "mcp__chrome-devtools__click",
       "mcp__chrome-devtools__list_console_messages",
       "mcp__chrome-devtools__fill",
-      "mcp__chrome-devtools__evaluate_script"
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(node -e \"const s=require\\('./package.json'\\).scripts||{}; ['check:utf8','lint','test','dev','start'].forEach\\(k=>console.log\\(\\(k+':'\\).padEnd\\(14\\), s[k]||'<MISSING>'\\)\\)\")",
+      "Bash(firebase --version)",
+      "Bash(firebase use *)",
+      "Bash(firebase database:get \"/test_results\" --shallow)",
+      "Bash(export MSYS_NO_PATHCONV=1)",
+      "Bash(firebase database:get /game_sessions --shallow)",
+      "Bash(firebase database:get /game_sessions/__TRACKED_VAR__/students --shallow)",
+      "Bash(grep -rnE \"split\\\\\\(/\\\\\\\\\\\\\\\\n|convertText|\\\\.split\\\\\\(.\\\\\\\\\\\\\\\\n\" src/components src/utils src/services)",
+      "Bash(firebase database:get \"/test_results/res_writing_01/writingSubmission\")",
+      "Bash(firebase database:get \"/test_results/res_writing_01/writingData\")",
+      "Bash(echo \"=== REAL writing result -OosElQFMZchb2-UmKwU : stored preview text \\(raw JSON, newlines visible as \\\\\\\\n\\) ===\")",
+      "Bash(firebase database:get \"/test_results/-OosElQFMZchb2-UmKwU/writingSubmission/text\")",
+      "Bash(grep -o '\\\\\\\\n')",
+      "Bash(firebase database:get \"/test_results/-OosElQFMZchb2-UmKwU\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\); print\\('writingSubmission:', json.dumps\\(d.get\\('writingSubmission'\\)\\)[:400]\\); print\\('writingData keys:', list\\(\\(d.get\\('writingData'\\) or {}\\).keys\\(\\)\\)\\)\")",
+      "Bash(firebase database:get \"/game_sessions\")",
+      "Bash(python -)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "knowns"
+  ]
 }

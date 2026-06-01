@@ -3,6 +3,7 @@
   grid-template-columns: var(--material-list-grid);
   align-items: center;
   gap: 1rem;
+  box-sizing: border-box;
   min-height: 66px;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 8px;
@@ -35,6 +36,26 @@
 .material-list-row--peach .material-list-row__accent { background: #f97316; }
 .material-list-row--indigo .material-list-row__accent { background: #6366f1; }
 .material-list-row--incomplete .material-list-row__accent { background: #94a3b8; }
+
+.material-list-row__select-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.material-list-row__checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #7c3aed;
+  cursor: pointer;
+}
+
+.material-list-row__checkbox:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.25);
+  outline-offset: 2px;
+}
 
 .material-list-row__icon-tile {
   display: inline-flex;
@@ -227,5 +248,67 @@
 
   .material-list-row__actions {
     padding-right: 0.55rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .material-list-row {
+    align-items: start;
+    grid-template-columns: var(--material-list-grid);
+    gap: 0.45rem 0.55rem;
+    min-height: 0;
+    padding: 0.7rem 0.7rem 0.75rem 0;
+  }
+
+  .material-list-row__accent {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    min-height: 100%;
+    align-self: stretch;
+  }
+
+  .material-list-row__select-slot {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 36px;
+  }
+
+  .material-list-row__icon-tile {
+    grid-column: 3;
+    grid-row: 1;
+    width: 36px;
+    height: 36px;
+  }
+
+  .material-list-row__material {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .material-list-row__badges {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .material-list-row__metric {
+    grid-column: 4;
+    grid-row: 2;
+    white-space: normal;
+  }
+
+  .material-list-row__updated {
+    grid-column: 4;
+    grid-row: 3;
+    white-space: normal;
+  }
+
+  .material-list-row__actions {
+    grid-column: 4;
+    grid-row: 4;
+    grid-template-columns: repeat(auto-fit, var(--material-action-button-size));
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    padding-right: 0;
   }
 }

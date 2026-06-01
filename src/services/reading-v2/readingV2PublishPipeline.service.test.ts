@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.types';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
+import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import { assertReadingV2ProjectionIsStudentSanitized } from './readingV2Projection.service';
+import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 import {
   dispatchReadingV2PublishCommitPlanToSinks,
   generateReadingV2PreviewOnly,
@@ -11,6 +15,68 @@ import {
 
 const fixtureDocument = (): ReadingV2Document =>
   structuredClone(READING_V2_CANONICAL_FIXTURES['sentence-completion']) as ReadingV2Document;
+
+const withSectionTitleAndNumbers = (
+  document: ReadingV2Document,
+  sectionTitle: string,
+  reviewNumbers: readonly number[],
+): ReadingV2Document => {
+  const sectionId = document.sectionIds[0];
+
+  if (!sectionId) {
+    throw new Error('Fixture document missing section.');
+  }
+
+  return {
+    ...document,
+    sections: {
+      ...document.sections,
+      [sectionId]: {
+        ...document.sections[sectionId],
+        title: sectionTitle,
+      },
+    },
+    interactions: Object.fromEntries(
+      Object.entries(document.interactions).map(([interactionId, interaction], index) => [
+        interactionId,
+        {
+          ...interaction,
+          reviewLabel: {
+            ...interaction.reviewLabel,
+            displayNumber: reviewNumbers[index],
+          },
+        },
+      ]),
+    ),
+  };
+};
+
+const twoPassageDocument = (): ReadingV2Document => {
+  const first = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('sentence-completion'),
+    'Reading Passage 1',
+    [1, 13],
+  );
+  const second = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('true-false-not-given'),
+    'Reading Passage 2',
+    [14, 26],
+  );
+
+  return {
+    ...first,
+    documentId: readingV2Ids.documentId('doc-publish-two-passages'),
+    title: 'Publish Two Passage Test',
+    sectionIds: [...first.sectionIds, ...second.sectionIds],
+    sections: { ...first.sections, ...second.sections },
+    stimuli: { ...first.stimuli, ...second.stimuli },
+    anchors: { ...first.anchors, ...second.anchors },
+    taskGroups: { ...first.taskGroups, ...second.taskGroups },
+    interactions: { ...first.interactions, ...second.interactions },
+    optionSets: { ...first.optionSets, ...second.optionSets },
+    validationState: { issues: [] },
+  };
+};
 
 describe('readingV2PublishPipeline.service', () => {
   it('previews without creating live session, assignment, attempt, homework, course, or result records', () => {
@@ -192,5 +258,115 @@ describe('readingV2PublishPipeline.service', () => {
     expect(repository.loadPublishedSnapshot(materialId, previousSnapshotId)?.document.title).toBe(document.title);
     expect(repository.loadPublishedSnapshot(materialId, nextSnapshotId)).toBeNull();
     expect(repository.getWhereUsedEntries(passageAssetId)).toHaveLength(0);
+  });
+
+  it('adds Reading Passage entities, projections, metadata, composition, and listing indexes to the publish plan', () => {
+    const repository = createReadingV2Repository();
+    const materialId = readingV2Ids.materialId('material-full-test-with-passages');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-full-test-with-passages');
+    const result = publishReadingV2Material({
+      repository,
+      materialId,
+      ownerId: 'teacher-1',
+      document: twoPassageDocument(),
+      publishedBy: 'teacher-1',
+      snapshotVersionId,
+      publishedAt: '2026-06-01T00:00:00.000Z',
+      metadata: {
+        title: 'Publish Two Passage Test',
+        materialKind: 'reading-v2-full-test-composition',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        visibility: 'library-eligible',
+      },
+      readingPassageExtraction: {
+        sourceFullTestId: readingV2Ids.fullTestId('full-test-with-passages'),
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        visibility: 'public',
+      },
+    });
+
+    const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
+    const byPath = Object.fromEntries(
+      storageWrites.map((operation) => [operation.path, operation.value]),
+    );
+    const firstPassageId = 'material-full-test-with-passages-passage-1';
+    const secondPassageId = 'material-full-test-with-passages-passage-2';
+
+    expect(result.readingPassageExtraction?.passages).toHaveLength(2);
+    expect(result.readingPassageExtraction?.composition.passageRefs.map((ref) => ref.passageMaterialId)).toEqual([
+      firstPassageId,
+      secondPassageId,
+    ]);
+    expect(Object.keys(byPath)).toEqual(
+      expect.arrayContaining([
+        readingV2StoragePaths.readingPassageMaterials(firstPassageId),
+        readingV2StoragePaths.readingPassageMaterialVersions(firstPassageId, snapshotVersionId),
+        readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId),
+        readingV2StoragePaths.reviewProjections(firstPassageId, snapshotVersionId),
+        readingV2StoragePaths.materialMetadata(firstPassageId),
+        readingV2StoragePaths.fullTestCompositions(result.readingPassageExtraction!.composition.compositionId),
+        readingV2StoragePaths.fullTestCompositionVersions(
+          result.readingPassageExtraction!.composition.compositionId,
+          snapshotVersionId,
+        ),
+        'material_catalog/material_indexes/by_owner/teacher-1/material-full-test-with-passages-passage-1',
+        'material_catalog/material_indexes/by_visibility/public/material-full-test-with-passages-passage-1',
+        'material_catalog/material_indexes/by_material_kind/reading-passage/material-full-test-with-passages-passage-1',
+        'material_catalog/material_indexes/by_test_type/ielts/material-full-test-with-passages-passage-1',
+        'material_catalog/material_indexes/by_source_full_test/material-full-test-with-passages/material-full-test-with-passages-passage-1',
+      ]),
+    );
+    expect(byPath[readingV2StoragePaths.materialMetadata(firstPassageId)]).toMatchObject({
+      materialKind: 'reading-passage',
+      sourceOrderDisplaySnapshot: 'Passage 1',
+      sourceQuestionRange: '1-13',
+    });
+    expect(byPath[readingV2StoragePaths.fullTestCompositions(result.readingPassageExtraction!.composition.compositionId)])
+      .toMatchObject({
+        testMaterialId: materialId,
+        passageRefs: [
+          expect.objectContaining({
+            passageMaterialId: firstPassageId,
+            sourceOrderDisplaySnapshot: 'Passage 1',
+          }),
+          expect.objectContaining({
+            passageMaterialId: secondPassageId,
+            sourceOrderDisplaySnapshot: 'Passage 2',
+          }),
+        ],
+      });
+    expect(JSON.stringify(byPath[readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId)]))
+      .not.toMatch(/acceptableAnswers|scoringRule|importEvidence|hiddenProvenance/);
+    expect(JSON.stringify(byPath['material_catalog/material_indexes/by_owner/teacher-1/material-full-test-with-passages-passage-1']))
+      .not.toMatch(/acceptableAnswers|scoringRule|document|teacherAdminProvenance/);
+    expect(result.commitPlan.operations.map((operation) => operation.operationKey)).toEqual(
+      expect.arrayContaining([
+        `${materialId}/${snapshotVersionId}/storage/${readingV2StoragePaths.readingPassageMaterials(firstPassageId)}`,
+        `${materialId}/${snapshotVersionId}/storage/${readingV2StoragePaths.fullTestCompositions(result.readingPassageExtraction!.composition.compositionId)}`,
+      ]),
+    );
+  });
+
+  it('blocks full-test publish when Reading Passage extraction reports a blocking issue', () => {
+    const repository = createReadingV2Repository();
+
+    expect(() =>
+      publishReadingV2Material({
+        repository,
+        materialId: readingV2Ids.materialId('material-missing-type'),
+        ownerId: 'teacher-1',
+        document: fixtureDocument(),
+        publishedBy: 'teacher-1',
+        snapshotVersionId: readingV2Ids.snapshotVersionId('snapshot-missing-type'),
+        readingPassageExtraction: {
+          visibility: 'public',
+        },
+      }),
+    ).toThrow(/passage extraction blocked publish.*missing-test-type/);
+    expect(repository.store.publishedSnapshots.size).toBe(0);
   });
 });

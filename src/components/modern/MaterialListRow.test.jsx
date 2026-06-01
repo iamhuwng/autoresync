@@ -80,4 +80,30 @@ describe('MaterialListRow', () => {
 
     expect(onAssign).toHaveBeenCalledTimes(1);
   });
+
+  it('renders optional Reading Passage selection checkbox', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <MaterialListRow
+        row={makeRow({
+          title: 'Passage A',
+          selection: {
+            checked: false,
+            label: 'Select Passage A',
+            onChange,
+          },
+        })}
+      />
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Passage A' });
+
+    expect(checkbox).not.toBeChecked();
+
+    await user.click(checkbox);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });

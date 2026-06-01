@@ -1,6 +1,8 @@
 import { get, ref, update } from 'firebase/database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.types';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import {
   buildReadingV2FirebasePublishUpdates,
@@ -45,6 +47,61 @@ const createPublishPlan = () => {
       },
     ],
     returnContext: 'teacher-lobby',
+  }).commitPlan;
+};
+
+const createPassagePublishPlan = () => {
+  const repository = createReadingV2Repository();
+  const document = fixtureDocument();
+  const sectionId = document.sectionIds[0];
+  const materialId = readingV2Ids.materialId('material-firebase-passages');
+  const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-firebase-passages');
+
+  return publishReadingV2Material({
+    repository,
+    materialId,
+    ownerId: 'teacher-1',
+    document: {
+      ...document,
+      title: 'Firebase Passage Publish',
+      sections: {
+        ...document.sections,
+        [sectionId]: {
+          ...document.sections[sectionId],
+          title: 'Reading Passage 1',
+        },
+      },
+      interactions: Object.fromEntries(
+        Object.entries(document.interactions).map(([interactionId, interaction], index) => [
+          interactionId,
+          {
+            ...interaction,
+            reviewLabel: {
+              ...interaction.reviewLabel,
+              displayNumber: index === 0 ? 1 : 13,
+            },
+          },
+        ]),
+      ),
+    },
+    publishedBy: 'teacher-1',
+    snapshotVersionId,
+    publishedAt: '2026-06-01T00:00:00.000Z',
+    metadata: {
+      title: 'Firebase Passage Publish',
+      materialKind: 'reading-v2-full-test-composition',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      visibility: 'library-eligible',
+    },
+    readingPassageExtraction: {
+      sourceFullTestId: readingV2Ids.fullTestId('full-test-firebase-passages'),
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      visibility: 'public',
+    },
   }).commitPlan;
 };
 
@@ -164,6 +221,49 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         }),
       }),
     );
+  });
+
+  it('maps Reading Passage publish operations to canonical, projection, composition, and listing-index paths', () => {
+    const commitPlan = createPassagePublishPlan();
+    const firebaseUpdates = buildReadingV2FirebasePublishUpdates(
+      commitPlan,
+      '2026-06-01T01:00:00.000Z',
+    );
+    const updatePaths = Object.keys(firebaseUpdates.updates);
+    const passageId = 'material-firebase-passages-passage-1';
+    const compositionOperation = commitPlan.operations.find(
+      (operation) =>
+        operation.kind === 'storage-write' &&
+        operation.writeKind === 'full-test-composition',
+    );
+
+    expect(compositionOperation).toBeTruthy();
+    expect(updatePaths).toEqual(
+      expect.arrayContaining([
+        readingV2StoragePaths.readingPassageMaterials(passageId),
+        readingV2StoragePaths.readingPassageMaterialVersions(passageId, 'snapshot-firebase-passages'),
+        readingV2StoragePaths.studentSafeTests(passageId, 'snapshot-firebase-passages'),
+        readingV2StoragePaths.reviewProjections(passageId, 'snapshot-firebase-passages'),
+        readingV2StoragePaths.materialMetadata(passageId),
+        'material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1',
+        'material_catalog/material_indexes/by_visibility/public/material-firebase-passages-passage-1',
+        'material_catalog/material_indexes/by_material_kind/reading-passage/material-firebase-passages-passage-1',
+        'material_catalog/material_indexes/by_test_type/ielts/material-firebase-passages-passage-1',
+      ]),
+    );
+    expect(updatePaths).toContain(compositionOperation!.path);
+    expect(firebaseUpdates.updates[readingV2StoragePaths.readingPassageMaterials(passageId)]).toMatchObject({
+      passageMaterialId: passageId,
+      sourceQuestionRange: '1-13',
+      sourceOrder: {
+        displaySnapshot: 'Passage 1',
+      },
+    });
+    expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests(passageId, 'snapshot-firebase-passages')]))
+      .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
+    expect(JSON.stringify(firebaseUpdates.updates['material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1']))
+      .not.toMatch(/acceptableAnswers|scoringRule|document|provenance/);
+    expect(containsUndefined(firebaseUpdates.updates)).toBe(false);
   });
 
   it('treats an existing matching commit marker as an idempotent retry', async () => {

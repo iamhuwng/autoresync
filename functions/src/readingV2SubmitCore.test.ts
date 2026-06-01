@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   READING_V2_ENGINE,
   buildReadingV2TrustedSubmissionPlan,
+  composeReadingPassageSetTrustedRecords,
   parseReadingV2TrustedSubmissionRequest,
 } from './readingV2SubmitCore';
 
@@ -86,6 +87,97 @@ const makeReviewProjection = () => ({
         },
       ],
     }],
+  },
+});
+
+const makePassageSnapshot = (input: {
+  materialId: string;
+  snapshotVersionId: string;
+  answer: string;
+}) => ({
+  ...makeSnapshot(),
+  materialId: input.materialId,
+  snapshotVersionId: input.snapshotVersionId,
+  document: {
+    interactions: {
+      interaction_1: {
+        interactionId: 'interaction_1',
+        taskGroupId: 'task_group_1',
+        responseShape: { kind: 'free-text' },
+        scoringRule: {
+          maxScore: 1,
+          acceptableAnswers: [input.answer],
+        },
+        reviewLabel: { displayNumber: 1 },
+      },
+    },
+    taskGroups: {
+      task_group_1: {
+        taskGroupId: 'task_group_1',
+        officialTaskType: 'sentence-completion',
+        engineeringFamily: 'completion',
+      },
+    },
+  },
+});
+
+const makePassageReviewProjection = (input: {
+  snapshotVersionId: string;
+  title: string;
+}) => ({
+  ...makeReviewProjection(),
+  sourceSnapshotVersionId: input.snapshotVersionId,
+  content: {
+    ...makeReviewProjection().content,
+    title: input.title,
+    taskGroups: [{
+      taskGroupId: 'task_group_1',
+      groupTitle: input.title,
+      officialTaskType: 'sentence-completion',
+      engineeringFamily: 'completion',
+      instructionBlocks: [{ id: 'instruction_1', text: 'Complete the answer.' }],
+      stimulusRefs: [{ stimulusId: 'stimulus_1', anchorIds: ['anchor_1'] }],
+      interactions: [{
+        interactionId: 'interaction_1',
+        taskGroupId: 'task_group_1',
+        displayNumber: 1,
+      }],
+    }],
+  },
+});
+
+const makeReadingPassageSetHomework = () => ({
+  id: 'hw-set-1',
+  materialId: 'reading-passage-set:hw-set-1',
+  materialType: 'reading-passage-set',
+  title: 'Selected Reading Passages',
+  materialTitle: 'Selected Reading Passages',
+  createdBy: 'teacher-1',
+  config: {
+    timerMinutes: 40,
+  },
+  readingPassageSet: {
+    titleSnapshot: 'Selected Reading Passages',
+    items: [
+      {
+        order: 1,
+        passageMaterialId: 'passage-a',
+        snapshotVersionId: 'snapshot-a',
+        titleSnapshot: 'Passage A',
+        questionCount: 1,
+        sourceOrderDisplay: 'Passage 1',
+        sourceFullTestTitle: 'Mock Test A',
+      },
+      {
+        order: 2,
+        passageMaterialId: 'passage-b',
+        snapshotVersionId: 'snapshot-b',
+        titleSnapshot: 'Passage B',
+        questionCount: 1,
+        sourceOrderDisplay: 'Passage 2',
+        sourceFullTestTitle: 'Mock Test B',
+      },
+    ],
   },
 });
 
@@ -193,5 +285,199 @@ describe('readingV2SubmitCore', () => {
       'game_sessions/LIVE123/players/student-1/hasCompletedTest': true,
     }));
     expect(JSON.stringify(plan.savedResult.readingV2.reviewPayload)).not.toContain('scoringRule');
+  });
+
+  it('scores Reading Passage set homework against assigned passage snapshots', () => {
+    const homework = makeReadingPassageSetHomework();
+    const trustedRecords = composeReadingPassageSetTrustedRecords({
+      homework,
+      passageRecords: [
+        {
+          item: homework.readingPassageSet.items[0],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            answer: 'Answer A',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-a',
+            title: 'Passage A',
+          }),
+        },
+        {
+          item: homework.readingPassageSet.items[1],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            answer: 'Answer B',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-b',
+            title: 'Passage B',
+          }),
+        },
+      ],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+    const request = parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'homework-set:hw-set-1',
+      sourceSnapshotVersionId: 'homework-set:hw-set-1',
+      materialId: 'reading-passage-set:hw-set-1',
+      answers: [
+        {
+          interactionId: 'passage-1:interaction_1',
+          taskGroupId: 'passage-1:task_group_1',
+          displayNumber: 1,
+          value: 'answer a',
+        },
+        {
+          interactionId: 'passage-2:interaction_1',
+          taskGroupId: 'passage-2:task_group_1',
+          displayNumber: 2,
+          value: 'answer b',
+        },
+      ],
+      context: {
+        surface: 'homework',
+        homeworkId: 'hw-set-1',
+        sourceName: 'Selected Reading Passages',
+      },
+    });
+
+    const plan = buildReadingV2TrustedSubmissionPlan({
+      request,
+      auth: {
+        uid: 'student-1',
+        name: 'Student One',
+      },
+      records: {
+        ...trustedRecords,
+        studentProfile: null,
+        session: null,
+      },
+      identity: {
+        resultId: 'result-set-1',
+        attemptId: 'attempt-set-1',
+        submittedAtIso: '2026-06-01T00:05:00.000Z',
+        submittedAtMs: 1780272300000,
+      },
+    });
+
+    expect(plan.response).toEqual(expect.objectContaining({
+      totalScore: 2,
+      maxScore: 2,
+      percentage: 100,
+    }));
+    expect(plan.savedResult.testId).toBe('reading-passage-set:hw-set-1');
+    expect(plan.savedResult.visibility).toEqual(expect.objectContaining({
+      contextType: 'homework',
+      sourceId: 'hw-set-1',
+      homeworkId: 'hw-set-1',
+    }));
+    expect(plan.savedResult.readingV2.reviewPayload.taskGroups).toEqual([
+      expect.objectContaining({
+        taskGroupId: 'passage-1:task_group_1',
+        passageSection: expect.objectContaining({
+          title: 'Passage A',
+          snapshotVersionId: 'snapshot-a',
+          sourceOrderDisplay: 'Passage 1',
+        }),
+      }),
+      expect.objectContaining({
+        taskGroupId: 'passage-2:task_group_1',
+        passageSection: expect.objectContaining({
+          title: 'Passage B',
+          snapshotVersionId: 'snapshot-b',
+          sourceOrderDisplay: 'Passage 2',
+        }),
+      }),
+    ]);
+    expect(plan.savedResult.readingV2.reviewPayload).toEqual(expect.objectContaining({
+      materialKind: 'reading-passage-set',
+      materialLabel: 'Reading Passage Set',
+    }));
+    expect(plan.secondaryUpdates['reading_v2/review_indexes/result-set-1']).toEqual(expect.objectContaining({
+      taskGroupIds: ['passage-1:task_group_1', 'passage-2:task_group_1'],
+    }));
+  });
+
+  it('rejects malformed Reading Passage set responses and mismatched assigned snapshots', () => {
+    const homework = makeReadingPassageSetHomework();
+    const trustedRecords = composeReadingPassageSetTrustedRecords({
+      homework,
+      passageRecords: [
+        {
+          item: homework.readingPassageSet.items[0],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            answer: 'Answer A',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-a',
+            title: 'Passage A',
+          }),
+        },
+        {
+          item: homework.readingPassageSet.items[1],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            answer: 'Answer B',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-b',
+            title: 'Passage B',
+          }),
+        },
+      ],
+    });
+    const malformedRequest = parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'homework-set:hw-set-1',
+      sourceSnapshotVersionId: 'homework-set:hw-set-1',
+      materialId: 'reading-passage-set:hw-set-1',
+      answers: [{
+        interactionId: 'passage-9:interaction_1',
+        taskGroupId: 'passage-9:task_group_1',
+        displayNumber: 1,
+        value: 'answer a',
+      }],
+      context: {
+        surface: 'homework',
+        homeworkId: 'hw-set-1',
+      },
+    });
+
+    expect(() => buildReadingV2TrustedSubmissionPlan({
+      request: malformedRequest,
+      auth: {
+        uid: 'student-1',
+      },
+      records: trustedRecords,
+      identity: {
+        resultId: 'result-malformed',
+        attemptId: 'attempt-malformed',
+        submittedAtIso: '2026-06-01T00:05:00.000Z',
+        submittedAtMs: 1780272300000,
+      },
+    })).toThrow('not bound');
+
+    expect(() => composeReadingPassageSetTrustedRecords({
+      homework,
+      passageRecords: [{
+        item: homework.readingPassageSet.items[0],
+        snapshot: makePassageSnapshot({
+          materialId: 'wrong-passage',
+          snapshotVersionId: 'snapshot-a',
+          answer: 'Answer A',
+        }),
+        reviewProjection: makePassageReviewProjection({
+          snapshotVersionId: 'snapshot-a',
+          title: 'Passage A',
+        }),
+      }],
+    })).toThrow('one passage record per assigned passage');
   });
 });

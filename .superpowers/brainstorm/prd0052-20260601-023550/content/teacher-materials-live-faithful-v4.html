@@ -1,0 +1,558 @@
+<style>
+  :root {
+    --ink: #1e293b;
+    --muted: #64748b;
+    --purple: #8b5cf6;
+    --purple2: #6366f1;
+    --border: rgba(226, 232, 240, 0.9);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(139, 92, 246, 0.08), transparent 28%),
+      radial-gradient(circle at 70% 8%, rgba(20, 184, 166, 0.10), transparent 32%),
+      linear-gradient(135deg, #f6f4ff 0%, #eefbff 52%, #fbfaf2 100%);
+    color: var(--ink);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .page {
+    margin: -28px -32px 0;
+    min-height: 100vh;
+  }
+
+  .teacher-header {
+    height: 56px;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+  }
+
+  .brand {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .top-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .top-tab,
+  .profile {
+    height: 36px;
+    padding: 0 18px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 750;
+  }
+
+  .top-tab.active {
+    background: var(--purple);
+    color: #ffffff;
+    border-color: rgba(139, 92, 246, 0.9);
+  }
+
+  .profile {
+    gap: 10px;
+    border-radius: 999px;
+    padding: 0 14px 0 8px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #fb923c 0%, #fed7aa 100%);
+  }
+
+  .app-main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .hero {
+    margin-bottom: 2rem;
+  }
+
+  .title {
+    margin: 0 0 0.5rem;
+    color: var(--ink);
+    font-size: 2.5rem;
+    line-height: 1.1;
+    font-weight: 800;
+  }
+
+  .subhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .subtitle {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1rem;
+  }
+
+  .content-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .content-tab {
+    min-width: 100px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    font-size: 0.875rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .content-tab.active {
+    background: var(--purple);
+    color: #ffffff;
+  }
+
+  .content-tab.wide {
+    min-width: 156px;
+  }
+
+  .toolbar {
+    margin-bottom: 2rem;
+    padding: 24px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto auto;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .search {
+    height: 48px;
+    border: 1px solid rgba(203, 213, 225, 0.45);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.86);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    color: #94a3b8;
+    font-size: 16px;
+  }
+
+  .search-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #e9efff;
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .view-toggle {
+    height: 48px;
+    padding: 4px;
+    border: 1px solid rgba(203, 213, 225, 0.65);
+    border-radius: 8px;
+    background: rgba(248, 250, 252, 0.92);
+    display: grid;
+    grid-template-columns: 58px 58px;
+    gap: 4px;
+  }
+
+  .view-btn {
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #334155;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .view-btn.active {
+    background: #ccfbf1;
+    color: #0f766e;
+    box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.45);
+  }
+
+  .cta {
+    height: 48px;
+    border: 0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--purple) 0%, var(--purple2) 100%);
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.30);
+    color: #ffffff;
+    padding: 0 28px;
+    font-size: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .type-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(8px, 1.4vw, 24px);
+    margin-bottom: 2rem;
+  }
+
+  .type-card {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(203, 213, 225, 0.45);
+    box-shadow: 0 10px 40px -10px rgba(139, 92, 246, 0.24);
+  }
+
+  .type-card.active {
+    border-color: rgba(139, 92, 246, 0.72);
+    box-shadow: 0 14px 44px -14px rgba(139, 92, 246, 0.50);
+  }
+
+  .type-cover {
+    min-height: 140px;
+    padding: 18px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #dbeafe 0%, #f6f4ff 100%);
+  }
+
+  .type-cover.sky { background: linear-gradient(135deg, #cffafe 0%, #eff6ff 100%); }
+  .type-cover.mint { background: linear-gradient(135deg, #ccfbf1 0%, #f0fdfa 100%); }
+  .type-cover.rose { background: linear-gradient(135deg, #ffe4e6 0%, #fff7ed 100%); }
+
+  .logo-frame {
+    width: 88%;
+    aspect-ratio: 2.45 / 1;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.88);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+    padding: 14px;
+    display: grid;
+    place-items: center;
+  }
+
+  .logo-frame svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .settings {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(203, 213, 225, 0.55);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.62);
+    color: #94a3b8;
+    display: grid;
+    place-items: center;
+    opacity: 0.22;
+  }
+
+  .type-body {
+    padding: 16px;
+    display: grid;
+    gap: 9px;
+  }
+
+  .type-meta {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    min-height: 28px;
+    border-radius: 999px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    color: #64748b;
+    background: rgba(241, 245, 249, 0.9);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .chip.purple {
+    color: #7c3aed;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+
+  .chip.green {
+    color: #16a34a;
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  .list {
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.35);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13);
+  }
+
+  .row {
+    min-height: 72px;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) 160px 130px 160px;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .row:last-child { border-bottom: 0; }
+
+  .material {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .material-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(139, 92, 246, 0.13);
+    display: grid;
+    place-items: center;
+    color: #7c3aed;
+    font-weight: 850;
+    flex: none;
+  }
+
+  .material-title {
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  .material-meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .action {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.48);
+    background: rgba(255, 255, 255, 0.88);
+    display: grid;
+    place-items: center;
+    color: #334155;
+    font-weight: 800;
+  }
+
+  @media (max-width: 980px) {
+    .subhead { flex-wrap: nowrap; gap: 0.75rem; }
+    .subtitle { min-width: 0; font-size: 0.8125rem; }
+    .content-tabs { flex: 0 0 auto; flex-wrap: nowrap; gap: 0.375rem; }
+    .content-tab {
+      min-width: 0;
+      height: 30px;
+      padding: 0 0.5rem;
+      font-size: 0.75rem;
+    }
+    .toolbar {
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 10px;
+    }
+    .type-cover { min-height: 118px; padding: 10px; }
+    .logo-frame { width: 92%; padding: 8px; }
+    .type-body { padding: 10px; gap: 7px; }
+    .type-meta { display: none; }
+    .chip { min-height: 24px; padding: 0 8px; font-size: 11px; }
+    .row { grid-template-columns: minmax(240px, 1fr) 110px 90px; }
+    .actions { display: none; }
+  }
+</style>
+
+<div class="page">
+  <header class="teacher-header">
+    <div class="brand">Materials</div>
+    <nav class="top-nav">
+      <div class="top-tab active">Materials</div>
+      <div class="top-tab">Students</div>
+      <div class="top-tab">Classes</div>
+      <div class="top-tab">Courses</div>
+      <div class="top-tab">Homework</div>
+      <div class="top-tab">Grading</div>
+      <div class="top-tab">Sessions</div>
+    </nav>
+    <div class="profile"><div class="avatar"></div>Teacher Test</div>
+  </header>
+
+  <main class="app-main">
+    <section class="hero">
+      <h1 class="title">Test Dashboard</h1>
+      <div class="subhead">
+        <p class="subtitle">Manage your tests and start formal assessment sessions</p>
+        <div class="content-tabs">
+          <div class="content-tab active">My Content</div>
+          <div class="content-tab">Public Library</div>
+          <div class="content-tab">Drafts</div>
+          <div class="content-tab wide">Reading Passage</div>
+          <div class="content-tab">Book</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="search"><span class="search-icon">o</span>Search by title or keyword...</div>
+      <div class="view-toggle">
+        <button class="view-btn active">grid</button>
+        <button class="view-btn">list</button>
+      </div>
+      <button class="cta">+ Create New Test</button>
+    </section>
+
+    <section class="type-row">
+      <article class="type-card active">
+        <button class="settings" aria-label="Edit IELTS block">&#9881;</button>
+        <div class="type-cover">
+          <div class="logo-frame">
+            <svg viewBox="0 0 420 170" aria-label="IELTS logo" role="img">
+              <rect width="420" height="170" rx="18" fill="#fff"/>
+              <text x="38" y="103" fill="#cf142b" font-family="Arial, Helvetica, sans-serif" font-size="70" font-weight="900">IELTS</text>
+              <circle cx="335" cy="85" r="42" fill="#1f4e79"/>
+              <path d="M315 83h40M335 63v42M309 71c19 16 34 16 52 0M309 99c19-16 34-16 52 0" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="type-body">
+          <div class="type-meta">International English Language Testing System</div>
+          <div class="chips"><span class="chip">31 materials</span><span class="chip purple">Reading</span><span class="chip green">Pinned</span></div>
+        </div>
+      </article>
+
+      <article class="type-card">
+        <button class="settings" aria-label="Edit TOEIC block">&#9881;</button>
+        <div class="type-cover sky">
+          <div class="logo-frame">
+            <svg viewBox="0 0 420 170" aria-label="TOEIC logo" role="img">
+              <rect width="420" height="170" rx="18" fill="#fff"/>
+              <text x="44" y="105" fill="#004b8d" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="900">TOEIC</text>
+              <path d="M328 56c29 15 42 37 38 66-18 8-44 8-72 1 28-13 37-34 34-67z" fill="#00a6d6"/>
+              <path d="M304 72c18 24 18 45 0 65-18-9-33-21-45-37 24 0 39-9 45-28z" fill="#78be20"/>
+            </svg>
+          </div>
+        </div>
+        <div class="type-body">
+          <div class="type-meta">Workplace English practice bank</div>
+          <div class="chips"><span class="chip">8 materials</span><span class="chip purple">Listening</span></div>
+        </div>
+      </article>
+
+      <article class="type-card">
+        <button class="settings" aria-label="Edit TOEFL block">&#9881;</button>
+        <div class="type-cover mint">
+          <div class="logo-frame">
+            <svg viewBox="0 0 420 170" aria-label="TOEFL logo" role="img">
+              <rect width="420" height="170" rx="18" fill="#fff"/>
+              <text x="38" y="104" fill="#005eb8" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900">TOEFL</text>
+              <rect x="293" y="50" width="76" height="76" rx="17" fill="#00a3e0"/>
+              <path d="M310 88h42M331 67v42" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="type-body">
+          <div class="type-meta">Academic English prep collection</div>
+          <div class="chips"><span class="chip">5 materials</span><span class="chip purple">Mixed</span></div>
+        </div>
+      </article>
+
+      <article class="type-card">
+        <button class="settings" aria-label="Edit THCS block">&#9881;</button>
+        <div class="type-cover rose">
+          <div class="logo-frame">
+            <svg viewBox="0 0 420 170" aria-label="THCS logo" role="img">
+              <rect width="420" height="170" rx="18" fill="#fff"/>
+              <text x="44" y="100" fill="#be123c" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="900">THCS</text>
+              <text x="50" y="130" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">Grade 6-9</text>
+              <path d="M303 45h70v82h-70z" fill="#f97316"/>
+              <path d="M316 62h44M316 82h44M316 102h28" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="type-body">
+          <div class="type-meta">Vietnam secondary exam materials</div>
+          <div class="chips"><span class="chip">17 materials</span><span class="chip purple">Grade 9</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="list">
+      <div class="row">
+        <div class="material">
+          <div class="material-icon">R</div>
+          <div><div class="material-title">Cambridge 18 Test 2 - Reading Passage 1</div><div class="material-meta">Reading Passage - Source Passage 1 - 13 questions</div></div>
+        </div>
+        <span class="chip purple">IELTS</span>
+        <div class="material-meta">May 29</div>
+        <div class="actions"><div class="action">E</div><div class="action">A</div><div class="action">...</div></div>
+      </div>
+      <div class="row">
+        <div class="material">
+          <div class="material-icon">T</div>
+          <div><div class="material-title">IELTS Reading Test - April 2026</div><div class="material-meta">Full test - 3 passages - 47 questions</div></div>
+        </div>
+        <span class="chip purple">IELTS</span>
+        <div class="material-meta">May 24</div>
+        <div class="actions"><div class="action">E</div><div class="action">P</div><div class="action">...</div></div>
+      </div>
+    </section>
+  </main>
+</div>

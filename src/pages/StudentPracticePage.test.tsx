@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +17,8 @@ const {
   getHomeworkByIdMock,
   getEffectiveHomeworkDueDateMock,
   getSubmissionByIdMock,
+  submitReadingV2RuntimeAttemptMock,
+  readingV2RuntimePropsMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   ieltsPracticeViewPropsMock: vi.fn(),
@@ -27,6 +30,8 @@ const {
   getHomeworkByIdMock: vi.fn(),
   getEffectiveHomeworkDueDateMock: vi.fn(),
   getSubmissionByIdMock: vi.fn(),
+  submitReadingV2RuntimeAttemptMock: vi.fn(),
+  readingV2RuntimePropsMock: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -67,6 +72,11 @@ vi.mock('../services/homeworkSubmissionService', () => ({
   getSubmissionById: (...args: unknown[]) => getSubmissionByIdMock(...args),
 }));
 
+vi.mock('../services/reading-v2/readingV2RuntimeSubmission.service', () => ({
+  isReadingV2RuntimeSubmissionConfigured: () => true,
+  submitReadingV2RuntimeAttempt: (...args: unknown[]) => submitReadingV2RuntimeAttemptMock(...args),
+}));
+
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
     user: { uid: 'student-1' },
@@ -93,7 +103,27 @@ vi.mock('../components/practice/THCSPracticeView', () => ({
 }));
 
 vi.mock('../components/reading-v2/runtime/ReadingV2RuntimeShell', () => ({
-  ReadingV2RuntimeShell: () => <div data-testid="reading-v2-runtime" />,
+  ReadingV2RuntimeShell: (props: any) => {
+    readingV2RuntimePropsMock(props);
+    return (
+      <div>
+        <div data-testid="reading-v2-runtime" />
+        {props.onSubmit ? (
+          <button
+            type="button"
+            onClick={() => props.onSubmit({
+              materialId: props.projection?.materialId,
+              projectionId: props.projection?.projectionId,
+              sourceSnapshotVersionId: props.projection?.sourceSnapshotVersionId,
+              answers: {},
+            })}
+          >
+            Submit Reading V2
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 vi.mock('../components/practice/ListeningPracticeView', () => ({
@@ -133,6 +163,7 @@ describe('StudentPracticePage', () => {
     getHomeworkByIdMock.mockResolvedValue(null);
     getEffectiveHomeworkDueDateMock.mockReturnValue(0);
     getSubmissionByIdMock.mockResolvedValue(null);
+    submitReadingV2RuntimeAttemptMock.mockResolvedValue({ resultId: 'result-1', attemptId: 'attempt-1' });
   });
 
   it('preserves homework timer and attempt settings from the launch state', async () => {
@@ -417,5 +448,202 @@ describe('StudentPracticePage', () => {
       {},
       `reading_v2/projections/student_safe_tests/material-v2:${snapshotVersionId}`,
     );
+  });
+
+  it('launches single Reading Passage homework from the assigned snapshot projection', async () => {
+    const user = userEvent.setup();
+    const projection = {
+      ...READING_V2_PROJECTION_FIXTURES.studentSafe,
+      materialId: 'passage-a',
+      sourceSnapshotVersionId: 'snapshot-a',
+      content: {
+        ...READING_V2_PROJECTION_FIXTURES.studentSafe.content,
+        title: 'Passage A',
+        materialId: 'passage-a',
+      },
+    };
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-reading-passage',
+      materialId: 'passage-a',
+      materialType: 'reading-passage',
+      materialTitle: 'Passage A',
+      materialSkill: 'reading',
+      config: { timerMinutes: 20, maxAttempts: 1 },
+      readingPassageSnapshot: {
+        passageMaterialId: 'passage-a',
+        snapshotVersionId: 'snapshot-a',
+        titleSnapshot: 'Passage A',
+        questionCount: 10,
+        testTypeIds: ['ielts'],
+      },
+    });
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => (
+        target.path === 'reading_v2/projections/student_safe_tests/passage-a:snapshot-a'
+          ? projection
+          : null
+      ),
+      exists: () => target.path === 'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
+    }));
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/student/practice/passage-a',
+          state: {
+            isHomework: true,
+            homeworkId: 'hw-reading-passage',
+            submissionId: 'submission-1',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reading-v2-runtime')).toBeInTheDocument();
+    });
+
+    expect(refMock).toHaveBeenCalledWith(
+      {},
+      'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
+    );
+    expect(readingV2RuntimePropsMock).toHaveBeenCalledWith(expect.objectContaining({
+      projection: expect.objectContaining({
+        materialId: 'passage-a',
+        sourceSnapshotVersionId: 'snapshot-a',
+      }),
+    }));
+    expect(trackActionMock).toHaveBeenCalledWith(
+      'teacher_materials_reading_passage_homework_launched',
+      expect.objectContaining({
+        homeworkId: 'hw-reading-passage',
+        materialId: 'passage-a',
+        materialType: 'reading-passage',
+        passageCount: 1,
+      }),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    await waitFor(() => {
+      expect(trackActionMock).toHaveBeenCalledWith(
+        'teacher_materials_reading_passage_homework_submitted',
+        expect.objectContaining({
+          materialId: 'passage-a',
+          resultId: 'result-1',
+          attemptId: 'attempt-1',
+          materialType: 'reading-passage',
+        }),
+      );
+    });
+    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
+  });
+
+  it('launches Reading Passage set homework as one ordered Reading V2 runtime projection', async () => {
+    const firstProjection = {
+      ...READING_V2_PROJECTION_FIXTURES.studentSafe,
+      materialId: 'passage-a',
+      sourceSnapshotVersionId: 'snapshot-a',
+      content: {
+        ...READING_V2_PROJECTION_FIXTURES.studentSafe.content,
+        title: 'Passage A',
+        materialId: 'passage-a',
+      },
+    };
+    const secondProjection = {
+      ...READING_V2_PROJECTION_FIXTURES.studentSafe,
+      materialId: 'passage-b',
+      sourceSnapshotVersionId: 'snapshot-b',
+      content: {
+        ...READING_V2_PROJECTION_FIXTURES.studentSafe.content,
+        title: 'Passage B',
+        materialId: 'passage-b',
+      },
+    };
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-reading-set',
+      materialId: 'reading-passage-set:hw-reading-set',
+      materialType: 'reading-passage-set',
+      materialTitle: 'Selected Reading Passages',
+      materialSkill: 'reading',
+      config: { timerMinutes: 40, maxAttempts: 1 },
+      readingPassageSet: {
+        titleSnapshot: 'Selected Reading Passages',
+        items: [
+          {
+            order: 1,
+            passageMaterialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            titleSnapshot: 'Passage A',
+            questionCount: 10,
+            testTypeIds: ['ielts'],
+          },
+          {
+            order: 2,
+            passageMaterialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            titleSnapshot: 'Passage B',
+            questionCount: 10,
+            testTypeIds: ['ielts'],
+          },
+        ],
+      },
+    });
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === 'reading_v2/projections/student_safe_tests/passage-a:snapshot-a') {
+          return firstProjection;
+        }
+
+        if (target.path === 'reading_v2/projections/student_safe_tests/passage-b:snapshot-b') {
+          return secondProjection;
+        }
+
+        return null;
+      },
+      exists: () => [
+        'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
+        'reading_v2/projections/student_safe_tests/passage-b:snapshot-b',
+      ].includes(target.path),
+    }));
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/student/practice/reading-passage-set:hw-reading-set',
+          state: {
+            isHomework: true,
+            homeworkId: 'hw-reading-set',
+            submissionId: 'submission-1',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reading-v2-runtime')).toBeInTheDocument();
+    });
+
+    const projection = readingV2RuntimePropsMock.mock.calls.at(-1)?.[0]?.projection;
+    const interactionIds = projection.content.taskGroups.flatMap((group: { interactions: { interactionId: string }[] }) =>
+      group.interactions.map((interaction) => interaction.interactionId),
+    );
+
+    expect(projection).toEqual(expect.objectContaining({
+      projectionId: 'homework-set:hw-reading-set',
+      materialId: 'reading-passage-set:hw-reading-set',
+    }));
+    expect(projection.content.title).toBe('Selected Reading Passages');
+    expect(projection.content.sections[0].title).toContain('Passage 1: Passage A');
+    expect(projection.content.sections.at(-1).title).toContain('Passage 2: Passage B');
+    expect(interactionIds).toHaveLength(new Set(interactionIds).size);
   });
 });

@@ -296,6 +296,57 @@ describe('StudentHomeworkListPage', () => {
     expect(screen.getByText('Awaiting teacher')).toBeInTheDocument();
   });
 
+  it('shows Reading Passage set summary without loading material detail', () => {
+    const passageSetItem = makeHomeworkItem({
+      homework: {
+        ...makeHomeworkItem().homework,
+        title: 'Selected Reading Passages',
+        materialId: 'reading-passage-set:hw-1',
+        materialTitle: 'Selected Reading Passages',
+        materialSkill: 'reading',
+        materialType: 'reading-passage-set',
+        readingPassageSet: {
+          titleSnapshot: 'Selected Reading Passages',
+          items: [
+            {
+              order: 1,
+              passageMaterialId: 'passage-a',
+              snapshotVersionId: 'snapshot-a',
+              titleSnapshot: 'Passage A',
+              questionCount: 10,
+              testTypeIds: ['ielts'],
+            },
+            {
+              order: 2,
+              passageMaterialId: 'passage-b',
+              snapshotVersionId: 'snapshot-b',
+              titleSnapshot: 'Passage B',
+              questionCount: 8,
+              testTypeIds: ['ielts'],
+            },
+          ],
+        },
+      },
+    });
+
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [passageSetItem],
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+      notStarted: [passageSetItem],
+      inProgress: [],
+      completed: [],
+      overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    expect(screen.getByText('Reading Passage Set')).toBeInTheDocument();
+    expect(screen.getByText('2 passages, 18 questions')).toBeInTheDocument();
+    expect(screen.getByText('Passage A, Passage B')).toBeInTheDocument();
+  });
+
   it('stacks the homework summary and full-width actions on mobile', () => {
     useMediaQueryMock.mockReturnValue(true);
 

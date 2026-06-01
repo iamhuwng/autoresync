@@ -271,6 +271,73 @@ describe('StudentHomeworkDetailPage', () => {
     expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
   });
 
+  it('shows Reading Passage set summary without legacy material lookup', async () => {
+    useHomeworkSubmissionMock.mockReturnValue({
+      homework: {
+        id: 'hw-1',
+        title: 'Selected Reading Passages',
+        materialId: 'reading-passage-set:hw-1',
+        materialTitle: 'Selected Reading Passages',
+        materialSkill: 'reading',
+        materialType: 'reading-passage-set',
+        description: 'Read the assigned passages.',
+        scheduling: {
+          dueDate: Date.now() + 60_000,
+        },
+        config: {
+          maxAttempts: 2,
+          timerMinutes: 40,
+          feedbackTiming: 'after_completion',
+          lateSubmissionAllowed: false,
+        },
+        readingPassageSet: {
+          titleSnapshot: 'Selected Reading Passages',
+          items: [
+            {
+              order: 2,
+              passageMaterialId: 'passage-b',
+              snapshotVersionId: 'snap-b',
+              titleSnapshot: 'Passage B',
+              questionCount: 10,
+              sourceOrderDisplay: 'Passage 2',
+              sourceFullTestTitle: 'Mock Test 2',
+            },
+            {
+              order: 1,
+              passageMaterialId: 'passage-a',
+              snapshotVersionId: 'snap-a',
+              titleSnapshot: 'Passage A',
+              questionCount: 8,
+              sourceOrderDisplay: 'Passage 1',
+              sourceFullTestTitle: 'Mock Test 1',
+            },
+          ],
+        },
+      },
+      currentSubmission: null,
+      allSubmissions: [],
+      bestSubmission: null,
+      maxAttempts: 2,
+      attemptsUsed: 0,
+      attemptsRemaining: 2,
+      isLoading: false,
+      error: null,
+      isOverdue: false,
+      isAvailable: true,
+      canStartAttempt: true,
+      hasInProgressAttempt: false,
+      startAttempt: startAttemptMock,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Reading Passage Set')).toBeInTheDocument();
+    expect(screen.getByText('2 passages, 18 questions')).toBeInTheDocument();
+    expect(screen.getByText('Passage A, Passage B')).toBeInTheDocument();
+    expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
+    expect(firebaseGetMock).not.toHaveBeenCalled();
+  });
+
   it('opens the start modal with mobile full-width actions and starts the attempt', async () => {
     const navigateTo = vi.fn();
     useNavigationMock.mockReturnValue({

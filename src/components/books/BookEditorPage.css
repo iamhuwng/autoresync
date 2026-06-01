@@ -1,0 +1,147 @@
+.book-editor-page {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.book-editor-page__main {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.book-editor-page__hero,
+.book-editor-page__section {
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  border-radius: 8px;
+  padding: 1.25rem;
+  background: #fff;
+}
+
+.book-editor-page__eyebrow {
+  margin: 0 0 0.4rem;
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.book-editor-page__title {
+  margin: 0 0 0.5rem;
+  color: #1e293b;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.book-editor-page__copy {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.book-editor-page__book-id {
+  display: inline-flex;
+  margin-top: 1rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  background: #ccfbf1;
+  color: #115e59;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.book-editor-page__status,
+.book-editor-page__error {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #ecfeff;
+  color: #155e75;
+  font-weight: 800;
+}
+
+.book-editor-page__error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.book-editor-page__section {
+  display: grid;
+  gap: 1rem;
+}
+
+.book-editor-page__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.book-editor-page__section-heading h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.book-editor-page__section-heading p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.book-editor-page__section-heading button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  background: #0f766e;
+  color: #fff;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.book-editor-page__form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.book-editor-page__form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.book-editor-page__form-grid input,
+.book-editor-page__form-grid select,
+.book-editor-page__form-grid textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  color: #0f172a;
+  font: inherit;
+}
+
+.book-editor-page__form-grid textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.book-editor-page__wide-field {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .book-editor-page__main {
+    width: min(100% - 1rem, 1180px);
+    padding: 1rem 0;
+  }
+
+  .book-editor-page__section-heading {
+    flex-direction: column;
+  }
+}

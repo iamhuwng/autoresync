@@ -185,6 +185,11 @@ export const buildReadingV2FirebasePublishUpdates = (
       whereUsedByAsset.set(operation.write.passageAssetId, assetEntry);
       return;
     }
+
+    if (operation.kind === 'storage-write') {
+      updates[operation.path] = operation.value;
+      return;
+    }
   });
 
   whereUsedByAsset.forEach((value, passageAssetId) => {

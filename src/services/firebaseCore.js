@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getDatabase, onValue, ref } from 'firebase/database';
+import { connectDatabaseEmulator, getDatabase, onValue, ref } from 'firebase/database';
 
 export const isTestEnvironment = import.meta.env.MODE === 'test';
 export const shouldLogFirebaseBootstrap = import.meta.env.DEV && !isTestEnvironment;
@@ -43,6 +43,25 @@ if (shouldLogFirebaseBootstrap) {
 }
 
 export const database = getDatabase(app);
+
+const databaseEmulatorHost = import.meta.env.VITE_FIREBASE_DATABASE_EMULATOR_HOST;
+
+if (databaseEmulatorHost && (import.meta.env.DEV || isTestEnvironment)) {
+  const [host, rawPort] = databaseEmulatorHost.split(':');
+  const port = Number(rawPort);
+
+  if (host && Number.isInteger(port) && port > 0) {
+    connectDatabaseEmulator(database, host, port);
+
+    if (shouldLogFirebaseBootstrap) {
+      console.log(`[Firebase] Database emulator connected at ${host}:${port}`);
+    }
+  } else {
+    throw new Error(
+      '[Firebase] Invalid VITE_FIREBASE_DATABASE_EMULATOR_HOST. Expected host:port.'
+    );
+  }
+}
 
 if (shouldLogFirebaseBootstrap) {
   console.log('[Firebase] Database instance created');

@@ -325,14 +325,33 @@ describe('LegacyResultDetailView', () => {
           sourceNameSnapshot: 'Homework Snapshot Name',
           currentSourceName: 'Homework Current Name',
         },
+        context: {
+          type: 'homework',
+          source: {
+            type: 'homework',
+            id: 'homework-1',
+            name: 'Homework Snapshot Name',
+          },
+          assignment: {
+            homeworkId: 'homework-1',
+            attemptNumber: 2,
+          },
+          configApplied: {
+            timerMinutes: 30,
+            feedbackTiming: 'after_completion',
+            source: 'teacher_override',
+          },
+        },
       }),
     );
 
     expect(await screen.findByTestId('result-source-metadata')).toBeInTheDocument();
     expect(screen.getByTestId('result-source-primary-label')).toHaveTextContent('Homework Snapshot Name');
     expect(screen.getByTestId('result-source-current-label')).toHaveTextContent('Homework Current Name');
+    expect(screen.getByTestId('result-source-newer-version-note')).toHaveTextContent('assigned snapshot');
     expect(screen.getByTestId('result-source-context')).toHaveTextContent('Homework');
     expect(screen.getByTestId('result-source-id')).toHaveTextContent('homework-1');
+    expect(screen.getByTestId('result-source-attempt')).toHaveTextContent('Attempt 2');
     expect(screen.getByTestId('result-source-resolution')).toHaveTextContent('Homework -> CreatedBy');
     expect(screen.getByTestId('result-source-visibility')).toHaveTextContent('Teacher-owned teaching context');
   });

@@ -28,6 +28,7 @@ import type { ResolvedPracticeSettings } from '../types/practice.types';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { IELTSPracticeView } from '../components/practice/IELTSPracticeView';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
@@ -42,6 +43,7 @@ import type { IELTSWritingTest } from '../types/ielts-writing.types';
 import { studentResumeService } from '../services/studentResume.service';
 import { getEffectiveHomeworkDueDate, getHomeworkById } from '../services/homeworkManager';
 import { getSubmissionById } from '../services/homeworkSubmissionService';
+import type { HomeworkAssignment } from '../types/homework.types';
 import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
 import {
     buildReadingV2LaunchReadPlan,
@@ -53,6 +55,10 @@ import {
     isReadingV2RuntimeSubmissionConfigured,
     submitReadingV2RuntimeAttempt,
 } from '../services/reading-v2/readingV2RuntimeSubmission.service';
+import {
+    composeReadingPassageSetProjection,
+    getReadingPassageHomeworkLaunchItems,
+} from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -146,6 +152,62 @@ const getReadingV2LaunchSurface = (locationState: PracticeLocationState): Readin
     return 'solo-practice';
 };
 
+const readStudentSafeReadingPassageProjection = async (input: {
+    materialId: string;
+    snapshotVersionId: string;
+    launchSurface: ReadingV2LaunchSurface;
+}): Promise<ReadingV2DerivedProjection> => {
+    const projectionReadPlan = buildReadingV2LaunchReadPlan({
+        surface: input.launchSurface,
+        materialId: input.materialId,
+        snapshotVersionId: input.snapshotVersionId,
+    });
+    const projectionSnap = await get(ref(database, projectionReadPlan.projectionPath));
+    const launchDecision = resolveReadingV2LaunchDecision({
+        surface: input.launchSurface,
+        metadata: { deliveryEngine: READING_V2_ENGINE },
+        projection: projectionSnap.exists() ? projectionSnap.val() : undefined,
+    });
+
+    if (launchDecision.status !== 'runtime') {
+        throw new Error(launchDecision.status === 'blocked'
+            ? launchDecision.message
+            : 'Reading V2 homework projection could not be resolved');
+    }
+
+    return launchDecision.projection;
+};
+
+const resolveReadingPassageHomeworkProjection = async (input: {
+    homework: HomeworkAssignment;
+    launchSurface: ReadingV2LaunchSurface;
+}): Promise<ReadingV2DerivedProjection | null> => {
+    const items = getReadingPassageHomeworkLaunchItems(input.homework);
+
+    if (items.length === 0) {
+        return null;
+    }
+
+    const projections = await Promise.all(
+        items.map((item) =>
+            readStudentSafeReadingPassageProjection({
+                materialId: item.passageMaterialId,
+                snapshotVersionId: item.snapshotVersionId,
+                launchSurface: input.launchSurface,
+            }),
+        ),
+    );
+
+    if (input.homework.materialType === 'reading-passage-set') {
+        return composeReadingPassageSetProjection({
+            homework: input.homework,
+            projections,
+        });
+    }
+
+    return projections[0] ?? null;
+};
+
 const isExplicitReadingV2Launch = (testData: unknown): boolean =>
     isReadingV2LaunchCandidate(testData);
 
@@ -167,6 +229,7 @@ const StudentPracticePageContent: React.FC = () => {
     const [writingTestData, setWritingTestData] = useState<IELTSWritingTest | null>(null);
     const [writingHomeworkContext, setWritingHomeworkContext] = useState<HomeworkWritingContext | undefined>(undefined);
     const [readingV2Projection, setReadingV2Projection] = useState<ReadingV2DerivedProjection | null>(null);
+    const [readingPassageHomeworkKind, setReadingPassageHomeworkKind] = useState<'reading-passage' | 'reading-passage-set' | null>(null);
     const [readingV2Answers, setReadingV2Answers] = useState<Readonly<Record<string, ReadingV2AnswerValue>>>({});
     const [readingV2StartedAt] = useState(() => (
         typeof locationState.startedAt === 'number' ? locationState.startedAt : Date.now()
@@ -187,9 +250,63 @@ const StudentPracticePageContent: React.FC = () => {
             setError(null);
             setWritingHomeworkContext(undefined);
             setReadingV2Projection(null);
+            setReadingPassageHomeworkKind(null);
 
             try {
                 setReadingV2Answers({});
+                const homeworkForLaunch = locationState.isHomework && locationState.homeworkId
+                    ? await getHomeworkById(locationState.homeworkId)
+                    : null;
+                const readingPassageHomeworkProjection = homeworkForLaunch
+                    ? await resolveReadingPassageHomeworkProjection({
+                        homework: homeworkForLaunch,
+                        launchSurface: getReadingV2LaunchSurface(locationState),
+                    })
+                    : null;
+
+                if (readingPassageHomeworkProjection) {
+                    const launchSurface = getReadingV2LaunchSurface(locationState);
+                    const readingPassageItems = homeworkForLaunch
+                        ? getReadingPassageHomeworkLaunchItems(homeworkForLaunch)
+                        : [];
+                    trackAction('launchReadingPassageHomeworkRuntime', {
+                        surface: launchSurface,
+                        homeworkId: homeworkForLaunch?.id,
+                        materialId: homeworkForLaunch?.materialId,
+                        projectionId: readingPassageHomeworkProjection.projectionId,
+                        sourceSnapshotVersionId: readingPassageHomeworkProjection.sourceSnapshotVersionId,
+                        outcome: 'success',
+                    });
+                    trackAction('teacher_materials_reading_passage_homework_launched', {
+                        surface: launchSurface,
+                        homeworkId: homeworkForLaunch?.id,
+                        materialId: homeworkForLaunch?.materialId,
+                        materialType: homeworkForLaunch?.materialType,
+                        projectionId: readingPassageHomeworkProjection.projectionId,
+                        sourceSnapshotVersionId: readingPassageHomeworkProjection.sourceSnapshotVersionId,
+                        passageCount: readingPassageItems.length,
+                    });
+                    setReadingV2Projection(readingPassageHomeworkProjection);
+                    setReadingPassageHomeworkKind(
+                        homeworkForLaunch?.materialType === 'reading-passage-set'
+                            ? 'reading-passage-set'
+                            : 'reading-passage',
+                    );
+                    setTestSkill('Reading');
+                    setTestType('ReadingV2');
+                    setResolvedSettings({
+                        ...DEFAULT_PRACTICE_SETTINGS,
+                        timerMinutes: locationState.timerMinutes
+                            ?? homeworkForLaunch?.config?.timerMinutes
+                            ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
+                        maxAttempts: locationState.maxAttempts
+                            ?? homeworkForLaunch?.config?.maxAttempts
+                            ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
+                    });
+                    setLoading(false);
+                    return;
+                }
+
                 const launchTestSnap = await get(ref(database, `tests/${materialId}`));
                 const launchTestData = launchTestSnap.exists() ? launchTestSnap.val() : null;
 
@@ -328,7 +445,7 @@ const StudentPracticePageContent: React.FC = () => {
 
                         const [submission, homework] = await Promise.all([
                             getSubmissionById(locationState.submissionId),
-                            getHomeworkById(locationState.homeworkId),
+                            homeworkForLaunch ? Promise.resolve(homeworkForLaunch) : getHomeworkById(locationState.homeworkId),
                         ]);
 
                         const isValidSubmission = submission
@@ -464,6 +581,14 @@ const StudentPracticePageContent: React.FC = () => {
                 attemptId: result.attemptId,
                 outcome: 'success',
             });
+            if (readingPassageHomeworkKind) {
+                trackAction('teacher_materials_reading_passage_homework_submitted', {
+                    ...trackingPayload,
+                    resultId: result.resultId,
+                    attemptId: result.attemptId,
+                    materialType: readingPassageHomeworkKind,
+                });
+            }
         } catch (submitError) {
             trackAction('submitReadingV2Attempt', {
                 ...trackingPayload,
@@ -480,6 +605,7 @@ const StudentPracticePageContent: React.FC = () => {
         locationState.moduleId,
         materialId,
         readingV2Projection?.content.title,
+        readingPassageHomeworkKind,
         trackAction,
     ]);
     const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()

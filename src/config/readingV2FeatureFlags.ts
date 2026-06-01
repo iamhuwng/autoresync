@@ -16,6 +16,14 @@ export const READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY_MODES = {
 export type ReadingV2PassageAssetLobbyVisibility =
   (typeof READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY_MODES)[keyof typeof READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY_MODES];
 
+export const PRD0052_FEATURE_FLAG_MODES = {
+  disabled: 'disabled',
+  enabled: 'enabled',
+} as const;
+
+export type Prd0052FeatureFlagMode =
+  (typeof PRD0052_FEATURE_FLAG_MODES)[keyof typeof PRD0052_FEATURE_FLAG_MODES];
+
 export const READING_V2_ENGINE = 'reading-v2';
 
 export const normalizeReadingV2RolloutMode = (value: unknown): ReadingV2RolloutMode => {
@@ -48,6 +56,20 @@ export const normalizeReadingV2PassageAssetLobbyVisibility = (
   return READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY_MODES.hidden;
 };
 
+export const normalizePrd0052FeatureFlagMode = (value: unknown): Prd0052FeatureFlagMode => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+  if (
+    normalized === PRD0052_FEATURE_FLAG_MODES.enabled ||
+    normalized === 'true' ||
+    normalized === '1'
+  ) {
+    return PRD0052_FEATURE_FLAG_MODES.enabled;
+  }
+
+  return PRD0052_FEATURE_FLAG_MODES.disabled;
+};
+
 export const READING_V2_ROLLOUT_MODE: ReadingV2RolloutMode =
   normalizeReadingV2RolloutMode(import.meta.env.VITE_READING_V2_ROLLOUT_MODE);
 
@@ -55,6 +77,24 @@ export const READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: ReadingV2PassageAssetLob
   normalizeReadingV2PassageAssetLobbyVisibility(
     import.meta.env.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY,
   );
+
+export const TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_TEACHER_MATERIALS_TEST_TYPE_BLOCKS);
+
+export const ADMIN_CONFIGURABLE_TEST_TYPES_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_ADMIN_CONFIGURABLE_TEST_TYPES);
+
+export const READING_PASSAGE_LIBRARY_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_READING_PASSAGE_LIBRARY);
+
+export const READING_PASSAGE_HOMEWORK_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_READING_PASSAGE_HOMEWORK);
+
+export const MATERIAL_BOOKS_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_MATERIAL_BOOKS);
+
+export const MATERIAL_BOOK_EDITOR_MODE: Prd0052FeatureFlagMode =
+  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_MATERIAL_BOOK_EDITOR);
 
 export const READING_V2_PRODUCT_LABEL = 'Reading V2';
 
@@ -98,3 +138,30 @@ export const isReadingV2TeacherRouteExposureAllowed = (
   mode === READING_V2_ROLLOUT_MODES.internalOnly ||
   mode === READING_V2_ROLLOUT_MODES.teacherPreview ||
   mode === READING_V2_ROLLOUT_MODES.public;
+
+export const isPrd0052FeatureEnabled = (mode: Prd0052FeatureFlagMode): boolean =>
+  mode === PRD0052_FEATURE_FLAG_MODES.enabled;
+
+export const isTeacherMaterialsTestTypeBlocksEnabled = (
+  mode: Prd0052FeatureFlagMode = TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);
+
+export const isAdminConfigurableTestTypesEnabled = (
+  mode: Prd0052FeatureFlagMode = ADMIN_CONFIGURABLE_TEST_TYPES_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);
+
+export const isReadingPassageLibraryEnabled = (
+  mode: Prd0052FeatureFlagMode = READING_PASSAGE_LIBRARY_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);
+
+export const isReadingPassageHomeworkEnabled = (
+  mode: Prd0052FeatureFlagMode = READING_PASSAGE_HOMEWORK_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);
+
+export const isMaterialBooksEnabled = (
+  mode: Prd0052FeatureFlagMode = MATERIAL_BOOKS_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);
+
+export const isMaterialBookEditorEnabled = (
+  mode: Prd0052FeatureFlagMode = MATERIAL_BOOK_EDITOR_MODE,
+): boolean => isPrd0052FeatureEnabled(mode);

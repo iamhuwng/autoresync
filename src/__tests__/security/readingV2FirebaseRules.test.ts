@@ -86,7 +86,12 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(readingV2Rules?.passage_assets).toBeDefined();
     expect(readingV2Rules?.task_group_materials).toBeDefined();
     expect(readingV2Rules?.full_tests).toBeDefined();
+    expect(readingV2Rules?.reading_passage_materials).toBeDefined();
+    expect(readingV2Rules?.reading_passage_material_versions).toBeDefined();
+    expect(readingV2Rules?.full_test_compositions).toBeDefined();
+    expect(readingV2Rules?.full_test_composition_versions).toBeDefined();
     expect(readingV2Rules?.material_metadata).toBeDefined();
+    expect(readingV2Rules?.listing_indexes).toBeDefined();
     expect(readingV2Rules?.relationship_indexes).toBeDefined();
     expect(readingV2Rules?.published_snapshots).toBeDefined();
     expect(readingV2Rules?.projections).toBeDefined();
@@ -124,6 +129,7 @@ describe('Reading V2 Firebase rule contract', () => {
     READING_V2_OPERATIONAL_MATRIX.filter((entry) => entry.allowedRoles.includes('student')).forEach(
       (entry) => {
         expect(entry.forbiddenFields).toEqual(expect.arrayContaining(['authorDiagnostics']));
+        expect(entry.forbiddenFields).toEqual(expect.arrayContaining(['scoringRule']));
         expect(entry.forbiddenFields).toEqual(expect.arrayContaining(['importEvidence']));
         expect(entry.forbiddenFields).toEqual(expect.arrayContaining(['hiddenProvenance']));
       },
@@ -137,7 +143,12 @@ describe('Reading V2 Firebase rule contract', () => {
       '"passage_assets"',
       '"task_group_materials"',
       '"full_tests"',
+      '"reading_passage_materials"',
+      '"reading_passage_material_versions"',
+      '"full_test_compositions"',
+      '"full_test_composition_versions"',
       '"material_metadata"',
+      '"listing_indexes"',
       '"relationship_indexes"',
       '"published_snapshots"',
       '"student_safe_tests"',
@@ -159,6 +170,25 @@ describe('Reading V2 Firebase rule contract', () => {
       expect(pathStart).toBeGreaterThan(-1);
       expect(pathRuleSlice).toContain('ownerId');
     });
+  });
+
+  it('requires Reading Passage canonical records to validate owner, material id, state, and version fields', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const passageRules = readingV2Rules.reading_passage_materials.$materialId as Record<string, string>;
+    const validation = passageRules['.validate'];
+
+    expect(validation).toContain('ownerId');
+    expect(validation).toContain('materialId');
+    expect(validation).toContain('state');
+    expect(validation).toContain('currentVersionId');
+    expect(validation).toContain('publishedVersionId');
+  });
+
+  it('blocks scoringRule from student-safe Reading V2 projections', () => {
+    const readingV2Start = DATABASE_RULES.indexOf('"reading_v2"');
+    const rulesText = DATABASE_RULES.slice(readingV2Start);
+
+    expect(rulesText).toContain("!newData.child('scoringRule').exists()");
   });
 });
 

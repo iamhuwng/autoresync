@@ -13,7 +13,14 @@ const samplePathByClass = {
   passageAssetVersions: readingV2StoragePaths.passageAssetVersions('asset-1', 'v1'),
   taskGroupMaterials: readingV2StoragePaths.taskGroupMaterials('material-1'),
   fullTests: readingV2StoragePaths.fullTests('full-test-1'),
+  readingPassageMaterials: readingV2StoragePaths.readingPassageMaterials('passage-material-1'),
+  readingPassageMaterialVersions:
+    readingV2StoragePaths.readingPassageMaterialVersions('passage-material-1', 'snapshot-1'),
+  fullTestCompositions: readingV2StoragePaths.fullTestCompositions('composition-1'),
+  fullTestCompositionVersions:
+    readingV2StoragePaths.fullTestCompositionVersions('composition-1', 'snapshot-1'),
   materialMetadata: readingV2StoragePaths.materialMetadata('material-1'),
+  listingIndexes: readingV2StoragePaths.listingIndexes('teacher-materials', 'material-1'),
   relationshipIndexes: readingV2StoragePaths.relationshipIndexes('teacher-lobby', 'material-1'),
   publishedSnapshots: readingV2StoragePaths.publishedSnapshots('material-1', 'snapshot-1'),
   previewPayloads: readingV2StoragePaths.previewPayloads('draft-1'),
@@ -48,6 +55,24 @@ describe('readingV2StoragePaths.service', () => {
         expect(path.startsWith(legacyPrefix)).toBe(false);
       });
     });
+  });
+
+  it('returns exact PRD-0052 Reading Passage and composition paths', () => {
+    expect(readingV2StoragePaths.readingPassageMaterials('passage-material-1')).toBe(
+      'reading_v2/reading_passage_materials/passage-material-1',
+    );
+    expect(
+      readingV2StoragePaths.readingPassageMaterialVersions('passage-material-1', 'snapshot-1'),
+    ).toBe('reading_v2/reading_passage_material_versions/passage-material-1/snapshot-1');
+    expect(readingV2StoragePaths.fullTestCompositions('composition-1')).toBe(
+      'reading_v2/full_test_compositions/composition-1',
+    );
+    expect(readingV2StoragePaths.fullTestCompositionVersions('composition-1', 'snapshot-1')).toBe(
+      'reading_v2/full_test_composition_versions/composition-1/snapshot-1',
+    );
+    expect(readingV2StoragePaths.listingIndexes('teacher-materials', 'material-1')).toBe(
+      'reading_v2/listing_indexes/teacher-materials/material-1',
+    );
   });
 
   it('rejects unknown or legacy path classes', () => {

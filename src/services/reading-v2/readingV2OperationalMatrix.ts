@@ -25,6 +25,7 @@ export interface ReadingV2OperationalMatrixEntry {
 export const READING_V2_FORBIDDEN_STUDENT_FIELDS = [
   'answerKeys',
   'acceptableAnswers',
+  'scoringRule',
   'authorDiagnostics',
   'importEvidence',
   'hiddenProvenance',
@@ -224,7 +225,7 @@ export const READING_V2_OPERATIONAL_MATRIX = [
     frequencyClass: 'high',
     retentionDeletionBehavior: 'append-only attempt history retained with result',
     projectionSafetyRule: 'stores answers by stable interaction IDs and snapshot/session version',
-    forbiddenFields: ['authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
+    forbiddenFields: ['scoringRule', 'authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
     atomicityDecision: 'transaction-required',
   },
   {
@@ -239,7 +240,7 @@ export const READING_V2_OPERATIONAL_MATRIX = [
     frequencyClass: 'high',
     retentionDeletionBehavior: 'historical truth retained; regrade appends artifacts',
     projectionSafetyRule: 'student views are sanitized by release policy',
-    forbiddenFields: ['authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
+    forbiddenFields: ['scoringRule', 'authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
     atomicityDecision: 'transaction-required',
   },
   {

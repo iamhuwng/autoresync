@@ -35,6 +35,7 @@ const TeacherGradingPage = lazyWithRetry(() => import('../pages/TeacherGradingPa
 const WritingTestBuilder = lazyWithRetry(() => import('../pages/WritingTestBuilder.tsx'));
 const WritingGradingPage = lazyWithRetry(() => import('../pages/WritingGradingPage.tsx'));
 const TeacherStudentsPage = lazyWithRetry(() => import('../pages/TeacherStudentsPage.tsx'));
+const BookEditorPage = lazyWithRetry(() => import('../components/books/BookEditorPage.tsx'));
 
 function asTeacherPage(
   children: React.ReactNode,
@@ -115,6 +116,10 @@ export const createTeacherRoutes = (
   {
     path: '/teacher/homework',
     element: asTeacherErrorBoundaryPage(<TeacherHomeworkListPage />, 'homework'),
+  },
+  {
+    path: '/teacher/materials/books/:bookId',
+    element: asTeacherErrorBoundaryPage(<BookEditorPage />, 'readingV2Studio', ['teacher', 'super_admin']),
   },
   {
     path: '/lobby',

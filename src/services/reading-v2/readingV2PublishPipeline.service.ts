@@ -1,12 +1,21 @@
 import {
   readingV2Ids,
   type ReadingV2Document,
+  type ReadingV2FullTestComposition,
+  type ReadingV2FullTestId,
   type ReadingV2MaterialId,
   type ReadingV2PassageAssetId,
   type ReadingV2PublishedSnapshot,
+  type ReadingV2ReadingPassageMaterial,
   type ReadingV2SnapshotVersionId,
   type ReadingV2WhereUsedEntry,
 } from '../../types/readingV2.types';
+import {
+  type MaterialTestTypeConfig,
+  type MaterialTestTypeId,
+  type ReadingPassageVisibilityScope,
+} from '../../types/materialCatalog.types';
+import { buildMaterialCatalogIndexWrites } from '../materialCatalog/materialCatalogIndexes.service';
 import type { createReadingV2Repository } from './readingV2Repository.service';
 import {
   assertReadingV2ProjectionIsStudentSanitized,
@@ -24,11 +33,16 @@ import {
   type ReadingV2RelationshipSurface,
 } from './readingV2MaterialMetadata.service';
 import {
+  extractReadingV2PassageMaterials,
+  type ReadingV2PassageExtractionResult,
+} from './readingV2PassageExtraction.service';
+import {
   assertReadingV2PublishGate,
   validateReadingV2Draft,
   type ReadingV2ValidationResult,
 } from './readingV2Validation.service';
 import { writeReadingV2WhereUsedForPublish } from './readingV2PassageAssetWorkflow.service';
+import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export interface ReadingV2PublishRelationshipIndexWrite {
   readonly surface: ReadingV2RelationshipSurface;
@@ -51,6 +65,20 @@ export interface ReadingV2PublishPipelineSinks {
     readonly snapshotVersionId: ReadingV2SnapshotVersionId;
     readonly context: string;
   }) => void;
+}
+
+export interface ReadingV2PublishStorageWrite {
+  readonly path: string;
+  readonly value: unknown;
+  readonly writeKind:
+    | 'reading-passage-material'
+    | 'reading-passage-material-version'
+    | 'reading-passage-student-safe-projection'
+    | 'reading-passage-review-projection'
+    | 'reading-passage-metadata'
+    | 'reading-passage-listing-index'
+    | 'full-test-composition'
+    | 'full-test-composition-version';
 }
 
 export type ReadingV2PublishCommitOperation =
@@ -78,6 +106,13 @@ export type ReadingV2PublishCommitOperation =
       readonly kind: 'where-used';
       readonly operationKey: string;
       readonly write: ReadingV2WhereUsedEntry;
+    }
+  | {
+      readonly kind: 'storage-write';
+      readonly operationKey: string;
+      readonly path: string;
+      readonly value: unknown;
+      readonly writeKind: ReadingV2PublishStorageWrite['writeKind'];
     }
   | {
       readonly kind: 'return-context-notification';
@@ -110,6 +145,14 @@ export interface ReadingV2PublishPipelineInput {
     readonly passageAssetId: ReadingV2PassageAssetId;
     readonly consumerKind: ReadingV2WhereUsedEntry['consumerKind'];
   }[];
+  readonly readingPassageExtraction?: {
+    readonly sourceFullTestId?: ReadingV2FullTestId;
+    readonly primaryTestTypeId?: MaterialTestTypeId;
+    readonly testTypeIds?: readonly MaterialTestTypeId[];
+    readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
+    readonly visibility?: ReadingPassageVisibilityScope;
+    readonly durationMinutes?: number;
+  };
   readonly returnContext?: string;
 }
 
@@ -120,6 +163,7 @@ export interface ReadingV2PublishPipelineResult {
   readonly metadata: ReadingV2MaterialMetadata;
   readonly relationshipIndexWrites: readonly ReadingV2PublishRelationshipIndexWrite[];
   readonly whereUsedWrites: readonly ReadingV2WhereUsedEntry[];
+  readonly readingPassageExtraction?: ReadingV2PassageExtractionResult;
   readonly commitPlan: ReadingV2PublishCommitPlan;
   readonly returnContextNotification?: string;
 }
@@ -155,6 +199,174 @@ const buildRelationshipIndexWrites = (
   { surface: 'analytics', materialId, snapshotVersionId, source: 'analytics-projection' },
 ];
 
+const toMaterialId = (value: string): ReadingV2MaterialId => readingV2Ids.materialId(value);
+
+const storageOperation = (
+  commitKey: string,
+  write: ReadingV2PublishStorageWrite,
+): ReadingV2PublishCommitOperation => ({
+  kind: 'storage-write',
+  operationKey: `${commitKey}/storage/${write.path}`,
+  path: write.path,
+  value: write.value,
+  writeKind: write.writeKind,
+});
+
+const visibilityToMetadataVisibility = (
+  visibility: ReadingPassageVisibilityScope,
+): ReadingV2MaterialMetadataInput['visibility'] =>
+  visibility === 'public' ? 'library-eligible' : 'private';
+
+const buildReadingPassageSnapshotValue = (input: {
+  readonly material: ReadingV2ReadingPassageMaterial;
+  readonly document: ReadingV2Document;
+  readonly publishedAt: string;
+  readonly publishedBy: string;
+}): Record<string, unknown> => ({
+  ...input.material,
+  document: input.document,
+  publishedAt: input.publishedAt,
+  publishedBy: input.publishedBy,
+});
+
+const buildCompositionVersionValue = (input: {
+  readonly composition: ReadingV2FullTestComposition;
+  readonly publishedAt: string;
+  readonly publishedBy: string;
+}): Record<string, unknown> => ({
+  ...input.composition,
+  publishedAt: input.publishedAt,
+  publishedBy: input.publishedBy,
+});
+
+const buildReadingPassageStorageWrites = (input: {
+  readonly extraction: ReadingV2PassageExtractionResult;
+  readonly ownerId: string;
+  readonly testMaterialId: ReadingV2MaterialId;
+  readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly publishedAt: string;
+  readonly publishedBy: string;
+  readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
+}): ReadingV2PublishStorageWrite[] => {
+  const passageWrites = input.extraction.passages.flatMap((candidate): ReadingV2PublishStorageWrite[] => {
+    const passageMaterialId = toMaterialId(candidate.material.passageMaterialId);
+    const passageSnapshot: ReadingV2PublishedSnapshot = {
+      snapshotVersionId: candidate.material.currentSnapshotVersionId,
+      materialId: passageMaterialId,
+      ownerId: input.ownerId,
+      document: candidate.document,
+      publishedAt: input.publishedAt,
+      publishedBy: input.publishedBy,
+    };
+    const studentSafeProjection = generateReadingV2StudentSafeProjection(
+      passageSnapshot,
+      input.publishedAt,
+    );
+    const reviewProjection = generateReadingV2ReviewProjection(passageSnapshot, input.publishedAt);
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: passageMaterialId,
+      ownerId: input.ownerId,
+      document: candidate.document,
+      materialKind: 'reading-passage',
+      title: candidate.material.title,
+      durationMinutes: candidate.material.durationMinutes,
+      visibility: visibilityToMetadataVisibility(candidate.material.visibility),
+      primaryTestTypeId: candidate.material.primaryTestTypeId,
+      testTypeIds: candidate.material.testTypeIds,
+      testTypeConfigs: input.testTypeConfigs,
+      sourceFullTestId: input.testMaterialId,
+      sourceSnapshotVersionId: candidate.material.sourceSnapshotVersionId,
+      sourceOrderKind: candidate.material.sourceOrder.kind,
+      sourceOrderValue: candidate.material.sourceOrder.value,
+      sourceOrderLabelSnapshot: candidate.material.sourceOrder.labelSnapshot,
+      sourceOrderDisplaySnapshot: candidate.material.sourceOrder.displaySnapshot,
+      sourceQuestionRange: candidate.material.sourceQuestionRange,
+      sourceTitleSnapshot: candidate.material.sourceTitleSnapshot,
+      updatedAt: input.publishedAt,
+    });
+    const indexWrites = buildMaterialCatalogIndexWrites({
+      materialId: candidate.material.passageMaterialId,
+      ownerId: input.ownerId,
+      title: candidate.material.title,
+      visibility: candidate.material.visibility,
+      materialKind: 'reading-passage',
+      testTypeIds: candidate.material.testTypeIds,
+      sourceFullTestId: input.testMaterialId,
+      updatedAt: input.publishedAt,
+    });
+
+    assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
+
+    return [
+      {
+        path: readingV2StoragePaths.readingPassageMaterials(candidate.material.passageMaterialId),
+        value: candidate.material,
+        writeKind: 'reading-passage-material',
+      },
+      {
+        path: readingV2StoragePaths.readingPassageMaterialVersions(
+          candidate.material.passageMaterialId,
+          candidate.material.currentSnapshotVersionId,
+        ),
+        value: buildReadingPassageSnapshotValue({
+          material: candidate.material,
+          document: candidate.document,
+          publishedAt: input.publishedAt,
+          publishedBy: input.publishedBy,
+        }),
+        writeKind: 'reading-passage-material-version',
+      },
+      {
+        path: readingV2StoragePaths.studentSafeTests(
+          candidate.material.passageMaterialId,
+          candidate.material.currentSnapshotVersionId,
+        ),
+        value: studentSafeProjection,
+        writeKind: 'reading-passage-student-safe-projection',
+      },
+      {
+        path: readingV2StoragePaths.reviewProjections(
+          candidate.material.passageMaterialId,
+          candidate.material.currentSnapshotVersionId,
+        ),
+        value: reviewProjection,
+        writeKind: 'reading-passage-review-projection',
+      },
+      {
+        path: readingV2StoragePaths.materialMetadata(candidate.material.passageMaterialId),
+        value: metadata,
+        writeKind: 'reading-passage-metadata',
+      },
+      ...indexWrites.map((write) => ({
+        path: write.path,
+        value: write.value,
+        writeKind: 'reading-passage-listing-index' as const,
+      })),
+    ];
+  });
+
+  return [
+    ...passageWrites,
+    {
+      path: readingV2StoragePaths.fullTestCompositions(input.extraction.composition.compositionId),
+      value: input.extraction.composition,
+      writeKind: 'full-test-composition',
+    },
+    {
+      path: readingV2StoragePaths.fullTestCompositionVersions(
+        input.extraction.composition.compositionId,
+        input.snapshotVersionId,
+      ),
+      value: buildCompositionVersionValue({
+        composition: input.extraction.composition,
+        publishedAt: input.publishedAt,
+        publishedBy: input.publishedBy,
+      }),
+      writeKind: 'full-test-composition-version',
+    },
+  ];
+};
+
 const buildReadingV2PublishCommitPlan = (input: {
   readonly materialId: ReadingV2MaterialId;
   readonly snapshotVersionId: ReadingV2SnapshotVersionId;
@@ -163,6 +375,7 @@ const buildReadingV2PublishCommitPlan = (input: {
   readonly metadata: ReadingV2MaterialMetadata;
   readonly relationshipIndexWrites: readonly ReadingV2PublishRelationshipIndexWrite[];
   readonly whereUsedWrites: readonly ReadingV2WhereUsedEntry[];
+  readonly storageWrites?: readonly ReadingV2PublishStorageWrite[];
   readonly returnContext?: string;
 }): ReadingV2PublishCommitPlan => {
   const commitKey = `${input.materialId}/${input.snapshotVersionId}`;
@@ -192,6 +405,7 @@ const buildReadingV2PublishCommitPlan = (input: {
       operationKey: `${commitKey}/where-used/${write.passageAssetId}/${write.consumerKind}`,
       write,
     })),
+    ...(input.storageWrites ?? []).map((write) => storageOperation(commitKey, write)),
   ];
 
   if (input.returnContext) {
@@ -347,6 +561,45 @@ export const publishReadingV2Material = (
     consumerId: input.materialId,
     consumerKind: use.consumerKind,
   }));
+  const readingPassageExtraction = input.readingPassageExtraction
+    ? extractReadingV2PassageMaterials({
+        document: input.document,
+        ownerId: input.ownerId,
+        sourceFullTestId: input.readingPassageExtraction.sourceFullTestId,
+        testMaterialId: input.materialId,
+        sourceSnapshotVersionId: snapshotVersionId,
+        sourceTitleSnapshot: metadata.title,
+        primaryTestTypeId:
+          input.readingPassageExtraction.primaryTestTypeId ?? input.metadata?.primaryTestTypeId,
+        testTypeIds: input.readingPassageExtraction.testTypeIds ?? input.metadata?.testTypeIds,
+        testTypeConfigs:
+          input.readingPassageExtraction.testTypeConfigs ?? input.metadata?.testTypeConfigs,
+        visibility: input.readingPassageExtraction.visibility ?? 'private',
+        durationMinutes: input.readingPassageExtraction.durationMinutes ?? input.metadata?.durationMinutes,
+        createdAt: publishedAt,
+      })
+    : undefined;
+
+  if (readingPassageExtraction?.validationIssues.some((entry) => entry.severity === 'error')) {
+    const codes = readingPassageExtraction.validationIssues
+      .filter((entry) => entry.severity === 'error')
+      .map((entry) => entry.code)
+      .join(', ');
+    throw new Error(`Reading V2 passage extraction blocked publish: ${codes}`);
+  }
+
+  const storageWrites = readingPassageExtraction
+    ? buildReadingPassageStorageWrites({
+        extraction: readingPassageExtraction,
+        ownerId: input.ownerId,
+        testMaterialId: input.materialId,
+        snapshotVersionId,
+        publishedAt,
+        publishedBy: input.publishedBy,
+        testTypeConfigs:
+          input.readingPassageExtraction?.testTypeConfigs ?? input.metadata?.testTypeConfigs,
+      })
+    : [];
   const commitPlan = buildReadingV2PublishCommitPlan({
     materialId: input.materialId,
     snapshotVersionId,
@@ -355,6 +608,7 @@ export const publishReadingV2Material = (
     metadata,
     relationshipIndexWrites,
     whereUsedWrites,
+    storageWrites,
     returnContext: input.returnContext,
   });
   const committed = commitReadingV2PublishPlanToRepository(input.repository, commitPlan);
@@ -366,6 +620,7 @@ export const publishReadingV2Material = (
     metadata,
     relationshipIndexWrites,
     whereUsedWrites: committed.whereUsedWrites,
+    readingPassageExtraction,
     commitPlan,
     returnContextNotification: input.returnContext,
   };

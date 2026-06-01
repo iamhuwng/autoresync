@@ -15,10 +15,12 @@ const SearchFilterBar = ({
   thcsExamTypeFilter,
   onThcsExamTypeFilterChange,
   onCreateNew,
+  createLabel = 'Create New Test',
+  showCreateButton = true,
   viewMode,
   onViewModeChange,
 }) => {
-  const showViewModeToggle = viewMode && typeof onViewModeChange === 'function';
+  const showViewModeToggle = Boolean(viewMode && typeof onViewModeChange === 'function');
 
   return (
     <div className="search-filter-bar">
@@ -93,17 +95,19 @@ const SearchFilterBar = ({
         </div>
       )}
 
-      <Button
-        variant="primary"
-        onClick={onCreateNew}
-        style={{
-          background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-          flexShrink: 0,
-        }}
-      >
-        <PlusIcon size={16} style={{ marginRight: '0.5rem' }} />
-        Create New Test
-      </Button>
+      {showCreateButton && (
+        <Button
+          variant="primary"
+          onClick={onCreateNew}
+          style={{
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+            flexShrink: 0,
+          }}
+        >
+          <PlusIcon size={16} style={{ marginRight: '0.5rem' }} />
+          {createLabel}
+        </Button>
+      )}
     </div>
   );
 };

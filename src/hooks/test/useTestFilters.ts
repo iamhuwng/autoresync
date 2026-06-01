@@ -36,6 +36,11 @@ const matchesMaterialTab = (item: any, contentFilter: FilterParams['contentFilte
     return getMaterialKinds(item).some((kind) => bookKinds.has(kind));
   }
 
+  if (contentFilter === 'my' || contentFilter === 'public') {
+    const kinds = getMaterialKinds(item);
+    return !kinds.some((kind) => readingPassageKinds.has(kind) || bookKinds.has(kind));
+  }
+
   return true;
 };
 

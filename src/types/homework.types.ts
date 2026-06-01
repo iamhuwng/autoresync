@@ -173,6 +173,29 @@ export interface HomeworkVisibility {
 // HOMEWORK ASSIGNMENT
 // ============================================================================
 
+export type HomeworkMaterialType = 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
+
+export type HomeworkMaterialSkill = 'reading' | 'listening' | 'writing' | 'speaking';
+
+export interface ReadingPassageHomeworkSnapshot {
+    passageMaterialId: string;
+    snapshotVersionId: string;
+    titleSnapshot: string;
+    questionCount: number;
+    testTypeIds: string[];
+    sourceOrderDisplay?: string;
+    sourceFullTestTitle?: string;
+}
+
+export interface ReadingPassageHomeworkSetItem extends ReadingPassageHomeworkSnapshot {
+    order: number;
+}
+
+export interface ReadingPassageHomeworkSet {
+    titleSnapshot: string;
+    items: ReadingPassageHomeworkSetItem[];
+}
+
 /**
  * A homework assignment created by a teacher
  * 
@@ -197,9 +220,15 @@ export interface HomeworkAssignment {
     /** Material title (denormalized for display) */
     materialTitle: string;
     /** Material type */
-    materialType: 'quiz' | 'test' | 'thcs-test';
+    materialType: HomeworkMaterialType;
     /** Material skill type */
-    materialSkill: 'reading' | 'listening' | 'writing' | 'speaking';
+    materialSkill: HomeworkMaterialSkill;
+
+    /** Reading Passage assignment-time snapshot. Only set for materialType === 'reading-passage'. */
+    readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
+
+    /** Ordered Reading Passage set snapshot. Only set for materialType === 'reading-passage-set'. */
+    readingPassageSet?: ReadingPassageHomeworkSet;
 
     // ========== Target ==========
     /** Who should complete this homework */

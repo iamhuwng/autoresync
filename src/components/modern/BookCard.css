@@ -1,0 +1,157 @@
+.book-card {
+  display: grid;
+  grid-template-rows: minmax(176px, 1fr) auto auto;
+  min-width: 0;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+}
+
+.book-card__cover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 176px;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 22% 20%, rgba(255, 255, 255, 0.55), transparent 28%),
+    linear-gradient(135deg, #dbeafe 0%, #ede9fe 52%, #fce7f3 100%);
+}
+
+.book-card__cover-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 176px;
+  object-fit: cover;
+}
+
+.book-card__fallback-cover {
+  display: grid;
+  place-items: center;
+  gap: 0.55rem;
+  width: min(100%, 168px);
+  min-height: 142px;
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  border-radius: 8px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.08);
+  text-align: center;
+}
+
+.book-card__fallback-title {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.book-card__fallback-type {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-card__body {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.9rem 0.95rem 0.75rem;
+}
+
+.book-card__title {
+  min-width: 0;
+  overflow: hidden;
+  color: #1e293b;
+  font-size: 0.98rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-card__meta {
+  min-height: 1.2em;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.book-card__chip {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-card__chip--neutral {
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+}
+
+.book-card__chip--status {
+  background: rgba(16, 185, 129, 0.11);
+  color: #047857;
+}
+
+.book-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0 0.95rem 0.95rem;
+}
+
+.book-card__action {
+  min-height: 36px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.book-card__action--primary {
+  border-color: rgba(99, 102, 241, 0.56);
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: #fff;
+}
+
+.book-card__action--danger {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #b91c1c;
+}
