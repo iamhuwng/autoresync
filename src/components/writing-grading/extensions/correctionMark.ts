@@ -107,6 +107,7 @@ export const CorrectionMark = Mark.create<CorrectionMarkOptions>({
                     class: 'correction-mark-replacement',
                     contenteditable: 'false',
                     'data-correction-edit-target': 'true',
+                    style: 'white-space: pre-wrap;',
                     title: 'Edit correction',
                 },
                 ` -> ${correctionText}`,

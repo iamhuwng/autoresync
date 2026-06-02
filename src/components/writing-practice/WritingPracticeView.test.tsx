@@ -375,6 +375,57 @@ describe('WritingPracticeView', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
     });
 
+    it('preserves punctuation spacing exactly when submitting homework writing', async () => {
+        render(
+            <WritingPracticeView
+                materialId="material-spacing"
+                homeworkContext={{
+                    homeworkId: 'homework-spacing',
+                    submissionId: 'homework-submission-spacing',
+                    teacherId: 'teacher-1',
+                    dueDate: Date.now() + 60_000,
+                    lateSubmissionAllowed: true,
+                }}
+                testData={{
+                    id: 'test-homework-spacing',
+                    metadata: {
+                        title: 'Homework IELTS Writing',
+                        format: 'task2-only',
+                        duration: 45,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 2,
+                            taskType: 'task-2',
+                            promptText: 'Discuss both views.',
+                            promptImageUrl: null,
+                            wordMinimum: 250,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        const essayText = 'The trend rose. It stabilized, then growth continued.';
+        fireEvent.change(screen.getByTestId('writing-editor'), {
+            target: { value: essayText },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+        fireEvent.click(await screen.findByRole('button', { name: 'confirm-submit' }));
+
+        await waitFor(() => {
+            expect(mockCreateSubmission).toHaveBeenCalledTimes(1);
+        });
+
+        expect(mockCreateSubmission.mock.calls[0]?.[0].tasks).toEqual([
+            expect.objectContaining({
+                taskNumber: 2,
+                essayText,
+            }),
+        ]);
+    });
+
     it('uses homework timer overrides and auto-submits when time runs out', async () => {
         vi.useFakeTimers();
         const startedAt = Date.now();

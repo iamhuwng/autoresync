@@ -42,6 +42,7 @@
     font-weight: 600;
     letter-spacing: normal;
     text-decoration: none;
+    white-space: pre-wrap;
     user-select: none;
     cursor: pointer;
 }

@@ -79,4 +79,32 @@ describe('WritingPublishedMarkupViewer', () => {
         expect(document.body.querySelector('[data-comment-tooltip="true"]')).toHaveAttribute('data-placement', 'right');
         expect(container.querySelector('[data-comment-tooltip="true"]')).toBeNull();
     });
+
+    it('renders fallback marked content with visible whitespace preserved', async () => {
+        const { container } = render(
+            <WritingPublishedMarkupViewer
+                originalEssayText="product A    rose"
+                markedContent={null}
+                comments={[{
+                    kind: 'comment',
+                    id: 'comment-1',
+                    text: '<p>Spacing note</p>',
+                    color: '#facc15',
+                    anchorText: 'product A    rose',
+                    from: 1,
+                    to: 18,
+                    status: 'active',
+                    categoryLabel: 'Grammar',
+                }]}
+                corrections={[]}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror')).toBeTruthy();
+        });
+
+        expect(getComputedStyle(container.querySelector('.ProseMirror') as Element).whiteSpace).toBe('pre-wrap');
+        expect(container.querySelector('.ProseMirror p')?.textContent).toBe('product A    rose');
+    });
 });

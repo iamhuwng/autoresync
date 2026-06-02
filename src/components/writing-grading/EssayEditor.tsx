@@ -28,6 +28,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { IconArrowBackUp, IconArrowForwardUp, IconMessageCircle, IconPencil } from '@tabler/icons-react';
 import { CommentMark, CorrectionMark, MarksOnlyMode, PendingCommentPreview, setPendingCommentPreview } from './extensions';
 import { RichContent } from '../../core/components/RichContent';
+import { convertTextToTipTapJson } from '../../utils/writingTipTapJson';
+import { getCorrectionSelectionTrimLengths } from '../../utils/writingCorrections';
 import type { GradingComment, GradingCorrection, QuickCommentPreset, WritingPendingCommentDraft } from '../../types/ielts-writing.types';
 import {
     clampOverlayToViewport,
@@ -262,6 +264,7 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
             attributes: {
                 class: 'essay-editor-content marks-only-mode',
                 id: 'essay-editor-content',
+                style: 'white-space: pre-wrap;',
             },
         },
         onUpdate: ({ editor: ed }) => {
@@ -1058,30 +1061,6 @@ const EssayEditor: React.FC<EssayEditorProps> = ({
 
 
 
-/**
- * Convert plain essay text to TipTap-compatible JSON document.
- * Splits by double newlines into paragraphs.
- */
-function convertTextToTipTapJson(text: string): object {
-    if (!text || !text.trim()) {
-        return {
-            type: 'doc',
-            content: [{ type: 'paragraph' }],
-        };
-    }
-
-    // Split by double newlines or single newlines for paragraphs
-    const paragraphs = text.split(/\n\n|\n/).filter(p => p.trim());
-
-    return {
-        type: 'doc',
-        content: paragraphs.map(p => ({
-            type: 'paragraph',
-            content: [{ type: 'text', text: p.trim() }],
-        })),
-    };
-}
-
 function normalizeCorrectionSelectionRange(
     doc: { textBetween: (from: number, to: number, blockSeparator?: string, leafText?: string) => string },
     from: number,
@@ -1093,8 +1072,7 @@ function normalizeCorrectionSelectionRange(
         return { from, to };
     }
 
-    const leadingWhitespaceLength = selectedText.match(/^\s+/)?.[0].length ?? 0;
-    const trailingWhitespaceLength = selectedText.match(/\s+$/)?.[0].length ?? 0;
+    const { leadingWhitespaceLength, trailingWhitespaceLength } = getCorrectionSelectionTrimLengths(selectedText);
     const normalizedFrom = from + leadingWhitespaceLength;
     const normalizedTo = to - trailingWhitespaceLength;
 

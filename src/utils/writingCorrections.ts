@@ -1,5 +1,7 @@
 import type { GradingCorrection } from '../types/ielts-writing.types';
 
+const PUNCTUATION_THAT_REQUIRES_FOLLOWING_SPACE = /[.,!?;:]$/;
+
 interface ExtractCorrectionOptions {
     createdAt: number;
     updatedAt: number;
@@ -24,8 +26,7 @@ export function normalizeCorrectionSelection({
     to,
 }: NormalizeCorrectionSelectionInput) {
     const safeText = typeof selectedText === 'string' ? selectedText : '';
-    const leadingWhitespaceLength = safeText.match(/^\s+/)?.[0].length ?? 0;
-    const trailingWhitespaceLength = safeText.match(/\s+$/)?.[0].length ?? 0;
+    const { leadingWhitespaceLength, trailingWhitespaceLength } = getCorrectionSelectionTrimLengths(safeText);
     const normalizedFrom = from + leadingWhitespaceLength;
     const normalizedTo = to - trailingWhitespaceLength;
 
@@ -41,6 +42,17 @@ export function normalizeCorrectionSelection({
         anchorText: safeText.slice(leadingWhitespaceLength, safeText.length - trailingWhitespaceLength) || safeText.trim(),
         from: normalizedFrom,
         to: normalizedTo,
+    };
+}
+
+export function getCorrectionSelectionTrimLengths(selectedText: string) {
+    const safeText = typeof selectedText === 'string' ? selectedText : '';
+    const leadingWhitespaceLength = safeText.match(/^\s+/)?.[0].length ?? 0;
+    const trailingWhitespaceLength = getTrailingWhitespaceLengthToTrim(safeText);
+
+    return {
+        leadingWhitespaceLength,
+        trailingWhitespaceLength,
     };
 }
 
@@ -221,4 +233,18 @@ function insertsBlockSeparator(nodeType: unknown) {
         || nodeType === 'heading'
         || nodeType === 'blockquote'
         || nodeType === 'listItem';
+}
+
+function getTrailingWhitespaceLengthToTrim(value: string) {
+    const trailingWhitespaceLength = value.match(/\s+$/)?.[0].length ?? 0;
+    if (trailingWhitespaceLength === 0) {
+        return 0;
+    }
+
+    const textBeforeTrailingWhitespace = value.slice(0, value.length - trailingWhitespaceLength);
+    if (PUNCTUATION_THAT_REQUIRES_FOLLOWING_SPACE.test(textBeforeTrailingWhitespace)) {
+        return 0;
+    }
+
+    return trailingWhitespaceLength;
 }

@@ -7,6 +7,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import { RichContent } from '../../core/components/RichContent';
+import { convertTextToTipTapJson } from '../../utils/writingTipTapJson';
 import type { PublishedCommentData, PublishedCorrectionData, PublishedFeedbackItem } from './writingResultSurface';
 import { CommentMark, CorrectionMark, MarksOnlyMode } from '../writing-grading/extensions';
 import {
@@ -32,25 +33,6 @@ interface WritingPublishedMarkupViewerProps {
 interface TooltipState extends OverlayPosition {
     feedbackId: string;
     placement: CommentTooltipPlacement;
-}
-
-function convertTextToTipTapJson(text: string): object {
-    if (!text || !text.trim()) {
-        return {
-            type: 'doc',
-            content: [{ type: 'paragraph' }],
-        };
-    }
-
-    const paragraphs = text.split(/\n\n|\n/).filter((paragraph) => paragraph.trim());
-
-    return {
-        type: 'doc',
-        content: paragraphs.map((paragraph) => ({
-            type: 'paragraph',
-            content: [{ type: 'text', text: paragraph.trim() }],
-        })),
-    };
 }
 
 export default function WritingPublishedMarkupViewer({
@@ -118,6 +100,7 @@ export default function WritingPublishedMarkupViewer({
         editorProps: {
             attributes: {
                 class: 'essay-editor-content marks-only-mode',
+                style: 'white-space: pre-wrap;',
             },
             handleDOMEvents: {
                 mouseover: (_view, event) => {

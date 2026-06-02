@@ -197,6 +197,33 @@ describe('WritingTestPage', () => {
         });
     });
 
+    it('preserves punctuation spacing exactly when autosaving live writing text', async () => {
+        const saveTask = vi.fn();
+        mockUseWritingAutoSave.mockReturnValue({
+            saveTask,
+            saveActiveTab: vi.fn(),
+            addTabSwitch: vi.fn(),
+            loadSavedState: vi.fn().mockResolvedValue(null),
+            flushPendingSave: vi.fn(),
+        });
+
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        await waitFor(() => {
+            expect(mockSet).toHaveBeenCalledWith(
+                'game_sessions/SESSION-1/students/student-1/writing/pasteAttemptCount',
+                0,
+            );
+        });
+
+        const essayText = 'The trend rose. It stabilized, then growth, rose.';
+        fireEvent.change(screen.getByTestId('writing-editor'), {
+            target: { value: essayText },
+        });
+
+        expect(saveTask).toHaveBeenCalledWith(1, essayText);
+    });
+
     it('routes teacher-ended auto-submit to submission-complete', async () => {
         render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
 

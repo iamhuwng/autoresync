@@ -216,6 +216,10 @@
     min-height: 200px;
 }
 
+.essay-editor-content {
+    white-space: pre-wrap !important;
+}
+
 .essay-editor-editable .ProseMirror p {
     margin-bottom: 12px;
 }

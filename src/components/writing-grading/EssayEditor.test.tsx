@@ -197,6 +197,26 @@ describe('EssayEditor', () => {
         expect(container.querySelector('.ProseMirror p')?.textContent).toContain('Hi world');
     });
 
+    it('keeps the selected space after punctuation visible in correction marks', async () => {
+        const { container } = renderEditor({
+            originalEssayText: 'growth, rose',
+            pendingCorrection: buildPendingCorrection({
+                from: 1,
+                to: 9,
+                selectedText: 'growth, ',
+                correctionText: 'increase,',
+            }),
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.correction-mark')).toBeTruthy();
+        });
+
+        expect(container.querySelector('.correction-mark-original')?.textContent).toBe('growth, ');
+        expect(container.querySelector('.correction-mark-replacement')?.textContent).toBe(' -> increase, ');
+        expect(getComputedStyle(container.querySelector('.correction-mark-replacement') as Element).whiteSpace).toBe('pre-wrap');
+    });
+
     it('adds exactly one separating space when the replacement would otherwise glue to the next word', async () => {
         const { container } = renderEditor({
             originalEssayText: 'Helloworld',
@@ -451,6 +471,18 @@ describe('EssayEditor', () => {
         expect(container.querySelector('[title="Add correction"]')).toBeDisabled();
         expect(container.querySelectorAll('#essay-editor-toolbar svg')).toHaveLength(4);
         expect(container.querySelector('.material-symbols-outlined')).toBeNull();
+    });
+
+    it('preserves visible whitespace in the marked editor view', async () => {
+        const { container } = renderEditor({
+            originalEssayText: 'product A    rose',
+        });
+
+        await waitFor(() => {
+            expect(container.querySelector('.ProseMirror')).toBeTruthy();
+        });
+
+        expect(getComputedStyle(container.querySelector('.ProseMirror') as Element).whiteSpace).toBe('pre-wrap');
     });
 
     it('hides the sticky editor tool strip when the editor is not interactive', async () => {
