@@ -441,7 +441,7 @@ Status: Partial.
 Problems:
 
 - Tabs ungated by feature flags.
-- Drafts filter likely regressed: `useTestFilters.ts:66-68` returns `[]` for `contentFilter === 'drafts'`.
+- Drafts regression claim is now corrected as likely false positive; keep only targeted browser proof as a guard.
 - Reading Passage/Book isolation exists in filter logic, but live data proof is weak due remote RTDB denial.
 
 ### Test Type Blocks And Preferences
@@ -709,22 +709,22 @@ Required fix:
 - Show rejected/published as status/chip/read-only unless super-admin.
 - Add tests for role-specific options.
 
-### P1 - Drafts Tab Likely Regressed
+### Corrected - Drafts Tab Regression Is Likely False Positive
 
 Evidence:
 
 - `useTestFilters.ts:66-68` returns `[]` for `contentFilter === 'drafts'`.
-- Handoff says Drafts inactive does not load, but this may have broken actual Drafts display.
+- `TeacherLobbyPage.jsx` does not render Drafts from `useTestFilters`; it loads drafts through `useTeacherDrafts({ enabled: contentFilter === 'drafts' })` and renders `visibleDrafts`.
 
 Impact:
 
-- Existing Drafts tab behavior can become empty even if drafts exist.
+- Do not carry this as a P1 unless browser proof shows actual Drafts rows missing.
+- Current evidence points to the earlier audit finding being wrong.
 
 Required fix:
 
-- Compare with main Drafts behavior.
-- Restore draft filtering path.
-- Keep Reading V2 draft exclusion only where intended.
+- Keep a targeted Drafts regression check in the verification plan.
+- Remove "restore Drafts behavior" from release-blocker language unless that check fails.
 
 ### P1 - Create Full Test From Selected Is Not A Full Workflow
 
@@ -937,7 +937,7 @@ Rows in `prd0052-final-handoff-checklist.md` should be downgraded:
 
 ### Drift From Main
 
-- Drafts filtering likely broken by `return []`.
+- Drafts filtering needs a targeted check, but current evidence says the earlier breakage claim is likely false positive.
 - Old grid/card branch removed for normal material browsing.
 - Homework `materialId` semantics changed for Reading Passage set.
 - Firestore homework rule shape stricter; legacy docs may need compatibility check.
@@ -968,7 +968,7 @@ Rows in `prd0052-final-handoff-checklist.md` should be downgraded:
 
 ### Phase 4 - Repair Regressions And UX Drift
 
-1. Restore Drafts behavior.
+1. Verify Drafts behavior with a targeted browser/test check; fix only if that check fails.
 2. Rename `Archive/Delete` to `Archive`.
 3. Replace comma-string editor inputs with proper Test Type/tag/author controls.
 4. Load owner/private material candidates in Book editor where allowed.
