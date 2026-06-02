@@ -1114,16 +1114,15 @@ const TeacherLobbyPage = () => {
                 <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
                   Test Dashboard
                 </h1>
-                <p className="teacher-lobby-page-subtitle">
-                  Manage your tests and start formal assessment sessions
-                </p>
-              </div>
-
-              <div className="teacher-lobby-tabs-row">
-                <ContentTabs
-                  activeTab={contentFilter}
-                  onTabChange={handleContentFilterChange}
-                />
+                <div className="teacher-lobby-page-subhead">
+                  <p className="teacher-lobby-page-subtitle">
+                    Manage your tests and start formal assessment sessions
+                  </p>
+                  <ContentTabs
+                    activeTab={contentFilter}
+                    onTabChange={handleContentFilterChange}
+                  />
+                </div>
               </div>
 
               {/* Session Banner */}
