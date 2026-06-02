@@ -203,7 +203,7 @@ Not faithful / incomplete:
 - Book card action label says `Archive/Delete` while implementation archives. Misleading destructive wording (`BookCard.jsx:84-86`).
 - Book editor visibility dropdown offers `public-library-published` and `public-library-rejected` directly to ordinary teacher UI (`BookEditorPage.tsx:563-568`), while validation says only `super_admin` can set published (`bookValidation.service.ts:261-276`). This is governance drift: UI invites an impossible or forbidden action.
 - Book editor uses comma-separated plain text for Test Type ids, tags, authors. Usable, but low-quality for a PRD that needs teacher-facing authoring tools (`BookEditorPage.tsx:557-560`).
-- Book editor material candidate loading reads only `material_catalog/material_indexes/by_visibility/public` (`BookEditorPage.tsx:292-325`). That means private teacher materials may not be available for organizing unless passed as props in tests or future wiring.
+- Correction from supplemental verification: Book editor material candidate loading reads both `material_catalog/material_indexes/by_owner/{user.uid}` and `material_catalog/material_indexes/by_visibility/public` (`BookEditorPage.tsx:298-300`). The real defect is that `material_catalog/material_indexes` has no child rules under `database.rules.json`, so parent `material_catalog` super-admin-only rules can deny teacher reads.
 - Placeholder nodes exist, but rich placeholder editing is correctly out of scope. Current placeholder UX is still very bare.
 - Route is always mounted, with no `MATERIAL_BOOK_EDITOR` gate (`teacherRoutes.tsx:120-123`).
 
@@ -814,20 +814,23 @@ Required fix:
 
 - Use RTDB multi-location update for metadata/index changes, or add retry/repair strategy.
 
-### P2 - Book Material Picker Scope Looks Too Narrow
+### P2 - Book Material Picker Uses Unruled Material Indexes
 
 Evidence:
 
-- `BookEditorPage.tsx:292-325` loads candidates from `material_catalog/material_indexes/by_visibility/public`.
+- `BookEditorPage.tsx:298-300` loads candidates from `material_catalog/material_indexes/by_owner/{user.uid}` and `material_catalog/material_indexes/by_visibility/public`.
+- `database.rules.json` defines `material_catalog/books`, `book_nodes`, and `book_indexes`, but not `material_indexes`.
+- The parent `material_catalog` rule is super-admin-only.
 
 Impact:
 
-- A teacher building a private Book may not be able to add their own private materials.
+- Teachers may be denied when loading candidate materials for a Book, even though the code asks for both owner and public indexes.
+- The original "public-only" scope claim is false; this is a rules/path contract problem.
 
 Required fix:
 
-- Load owner index plus eligible public index.
-- Preserve no-private-leak behavior for public Books through validation.
+- Add complete RTDB rules for `material_catalog/material_indexes`, or move these readers/writers to the intended `reading_v2/listing_indexes` path and update code/docs/tests consistently.
+- Preserve no-private-leak behavior for public Books through validation and rule checks.
 
 ### P2 - Verification Gaps Are Real, Not Administrative
 
