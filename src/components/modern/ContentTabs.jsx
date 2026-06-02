@@ -2,34 +2,29 @@ import React from 'react';
 import { Button } from './index';
 import './ContentTabs.css';
 
+const tabs = [
+  { id: 'my', label: 'My Content' },
+  { id: 'public', label: 'Public Library' },
+  { id: 'drafts', label: 'Drafts' },
+  { id: 'reading-passage', label: 'Reading Passage' },
+  { id: 'book', label: 'Book' },
+];
+
 const ContentTabs = ({ activeTab, onTabChange }) => {
   return (
-    <div className="content-tabs">
-      <Button
-        variant={activeTab === 'my' ? 'primary' : 'glass'}
-        size="sm"
-        onClick={() => onTabChange('my')}
-        style={{ minWidth: '100px' }}
-      >
-        📁 My Content
-      </Button>
-      <Button
-        variant={activeTab === 'public' ? 'primary' : 'glass'}
-        size="sm"
-        onClick={() => onTabChange('public')}
-        style={{ minWidth: '100px' }}
-      >
-        🌐 Public Library
-      </Button>
-      <Button
-        variant={activeTab === 'drafts' ? 'primary' : 'glass'}
-        size="sm"
-        onClick={() => onTabChange('drafts')}
-        style={{ minWidth: '100px' }}
-      >
-        📝 Drafts
-      </Button>
-    </div>
+    <nav className="content-tabs" aria-label="Material content filters">
+      {tabs.map((tab) => (
+        <Button
+          key={tab.id}
+          variant={activeTab === tab.id ? 'primary' : 'glass'}
+          size="sm"
+          onClick={() => onTabChange(tab.id)}
+          className="content-tab-button"
+        >
+          {tab.label}
+        </Button>
+      ))}
+    </nav>
   );
 };
 

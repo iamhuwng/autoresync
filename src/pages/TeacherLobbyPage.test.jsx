@@ -177,7 +177,10 @@ vi.mock('../components/modern/ContentTabs', () => ({
   default: ({ activeTab, onTabChange }) => (
     <nav aria-label="Teacher lobby content tabs" data-active-tab={activeTab}>
       <button type="button" onClick={() => onTabChange('my')}>My Content</button>
+      <button type="button" onClick={() => onTabChange('public')}>Public Library</button>
       <button type="button" onClick={() => onTabChange('drafts')}>Drafts</button>
+      <button type="button" onClick={() => onTabChange('reading-passage')}>Reading Passage</button>
+      <button type="button" onClick={() => onTabChange('book')}>Book</button>
     </nav>
   ),
 }));
@@ -260,6 +263,19 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(teacherHeader.parentElement).toBe(pageRoot);
     expect(pageRoot.firstElementChild).toBe(teacherHeader);
     expect(teacherHeader.nextElementSibling?.tagName).toBe('MAIN');
+  });
+
+  it('renders content tabs next to the dashboard subtitle', () => {
+    const { container } = render(<TeacherLobbyPage />);
+
+    const subtitle = screen.getByText('Manage your tests and start formal assessment sessions');
+    const tabNav = screen.getByRole('navigation', { name: 'Teacher lobby content tabs' });
+    const subhead = container.querySelector('.teacher-lobby-page-subhead');
+
+    expect(subtitle).toBeInTheDocument();
+    expect(subhead).not.toBeNull();
+    expect(subhead).toContainElement(subtitle);
+    expect(subhead).toContainElement(tabNav);
   });
 
   it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {

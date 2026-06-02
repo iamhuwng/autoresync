@@ -406,14 +406,36 @@ const TeacherLobbyPage = () => {
                 <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
                   Test Dashboard
                 </h1>
-                <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1.5rem' }}>
-                  Manage your tests and start formal assessment sessions
-                </p>
+                <div
+                  className="teacher-lobby-page-subhead"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                    marginBottom: '1.5rem',
+                  }}
+                >
+                  <p
+                    className="teacher-lobby-page-subtitle"
+                    style={{
+                      flex: '1 1 auto',
+                      minWidth: '18rem',
+                      margin: 0,
+                      color: '#64748b',
+                      fontSize: '1rem',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Manage your tests and start formal assessment sessions
+                  </p>
 
-                <ContentTabs
-                  activeTab={contentFilter}
-                  onTabChange={setContentFilter}
-                />
+                  <ContentTabs
+                    activeTab={contentFilter}
+                    onTabChange={setContentFilter}
+                  />
+                </div>
               </div>
 
               {/* Session Banner */}
