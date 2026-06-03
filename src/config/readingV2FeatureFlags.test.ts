@@ -27,6 +27,7 @@ import {
   isReadingPassageHomeworkEnabled,
   isReadingPassageLibraryEnabled,
   isTeacherMaterialsTestTypeBlocksEnabled,
+  getTeacherMaterialsCapabilities,
   normalizePrd0052FeatureFlagMode,
   normalizeReadingV2PassageAssetLobbyVisibility,
   normalizeReadingV2RolloutMode,
@@ -96,6 +97,32 @@ describe('readingV2FeatureFlags', () => {
     expect(isReadingPassageHomeworkEnabled()).toBe(false);
     expect(isMaterialBooksEnabled()).toBe(false);
     expect(isMaterialBookEditorEnabled()).toBe(false);
+    expect(getTeacherMaterialsCapabilities()).toEqual({
+      canUseTestTypeBlocks: false,
+      canManageAdminTestTypes: false,
+      canUseReadingPassageLibrary: false,
+      canAssignReadingPassageHomework: false,
+      canUseMaterialBooks: false,
+      canUseMaterialBookEditor: false,
+    });
+  });
+
+  it('resolves Teacher Materials capabilities from explicit PRD-0052 flag modes', () => {
+    expect(getTeacherMaterialsCapabilities({
+      testTypeBlocksMode: 'enabled',
+      adminConfigurableTestTypesMode: 'disabled',
+      readingPassageLibraryMode: 'enabled',
+      readingPassageHomeworkMode: 'enabled',
+      materialBooksMode: 'enabled',
+      materialBookEditorMode: 'disabled',
+    })).toEqual({
+      canUseTestTypeBlocks: true,
+      canManageAdminTestTypes: false,
+      canUseReadingPassageLibrary: true,
+      canAssignReadingPassageHomework: true,
+      canUseMaterialBooks: true,
+      canUseMaterialBookEditor: false,
+    });
   });
 
   it('normalizes PRD-0052 material catalog feature flags strictly', () => {

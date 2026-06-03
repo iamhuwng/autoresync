@@ -7,6 +7,7 @@ import {
   buildReadingV2LaunchReadPlan,
   createReadingV2LaunchMaterialSummary,
   createReadingV2LibraryMaterial,
+  isReadingV2LaunchSurfaceEnabled,
   resolveReadingV2LaunchDecision,
   type ReadingV2LaunchSurface,
 } from './readingV2LaunchIntegration.service';
@@ -100,6 +101,38 @@ describe('readingV2LaunchIntegration.service', () => {
       reason: 'rollout-disabled',
       message: 'Reading V2 is not enabled for student launch yet.',
     });
+  });
+
+  it('allows teacher-assigned Reading Passage homework without opening unrelated solo launch', () => {
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'homework',
+        rolloutMode: 'off',
+        readingPassageHomeworkMode: 'enabled',
+        readingPassageLibraryMode: 'disabled',
+      }),
+    ).toBe(true);
+
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'solo-practice',
+        rolloutMode: 'off',
+        readingPassageHomeworkMode: 'enabled',
+        readingPassageLibraryMode: 'enabled',
+      }),
+    ).toBe(false);
+  });
+
+  it('routes Reading Passage homework when the PRD-0052 homework flag is enabled', () => {
+    const decision = resolveReadingV2LaunchDecision({
+      surface: 'homework',
+      metadata: readingV2Metadata,
+      projection: READING_V2_PROJECTION_FIXTURES.studentSafe,
+      rolloutMode: 'off',
+      readingPassageHomeworkMode: 'enabled',
+    });
+
+    expect(decision.status).toBe('runtime');
   });
 
   it('routes non-live launches only from student-safe projections when rollout is public', () => {

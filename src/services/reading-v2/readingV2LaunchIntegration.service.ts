@@ -3,9 +3,14 @@
 import {
   READING_V2_ENGINE,
   READING_V2_ROLLOUT_MODE,
+  READING_PASSAGE_HOMEWORK_MODE,
+  READING_PASSAGE_LIBRARY_MODE,
   type ReadingV2RolloutMode,
+  type Prd0052FeatureFlagMode,
   isReadingV2Payload,
   isReadingV2PublicRollout,
+  isReadingPassageHomeworkEnabled,
+  isReadingPassageLibraryEnabled,
 } from '../../config/readingV2FeatureFlags';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
@@ -125,6 +130,42 @@ const BLOCKED_PUBLIC_MESSAGE =
 
 export const isReadingV2LaunchCandidate = (metadata: unknown): boolean =>
   isReadingV2Payload(metadata);
+
+export const isReadingV2LaunchSurfaceEnabled = (input: {
+  readonly surface: ReadingV2LaunchSurface;
+  readonly rolloutMode?: ReadingV2RolloutMode;
+  readonly readingPassageHomeworkMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
+}): boolean => {
+  if (isReadingV2PublicRollout(input.rolloutMode ?? READING_V2_ROLLOUT_MODE)) {
+    return true;
+  }
+
+  if (input.surface === 'homework') {
+    return isReadingPassageHomeworkEnabled(
+      input.readingPassageHomeworkMode ?? READING_PASSAGE_HOMEWORK_MODE,
+    );
+  }
+
+  if (input.surface === 'course-material') {
+    return (
+      isReadingPassageHomeworkEnabled(
+        input.readingPassageHomeworkMode ?? READING_PASSAGE_HOMEWORK_MODE,
+      ) ||
+      isReadingPassageLibraryEnabled(
+        input.readingPassageLibraryMode ?? READING_PASSAGE_LIBRARY_MODE,
+      )
+    );
+  }
+
+  if (input.surface === 'public-library') {
+    return isReadingPassageLibraryEnabled(
+      input.readingPassageLibraryMode ?? READING_PASSAGE_LIBRARY_MODE,
+    );
+  }
+
+  return false;
+};
 
 const normalizeReadingV2Difficulty = (
   difficulty: string | undefined,
@@ -255,12 +296,14 @@ export const resolveReadingV2LaunchDecision = (input: {
   readonly metadata?: unknown;
   readonly projection?: unknown;
   readonly rolloutMode?: ReadingV2RolloutMode;
+  readonly readingPassageHomeworkMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
 }): ReadingV2LaunchDecision => {
   if (!isReadingV2LaunchCandidate(input.metadata)) {
     return { status: 'legacy', reason: 'not-reading-v2' };
   }
 
-  if (!isReadingV2PublicRollout(input.rolloutMode ?? READING_V2_ROLLOUT_MODE)) {
+  if (!isReadingV2LaunchSurfaceEnabled(input)) {
     return {
       status: 'blocked',
       reason: 'rollout-disabled',

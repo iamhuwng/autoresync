@@ -23,15 +23,34 @@ const mocks = vi.hoisted(() => ({
   listBookNodes: vi.fn(),
   createBookDraft: vi.fn(),
   updateBookMetadata: vi.fn(),
+  confirm: vi.fn(),
   homeworkModalProps: [],
   logDiagnostic: vi.fn(),
   loadedScope: 'owned',
+  locationState: null,
+  dbReads: {},
   dbWrites: [],
 }));
 
+vi.mock('../config/readingV2FeatureFlags', async () => {
+  const actual = await vi.importActual('../config/readingV2FeatureFlags');
+
+  return {
+    ...actual,
+    getTeacherMaterialsCapabilities: () => ({
+      canUseTestTypeBlocks: true,
+      canManageAdminTestTypes: true,
+      canUseReadingPassageLibrary: true,
+      canAssignReadingPassageHomework: true,
+      canUseMaterialBooks: true,
+      canUseMaterialBookEditor: true,
+    }),
+  };
+});
+
 vi.mock('firebase/database', () => ({
   ref: (_database, path) => path,
-  get: vi.fn(async () => ({ val: () => null })),
+  get: vi.fn(async (path) => ({ val: () => mocks.dbReads[path] ?? null })),
   set: vi.fn(async (path, value) => {
     mocks.dbWrites.push({ path, value });
   }),
@@ -44,9 +63,14 @@ vi.mock('../services/firebase', () => ({
   database: {},
 }));
 
-vi.mock('../services/reading-v2/readingV2PassageLibrary.service', () => ({
-  listTeacherReadingPassages: (...args) => mocks.listReadingPassages(...args),
-}));
+vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
+  const actual = await vi.importActual('../services/reading-v2/readingV2PassageLibrary.service');
+
+  return {
+    ...actual,
+    listTeacherReadingPassages: (...args) => mocks.listReadingPassages(...args),
+  };
+});
 
 vi.mock('../services/materialCatalog/materialBooks.service', () => ({
   createMaterialBooksRepository: vi.fn(() => ({ repositoryKind: 'mock-books-repository', listBookNodes: mocks.listBookNodes })),
@@ -60,6 +84,7 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useParams: () => ({}),
+    useLocation: () => ({ pathname: '/lobby', state: mocks.locationState }),
     useSearchParams: () => [new URLSearchParams(''), vi.fn()],
   };
 });
@@ -322,6 +347,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.tests = [];
     mocks.drafts = [];
     mocks.loadedScope = 'owned';
+    mocks.locationState = null;
+    mocks.dbReads = {};
     mocks.dbWrites = [];
     mocks.homeworkModalProps = [];
     mocks.listReadingPassages.mockResolvedValue([]);
@@ -329,6 +356,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.listBookNodes.mockResolvedValue([]);
     mocks.createBookDraft.mockReset();
     mocks.updateBookMetadata.mockReset();
+    mocks.confirm.mockReturnValue(true);
+    vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
   });
 
   it('keeps the unified TeacherHeader attached to the page root', () => {
@@ -352,6 +381,14 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(subhead).not.toBeNull();
     expect(subhead).toContainElement(subtitle);
     expect(subhead).toContainElement(tabNav);
+  });
+
+  it('surfaces a route notice when disabled Book editor navigation redirects back to Materials', () => {
+    mocks.locationState = { teacherMaterialsNotice: 'book-editor-disabled' };
+
+    render(<TeacherLobbyPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Book editing is disabled for this rollout.');
   });
 
   it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {
@@ -659,7 +696,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     expect(within(card).getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Archive/Delete' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Start Test/i })).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Assign Homework/i })).not.toBeInTheDocument();
     expect(mocks.listBookNodes).not.toHaveBeenCalled();
@@ -672,6 +709,64 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       { reason: 'teacher_materials_open_book' },
     );
     expect(mocks.listBookNodes).not.toHaveBeenCalled();
+  });
+
+  it('uses live admin Test Type config for Teacher Materials blocks before falling back to defaults', async () => {
+    mocks.dbReads['material_catalog/test_types'] = {
+      det: {
+        testTypeId: 'det',
+        canonicalKey: 'DET',
+        label: 'DET',
+        shortLabel: 'DET',
+        aliases: [],
+        active: true,
+        teacherSelectable: true,
+        displayOrder: 1,
+        defaultPinnedRank: 1,
+        readingSourceOrderLabel: 'Passage',
+        readingSourceOrderLabelPlural: 'Passages',
+        logoAlt: 'DET logo',
+        allowedMaterialKinds: ['full-test', 'reading-passage', 'book'],
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        updatedBy: 'admin',
+      },
+      cambridge: {
+        testTypeId: 'cambridge',
+        canonicalKey: 'CAMBRIDGE',
+        label: 'Cambridge',
+        shortLabel: 'CAM',
+        aliases: [],
+        active: true,
+        teacherSelectable: true,
+        displayOrder: 2,
+        defaultPinnedRank: 2,
+        readingSourceOrderLabel: 'Test',
+        readingSourceOrderLabelPlural: 'Tests',
+        logoAlt: 'Cambridge logo',
+        allowedMaterialKinds: ['full-test', 'reading-passage', 'book'],
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        updatedBy: 'admin',
+      },
+    };
+
+    render(<TeacherLobbyPage />);
+
+    expect(await screen.findByRole('button', { name: /filter materials by DET/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /filter materials by Cambridge/i })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /filter materials by IELTS/i })).not.toBeInTheDocument();
+    });
+    expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+      'test_type_config_resolved',
+      expect.objectContaining({
+        source: 'live-admin-config',
+        count: 2,
+        fallbackUsed: false,
+      }),
+    );
   });
 
   it('filters materials from Test Type block body and clears when clicking the active block again', async () => {
@@ -916,6 +1011,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         questionCount: 12,
         updatedAt: '2026-05-12T00:00:00Z',
         visibility: 'private',
+        publishedSnapshotVersionId: 'snapshot-owner',
+        sourceFullTestId: 'full-test-owner',
+        testTypeIds: ['ielts'],
+        hasStudentSafeProjection: true,
         isOwner: true,
         selectable: true,
         testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
@@ -962,9 +1061,30 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
 
     await user.click(within(row).getByRole('button', { name: 'Archive' }));
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: 'reading_v2/material_metadata/passage-owner/state',
+          value: 'archived',
+        },
+        {
+          path: 'reading_v2/reading_passage_materials/passage-owner/state',
+          value: 'archived',
+        },
+        {
+          path: 'material_catalog/material_indexes/by_owner/teacher-1/passage-owner',
+          value: null,
+        },
+      ]));
+    });
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'archiveReadingPassage',
+      expect.objectContaining({ materialId: 'passage-owner' }),
+    );
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'teacher_materials_reading_passage_archived',
       expect.objectContaining({ materialId: 'passage-owner' }),
     );
   }, 10000);

@@ -467,6 +467,88 @@ describe('readingV2AutoImport.service', () => {
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
+  it('dedupes equivalent local and Auto V4 copied answer-key rows before publish validation', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the notes below.',
+      'Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage for each answer.',
+      '1 Frequency was _____.',
+      '2 Homes were _____.',
+      '',
+      'Answers',
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Slash answer passage',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 2,
+            wordCount: 18,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            {
+              questionNumber: 1,
+              questionText: '1 Frequency was _____.',
+              type: 'sentence-completion',
+              answer: '10/ten times',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+            {
+              questionNumber: 2,
+              questionText: '2 Homes were _____.',
+              type: 'sentence-completion',
+              answer: 'homes/housing',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+          ],
+          answerKey: { 1: '10/ten times', 2: 'homes/housing' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Slash answer Auto V4 fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.answerKeyText?.split(/\r?\n/)).toEqual([
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ]);
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const validation = validateReadingV2Draft(normalized.document);
+    expect(validation.blockingIssues.map((issue) => issue.message)).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('appears more than once in the teacher answer key'),
+      expect.stringContaining('missing a publishable answer key'),
+    ]));
+  });
+
   it('keeps Auto V4 ranged multiple-choice groups and paired multiple-select semantics', async () => {
     const raw = [
       'READING PASSAGE 1',

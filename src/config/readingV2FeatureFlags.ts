@@ -165,3 +165,32 @@ export const isMaterialBooksEnabled = (
 export const isMaterialBookEditorEnabled = (
   mode: Prd0052FeatureFlagMode = MATERIAL_BOOK_EDITOR_MODE,
 ): boolean => isPrd0052FeatureEnabled(mode);
+
+export interface TeacherMaterialsCapabilityInput {
+  readonly testTypeBlocksMode?: Prd0052FeatureFlagMode;
+  readonly adminConfigurableTestTypesMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageHomeworkMode?: Prd0052FeatureFlagMode;
+  readonly materialBooksMode?: Prd0052FeatureFlagMode;
+  readonly materialBookEditorMode?: Prd0052FeatureFlagMode;
+}
+
+export interface TeacherMaterialsCapabilities {
+  readonly canUseTestTypeBlocks: boolean;
+  readonly canManageAdminTestTypes: boolean;
+  readonly canUseReadingPassageLibrary: boolean;
+  readonly canAssignReadingPassageHomework: boolean;
+  readonly canUseMaterialBooks: boolean;
+  readonly canUseMaterialBookEditor: boolean;
+}
+
+export const getTeacherMaterialsCapabilities = (
+  input: TeacherMaterialsCapabilityInput = {},
+): TeacherMaterialsCapabilities => ({
+  canUseTestTypeBlocks: isTeacherMaterialsTestTypeBlocksEnabled(input.testTypeBlocksMode),
+  canManageAdminTestTypes: isAdminConfigurableTestTypesEnabled(input.adminConfigurableTestTypesMode),
+  canUseReadingPassageLibrary: isReadingPassageLibraryEnabled(input.readingPassageLibraryMode),
+  canAssignReadingPassageHomework: isReadingPassageHomeworkEnabled(input.readingPassageHomeworkMode),
+  canUseMaterialBooks: isMaterialBooksEnabled(input.materialBooksMode),
+  canUseMaterialBookEditor: isMaterialBookEditorEnabled(input.materialBookEditorMode),
+});

@@ -275,8 +275,6 @@
             ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
         },
         "material_catalog": {
-            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "test_types": {
                 ".read": "auth != null",
                 ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
@@ -296,11 +294,60 @@
                     ".validate": "!newData.exists() || (newData.hasChildren(['teacherId', 'pinnedTestTypeIds', 'updatedAt', 'updatedBy']) && newData.child('teacherId').val() === $teacherId && newData.child('updatedAt').isString() && newData.child('updatedBy').isString())"
                 }
             },
+            "material_indexes": {
+                "by_owner": {
+                    "$ownerId": {
+                        ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$materialId": {
+                            ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid && ((newData.exists() && newData.child('ownerId').val() === $ownerId) || (!newData.exists() && data.child('ownerId').val() === $ownerId))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('ownerId').val() === $ownerId && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && (newData.child('materialKind').val() === 'reading-passage' || newData.child('materialKind').val() === 'full-test' || newData.child('materialKind').val() === 'book'))"
+                        }
+                    }
+                },
+                "by_visibility": {
+                    "$visibility": {
+                        ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$materialId": {
+                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && newData.child('visibility').val() === $visibility) || (!newData.exists() && data.child('ownerId').val() === auth.uid && data.child('visibility').val() === $visibility))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('visibility').val() === $visibility && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && (newData.child('materialKind').val() === 'reading-passage' || newData.child('materialKind').val() === 'full-test' || newData.child('materialKind').val() === 'book'))"
+                        }
+                    }
+                },
+                "by_material_kind": {
+                    "$materialKind": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('materialKind').val() === $materialKind && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                },
+                "by_test_type": {
+                    "$testTypeId": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('testTypeMembership').child($testTypeId).val() === true && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                },
+                "by_source_full_test": {
+                    "$sourceFullTestId": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'sourceFullTestId', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('sourceFullTestId').val() === $sourceFullTestId && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                }
+            },
             "books": {
                 "$bookId": {
-                    ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && (data.child('visibility').val() === 'public-library-pending-review' || data.child('visibility').val() === 'public-library-published' || data.child('visibility').val() === 'public-library-rejected')))",
-                    ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('ownerId').val() === auth.uid && (!newData.child('visibility').exists() || newData.child('visibility').val() !== 'public-library-published')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'authors', 'testTypeIds', 'tags', 'visibility', 'status', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']) && newData.child('bookId').val() === $bookId && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('createdAt').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public-library-pending-review' || newData.child('visibility').val() === 'public-library-published' || newData.child('visibility').val() === 'public-library-rejected') && (newData.child('status').val() === 'draft-empty' || newData.child('status').val() === 'draft-in-progress' || newData.child('status').val() === 'ready' || newData.child('status').val() === 'archived'))",
+                    ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('ownerId').val() === auth.uid && (!newData.child('visibility').exists() || (newData.child('visibility').val() !== 'public-library-published' && newData.child('visibility').val() !== 'public-library-rejected'))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'testTypeIds', 'visibility', 'status', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']) && newData.child('bookId').val() === $bookId && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('createdAt').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public-library-pending-review' || newData.child('visibility').val() === 'public-library-published' || newData.child('visibility').val() === 'public-library-rejected') && (newData.child('status').val() === 'draft-empty' || newData.child('status').val() === 'draft-in-progress' || newData.child('status').val() === 'ready' || newData.child('status').val() === 'archived'))",
                     ".indexOn": [
                         "ownerId",
                         "visibility",
@@ -309,12 +356,19 @@
                     ]
                 }
             },
+            "public_book_projections": {
+                "$bookId": {
+                    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'title', 'testTypeIds', 'visibility', 'status', 'updatedAt', 'approvedAt', 'approvedBy', 'nodes']) && newData.child('bookId').val() === $bookId && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('approvedAt').isString() && newData.child('approvedBy').isString() && newData.child('visibility').val() === 'public-library-published' && newData.child('status').val() === 'ready')"
+                }
+            },
             "book_nodes": {
                 "$bookId": {
                     ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     "$nodeId": {
-                        ".validate": "!newData.exists() || (newData.hasChildren(['nodeId', 'bookId', 'parentNodeId', 'type', 'title', 'order', 'materialRefs', 'createdAt', 'updatedAt']) && newData.child('nodeId').val() === $nodeId && newData.child('bookId').val() === $bookId && newData.child('title').isString() && newData.child('order').isNumber() && (newData.child('type').val() === 'intro-placeholder' || newData.child('type').val() === 'toc-placeholder' || newData.child('type').val() === 'note-placeholder' || newData.child('type').val() === 'section' || newData.child('type').val() === 'chapter' || newData.child('type').val() === 'test'))"
+                        ".validate": "!newData.exists() || (newData.hasChildren(['nodeId', 'bookId', 'type', 'title', 'order', 'createdAt', 'updatedAt']) && (!newData.child('parentNodeId').exists() || newData.child('parentNodeId').isString()) && newData.child('nodeId').val() === $nodeId && newData.child('bookId').val() === $bookId && newData.child('title').isString() && newData.child('order').isNumber() && (newData.child('type').val() === 'intro-placeholder' || newData.child('type').val() === 'toc-placeholder' || newData.child('type').val() === 'note-placeholder' || newData.child('type').val() === 'section' || newData.child('type').val() === 'chapter' || newData.child('type').val() === 'test'))"
                     },
                     ".indexOn": [
                         "parentNodeId",
@@ -335,8 +389,8 @@
                 },
                 "by_visibility": {
                     "$visibility": {
-                        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".read": "auth != null && (($visibility === 'public-library-published' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ($visibility === 'private' || $visibility === 'public-library-pending-review')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         "$bookId": {
                             ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'visibility', 'status', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('bookId').val() === $bookId && newData.child('visibility').val() === $visibility)"
                         }
@@ -667,7 +721,7 @@
                 "$materialId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'state', 'currentVersionId', 'publishedVersionId']) && newData.child('materialId').val() === $materialId)",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['passageMaterialId', 'ownerId', 'state', 'currentSnapshotVersionId']) && newData.child('passageMaterialId').val() === $materialId)",
                     ".indexOn": [
                         "ownerId",
                         "state",
@@ -682,7 +736,7 @@
                     "$versionId": {
                         ".read": "auth != null && (root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                        ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'versionId', 'ownerId']) && newData.child('materialId').val() === $materialId && newData.child('versionId').val() === $versionId)"
+                        ".validate": "!newData.exists() || (newData.hasChildren(['passageMaterialId', 'currentSnapshotVersionId', 'ownerId']) && newData.child('passageMaterialId').val() === $materialId && newData.child('currentSnapshotVersionId').val() === $versionId)"
                     }
                 }
             },
@@ -703,7 +757,7 @@
                     "$versionId": {
                         ".read": "auth != null && (root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                        ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'versionId', 'ownerId']) && newData.child('compositionId').val() === $compositionId && newData.child('versionId').val() === $versionId)"
+                        ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'publishedVersionId', 'ownerId']) && newData.child('compositionId').val() === $compositionId && newData.child('publishedVersionId').val() === $versionId)"
                     }
                 }
             },

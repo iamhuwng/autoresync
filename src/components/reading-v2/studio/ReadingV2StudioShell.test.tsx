@@ -800,6 +800,38 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     }));
   });
 
+  it('preserves hidden test-type metadata when publishing from Studio', async () => {
+    const document = createPublishableThreePassageDocument();
+    const onPublish = vi.fn(async () => ({
+      snapshotVersionId: 'snapshot-hidden-metadata',
+      firebaseCommitStatus: 'committed' as const,
+      firebaseCommitPath: 'reading_v2/publish_commits/hidden-metadata:snapshot-hidden-metadata',
+      firebaseOperationCount: 1,
+    }));
+
+    render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        draftId="hidden-metadata-draft"
+        document={document}
+        metadata={{
+          title: 'Hidden metadata full test',
+          primaryTestTypeId: 'ielts',
+          testTypeIds: ['ielts'],
+        }}
+        onPublish={onPublish}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(onPublish).toHaveBeenCalledOnce());
+    expect(onPublish.mock.calls[0]?.[0].metadata).toMatchObject({
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+    });
+  });
+
   it('uses an exit confirmation before leaving the workspace', () => {
     const onExit = vi.fn();
     render(<ReadingV2StudioShell mode="create-blank" onExit={onExit} />);

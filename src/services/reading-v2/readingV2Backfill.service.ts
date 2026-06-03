@@ -82,6 +82,7 @@ export interface ReadingV2FullTestPassageBackfillWrite {
   readonly writeKind:
     | 'reading-passage-material'
     | 'reading-passage-material-version'
+    | 'reading-passage-published-snapshot'
     | 'reading-passage-student-safe-projection'
     | 'reading-passage-review-projection'
     | 'reading-passage-metadata'
@@ -281,6 +282,15 @@ export const createReadingV2FullTestPassageBackfillWritePlan = (input: {
             publishedBy: approvedBy,
           }),
           writeKind: 'reading-passage-material-version',
+          idempotencyKey: row.idempotencyKey,
+        },
+        {
+          path: readingV2StoragePaths.publishedSnapshots(
+            candidate.material.passageMaterialId,
+            candidate.material.currentSnapshotVersionId,
+          ),
+          value: passageSnapshot,
+          writeKind: 'reading-passage-published-snapshot',
           idempotencyKey: row.idempotencyKey,
         },
         {

@@ -6,11 +6,15 @@ import {
 } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from './testTypeConfig.service';
 import {
+  approvePublicBook,
   buildMaterialBookIndexCleanup,
   buildMaterialBookIndexWrites,
   createBookDraft,
   createMaterialBooksRepository,
+  listPublicBookReviewQueue,
   listTeacherBooks,
+  rejectPublicBookReview,
+  returnPublicBookToPrivate,
   updateBookMetadata,
   updateBookTree,
   type MaterialBooksRepository,
@@ -58,7 +62,11 @@ const node = (overrides: Partial<MaterialBookNode> = {}): MaterialBookNode => ({
 const createRepo = (
   books: readonly MaterialBookMetadata[] = [],
   nodesByBook: Readonly<Record<string, readonly MaterialBookNode[]>> = {},
-): MaterialBooksRepository & { writes: Record<string, unknown>[]; removals: string[] } => {
+): MaterialBooksRepository & {
+  writes: Record<string, unknown>[];
+  removals: string[];
+  readPublicMaterialSummary: ReturnType<typeof vi.fn>;
+} => {
   const bookMap = new Map(books.map((book) => [book.bookId, book]));
   const nodeMap = new Map(Object.entries(nodesByBook));
   const writes: Record<string, unknown>[] = [];
@@ -98,6 +106,7 @@ const createRepo = (
         nodeMap.set(nodeMatch[1], [...current, value as MaterialBookNode]);
       }
     },
+    readPublicMaterialSummary: vi.fn(async () => null),
     async remove(path) {
       removals.push(path);
     },
@@ -268,6 +277,49 @@ describe('materialBooks.service', () => {
     expect(repo.listBookNodes).not.toHaveBeenCalled();
   });
 
+  it('lists pending public Book review queue from the pending-review visibility index', async () => {
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/book_indexes/by_visibility/public-library-pending-review') {
+        return {
+          'pending-book': metadata({
+            bookId: materialCatalogIds.bookId('pending-book'),
+            title: 'Pending Public Book',
+            visibility: 'public-library-pending-review',
+            status: 'ready',
+            publicReview: {
+              status: 'pending-review',
+              reason: 'Ready for public library review.',
+              requestedAt: NOW,
+              requestedBy: 'teacher-1',
+            },
+          }),
+          'published-book': metadata({
+            bookId: materialCatalogIds.bookId('published-book'),
+            title: 'Published Book',
+            visibility: 'public-library-published',
+            status: 'ready',
+          }),
+        };
+      }
+
+      return {};
+    });
+    const repository = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    const rows = await listPublicBookReviewQueue({
+      repository,
+      searchTerm: 'pending',
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(read).toHaveBeenCalledWith('material_catalog/book_indexes/by_visibility/public-library-pending-review');
+    expect(rows.map((row) => row.bookId)).toEqual(['pending-book']);
+    expect(rows[0]?.publicReview).toMatchObject({
+      status: 'pending-review',
+      reason: 'Ready for public library review.',
+    });
+  });
+
   it('builds and cleans Book indexes by owner, visibility, and each Test Type', () => {
     expect(buildMaterialBookIndexWrites(metadata({ testTypeIds: [materialCatalogIds.testTypeId('ielts'), materialCatalogIds.testTypeId('toeic')] })).map((write) => write.path))
       .toEqual(expect.arrayContaining([
@@ -301,5 +353,293 @@ describe('materialBooks.service', () => {
     expect(read).toHaveBeenCalledWith('material_catalog/books/book-1');
     expect(write).toHaveBeenCalledWith('material_catalog/books/book-1', expect.objectContaining({ bookId: 'book-1' }));
     expect(remove).toHaveBeenCalledWith('material_catalog/books/book-1');
+  });
+
+  it('approves pending public Books by writing a public-safe projection after unsafe-ref checks', async () => {
+    const publicRefNode = node({
+      materialRefs: [
+        {
+          refId: materialCatalogIds.refId('ref-1'),
+          materialId: 'passage-1',
+          materialKind: 'reading-passage',
+          snapshotVersionId: 'snapshot-1',
+          titleSnapshot: 'Owner title must not be trusted',
+          testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+          visibilitySnapshot: 'public',
+          availability: 'available',
+          updateState: 'current',
+          order: 1,
+          addedAt: NOW,
+          addedBy: 'teacher-1',
+        },
+      ],
+    });
+    const repo = createRepo([
+      metadata({
+        visibility: 'public-library-pending-review',
+        status: 'ready',
+      }),
+    ], {
+      'book-1': [publicRefNode],
+    });
+    repo.readPublicMaterialSummary.mockResolvedValue({
+      materialId: 'passage-1',
+      ownerId: 'teacher-2',
+      title: 'Public Passage Summary',
+      visibility: 'public',
+      materialKind: 'reading-passage',
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeMembership: { ielts: true },
+      updatedAt: NOW,
+    });
+
+    const approved = await approvePublicBook(
+      'book-1',
+      repo,
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+      { reason: 'Reviewed for public library.' },
+    );
+
+    expect(approved.visibility).toBe('public-library-published');
+    const projectionWrite = repo.writes.find((write) =>
+      write.path === 'material_catalog/public_book_projections/book-1'
+    );
+
+    expect(projectionWrite?.value).toMatchObject({
+      bookId: 'book-1',
+      title: 'Cambridge IELTS 18',
+      approvedAt: NOW,
+      approvedBy: 'admin-1',
+      nodes: [
+        {
+          nodeId: 'node-1',
+          parentNodeId: null,
+          type: 'section',
+          title: 'Section 1',
+          order: 1,
+          materialRefs: [
+            {
+              refId: 'ref-1',
+              materialId: 'passage-1',
+              materialKind: 'reading-passage',
+              snapshotVersionId: 'snapshot-1',
+              title: 'Public Passage Summary',
+              testTypeIds: ['ielts'],
+              order: 1,
+            },
+          ],
+        },
+      ],
+    });
+    expect(JSON.stringify(projectionWrite?.value)).not.toContain('visibilitySnapshot');
+    expect(JSON.stringify(projectionWrite?.value)).not.toContain('addedBy');
+    expect(repo.writes.map((write) => write.path)).toEqual(
+      expect.arrayContaining([
+        'material_catalog/books/book-1',
+        'material_catalog/book_indexes/by_visibility/public-library-published/book-1',
+      ]),
+    );
+  });
+
+  it('approves ready Books when RTDB omits empty node fields', async () => {
+    const assertNoUndefined = (value: unknown, path = 'value'): void => {
+      if (value === undefined) {
+        throw new Error(`undefined write at ${path}`);
+      }
+
+      if (!value || typeof value !== 'object') {
+        return;
+      }
+
+      Object.entries(value).forEach(([key, entry]) => {
+        assertNoUndefined(entry, `${path}.${key}`);
+      });
+    };
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/books/book-1') {
+        return metadata({
+          visibility: 'public-library-pending-review',
+          status: 'ready',
+          subtitle: undefined,
+          publisher: undefined,
+          series: undefined,
+          coverUrl: undefined,
+        });
+      }
+
+      if (path === 'material_catalog/book_nodes/book-1') {
+        return {
+          'node-1': {
+            nodeId: 'node-1',
+            bookId: 'book-1',
+            type: 'section',
+            title: 'Section 1',
+            order: 1,
+            createdAt: NOW,
+            updatedAt: NOW,
+          },
+        };
+      }
+
+      return null;
+    });
+    const write = vi.fn(async (_path: string, value: unknown) => {
+      assertNoUndefined(value);
+    });
+    const remove = vi.fn();
+    const repo = createMaterialBooksRepository({ read, write, remove });
+
+    await expect(approvePublicBook(
+      'book-1',
+      repo,
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+      { reason: 'Reviewed for public library.' },
+    )).resolves.toMatchObject({ visibility: 'public-library-published' });
+
+    expect(write).toHaveBeenCalledWith(
+      'material_catalog/public_book_projections/book-1',
+      expect.objectContaining({
+        nodes: [
+          expect.objectContaining({
+            nodeId: 'node-1',
+            parentNodeId: null,
+            materialRefs: [],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('normalizes RTDB-omitted empty public projection arrays on read', async () => {
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/public_book_projections/book-1') {
+        return {
+          bookId: 'book-1',
+          title: 'Public Book',
+          testTypeIds: ['ielts'],
+          visibility: 'public-library-published',
+          status: 'ready',
+          updatedAt: NOW,
+          approvedAt: NOW,
+          approvedBy: 'admin-1',
+          nodes: [
+            {
+              nodeId: 'node-1',
+              type: 'section',
+              title: 'Section 1',
+              order: 1,
+            },
+          ],
+        };
+      }
+
+      return null;
+    });
+    const repo = createMaterialBooksRepository({
+      read,
+      write: vi.fn(),
+      remove: vi.fn(),
+    });
+
+    await expect(repo.readPublicBookProjection?.('book-1')).resolves.toMatchObject({
+      authors: [],
+      tags: [],
+      nodes: [
+        {
+          nodeId: 'node-1',
+          parentNodeId: null,
+          materialRefs: [],
+        },
+      ],
+    });
+  });
+
+  it('blocks public Book approval for non-admin actors and unsafe refs', async () => {
+    const unsafeNode = node({
+      materialRefs: [
+        {
+          refId: materialCatalogIds.refId('ref-private'),
+          materialId: 'private-passage',
+          materialKind: 'reading-passage',
+          snapshotVersionId: 'snapshot-private',
+          titleSnapshot: 'Private Passage',
+          testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+          visibilitySnapshot: 'private',
+          availability: 'available',
+          updateState: 'current',
+          order: 1,
+          addedAt: NOW,
+          addedBy: 'teacher-1',
+        },
+      ],
+    });
+    const repo = createRepo([
+      metadata({
+        visibility: 'public-library-pending-review',
+        status: 'ready',
+      }),
+    ], {
+      'book-1': [unsafeNode],
+    });
+
+    await expect(
+      approvePublicBook(
+        'book-1',
+        repo,
+        { actorId: 'teacher-1', actorRole: 'teacher', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+        { reason: 'Not allowed.' },
+      ),
+    ).rejects.toThrow(/super_admin/i);
+
+    await expect(
+      approvePublicBook(
+        'book-1',
+        repo,
+        { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+        { reason: 'Unsafe.' },
+      ),
+    ).rejects.toThrow(/public-safe/i);
+    expect(repo.writes.some((write) => write.path === 'material_catalog/public_book_projections/book-1')).toBe(false);
+  });
+
+  it('records reject and return-to-private public review decisions and removes public projection', async () => {
+    const repo = createRepo([
+      metadata({
+        visibility: 'public-library-published',
+        status: 'ready',
+      }),
+    ]);
+
+    const rejected = await rejectPublicBookReview(
+      'book-1',
+      'Contains outdated material refs.',
+      repo,
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+    );
+
+    expect(rejected.visibility).toBe('public-library-rejected');
+    expect(rejected.publicReview).toMatchObject({
+      status: 'rejected',
+      reason: 'Contains outdated material refs.',
+      reviewedBy: 'admin-1',
+      reviewedAt: NOW,
+    });
+    expect(repo.removals).toContain('material_catalog/public_book_projections/book-1');
+
+    const returned = await returnPublicBookToPrivate(
+      'book-1',
+      'Owner should revise metadata.',
+      repo,
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+    );
+
+    expect(returned.visibility).toBe('private');
+    expect(returned.publicReview).toMatchObject({
+      status: 'returned-private',
+      reason: 'Owner should revise metadata.',
+      reviewedBy: 'admin-1',
+      reviewedAt: NOW,
+    });
+    expect(repo.removals.filter((path) => path === 'material_catalog/public_book_projections/book-1')).toHaveLength(2);
   });
 });

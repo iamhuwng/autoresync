@@ -135,6 +135,35 @@
   grid-column: 1 / -1;
 }
 
+.book-editor-page__public-outline {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-editor-page__public-node {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+  color: #0f172a;
+}
+
+.book-editor-page__public-node:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.book-editor-page__public-node ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #475569;
+}
+
 @media (max-width: 720px) {
   .book-editor-page__main {
     width: min(100% - 1rem, 1180px);

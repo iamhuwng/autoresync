@@ -14,6 +14,11 @@ import {
   type ReadingV2PublishedSnapshot,
   type ReadingV2TaskGroupId,
 } from '../../types/readingV2.types';
+import type {
+  MaterialTestTypeConfig,
+  MaterialTestTypeId,
+  ReadingPassageVisibilityScope,
+} from '../../types/materialCatalog.types';
 import {
   createReadingV2DefaultImportCandidate,
   normalizeReadingV2ImportCandidate,
@@ -51,6 +56,9 @@ export interface ReadingV2StudioWorkflowMetadata {
   readonly visibility: 'private' | 'library-eligible' | 'assigned-only';
   readonly ownerId: string;
   readonly provenanceSummary: string;
+  readonly primaryTestTypeId?: MaterialTestTypeId;
+  readonly testTypeIds?: readonly MaterialTestTypeId[];
+  readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
 }
 
 export interface ReadingV2StudioWorkflowContext {
@@ -133,6 +141,9 @@ export const createReadingV2StudioDefaultMetadata = (
   visibility: overrides.visibility ?? 'private',
   ownerId: overrides.ownerId ?? 'current-teacher',
   provenanceSummary: overrides.provenanceSummary ?? 'Original Reading V2 draft',
+  primaryTestTypeId: overrides.primaryTestTypeId,
+  testTypeIds: overrides.testTypeIds,
+  testTypeConfigs: overrides.testTypeConfigs,
 });
 
 const toStudioMetadataRecord = (
@@ -140,7 +151,19 @@ const toStudioMetadataRecord = (
 ): Readonly<Record<string, unknown>> => ({
   ...metadata,
   tags: [...metadata.tags],
+  testTypeIds: metadata.testTypeIds ? [...metadata.testTypeIds] : undefined,
+  testTypeConfigs: metadata.testTypeConfigs ? [...metadata.testTypeConfigs] : undefined,
 });
+
+const shouldExtractReadingPassagesOnPublish = (
+  metadata: ReadingV2StudioWorkflowMetadata,
+): boolean =>
+  metadata.materialKind === 'full-test';
+
+const toReadingPassageExtractionVisibility = (
+  visibility: ReadingV2StudioWorkflowMetadata['visibility'],
+): ReadingPassageVisibilityScope =>
+  visibility === 'library-eligible' ? 'public' : 'private';
 
 const createDocument = (title?: string): ReadingV2Document => {
   const documentId = readingV2Ids.documentId(`draft-${nowId()}`);
@@ -415,6 +438,8 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
           description: input.sourceMetadata?.description,
           tags: input.sourceMetadata?.tags,
           visibility: input.sourceMetadata?.visibility,
+          primaryTestTypeId: input.sourceMetadata?.primaryTestTypeId,
+          testTypeIds: input.sourceMetadata?.testTypeIds,
           provenanceSummary: `Revision draft from published snapshot ${latestSnapshot.snapshotVersionId}; live snapshot remains immutable`,
         })),
       });
@@ -606,7 +631,19 @@ export const publishReadingV2StudioDraft = async (
       targetBand: snapshot.metadata.targetBand,
       description: snapshot.metadata.description,
       tags: snapshot.metadata.tags,
+      primaryTestTypeId: snapshot.metadata.primaryTestTypeId,
+      testTypeIds: snapshot.metadata.testTypeIds,
+      testTypeConfigs: snapshot.metadata.testTypeConfigs,
     },
+    readingPassageExtraction: shouldExtractReadingPassagesOnPublish(snapshot.metadata)
+      ? {
+          primaryTestTypeId: snapshot.metadata.primaryTestTypeId,
+          testTypeIds: snapshot.metadata.testTypeIds,
+          testTypeConfigs: snapshot.metadata.testTypeConfigs,
+          visibility: toReadingPassageExtractionVisibility(snapshot.metadata.visibility),
+          durationMinutes: snapshot.metadata.durationMinutes,
+        }
+      : undefined,
     returnContext: snapshot.returnContext ?? 'studio',
   });
   const firebaseCommit = await commitAdapter(result.commitPlan);

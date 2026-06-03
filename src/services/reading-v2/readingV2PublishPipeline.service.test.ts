@@ -305,6 +305,7 @@ describe('readingV2PublishPipeline.service', () => {
       expect.arrayContaining([
         readingV2StoragePaths.readingPassageMaterials(firstPassageId),
         readingV2StoragePaths.readingPassageMaterialVersions(firstPassageId, snapshotVersionId),
+        readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId),
         readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId),
         readingV2StoragePaths.reviewProjections(firstPassageId, snapshotVersionId),
         readingV2StoragePaths.materialMetadata(firstPassageId),
@@ -317,14 +318,29 @@ describe('readingV2PublishPipeline.service', () => {
         'material_catalog/material_indexes/by_visibility/public/material-full-test-with-passages-passage-1',
         'material_catalog/material_indexes/by_material_kind/reading-passage/material-full-test-with-passages-passage-1',
         'material_catalog/material_indexes/by_test_type/ielts/material-full-test-with-passages-passage-1',
-        'material_catalog/material_indexes/by_source_full_test/material-full-test-with-passages/material-full-test-with-passages-passage-1',
+        'material_catalog/material_indexes/by_source_full_test/full-test-with-passages/material-full-test-with-passages-passage-1',
       ]),
     );
     expect(byPath[readingV2StoragePaths.materialMetadata(firstPassageId)]).toMatchObject({
       materialKind: 'reading-passage',
+      sourceFullTestId: 'full-test-with-passages',
       sourceOrderDisplaySnapshot: 'Passage 1',
       sourceQuestionRange: '1-13',
     });
+    expect(byPath[readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId)]).toMatchObject({
+      materialId: firstPassageId,
+      snapshotVersionId,
+      document: expect.objectContaining({
+        sectionIds: expect.arrayContaining([expect.stringContaining('section')]),
+        sections: expect.objectContaining({
+          'section-sentence-completion': expect.objectContaining({
+            title: 'Reading Passage 1',
+          }),
+        }),
+      }),
+    });
+    expect(JSON.stringify(byPath[readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId)]))
+      .toMatch(/acceptableAnswers|scoringRule/);
     expect(byPath[readingV2StoragePaths.fullTestCompositions(result.readingPassageExtraction!.composition.compositionId)])
       .toMatchObject({
         testMaterialId: materialId,
@@ -346,9 +362,73 @@ describe('readingV2PublishPipeline.service', () => {
     expect(result.commitPlan.operations.map((operation) => operation.operationKey)).toEqual(
       expect.arrayContaining([
         `${materialId}/${snapshotVersionId}/storage/${readingV2StoragePaths.readingPassageMaterials(firstPassageId)}`,
+        `${materialId}/${snapshotVersionId}/storage/${readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId)}`,
         `${materialId}/${snapshotVersionId}/storage/${readingV2StoragePaths.fullTestCompositions(result.readingPassageExtraction!.composition.compositionId)}`,
       ]),
     );
+  });
+
+  it('auto-extracts Reading Passages when full-test metadata is published without caller opt-in', () => {
+    const repository = createReadingV2Repository();
+    const materialId = readingV2Ids.materialId('material-auto-full-test-passages');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-auto-full-test-passages');
+    const result = publishReadingV2Material({
+      repository,
+      materialId,
+      ownerId: 'teacher-1',
+      document: twoPassageDocument(),
+      publishedBy: 'teacher-1',
+      snapshotVersionId,
+      publishedAt: '2026-06-01T00:00:00.000Z',
+      metadata: {
+        title: 'Auto Extract Full Test',
+        materialKind: 'full-test',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        visibility: 'library-eligible',
+      },
+    });
+
+    const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
+    const firstPassageId = 'material-auto-full-test-passages-passage-1';
+
+    expect(result.readingPassageExtraction?.composition).toMatchObject({
+      testMaterialId: materialId,
+      visibility: 'public',
+      passageRefs: expect.arrayContaining([
+        expect.objectContaining({ passageMaterialId: firstPassageId }),
+      ]),
+    });
+    expect(result.readingPassageExtraction?.passages[0]?.material.sourceFullTestId).toBe(materialId);
+    expect(storageWrites.map((operation) => operation.path)).toEqual(
+      expect.arrayContaining([
+        readingV2StoragePaths.readingPassageMaterials(firstPassageId),
+        readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId),
+        readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId),
+        'material_catalog/material_indexes/by_visibility/public/material-auto-full-test-passages-passage-1',
+        'material_catalog/material_indexes/by_source_full_test/material-auto-full-test-passages/material-auto-full-test-passages-passage-1',
+      ]),
+    );
+  });
+
+  it('does not auto-extract Reading Passages for explicit task-group material publishes', () => {
+    const repository = createReadingV2Repository();
+    const result = publishReadingV2Material({
+      repository,
+      materialId: readingV2Ids.materialId('material-task-group-no-passages'),
+      ownerId: 'teacher-1',
+      document: fixtureDocument(),
+      publishedBy: 'teacher-1',
+      snapshotVersionId: readingV2Ids.snapshotVersionId('snapshot-task-group-no-passages'),
+      metadata: {
+        title: 'Task Group Publish',
+        materialKind: 'task-group-material',
+      },
+    });
+
+    expect(result.readingPassageExtraction).toBeUndefined();
+    expect(result.commitPlan.operations.some((operation) => operation.kind === 'storage-write')).toBe(false);
   });
 
   it('blocks full-test publish when Reading Passage extraction reports a blocking issue', () => {

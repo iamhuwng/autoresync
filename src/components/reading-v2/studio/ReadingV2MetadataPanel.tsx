@@ -1,5 +1,9 @@
 import type { ReadingV2ValidationIssue } from '../../../types/readingV2.types';
 import type {
+  MaterialTestTypeConfig,
+  MaterialTestTypeId,
+} from '../../../types/materialCatalog.types';
+import type {
   ReadingV2MaterialKind,
   ReadingV2MaterialVisibility,
 } from '../../../services/reading-v2/readingV2MaterialMetadata.service';
@@ -18,6 +22,9 @@ export interface ReadingV2StudioMetadata {
   readonly visibility: ReadingV2Visibility;
   readonly ownerId: string;
   readonly provenanceSummary: string;
+  readonly primaryTestTypeId?: MaterialTestTypeId;
+  readonly testTypeIds?: readonly MaterialTestTypeId[];
+  readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
 }
 
 export interface ReadingV2MetadataPanelProps {

@@ -176,6 +176,12 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       skillType: 'reading-v2',
       questionCount: 2,
     });
+    expect(firebaseUpdates.updates['tests/material-firebase']).toMatchObject({
+      testTypeIds: [],
+      metadata: expect.objectContaining({
+        testTypeIds: [],
+      }),
+    });
     expect(firebaseUpdates.updates[readingV2StoragePaths.relationshipIndexes('solo-launch', 'material-firebase')])
       .toMatchObject({
         ownerId: 'teacher-1',
@@ -238,6 +244,16 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     );
 
     expect(compositionOperation).toBeTruthy();
+    expect(firebaseUpdates.updates['tests/material-firebase-passages']).toMatchObject({
+      testType: 'IELTS',
+      type: 'IELTS',
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+      metadata: expect.objectContaining({
+        primaryTestTypeId: 'ielts',
+        testTypeIds: ['ielts'],
+      }),
+    });
     expect(updatePaths).toEqual(
       expect.arrayContaining([
         readingV2StoragePaths.readingPassageMaterials(passageId),
@@ -277,6 +293,19 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     expect(result.status).toBe('already-committed');
     expect(update).toHaveBeenCalledTimes(1);
     expect(ref).toHaveBeenCalledWith(expect.anything(), result.commitPath);
+  });
+
+  it('rejects failed Reading Passage storage writes when no matching commit marker exists', async () => {
+    const commitPlan = createPassagePublishPlan();
+    const firebaseUpdates = buildReadingV2FirebasePublishUpdates(commitPlan);
+    vi.mocked(update).mockRejectedValue(new Error('permission_denied'));
+    vi.mocked(get).mockResolvedValue(databaseSnapshot(false, null));
+
+    await expect(commitReadingV2PublishPlanToFirebase(commitPlan)).rejects.toThrow(/permission_denied/);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledOnce();
+    expect(ref).toHaveBeenCalledWith(expect.anything(), firebaseUpdates.commitPath);
   });
 
   it('rejects a conflicting commit marker after a failed retry write', async () => {

@@ -83,7 +83,7 @@ const BookCard = ({
           className="book-card__action book-card__action--danger"
           onClick={() => onArchiveBook?.(book)}
         >
-          Archive/Delete
+          Archive
         </button>
       )}
     </div>

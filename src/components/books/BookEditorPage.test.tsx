@@ -149,6 +149,34 @@ describe('BookEditorPage', () => {
     expect(screen.getByText(/Whole-Book assignment is not available in V1/)).toBeInTheDocument();
   });
 
+  it('uses Request public review instead of direct public approval or rejection controls', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+        <Routes>
+          <Route
+            path="/teacher/materials/books/:bookId"
+            element={<BookEditorPage initialBook={makeBook()} materialCandidates={[]} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const visibility = screen.getByLabelText('Visibility');
+
+    expect(screen.queryByRole('option', { name: 'Public library' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Public rejected' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Request public review' }));
+
+    expect(visibility).toHaveValue('public-library-pending-review');
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_public_review_requested', {
+      bookId: 'book-123',
+      source: 'book_editor_metadata',
+    });
+  });
+
   it('assigns a Reading Passage ref through normal Reading Passage homework props, not Book assignment props', async () => {
     const user = userEvent.setup();
     const nodes = [
@@ -251,5 +279,150 @@ describe('BookEditorPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Book changed in another tab');
     });
+  });
+
+  it('loads published public Book detail from the public-safe projection when raw owner data is denied', async () => {
+    const repository = {
+      readBook: vi.fn(async () => {
+        throw new Error('permission_denied');
+      }),
+      listBookNodes: vi.fn(async () => {
+        throw new Error('raw nodes denied');
+      }),
+      listBooksByIndex: vi.fn(async () => []),
+      readPublicBookProjection: vi.fn(async () => ({
+        bookId: materialCatalogIds.bookId('book-123'),
+        title: 'Public IELTS Book',
+        authors: ['Cambridge'],
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        tags: ['reading'],
+        visibility: 'public-library-published',
+        status: 'ready',
+        updatedAt: NOW,
+        approvedAt: NOW,
+        approvedBy: 'admin-1',
+        nodes: [
+          {
+            nodeId: materialCatalogIds.nodeId('node-public'),
+            parentNodeId: null,
+            type: 'section',
+            title: 'Public Section',
+            order: 1,
+            materialRefs: [
+              {
+                refId: materialCatalogIds.refId('ref-public'),
+                materialId: 'passage-public',
+                materialKind: 'reading-passage',
+                snapshotVersionId: 'snapshot-public',
+                title: 'Public Passage Summary',
+                testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+                order: 1,
+              },
+            ],
+          },
+        ],
+      })),
+      write: vi.fn(),
+      remove: vi.fn(),
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+        <Routes>
+          <Route
+            path="/teacher/materials/books/:bookId"
+            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Public IELTS Book' })).toBeInTheDocument();
+    expect(screen.getByText('Public Section')).toBeInTheDocument();
+    expect(screen.getByText('Public Passage Summary')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save Metadata' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request public review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save Book Structure' })).not.toBeInTheDocument();
+    expect(repository.readPublicBookProjection).toHaveBeenCalledWith('book-123');
+  });
+
+  it('renders public projection nodes when RTDB omits empty materialRefs arrays', async () => {
+    const repository = {
+      readBook: vi.fn(async () => {
+        throw new Error('permission_denied');
+      }),
+      listBookNodes: vi.fn(async () => {
+        throw new Error('raw nodes denied');
+      }),
+      listBooksByIndex: vi.fn(async () => []),
+      readPublicBookProjection: vi.fn(async () => ({
+        bookId: materialCatalogIds.bookId('book-123'),
+        title: 'Public IELTS Book',
+        authors: ['Cambridge'],
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        tags: ['reading'],
+        visibility: 'public-library-published',
+        status: 'ready',
+        updatedAt: NOW,
+        approvedAt: NOW,
+        approvedBy: 'admin-1',
+        nodes: [
+          {
+            nodeId: materialCatalogIds.nodeId('node-public'),
+            parentNodeId: null,
+            type: 'section',
+            title: 'Public Section Without Refs',
+            order: 1,
+          },
+        ],
+      } as any)),
+      write: vi.fn(),
+      remove: vi.fn(),
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+        <Routes>
+          <Route
+            path="/teacher/materials/books/:bookId"
+            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Public IELTS Book' })).toBeInTheDocument();
+    expect(screen.getByText('Public Section Without Refs')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save Metadata' })).not.toBeInTheDocument();
+  });
+
+  it('shows a load error when raw Book data and public projection are both denied', async () => {
+    const repository = {
+      readBook: vi.fn(async () => {
+        throw new Error('permission denied raw book');
+      }),
+      listBookNodes: vi.fn(async () => []),
+      listBooksByIndex: vi.fn(async () => []),
+      readPublicBookProjection: vi.fn(async () => {
+        throw new Error('permission denied projection');
+      }),
+      write: vi.fn(),
+      remove: vi.fn(),
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+        <Routes>
+          <Route
+            path="/teacher/materials/books/:bookId"
+            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied');
+    expect(screen.queryByText('Loading Book...')).not.toBeInTheDocument();
+    expect(repository.readPublicBookProjection).toHaveBeenCalledWith('book-123');
   });
 });

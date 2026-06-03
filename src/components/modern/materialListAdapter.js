@@ -472,6 +472,22 @@ function readingPassageActionHandler(key, source, handlers = {}) {
   return () => {};
 }
 
+function getReadingPassageAssignmentBlocker(record) {
+  if (record?.archived === true) {
+    return 'Archived Reading Passages cannot be assigned.';
+  }
+
+  if (!record?.publishedSnapshotVersionId || record?.hasStudentSafeProjection === false) {
+    return 'Publish this passage with a student-safe projection before assignment.';
+  }
+
+  if (record?.accessible === false) {
+    return 'This Reading Passage is not available for assignment.';
+  }
+
+  return undefined;
+}
+
 const READING_PASSAGE_ACTION_SLOT_BY_KEY = {
   open: 1,
   view: 1,
@@ -488,6 +504,7 @@ export function toReadingPassageRowModel(record, options = {}) {
   } = options;
   const title = record?.title || record?.metadata?.title || 'Untitled Reading Passage';
   const rowSource = sanitizeReadingPassageSource(record);
+  const assignmentBlocker = getReadingPassageAssignmentBlocker(record);
   const actions = (record?.actions?.length ? record.actions : defaultReadingPassageActions(record))
     .filter((entry) => !entry.ownerOnly || record?.isOwner)
     .filter((entry) => entry.key !== 'delete')
@@ -497,6 +514,8 @@ export function toReadingPassageRowModel(record, options = {}) {
       variant: entry.key === 'archive' ? 'danger' : entry.key === 'assign-homework' ? 'primary' : 'secondary',
       iconKind: readingPassageActionIconKind(entry.key),
       onSelect: readingPassageActionHandler(entry.key, rowSource, handlers),
+      disabled: entry.key === 'assign-homework' && Boolean(assignmentBlocker),
+      disabledReason: entry.key === 'assign-homework' ? assignmentBlocker : undefined,
       slot: READING_PASSAGE_ACTION_SLOT_BY_KEY[entry.key],
     }));
 
@@ -516,6 +535,7 @@ export function toReadingPassageRowModel(record, options = {}) {
     selection: record?.selectable === false ? undefined : {
       checked: selected,
       label: `Select ${title}`,
+      disabled: Boolean(assignmentBlocker),
       onChange: () => handlers.onToggleReadingPassageSelection?.(rowSource),
     },
     actions,

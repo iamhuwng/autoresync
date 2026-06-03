@@ -1,10 +1,14 @@
 import React from 'react';
-import type { RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
-import { isReadingV2TeacherRouteExposureAllowed } from '../config/readingV2FeatureFlags.ts';
+import { buildRoute } from '../constants/routes.ts';
+import {
+  isMaterialBookEditorEnabled,
+  isReadingV2TeacherRouteExposureAllowed,
+} from '../config/readingV2FeatureFlags.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
 
 const TeacherLobbyPage = lazyWithRetry(() => import('../pages/TeacherLobbyPage.jsx'));
@@ -36,6 +40,7 @@ const WritingTestBuilder = lazyWithRetry(() => import('../pages/WritingTestBuild
 const WritingGradingPage = lazyWithRetry(() => import('../pages/WritingGradingPage.tsx'));
 const TeacherStudentsPage = lazyWithRetry(() => import('../pages/TeacherStudentsPage.tsx'));
 const BookEditorPage = lazyWithRetry(() => import('../components/books/BookEditorPage.tsx'));
+export const TEACHER_MATERIALS_BOOK_EDITOR_DISABLED_NOTICE = 'book-editor-disabled';
 
 function asTeacherPage(
   children: React.ReactNode,
@@ -92,6 +97,7 @@ const readingV2StudioRoutes = (): RouteObject[] => [
 
 export interface TeacherRoutesOptions {
   readonly exposeReadingV2StudioRoutes?: boolean;
+  readonly exposeMaterialBookEditorRoutes?: boolean;
 }
 
 export const createTeacherRoutes = (
@@ -99,6 +105,8 @@ export const createTeacherRoutes = (
 ): RouteObject[] => {
   const exposeReadingV2StudioRoutes =
     options.exposeReadingV2StudioRoutes ?? isReadingV2TeacherRouteExposureAllowed();
+  const exposeMaterialBookEditorRoutes =
+    options.exposeMaterialBookEditorRoutes ?? isMaterialBookEditorEnabled();
 
   return [
   {
@@ -119,7 +127,17 @@ export const createTeacherRoutes = (
   },
   {
     path: '/teacher/materials/books/:bookId',
-    element: asTeacherErrorBoundaryPage(<BookEditorPage />, 'readingV2Studio', ['teacher', 'super_admin']),
+    element: exposeMaterialBookEditorRoutes
+      ? asTeacherErrorBoundaryPage(<BookEditorPage />, 'readingV2Studio', ['teacher', 'super_admin'])
+      : asTeacherErrorBoundaryPage(
+        <Navigate
+          to={buildRoute('LOBBY')}
+          replace
+          state={{ teacherMaterialsNotice: TEACHER_MATERIALS_BOOK_EDITOR_DISABLED_NOTICE }}
+        />,
+        'readingV2Studio',
+        ['teacher', 'super_admin'],
+      ),
   },
   {
     path: '/lobby',

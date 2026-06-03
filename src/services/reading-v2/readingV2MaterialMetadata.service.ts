@@ -61,6 +61,7 @@ export interface ReadingV2MaterialMetadataInput {
 export interface ReadingV2MaterialMetadata {
   readonly materialId: ReadingV2MaterialId;
   readonly ownerId: string;
+  readonly state?: 'draft' | 'published' | 'archived';
   readonly deliveryEngine: typeof READING_V2_ENGINE;
   readonly productLabel: typeof READING_V2_PRODUCT_LABEL;
   readonly title: string;
@@ -84,6 +85,8 @@ export interface ReadingV2MaterialMetadata {
   readonly sourceTitleSnapshot?: string;
   readonly publishedSnapshotVersionId?: string;
   readonly publishedAt?: string;
+  readonly archivedAt?: string;
+  readonly archivedBy?: string;
   readonly updatedAt: string;
   readonly relationshipSurfaces: readonly ReadingV2RelationshipSurface[];
 }

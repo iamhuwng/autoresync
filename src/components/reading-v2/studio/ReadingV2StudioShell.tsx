@@ -306,6 +306,9 @@ const createDefaultMetadata = (
   visibility: overrides.visibility ?? 'private',
   ownerId: overrides.ownerId ?? 'current-teacher',
   provenanceSummary: overrides.provenanceSummary ?? 'Original Reading V2 draft',
+  primaryTestTypeId: overrides.primaryTestTypeId,
+  testTypeIds: overrides.testTypeIds ? [...overrides.testTypeIds] : undefined,
+  testTypeConfigs: overrides.testTypeConfigs ? [...overrides.testTypeConfigs] : undefined,
 });
 
 const createBlankReadingV2Document = (): ReadingV2Document => {

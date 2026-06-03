@@ -42,7 +42,11 @@ import type { HomeworkWritingContext } from '../components/writing-practice/Writ
 import type { IELTSWritingTest } from '../types/ielts-writing.types';
 import { studentResumeService } from '../services/studentResume.service';
 import { getEffectiveHomeworkDueDate, getHomeworkById } from '../services/homeworkManager';
-import { getSubmissionById } from '../services/homeworkSubmissionService';
+import {
+    HomeworkSubmissionError,
+    getSubmissionById,
+    submitHomework,
+} from '../services/homeworkSubmissionService';
 import type { HomeworkAssignment } from '../types/homework.types';
 import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
 import {
@@ -574,11 +578,32 @@ const StudentPracticePageContent: React.FC = () => {
                     sourceName: locationState.context?.source?.name ?? readingV2Projection?.content.title,
                 },
             });
+            const homeworkSubmissionId = locationState.isHomework ? locationState.submissionId : undefined;
+
+            if (homeworkSubmissionId) {
+                try {
+                    await submitHomework(
+                        homeworkSubmissionId,
+                        result.resultId,
+                        result.totalScore,
+                        result.maxScore,
+                        result.percentage,
+                        undefined,
+                        Math.max(0, Math.round((Date.now() - readingV2StartedAt) / 1000)),
+                    );
+                } catch (homeworkSubmitError) {
+                    if (!(homeworkSubmitError instanceof HomeworkSubmissionError
+                        && homeworkSubmitError.code === 'ALREADY_SUBMITTED')) {
+                        throw homeworkSubmitError;
+                    }
+                }
+            }
 
             trackAction('submitReadingV2Attempt', {
                 ...trackingPayload,
                 resultId: result.resultId,
                 attemptId: result.attemptId,
+                homeworkSubmissionId,
                 outcome: 'success',
             });
             if (readingPassageHomeworkKind) {
@@ -603,9 +628,11 @@ const StudentPracticePageContent: React.FC = () => {
         locationState.homeworkId,
         locationState.isHomework,
         locationState.moduleId,
+        locationState.submissionId,
         materialId,
         readingV2Projection?.content.title,
         readingPassageHomeworkKind,
+        readingV2StartedAt,
         trackAction,
     ]);
     const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()

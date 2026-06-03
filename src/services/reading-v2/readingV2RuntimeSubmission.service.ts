@@ -48,6 +48,9 @@ export interface ReadingV2TrustedSubmissionRequest {
 export interface ReadingV2RuntimeSubmissionResult {
   readonly resultId: string;
   readonly attemptId?: string;
+  readonly totalScore?: number;
+  readonly maxScore?: number;
+  readonly percentage?: number;
 }
 
 export class ReadingV2TrustedSubmissionUnavailableError extends Error {
@@ -128,7 +131,13 @@ const readResponseBody = async (response: Response): Promise<unknown> => {
 
 const parseSubmissionResponse = (body: unknown): ReadingV2RuntimeSubmissionResult => {
   const record = body && typeof body === 'object'
-    ? body as { resultId?: unknown; attemptId?: unknown }
+    ? body as {
+      resultId?: unknown;
+      attemptId?: unknown;
+      totalScore?: unknown;
+      maxScore?: unknown;
+      percentage?: unknown;
+    }
     : {};
 
   if (typeof record.resultId !== 'string' || record.resultId.trim().length === 0) {
@@ -138,6 +147,9 @@ const parseSubmissionResponse = (body: unknown): ReadingV2RuntimeSubmissionResul
   return {
     resultId: record.resultId,
     attemptId: typeof record.attemptId === 'string' ? record.attemptId : undefined,
+    totalScore: typeof record.totalScore === 'number' ? record.totalScore : undefined,
+    maxScore: typeof record.maxScore === 'number' ? record.maxScore : undefined,
+    percentage: typeof record.percentage === 'number' ? record.percentage : undefined,
   };
 };
 

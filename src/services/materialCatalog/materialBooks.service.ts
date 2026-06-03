@@ -4,10 +4,14 @@ import {
   type MaterialBookId,
   type MaterialBookMetadata,
   type MaterialBookNode,
+  type MaterialBookPublicProjection,
+  type MaterialBookPublicProjectionNode,
+  type MaterialBookPublicProjectionRef,
   type MaterialBookVisibility,
   type MaterialTestTypeConfig,
   type MaterialTestTypeId,
 } from '../../types/materialCatalog.types';
+import type { MaterialCatalogIndexRow } from './materialCatalogIndexes.service';
 import { materialCatalogPaths } from './materialCatalogPaths';
 import {
   deriveMaterialBookStatus,
@@ -40,13 +44,19 @@ export interface MaterialBookIndexWrite {
 
 export interface MaterialBooksRepository {
   readonly readBook: (bookId: string) => Promise<MaterialBookMetadata | null>;
+  readonly readPublicBookProjection?: (bookId: string) => Promise<MaterialBookPublicProjection | null>;
   readonly listBookNodes: (bookId: string) => Promise<readonly MaterialBookNode[]>;
   readonly listBooksByIndex: (query: {
     readonly teacherId: string;
     readonly scope: BookListScope;
   }) => Promise<readonly MaterialBookMetadata[]>;
+  readonly readPublicMaterialSummary?: (materialId: string) => Promise<MaterialCatalogIndexRow | null>;
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove: (path: string) => Promise<void>;
+}
+
+export interface PublicBookReviewDecisionInput {
+  readonly reason: string;
 }
 
 export interface MaterialBookListRow {
@@ -61,6 +71,7 @@ export interface MaterialBookListRow {
   readonly coverUrl?: string;
   readonly visibility: MaterialBookVisibility;
   readonly status: MaterialBookMetadata['status'];
+  readonly publicReview?: MaterialBookMetadata['publicReview'];
   readonly testTypeIds: readonly MaterialTestTypeId[];
   readonly testTypes: readonly {
     readonly testTypeId: MaterialTestTypeId;
@@ -126,6 +137,57 @@ const isBookNode = (value: unknown): value is MaterialBookNode =>
   typeof (value as MaterialBookNode).nodeId === 'string' &&
   typeof (value as MaterialBookNode).bookId === 'string';
 
+const normalizeBookNode = (value: MaterialBookNode): MaterialBookNode => ({
+  ...value,
+  parentNodeId: value.parentNodeId ?? null,
+  materialRefs: Array.isArray(value.materialRefs) ? value.materialRefs : [],
+});
+
+const normalizePublicBookProjection = (
+  value: MaterialBookPublicProjection,
+): MaterialBookPublicProjection => ({
+  ...value,
+  authors: Array.isArray(value.authors) ? value.authors : [],
+  testTypeIds: Array.isArray(value.testTypeIds) ? value.testTypeIds : [],
+  tags: Array.isArray(value.tags) ? value.tags : [],
+  nodes: value.nodes.map((node) => ({
+    ...node,
+    parentNodeId: node.parentNodeId ?? null,
+    materialRefs: Array.isArray(node.materialRefs) ? node.materialRefs : [],
+  })),
+});
+
+const withoutUndefined = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map(withoutUndefined) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, withoutUndefined(entry)]),
+    ) as T;
+  }
+
+  return value;
+};
+
+const writeDefined = async (
+  repository: MaterialBooksRepository,
+  path: string,
+  value: unknown,
+): Promise<void> => {
+  await repository.write(path, withoutUndefined(value));
+};
+
+const isPublicBookProjection = (value: unknown): value is MaterialBookPublicProjection =>
+  Boolean(value) &&
+  typeof value === 'object' &&
+  typeof (value as MaterialBookPublicProjection).bookId === 'string' &&
+  (value as MaterialBookPublicProjection).visibility === 'public-library-published' &&
+  Array.isArray((value as MaterialBookPublicProjection).nodes);
+
 const toIndexRow = (book: MaterialBookMetadata): MaterialBooksIndexRow => {
   const testTypeIds = unique(book.testTypeIds);
 
@@ -182,16 +244,29 @@ export const createMaterialBooksRepository = (
     const value = await adapter.read(materialCatalogPaths.books(bookId));
     return isBook(value) ? cloneBook(value) : null;
   },
+  async readPublicBookProjection(bookId) {
+    const value = await adapter.read(materialCatalogPaths.publicBookProjections(bookId));
+    return isPublicBookProjection(value) ? normalizePublicBookProjection(value) : null;
+  },
   async listBookNodes(bookId) {
     const value = await adapter.read(`material_catalog/book_nodes/${bookId}`);
-    return Object.values(value ?? {}).filter(isBookNode);
+    return Object.values(value ?? {}).filter(isBookNode).map(normalizeBookNode);
   },
   async listBooksByIndex(query) {
     const path = query.scope === 'private'
       ? `material_catalog/book_indexes/by_owner/${query.teacherId}`
-      : 'material_catalog/book_indexes/by_visibility/public-library-published';
+      : query.scope === 'public-review-pending'
+        ? 'material_catalog/book_indexes/by_visibility/public-library-pending-review'
+        : 'material_catalog/book_indexes/by_visibility/public-library-published';
     const value = await adapter.read(path);
     return Object.values(value ?? {}).filter(isBook);
+  },
+  async readPublicMaterialSummary(materialId) {
+    const value = await adapter.read(`material_catalog/material_indexes/by_visibility/public/${materialId}`);
+
+    return value && typeof value === 'object' && (value as MaterialCatalogIndexRow).materialId === materialId
+      ? value as MaterialCatalogIndexRow
+      : null;
   },
   write: adapter.write,
   remove: adapter.remove ?? (async () => undefined),
@@ -202,14 +277,14 @@ const writeBookWithIndexes = async (
   book: MaterialBookMetadata,
   previous?: MaterialBookMetadata | null,
 ): Promise<void> => {
-  await repository.write(materialCatalogPaths.books(book.bookId), book);
+  await writeDefined(repository, materialCatalogPaths.books(book.bookId), book);
 
   for (const stalePath of buildMaterialBookIndexCleanup(previous, book)) {
     await repository.remove(stalePath);
   }
 
   for (const write of buildMaterialBookIndexWrites(book)) {
-    await repository.write(write.path, write.value);
+    await writeDefined(repository, write.path, write.value);
   }
 };
 
@@ -270,7 +345,7 @@ export const createBookDraft = async (
   await writeBookWithIndexes(repository, book);
 
   for (const entry of nodes) {
-    await repository.write(materialCatalogPaths.bookNodes(book.bookId, entry.nodeId), entry);
+    await writeDefined(repository, materialCatalogPaths.bookNodes(book.bookId, entry.nodeId), entry);
   }
 
   return book;
@@ -337,7 +412,7 @@ export const updateBookTree = async (
   }
 
   for (const entry of nodes) {
-    await repository.write(materialCatalogPaths.bookNodes(bookId, entry.nodeId), {
+    await writeDefined(repository, materialCatalogPaths.bookNodes(bookId, entry.nodeId), {
       ...entry,
       updatedAt: now,
     });
@@ -345,6 +420,213 @@ export const updateBookTree = async (
 
   await writeBookWithIndexes(repository, nextMetadata, current);
   return { metadata: nextMetadata, nodes };
+};
+
+const requireSuperAdmin = (context: MaterialBookValidationContext): void => {
+  if (context.actorRole !== 'super_admin') {
+    throw new Error('Only super_admin can review public-library Books.');
+  }
+};
+
+const reviewReason = (input: PublicBookReviewDecisionInput | string): string => {
+  const reason = typeof input === 'string' ? input : input.reason;
+  const trimmed = reason.trim();
+
+  if (!trimmed) {
+    throw new Error('Public Book review requires a visible reason.');
+  }
+
+  return trimmed;
+};
+
+const publicReviewState = (
+  status: NonNullable<MaterialBookMetadata['publicReview']>['status'],
+  reason: string,
+  context: MaterialBookValidationContext,
+) => ({
+  status,
+  reason,
+  reviewedAt: contextNow(context),
+  reviewedBy: context.actorId,
+});
+
+const requirePublicMaterialSummary = async (
+  repository: MaterialBooksRepository,
+  ref: MaterialBookNode['materialRefs'][number],
+): Promise<MaterialCatalogIndexRow> => {
+  if (!repository.readPublicMaterialSummary) {
+    throw new Error('Public Book approval requires public material summary lookup.');
+  }
+
+  const summary = await repository.readPublicMaterialSummary(ref.materialId);
+
+  if (!summary || summary.visibility !== 'public' || summary.materialKind !== ref.materialKind) {
+    throw new Error(`Book ref ${ref.refId} is not public-safe for approval.`);
+  }
+
+  return summary;
+};
+
+const buildProjectionRef = async (
+  repository: MaterialBooksRepository,
+  ref: MaterialBookNode['materialRefs'][number],
+): Promise<MaterialBookPublicProjectionRef> => {
+  if (!ref.snapshotVersionId || ref.materialKind === 'draft' || ref.availability !== 'available') {
+    throw new Error(`Book ref ${ref.refId} is not public-safe for approval.`);
+  }
+
+  if (ref.visibilitySnapshot !== 'public') {
+    throw new Error(`Book ref ${ref.refId} is not public-safe for approval.`);
+  }
+
+  const summary = await requirePublicMaterialSummary(repository, ref);
+
+  return {
+    refId: ref.refId,
+    materialId: ref.materialId,
+    materialKind: ref.materialKind as MaterialBookPublicProjectionRef['materialKind'],
+    snapshotVersionId: ref.snapshotVersionId,
+    title: summary.title,
+    testTypeIds: summary.testTypeIds,
+    order: ref.order,
+  };
+};
+
+const buildPublicBookProjection = async (
+  book: MaterialBookMetadata,
+  nodes: readonly MaterialBookNode[],
+  repository: MaterialBooksRepository,
+  context: MaterialBookValidationContext,
+): Promise<MaterialBookPublicProjection> => {
+  const projectionNodes: MaterialBookPublicProjectionNode[] = [];
+
+  for (const node of nodes) {
+    const materialRefs = await Promise.all(
+      [...node.materialRefs]
+        .sort((left, right) => left.order - right.order)
+        .map((ref) => buildProjectionRef(repository, ref)),
+    );
+
+    projectionNodes.push({
+      nodeId: node.nodeId,
+      parentNodeId: node.parentNodeId,
+      type: node.type,
+      title: node.title,
+      order: node.order,
+      materialRefs,
+    });
+  }
+
+  return {
+    bookId: book.bookId,
+    title: book.title,
+    subtitle: book.subtitle,
+    authors: book.authors,
+    publisher: book.publisher,
+    series: book.series,
+    coverUrl: book.coverUrl,
+    testTypeIds: book.testTypeIds,
+    tags: book.tags,
+    visibility: 'public-library-published',
+    status: 'ready',
+    updatedAt: contextNow(context),
+    approvedAt: contextNow(context),
+    approvedBy: context.actorId,
+    nodes: projectionNodes.sort((left, right) => left.order - right.order),
+  };
+};
+
+export const approvePublicBook = async (
+  bookId: string,
+  repository: MaterialBooksRepository,
+  context: MaterialBookValidationContext,
+  decision: PublicBookReviewDecisionInput,
+): Promise<MaterialBookMetadata> => {
+  requireSuperAdmin(context);
+  const reason = reviewReason(decision);
+  const current = await requireBook(repository, bookId);
+  const nodes = await repository.listBookNodes(bookId);
+  const now = contextNow(context);
+
+  if (current.visibility !== 'public-library-pending-review') {
+    throw new Error('Only pending-review Books can be approved for the public library.');
+  }
+
+  if (current.status !== 'ready') {
+    throw new Error('Only ready Books can be approved for the public library.');
+  }
+
+  const next: MaterialBookMetadata = {
+    ...current,
+    visibility: 'public-library-published',
+    publicReview: {
+      status: 'approved',
+      reason,
+      reviewedAt: now,
+      reviewedBy: context.actorId,
+    },
+    updatedAt: now,
+    updatedBy: context.actorId,
+  };
+  const projection = await buildPublicBookProjection(next, nodes, repository, context);
+  assertValid(validateMaterialBook({ metadata: next, nodes, context }));
+  assertValid(validateMaterialBookModerationTransition(current, next, context));
+
+  await writeBookWithIndexes(repository, next, current);
+  await writeDefined(repository, materialCatalogPaths.publicBookProjections(bookId), projection);
+  return next;
+};
+
+export const rejectPublicBookReview = async (
+  bookId: string,
+  reasonInput: string,
+  repository: MaterialBooksRepository,
+  context: MaterialBookValidationContext,
+): Promise<MaterialBookMetadata> => {
+  requireSuperAdmin(context);
+  const current = await requireBook(repository, bookId);
+  const nodes = await repository.listBookNodes(bookId);
+  const now = contextNow(context);
+  const next: MaterialBookMetadata = {
+    ...current,
+    visibility: 'public-library-rejected',
+    publicReview: publicReviewState('rejected', reviewReason(reasonInput), context),
+    status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
+    updatedAt: now,
+    updatedBy: context.actorId,
+  };
+
+  assertValid(validateMaterialBook({ metadata: next, nodes, context }));
+  assertValid(validateMaterialBookModerationTransition(current, next, context));
+  await writeBookWithIndexes(repository, next, current);
+  await repository.remove(materialCatalogPaths.publicBookProjections(bookId));
+  return next;
+};
+
+export const returnPublicBookToPrivate = async (
+  bookId: string,
+  reasonInput: string,
+  repository: MaterialBooksRepository,
+  context: MaterialBookValidationContext,
+): Promise<MaterialBookMetadata> => {
+  requireSuperAdmin(context);
+  const current = await requireBook(repository, bookId);
+  const nodes = await repository.listBookNodes(bookId);
+  const now = contextNow(context);
+  const next: MaterialBookMetadata = {
+    ...current,
+    visibility: 'private',
+    publicReview: publicReviewState('returned-private', reviewReason(reasonInput), context),
+    status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
+    updatedAt: now,
+    updatedBy: context.actorId,
+  };
+
+  assertValid(validateMaterialBook({ metadata: next, nodes, context }));
+  assertValid(validateMaterialBookModerationTransition(current, next, context));
+  await writeBookWithIndexes(repository, next, current);
+  await repository.remove(materialCatalogPaths.publicBookProjections(bookId));
+  return next;
 };
 
 const testTypeSummary = (
@@ -429,11 +711,55 @@ export const listTeacherBooks = async (input: {
         coverUrl: book.coverUrl,
         visibility: book.visibility,
         status: book.status,
+        publicReview: book.publicReview,
         testTypeIds: book.testTypeIds,
         testTypes,
         tags: book.tags,
         updatedAt: book.updatedAt,
         isOwner: book.ownerId === input.teacherId,
+      };
+    })
+    .filter((row) => matchesSearch(row as unknown as MaterialBookMetadata, input.searchTerm, row.testTypes))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+};
+
+export const listPublicBookReviewQueue = async (input: {
+  readonly repository: MaterialBooksRepository;
+  readonly searchTerm?: string;
+  readonly testTypeId?: MaterialTestTypeId | null;
+  readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
+}): Promise<MaterialBookListRow[]> => {
+  const books = await input.repository.listBooksByIndex({
+    teacherId: '__super_admin__',
+    scope: 'public-review-pending',
+  });
+
+  return books
+    .filter((book) => book.visibility === 'public-library-pending-review')
+    .filter((book) => !input.testTypeId || book.testTypeIds.includes(input.testTypeId))
+    .map((book) => {
+      const testTypes = book.testTypeIds.map((testTypeId) =>
+        testTypeSummary(testTypeId, input.testTypeConfigs),
+      );
+
+      return {
+        id: book.bookId,
+        bookId: book.bookId,
+        ownerId: book.ownerId,
+        title: book.title,
+        subtitle: book.subtitle,
+        authors: book.authors,
+        publisher: book.publisher,
+        series: book.series,
+        coverUrl: book.coverUrl,
+        visibility: book.visibility,
+        status: book.status,
+        publicReview: book.publicReview,
+        testTypeIds: book.testTypeIds,
+        testTypes,
+        tags: book.tags,
+        updatedAt: book.updatedAt,
+        isOwner: false,
       };
     })
     .filter((row) => matchesSearch(row as unknown as MaterialBookMetadata, input.searchTerm, row.testTypes))

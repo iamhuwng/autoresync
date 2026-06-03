@@ -16,6 +16,18 @@
   line-height: 1.4;
 }
 
+.teacher-materials-route-notice {
+  margin: 0 0 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 251, 235, 0.92);
+  color: #92400e;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .reading-passage-library-tools {
   display: flex;
   align-items: center;

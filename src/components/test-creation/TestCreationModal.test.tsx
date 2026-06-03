@@ -420,6 +420,8 @@ describe('TestCreationModal', () => {
                         title: 'V2 Metadata First',
                         durationMinutes: 60,
                         ownerId: 'user-1',
+                        primaryTestTypeId: 'ielts',
+                        testTypeIds: ['ielts'],
                     }),
                     initialImportCandidate: expect.objectContaining({
                         sourceKind: 'pasted-text',
@@ -491,6 +493,8 @@ describe('TestCreationModal', () => {
                     initialMetadata: expect.objectContaining({
                         title: 'V2 Auto Metadata',
                         provenanceSummary: 'Generated from Auto V4 source-verified import in Test Creation Modal',
+                        primaryTestTypeId: 'ielts',
+                        testTypeIds: ['ielts'],
                     }),
                     initialImportCandidate: expect.objectContaining({
                         sourceKind: 'auto-gemini',

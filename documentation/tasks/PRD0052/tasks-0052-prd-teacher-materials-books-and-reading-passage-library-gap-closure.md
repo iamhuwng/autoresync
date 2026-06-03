@@ -168,8 +168,8 @@ Rules and verification:
 - [ ] Record the index-family decision before code edits. Default decision: use `material_catalog/material_indexes` as the canonical Teacher Materials lightweight listing index because current Reading Passage library and Book picker already use it.
 - [ ] Remove production reliance on unused `reading_v2/listing_indexes`, or document it as a deprecated/internal compatibility path with no QA proof value.
 - [ ] Align `materialCatalogPaths.ts`, `materialCatalogIndexes.service.ts`, `readingV2StoragePaths.service.ts`, Reading Passage writers, Reading Passage readers, Book picker readers, tests, and docs to one canonical listing-index contract.
-- [ ] Add `database.rules.json` rules for `material_catalog/material_indexes/by_owner/{teacherId}/{materialId}`.
-- [ ] Add `database.rules.json` rules for `material_catalog/material_indexes/by_visibility/public/{materialId}`.
+- [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_owner/{teacherId}/{materialId}`.
+- [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_visibility/public/{materialId}`.
 - [ ] Ensure teachers can read own material summaries.
 - [ ] Ensure teachers can read public material summaries that are explicitly public-readable.
 - [ ] Ensure students cannot browse Teacher Materials listing indexes.
@@ -226,6 +226,9 @@ Rules and verification:
 - [ ] Add import-flow tests proving imported full tests create Reading Passage entities and ordered composition refs.
 - [ ] Add tests proving answer keys are present in teacher/review-safe storage and absent from student-safe projections.
 - [ ] Add tests proving publish failure rolls back or leaves no half-created passage/index/composition state.
+  - 2026-06-03 update: read-only Clippings proof used `C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md`. Live Auto V4 import parsed 3 passages / 40 questions. First run found a real answer-key merge bug where local/source and provider-copied equivalent rows with slash-spacing differences became duplicate publish blockers. `readingV2AutoImport.service.ts` now dedupes equivalent rows by question id plus slash-normalized answer text, with a RED-first test in `readingV2AutoImport.service.test.ts`.
+  - 2026-06-03 update: after the fix, live Auto V4 import returned 3 passages, 40 questions, 40 answer values, no missing/extra questions, no missing/mismatched answer values, no silent question loss, and no publish blockers. It still returns `needs_review` because source-coverage diagnostics require teacher review.
+  - 2026-06-03 update: a temporary no-DB in-memory publish probe fed that Clippings full-test candidate into `publishReadingV2Material` with `materialKind: full-test`. Output staged 3 Reading Passage entities, 3 ordered composition refs, and write kinds for Reading Passage material/version/student-safe projection/review projection/metadata/listing indexes plus full-test composition/version. Browser creation and live RTDB row proof remain open.
 
 ## Phase 5 - Operational Backfill
 
@@ -242,7 +245,8 @@ Rules and verification:
 ## Phase 6 - Reading Passage Library Actions
 
 - [ ] Replace fixture-backed success claims with live/emulated data proof for the Reading Passage tab.
-- [ ] Make the Reading Passage tab read from the canonical production index path.
+- [x] Make the Reading Passage tab read from the canonical production index path.
+  - 2026-06-03 update: live browser QA on flagged `localhost:5175` first reproduced `Permission denied` on `material_catalog/material_indexes/by_owner/{teacherId}`; after bucket-level RTDB rule deployment, Private/Public Reading Passage scopes loaded the production path and rendered the real empty state with 0 browser console errors.
 - [ ] Add visible loading, empty, permission-denied, retry, and partial-error states for Reading Passage list loading.
 - [ ] Implement Reading Passage archive as a real state mutation, or remove the visible archive action until the mutation exists.
 - [ ] Ensure archive updates canonical entity state, version/index state, visibility buckets, selected rows, and current list state.
@@ -266,15 +270,15 @@ Rules and verification:
 - [ ] Remove `public-library-published` and `public-library-rejected` from normal teacher Book editor controls.
 - [ ] Add a normal teacher action named `Request public review` for eligible Books.
 - [ ] Make `Request public review` validate structure readiness, public-safety of contained refs, required metadata, and Test Type ids.
-- [ ] Add an admin/super-admin review workflow for pending public Books, or explicitly route public approval through an existing admin settings surface.
-- [ ] Let super admin approve, reject, and return Books to private/draft with visible reason fields.
-- [ ] Ensure pending and rejected public-review Books are not readable by all teachers unless policy explicitly says they are visible to all teachers.
-- [ ] Implement a public-safe Book structure projection for published public Books, generated only after approval.
+- [x] Add an admin/super-admin review workflow for pending public Books, or explicitly route public approval through an existing admin settings surface.
+- [x] Let super admin approve, reject, and return Books to private/draft with visible reason fields.
+- [x] Ensure pending and rejected public-review Books are not readable by all teachers unless policy explicitly says they are visible to all teachers.
+- [x] Implement a public-safe Book structure projection for published public Books, generated only after approval.
 - [ ] Keep raw `material_catalog/book_nodes/{bookId}` readable only by owner teacher and super admin.
-- [ ] Make public Book detail read from the public-safe projection, not from raw owner nodes.
-- [ ] Ensure public-safe projection contains only allowed node fields, order, display labels, and refs to public published material summaries.
-- [ ] Prevent public approval when a Book contains private-only, draft, missing, or unsafe material refs.
-- [ ] Add rules for public-safe Book projection read/write.
+- [x] Make public Book detail read from the public-safe projection, not from raw owner nodes.
+- [x] Ensure public-safe projection contains only allowed node fields, order, display labels, and refs to public published material summaries.
+- [x] Prevent public approval when a Book contains private-only, draft, missing, or unsafe material refs.
+- [x] Add rules for public-safe Book projection read/write.
 - [ ] Add tests for owner private Book read, other teacher private denial, pending-review access policy, rejected access policy, published public projection read, raw node denial for non-owner, and unsafe ref approval denial.
 
 ## Phase 8 - Book Authoring And Editing Tools
@@ -333,7 +337,7 @@ Rules and verification:
 - [ ] Permit teachers to read own private Books, own private Reading Passages, public published Books through public-safe projections, and public Reading Passages through safe summaries.
 - [ ] Permit teachers to write only owned private/draft Book and Reading Passage metadata allowed by the PRD.
 - [ ] Permit super admin Test Type management.
-- [ ] Permit super admin public Book approval/rejection.
+- [x] Permit super admin public Book approval/rejection.
 - [ ] Deny teacher writes to published public Book state.
 - [ ] Deny pending/rejected public-review leakage unless the approved policy says all teachers may see those states.
 - [ ] Deny all malformed index, Book node, Reading Passage projection, and composition writes that include answer keys or hidden provenance in public/student-safe paths.
@@ -360,15 +364,20 @@ Rules and verification:
 
 - [ ] Run targeted unit tests for touched Teacher Lobby, ContentTabs, SearchFilterBar, TestTypeBlockModule, TestTypePreferenceModal, MaterialListRow, BookCard, BookCardGrid, CreateBookModal, BookEditorPage, BookNodeTree, and BookMaterialPicker files.
 - [ ] Run targeted service tests for Test Type config, teacher preferences, material indexes, Book validation, Book persistence, Reading Passage extraction, Reading Passage library, Reading Passage homework, teacher composition, publish pipeline, Studio workflow, backfill, and result adapter files.
-- [ ] Run targeted homework/runtime tests for Reading Passage assignment, student launch, submission, and teacher review.
+- [x] Run targeted homework/runtime tests for Reading Passage assignment, student launch, submission, and teacher review.
+  - 2026-06-03 update: `cmd /c npx vitest run src/components/homework/HomeworkCreateModal.test.tsx src/services/homeworkManager.test.ts src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/pages/StudentPracticePage.test.tsx src/pages/StudentHomeworkListPage.test.tsx src/pages/StudentHomeworkDetailPage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx src/pages/TeacherLobbyPage.test.jsx src/__tests__/security/materialCatalogFirebaseRules.test.ts --reporter=basic` passed, 12 files / 103 tests.
 - [ ] Run RTDB and Firestore rule tests for all PRD-0052 production paths.
 - [ ] Run browser QA with dev quick-login for Teacher.
 - [ ] Run browser QA with dev quick-login for Student.
 - [ ] In browser QA, create or publish a Reading V2 full test and verify Reading Passage rows appear without fixture mode.
+  - 2026-06-03 update: service-level Clippings proof now confirms Reading V2 full-test import plus publish planning can stage Reading Passage rows and full-test composition refs without fixture mode, but this is not yet browser QA and did not mutate live RTDB.
 - [ ] In browser QA, assign one Reading Passage and complete it as Student.
 - [ ] In browser QA, bulk assign selected Reading Passages and verify Student runtime.
 - [ ] In browser QA, create a full test from selected Reading Passages and open the resulting full test workflow.
 - [ ] In browser QA, create a Book, edit metadata, build a nested tree, add published refs, assign an individual ref, request public review, approve as admin, and browse the public-safe Book detail as another teacher.
+  - 2026-06-03 update: real super-admin approval flow passed for temporary pending public Books; RTDB rules were deployed to `temp-a1437`; another teacher on `localhost:5174` opened Book > Public, saw the approved Book, and opened public detail through `public_book_projections`. This closes the public Book browser QA slice, but emulator-backed rules proof and broader Reading Passage homework/runtime/result verification remain open.
+- [ ] In browser QA, open Reading Passage production-path tab without fixture mode and verify loaded rows or empty state.
+  - 2026-06-03 update: flagged `localhost:5175` teacher QA showed the tab hidden by absent flags by default; with process env flags enabled, `Reading Passage` appeared. Private/Public scopes loaded after deployed bucket-read rule fix and rendered `No Reading Passages yet`; no assignment E2E was possible because live RTDB had no Reading Passage rows.
 - [ ] Run visual checks for desktop and mobile Teacher Materials, Reading Passage tab, Book tab, Book editor, modals, and admin surfaces.
 - [ ] Run `cmd /c npx vitest run ... --reporter=basic` for Windows Vitest commands.
 - [ ] Run `npm run check:utf8 -- <changed-paths>`.

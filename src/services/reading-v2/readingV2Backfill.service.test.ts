@@ -180,8 +180,18 @@ describe('readingV2Backfill.service', () => {
     expect(new Set(paths).size).toBe(paths.length);
     expect(paths).toContain('reading_v2/reading_passage_materials/legacy-ready-passage-1');
     expect(paths).toContain(
+      'reading_v2/published_snapshots/legacy-ready-passage-1/legacy-ready-snapshot',
+    );
+    expect(paths).toContain(
       'reading_v2/full_test_compositions/composition-legacy-ready-legacy-ready-snapshot',
     );
+
+    const passageSnapshot = first.find((write) =>
+      write.path === 'reading_v2/published_snapshots/legacy-ready-passage-1/legacy-ready-snapshot'
+    );
+
+    expect(passageSnapshot?.writeKind).toBe('reading-passage-published-snapshot');
+    expect(JSON.stringify(passageSnapshot?.value)).toMatch(/acceptableAnswers|scoringRule/);
   });
 
   it('records source full-test id and snapshot version while keeping non-shareable public sources private', () => {

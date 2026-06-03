@@ -5,6 +5,7 @@ export type MaterialCatalogPathClass =
   | 'teacherTestTypePreferences'
   | 'books'
   | 'bookNodes'
+  | 'publicBookProjections'
   | 'bookIndexesByOwner'
   | 'bookIndexesByVisibility'
   | 'bookIndexesByTestType';
@@ -18,6 +19,8 @@ export const materialCatalogPaths = {
   books: (bookId: string): string => namespaced(`books/${bookId}`),
   bookNodes: (bookId: string, nodeId: string): string =>
     namespaced(`book_nodes/${bookId}/${nodeId}`),
+  publicBookProjections: (bookId: string): string =>
+    namespaced(`public_book_projections/${bookId}`),
   bookIndexesByOwner: (ownerId: string, bookId: string): string =>
     namespaced(`book_indexes/by_owner/${ownerId}/${bookId}`),
   bookIndexesByVisibility: (visibility: string, bookId: string): string =>

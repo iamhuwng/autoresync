@@ -56,6 +56,7 @@ import {
     type ReadingV2AutoImportDiagnostic,
     type ReadingV2AutoPipelineLane,
 } from '../../services/reading-v2/readingV2AutoImport.service';
+import { resolveMaterialTestTypeIdsFromLegacyTestType } from '../../services/materialCatalog/materialTestTypeMapping.service';
 import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 import { THCSTestEditorSurface } from '../../pages/THCSTestEditorPage';
@@ -602,6 +603,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     const createReadingV2InitialMetadata = useCallback(() => {
         const metadata = stepData.metadata || {};
+        const testTypeIds = resolveMaterialTestTypeIdsFromLegacyTestType(stepData.testType);
 
         return {
             title: metadata.title || '',
@@ -612,8 +614,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             tags: metadata.tags || [],
             ownerId: user?.uid,
             provenanceSummary: 'Started from Test Creation Modal metadata step',
+            primaryTestTypeId: testTypeIds[0],
+            testTypeIds,
         };
-    }, [stepData.metadata, user?.uid]);
+    }, [stepData.metadata, stepData.testType, user?.uid]);
 
     const appendReadingV2AutoDiagnosticLog = useCallback((event: string, payload: Record<string, unknown>) => {
         setReadingV2AutoDiagnosticLogs(prev => [

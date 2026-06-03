@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readingV2Ids } from '../../types/readingV2.types';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
+import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 import {
   previewReadingV2StudioDraft,
   publishReadingV2StudioDraft,
@@ -369,7 +372,7 @@ describe('readingV2StudioWorkflow.service', () => {
     const snapshot = {
       draftId: context.draftId,
       materialId: context.materialId,
-      document: context.document,
+      document: createReadingV2CanonicalFixture('sentence-completion'),
       metadata: { ...context.metadata, title: 'Published workflow title' },
       revisionToken: context.revisionToken,
       returnContext: 'teacher-lobby',
@@ -395,6 +398,170 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(commitAdapter.mock.calls[0]?.[0].operations.some((operation) =>
       operation.operationKey.includes('/return-context/teacher-lobby'),
     )).toBe(true);
+  });
+
+  it('wires full-test Studio publish into Reading Passage extraction and canonical index writes', async () => {
+    const document = createReadingV2CanonicalFixture('sentence-completion');
+    const sectionId = document.sectionIds[0]!;
+    const publishDocument = {
+      ...document,
+      title: 'Studio full-test extraction',
+      sections: {
+        ...document.sections,
+        [sectionId]: {
+          ...document.sections[sectionId]!,
+          title: 'Reading Passage 1',
+        },
+      },
+    };
+    const snapshot = {
+      draftId: 'studio-workflow-passage-extraction',
+      materialId: 'studio-workflow-passage-source',
+      document: publishDocument,
+      metadata: {
+        title: 'Studio full-test extraction',
+        productMarker: 'IELTS Reading V2',
+        materialKind: 'full-test' as const,
+        durationMinutes: 60,
+        difficulty: 'intermediate',
+        targetBand: 'Band 6-7',
+        description: 'Published through Studio.',
+        tags: ['studio'],
+        visibility: 'library-eligible' as const,
+        ownerId: 'teacher-1',
+        provenanceSummary: 'Studio publish extraction proof.',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      revisionToken: 'studio-workflow-passage-extraction-rev-1',
+      returnContext: 'teacher-lobby',
+    };
+    const commitAdapter = vi.fn(async (commitPlan) => ({
+      commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
+      operationKeys: commitPlan.operations.map((operation) => operation.operationKey),
+      updates: {},
+      status: 'committed' as const,
+    }));
+
+    const publish = await publishReadingV2StudioDraft(snapshot, commitAdapter);
+    const commitPlan = commitAdapter.mock.calls[0]?.[0];
+    const storageWrites = commitPlan?.operations
+      .filter((operation) => operation.kind === 'storage-write')
+      ?? [];
+    const storagePaths = storageWrites
+      .map((operation) => operation.path) ?? [];
+    const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
+
+    expect(publish.firebaseCommitStatus).toBe('committed');
+    expect(storagePaths).toEqual(expect.arrayContaining([
+      readingV2StoragePaths.readingPassageMaterials('studio-workflow-passage-source-passage-1'),
+      'material_catalog/material_indexes/by_owner/teacher-1/studio-workflow-passage-source-passage-1',
+      'material_catalog/material_indexes/by_visibility/public/studio-workflow-passage-source-passage-1',
+      'material_catalog/material_indexes/by_test_type/ielts/studio-workflow-passage-source-passage-1',
+    ]));
+    expect(JSON.stringify(byPath['material_catalog/material_indexes/by_visibility/public/studio-workflow-passage-source-passage-1']))
+      .not.toMatch(/acceptableAnswers|scoringRule|teacherAdminProvenance|document/);
+  });
+
+  it('publishes repaired create-from-import full tests with Reading Passage entities and ordered composition refs', async () => {
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-import',
+      draftId: 'studio-workflow-import-publish',
+      materialId: 'studio-workflow-import-publish-material',
+      ownerId: 'teacher-import',
+      initialMetadata: {
+        title: 'Imported full-test publish',
+        ownerId: 'teacher-import',
+        materialKind: 'full-test',
+        visibility: 'library-eligible',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      initialImportCandidate: {
+        sourceKind: 'pasted-text',
+        rawText: [
+          '## Reading Passage 1',
+          '',
+          'This imported passage has enough text to publish as a standalone Reading Passage.',
+          '',
+          '#### Questions 1-1',
+          'Complete the sentence.',
+          '**1** imported answer',
+        ].join('\n'),
+        answerKeyText: '1 teacher key',
+        evidence: ['Detected import source'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+    const repairedDocument = createReadingV2CanonicalFixture('sentence-completion');
+    const repairedSectionId = repairedDocument.sectionIds[0]!;
+    const publishDocument = {
+      ...repairedDocument,
+      title: context.document.title,
+      sections: {
+        ...repairedDocument.sections,
+        [repairedSectionId]: {
+          ...repairedDocument.sections[repairedSectionId]!,
+          title: 'Reading Passage 1',
+        },
+      },
+    };
+    const snapshot = {
+      draftId: context.draftId,
+      materialId: context.materialId,
+      document: publishDocument,
+      metadata: {
+        ...context.metadata,
+        title: 'Imported full-test publish',
+        materialKind: 'full-test' as const,
+        visibility: 'library-eligible' as const,
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      revisionToken: context.revisionToken,
+      returnContext: 'teacher-lobby',
+    };
+    const commitAdapter = vi.fn(async (commitPlan) => ({
+      commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
+      operationKeys: commitPlan.operations.map((operation) => operation.operationKey),
+      updates: {},
+      status: 'committed' as const,
+    }));
+
+    await publishReadingV2StudioDraft(snapshot, commitAdapter);
+    const commitPlan = commitAdapter.mock.calls[0]?.[0];
+    const storageWrites = commitPlan?.operations
+      .filter((operation) => operation.kind === 'storage-write')
+      ?? [];
+    const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
+    const passageId = 'studio-workflow-import-publish-material-passage-1';
+    const compositionPath = Object.keys(byPath).find((path) =>
+      path.startsWith('reading_v2/full_test_compositions/'),
+    );
+
+    expect(byPath[readingV2StoragePaths.readingPassageMaterials(passageId)]).toMatchObject({
+      passageMaterialId: passageId,
+      sourceFullTestId: context.materialId,
+      state: 'published',
+    });
+    expect(byPath[`material_catalog/material_indexes/by_visibility/public/${passageId}`]).toMatchObject({
+      materialId: passageId,
+      materialKind: 'reading-passage',
+      visibility: 'public',
+    });
+    expect(byPath[compositionPath!]).toMatchObject({
+      testMaterialId: context.materialId,
+      passageRefs: [
+        expect.objectContaining({
+          passageMaterialId: passageId,
+          order: 1,
+        }),
+      ],
+    });
   });
 
   it('fails closed for missing resume-draft context and blocks create-from-import before normalization', () => {

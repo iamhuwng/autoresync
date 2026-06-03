@@ -17,6 +17,7 @@ const {
   getHomeworkByIdMock,
   getEffectiveHomeworkDueDateMock,
   getSubmissionByIdMock,
+  submitHomeworkMock,
   submitReadingV2RuntimeAttemptMock,
   readingV2RuntimePropsMock,
 } = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ const {
   getHomeworkByIdMock: vi.fn(),
   getEffectiveHomeworkDueDateMock: vi.fn(),
   getSubmissionByIdMock: vi.fn(),
+  submitHomeworkMock: vi.fn(),
   submitReadingV2RuntimeAttemptMock: vi.fn(),
   readingV2RuntimePropsMock: vi.fn(),
 }));
@@ -69,7 +71,17 @@ vi.mock('../services/homeworkManager', () => ({
 }));
 
 vi.mock('../services/homeworkSubmissionService', () => ({
+  HomeworkSubmissionError: class HomeworkSubmissionError extends Error {
+    code: string;
+
+    constructor(message: string, code: string) {
+      super(message);
+      this.name = 'HomeworkSubmissionError';
+      this.code = code;
+    }
+  },
   getSubmissionById: (...args: unknown[]) => getSubmissionByIdMock(...args),
+  submitHomework: (...args: unknown[]) => submitHomeworkMock(...args),
 }));
 
 vi.mock('../services/reading-v2/readingV2RuntimeSubmission.service', () => ({
@@ -163,7 +175,14 @@ describe('StudentPracticePage', () => {
     getHomeworkByIdMock.mockResolvedValue(null);
     getEffectiveHomeworkDueDateMock.mockReturnValue(0);
     getSubmissionByIdMock.mockResolvedValue(null);
-    submitReadingV2RuntimeAttemptMock.mockResolvedValue({ resultId: 'result-1', attemptId: 'attempt-1' });
+    submitHomeworkMock.mockResolvedValue(undefined);
+    submitReadingV2RuntimeAttemptMock.mockResolvedValue({
+      resultId: 'result-1',
+      attemptId: 'attempt-1',
+      totalScore: 13,
+      maxScore: 13,
+      percentage: 100,
+    });
   });
 
   it('preserves homework timer and attempt settings from the launch state', async () => {
@@ -540,6 +559,15 @@ describe('StudentPracticePage', () => {
         }),
       );
     });
+    expect(submitHomeworkMock).toHaveBeenCalledWith(
+      'submission-1',
+      'result-1',
+      13,
+      13,
+      100,
+      undefined,
+      expect.any(Number),
+    );
     expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 

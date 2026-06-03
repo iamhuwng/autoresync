@@ -763,6 +763,20 @@ const answerKeyValuesForQuestion = (answer: AutoQuestion['answer']): readonly st
     : [];
 };
 
+const canonicalAnswerKeyRowMergeKey = (row: string): string => {
+  const normalized = normalizedAnswerKeyRow(row) ?? row;
+  const match = normalized.match(ANSWER_KEY_ROW_CAPTURE_PATTERN);
+  if (!match?.[1]) {
+    return compactWhitespace(normalized).toLowerCase();
+  }
+
+  const answerText = compactWhitespace(match[2] ?? '')
+    .replace(/\s*\/\s*/g, '/')
+    .toLowerCase();
+
+  return `${Number(match[1])}:${answerText}`;
+};
+
 const mergedAnswerKeyTextFromPayloads = (
   extractedAnswerKeyText: string | undefined,
   chunkPayloads: readonly ChunkPayload[],
@@ -777,7 +791,7 @@ const mergedAnswerKeyTextFromPayloads = (
     }
 
     const row = normalizedAnswerKeyRow(line) ?? line;
-    const key = compactWhitespace(row).toLowerCase();
+    const key = canonicalAnswerKeyRowMergeKey(row);
     if (!seen.has(key)) {
       seen.add(key);
       rows.push(row);

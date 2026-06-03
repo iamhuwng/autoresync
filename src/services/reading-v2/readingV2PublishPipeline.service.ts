@@ -73,6 +73,7 @@ export interface ReadingV2PublishStorageWrite {
   readonly writeKind:
     | 'reading-passage-material'
     | 'reading-passage-material-version'
+    | 'reading-passage-published-snapshot'
     | 'reading-passage-student-safe-projection'
     | 'reading-passage-review-projection'
     | 'reading-passage-metadata'
@@ -217,6 +218,49 @@ const visibilityToMetadataVisibility = (
 ): ReadingV2MaterialMetadataInput['visibility'] =>
   visibility === 'public' ? 'library-eligible' : 'private';
 
+const metadataVisibilityToReadingPassageVisibility = (
+  visibility: ReadingV2MaterialMetadata['visibility'],
+): ReadingPassageVisibilityScope => (visibility === 'library-eligible' ? 'public' : 'private');
+
+const isFullTestMaterialKind = (
+  materialKind: ReadingV2MaterialMetadataInput['materialKind'] | undefined,
+): boolean => materialKind === 'full-test' || materialKind === 'reading-v2-full-test-composition';
+
+const resolveReadingPassageExtractionInput = (
+  input: ReadingV2PublishPipelineInput,
+  metadata: ReadingV2MaterialMetadata,
+): ReadingV2PublishPipelineInput['readingPassageExtraction'] => {
+  if (input.readingPassageExtraction) {
+    return {
+      sourceFullTestId:
+        input.readingPassageExtraction.sourceFullTestId ??
+        (isFullTestMaterialKind(input.metadata?.materialKind)
+          ? readingV2Ids.fullTestId(input.materialId)
+          : undefined),
+      primaryTestTypeId: input.readingPassageExtraction.primaryTestTypeId ?? metadata.primaryTestTypeId,
+      testTypeIds: input.readingPassageExtraction.testTypeIds ?? metadata.testTypeIds,
+      testTypeConfigs: input.readingPassageExtraction.testTypeConfigs ?? input.metadata?.testTypeConfigs,
+      visibility:
+        input.readingPassageExtraction.visibility ??
+        metadataVisibilityToReadingPassageVisibility(metadata.visibility),
+      durationMinutes: input.readingPassageExtraction.durationMinutes ?? metadata.durationMinutes,
+    };
+  }
+
+  if (!isFullTestMaterialKind(input.metadata?.materialKind)) {
+    return undefined;
+  }
+
+  return {
+    sourceFullTestId: readingV2Ids.fullTestId(input.materialId),
+    primaryTestTypeId: metadata.primaryTestTypeId,
+    testTypeIds: metadata.testTypeIds,
+    testTypeConfigs: input.metadata?.testTypeConfigs,
+    visibility: metadataVisibilityToReadingPassageVisibility(metadata.visibility),
+    durationMinutes: metadata.durationMinutes,
+  };
+};
+
 const buildReadingPassageSnapshotValue = (input: {
   readonly material: ReadingV2ReadingPassageMaterial;
   readonly document: ReadingV2Document;
@@ -274,7 +318,7 @@ const buildReadingPassageStorageWrites = (input: {
       primaryTestTypeId: candidate.material.primaryTestTypeId,
       testTypeIds: candidate.material.testTypeIds,
       testTypeConfigs: input.testTypeConfigs,
-      sourceFullTestId: input.testMaterialId,
+      sourceFullTestId: candidate.material.sourceFullTestId,
       sourceSnapshotVersionId: candidate.material.sourceSnapshotVersionId,
       sourceOrderKind: candidate.material.sourceOrder.kind,
       sourceOrderValue: candidate.material.sourceOrder.value,
@@ -291,7 +335,7 @@ const buildReadingPassageStorageWrites = (input: {
       visibility: candidate.material.visibility,
       materialKind: 'reading-passage',
       testTypeIds: candidate.material.testTypeIds,
-      sourceFullTestId: input.testMaterialId,
+      sourceFullTestId: candidate.material.sourceFullTestId,
       updatedAt: input.publishedAt,
     });
 
@@ -315,6 +359,14 @@ const buildReadingPassageStorageWrites = (input: {
           publishedBy: input.publishedBy,
         }),
         writeKind: 'reading-passage-material-version',
+      },
+      {
+        path: readingV2StoragePaths.publishedSnapshots(
+          candidate.material.passageMaterialId,
+          candidate.material.currentSnapshotVersionId,
+        ),
+        value: passageSnapshot,
+        writeKind: 'reading-passage-published-snapshot',
       },
       {
         path: readingV2StoragePaths.studentSafeTests(
@@ -561,21 +613,20 @@ export const publishReadingV2Material = (
     consumerId: input.materialId,
     consumerKind: use.consumerKind,
   }));
-  const readingPassageExtraction = input.readingPassageExtraction
+  const readingPassageExtractionInput = resolveReadingPassageExtractionInput(input, metadata);
+  const readingPassageExtraction = readingPassageExtractionInput
     ? extractReadingV2PassageMaterials({
         document: input.document,
         ownerId: input.ownerId,
-        sourceFullTestId: input.readingPassageExtraction.sourceFullTestId,
+        sourceFullTestId: readingPassageExtractionInput.sourceFullTestId,
         testMaterialId: input.materialId,
         sourceSnapshotVersionId: snapshotVersionId,
         sourceTitleSnapshot: metadata.title,
-        primaryTestTypeId:
-          input.readingPassageExtraction.primaryTestTypeId ?? input.metadata?.primaryTestTypeId,
-        testTypeIds: input.readingPassageExtraction.testTypeIds ?? input.metadata?.testTypeIds,
-        testTypeConfigs:
-          input.readingPassageExtraction.testTypeConfigs ?? input.metadata?.testTypeConfigs,
-        visibility: input.readingPassageExtraction.visibility ?? 'private',
-        durationMinutes: input.readingPassageExtraction.durationMinutes ?? input.metadata?.durationMinutes,
+        primaryTestTypeId: readingPassageExtractionInput.primaryTestTypeId,
+        testTypeIds: readingPassageExtractionInput.testTypeIds,
+        testTypeConfigs: readingPassageExtractionInput.testTypeConfigs,
+        visibility: readingPassageExtractionInput.visibility,
+        durationMinutes: readingPassageExtractionInput.durationMinutes,
         createdAt: publishedAt,
       })
     : undefined;
@@ -596,8 +647,7 @@ export const publishReadingV2Material = (
         snapshotVersionId,
         publishedAt,
         publishedBy: input.publishedBy,
-        testTypeConfigs:
-          input.readingPassageExtraction?.testTypeConfigs ?? input.metadata?.testTypeConfigs,
+        testTypeConfigs: readingPassageExtractionInput?.testTypeConfigs,
       })
     : [];
   const commitPlan = buildReadingV2PublishCommitPlan({

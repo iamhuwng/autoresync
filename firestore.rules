@@ -34,6 +34,41 @@ service cloud.firestore {
           && !data.keys().hasAny(['readingPassageSnapshot'])
         );
     }
+
+    function isSafeHomeworkStats(stats) {
+      return stats.keys().hasOnly([
+          'totalAssigned',
+          'started',
+          'submitted',
+          'lateSubmissions',
+          'completionRate'
+        ])
+        && stats.totalAssigned is int
+        && stats.started is int
+        && stats.submitted is int
+        && stats.lateSubmissions is int
+        && (!stats.keys().hasAny(['completionRate'])
+          || (stats.completionRate is int
+            && stats.completionRate >= 0
+            && stats.completionRate <= 100));
+    }
+
+    function isStudentStatsOnlyHomeworkUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats', 'updatedAt'])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && isSafeHomeworkStats(resource.data.stats)
+        && isSafeHomeworkStats(request.resource.data.stats)
+        && request.resource.data.stats.totalAssigned == resource.data.stats.totalAssigned
+        && request.resource.data.stats.started >= resource.data.stats.started
+        && request.resource.data.stats.started <= resource.data.stats.started + 1
+        && request.resource.data.stats.submitted >= resource.data.stats.submitted
+        && request.resource.data.stats.submitted <= resource.data.stats.submitted + 1
+        && request.resource.data.stats.lateSubmissions >= resource.data.stats.lateSubmissions
+        && request.resource.data.stats.lateSubmissions <= resource.data.stats.lateSubmissions + 1
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= resource.data.updatedAt
+        && isValidReadingPassageHomeworkPayload(request.resource.data);
+    }
     
     // Default rule: deny all access unless explicitly allowed below
     match /{document=**} {
@@ -115,9 +150,14 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && isValidReadingPassageHomeworkPayload(request.resource.data);
       allow update: if request.auth != null
-        && resource.data.createdBy == request.auth.uid
-        && request.resource.data.createdBy == resource.data.createdBy
-        && isValidReadingPassageHomeworkPayload(request.resource.data);
+        && (
+          (
+            resource.data.createdBy == request.auth.uid
+            && request.resource.data.createdBy == resource.data.createdBy
+            && isValidReadingPassageHomeworkPayload(request.resource.data)
+          )
+          || isStudentStatsOnlyHomeworkUpdate()
+        );
       allow delete: if request.auth != null
         && resource.data.createdBy == request.auth.uid;
     }

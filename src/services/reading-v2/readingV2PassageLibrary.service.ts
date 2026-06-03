@@ -2,7 +2,9 @@ import { get, ref, type Database } from 'firebase/database';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { database as defaultDatabase } from '../firebase';
 import {
+  listMaterialCatalogIndexPaths,
   type MaterialCatalogIndexRow,
+  type MaterialCatalogIndexSummary,
 } from '../materialCatalog/materialCatalogIndexes.service';
 import type {
   MaterialTestTypeConfig,
@@ -73,6 +75,8 @@ export interface ReadingV2PassageLibraryRow {
   readonly sourceFullTestTitle?: string;
   readonly publishedSnapshotVersionId?: string;
   readonly hasStudentSafeProjection: boolean;
+  readonly accessible: boolean;
+  readonly archived: boolean;
   readonly actions: readonly ReadingV2PassageLibraryAction[];
   readonly metadata: {
     readonly title: string;
@@ -96,6 +100,29 @@ export interface ListTeacherReadingPassagesInput {
   readonly testTypeId?: MaterialTestTypeId | null;
   readonly reader?: ReadingV2PassageLibraryReader;
   readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
+}
+
+export interface ReadingV2PassageArchiveRepository {
+  readonly write: (path: string, value: unknown) => Promise<void>;
+  readonly remove: (path: string) => Promise<void>;
+}
+
+export interface ReadingV2PassageArchiveInput {
+  readonly teacherId: string;
+  readonly passage: Pick<
+    ReadingV2PassageLibraryRow,
+    | 'materialId'
+    | 'ownerId'
+    | 'title'
+    | 'visibility'
+    | 'materialKind'
+    | 'testTypeIds'
+    | 'sourceFullTestId'
+    | 'updatedAt'
+    | 'publishedSnapshotVersionId'
+  >;
+  readonly repository: ReadingV2PassageArchiveRepository;
+  readonly now?: string;
 }
 
 const materialIndexPath = (
@@ -260,6 +287,10 @@ const createRow = (input: {
   );
   const questionCount = countReadingV2ProjectionInteractions(input.projection);
   const isOwner = input.metadata.ownerId === input.teacherId;
+  const archived = input.metadata.state === 'archived';
+  const accessible = !archived &&
+    Boolean(input.metadata.publishedSnapshotVersionId) &&
+    Boolean(input.projection);
 
   return {
     id: input.metadata.materialId,
@@ -288,6 +319,8 @@ const createRow = (input: {
     sourceFullTestTitle: input.metadata.sourceTitleSnapshot,
     publishedSnapshotVersionId: input.metadata.publishedSnapshotVersionId,
     hasStudentSafeProjection: Boolean(input.projection),
+    accessible,
+    archived,
     actions: buildActions(isOwner),
     metadata: {
       title: input.metadata.title,
@@ -303,6 +336,65 @@ const createRow = (input: {
       publishedSnapshotVersionId: input.metadata.publishedSnapshotVersionId,
     },
   };
+};
+
+const archiveSummaryFromPassage = (
+  passage: ReadingV2PassageArchiveInput['passage'],
+): MaterialCatalogIndexSummary => ({
+  materialId: passage.materialId,
+  ownerId: passage.ownerId,
+  title: passage.title,
+  visibility: passage.visibility === 'public' ? 'public' : 'private',
+  materialKind: passage.materialKind,
+  testTypeIds: passage.testTypeIds,
+  sourceFullTestId: passage.sourceFullTestId,
+  updatedAt: passage.updatedAt,
+});
+
+export const archiveReadingV2PassageMaterial = async (
+  input: ReadingV2PassageArchiveInput,
+): Promise<void> => {
+  const materialId = input.passage.materialId?.trim();
+
+  if (!materialId) {
+    throw new Error('Reading Passage archive requires a material id.');
+  }
+
+  if (input.passage.ownerId !== input.teacherId) {
+    throw new Error('Only the owner teacher can archive this Reading Passage.');
+  }
+
+  const archivedAt = input.now ?? new Date().toISOString();
+  const metadataBasePath = readingV2StoragePaths.materialMetadata(materialId);
+  const materialBasePath = readingV2StoragePaths.readingPassageMaterials(materialId);
+  const writes = [
+    { path: `${metadataBasePath}/state`, value: 'archived' },
+    { path: `${metadataBasePath}/archivedAt`, value: archivedAt },
+    { path: `${metadataBasePath}/archivedBy`, value: input.teacherId },
+    { path: `${metadataBasePath}/updatedAt`, value: archivedAt },
+    { path: `${materialBasePath}/state`, value: 'archived' },
+    { path: `${materialBasePath}/archivedAt`, value: archivedAt },
+    { path: `${materialBasePath}/archivedBy`, value: input.teacherId },
+    { path: `${materialBasePath}/updatedAt`, value: archivedAt },
+  ];
+
+  if (input.passage.publishedSnapshotVersionId) {
+    const versionBasePath = readingV2StoragePaths.readingPassageMaterialVersions(
+      materialId,
+      input.passage.publishedSnapshotVersionId,
+    );
+    writes.push(
+      { path: `${versionBasePath}/state`, value: 'archived' },
+      { path: `${versionBasePath}/archivedAt`, value: archivedAt },
+      { path: `${versionBasePath}/archivedBy`, value: input.teacherId },
+    );
+  }
+
+  await Promise.all(writes.map((write) => input.repository.write(write.path, write.value)));
+  await Promise.all(
+    listMaterialCatalogIndexPaths(archiveSummaryFromPassage(input.passage))
+      .map((path) => input.repository.remove(path)),
+  );
 };
 
 export const listTeacherReadingPassages = async (

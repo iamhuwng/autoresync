@@ -49,6 +49,30 @@ vi.mock('../components/admin/TestTypeAdminPanel', () => ({
   ),
 }));
 
+vi.mock('../components/admin/PublicBookReviewPanel', () => ({
+  PublicBookReviewPanel: ({
+    context,
+    repository,
+    onTrackAction,
+  }: {
+    context?: unknown;
+    repository?: unknown;
+    onTrackAction: (actionName: string, metadata?: Record<string, unknown>) => void;
+  }) => (
+    <section>
+      <h2>Public Book Reviews</h2>
+      <button
+        type="button"
+        onClick={() => onTrackAction('approvePublicBookReview', { bookId: 'book-1' })}
+      >
+        Approve mock Book
+      </button>
+      <div data-testid="public-book-review-context">{context ? 'has-context' : 'missing-context'}</div>
+      <div data-testid="public-book-review-repository">{repository ? 'has-repository' : 'missing-repository'}</div>
+    </section>
+  ),
+}));
+
 vi.mock('../components/ai/AIMaintenanceBanner', () => ({
   __esModule: true,
   default: () => null,
@@ -66,6 +90,7 @@ vi.mock('firebase/database', () => ({
   get: vi.fn(async () => ({ val: () => ({}) })),
   onValue: vi.fn(() => vi.fn()),
   ref: vi.fn((_database: unknown, path: string) => ({ path })),
+  remove: vi.fn(),
   set: vi.fn(),
 }));
 
@@ -114,6 +139,34 @@ describe('AdminSettingsPage Test Type settings', () => {
         'adminPanel',
         'switchTestTypeSettingsSection',
         { section: 'test_types' },
+      );
+    });
+  });
+
+  it('routes public Book reviews through Admin Settings with action tracking', async () => {
+    render(<AdminSettingsPage />);
+
+    const bookReviewsButton = await screen.findByRole('button', {
+      name: /Show public Book reviews settings section/i,
+    });
+    fireEvent.click(bookReviewsButton);
+
+    expect(await screen.findByText('Public Book Reviews')).toBeInTheDocument();
+    expect(screen.getByTestId('public-book-review-context')).toHaveTextContent('has-context');
+    expect(screen.getByTestId('public-book-review-repository')).toHaveTextContent('has-repository');
+
+    fireEvent.click(screen.getByRole('button', { name: /Approve mock Book/i }));
+
+    await waitFor(() => {
+      expect(reportingTrackActionMock).toHaveBeenCalledWith(
+        'adminPanel',
+        'switchPublicBookReviewsSettingsSection',
+        { section: 'public_book_reviews' },
+      );
+      expect(reportingTrackActionMock).toHaveBeenCalledWith(
+        'adminPanel',
+        'approvePublicBookReview',
+        { bookId: 'book-1' },
       );
     });
   });

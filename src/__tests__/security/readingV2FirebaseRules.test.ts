@@ -172,16 +172,40 @@ describe('Reading V2 Firebase rule contract', () => {
     });
   });
 
-  it('requires Reading Passage canonical records to validate owner, material id, state, and version fields', () => {
+  it('requires Reading Passage canonical records to validate owner, passage id, state, and current snapshot fields', () => {
     const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
     const passageRules = readingV2Rules.reading_passage_materials.$materialId as Record<string, string>;
     const validation = passageRules['.validate'];
 
     expect(validation).toContain('ownerId');
-    expect(validation).toContain('materialId');
+    expect(validation).toContain('passageMaterialId');
     expect(validation).toContain('state');
-    expect(validation).toContain('currentVersionId');
+    expect(validation).toContain('currentSnapshotVersionId');
+    expect(validation).toContain("newData.child('passageMaterialId').val() === $materialId");
+  });
+
+  it('requires Reading Passage version records to validate owner, passage id, and current snapshot id', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const versionRules = readingV2Rules.reading_passage_material_versions.$materialId.$versionId as Record<string, string>;
+    const validation = versionRules['.validate'];
+
+    expect(validation).toContain('ownerId');
+    expect(validation).toContain('passageMaterialId');
+    expect(validation).toContain('currentSnapshotVersionId');
+    expect(validation).toContain("newData.child('passageMaterialId').val() === $materialId");
+    expect(validation).toContain("newData.child('currentSnapshotVersionId').val() === $versionId");
+  });
+
+  it('requires full-test composition version records to validate owner, composition id, and published version id', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const versionRules = readingV2Rules.full_test_composition_versions.$compositionId.$versionId as Record<string, string>;
+    const validation = versionRules['.validate'];
+
+    expect(validation).toContain('ownerId');
+    expect(validation).toContain('compositionId');
     expect(validation).toContain('publishedVersionId');
+    expect(validation).toContain("newData.child('compositionId').val() === $compositionId");
+    expect(validation).toContain("newData.child('publishedVersionId').val() === $versionId");
   });
 
   it('blocks scoringRule from student-safe Reading V2 projections', () => {

@@ -75,6 +75,7 @@ describe('featureRegistry', () => {
       const readingV2Studio = FEATURE_REGISTRY.find((feature) => feature.id === 'readingV2Studio');
       const testTaking = FEATURE_REGISTRY.find((feature) => feature.id === 'testTaking');
       const testCreation = FEATURE_REGISTRY.find((feature) => feature.id === 'testCreation');
+      const adminPanel = FEATURE_REGISTRY.find((feature) => feature.id === 'adminPanel');
 
       expect(homework?.actions).toContain('viewIntegrityDetails');
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
@@ -112,6 +113,7 @@ describe('featureRegistry', () => {
           'teacher_materials_book_create_opened',
           'teacher_materials_book_created',
           'teacher_materials_book_updated',
+          'teacher_materials_book_public_review_requested',
           'teacher_materials_reading_passage_assigned',
           'teacher_materials_reading_passage_set_assigned',
           'openCreateBookModal',
@@ -148,6 +150,15 @@ describe('featureRegistry', () => {
           'flushIntegrityLogs',
           'persistSessionIntegrity',
           'persistHomeworkIntegrity',
+        ]),
+      );
+      expect(adminPanel?.actions).toEqual(
+        expect.arrayContaining([
+          'switchPublicBookReviewsSettingsSection',
+          'retryPublicBookReviewQueue',
+          'approvePublicBookReview',
+          'rejectPublicBookReview',
+          'returnPublicBookToPrivate',
         ]),
       );
     });

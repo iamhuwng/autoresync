@@ -66,25 +66,25 @@ describe('BookCardGrid', () => {
 
     expect(within(card).getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Archive/Delete' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Start Test/i })).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Assign Homework/i })).not.toBeInTheDocument();
 
     await user.click(within(card).getByRole('button', { name: 'Open Book' }));
     await user.click(within(card).getByRole('button', { name: 'Edit metadata' }));
-    await user.click(within(card).getByRole('button', { name: 'Archive/Delete' }));
+    await user.click(within(card).getByRole('button', { name: 'Archive' }));
 
     expect(onOpenBook).toHaveBeenCalledWith(book);
     expect(onEditMetadata).toHaveBeenCalledWith(book);
     expect(onArchiveBook).toHaveBeenCalledWith(book);
   });
 
-  it('hides owner-only Archive/Delete for non-owned public Books', () => {
+  it('hides owner-only Archive for non-owned public Books', () => {
     render(<BookCardGrid books={[makeBook({ isOwner: false, visibility: 'public-library-published' })]} />);
 
     expect(screen.getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Archive/Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
   });
 
   it('filters Book rows by Test Type and summary fields', () => {

@@ -7,11 +7,12 @@
  * Allowed Roles: super_admin only
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { get, onValue, ref, set } from 'firebase/database';
+import { get, onValue, ref, remove as removeDb, set } from 'firebase/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { AdminTagManager } from '../components/admin/AdminTagManager';
 import { TestTypeAdminPanel } from '../components/admin/TestTypeAdminPanel';
+import { PublicBookReviewPanel } from '../components/admin/PublicBookReviewPanel';
 import { AdminLayout } from '../components/navigation';
 import { Card, Button, Input } from '../components/modern';
 import {
@@ -38,7 +39,11 @@ import {
 import { getEnv } from '../config/env.config';
 import { database } from '../services/firebase';
 import { reportingService } from '../services/reportingService';
-import { createMaterialTestTypeConfigRepository } from '../services/materialCatalog/testTypeConfig.service';
+import {
+    DEFAULT_MATERIAL_TEST_TYPES,
+    createMaterialTestTypeConfigRepository,
+} from '../services/materialCatalog/testTypeConfig.service';
+import { createMaterialBooksRepository } from '../services/materialCatalog/materialBooks.service';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ============================================================================
@@ -72,6 +77,8 @@ interface ReportingCategories {
     performance: boolean;
     diagnostics: boolean;
 }
+
+type AdminSettingsSection = 'api_keys' | 'tags' | 'reporting' | 'test_types' | 'public_book_reviews';
 
 // ============================================================================
 // Sub-components
@@ -692,7 +699,7 @@ const AdminSettingsPage: React.FC = () => {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [addModalProvider, setAddModalProvider] = useState<AIProvider | null>(null);
     const [envKeys, setEnvKeys] = useState<{ gemini: string[]; groq: string[] }>({ gemini: [], groq: [] });
-    const [activeSection, setActiveSection] = useState<'api_keys' | 'tags' | 'reporting' | 'test_types'>('api_keys');
+    const [activeSection, setActiveSection] = useState<AdminSettingsSection>('api_keys');
 
     const isSuperAdmin = profile?.role === 'super_admin';
     const testTypeRepository = useMemo(
@@ -704,6 +711,22 @@ const AdminSettingsPage: React.FC = () => {
                 },
                 write: async (path, value) => {
                     await set(ref(database, path), value);
+                },
+            }),
+        []
+    );
+    const materialBooksRepository = useMemo(
+        () =>
+            createMaterialBooksRepository({
+                read: async (path) => {
+                    const snapshot = await get(ref(database, path));
+                    return snapshot.val();
+                },
+                write: async (path, value) => {
+                    await set(ref(database, path), value);
+                },
+                remove: async (path) => {
+                    await removeDb(ref(database, path));
                 },
             }),
         []
@@ -805,11 +828,13 @@ const AdminSettingsPage: React.FC = () => {
     );
 
     const handleSectionChange = useCallback(
-        (section: 'api_keys' | 'tags' | 'reporting' | 'test_types') => {
+        (section: AdminSettingsSection) => {
             setActiveSection(section);
 
             if (section === 'test_types') {
                 trackAdminAction('switchTestTypeSettingsSection', { section });
+            } else if (section === 'public_book_reviews') {
+                trackAdminAction('switchPublicBookReviewsSettingsSection', { section });
             }
         },
         [trackAdminAction]
@@ -932,6 +957,13 @@ const AdminSettingsPage: React.FC = () => {
                     >
                         Test Types
                     </Button>
+                    <Button
+                        variant={activeSection === 'public_book_reviews' ? 'primary' : 'glass'}
+                        aria-label="Show public Book reviews settings section"
+                        onClick={() => handleSectionChange('public_book_reviews')}
+                    >
+                        Book Reviews
+                    </Button>
                 </div>
 
                 {loading ? (
@@ -950,6 +982,16 @@ const AdminSettingsPage: React.FC = () => {
                     <TestTypeAdminPanel
                         context={{ uid: user?.uid || '', role: profile?.role || '' }}
                         repository={testTypeRepository}
+                        onTrackAction={trackAdminAction}
+                    />
+                ) : activeSection === 'public_book_reviews' ? (
+                    <PublicBookReviewPanel
+                        context={{
+                            actorId: user?.uid || '',
+                            actorRole: profile?.role || '',
+                            testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+                        }}
+                        repository={materialBooksRepository}
                         onTrackAction={trackAdminAction}
                     />
                 ) : (

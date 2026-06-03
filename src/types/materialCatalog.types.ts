@@ -97,6 +97,21 @@ export const MATERIAL_BOOK_STATUSES = [
 
 export type MaterialBookStatus = (typeof MATERIAL_BOOK_STATUSES)[number];
 
+export type MaterialBookPublicReviewStatus =
+  | 'pending-review'
+  | 'approved'
+  | 'rejected'
+  | 'returned-private';
+
+export interface MaterialBookPublicReviewState {
+  readonly status: MaterialBookPublicReviewStatus;
+  readonly reason?: string;
+  readonly requestedAt?: string;
+  readonly requestedBy?: string;
+  readonly reviewedAt?: string;
+  readonly reviewedBy?: string;
+}
+
 export interface MaterialBookMetadata {
   readonly bookId: MaterialBookId;
   readonly ownerId: string;
@@ -118,6 +133,7 @@ export interface MaterialBookMetadata {
   readonly updatedAt: string;
   readonly createdBy: string;
   readonly updatedBy: string;
+  readonly publicReview?: MaterialBookPublicReviewState;
 }
 
 export const MATERIAL_BOOK_NODE_TYPES = [
@@ -177,4 +193,41 @@ export interface MaterialBookNode {
 
 export type ReadingPassageListScope = 'private' | 'public';
 
-export type BookListScope = 'private' | 'public';
+export type BookListScope = 'private' | 'public' | 'public-review-pending';
+
+export interface MaterialBookPublicProjectionRef {
+  readonly refId: MaterialBookRefId;
+  readonly materialId: string;
+  readonly materialKind: Exclude<MaterialCatalogMaterialKind, 'draft'>;
+  readonly snapshotVersionId: string;
+  readonly title: string;
+  readonly testTypeIds: readonly MaterialTestTypeId[];
+  readonly order: number;
+}
+
+export interface MaterialBookPublicProjectionNode {
+  readonly nodeId: MaterialBookNodeId;
+  readonly parentNodeId: MaterialBookNodeId | null;
+  readonly type: MaterialBookNodeType;
+  readonly title: string;
+  readonly order: number;
+  readonly materialRefs: readonly MaterialBookPublicProjectionRef[];
+}
+
+export interface MaterialBookPublicProjection {
+  readonly bookId: MaterialBookId;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly authors: readonly string[];
+  readonly publisher?: string;
+  readonly series?: string;
+  readonly coverUrl?: string;
+  readonly testTypeIds: readonly MaterialTestTypeId[];
+  readonly tags: readonly string[];
+  readonly visibility: 'public-library-published';
+  readonly status: 'ready';
+  readonly updatedAt: string;
+  readonly approvedAt: string;
+  readonly approvedBy: string;
+  readonly nodes: readonly MaterialBookPublicProjectionNode[];
+}

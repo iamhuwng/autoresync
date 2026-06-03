@@ -9,6 +9,7 @@ import {
   type ReadingV2ReturnContext,
   type ReadingV2StudioMode,
 } from '../components/reading-v2/studio/ReadingV2StudioShell';
+import { resolveMaterialTestTypeIdsFromLegacyTestType } from '../services/materialCatalog/materialTestTypeMapping.service';
 import type { ReadingV2ImportCandidate } from '../services/reading-v2/readingV2ImportNormalization.service';
 import {
   previewReadingV2StudioDraft,
@@ -38,6 +39,7 @@ type ReadingV2StudioRouteState = {
   readonly initialMetadata?: Partial<ReadingV2StudioWorkflowMetadata>;
   readonly initialImportCandidate?: ReadingV2ImportCandidate;
   readonly startMode?: ReadingV2StudioMode;
+  readonly testType?: string;
 };
 
 const compactActionMetadata = (
@@ -61,6 +63,25 @@ const resolveStudioMode = (pathname: string): ReadingV2StudioMode => {
   return 'create-blank';
 };
 
+const mergeRouteTestTypeMetadata = (
+  metadata: Partial<ReadingV2StudioWorkflowMetadata> | undefined,
+  testType: string | undefined,
+): Partial<ReadingV2StudioWorkflowMetadata> | undefined => {
+  const routeTestTypeIds = resolveMaterialTestTypeIdsFromLegacyTestType(testType);
+
+  if (routeTestTypeIds.length === 0) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    primaryTestTypeId: metadata?.primaryTestTypeId ?? routeTestTypeIds[0],
+    testTypeIds: metadata?.testTypeIds && metadata.testTypeIds.length > 0
+      ? metadata.testTypeIds
+      : routeTestTypeIds,
+  };
+};
+
 export default function ReadingV2StudioPage() {
   const location = useLocation();
   const params = useParams();
@@ -75,6 +96,10 @@ export default function ReadingV2StudioPage() {
   const pathMode = resolveStudioMode(location.pathname);
   const mode = routeState.startMode === 'create-from-auto' ? 'create-from-auto' : pathMode;
   const revisionMaterialId = mode === 'revise-published' ? params.materialId : undefined;
+  const routeInitialMetadata = useMemo(
+    () => mergeRouteTestTypeMetadata(routeState.initialMetadata, routeState.testType),
+    [routeState.initialMetadata, routeState.testType],
+  );
   const [revisionHydration, setRevisionHydration] = useState<RevisionHydrationState>({
     status: 'idle',
   });
@@ -136,8 +161,8 @@ export default function ReadingV2StudioPage() {
         mode,
         draftId: params.draftId,
         materialId: params.materialId,
-        ownerId: routeState.initialMetadata?.ownerId,
-        initialMetadata: routeState.initialMetadata,
+        ownerId: routeInitialMetadata?.ownerId,
+        initialMetadata: routeInitialMetadata,
         initialImportCandidate: routeState.initialImportCandidate,
         sourceSnapshot: revisionSource?.snapshot,
         sourceMetadata: revisionSource?.metadata,
@@ -148,10 +173,10 @@ export default function ReadingV2StudioPage() {
       mode,
       params.draftId,
       params.materialId,
+      routeInitialMetadata,
       revisionSource?.metadata,
       revisionSource?.snapshot,
       routeState.initialImportCandidate,
-      routeState.initialMetadata,
     ],
   );
   const [autosaveRevisionToken, setAutosaveRevisionToken] = useState(studioContext.revisionToken);

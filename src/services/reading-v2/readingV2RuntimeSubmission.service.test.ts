@@ -73,7 +73,13 @@ describe('readingV2RuntimeSubmission', () => {
   it('posts the request with a Firebase ID token and returns the trusted result identity', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ resultId: 'result-1', attemptId: 'attempt-1' }),
+      text: async () => JSON.stringify({
+        resultId: 'result-1',
+        attemptId: 'attempt-1',
+        totalScore: 13,
+        maxScore: 13,
+        percentage: 100,
+      }),
     });
 
     const result = await submitReadingV2RuntimeAttempt({
@@ -83,7 +89,13 @@ describe('readingV2RuntimeSubmission', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toEqual({ resultId: 'result-1', attemptId: 'attempt-1' });
+    expect(result).toEqual({
+      resultId: 'result-1',
+      attemptId: 'attempt-1',
+      totalScore: 13,
+      maxScore: 13,
+      percentage: 100,
+    });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://example.test/reading-v2-submit',
       expect.objectContaining({

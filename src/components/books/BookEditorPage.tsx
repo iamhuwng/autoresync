@@ -22,6 +22,7 @@ import {
   type MaterialBookMaterialRef,
   type MaterialBookMetadata,
   type MaterialBookNode,
+  type MaterialBookPublicProjection,
   type MaterialBookVisibility,
 } from '../../types/materialCatalog.types';
 import type { ReadingPassageHomeworkCandidate } from '../../services/reading-v2/readingV2PassageHomework.service';
@@ -189,6 +190,25 @@ const rowToSummary = (row: MaterialIndexRow): BookMaterialSummary => ({
   publishedSnapshotVersionId: row.publishedSnapshotVersionId,
 });
 
+const bookFromPublicProjection = (projection: MaterialBookPublicProjection): MaterialBookMetadata => ({
+  bookId: projection.bookId,
+  ownerId: 'public-library',
+  title: projection.title,
+  subtitle: projection.subtitle,
+  authors: projection.authors,
+  publisher: projection.publisher,
+  series: projection.series,
+  coverUrl: projection.coverUrl,
+  testTypeIds: projection.testTypeIds,
+  tags: projection.tags,
+  visibility: 'public-library-published',
+  status: 'ready',
+  createdAt: projection.approvedAt,
+  updatedAt: projection.updatedAt,
+  createdBy: projection.approvedBy,
+  updatedBy: projection.approvedBy,
+});
+
 const createFirebaseRepository = (): MaterialBooksRepository =>
   createMaterialBooksRepository({
     read: async (path) => {
@@ -216,6 +236,7 @@ const BookEditorPage = ({
   const resolvedRepository = useMemo(() => repository ?? createFirebaseRepository(), [repository]);
   const [book, setBook] = useState<MaterialBookMetadata | null>(initialBook ?? null);
   const [nodes, setNodes] = useState<readonly MaterialBookNode[]>(initialNodeList);
+  const [publicProjection, setPublicProjection] = useState<MaterialBookPublicProjection | null>(null);
   const [metadataForm, setMetadataForm] = useState<MetadataFormState>(() => formFromBook(initialBook));
   const [loadedCandidates, setLoadedCandidates] = useState<readonly BookMaterialSummary[]>([]);
   const [loading, setLoading] = useState(!initialBook && Boolean(bookId));
@@ -242,6 +263,7 @@ const BookEditorPage = ({
     }
 
     setBook(initialBook);
+    setPublicProjection(null);
     setMetadataForm(formFromBook(initialBook));
     setNodes(initialNodeList);
   }, [initialBook, initialNodeList]);
@@ -255,33 +277,78 @@ const BookEditorPage = ({
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      resolvedRepository.readBook(bookId),
-      resolvedRepository.listBookNodes(bookId),
-    ])
-      .then(([loadedBook, loadedNodes]) => {
+    const loadPublicProjection = async (): Promise<{
+      readonly loaded: boolean;
+      readonly error?: unknown;
+    }> => {
+      let projection: MaterialBookPublicProjection | null | undefined;
+
+      try {
+        projection = await resolvedRepository.readPublicBookProjection?.(bookId);
+      } catch (projectionError) {
+        return { loaded: false, error: projectionError };
+      }
+
+      if (!projection || cancelled) {
+        return { loaded: false };
+      }
+
+      const projectionBook = bookFromPublicProjection(projection);
+      setPublicProjection(projection);
+      setBook(projectionBook);
+      setMetadataForm(formFromBook(projectionBook));
+      setNodes([]);
+      setError(null);
+      return { loaded: true };
+    };
+
+    const loadBook = async () => {
+      try {
+        const loadedBook = await resolvedRepository.readBook(bookId);
+
         if (cancelled) {
           return;
         }
 
+        if (!loadedBook) {
+          const loadedProjection = await loadPublicProjection();
+
+          if (!loadedProjection.loaded && !cancelled) {
+            setError(
+              loadedProjection.error instanceof Error
+                ? loadedProjection.error.message
+                : 'Book not found.',
+            );
+          }
+          return;
+        }
+
+        const loadedNodes = await resolvedRepository.listBookNodes(bookId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setPublicProjection(null);
         setBook(loadedBook);
         setMetadataForm(formFromBook(loadedBook));
         setNodes(loadedNodes);
+      } catch (loadError) {
+        const loadedProjection = await loadPublicProjection();
 
-        if (!loadedBook) {
-          setError('Book not found.');
+        if (!loadedProjection.loaded && !cancelled) {
+          const effectiveError = loadedProjection.error ?? loadError;
+
+          setError(effectiveError instanceof Error ? effectiveError.message : 'Unable to load Book.');
         }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load Book.');
-        }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    };
+
+    void loadBook();
 
     return () => {
       cancelled = true;
@@ -332,6 +399,17 @@ const BookEditorPage = ({
       ...current,
       [field]: value,
     }));
+  };
+
+  const handleRequestPublicReview = (): void => {
+    setMetadataForm((current) => ({
+      ...current,
+      visibility: 'public-library-pending-review',
+    }));
+    trackAction('teacher_materials_book_public_review_requested', {
+      bookId: book?.bookId ?? bookId,
+      source: 'book_editor_metadata',
+    });
   };
 
   const handleSaveMetadata = async () => {
@@ -504,7 +582,40 @@ const BookEditorPage = ({
         )}
         {saveMessage && <p className="book-editor-page__status">{saveMessage}</p>}
 
-        {book && (
+        {publicProjection && (
+          <section className="book-editor-page__section" aria-labelledby="book-editor-public-outline">
+            <div className="book-editor-page__section-heading">
+              <div>
+                <h2 id="book-editor-public-outline">Public Book outline</h2>
+                <p>Approved public structure.</p>
+              </div>
+            </div>
+            <ol className="book-editor-page__public-outline">
+              {[...publicProjection.nodes]
+                .sort((left, right) => left.order - right.order)
+                .map((node) => {
+                  const materialRefs = Array.isArray(node.materialRefs) ? node.materialRefs : [];
+
+                  return (
+                    <li key={node.nodeId} className="book-editor-page__public-node">
+                      <strong>{node.title}</strong>
+                      {materialRefs.length > 0 && (
+                        <ol>
+                          {[...materialRefs]
+                            .sort((left, right) => left.order - right.order)
+                            .map((materialRef) => (
+                              <li key={materialRef.refId}>{materialRef.title}</li>
+                            ))}
+                        </ol>
+                      )}
+                    </li>
+                  );
+                })}
+            </ol>
+          </section>
+        )}
+
+        {book && !publicProjection && (
           <>
             <section className="book-editor-page__section" aria-labelledby="book-editor-metadata">
               <div className="book-editor-page__section-heading">
@@ -563,10 +674,11 @@ const BookEditorPage = ({
                   <select value={metadataForm.visibility} onChange={(event) => updateForm('visibility', event.target.value)}>
                     <option value="private">Private</option>
                     <option value="public-library-pending-review">Public review requested</option>
-                    <option value="public-library-published">Public library</option>
-                    <option value="public-library-rejected">Public rejected</option>
                   </select>
                 </label>
+                <button type="button" onClick={handleRequestPublicReview}>
+                  Request public review
+                </button>
                 <label className="book-editor-page__wide-field">
                   <span>Description</span>
                   <textarea value={metadataForm.description} onChange={(event) => updateForm('description', event.target.value)} />

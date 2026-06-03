@@ -277,6 +277,30 @@ describe('materialListAdapter', () => {
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
   });
 
+  it('disables Reading Passage assignment when a safe projection or published version is missing', () => {
+    const row = toReadingPassageRowModel({
+      id: 'unsafe-passage',
+      materialId: 'unsafe-passage',
+      title: 'Unsafe Passage',
+      questionCount: 8,
+      visibility: 'private',
+      isOwner: true,
+      publishedSnapshotVersionId: '',
+      hasStudentSafeProjection: false,
+      actions: [
+        { key: 'assign-homework', label: 'Assign homework' },
+        { key: 'revise', label: 'Revise', ownerOnly: true },
+      ],
+    });
+
+    const assign = row.actions.find((item) => item.key === 'assign-homework');
+
+    expect(assign).toMatchObject({
+      disabled: true,
+      disabledReason: 'Publish this passage with a student-safe projection before assignment.',
+    });
+  });
+
   it('omits hidden Reading Passage provenance and payload fields from row source', () => {
     const row = toReadingPassageRowModel({
       id: 'passage-safe',

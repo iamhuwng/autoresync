@@ -1,12 +1,15 @@
 // TeacherLobbyPage composition layer (PRD-0033 refactor)
-import React, { Suspense, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { get, ref, remove, set } from 'firebase/database';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
-import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
+import {
+  getTeacherMaterialsCapabilities,
+  isReadingV2Payload,
+} from '../config/readingV2FeatureFlags';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import {
   getTeacherMaterialsDiagnosticTime,
@@ -15,7 +18,11 @@ import {
 } from '../utils/teacherMaterialsDiagnostics';
 import { Card, CardBody } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
-import { DEFAULT_MATERIAL_TEST_TYPES } from '../services/materialCatalog/testTypeConfig.service';
+import {
+  createMaterialTestTypeConfigRepository,
+  DEFAULT_MATERIAL_TEST_TYPES,
+  listTeacherSelectableTestTypes,
+} from '../services/materialCatalog/testTypeConfig.service';
 import {
   createTeacherTestTypePreferenceRepository,
   getPinnedTestTypesForTeacher,
@@ -27,7 +34,10 @@ import {
   updateBookMetadata,
 } from '../services/materialCatalog/materialBooks.service';
 import { database } from '../services/firebase';
-import { listTeacherReadingPassages } from '../services/reading-v2/readingV2PassageLibrary.service';
+import {
+  archiveReadingV2PassageMaterial,
+  listTeacherReadingPassages,
+} from '../services/reading-v2/readingV2PassageLibrary.service';
 import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
 import { createReadingV2TeacherSelectedPassageComposition } from '../services/reading-v2/readingV2TeacherComposition.service';
 import {
@@ -67,6 +77,7 @@ const THCSTestEditorModal = lazyWithRetry(() => import('../components/thcs-edito
 const WritingTestEditModal = lazyWithRetry(() => import('../components/writing/WritingTestEditModal'));
 
 const THCSHomeworkAssignDialog = lazyWithRetry(() => import('../components/thcs-editor/THCSHomeworkAssignDialog'));
+const BOOK_EDITOR_DISABLED_NOTICE = 'book-editor-disabled';
 
 const readingV2AutoPipelineLaneFromParam = (value) => {
   if (value === 'v4-full-doc') {
@@ -107,12 +118,12 @@ const collectMaterialTestTypeTokens = (material) => {
   return tokens;
 };
 
-const getConfigTokensForTestType = (activeTestTypeId) => {
+const getConfigTokensForTestType = (activeTestTypeId, testTypeConfigs = DEFAULT_MATERIAL_TEST_TYPES) => {
   const activeId = normalizeTestTypeToken(activeTestTypeId);
   const tokens = new Set();
   appendTestTypeTokens(tokens, activeId);
 
-  const config = DEFAULT_MATERIAL_TEST_TYPES.find(
+  const config = testTypeConfigs.find(
     (testType) => normalizeTestTypeToken(testType.testTypeId) === activeId,
   );
 
@@ -126,13 +137,13 @@ const getConfigTokensForTestType = (activeTestTypeId) => {
   return tokens;
 };
 
-const matchesActiveTestType = (material, activeTestTypeId) => {
+const matchesActiveTestType = (material, activeTestTypeId, testTypeConfigs) => {
   if (!activeTestTypeId) {
     return true;
   }
 
   const materialTokens = collectMaterialTestTypeTokens(material);
-  const activeTokens = getConfigTokensForTestType(activeTestTypeId);
+  const activeTokens = getConfigTokensForTestType(activeTestTypeId, testTypeConfigs);
 
   return [...materialTokens].some((token) => activeTokens.has(token));
 };
@@ -182,18 +193,24 @@ const safeListDiagnostic = ({ scope, rows, durationMs, searchTerm, activeTestTyp
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, profile, logout } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
   const readingV2AutoPipelineLane = import.meta.env.DEV || import.meta.env.MODE === 'test'
     ? readingV2AutoPipelineLaneFromParam(searchParams.get('readingV2AutoPipeline'))
     : undefined;
+  const teacherMaterialsCapabilities = useMemo(() => getTeacherMaterialsCapabilities(), []);
+  const teacherMaterialsNotice = location.state?.teacherMaterialsNotice === BOOK_EDITOR_DISABLED_NOTICE
+    ? 'Book editing is disabled for this rollout.'
+    : null;
 
   // ---------- Local UI State ----------
   const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts' | 'reading-passage' | 'book'
   const [searchTerm, setSearchTerm] = useState('');
   const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [activeTestTypeId, setActiveTestTypeId] = useState(null);
+  const [testTypeConfigs, setTestTypeConfigs] = useState(DEFAULT_MATERIAL_TEST_TYPES);
   const [pinnedTestTypeIds, setPinnedTestTypeIds] = useState(null);
   const [testTypePreferencesOpen, setTestTypePreferencesOpen] = useState(false);
   const [readingPassageScope, setReadingPassageScope] = useState('private');
@@ -212,6 +229,7 @@ const TeacherLobbyPage = () => {
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
+  const testTypeConfigsRef = useRef(DEFAULT_MATERIAL_TEST_TYPES);
 
   // ---------- Hooks ----------
   const modals = useModalManager();
@@ -249,7 +267,7 @@ const TeacherLobbyPage = () => {
         return true;
       }
 
-      return matchesActiveTestType(test, activeTestTypeId);
+      return matchesActiveTestType(test, activeTestTypeId, testTypeConfigs);
     });
   const visibleDrafts = drafts.filter((draft) => !isReadingV2Payload(draft));
   const visibleReadingV2Count = visibleTests.filter((test) => test?.deliveryEngine === 'reading-v2').length;
@@ -259,6 +277,15 @@ const TeacherLobbyPage = () => {
       ? 'all'
       : 'owned';
   const teacherTestTypePreferenceRepository = useMemo(() => createTeacherTestTypePreferenceRepository({
+    read: async (path) => {
+      const snapshot = await get(ref(database, path));
+      return snapshot.val();
+    },
+    write: async (path, value) => {
+      await set(ref(database, path), value);
+    },
+  }), []);
+  const materialTestTypeConfigRepository = useMemo(() => createMaterialTestTypeConfigRepository({
     read: async (path) => {
       const snapshot = await get(ref(database, path));
       return snapshot.val();
@@ -284,6 +311,81 @@ const TeacherLobbyPage = () => {
       await set(ref(database, path), value);
     },
   }), []);
+  const readingV2PassageArchiveRepository = useMemo(() => ({
+    write: async (path, value) => {
+      await set(ref(database, path), value);
+    },
+    remove: async (path) => {
+      await remove(ref(database, path));
+    },
+  }), []);
+
+  useEffect(() => {
+    testTypeConfigsRef.current = testTypeConfigs;
+  }, [testTypeConfigs]);
+
+  useEffect(() => {
+    if (!teacherMaterialsCapabilities.canUseTestTypeBlocks) {
+      if (testTypeConfigsRef.current !== DEFAULT_MATERIAL_TEST_TYPES) {
+        setTestTypeConfigs(DEFAULT_MATERIAL_TEST_TYPES);
+      }
+      return undefined;
+    }
+
+    let cancelled = false;
+    const startedAt = getTeacherMaterialsDiagnosticTime();
+
+    listTeacherSelectableTestTypes(materialTestTypeConfigRepository)
+      .then((configs) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (configs.length > 0) {
+          setTestTypeConfigs(configs);
+          testTypeConfigsRef.current = configs;
+          logTeacherMaterialsDiagnostic('test_type_config_resolved', {
+            source: 'live-admin-config',
+            count: configs.length,
+            fallbackUsed: false,
+            durationMs: getTeacherMaterialsElapsedMs(startedAt),
+          });
+          return;
+        }
+
+        if (testTypeConfigsRef.current !== DEFAULT_MATERIAL_TEST_TYPES) {
+          setTestTypeConfigs(DEFAULT_MATERIAL_TEST_TYPES);
+          testTypeConfigsRef.current = DEFAULT_MATERIAL_TEST_TYPES;
+        }
+        logTeacherMaterialsDiagnostic('test_type_config_resolved', {
+          source: 'fallback-default-empty',
+          count: DEFAULT_MATERIAL_TEST_TYPES.length,
+          fallbackUsed: true,
+          caveat: 'material_catalog/test_types empty',
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (testTypeConfigsRef.current !== DEFAULT_MATERIAL_TEST_TYPES) {
+          setTestTypeConfigs(DEFAULT_MATERIAL_TEST_TYPES);
+          testTypeConfigsRef.current = DEFAULT_MATERIAL_TEST_TYPES;
+        }
+        logTeacherMaterialsDiagnostic('test_type_config_load_failed', {
+          message: error instanceof Error ? error.message : String(error),
+          fallbackUsed: true,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+        });
+        console.warn('Failed to load Test Type config:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [materialTestTypeConfigRepository, teacherMaterialsCapabilities.canUseTestTypeBlocks]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -295,7 +397,7 @@ const TeacherLobbyPage = () => {
     const startedAt = getTeacherMaterialsDiagnosticTime();
 
     getPinnedTestTypesForTeacher(user.uid, {
-      activeTestTypes: DEFAULT_MATERIAL_TEST_TYPES,
+      activeTestTypes: testTypeConfigs,
       preferenceRepository: teacherTestTypePreferenceRepository,
     })
       .then((result) => {
@@ -323,10 +425,34 @@ const TeacherLobbyPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [teacherTestTypePreferenceRepository, user?.uid]);
+  }, [teacherTestTypePreferenceRepository, testTypeConfigs, user?.uid]);
+
+  useEffect(() => {
+    if (contentFilter === 'reading-passage' && !teacherMaterialsCapabilities.canUseReadingPassageLibrary) {
+      setContentFilter('my');
+      setReadingPassageRows([]);
+      setSelectedReadingPassageIds([]);
+      return;
+    }
+
+    if (contentFilter === 'book' && !teacherMaterialsCapabilities.canUseMaterialBooks) {
+      setContentFilter('my');
+      setBookRows([]);
+    }
+  }, [
+    contentFilter,
+    teacherMaterialsCapabilities.canUseMaterialBooks,
+    teacherMaterialsCapabilities.canUseReadingPassageLibrary,
+  ]);
 
   useEffect(() => {
     if (contentFilter !== 'reading-passage') {
+      return undefined;
+    }
+
+    if (!teacherMaterialsCapabilities.canUseReadingPassageLibrary) {
+      setReadingPassageRows([]);
+      setSelectedReadingPassageIds([]);
       return undefined;
     }
 
@@ -372,7 +498,7 @@ const TeacherLobbyPage = () => {
       scope: readingPassageScope,
       searchTerm,
       testTypeId: activeTestTypeId,
-      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      testTypeConfigs,
     })
       .then((rows) => {
         if (!cancelled) {
@@ -407,10 +533,23 @@ const TeacherLobbyPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeTestTypeId, contentFilter, readingPassageScope, searchTerm, user?.uid]);
+  }, [
+    activeTestTypeId,
+    contentFilter,
+    readingPassageScope,
+    searchTerm,
+    teacherMaterialsCapabilities.canUseReadingPassageLibrary,
+    testTypeConfigs,
+    user?.uid,
+  ]);
 
   useEffect(() => {
     if (contentFilter !== 'book') {
+      return undefined;
+    }
+
+    if (!teacherMaterialsCapabilities.canUseMaterialBooks) {
+      setBookRows([]);
       return undefined;
     }
 
@@ -457,7 +596,7 @@ const TeacherLobbyPage = () => {
       searchTerm,
       testTypeId: activeTestTypeId,
       repository: materialBooksRepository,
-      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      testTypeConfigs,
     })
       .then((rows) => {
         if (!cancelled) {
@@ -492,7 +631,17 @@ const TeacherLobbyPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeTestTypeId, bookListVersion, bookScope, contentFilter, materialBooksRepository, searchTerm, user?.uid]);
+  }, [
+    activeTestTypeId,
+    bookListVersion,
+    bookScope,
+    contentFilter,
+    materialBooksRepository,
+    searchTerm,
+    teacherMaterialsCapabilities.canUseMaterialBooks,
+    testTypeConfigs,
+    user?.uid,
+  ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
     setContentFilter((currentTab) => {
@@ -611,8 +760,8 @@ const TeacherLobbyPage = () => {
   const bookValidationContext = useMemo(() => ({
     actorId: user?.uid || '',
     actorRole: profile?.role || 'teacher',
-    testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-  }), [profile?.role, user?.uid]);
+    testTypeConfigs,
+  }), [profile?.role, testTypeConfigs, user?.uid]);
 
   const handleOpenTestTypePreferences = useCallback(({ testTypeId }) => {
     trackAction('openTestTypePreferences', {
@@ -808,10 +957,53 @@ const TeacherLobbyPage = () => {
     });
   }, [getReadingPassageId, trackAction]);
 
-  const handleArchiveReadingPassage = useCallback((passage) => {
+  const handleArchiveReadingPassage = useCallback(async (passage) => {
     const materialId = getReadingPassageId(passage);
+    if (!materialId || !user?.uid) {
+      return;
+    }
+
+    if (!window.confirm(`Archive "${passage?.title || 'this Reading Passage'}"?`)) {
+      return;
+    }
+
     trackAction('archiveReadingPassage', { materialId, source: 'teacher_materials_reading_passage_row' });
-  }, [getReadingPassageId, trackAction]);
+
+    try {
+      await archiveReadingV2PassageMaterial({
+        teacherId: user.uid,
+        passage: {
+          materialId,
+          ownerId: passage.ownerId,
+          title: passage.title || 'Untitled Reading Passage',
+          visibility: passage.visibility || passage.scope || 'private',
+          materialKind: 'reading-passage',
+          testTypeIds: passage.testTypeIds || passage.testTypes?.map((testType) => testType.testTypeId).filter(Boolean) || [],
+          sourceFullTestId: passage.sourceFullTestId,
+          updatedAt: passage.updatedAt || new Date().toISOString(),
+          publishedSnapshotVersionId: passage.publishedSnapshotVersionId,
+        },
+        repository: readingV2PassageArchiveRepository,
+      });
+      setReadingPassageRows((currentRows) => currentRows.filter((row) => getReadingPassageId(row) !== materialId));
+      setSelectedReadingPassageIds((currentIds) => currentIds.filter((id) => id !== materialId));
+      trackAction('teacher_materials_reading_passage_archived', {
+        materialId,
+        source: 'teacher_materials_reading_passage_row',
+      });
+      logTeacherMaterialsDiagnostic('reading_passage_archived', {
+        materialId,
+        source: 'teacher_materials_reading_passage_row',
+      });
+    } catch (error) {
+      console.error('Failed to archive Reading Passage:', error);
+      setReadingPassageError('Failed to archive Reading Passage.');
+      logTeacherMaterialsDiagnostic('reading_passage_archive_failed', {
+        materialId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [getReadingPassageId, readingV2PassageArchiveRepository, trackAction, user?.uid]);
 
   const handleBookScopeChange = useCallback((scope) => {
     setBookScope(scope);
@@ -982,7 +1174,10 @@ const TeacherLobbyPage = () => {
     sourceFullTestTitle: passage?.sourceFullTestTitle,
     publishedSnapshotVersionId: passage?.publishedSnapshotVersionId ?? passage?.metadata?.publishedSnapshotVersionId,
     hasStudentSafeProjection: passage?.hasStudentSafeProjection === true,
-    accessible: true,
+    accessible: passage?.accessible === true &&
+      Boolean(passage?.publishedSnapshotVersionId ?? passage?.metadata?.publishedSnapshotVersionId) &&
+      passage?.hasStudentSafeProjection === true &&
+      passage?.archived !== true,
     archived: passage?.archived === true,
   }), [getReadingPassageId]);
 
@@ -1121,6 +1316,7 @@ const TeacherLobbyPage = () => {
                   <ContentTabs
                     activeTab={contentFilter}
                     onTabChange={handleContentFilterChange}
+                    capabilities={teacherMaterialsCapabilities}
                   />
                 </div>
               </div>
@@ -1133,6 +1329,12 @@ const TeacherLobbyPage = () => {
                 onReturnToMonitor={(code) => navigateTo('TEACHER_TEST_MONITOR', { sessionCode: code }, { reason: 'lobby_return_monitor' })}
                 onReturnToQuiz={(code) => navigateTo('TEACHER_WAITING', { gameSessionId: code }, { reason: 'lobby_return_quiz' })}
               />
+
+              {teacherMaterialsNotice && (
+                <div className="teacher-materials-route-notice" role="status">
+                  {teacherMaterialsNotice}
+                </div>
+              )}
 
               {/* Drafts Tab */}
               {contentFilter === 'drafts' ? (
@@ -1209,7 +1411,7 @@ const TeacherLobbyPage = () => {
                   </Card>
 
                   <TestTypeBlockModule
-                    testTypes={DEFAULT_MATERIAL_TEST_TYPES}
+                    testTypes={testTypeConfigs}
                     pinnedTestTypeIds={pinnedTestTypeIds}
                     activeTestTypeId={activeTestTypeId}
                     onActiveTestTypeChange={handleActiveTestTypeChange}
@@ -1463,7 +1665,7 @@ const TeacherLobbyPage = () => {
         <CreateBookModal
           opened={createBookModalOpen}
           title={editingBook ? 'Edit Book Metadata' : 'Create Book'}
-          testTypes={DEFAULT_MATERIAL_TEST_TYPES}
+          testTypes={testTypeConfigs}
           initialValue={editingBookModalValue}
           onClose={handleCloseCreateBookModal}
           onSave={handleSaveBook}
@@ -1476,7 +1678,7 @@ const TeacherLobbyPage = () => {
             uid: user?.uid || '',
             role: profile?.role || 'teacher',
           }}
-          testTypes={DEFAULT_MATERIAL_TEST_TYPES}
+          testTypes={testTypeConfigs}
           pinnedTestTypeIds={pinnedTestTypeIds}
           preferenceRepository={teacherTestTypePreferenceRepository}
           onClose={() => setTestTypePreferencesOpen(false)}

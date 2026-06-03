@@ -13,6 +13,15 @@ describe('Homework Firestore rule contract', () => {
     expect(firestoreRules).toContain('isValidReadingPassageHomeworkPayload(request.resource.data)');
   });
 
+  it('allows only narrow student progress-stat updates on homework assignments', () => {
+    expect(firestoreRules).toContain('function isStudentStatsOnlyHomeworkUpdate()');
+    expect(firestoreRules).toContain("affectedKeys().hasOnly(['stats', 'updatedAt'])");
+    expect(firestoreRules).toContain('request.resource.data.stats.totalAssigned == resource.data.stats.totalAssigned');
+    expect(firestoreRules).toContain('request.resource.data.stats.started <= resource.data.stats.started + 1');
+    expect(firestoreRules).toContain('request.resource.data.stats.submitted <= resource.data.stats.submitted + 1');
+    expect(firestoreRules).toContain('request.resource.data.stats.lateSubmissions <= resource.data.stats.lateSubmissions + 1');
+  });
+
   it('recognizes single Reading Passage and Reading Passage set homework shapes', () => {
     expect(firestoreRules).toContain("data.materialType == 'reading-passage'");
     expect(firestoreRules).toContain("data.materialType == 'reading-passage-set'");
