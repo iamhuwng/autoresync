@@ -113,6 +113,20 @@ The following decisions are confirmed:
 49. Teachers can bulk-select Reading Passages and assign them as one combined homework set in V1.
 50. Teachers can create a basic reusable full Reading test composition from selected Reading Passages in V1.
 
+### 1.5 Implementation Contract Amendment - 2026-06-03
+
+The production data-plane decision for this PRD is now explicit:
+
+- `material_catalog/material_indexes` is the canonical lightweight Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.
+- `reading_v2/listing_indexes` is not the PRD-0052 production listing proof path. Treat it as compatibility/internal unless a future migration updates readers, writers, rules, tests, and browser proof.
+- Reading V2 full-test publish creates a master full-test material plus generated Reading Passage materials. The master stores ordered passage material/version refs.
+- Each generated Reading Passage must write canonical material/version data, `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}`, student-safe projection, review projection, material metadata, and Material Catalog summary rows.
+- Auto V4, paste/import, and normal Studio authoring converge before publish; none get a separate publish shortcut.
+- Reading Passage homework is not complete when only the trusted Reading V2 result exists. The linked Firestore `homework_submissions/{submissionId}` row must also move through the existing homework completion lifecycle.
+- Reading V1 stays on the legacy `/tests` and root `/student_safe_tests` contract. Reading V2 uses the namespaced `reading_v2/*` publish/projection/result plane.
+
+Canonical architecture reference: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
+
 ---
 
 ## 2. Definitions

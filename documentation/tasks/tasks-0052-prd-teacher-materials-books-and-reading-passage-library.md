@@ -95,7 +95,7 @@ Status: Draft
 - `src/services/materialCatalog/bookValidation.service.test.ts` - Tests for all Book validation edge cases.
 - `src/services/materialCatalog/materialCatalogIndexes.service.ts` - New index writer/reader for material listing by owner, visibility, Test Type, material kind, and Book refs.
 - `src/services/materialCatalog/materialCatalogIndexes.service.test.ts` - Tests for index fanout and cleanup.
-- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials`, `full_test_compositions`, and listing indexes.
+- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; PRD-0052 production listing rows use `material_catalog/material_indexes`.
 - `src/services/reading-v2/readingV2StoragePaths.service.test.ts` - Tests for new paths and legacy-overlap assertions.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.ts` - Extend material kinds, visibility, Test Type fields, source order display, and public/private behavior.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.test.ts` - Tests for Reading Passage metadata and source-order display.
@@ -242,7 +242,7 @@ Status: Draft
   - [x] 2.17 Define `ReadingV2ReadingPassageMaterial` with one stimulus/passage, task groups, interactions/questions, scoring/answer key in canonical or snapshot-safe location, metadata, structured source order (`numeric | label | unknown`), owner, visibility, state, current snapshot/version, and provenance.
   - [x] 2.18 Define `ReadingV2PassageRef` with `refId`, `passageMaterialId`, `snapshotVersionId`, `order`, `sourcePassageNumber`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `titleSnapshot`, `questionRangeSnapshot`, `questionCountSnapshot`, `durationSnapshot`, and `testTypeIdsSnapshot`.
   - [x] 2.19 Add required `ReadingV2FullTestComposition` with `compositionId`, `testMaterialId`, `title`, `primaryTestTypeId`, `testTypeIds`, `skill`, `passageRefs[]`, `questionCount`, `durationMinutes`, `visibility`, `ownerId`, `publishedVersionId`, `createdAt`, and `updatedAt`. New V2 full tests must reference this composition; compatibility reads only support legacy rows.
-  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`, and `listingIndexes(surface, materialId)` -> `reading_v2/listing_indexes/{surface}/{materialId}`.
+  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows use `material_catalog/material_indexes`.
   - [x] 2.21 Keep existing Reading V2 projection helpers for `studentSafeTests`, `sessionSafePayloads`, and `reviewProjections`; add only the new passage/composition helpers above unless tests prove a missing path class.
   - [x] 2.22 Add storage path tests in `readingV2StoragePaths.service.test.ts`, including assertions that new paths stay under `reading_v2/` and do not overlap legacy path prefixes.
   - [x] 2.23 Create `src/services/materialCatalog/materialCatalogPaths.ts`.
@@ -282,7 +282,7 @@ Status: Draft
   - [x] 3.26 Add `.indexOn` fields needed for Test Type active/display order queries.
   - [x] 3.27 Add or update admin route/component tests so only `super_admin` sees Test Type management.
 
-- [x] 4.0 Extend Reading V2 material metadata and listing indexes for Reading Passage and composition-based full tests
+- [x] 4.0 Extend Reading V2 material metadata and Material Catalog indexes for Reading Passage and composition-based full tests
   - [x] 4.1 In `src/services/reading-v2/readingV2MaterialMetadata.service.ts`, extend `ReadingV2MaterialKind` to include `reading-passage` and `reading-v2-full-test-composition`.
   - [x] 4.2 Add metadata fields `testTypeIds`, `primaryTestTypeId`, `sourceFullTestId`, `sourceSnapshotVersionId`, `sourceOrderKind`, `sourceOrderValue`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `sourceQuestionRange`, `sourceTitleSnapshot`, `durationMinutes`, and `visibility`.
   - [x] 4.3 Keep answer keys, import evidence, author diagnostics, and hidden provenance out of list metadata.
@@ -335,7 +335,7 @@ Status: Draft
   - [x] 6.5 Write student-safe projections for each Reading Passage.
   - [x] 6.6 Write review projections for each Reading Passage where teacher review needs answer/scoring access.
   - [x] 6.7 Write material metadata for each Reading Passage.
-  - [x] 6.8 Write listing indexes for owner, visibility, Test Type, material kind, and source full test.
+  - [x] 6.8 Write Material Catalog material index rows for owner, visibility, Test Type, material kind, and source full test.
   - [x] 6.9 Write a full-test composition record containing ordered `passageRefs[]`.
   - [x] 6.10 Update the existing full-test material row so it calls passage refs rather than becoming the only storage copy of passage content.
   - [x] 6.11 Preserve existing full-test runtime behavior for current users.

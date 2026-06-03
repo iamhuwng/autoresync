@@ -18,6 +18,7 @@ Runtime surfaces:
 Database/index anchors:
 
 - RTDB `/tests/{testId}`
+- RTDB `material_catalog/material_indexes/*` for PRD-0052 Reading Passage and Book material-summary rows
 - `database.rules.json` `.indexOn` for `/tests`: `ownerId`, `createdBy`, `isPublic`, `createdAt`, `updatedAt`
 
 The Teacher Lobby list is a material index/read surface. It must not hydrate canonical Reading V2 drafts, passage assets, student-safe payloads, session-safe payloads, or result projections just to render cards.
@@ -67,6 +68,20 @@ It must not read all tests and then filter public rows client-side.
 ### Drafts
 
 Drafts remain separate from the published-material list. `useTeacherDrafts` owns draft loading and should only run when the Drafts tab is active.
+
+### Reading Passage And Book Material Summaries
+
+PRD-0052 Reading Passage rows and Book material-picker candidates must load from `material_catalog/material_indexes`, not from canonical Reading V2 documents.
+
+Canonical Reading Passage list buckets:
+
+- `material_catalog/material_indexes/by_owner/{teacherId}`
+- `material_catalog/material_indexes/by_visibility/{visibility}`
+- `material_catalog/material_indexes/by_material_kind/reading-passage`
+- `material_catalog/material_indexes/by_test_type/{testTypeId}`
+- `material_catalog/material_indexes/by_source_full_test/{fullTestMaterialId}`
+
+These rows are safe summaries only. They must not include passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
 
 ## Realtime Contract
 
@@ -125,11 +140,14 @@ These patterns are obsolete for normal Teacher Lobby material loading:
 - reading the full `/tests` table and filtering by ownership client-side
 - reading the full `/tests` table and filtering public rows client-side
 - hydrating Reading V2 canonical documents or projections just to render material cards
+- using `reading_v2/listing_indexes` as production QA proof for Reading Passage list rows
 - logging grid readiness before the loaded data scope matches the active tab
 - adding always-on console timing logs outside the gated diagnostics helper
 - treating the compact list view as a data-contract rewrite or as permission to hydrate heavier payloads
 
 Old PRD-0033 references to `useTeacherTests` using `queryOptimizer.getAllTests()` are historical extraction requirements, not current architecture.
+
+Old PRD-0052 references to `reading_v2/listing_indexes` are historical or compatibility-only unless a future migration deliberately moves production readers back to that family and updates rules/tests/browser proof.
 
 ## Live Evidence
 
@@ -157,5 +175,6 @@ Keep this path healthy with these rules:
 
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
+- `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`

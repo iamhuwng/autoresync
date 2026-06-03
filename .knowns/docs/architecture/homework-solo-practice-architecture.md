@@ -2,7 +2,7 @@
 title: Homework Solo Practice Architecture
 description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-04-08T17:36:17.507Z'
+updatedAt: '2026-06-03T00:00:00.000Z'
 tags:
   - architecture
   - homework
@@ -211,3 +211,22 @@ Why this matters:
 
 Reference:
 - @doc/architecture/mobile-ielts-reading-test-taking
+
+## 2026-06-03 Amendment - Reading V2 Homework Completion Contract
+
+Reading V2 homework has a two-store completion contract:
+
+- trusted Reading V2 submit writes/scored the namespaced Reading V2 result
+- the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`
+
+Both are required. The Reading V2 result alone is not enough for Student Homework rows, Teacher Homework Detail counts, completion-rate summaries, or homework result review entry points.
+
+Rules:
+
+- Reading Passage homework launch uses assignment-pinned `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}` payloads.
+- Reading Passage set homework composes only assignment-pinned passage snapshots.
+- submit payloads stay projection-bound and carry no browser answer keys.
+- `submitHomework(...)` receives the trusted result id plus score fields from Reading V2 submit.
+- idempotent already-submitted retry can be soft success.
+
+Detailed reference: @doc/architecture/reading-v2-material-publish-and-passage-library.

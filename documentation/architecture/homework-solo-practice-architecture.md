@@ -166,6 +166,25 @@ Required rules:
 Detailed reference:
 - `documentation/architecture/student-test-delivery-projections.md`
 
+## 2026-06-03 Amendment - Reading V2 Homework Completion Contract
+
+Reading V2 homework has a two-store completion contract:
+
+- trusted Reading V2 submit writes/scored the namespaced Reading V2 result
+- the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`
+
+Both writes are required. The trusted Reading V2 result alone is not enough for Student Homework rows, Teacher Homework Detail counts, completion-rate summaries, or homework result review entry points.
+
+Required rules:
+- Reading Passage homework launch must use assignment-pinned `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}` payloads.
+- Reading Passage set homework must compose only the assignment-pinned passage snapshots into the runtime payload.
+- submit payloads must stay projection-bound and must not carry answer keys from the browser.
+- `submitHomework(...)` receives the trusted result id plus score fields returned by the Reading V2 submit endpoint.
+- an idempotent already-submitted response can be treated as soft success when retrying a completed Reading V2 homework submission.
+
+Detailed reference:
+- `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
+
 ## 2026-05-12 Amendment - Mobile Listening Section Audio Navigation
 
 Solo and homework IELTS Listening use the same mobile section-audio navigation contract as live mobile Listening when a student actively changes section context.

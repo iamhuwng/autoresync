@@ -112,6 +112,21 @@ Studio must keep publish blocked when:
 
 This separates import success from publish readiness. A successful Auto V4 run may still be `needs_review`.
 
+## Publish Handoff
+
+Auto V4 hands an editable draft to Studio. It does not publish directly and does not get a separate material pipeline.
+
+After teacher review, validation, and publish:
+
+- full Reading V2 tests use the shared Reading V2 publish plan
+- generated Reading Passage materials are extracted from the full-test source order
+- each generated passage gets canonical material/version data, a published snapshot, student-safe/review projections, and Material Catalog summary rows
+- the master full-test material keeps ordered references to the generated passage material ids and snapshot/version ids
+
+This means normal test making, paste/import text, and Auto V4 all converge before publish. Do not add Auto V4-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexes, or student-safe projection checks.
+
+Detailed reference: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
+
 ## Current Evidence
 
 The live Clippings gold E2E for `Practice Cam 10 Reading Test 04.md` recorded:

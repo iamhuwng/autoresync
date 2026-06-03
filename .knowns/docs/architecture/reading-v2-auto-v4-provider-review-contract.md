@@ -2,7 +2,7 @@
 title: Reading V2 Auto V4 Provider Review Contract
 description: Reading V2 Auto V4 provider split, Groq self-repair loop, key inventory, Cloudflare backend boundary, and Studio review philosophy.
 createdAt: '2026-05-23T21:41:01.704Z'
-updatedAt: '2026-05-23T21:41:01.704Z'
+updatedAt: '2026-06-03T00:00:00.000Z'
 tags:
   - architecture
   - reading-v2
@@ -36,6 +36,21 @@ Local code owns source ledger, package construction, key inventory, verifier dia
 Do not turn local code into a brittle parser for every messy source format. If provider output is incomplete, feed precise coverage/verifier feedback back to Groq first. Local repair is allowed only after that and must remain source-proof bounded.
 
 A successful Auto V4 import may still be `needs_review`. Import success means an editable Studio draft exists. Publish readiness requires clean validation and no unresolved review blockers.
+
+## Publish Handoff
+
+Auto V4 hands an editable draft to Studio. It does not publish directly and does not get a separate material pipeline.
+
+After teacher review, validation, and publish:
+
+- full Reading V2 tests use the shared Reading V2 publish plan
+- generated Reading Passage materials are extracted from full-test source order
+- each generated passage gets canonical material/version data, a published snapshot, student-safe/review projections, and Material Catalog summary rows
+- the master full-test material keeps ordered passage material/snapshot refs
+
+Do not add Auto V4-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexes, or student-safe projection checks.
+
+Detailed reference: @doc/architecture/reading-v2-material-publish-and-passage-library.
 
 ## Key Inventory
 

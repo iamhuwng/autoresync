@@ -12,6 +12,8 @@ Audited `HEAD`: `d0981111d6c05c5dd03863a10a59d6efe7bc5012`
 
 ## Verdict
 
+2026-06-03 status note: this audit is historical gap-finding evidence. Later gap-closure work selected `material_catalog/material_indexes` as the production Teacher Materials summary index family, marked `reading_v2/listing_indexes` compatibility-only for PRD-0052 QA, added architecture docs, and live-verified one Reading V2 full-test publish into generated Reading Passage rows plus single-passage homework/runtime/result review. Keep unresolved items here only when they are not superseded by the gap-closure evidence log.
+
 PRD-0052 is not faithfully actualised.
 
 The implementation is a large scaffold with partial real data plumbing. It contains useful foundations: types, routes, services, UI shells, tests, rules, Reading Passage homework payloads, Book metadata, Book tree services, and visual evidence. But the product PRD aimed for a usable Teacher Materials workflow. Current state still has dead feature gates, fixture-backed proof, no-op actions, incomplete governance, misleading controls, route exposure drift, weak availability checks, and at least one local-main regression.
@@ -829,7 +831,7 @@ Impact:
 
 Required fix:
 
-- Add complete RTDB rules for `material_catalog/material_indexes`, or move these readers/writers to the intended `reading_v2/listing_indexes` path and update code/docs/tests consistently.
+- 2026-06-03 selected direction: add complete RTDB rules and writers for `material_catalog/material_indexes`. Do not move these readers/writers to `reading_v2/listing_indexes`; that path is obsolete/compatibility-only for PRD-0052 QA unless a future migration rewires readers, writers, rules, tests, and browser proof.
 - Preserve no-private-leak behavior for public Books through validation and rule checks.
 
 ### P2 - Verification Gaps Are Real, Not Administrative

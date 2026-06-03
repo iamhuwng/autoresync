@@ -210,6 +210,14 @@ Publish must:
 5. Update material/package metadata and indexes used by existing platform surfaces.
 6. Return control to the existing Teacher Lobby, Material Profile, or Studio route context.
 
+PRD-0052 material publish amendment:
+
+- normal Studio creation, paste/import, and Auto V4 all converge before publish and share this same publish step
+- publishing a full Reading V2 test creates a master full-test material plus generated Reading Passage materials
+- the master full test stores ordered refs to generated passage material ids and snapshot/version ids
+- each generated Reading Passage writes a canonical published snapshot, student-safe/review projections, metadata, and `material_catalog/material_indexes` summary rows
+- `reading_v2/listing_indexes` is not the PRD-0052 production listing proof path
+
 Publish must not:
 
 - mutate an older published snapshot in place
@@ -284,11 +292,13 @@ Do not:
 - let Teacher Lobby mutate canonical draft content directly
 - let public library, homework, course, live session, or result surfaces read canonical drafts
 - make metadata edits silently mutate historical results
+- add Auto V4-only or paste-import-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexing, or student-safe projection checks
 
 ---
 
 ## 9. Related Docs
 
+- `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 - `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`
 - `documentation/tasks/PRD0048/reading-v2-feature-pipeline-matrix.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`

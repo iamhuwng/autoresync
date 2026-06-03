@@ -265,7 +265,56 @@
 ## Remaining Blockers
 
 - Full PRD-0052 is not complete. This pass closes selected P0/P1 gaps, not every phase in the closure tasklist.
-- Browser QA for the public Book admin approval workflow and another-teacher public Book list/detail now has live post-deploy proof. Reading Passage tab/list empty-state also has live post-deploy proof. Clippings-based Reading V2 import/publish planning now proves that a full test can stage standalone Reading Passage entities and composition refs without DB mutation. Broader PRD-0052 Reading Passage homework/runtime/result browser E2E remains open because no live Reading Passage rows have been created in RTDB yet.
+- Browser QA for the public Book admin approval workflow and another-teacher public Book list/detail now has live post-deploy proof. Reading Passage tab/list empty-state also has live post-deploy proof. Clippings-based Reading V2 import/publish planning now has live browser/RTDB proof for one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student launch/submit, and teacher result review. Bulk Reading Passage homework, create-full-test-from-selected UI recovery, emulator-backed rules proof, and full PRD-0052 completion remain open.
 - Emulator-backed RTDB proof remains blocked because Java is still missing from PATH.
-- Live-approved backfill execution, atomic repair utilities, and end-to-end student homework/runtime verification remain open.
+- Live-approved backfill execution, atomic repair utilities, bulk/set homework runtime proof, and create-full-test-from-selected browser recovery proof remain open.
 - Full `tsc` cannot be used as a passing gate until repo-wide TypeScript debt is addressed or a scoped typecheck target exists.
+
+## 2026-06-03 Live Reading V2 Publish, Passage Rows, Homework, And Result Review
+
+- Dev ports
+  - Admin: `http://localhost:5173`
+  - Teacher: `http://localhost:5174`
+  - Teacher server used process env feature flags only; `.env` was not edited.
+- Live source
+  - Read-only external source: `C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md`
+- Published full test
+  - Material ID: `studio-material-mpxjmklq`
+  - Snapshot: `snapshot-studio-material-mpxjmklq-mpxjnrwq`
+  - Title: `PRD0052 QA Reading V2 Full Test 2026-06-03`
+- Browser import/publish result
+  - Auto V4 parsed 3 passages, 8 task groups, 40 questions, and 40 answer values.
+  - Studio validation showed clear status before publish.
+  - Publish succeeded after the publish pipeline wrote canonical per-passage snapshots for generated Reading Passage materials.
+- RTDB path proof
+  - `material_catalog/material_indexes/by_source_full_test/studio-material-mpxjmklq` returned 3 generated passage rows.
+  - `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}` existed for all 3 generated passage ids.
+  - `reading_v2/projections/student_safe_tests/{passageMaterialId}:{snapshotVersionId}` existed for all 3 generated passage ids.
+  - Leak check for `acceptableAnswers`, `scoringRule`, `importEvidence`, `teacherAdminProvenance`, and `hiddenProvenance` returned false for list and student-safe paths.
+- Teacher Materials UI proof
+  - Teacher `Reading Passage > Private` showed 3 generated rows from the full test.
+  - Rows showed ranges `1-13`, `14-26`, and `27-40`.
+- Assignment/runtime/result proof
+  - Assigned `studio-material-mpxjmklq-passage-1` as homework `on5vF6XUxIOwzXRpr0fk`.
+  - Student `student@test.com` launched the assigned Reading Passage from homework and submitted 13 answers.
+  - Trusted Reading V2 submit returned a scored result and `StudentPracticePage.tsx` completed the linked `homework_submissions` row through `submitHomework(...)`.
+  - Student Homework changed to `SUBMITTED`, score `100%`.
+  - Teacher Homework Detail showed 1 assigned, 1 submitted, completion 100%, average score 100%.
+  - Teacher result review loaded Reading V2 review details at 100%, 13/13, band 10.0.
+- Root causes fixed
+  - Publish/runtime root cause: generated passage materials lacked canonical `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}` rows. Worker submit expected that canonical snapshot.
+  - Homework lifecycle root cause: trusted Reading V2 submit wrote the Reading V2 result but did not complete Firestore `homework_submissions`, so homework UI stayed `in_progress`.
+- Caveats
+  - This is single Reading Passage homework proof, not bulk Reading Passage set proof.
+  - One pre-fix Reading V2 result exists from the first submit attempt before the homework-completion bridge fix.
+  - Emulator-backed rules proof remains blocked by missing Java.
+  - Full repo `tsc` still has unrelated baseline debt.
+- Verification after code/doc updates
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2RuntimeSubmission.service.test.ts src/pages/StudentPracticePage.test.tsx --reporter=basic`
+  - Result: PASS, 2 files / 11 tests.
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2PublishPipeline.service.test.ts src/services/reading-v2/readingV2Backfill.service.test.ts src/services/reading-v2/readingV2RuntimeSubmission.service.test.ts src/pages/StudentPracticePage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic`
+  - Result: PASS, 7 files / 38 passed / 5 skipped.
+  - `cmd /c npm run check:utf8 -- src/services/reading-v2/readingV2RuntimeSubmission.service.ts src/pages/StudentPracticePage.tsx src/pages/StudentPracticePage.test.tsx src/services/reading-v2/readingV2RuntimeSubmission.service.test.ts src/services/reading-v2/readingV2PublishPipeline.service.ts src/services/reading-v2/readingV2PublishPipeline.service.test.ts src/services/reading-v2/readingV2Backfill.service.ts src/services/reading-v2/readingV2Backfill.service.test.ts`
+  - Result: PASS, UTF-8 check passed for 8 text files.
+  - `git diff --check`
+  - Result: PASS except Git warning that `firestore.rules` LF will be replaced by CRLF if touched.

@@ -9,6 +9,13 @@ Tasklist: `documentation/tasks/tasks-0052-prd-teacher-materials-books-and-readin
 
 No PRD-0052 code task is complete until its row below has code coverage, automated test coverage, or an explicit out-of-scope note tied to V1 non-goals.
 
+## 2026-06-03 Evidence Addendum
+
+- Reading Passage publish proof now includes live browser/RTDB evidence, not only fixture or in-memory publish planning: full-test material `studio-material-mpxjmklq` produced 3 generated Reading Passage rows, per-passage canonical published snapshots, student-safe projections, and no list/student-safe answer-key/provenance leaks.
+- Single Reading Passage homework proof now includes live student launch/submit and teacher result review. The submit flow also completes Firestore `homework_submissions` after trusted Reading V2 scoring.
+- Remaining coverage caveats: bulk Reading Passage set homework, create-full-test-from-selected browser recovery, and emulator-backed RTDB rules proof remain open.
+- Production listing proof uses `material_catalog/material_indexes`; `reading_v2/listing_indexes` is compatibility-only for PRD-0052 QA.
+
 ## Functional Requirements
 
 | PRD IDs | Task IDs | Planned proof |

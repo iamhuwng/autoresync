@@ -18,6 +18,8 @@ My first verification imported too little from the assessment. The assessment al
 
 The pasted assessment is still not fully clean. It correctly downgrades the earlier Drafts-tab finding as a likely false positive, but it repeats or implies one wrong Book finding: the Book material picker is not public-only. It reads both owner and public material indexes. The real issue is worse and different: those `material_catalog/material_indexes` paths have no child rules in `database.rules.json`, so parent `material_catalog` super-admin-only rules can deny teacher reads/writes.
 
+2026-06-03 resolution note: Option B was selected. PRD-0052 keeps `material_catalog/material_indexes` as the production Reading Passage and Book material-summary index family. `reading_v2/listing_indexes` is obsolete/compatibility-only for QA proof unless a future migration explicitly rewires readers, rules, tests, and browser evidence. Local rules/tests and live browser proof now cover the Material Catalog path for Reading Passage rows.
+
 ## What To Take In
 
 ### P0 - Reading Passage producer is disconnected from production publish
@@ -40,6 +42,8 @@ Impact:
 
 Verdict: new finding from verification. Take in.
 
+2026-06-03 resolution: closed for the live Reading V2 publish/list/assign slice by keeping `material_catalog/material_indexes` as the production index family, adding the needed rules/writers, and live-verifying generated Reading Passage rows. Do not revive `reading_v2/listing_indexes` as the replacement path without a new migration plan.
+
 Evidence:
 
 - `src/services/reading-v2/readingV2PassageLibrary.service.ts:101-131` reads `material_catalog/material_indexes/by_owner/{teacherId}` or `material_catalog/material_indexes/by_visibility/public`.
@@ -57,6 +61,8 @@ Impact:
 ### P1 - Tasklist path contract and implementation path drift
 
 Verdict: confirmed. Take in.
+
+2026-06-03 resolution: the tasklist and architecture docs were amended. `reading_v2/listing_indexes` is compatibility-only for PRD-0052 QA; production Teacher Materials summaries use `material_catalog/material_indexes`.
 
 Evidence:
 
@@ -227,6 +233,8 @@ Impact:
 
 Verdict: partially confirmed. Take in for review, but severity depends on intended public-review policy.
 
+2026-06-03 note: `reading_v2/listing_indexes` is obsolete for PRD-0052 production proof, so this leakage concern applies only if that path is repopulated or reintroduced by a future migration. Public-review Book metadata policy remains separate.
+
 Evidence:
 
 - `database.rules.json:301` lets any teacher read Books whose visibility is `public-library-pending-review`, `public-library-published`, or `public-library-rejected`.
@@ -285,7 +293,7 @@ Correct replacement finding:
 - The picker scope is not public-only.
 - The real defect is rules/path mismatch: both owner and public reads target `material_catalog/material_indexes`, which lacks RTDB child rules.
 
-### Reading Passage list reads `reading_v2/listing_indexes`
+### Historical Claim: Reading Passage list reads `reading_v2/listing_indexes`
 
 Verdict: false for current production reader.
 
@@ -347,16 +355,16 @@ This second pass found information my first verification underweighted:
 
 ## What To Inspect Further
 
-1. RTDB rules emulator or live probe for exact actual paths:
+1. RTDB rules emulator or live probe for exact actual paths. 2026-06-03 live proof covered the generated Reading Passage path for the current slice; emulator coverage remains useful:
    - `material_catalog/material_indexes/by_owner/{teacherId}`
    - `material_catalog/material_indexes/by_visibility/public`
    - `material_catalog/material_indexes/by_material_kind/reading-passage`
    - `material_catalog/material_indexes/by_test_type/{testTypeId}`
    - `material_catalog/material_indexes/by_source_full_test/{fullTestId}`
-2. Decide one canonical listing index family:
+2. Decide one canonical listing index family. Closed on 2026-06-03 for PRD-0052:
    - Option A: move Reading Passage listing to `reading_v2/listing_indexes` and remove/limit Material Catalog usage.
-   - Option B: keep shared `material_catalog/material_indexes` and add complete rules/docs/tests for it.
-3. Wire `readingPassageExtraction` into real Reading V2 Studio publish/import flow.
+   - Option B: keep shared `material_catalog/material_indexes` and add complete rules/docs/tests for it. Selected on 2026-06-03; see `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
+3. Wire generated passage publish into real Reading V2 Studio publish/import flow. Closed for one live full-test publish on 2026-06-03; broader create-from-selected and bulk flows remain open.
 4. Gate tabs, routes, and actions from the PRD-0052 feature flags.
 5. Wire live admin Test Type config into Teacher Lobby and Book/Reading Passage summaries.
 6. Replace Reading Passage scaffold actions with real workflows:

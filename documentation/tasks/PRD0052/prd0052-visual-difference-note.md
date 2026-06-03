@@ -53,14 +53,16 @@ Dev URL: `http://127.0.0.1:5173/lobby`
 - Missing default Test Type logo assets were added because the browser showed broken image icons and visible alt text.
 - Added a regression test in `testTypeConfig.service.test.ts` so default Test Type logo paths must resolve to local shipped files.
 
-## Remote RTDB Caveat
+## Historical Remote RTDB Caveat
 
-- Reading Passage and Book tab bodies were visually verified with a dev-only fixture because live RTDB returned `Permission denied` for the new PRD-0052 listing paths.
+- This section is historical fixture evidence from 2026-06-02. Later live RTDB rule deployments and browser QA superseded the Reading Passage/Book permission caveat for the specific paths noted in the gap-closure evidence log.
+- Reading Passage and Book tab bodies were initially visually verified with a dev-only fixture because live RTDB returned `Permission denied` for the new PRD-0052 listing paths.
 - Direct browser probes also returned `Permission denied` for:
   - `material_catalog/test_types`
   - `material_catalog/book_indexes/by_owner/glMHCrzMnyS6AqFcb9I0nlOqQ6X2`
-  - `reading_v2/listing_indexes/reading_passage_private/glMHCrzMnyS6AqFcb9I0nlOqQ6X2`
-  - `reading_v2/listing_indexes/reading_passage_public`
+  - stale pre-closure `reading_v2/listing_indexes/reading_passage_private/*`
+  - stale pre-closure `reading_v2/listing_indexes/reading_passage_public`
+- Current production Reading Passage list proof must target `material_catalog/material_indexes`, not `reading_v2/listing_indexes`.
 - Local Firebase Database emulator startup was attempted for remote-free RTDB proof, but it failed because Java is not installed or not on PATH: `Error: Could not spawn java -version. Please make sure Java is installed and on your system PATH.`
 
 ## Difference Status
@@ -68,4 +70,4 @@ Dev URL: `http://127.0.0.1:5173/lobby`
 - Fixed: default Test Type logos now render as image assets instead of broken images/alt text.
 - Fixed: `375px` horizontal overflow in normal list rows.
 - Closed for local visual QA: Book grid and Reading Passage list-row body layout were verified against the current app using the dev-only fixture flag and current production components/CSS.
-- Still a deployment/data follow-up: local rule files and security-rule tests cover the paths, but the current remote database rules used by the browser session do not yet allow the new reads. Re-run without fixture after deploying/emulating PRD-0052 RTDB rules/data.
+- Superseded: later PRD-0052 evidence records live post-deploy Book public projection proof and live Reading Passage proof through `material_catalog/material_indexes`, including real full-test publish to generated Reading Passage rows. Keep this file as visual-layout evidence only, not as current data-plane status.

@@ -6,7 +6,8 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 ## Summary
 
 - Local implementation and tests cover PRD-0052 Books, Reading Passage library, Test Type config, homework launch/submit, result review, rules, diagnostics, backfill planning, and visual shell behavior.
-- Section 20 local visual QA is complete. Book grid and Reading Passage row body checks were verified with a dev-only fixture flag because the current remote RTDB denies the new PRD-0052 paths. This caveat is documented in `prd0052-visual-difference-note.md`.
+- Section 20 local visual QA is complete. Historical fixture-only Reading Passage/Book body proof has been superseded by later live RTDB/browser proof for public Book projection browsing and one Reading V2 full-test publish into generated Reading Passage rows. `prd0052-visual-difference-note.md` remains visual-layout evidence, not current data-plane status.
+- 2026-06-03 live Reading Passage proof covers one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student submit, and teacher result review. It does not close bulk Reading Passage homework, create-full-test-from-selected browser recovery, emulator-backed rule proof, or full PRD-0052 completion.
 - No whole-Book assignment was added.
 - No direct blank/manual Reading Passage creation was added.
 
@@ -29,7 +30,7 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 | 21.13 students cannot read Book organizers | PASS | `database.rules.json`, `materialCatalogFirebaseRules.test.ts` |
 | 21.14 student-safe projections exclude sensitive fields | PASS | `readingV2Projection.service.test.ts`, `readingV2VerticalLoop.integration.test.tsx`, `readingV2SubmitCore.test.ts` |
 | 21.15 list queries use indexes/targeted reads | PASS | `useTeacherTests`, `readingV2PassageLibrary.service.ts`, `materialBooks.service.ts`, storage/index tests |
-| 21.16 commands/screenshots recorded | PASS_WITH_REMOTE_RTDB_CAVEAT | `prd0052-implementation-notes.md`, `output/playwright/prd0052-implementation/`, `prd0052-visual-difference-note.md` |
+| 21.16 commands/screenshots recorded | PASS_WITH_CAVEAT | `prd0052-implementation-notes.md`, `prd0052-gap-closure-evidence-2026-06-02.md`, `prd0052-visual-difference-note.md`; Java/emulator caveat remains |
 | 21.17 tab switching preserves search and active Test Type | PASS | `TeacherLobbyPage.test.jsx` |
 | 21.18 Drafts inactive does not load | PASS | `TeacherLobbyPage.jsx` gates `useTeacherDrafts` with `enabled: contentFilter === 'drafts'` |
 | 21.19 source order numeric/label/unknown | PASS | `readingV2PassageExtraction.service.ts`, `readingV2MaterialMetadata.service.ts`, tests |
@@ -59,6 +60,7 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 
 ## Open Follow-Up Items
 
-1. Deploy or emulate the PRD-0052 RTDB rules/data, then re-run Book and Reading Passage browser QA without `VITE_PRD0052_TEACHER_MATERIALS_VISUAL_FIXTURES`.
-2. Re-capture Book tab with actual Book card data and Reading Passage tab with actual list-row data.
-3. Install Java or provide an emulator-capable environment if local RTDB emulator proof is preferred over remote deployment.
+1. Run bulk Reading Passage set homework browser QA.
+2. Run `Create full test from selected Reading Passages` browser QA through created full-test recovery/open flow.
+3. Install Java or provide an emulator-capable environment for RTDB emulator proof, or continue with explicit live-deploy proof where approved.
+4. Keep broad repo `tsc` debt separate from PRD-0052 touched-file proof until a scoped typecheck target exists.

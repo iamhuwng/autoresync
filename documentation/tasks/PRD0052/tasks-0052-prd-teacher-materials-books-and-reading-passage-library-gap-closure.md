@@ -166,7 +166,8 @@ Rules and verification:
 ## Phase 1 - Canonical Data Plane And Index Rules
 
 - [ ] Record the index-family decision before code edits. Default decision: use `material_catalog/material_indexes` as the canonical Teacher Materials lightweight listing index because current Reading Passage library and Book picker already use it.
-- [ ] Remove production reliance on unused `reading_v2/listing_indexes`, or document it as a deprecated/internal compatibility path with no QA proof value.
+- [x] Remove production reliance on unused `reading_v2/listing_indexes`, or document it as a deprecated/internal compatibility path with no QA proof value.
+  - 2026-06-03 update: production Reading Passage list and Book material-picker proof uses `material_catalog/material_indexes`. `documentation/architecture/reading-v2-material-publish-and-passage-library.md` and `documentation/architecture/teacher-materials-listing-and-diagnostics.md` now mark `reading_v2/listing_indexes` as obsolete/compatibility-only for PRD-0052 QA.
 - [ ] Align `materialCatalogPaths.ts`, `materialCatalogIndexes.service.ts`, `readingV2StoragePaths.service.ts`, Reading Passage writers, Reading Passage readers, Book picker readers, tests, and docs to one canonical listing-index contract.
 - [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_owner/{teacherId}/{materialId}`.
 - [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_visibility/public/{materialId}`.
@@ -176,7 +177,7 @@ Rules and verification:
 - [ ] Ensure index rows cannot expose answer keys, draft payloads, import evidence, hidden provenance, or canonical Reading V2 draft content.
 - [ ] Ensure index writes validate `ownerId`, `visibility`, `kind`, `publicationState`, title fields, Test Type ids, source labels, and safe summary fields.
 - [ ] Add rule tests proving owner teacher read/write, other teacher denial for private rows, teacher read of public rows, student denial, unauthenticated denial, and malformed row denial.
-- [ ] Update existing tests that currently prove the wrong `reading_v2/listing_indexes` path so they target the production path used by the UI.
+- [x] Update existing tests that currently prove the wrong `reading_v2/listing_indexes` path so they target the production path used by the UI.
 - [ ] Add one integration test that writes a Reading Passage summary index and proves the Teacher Lobby Reading Passage reader can load it through the same path.
 - [ ] Add one integration test that writes a published material summary index and proves the Book material picker can load it through the same path.
 
@@ -214,13 +215,13 @@ Rules and verification:
 
 - [ ] Wire `readingV2PassageExtraction.service.ts` into the real Reading V2 Studio publish flow in `readingV2StudioWorkflow.service.ts`.
 - [ ] Wire `readingV2PassageExtraction.service.ts` into the real import/publish path in `readingV2PublishPipeline.service.ts`.
-- [ ] Ensure every published Reading V2 full test creates standalone Reading Passage entities for each passage.
-- [ ] Ensure each generated Reading Passage stores canonical passage content, question/task groups, answer rules, scoring rules, source metadata, Test Type ids, version metadata, owner, visibility, and publication state.
-- [ ] Ensure each generated Reading Passage also stores a student-safe projection with no answer key, hidden provenance, import evidence, or draft-only payload.
-- [ ] Ensure each generated Reading Passage writes a safe Teacher Materials summary index row under the canonical `material_catalog/material_indexes` path.
-- [ ] Ensure each generated Reading Passage writes relationship data needed by the full-test composition, without exposing unsafe metadata to students.
-- [ ] Ensure the full Reading V2 test stores ordered references to generated Reading Passage entity ids and versions.
-- [ ] Ensure source order display preserves original order and configured label for IELTS and non-IELTS Test Types.
+- [x] Ensure every published Reading V2 full test creates standalone Reading Passage entities for each passage.
+- [x] Ensure each generated Reading Passage stores canonical passage content, question/task groups, answer rules, scoring rules, source metadata, Test Type ids, version metadata, owner, visibility, and publication state.
+- [x] Ensure each generated Reading Passage also stores a student-safe projection with no answer key, hidden provenance, import evidence, or draft-only payload.
+- [x] Ensure each generated Reading Passage writes a safe Teacher Materials summary index row under the canonical `material_catalog/material_indexes` path.
+- [x] Ensure each generated Reading Passage writes relationship data needed by the full-test composition, without exposing unsafe metadata to students.
+- [x] Ensure the full Reading V2 test stores ordered references to generated Reading Passage entity ids and versions.
+- [x] Ensure source order display preserves original order and configured label for IELTS and non-IELTS Test Types.
 - [ ] Preserve the PRD rule that no direct blank/manual `Create Reading Passage` CTA exists in V1.
 - [ ] Add publish-flow tests proving a normal Studio publish creates Reading Passage entities and ordered composition refs.
 - [ ] Add import-flow tests proving imported full tests create Reading Passage entities and ordered composition refs.
@@ -228,7 +229,8 @@ Rules and verification:
 - [ ] Add tests proving publish failure rolls back or leaves no half-created passage/index/composition state.
   - 2026-06-03 update: read-only Clippings proof used `C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md`. Live Auto V4 import parsed 3 passages / 40 questions. First run found a real answer-key merge bug where local/source and provider-copied equivalent rows with slash-spacing differences became duplicate publish blockers. `readingV2AutoImport.service.ts` now dedupes equivalent rows by question id plus slash-normalized answer text, with a RED-first test in `readingV2AutoImport.service.test.ts`.
   - 2026-06-03 update: after the fix, live Auto V4 import returned 3 passages, 40 questions, 40 answer values, no missing/extra questions, no missing/mismatched answer values, no silent question loss, and no publish blockers. It still returns `needs_review` because source-coverage diagnostics require teacher review.
-  - 2026-06-03 update: a temporary no-DB in-memory publish probe fed that Clippings full-test candidate into `publishReadingV2Material` with `materialKind: full-test`. Output staged 3 Reading Passage entities, 3 ordered composition refs, and write kinds for Reading Passage material/version/student-safe projection/review projection/metadata/listing indexes plus full-test composition/version. Browser creation and live RTDB row proof remain open.
+  - 2026-06-03 update: a temporary no-DB in-memory publish probe fed that Clippings full-test candidate into `publishReadingV2Material` with `materialKind: full-test`. Output staged 3 Reading Passage entities, 3 ordered composition refs, and write kinds for Reading Passage material/version/student-safe projection/review projection/metadata/listing indexes plus full-test composition/version. This was later superseded by live browser publish/RTDB proof.
+  - 2026-06-03 update: live browser publish of `PRD0052 QA Reading V2 Full Test 2026-06-03` succeeded after the publish-plan fix. RTDB verified 3 generated Reading Passage rows under `material_catalog/material_indexes/by_source_full_test/studio-material-mpxjmklq`, 3 canonical passage `reading_v2/published_snapshots/*`, and 3 `reading_v2/projections/student_safe_tests/*` rows. Leak check for answer-key/provenance strings across list and student-safe paths returned false.
 
 ## Phase 5 - Operational Backfill
 
@@ -318,11 +320,12 @@ Rules and verification:
 
 ## Phase 10 - Homework, Student Runtime, And Teacher Review
 
-- [ ] Verify single Reading Passage homework assignment uses the real homework modal and persists a homework record with versioned Reading Passage references.
+- [x] Verify single Reading Passage homework assignment uses the real homework modal and persists a homework record with versioned Reading Passage references.
 - [ ] Verify bulk Reading Passage homework assignment persists one combined homework set, not separate unrelated homework records.
-- [ ] Verify assigned Reading Passage homework launches in student runtime from a student-safe projection only.
-- [ ] Verify student submission writes through the Reading V2 submit path without exposing answer keys.
-- [ ] Verify teacher result/review can load Reading Passage homework submissions.
+- [x] Verify assigned Reading Passage homework launches in student runtime from a student-safe projection only.
+- [x] Verify student submission writes through the Reading V2 submit path without exposing answer keys.
+- [x] Verify teacher result/review can load Reading Passage homework submissions.
+  - 2026-06-03 update: live QA assigned `studio-material-mpxjmklq-passage-1` as homework `on5vF6XUxIOwzXRpr0fk`, launched as `student@test.com`, submitted 13/13 through trusted Reading V2 submit, completed `homework_submissions`, and loaded teacher Homework Detail/result review at 100%, 13/13, band 10.0.
 - [ ] Verify existing full Reading V2 tests still launch, submit, and review after Reading Passage extraction and composition ref changes.
 - [ ] Verify homework history/detail pages show Reading Passage title, source label, Test Type, and assignment state.
 - [ ] Verify unavailable or unpublished Reading Passage versions cannot be assigned.
@@ -367,11 +370,11 @@ Rules and verification:
 - [x] Run targeted homework/runtime tests for Reading Passage assignment, student launch, submission, and teacher review.
   - 2026-06-03 update: `cmd /c npx vitest run src/components/homework/HomeworkCreateModal.test.tsx src/services/homeworkManager.test.ts src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/pages/StudentPracticePage.test.tsx src/pages/StudentHomeworkListPage.test.tsx src/pages/StudentHomeworkDetailPage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx src/pages/TeacherLobbyPage.test.jsx src/__tests__/security/materialCatalogFirebaseRules.test.ts --reporter=basic` passed, 12 files / 103 tests.
 - [ ] Run RTDB and Firestore rule tests for all PRD-0052 production paths.
-- [ ] Run browser QA with dev quick-login for Teacher.
-- [ ] Run browser QA with dev quick-login for Student.
-- [ ] In browser QA, create or publish a Reading V2 full test and verify Reading Passage rows appear without fixture mode.
-  - 2026-06-03 update: service-level Clippings proof now confirms Reading V2 full-test import plus publish planning can stage Reading Passage rows and full-test composition refs without fixture mode, but this is not yet browser QA and did not mutate live RTDB.
-- [ ] In browser QA, assign one Reading Passage and complete it as Student.
+- [x] Run browser QA with dev quick-login for Teacher.
+- [x] Run browser QA with dev quick-login for Student.
+- [x] In browser QA, create or publish a Reading V2 full test and verify Reading Passage rows appear without fixture mode.
+  - 2026-06-03 update: live browser proof published a real Auto V4 full-test draft from the Clippings source, then Teacher `Reading Passage > Private` showed 3 generated passage rows without fixture mode.
+- [x] In browser QA, assign one Reading Passage and complete it as Student.
 - [ ] In browser QA, bulk assign selected Reading Passages and verify Student runtime.
 - [ ] In browser QA, create a full test from selected Reading Passages and open the resulting full test workflow.
 - [ ] In browser QA, create a Book, edit metadata, build a nested tree, add published refs, assign an individual ref, request public review, approve as admin, and browse the public-safe Book detail as another teacher.

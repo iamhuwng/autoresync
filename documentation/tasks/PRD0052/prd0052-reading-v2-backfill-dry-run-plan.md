@@ -60,6 +60,7 @@ For each `split-ready` source, the write plan proposes:
 
 - Reading Passage canonical material.
 - Reading Passage material version with source document slice.
+- Reading Passage canonical published snapshot at `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}`.
 - Student-safe projection.
 - Review projection.
 - Reading V2 material metadata.
@@ -102,3 +103,9 @@ cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm r
 Current smoke caveat:
 
 - 2026-06-02 dry-run smoke did not mutate data and produced `total=0`, `skipped=3`, `mutation=not-run` because Firebase CLI reads for `reading_v2/material_metadata`, `reading_v2/published_snapshots`, and `reading_v2/full_test_compositions` returned permission failures in this environment.
+
+2026-06-03 update:
+
+- The backfill write plan now mirrors the live publish contract by writing canonical per-passage `published_snapshots` before student launch/submit can depend on generated Reading Passage rows.
+- Live browser QA proved the root risk: Material Catalog summary rows and student-safe projections are not enough; the trusted Reading V2 submit path also expects `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}`.
+- Any approved mutation review must confirm each planned generated passage has all three of these rows: Material Catalog summary, canonical published snapshot, and student-safe projection.
