@@ -23,6 +23,31 @@
   border-style: dashed;
 }
 
+.material-list-row--selectable {
+  cursor: pointer;
+}
+
+.material-list-row--selectable:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.material-list-row--selectable:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.26);
+  outline-offset: 2px;
+}
+
+.material-list-row--selectable.is-selected {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(238, 242, 255, 0.86);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.16);
+}
+
+.material-list-row--selectable.is-selected .material-list-row__accent {
+  width: 7px;
+  background: #4f46e5;
+}
+
 .material-list-row__accent {
   width: 5px;
   height: 100%;
@@ -36,26 +61,6 @@
 .material-list-row--peach .material-list-row__accent { background: #f97316; }
 .material-list-row--indigo .material-list-row__accent { background: #6366f1; }
 .material-list-row--incomplete .material-list-row__accent { background: #94a3b8; }
-
-.material-list-row__select-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
-.material-list-row__checkbox {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: #7c3aed;
-  cursor: pointer;
-}
-
-.material-list-row__checkbox:focus-visible {
-  outline: 3px solid rgba(99, 102, 241, 0.25);
-  outline-offset: 2px;
-}
 
 .material-list-row__icon-tile {
   display: inline-flex;
@@ -267,21 +272,15 @@
     align-self: stretch;
   }
 
-  .material-list-row__select-slot {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 36px;
-  }
-
   .material-list-row__icon-tile {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     width: 36px;
     height: 36px;
   }
 
   .material-list-row__material {
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 1;
   }
 
@@ -291,19 +290,19 @@
   }
 
   .material-list-row__metric {
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 2;
     white-space: normal;
   }
 
   .material-list-row__updated {
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 3;
     white-space: normal;
   }
 
   .material-list-row__actions {
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 4;
     grid-template-columns: repeat(auto-fit, var(--material-action-button-size));
     justify-content: flex-start;

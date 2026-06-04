@@ -32,8 +32,37 @@ const ROW_ICONS = {
   test: FileIcon,
 };
 
+const isInteractiveTarget = (target) => Boolean(target?.closest?.(
+  'button, a, input, select, textarea, [role="button"], [data-row-action]',
+));
+
 const MaterialListRow = ({ row }) => {
   const RowIcon = ROW_ICONS[row.iconKind] || FileIcon;
+  const canSelect = Boolean(row.selection && !row.selection.disabled);
+  const isSelected = Boolean(row.selection?.checked);
+
+  const toggleSelection = () => {
+    if (canSelect) {
+      row.selection?.onChange?.();
+    }
+  };
+
+  const handleRowClick = (event) => {
+    if (!canSelect || isInteractiveTarget(event.target)) {
+      return;
+    }
+    toggleSelection();
+  };
+
+  const handleRowKeyDown = (event) => {
+    if (!canSelect || event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleSelection();
+    }
+  };
 
   const renderActionButton = (item) => {
     const ActionIcon = ICONS[item.iconKind] || null;
@@ -41,6 +70,7 @@ const MaterialListRow = ({ row }) => {
       <button
         key={item.key}
         type="button"
+        data-row-action="true"
         className={`material-list-row__action material-list-row__action--${item.variant || 'secondary'}`}
         style={{ gridColumn: item.slot || 'auto' }}
         aria-label={item.label}
@@ -59,20 +89,21 @@ const MaterialListRow = ({ row }) => {
   };
 
   return (
-    <div className={`material-list-row material-list-row--${row.accentKind || 'lavender'}`} data-testid={`material-list-row-${row.id}`}>
+    <div
+      className={[
+        'material-list-row',
+        `material-list-row--${row.accentKind || 'lavender'}`,
+        row.selection ? 'material-list-row--selectable' : '',
+        isSelected ? 'is-selected' : '',
+      ].filter(Boolean).join(' ')}
+      data-testid={`material-list-row-${row.id}`}
+      aria-label={row.selection?.label}
+      aria-selected={row.selection ? isSelected : undefined}
+      tabIndex={canSelect ? 0 : undefined}
+      onClick={handleRowClick}
+      onKeyDown={handleRowKeyDown}
+    >
       <div className="material-list-row__accent" aria-hidden="true" />
-      <div className="material-list-row__select-slot">
-        {row.selection && (
-          <input
-            type="checkbox"
-            className="material-list-row__checkbox"
-            aria-label={row.selection.label}
-            checked={row.selection.checked}
-            disabled={row.selection.disabled}
-            onChange={() => row.selection.onChange?.()}
-          />
-        )}
-      </div>
       <div className="material-list-row__icon-tile" aria-hidden="true">
         <RowIcon size={20} />
       </div>

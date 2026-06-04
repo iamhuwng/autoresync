@@ -53,6 +53,8 @@ interface MetadataFormState {
   readonly testTypeIds: string;
 }
 
+type BookEditorTab = 'overview' | 'contents' | 'assign' | 'settings';
+
 type AssignmentRequest =
   | {
       readonly kind: 'reading-passage';
@@ -74,8 +76,19 @@ type MaterialIndexRow = {
   readonly publishedSnapshotVersionId?: string;
 };
 
+type MaterialRefPlacement = {
+  readonly node: MaterialBookNode;
+  readonly ref: MaterialBookMaterialRef;
+};
+
 const SUPPORTED_BOOK_PICKER_KINDS = new Set(['full-test', 'reading-passage', 'thcs-thpt-test']);
 const EMPTY_BOOK_NODES: readonly MaterialBookNode[] = [];
+const BOOK_EDITOR_TABS: readonly { readonly id: BookEditorTab; readonly label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'contents', label: 'Contents' },
+  { id: 'assign', label: 'Assign' },
+  { id: 'settings', label: 'Settings' },
+];
 
 const emptyForm: MetadataFormState = {
   title: '',
@@ -190,6 +203,21 @@ const rowToSummary = (row: MaterialIndexRow): BookMaterialSummary => ({
   publishedSnapshotVersionId: row.publishedSnapshotVersionId,
 });
 
+const formatMaterialKind = (kind: string): string =>
+  kind
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const collectMaterialRefPlacements = (bookNodes: readonly MaterialBookNode[]): MaterialRefPlacement[] =>
+  [...bookNodes]
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title))
+    .flatMap((node) =>
+      [...node.materialRefs]
+        .sort((left, right) => left.order - right.order || left.titleSnapshot.localeCompare(right.titleSnapshot))
+        .map((ref) => ({ node, ref })),
+    );
+
 const bookFromPublicProjection = (projection: MaterialBookPublicProjection): MaterialBookMetadata => ({
   bookId: projection.bookId,
   ownerId: 'public-library',
@@ -247,6 +275,8 @@ const BookEditorPage = ({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [assignmentRequest, setAssignmentRequest] = useState<AssignmentRequest | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
+  const [activeTab, setActiveTab] = useState<BookEditorTab>('contents');
+  const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
   const errorState = classifyBookEditorError(error, Boolean(book));
 
   useEffect(() => {
@@ -396,6 +426,29 @@ const BookEditorPage = ({
 
   const pickerMaterials = materialCandidates ?? loadedCandidates;
   const displayStatus = deriveMaterialBookStatus(nodes, book?.status === 'archived');
+  const materialRefPlacements = useMemo(() => collectMaterialRefPlacements(nodes), [nodes]);
+  const selectedPlacement = useMemo(
+    () =>
+      materialRefPlacements.find((placement) => placement.ref.refId === selectedRefId) ??
+      materialRefPlacements[0] ??
+      null,
+    [materialRefPlacements, selectedRefId],
+  );
+
+  useEffect(() => {
+    if (materialRefPlacements.length === 0) {
+      if (selectedRefId) {
+        setSelectedRefId(null);
+      }
+      return;
+    }
+
+    const firstPlacement = materialRefPlacements[0];
+
+    if (firstPlacement && (!selectedRefId || !materialRefPlacements.some((placement) => placement.ref.refId === selectedRefId))) {
+      setSelectedRefId(firstPlacement.ref.refId);
+    }
+  }, [materialRefPlacements, selectedRefId]);
 
   const updateForm = (field: keyof MetadataFormState, value: string) => {
     setMetadataForm((current) => ({
@@ -548,6 +601,225 @@ const BookEditorPage = ({
     />
   );
 
+  const renderMetadataForm = () => (
+    <section className="book-editor-page__section" aria-labelledby="book-editor-settings">
+      <div className="book-editor-page__section-heading">
+        <div>
+          <h2 id="book-editor-settings">Book settings</h2>
+          <p>Identity, catalog metadata, and visibility.</p>
+        </div>
+        <button type="button" onClick={() => void handleSaveMetadata()}>
+          Save Metadata
+        </button>
+      </div>
+
+      <div className="book-editor-page__form-grid">
+        <label>
+          <span>Title</span>
+          <input value={metadataForm.title} onChange={(event) => updateForm('title', event.target.value)} />
+        </label>
+        <label>
+          <span>Subtitle</span>
+          <input value={metadataForm.subtitle} onChange={(event) => updateForm('subtitle', event.target.value)} />
+        </label>
+        <label>
+          <span>Authors</span>
+          <input value={metadataForm.authors} onChange={(event) => updateForm('authors', event.target.value)} />
+        </label>
+        <label>
+          <span>Publisher</span>
+          <input value={metadataForm.publisher} onChange={(event) => updateForm('publisher', event.target.value)} />
+        </label>
+        <label>
+          <span>Edition</span>
+          <input value={metadataForm.edition} onChange={(event) => updateForm('edition', event.target.value)} />
+        </label>
+        <label>
+          <span>Series</span>
+          <input value={metadataForm.series} onChange={(event) => updateForm('series', event.target.value)} />
+        </label>
+        <label>
+          <span>ISBN</span>
+          <input value={metadataForm.isbn} onChange={(event) => updateForm('isbn', event.target.value)} />
+        </label>
+        <label>
+          <span>Cover URL</span>
+          <input value={metadataForm.coverUrl} onChange={(event) => updateForm('coverUrl', event.target.value)} />
+        </label>
+        <label>
+          <span>Tags</span>
+          <input value={metadataForm.tags} onChange={(event) => updateForm('tags', event.target.value)} />
+        </label>
+        <label>
+          <span>Test Type ids</span>
+          <input value={metadataForm.testTypeIds} onChange={(event) => updateForm('testTypeIds', event.target.value)} />
+        </label>
+        <label>
+          <span>Visibility</span>
+          <select value={metadataForm.visibility} onChange={(event) => updateForm('visibility', event.target.value)}>
+            <option value="private">Private</option>
+            <option value="public-library-pending-review">Public review requested</option>
+          </select>
+        </label>
+        <button className="book-editor-page__secondary-button" type="button" onClick={handleRequestPublicReview}>
+          Request public review
+        </button>
+        <label className="book-editor-page__wide-field">
+          <span>Description</span>
+          <textarea value={metadataForm.description} onChange={(event) => updateForm('description', event.target.value)} />
+        </label>
+      </div>
+    </section>
+  );
+
+  const renderSelectedMaterialInspector = () => (
+    <aside className="book-editor-page__inspector" aria-labelledby="book-editor-selected-material">
+      <div className="book-editor-page__inspector-header">
+        <h2 id="book-editor-selected-material">Selected material</h2>
+        <span>{selectedPlacement ? selectedPlacement.node.title : 'None'}</span>
+      </div>
+      {selectedPlacement ? (
+        <>
+          <dl className="book-editor-page__inspector-fields">
+            <div>
+              <dt>Title</dt>
+              <dd>{selectedPlacement.ref.titleSnapshot}</dd>
+            </div>
+            <div>
+              <dt>Type</dt>
+              <dd>{formatMaterialKind(selectedPlacement.ref.materialKind)}</dd>
+            </div>
+            <div>
+              <dt>Test Types</dt>
+              <dd>{selectedPlacement.ref.testTypeIdsSnapshot.join(', ') || 'No Test Type'}</dd>
+            </div>
+            <div>
+              <dt>Availability</dt>
+              <dd>{selectedPlacement.ref.availability}</dd>
+            </div>
+          </dl>
+          <div className="book-editor-page__inspector-actions">
+            <button type="button" onClick={() => void handleSaveStructure()}>
+              Save item
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAssignMaterialRef(selectedPlacement.ref)}
+              disabled={!['available'].includes(selectedPlacement.ref.availability)}
+            >
+              Assign selected
+            </button>
+          </div>
+          <p className="book-editor-page__constraint-note">
+            Whole-Book assignment is not available in V1. Assign selected referenced materials instead.
+          </p>
+        </>
+      ) : (
+        <p className="book-editor-page__empty-state">Select a material in Contents to inspect or assign it.</p>
+      )}
+    </aside>
+  );
+
+  const renderOverviewTab = () => (
+    <section className="book-editor-page__section" aria-labelledby="book-editor-overview">
+      <div className="book-editor-page__section-heading">
+        <div>
+          <h2 id="book-editor-overview">Book overview</h2>
+          <p>Current readiness and next actions.</p>
+        </div>
+      </div>
+      <div className="book-editor-page__overview-grid">
+        <div className="book-editor-page__metric-card">
+          <span>Readiness</span>
+          <strong>{displayStatus}</strong>
+        </div>
+        <div className="book-editor-page__metric-card">
+          <span>Materials</span>
+          <strong>{materialRefPlacements.length}</strong>
+        </div>
+        <div className="book-editor-page__metric-card">
+          <span>Visibility</span>
+          <strong>{metadataForm.visibility}</strong>
+        </div>
+      </div>
+      <div className="book-editor-page__next-actions">
+        <button type="button" onClick={() => setActiveTab('contents')}>Add materials</button>
+        <button type="button" onClick={() => setActiveTab('settings')}>Edit metadata</button>
+        <button type="button" onClick={handleRequestPublicReview}>Request public review</button>
+      </div>
+    </section>
+  );
+
+  const renderContentsTab = () => {
+    if (!book) {
+      return null;
+    }
+
+    return (
+      <div className="book-editor-page__workspace">
+        <section className="book-editor-page__section book-editor-page__structure-panel" aria-labelledby="book-editor-structure">
+          <div className="book-editor-page__section-heading">
+            <div>
+              <h2 id="book-editor-structure">Book contents</h2>
+              <p>Build sections and attach source materials. Select a material to inspect it.</p>
+            </div>
+            <button type="button" onClick={() => void handleSaveStructure()}>
+              Save Book Structure
+            </button>
+          </div>
+
+          <BookNodeTree
+            bookId={book.bookId}
+            nodes={nodes}
+            materialCandidates={pickerMaterials}
+            onNodesChange={setNodes}
+            actorId={user?.uid}
+            selectedRefId={selectedPlacement?.ref.refId ?? null}
+            onSelectMaterialRef={(materialRef) => setSelectedRefId(materialRef.refId)}
+            onAssignMaterialRef={(materialRef) => handleAssignMaterialRef(materialRef)}
+            onTrackAction={(actionName, metadata) => trackAction(actionName, {
+              bookId: book.bookId,
+              ...(metadata ?? {}),
+            })}
+          />
+        </section>
+        {renderSelectedMaterialInspector()}
+      </div>
+    );
+  };
+
+  const renderAssignTab = () => (
+    <section className="book-editor-page__section" aria-labelledby="book-editor-assign">
+      <div className="book-editor-page__section-heading">
+        <div>
+          <h2 id="book-editor-assign">Assignable materials</h2>
+          <p>Whole-Book assignment is not available in V1.</p>
+        </div>
+      </div>
+      {materialRefPlacements.length === 0 ? (
+        <p className="book-editor-page__empty-state">No referenced materials yet. Add materials in Contents first.</p>
+      ) : (
+        <ul className="book-editor-page__assign-list">
+          {materialRefPlacements.map(({ node, ref: materialRef }) => (
+            <li key={materialRef.refId}>
+              <div>
+                <strong>{materialRef.titleSnapshot}</strong>
+                <span>{node.title} | {formatMaterialKind(materialRef.materialKind)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAssignMaterialRef(materialRef)}
+                disabled={!['available'].includes(materialRef.availability)}
+              >
+                Assign {materialRef.titleSnapshot}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+
   return (
     <div className="book-editor-page">
       <TeacherHeader
@@ -562,13 +834,42 @@ const BookEditorPage = ({
         }}
       />
       <main className="book-editor-page__main">
-        <section className="book-editor-page__hero">
-          <p className="book-editor-page__eyebrow">Teacher Materials</p>
-          <h1 className="book-editor-page__title">{book?.title ?? 'Book Editor'}</h1>
-          <p className="book-editor-page__copy">
-            Whole-Book assignment is not available in V1. Assignment actions apply only to selected referenced materials.
-          </p>
-          <span className="book-editor-page__book-id">{bookId || 'Unknown Book'}</span>
+        <section className="book-editor-page__hero" aria-labelledby="book-editor-title">
+          <div className="book-editor-page__hero-copy">
+            <p className="book-editor-page__breadcrumb">Books / {book?.title ?? 'Book Editor'}</p>
+            <h1 id="book-editor-title" className="book-editor-page__title">{book?.title ?? 'Book Editor'}</h1>
+            <div className="book-editor-page__chips" aria-label="Book status">
+              <span>{displayStatus}</span>
+              <span>{metadataForm.visibility || 'private'}</span>
+              <span>{metadataForm.testTypeIds || 'No Test Type'}</span>
+              <span>{bookId || 'Unknown Book'}</span>
+            </div>
+            <p className="book-editor-page__copy">
+              Whole-Book assignment is not available in V1. Assign selected referenced materials instead.
+            </p>
+          </div>
+          {book && !publicProjection && (
+            <div className="book-editor-page__hero-actions">
+              <button type="button" className="book-editor-page__secondary-button" onClick={() => setActiveTab('contents')}>
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'settings') {
+                    void handleSaveMetadata();
+                    return;
+                  }
+                  void handleSaveStructure();
+                }}
+              >
+                Save
+              </button>
+              <button type="button" className="book-editor-page__secondary-button" onClick={handleRequestPublicReview}>
+                Request review
+              </button>
+            </div>
+          )}
         </section>
 
         {loading && <p className="book-editor-page__status">Loading Book...</p>}
@@ -584,6 +885,23 @@ const BookEditorPage = ({
           </div>
         )}
         {saveMessage && <p className="book-editor-page__status">{saveMessage}</p>}
+
+        {book && !publicProjection && (
+          <nav className="book-editor-page__tabs" aria-label="Book editor tabs" role="tablist">
+            {BOOK_EDITOR_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                className={activeTab === tab.id ? 'is-active' : undefined}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {publicProjection && (
           <section className="book-editor-page__section" aria-labelledby="book-editor-public-outline">
@@ -620,99 +938,15 @@ const BookEditorPage = ({
 
         {book && !publicProjection && (
           <>
-            <section className="book-editor-page__section" aria-labelledby="book-editor-metadata">
-              <div className="book-editor-page__section-heading">
-                <div>
-                  <h2 id="book-editor-metadata">Metadata</h2>
-                  <p>Readiness: {displayStatus}. Save state is separate from readiness.</p>
-                </div>
-                <button type="button" onClick={() => void handleSaveMetadata()}>
-                  Save Metadata
-                </button>
-              </div>
-
-              <div className="book-editor-page__form-grid">
-                <label>
-                  <span>Title</span>
-                  <input value={metadataForm.title} onChange={(event) => updateForm('title', event.target.value)} />
-                </label>
-                <label>
-                  <span>Subtitle</span>
-                  <input value={metadataForm.subtitle} onChange={(event) => updateForm('subtitle', event.target.value)} />
-                </label>
-                <label>
-                  <span>Authors</span>
-                  <input value={metadataForm.authors} onChange={(event) => updateForm('authors', event.target.value)} />
-                </label>
-                <label>
-                  <span>Publisher</span>
-                  <input value={metadataForm.publisher} onChange={(event) => updateForm('publisher', event.target.value)} />
-                </label>
-                <label>
-                  <span>Edition</span>
-                  <input value={metadataForm.edition} onChange={(event) => updateForm('edition', event.target.value)} />
-                </label>
-                <label>
-                  <span>Series</span>
-                  <input value={metadataForm.series} onChange={(event) => updateForm('series', event.target.value)} />
-                </label>
-                <label>
-                  <span>ISBN</span>
-                  <input value={metadataForm.isbn} onChange={(event) => updateForm('isbn', event.target.value)} />
-                </label>
-                <label>
-                  <span>Cover URL</span>
-                  <input value={metadataForm.coverUrl} onChange={(event) => updateForm('coverUrl', event.target.value)} />
-                </label>
-                <label>
-                  <span>Tags</span>
-                  <input value={metadataForm.tags} onChange={(event) => updateForm('tags', event.target.value)} />
-                </label>
-                <label>
-                  <span>Test Type ids</span>
-                  <input value={metadataForm.testTypeIds} onChange={(event) => updateForm('testTypeIds', event.target.value)} />
-                </label>
-                <label>
-                  <span>Visibility</span>
-                  <select value={metadataForm.visibility} onChange={(event) => updateForm('visibility', event.target.value)}>
-                    <option value="private">Private</option>
-                    <option value="public-library-pending-review">Public review requested</option>
-                  </select>
-                </label>
-                <button type="button" onClick={handleRequestPublicReview}>
-                  Request public review
-                </button>
-                <label className="book-editor-page__wide-field">
-                  <span>Description</span>
-                  <textarea value={metadataForm.description} onChange={(event) => updateForm('description', event.target.value)} />
-                </label>
-              </div>
-            </section>
-
-            <section className="book-editor-page__section" aria-labelledby="book-editor-structure">
-              <div className="book-editor-page__section-heading">
-                <div>
-                  <h2 id="book-editor-structure">Structure</h2>
-                  <p>Placeholder nodes stay lightweight in V1; refs assign source materials only.</p>
-                </div>
-                <button type="button" onClick={() => void handleSaveStructure()}>
-                  Save Book Structure
-                </button>
-              </div>
-
-              <BookNodeTree
-                bookId={book.bookId}
-                nodes={nodes}
-                materialCandidates={pickerMaterials}
-                onNodesChange={setNodes}
-                actorId={user?.uid}
-                onAssignMaterialRef={(materialRef) => handleAssignMaterialRef(materialRef)}
-                onTrackAction={(actionName, metadata) => trackAction(actionName, {
-                  bookId: book.bookId,
-                  ...(metadata ?? {}),
-                })}
-              />
-            </section>
+            {activeTab === 'overview' && renderOverviewTab()}
+            {activeTab === 'contents' && renderContentsTab()}
+            {activeTab === 'assign' && renderAssignTab()}
+            {activeTab === 'settings' && renderMetadataForm()}
+            <div className="book-editor-page__status-strip" aria-label="Book editor status">
+              <span>{materialRefPlacements.length} materials in book</span>
+              <span>{selectedPlacement ? '1 selected' : '0 selected'}</span>
+              <span>Save state separate from readiness</span>
+            </div>
           </>
         )}
       </main>

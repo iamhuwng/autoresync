@@ -283,15 +283,14 @@ vi.mock('../components/modern/MaterialListView', () => ({
             <span key={badge.key}>{badge.label}</span>
           ))}
           {row.selection && (
-            <label>
-              <input
-                type="checkbox"
-                aria-label={row.selection.label}
-                checked={row.selection.checked}
-                onChange={row.selection.onChange}
-              />
-              Select
-            </label>
+            <button
+              type="button"
+              aria-label={row.selection.label}
+              aria-pressed={row.selection.checked}
+              onClick={row.selection.onChange}
+            >
+              {row.selection.checked ? 'Selected' : 'Select'}
+            </button>
           )}
           {row.actions.map((action) => (
             <button
@@ -1155,8 +1154,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
 
-    await user.click(screen.getByLabelText('Select Passage A'));
-    await user.click(screen.getByLabelText('Select Passage B'));
+    await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
+    await user.click(screen.getByRole('button', { name: 'Select Passage B' }));
 
     expect(screen.getByText('2 selected')).toBeInTheDocument();
 
@@ -1288,7 +1287,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
 
-    await user.click(screen.getByLabelText('Select Passage A'));
+    await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
     await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
 
     expect(await screen.findByText('Selected Reading Passage passage-a published snapshot was not found.'))

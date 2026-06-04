@@ -2,7 +2,7 @@
   --material-action-button-size: 36px;
   --material-action-gap: 0.5rem;
   --material-action-rail-width: 184px;
-  --material-list-grid: 5px 34px 44px minmax(0, 1fr) minmax(112px, 136px) minmax(124px, 146px) var(--material-action-rail-width);
+  --material-list-grid: 5px 44px minmax(0, 1fr) minmax(112px, 136px) minmax(124px, 146px) var(--material-action-rail-width);
 
   display: grid;
   gap: 0.45rem;
@@ -26,20 +26,20 @@
 }
 
 .material-list-view__header-material {
-  grid-column: 1 / span 4;
+  grid-column: 1 / span 3;
   padding-left: 1rem;
 }
 
 .material-list-view__header-items {
-  grid-column: 5;
+  grid-column: 4;
 }
 
 .material-list-view__header-updated {
-  grid-column: 6;
+  grid-column: 5;
 }
 
 .material-list-view__header-actions {
-  grid-column: 7;
+  grid-column: 6;
   width: var(--material-action-rail-width);
   text-align: center;
   justify-self: end;
@@ -67,7 +67,7 @@
     --material-action-button-size: 34px;
     --material-action-gap: 0.45rem;
     --material-action-rail-width: 168px;
-    --material-list-grid: 5px 30px 40px minmax(0, 1fr) minmax(96px, 112px) minmax(110px, 124px) var(--material-action-rail-width);
+    --material-list-grid: 5px 40px minmax(0, 1fr) minmax(96px, 112px) minmax(110px, 124px) var(--material-action-rail-width);
   }
 
   .material-list-view__header {
@@ -80,7 +80,7 @@
     --material-action-button-size: 34px;
     --material-action-gap: 0.4rem;
     --material-action-rail-width: auto;
-    --material-list-grid: 5px 24px 36px minmax(0, 1fr);
+    --material-list-grid: 5px 36px minmax(0, 1fr);
   }
 
   .material-list-view__header {

@@ -114,6 +114,18 @@ export interface CreateBookDraftInput {
 
 const unique = <T>(values: readonly T[]): T[] => Array.from(new Set(values));
 
+const normalizeStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  return [];
+};
+
 const assertValid = (validation: ReturnType<typeof validateMaterialBook>): void => {
   if (!validation.valid) {
     throw new Error(`Material Book validation failed: ${validation.errors.map((entry) => entry.code).join(', ')}`);
@@ -122,9 +134,9 @@ const assertValid = (validation: ReturnType<typeof validateMaterialBook>): void 
 
 const cloneBook = (value: MaterialBookMetadata): MaterialBookMetadata => ({
   ...value,
-  authors: [...value.authors],
-  testTypeIds: [...value.testTypeIds],
-  tags: [...value.tags],
+  authors: normalizeStringList(value.authors),
+  testTypeIds: normalizeStringList(value.testTypeIds) as MaterialBookMetadata['testTypeIds'],
+  tags: normalizeStringList(value.tags),
 });
 
 const isBook = (value: unknown): value is MaterialBookMetadata =>

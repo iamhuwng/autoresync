@@ -412,6 +412,22 @@ describe('materialBooks.service', () => {
     expect(remove).toHaveBeenCalledWith('material_catalog/books/book-1');
   });
 
+  it('normalizes legacy RTDB object-shaped Book tags when reading metadata', async () => {
+    const read = vi.fn(async () => ({
+      ...metadata(),
+      tags: {
+        0: 'reading',
+        1: 'ielts',
+      },
+    }));
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    await expect(repo.readBook('book-1')).resolves.toMatchObject({
+      bookId: 'book-1',
+      tags: ['reading', 'ielts'],
+    });
+  });
+
   it('approves pending public Books by writing a public-safe projection after unsafe-ref checks', async () => {
     const publicRefNode = node({
       materialRefs: [

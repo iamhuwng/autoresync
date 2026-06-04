@@ -30,6 +30,8 @@ interface BookNodeTreeProps {
   readonly createRefId?: () => string;
   readonly now?: () => string;
   readonly actorId?: string;
+  readonly selectedRefId?: string | null;
+  readonly onSelectMaterialRef?: (ref: MaterialBookMaterialRef, node: MaterialBookNode) => void;
   readonly onAssignMaterialRef?: (ref: MaterialBookMaterialRef, node: MaterialBookNode) => void;
   readonly onTrackAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
 }
@@ -115,6 +117,8 @@ const BookNodeTree = ({
   createRefId,
   now,
   actorId = 'unknown',
+  selectedRefId,
+  onSelectMaterialRef,
   onAssignMaterialRef,
   onTrackAction,
 }: BookNodeTreeProps) => {
@@ -198,7 +202,19 @@ const BookNodeTree = ({
     return (
       <ul className="book-node-tree__refs">
         {refs.map((ref) => (
-          <li className="book-node-tree__ref" key={ref.refId}>
+          <li
+            className={`book-node-tree__ref ${selectedRefId === ref.refId ? 'book-node-tree__ref--selected' : ''}`}
+            key={ref.refId}
+            aria-selected={selectedRefId === ref.refId}
+            tabIndex={0}
+            onClick={() => onSelectMaterialRef?.(ref, node)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelectMaterialRef?.(ref, node);
+              }
+            }}
+          >
             <div>
               <strong>{ref.titleSnapshot}</strong>
               <span>{ref.materialKind}</span>
@@ -382,7 +398,10 @@ const BookNodeTree = ({
       )}
 
       {rootNodes.length === 0 ? (
-        <p className="book-node-tree__empty">No nodes yet.</p>
+        <div className="book-node-tree__empty book-node-tree__empty-panel">
+          <strong>Book needs content</strong>
+          <span>Add a section, then attach published materials from the section picker.</span>
+        </div>
       ) : (
         <ol className="book-node-tree__roots">
           {rootNodes.map(renderNode)}

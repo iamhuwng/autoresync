@@ -124,7 +124,9 @@ describe('BookEditorPage', () => {
     });
   });
 
-  it('shows metadata fields and keeps whole-Book assignment unavailable', () => {
+  it('shows metadata fields and keeps whole-Book assignment unavailable', async () => {
+    const user = userEvent.setup();
+
     render(
       <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
         <Routes>
@@ -136,6 +138,12 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('tab', { name: 'Contents' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
+    expect(screen.getByText(/Whole-Book assignment is not available in V1/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Settings' }));
+
     expect(screen.getByLabelText('Title')).toHaveValue('IELTS Book');
     expect(screen.getByLabelText('Subtitle')).toHaveValue('Practice');
     expect(screen.getByLabelText('Authors')).toHaveValue('Teacher One');
@@ -146,7 +154,54 @@ describe('BookEditorPage', () => {
     expect(screen.getByLabelText('Cover URL')).toHaveValue('https://example.test/cover.jpg');
     expect(screen.getByLabelText('Tags')).toHaveValue('reading');
     expect(screen.getByLabelText('Test Type ids')).toHaveValue('ielts');
-    expect(screen.getByText(/Whole-Book assignment is not available in V1/)).toBeInTheDocument();
+  });
+
+  it('shows a tabbed Contents workspace with selected material inspector', async () => {
+    const user = userEvent.setup();
+    const nodes = [
+      makeNode({
+        materialRefs: [
+          {
+            refId: materialCatalogIds.refId('ref-1'),
+            materialId: 'passage-1',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'snapshot-1',
+            titleSnapshot: 'Passage One',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'available',
+            updateState: 'current',
+            order: 1,
+            addedAt: NOW,
+            addedBy: 'teacher-1',
+          },
+        ],
+      }),
+    ];
+
+    render(
+      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+        <Routes>
+          <Route
+            path="/teacher/materials/books/:bookId"
+            element={<BookEditorPage initialBook={makeBook({ status: 'ready' })} initialNodes={nodes} materialCandidates={[]} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Contents' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Selected material' })).toBeInTheDocument();
+    expect(screen.getAllByText('Passage One').length).toBeGreaterThan(1);
+    expect(screen.getByRole('button', { name: 'Assign selected' })).toBeInTheDocument();
+    expect(screen.getByText('1 materials in book')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Assign' }));
+
+    expect(screen.getByRole('heading', { name: 'Assignable materials' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assign Passage One' }));
+    expect(screen.getByRole('dialog', { name: 'Create Homework Assignment' })).toHaveTextContent('Passage One');
   });
 
   it('uses Request public review instead of direct public approval or rejection controls', async () => {
@@ -163,6 +218,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
+    await user.click(screen.getByRole('tab', { name: 'Settings' }));
     const visibility = screen.getByLabelText('Visibility');
 
     expect(screen.queryByRole('option', { name: 'Public library' })).not.toBeInTheDocument();

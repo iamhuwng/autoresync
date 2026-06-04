@@ -81,7 +81,7 @@ describe('MaterialListRow', () => {
     expect(onAssign).toHaveBeenCalledTimes(1);
   });
 
-  it('renders optional Reading Passage selection checkbox', async () => {
+  it('uses row highlight and row click for Reading Passage selection', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -98,12 +98,44 @@ describe('MaterialListRow', () => {
       />
     );
 
-    const checkbox = screen.getByRole('checkbox', { name: 'Select Passage A' });
+    const row = screen.getByTestId('material-list-row-row-1');
 
-    expect(checkbox).not.toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Select Passage A' })).not.toBeInTheDocument();
+    expect(row).toHaveAttribute('aria-selected', 'false');
 
-    await user.click(checkbox);
+    await user.click(row);
 
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not toggle row selection when clicking row actions', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onOpen = vi.fn();
+
+    render(
+      <MaterialListRow
+        row={makeRow({
+          title: 'Passage A',
+          selection: {
+            checked: true,
+            label: 'Select Passage A',
+            onChange,
+          },
+          actions: [
+            { key: 'open', label: 'Open', iconKind: 'view', onSelect: onOpen },
+          ],
+        })}
+      />
+    );
+
+    const row = screen.getByTestId('material-list-row-row-1');
+    expect(row).toHaveClass('is-selected');
+    expect(row).toHaveAttribute('aria-selected', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

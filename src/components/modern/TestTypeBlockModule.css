@@ -1,12 +1,14 @@
 .test-type-block-module {
   --test-type-block-count: 4;
-  --test-type-block-gap: clamp(0.45rem, 1.1vw, 0.85rem);
+  --test-type-block-gap: clamp(0.7rem, 1.4vw, 1.2rem);
 
-  display: grid;
-  grid-template-columns: repeat(var(--test-type-block-count), minmax(0, 1fr));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: var(--test-type-block-gap);
   width: min(100%, 880px);
-  margin: 0 auto 1.35rem;
+  margin: 0 auto 1.1rem;
   min-width: 0;
 }
 
@@ -17,17 +19,17 @@
 }
 
 .test-type-block {
-  display: grid;
-  grid-template-rows: minmax(58px, 1fr) auto;
-  align-items: stretch;
-  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
   min-width: 0;
-  min-height: clamp(88px, 11vw, 128px);
-  padding: clamp(0.45rem, 1.3vw, 0.8rem);
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: #1e293b;
   cursor: pointer;
   overflow: hidden;
@@ -40,25 +42,21 @@
 
 .test-type-block:hover,
 .test-type-block:focus-visible {
-  border-color: rgba(99, 102, 241, 0.54);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 14px 36px rgba(79, 70, 229, 0.14);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
   transform: translateY(-1px);
   outline: none;
 }
 
 .test-type-block:focus-visible {
-  box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.18),
-    0 14px 36px rgba(79, 70, 229, 0.14);
+  box-shadow: none;
 }
 
 .test-type-block-card.is-active .test-type-block {
-  border-color: rgba(79, 70, 229, 0.76);
-  background: rgba(238, 242, 255, 0.94);
-  box-shadow:
-    0 0 0 2px rgba(99, 102, 241, 0.16),
-    0 16px 34px rgba(79, 70, 229, 0.18);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .test-type-block__media {
@@ -90,6 +88,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.test-type-block:focus-visible .test-type-block__logo,
+.test-type-block:focus-visible .test-type-block__fallback-logo,
+.test-type-block-card.is-active .test-type-block__logo,
+.test-type-block-card.is-active .test-type-block__fallback-logo {
+  outline: 2px solid rgba(99, 102, 241, 0.36);
+  outline-offset: 3px;
 }
 
 .test-type-block__meta {
