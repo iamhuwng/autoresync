@@ -320,7 +320,7 @@ export function HomeworkCreateModal({
             setMaterials(visibleMaterials);
         } catch (err) {
             console.error('Error loading materials:', err);
-            setError('Failed to load materials');
+            setError(err instanceof Error ? err.message : 'Failed to load materials');
         } finally {
             setLoading(false);
         }

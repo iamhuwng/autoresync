@@ -1,8 +1,8 @@
 # PRD-0052 Section 20 Visual Difference Note
 
-Date: 2026-06-02
+Date: 2026-06-04
 Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
-Dev URL: `http://127.0.0.1:5173/lobby`
+Historical visual URL: `http://127.0.0.1:5173/lobby`
 
 ## Passed Browser Checks
 
@@ -63,11 +63,18 @@ Dev URL: `http://127.0.0.1:5173/lobby`
   - stale pre-closure `reading_v2/listing_indexes/reading_passage_private/*`
   - stale pre-closure `reading_v2/listing_indexes/reading_passage_public`
 - Current production Reading Passage list proof must target `material_catalog/material_indexes`, not `reading_v2/listing_indexes`.
-- Local Firebase Database emulator startup was attempted for remote-free RTDB proof, but it failed because Java is not installed or not on PATH: `Error: Could not spawn java -version. Please make sure Java is installed and on your system PATH.`
+- Historical local Firebase Database emulator startup failed because Java was not installed or not on PATH. This is superseded by the 2026-06-04 workspace-local Java 21 emulator proof recorded in `prd0052-security-rule-validation-cases.md`.
+
+## Live Workflow Supersession
+
+- Reading Passage production-path proof is no longer fixture-only. Later live browser/RTDB proof created full-test material `studio-material-mpxjmklq`, produced 3 generated Reading Passage rows through `material_catalog/material_indexes/by_source_full_test/studio-material-mpxjmklq`, assigned/submitted one Reading Passage homework, and assigned/submitted a bulk Reading Passage set after Worker deploy.
+- Book public-governance proof is no longer fixture-only. Later live browser/RTDB proof approved a public Book as super admin, loaded it as another teacher through the Book Public tab, and opened public-safe detail through `material_catalog/public_book_projections`.
+- Security proof is no longer fixture/skipped-emulator only. Expanded RTDB/Firestore emulator proof passed on 2026-06-04 with 3 files / 39 tests, then hardened RTDB rules were deployed to `temp-a1437-default-rtdb`.
+- Repair/backfill proof is not visual evidence and should not be inferred from screenshots. Current data-plane proof lives in `prd0052-gap-closure-evidence-2026-06-02.md`, including approved backfill no-op, repair convergence `operations=0`, and controlled composition-version fixture proof.
 
 ## Difference Status
 
 - Fixed: default Test Type logos now render as image assets instead of broken images/alt text.
 - Fixed: `375px` horizontal overflow in normal list rows.
 - Closed for local visual QA: Book grid and Reading Passage list-row body layout were verified against the current app using the dev-only fixture flag and current production components/CSS.
-- Superseded: later PRD-0052 evidence records live post-deploy Book public projection proof and live Reading Passage proof through `material_catalog/material_indexes`, including real full-test publish to generated Reading Passage rows. Keep this file as visual-layout evidence only, not as current data-plane status.
+- Superseded: later PRD-0052 evidence records live post-deploy Book public projection proof, live Reading Passage proof through `material_catalog/material_indexes`, real full-test publish to generated Reading Passage rows, homework/runtime/result proof, emulator rules proof, and repair convergence proof. Keep this file as visual-layout evidence only, not as current data-plane status.

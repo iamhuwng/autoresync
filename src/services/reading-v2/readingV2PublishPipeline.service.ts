@@ -146,6 +146,7 @@ export interface ReadingV2PublishPipelineInput {
     readonly passageAssetId: ReadingV2PassageAssetId;
     readonly consumerKind: ReadingV2WhereUsedEntry['consumerKind'];
   }[];
+  readonly skipReadingPassageExtraction?: boolean;
   readonly readingPassageExtraction?: {
     readonly sourceFullTestId?: ReadingV2FullTestId;
     readonly primaryTestTypeId?: MaterialTestTypeId;
@@ -230,6 +231,10 @@ const resolveReadingPassageExtractionInput = (
   input: ReadingV2PublishPipelineInput,
   metadata: ReadingV2MaterialMetadata,
 ): ReadingV2PublishPipelineInput['readingPassageExtraction'] => {
+  if (input.skipReadingPassageExtraction) {
+    return undefined;
+  }
+
   if (input.readingPassageExtraction) {
     return {
       sourceFullTestId:
@@ -318,7 +323,9 @@ const buildReadingPassageStorageWrites = (input: {
       primaryTestTypeId: candidate.material.primaryTestTypeId,
       testTypeIds: candidate.material.testTypeIds,
       testTypeConfigs: input.testTypeConfigs,
-      sourceFullTestId: candidate.material.sourceFullTestId,
+      sourceFullTestId: candidate.material.sourceFullTestId
+        ? toMaterialId(candidate.material.sourceFullTestId)
+        : undefined,
       sourceSnapshotVersionId: candidate.material.sourceSnapshotVersionId,
       sourceOrderKind: candidate.material.sourceOrder.kind,
       sourceOrderValue: candidate.material.sourceOrder.value,

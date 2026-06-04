@@ -16,6 +16,7 @@
     "branch:doctor": "node scripts/branch-doctor.mjs",
     "backfill:ielts-feedback": "vite-node --mode test scripts/backfill-ielts-feedback.ts",
     "backfill:reading-v2-passages": "vite-node --mode test scripts/reading-v2-full-test-passage-backfill.ts",
+    "repair:material-catalog": "vite-node --mode test scripts/material-catalog-repair.ts",
     "reading-v2:auto-v4-clippings-e2e": "vite-node --mode test scripts/reading-v2-auto-v4-clippings-e2e.ts",
     "test:e2e": "cross-env VITE_FIREBASE_API_KEY=dummy VITE_FIREBASE_AUTH_DOMAIN=dummy VITE_FIREBASE_DATABASE_URL=https://dummy.firebaseio.com VITE_FIREBASE_PROJECT_ID=dummy VITE_FIREBASE_STORAGE_BUCKET=dummy VITE_FIREBASE_MESSAGING_SENDER_ID=dummy VITE_FIREBASE_APP_ID=dummy playwright test --reporter=json > report.json",
     "test:security": "node scripts/run-security-tests.js",

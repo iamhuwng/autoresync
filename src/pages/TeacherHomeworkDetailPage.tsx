@@ -20,9 +20,11 @@ import { resetStudentHomework } from '../services/homeworkSubmissionService';
 import { updateStudentOverride } from '../services/homeworkManager';
 import { sendHomeworkReminderNotification } from '../services/notificationService';
 import { reportingService } from '../services/reportingService';
+import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import './TeacherHomeworkDetailPage.css';
 import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
 import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
+import type { HomeworkSubmissionStatus } from '../types/homework.types';
 import { normalizeHomeworkIntegrity } from '../utils/integrityUtils';
 
 interface AssignedStudent {
@@ -198,11 +200,14 @@ function TeacherHomeworkDetailPage() {
                 const submission = latestSubmissionByStudent.get(student.studentId);
                 const studentOverride = homework.studentOverrides?.[student.studentId];
 
+                const status: HomeworkSubmissionStatus = submission?.status ?? 'not_started';
+                const integrityData = normalizeHomeworkIntegrity(submission?.integrity) ?? undefined;
+
                 return {
                     studentId: student.studentId,
                     studentName: student.studentName,
                     studentEmail: student.studentEmail,
-                    status: submission?.status ?? 'not_started',
+                    status,
                     score:
                         typeof submission?.percentage === 'number'
                             ? Math.round(submission.percentage)
@@ -219,7 +224,7 @@ function TeacherHomeworkDetailPage() {
                     extendedDueDate: studentOverride?.dueDate ?? null,
                     note: studentOverride?.notes ?? '',
                     // PRD-0036: Attach integrity data from submission if present
-                    integrityData: normalizeHomeworkIntegrity(submission?.integrity),
+                    integrityData,
                 };
             })
             .sort((left, right) => {
@@ -593,6 +598,8 @@ function TeacherHomeworkDetailPage() {
         );
     }
 
+    const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
+
     return (
         <div className="teacher-homework-detail-page">
             <TeacherHeader
@@ -679,6 +686,36 @@ function TeacherHomeworkDetailPage() {
                             gap: '0.9rem',
                         }}
                     >
+                        <div>
+                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Material</div>
+                            <div style={{ marginTop: '0.25rem', color: '#0f172a', fontWeight: 600 }}>
+                                {readingPassageSummary?.label ?? homework.materialType}
+                            </div>
+                        </div>
+                        {readingPassageSummary?.sourceLabels.length ? (
+                            <div>
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Source</div>
+                                <div style={{ marginTop: '0.25rem', color: '#0f172a', fontWeight: 600 }}>
+                                    {readingPassageSummary.sourceLabels.join(', ')}
+                                </div>
+                            </div>
+                        ) : null}
+                        {readingPassageSummary?.testTypeLabels.length ? (
+                            <div>
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Test Type</div>
+                                <div style={{ marginTop: '0.25rem', color: '#0f172a', fontWeight: 600 }}>
+                                    {readingPassageSummary.testTypeLabels.join(', ')}
+                                </div>
+                            </div>
+                        ) : null}
+                        {readingPassageSummary ? (
+                            <div>
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Questions</div>
+                                <div style={{ marginTop: '0.25rem', color: '#0f172a', fontWeight: 600 }}>
+                                    {readingPassageSummary.questionCount}
+                                </div>
+                            </div>
+                        ) : null}
                         <div>
                             <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Available</div>
                             <div style={{ marginTop: '0.25rem', color: '#0f172a', fontWeight: 600 }}>

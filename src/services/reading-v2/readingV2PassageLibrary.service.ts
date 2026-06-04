@@ -287,8 +287,11 @@ const createRow = (input: {
   );
   const questionCount = countReadingV2ProjectionInteractions(input.projection);
   const isOwner = input.metadata.ownerId === input.teacherId;
-  const archived = input.metadata.state === 'archived';
-  const accessible = !archived &&
+  const publicationState = input.metadata.state;
+  const archived = publicationState === 'archived';
+  const published = !publicationState || publicationState === 'published';
+  const accessible = published &&
+    !archived &&
     Boolean(input.metadata.publishedSnapshotVersionId) &&
     Boolean(input.projection);
 
@@ -308,7 +311,7 @@ const createRow = (input: {
     visibility: metadataListVisibility(input.metadata) ?? input.scope,
     scope: input.scope,
     isOwner,
-    selectable: true,
+    selectable: accessible,
     primaryTestTypeId: input.metadata.primaryTestTypeId,
     primaryTestTypeState: input.metadata.primaryTestTypeState,
     testTypeIds: input.metadata.testTypeIds,

@@ -7,7 +7,7 @@
  * Allowed Roles: super_admin only
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { get, onValue, ref, remove as removeDb, set } from 'firebase/database';
+import { get, onValue, ref, remove as removeDb, set, update as updateDb } from 'firebase/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { AdminTagManager } from '../components/admin/AdminTagManager';
@@ -727,6 +727,9 @@ const AdminSettingsPage: React.FC = () => {
                 },
                 remove: async (path) => {
                     await removeDb(ref(database, path));
+                },
+                update: async (payload) => {
+                    await updateDb(ref(database), payload);
                 },
             }),
         []

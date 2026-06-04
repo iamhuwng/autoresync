@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { HomeworkAssignment } from '../../types/homework.types';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
-import { READING_V2_PROJECTION_FIXTURES } from './fixtures/readingV2ProjectionFixtures';
+import {
+  READING_V2_PROJECTION_FIXTURES,
+  READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE,
+} from './fixtures/readingV2ProjectionFixtures';
 import {
   composeReadingPassageSetProjection,
   getReadingPassageHomeworkLaunchItems,
@@ -43,8 +46,9 @@ const makeProjection = (
   materialId: string,
   snapshotVersionId: string,
   title: string,
+  baseProjection: ReadingV2DerivedProjection = READING_V2_PROJECTION_FIXTURES.studentSafe,
 ): ReadingV2DerivedProjection => {
-  const projection = clone(READING_V2_PROJECTION_FIXTURES.studentSafe);
+  const projection = clone(baseProjection);
 
   return {
     ...projection,
@@ -86,6 +90,8 @@ describe('readingV2PassageHomeworkLaunch service', () => {
       title: 'Passage A',
       questionCount: 10,
       meta: ['Passage 1', 'Source Test', 'Snapshot snapshot-a'],
+      sourceLabels: ['Passage 1 - Source Test'],
+      testTypeLabels: ['IELTS'],
     }));
   });
 
@@ -104,6 +110,8 @@ describe('readingV2PassageHomeworkLaunch service', () => {
             titleSnapshot: 'Passage B',
             questionCount: 8,
             testTypeIds: ['ielts'],
+            sourceOrderDisplay: 'Passage 2',
+            sourceFullTestTitle: 'Source Test B',
           },
           {
             order: 1,
@@ -112,6 +120,8 @@ describe('readingV2PassageHomeworkLaunch service', () => {
             titleSnapshot: 'Passage A',
             questionCount: 10,
             testTypeIds: ['ielts'],
+            sourceOrderDisplay: 'Passage 1',
+            sourceFullTestTitle: 'Source Test A',
           },
         ],
       },
@@ -128,6 +138,8 @@ describe('readingV2PassageHomeworkLaunch service', () => {
       passageCount: 2,
       questionCount: 18,
       meta: ['2 passages', '18 questions'],
+      sourceLabels: ['Passage 1 - Source Test A', 'Passage 2 - Source Test B'],
+      testTypeLabels: ['IELTS'],
     }));
   });
 
@@ -160,7 +172,12 @@ describe('readingV2PassageHomeworkLaunch service', () => {
       },
     });
     const firstProjection = makeProjection('passage-a', 'snapshot-a', 'Passage A');
-    const secondProjection = makeProjection('passage-b', 'snapshot-b', 'Passage B');
+    const secondProjection = makeProjection(
+      'passage-b',
+      'snapshot-b',
+      'Passage B',
+      READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['matching-features'].studentSafe,
+    );
 
     const composed = composeReadingPassageSetProjection({
       homework,
@@ -174,6 +191,12 @@ describe('readingV2PassageHomeworkLaunch service', () => {
       (total, group) => total + group.interactions.length,
       0,
     );
+    const optionSetIds = new Set(composed.content.optionSets.map((optionSet) => optionSet.optionSetId));
+    const responseShapeOptionSetIds = composed.content.taskGroups.flatMap((group) =>
+      group.interactions.flatMap((interaction) =>
+        'optionSetId' in interaction.responseShape ? [interaction.responseShape.optionSetId] : [],
+      ),
+    );
 
     expect(composed.projectionId).toBe('homework-set:homework-set-1');
     expect(composed.content.title).toBe('Selected Reading Passages');
@@ -184,6 +207,61 @@ describe('readingV2PassageHomeworkLaunch service', () => {
     expect(composed.content.taskGroups[0].interactions[0].displayNumber).toBe(1);
     expect(composed.content.taskGroups[firstProjection.content.taskGroups.length].interactions[0].displayNumber)
       .toBe(firstInteractionCount + 1);
+    expect(responseShapeOptionSetIds.length).toBeGreaterThan(0);
+    expect(responseShapeOptionSetIds.every((optionSetId) => optionSetIds.has(optionSetId))).toBe(true);
     expect(composed.analytics?.interactionCount).toBe(interactionIds.length);
+  });
+
+  it('composes a Reading Passage set when Firebase omits an empty optionSets array', () => {
+    const homework = makeHomework({
+      id: 'homework-set-1',
+      materialId: 'reading-passage-set:homework-set-1',
+      materialTitle: 'Selected Reading Passages',
+      materialType: 'reading-passage-set',
+      readingPassageSet: {
+        titleSnapshot: 'Selected Reading Passages',
+        items: [
+          {
+            order: 1,
+            passageMaterialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            titleSnapshot: 'Passage A',
+            questionCount: 10,
+            testTypeIds: ['ielts'],
+          },
+          {
+            order: 2,
+            passageMaterialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            titleSnapshot: 'Passage B',
+            questionCount: 10,
+            testTypeIds: ['ielts'],
+          },
+        ],
+      },
+    });
+    const firstProjection = makeProjection('passage-a', 'snapshot-a', 'Passage A');
+    const secondProjection = makeProjection(
+      'passage-b',
+      'snapshot-b',
+      'Passage B',
+      READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['matching-features'].studentSafe,
+    );
+    delete (firstProjection.content as unknown as Record<string, unknown>).optionSets;
+
+    const composed = composeReadingPassageSetProjection({
+      homework,
+      projections: [firstProjection, secondProjection],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+
+    expect(composed.content.optionSets).toEqual(
+      secondProjection.content.optionSets.map((optionSet) =>
+        expect.objectContaining({ optionSetId: `passage-2:${optionSet.optionSetId}` }),
+      ),
+    );
+    expect(composed.analytics?.interactionCount).toBe(
+      composed.content.taskGroups.reduce((sum, group) => sum + group.interactions.length, 0),
+    );
   });
 });

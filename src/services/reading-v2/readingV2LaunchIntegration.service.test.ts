@@ -164,6 +164,24 @@ describe('readingV2LaunchIntegration.service', () => {
     }
   });
 
+  it('routes teacher-preview live sessions without opening unrelated solo launch', () => {
+    const liveDecision = resolveReadingV2LaunchDecision({
+      surface: 'live-session',
+      metadata: readingV2Metadata,
+      projection: READING_V2_PROJECTION_FIXTURES.sessionSafe,
+      rolloutMode: 'teacher-preview',
+    });
+
+    expect(liveDecision.status).toBe('runtime');
+
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'solo-practice',
+        rolloutMode: 'teacher-preview',
+      }),
+    ).toBe(false);
+  });
+
   it('creates launch/listing summaries from published metadata and student-safe projections', () => {
     const summary = createReadingV2LaunchMaterialSummary({
       metadata: readingV2Metadata as any,

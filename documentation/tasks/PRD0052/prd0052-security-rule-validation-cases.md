@@ -32,7 +32,7 @@ Live RTDB rules were deployed with:
 cmd /c firebase deploy --only database --project temp-a1437
 ```
 
-Result: passed. Rules syntax was valid and released to `temp-a1437-default-rtdb`. Post-deploy browser proof passed for super-admin public Book approval plus another-teacher public Book list/detail through `material_catalog/public_book_projections`. Emulator-backed validation is still blocked because Java is not on PATH.
+Result: passed. Rules syntax was valid and released to `temp-a1437-default-rtdb`. Post-deploy browser proof passed for super-admin public Book approval plus another-teacher public Book list/detail through `material_catalog/public_book_projections`.
 
 Second live deploy on 2026-06-03 used:
 
@@ -42,13 +42,39 @@ cmd /c npx firebase-tools deploy --only database --project temp-a1437
 
 Result: passed. Rules syntax was valid and released to `temp-a1437-default-rtdb`. Post-deploy browser proof passed for Teacher `Reading Passage` tab Private/Public empty-state reads through `material_catalog/material_indexes`.
 
+Emulator blocker rechecked on 2026-06-04:
+
+```powershell
+java -version
+```
+
+Result: failed because `java` is not recognized on PATH.
+
+Portable Java 21 emulator proof on 2026-06-04:
+
+```powershell
+$env:JAVA_HOME = "C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\tools\java\temurin-21-jre\jdk-21.0.11+10-jre"
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+cmd /c npx firebase-tools emulators:exec --only database,firestore --project demo-prd-0052-rules "cmd /c npx vitest run src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic --pool=forks"
+```
+
+Result: passed, 3 files / 39 tests. Material Catalog emulator tests cover material summary index owner/visibility/student gates, hidden/scoring-field denial, Book metadata owner/admin gates, Book node owner/admin gates plus hidden-field denial, public Book projection read/write/hidden-field rules, Test Type super-admin writes, and teacher preference owner/admin scope. Reading V2 RTDB emulator tests cover teacher-owned canonical draft access, persisted owner fields, student-safe projection vs canonical snapshot denial, student attempt ownership, and result visibility/author-field denial. Homework Firestore emulator tests cover Reading Passage and Reading Passage set assignment shapes, authenticated assignment reads, stat-only student updates, assignment-shape mutation denial, and teacher-scoped delete. Expected `permission_denied` warnings appeared for `assertFails(...)` cases only.
+
+Hardened live deploy on 2026-06-04:
+
+```powershell
+cmd /c npx firebase-tools deploy --only database --project temp-a1437
+```
+
+Result: passed. Rules syntax was valid and hardened RTDB rules were released to `temp-a1437-default-rtdb`.
+
 Live Reading Passage publish/homework proof on 2026-06-03:
 
 - Browser Studio publish created 3 generated Reading Passage rows for `studio-material-mpxjmklq`.
 - RTDB reads confirmed the expected production path family: `material_catalog/material_indexes/by_source_full_test`, per-passage `reading_v2/published_snapshots`, and per-passage `reading_v2/projections/student_safe_tests`.
 - Leak checks against Material Catalog rows and student-safe projections found no answer-key/provenance strings.
 - Student launched assigned passage `studio-material-mpxjmklq-passage-1`, submitted through the trusted Reading V2 path, and the linked Firestore `homework_submissions` row completed.
-- This is live browser proof for one single Reading Passage assignment. Bulk/set homework and emulator-backed rule proof remain open.
+- This is live browser proof for one single Reading Passage assignment. Later live browser proof also covered bulk Reading Passage set launch/submit/result/review for homework set `SiDFz9BPXOCSKhgoxTBi`; emulator-backed rule proof passed on 2026-06-04 with local Java 21.
 
 ## Required Cases
 

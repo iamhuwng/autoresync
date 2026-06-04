@@ -571,7 +571,7 @@ describe('StudentPracticePage', () => {
     expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
-  it('launches Reading Passage set homework as one ordered Reading V2 runtime projection', async () => {
+  it('replays assigned Reading Passage set homework from frozen snapshots after source passages are archived', async () => {
     const firstProjection = {
       ...READING_V2_PROJECTION_FIXTURES.studentSafe,
       materialId: 'passage-a',
@@ -621,23 +621,34 @@ describe('StudentPracticePage', () => {
         ],
       },
     });
-    getMock.mockImplementation(async (target: { path: string }) => ({
-      val: () => {
-        if (target.path === 'reading_v2/projections/student_safe_tests/passage-a:snapshot-a') {
-          return firstProjection;
-        }
+    getMock.mockImplementation(async (target: { path: string }) => {
+      if (
+        target.path.startsWith('reading_v2/material_metadata/') ||
+        target.path.startsWith('reading_v2/reading_passage_materials/') ||
+        target.path === 'tests/passage-a' ||
+        target.path === 'tests/passage-b'
+      ) {
+        throw new Error(`Archived replay must not read current source state: ${target.path}`);
+      }
 
-        if (target.path === 'reading_v2/projections/student_safe_tests/passage-b:snapshot-b') {
-          return secondProjection;
-        }
+      return {
+        val: () => {
+          if (target.path === 'reading_v2/projections/student_safe_tests/passage-a:snapshot-a') {
+            return firstProjection;
+          }
 
-        return null;
-      },
-      exists: () => [
-        'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
-        'reading_v2/projections/student_safe_tests/passage-b:snapshot-b',
-      ].includes(target.path),
-    }));
+          if (target.path === 'reading_v2/projections/student_safe_tests/passage-b:snapshot-b') {
+            return secondProjection;
+          }
+
+          return null;
+        },
+        exists: () => [
+          'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
+          'reading_v2/projections/student_safe_tests/passage-b:snapshot-b',
+        ].includes(target.path),
+      };
+    });
 
     render(
       <MemoryRouter
@@ -673,5 +684,21 @@ describe('StudentPracticePage', () => {
     expect(projection.content.sections[0].title).toContain('Passage 1: Passage A');
     expect(projection.content.sections.at(-1).title).toContain('Passage 2: Passage B');
     expect(interactionIds).toHaveLength(new Set(interactionIds).size);
+    expect(refMock).toHaveBeenCalledWith(
+      {},
+      'reading_v2/projections/student_safe_tests/passage-a:snapshot-a',
+    );
+    expect(refMock).toHaveBeenCalledWith(
+      {},
+      'reading_v2/projections/student_safe_tests/passage-b:snapshot-b',
+    );
+    expect(refMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringMatching(/^reading_v2\/material_metadata\//),
+    );
+    expect(refMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringMatching(/^reading_v2\/reading_passage_materials\//),
+    );
   });
 });

@@ -69,14 +69,25 @@ const node = (): MaterialBookNode => ({
 const createRepo = (book = metadata()): MaterialBooksRepository & {
   writes: Record<string, unknown>[];
   removals: string[];
+  updates: Record<string, unknown | null>[];
 } => {
   const bookMap = new Map<string, MaterialBookMetadata>([[book.bookId, book]]);
   const writes: Record<string, unknown>[] = [];
   const removals: string[] = [];
+  const updates: Record<string, unknown | null>[] = [];
+  const applyWrite = (path: string, value: unknown): void => {
+    writes.push({ path, value });
+    const bookMatch = path.match(/^material_catalog\/books\/(.+)$/);
+
+    if (bookMatch) {
+      bookMap.set(bookMatch[1], value as MaterialBookMetadata);
+    }
+  };
 
   return {
     writes,
     removals,
+    updates,
     async readBook(bookId) {
       return bookMap.get(bookId) ?? null;
     },
@@ -104,15 +115,21 @@ const createRepo = (book = metadata()): MaterialBooksRepository & {
       };
     },
     async write(path, value) {
-      writes.push({ path, value });
-      const bookMatch = path.match(/^material_catalog\/books\/(.+)$/);
-
-      if (bookMatch) {
-        bookMap.set(bookMatch[1], value as MaterialBookMetadata);
-      }
+      applyWrite(path, value);
     },
     async remove(path) {
       removals.push(path);
+    },
+    async update(payload) {
+      updates.push(payload);
+      Object.entries(payload).forEach(([path, value]) => {
+        if (value === null) {
+          removals.push(path);
+          return;
+        }
+
+        applyWrite(path, value);
+      });
     },
   };
 };
@@ -160,6 +177,7 @@ describe('PublicBookReviewPanel', () => {
         'material_catalog/public_book_projections/book-1',
       ]),
     );
+    expect(repository.updates).toHaveLength(1);
     expect(onTrackAction).toHaveBeenCalledWith('approvePublicBookReview', { bookId: 'book-1' });
   });
 

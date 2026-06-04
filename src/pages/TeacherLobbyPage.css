@@ -81,6 +81,19 @@
   padding: 0 0.85rem;
 }
 
+.reading-passage-selection-toolbar button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.reading-passage-selection-toolbar__error {
+  max-width: min(34rem, 100%);
+  color: #b91c1c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 @media (max-width: 980px) {
   .teacher-lobby-page-subhead {
     flex-wrap: nowrap;

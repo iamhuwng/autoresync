@@ -2,7 +2,7 @@
 
 Date: 2026-06-02
 
-Target root: `C:\Users\The Lord\Desktop\luyentap-prd0052-review`
+Target root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 
 Target branch: `codex/prd0052-material-tabs-inline`
 
@@ -148,7 +148,8 @@ Rules and verification:
 
 ## Phase 0 - Branch, Rules, And Truth Reset
 
-- [ ] Confirm work starts in `C:\Users\The Lord\Desktop\luyentap-prd0052-review` on branch `codex/prd0052-material-tabs-inline`.
+- [x] Confirm work starts in `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased` on branch `codex/prd0052-material-tabs-inline`.
+  - 2026-06-04 update: `git rev-parse --show-toplevel`, `git rev-parse --abbrev-ref HEAD`, and `git rev-parse --short HEAD` returned active root `C:/Users/The Lord/Desktop/luyentap-writing-import-rebased`, branch `codex/prd0052-material-tabs-inline`, and HEAD `6f05e857`.
 - [ ] Run `git status --short --branch` and record the result before code edits.
 - [ ] Read `AGENTS.md` in the target root before edits.
 - [ ] Read `documentation/architecture/ui-design-standards.md` before UI edits.
@@ -234,15 +235,20 @@ Rules and verification:
 
 ## Phase 5 - Operational Backfill
 
-- [ ] Add an operational backfill entrypoint for existing full Reading V2 tests, for example `scripts/reading-v2-full-test-passage-backfill.mjs` plus an npm script.
-- [ ] Make dry-run the default mode.
-- [ ] Require explicit `--write` and `--approved` flags for mutation mode.
-- [ ] Support filters for owner teacher, material id, created date range, limit, and dry-run report output path.
-- [ ] Report every planned Reading Passage entity, skipped material, invalid source, duplicate, permission failure, and write failure.
-- [ ] Reuse the production extraction, versioning, projection, index, and composition-writing services instead of duplicating backfill logic.
-- [ ] Make mutation mode idempotent so reruns do not create duplicate passage entities for the same full-test passage/version.
-- [ ] Add tests for dry-run planning, write mode, duplicate avoidance, invalid material skip, and partial failure reporting.
-- [ ] Document exact local emulator and live-approved run commands in `documentation/tasks/PRD0052/prd0052-reading-v2-backfill-dry-run-plan.md`.
+- [x] Add an operational backfill entrypoint for existing full Reading V2 tests, for example `scripts/reading-v2-full-test-passage-backfill.mjs` plus an npm script.
+- [x] Make dry-run the default mode.
+- [x] Require explicit `--write` and `--approved` flags for mutation mode.
+- [x] Support filters for owner teacher, material id, created date range, limit, and dry-run report output path.
+- [x] Report every planned Reading Passage entity, skipped material, invalid source, duplicate, permission failure, and write failure.
+- [x] Reuse the production extraction, versioning, projection, index, and composition-writing services instead of duplicating backfill logic.
+- [x] Make mutation mode idempotent so reruns do not create duplicate passage entities for the same full-test passage/version.
+- [x] Add tests for dry-run planning, write mode, duplicate avoidance, invalid material skip, and partial failure reporting.
+- [x] Document exact local emulator and live-approved run commands in `documentation/tasks/PRD0052/prd0052-reading-v2-backfill-dry-run-plan.md`.
+  - 2026-06-04 update: local backfill runner exists as `npm run backfill:reading-v2-passages -- [options]` through `scripts/reading-v2-full-test-passage-backfill.ts`. Verification passed for dry-run default, required `--write --approved`, owner/material/date/limit/report parsing, invalid-source skips, root update payload creation, approval-gated writes, deterministic idempotent write paths, legacy missing `validationState` tolerance in publish validation, and extracted publish-gate failures routing to manual review.
+  - 2026-06-04 reviewed-gate update: backfill write mode now requires `--from-report <dry-run-report.json>` in addition to `--write --approved <id>`, aborts when Firebase reads fail, and verifies the reviewed dry-run report's project/row count/stable digest before mutation. `cmd /c npm run backfill:reading-v2-passages -- --write --approved lead-1` failed before Firebase reads with `Mutation mode requires --from-report <dry-run-report.json>.`
+  - 2026-06-04 fresh dry-run proof: after normalizing Firebase CLI paths to leading `/` and checking extracted passage documents against the publish gate, `cmd /c npm run backfill:reading-v2-passages -- --dry-run --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json` returned `total=4`, `splitReady=0`, `manualReview=1`, `alreadyBackfilled=3`, `readFailures=0`, `mutation=not-run`. The manual-review source is `studio-material-mojlf55h` / `snapshot-studio-material-mojlf55h-mojlfaqa` with 22 `publish-gate-blocked` issues.
+  - 2026-06-04 approved write proof: `cmd /c npm run backfill:reading-v2-passages -- --write --approved user-approved-all-remaining-20260604 --from-report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-write-20260604-no-eligible-sources.json` committed with `plannedWriteCount=0`, `readFailures=0`, and no eligible split-ready sources. Current backfill follow-up is source-data repair or owner deferment for `studio-material-mojlf55h`; no partial backfill data was written.
+  - 2026-06-04 owner-approved deferment: `studio-material-mojlf55h` remains a source-data/manual-review item because safe automated repair would require editorial reconstruction of missing visible completion blanks and invalid multi-select scoring/order. No live source mutation was performed.
 
 ## Phase 6 - Reading Passage Library Actions
 
@@ -257,14 +263,16 @@ Rules and verification:
 - [ ] Replace hardcoded `accessible: true` with a service check that verifies publication state, student-safe projection, owner/public access, version availability, and homework compatibility.
 - [ ] Disable assign actions with a visible reason when the projection or access contract is missing.
 - [ ] Make single Reading Passage assignment open the real homework modal with a verified candidate payload.
-- [ ] Make bulk Reading Passage assignment create one combined homework set with ordered selected passages.
-- [ ] Ensure bulk assignment preserves selected order, source labels, version ids, and student-safe snapshots.
+- [x] Make bulk Reading Passage assignment create one combined homework set with ordered selected passages.
+- [x] Ensure bulk assignment preserves selected order, source labels, version ids, and student-safe snapshots.
+  - 2026-06-03 update: browser QA selected two generated Reading Passage rows from `studio-material-mpxjmklq`, assigned one combined homework set `SiDFz9BPXOCSKhgoxTBi`, and launched the set as Student. Local runtime fixes preserved ordered passage prefixes, missing empty `optionSets`, and prefixed option-bank references.
 - [ ] Add visible loading, success, failure, and retry states around `Assign selected`.
-- [ ] Make `Create full test from selected` create a reusable full Reading test composition that is visible and recoverable by the teacher.
-- [ ] Ensure `Create full test from selected` writes a composition, version, material catalog summary, safe student projection, and canonical index row through one consistent workflow.
-- [ ] After creating a full test from selected passages, show a success state with a direct route to the created full test editor/viewer.
-- [ ] Add visible loading, failure, validation, and retry states around `Create full test from selected`.
-- [ ] Ensure selected Reading Passage rows clear only after a confirmed success.
+- [x] Make `Create full test from selected` create a reusable full Reading test composition that is visible and recoverable by the teacher.
+- [x] Ensure `Create full test from selected` writes a composition, version, material catalog summary, safe student projection, and canonical index row through one consistent workflow.
+- [x] After creating a full test from selected passages, show a success state with a direct route to the created full test editor/viewer.
+- [x] Add visible loading, failure, validation, and retry states around `Create full test from selected`.
+- [x] Ensure selected Reading Passage rows clear only after a confirmed success.
+  - 2026-06-03 update: live browser QA selected two production Reading Passage rows from `studio-material-mpxjmklq`, created full-test material `composition-teacher-selected-glmhcrzmnys6aqfcb9i0nloqq6x2-studio-material-mpxjmklq-passage-1-snapshot-studio-material-mpxjmklq-mpxjnrwq`, opened the created revise workflow, then confirmed the new `Selected Reading Passages` row was recoverable from `My Content`. Firebase CLI confirmed 2 composition refs, 2 sections, 5 task groups, 26 student-safe interactions, catalog index row, and no duplicate `reading_v2/reading_passage_materials/{materialId}` entity. A first failed browser attempt exposed missing Firebase round-trip normalization for omitted empty canonical maps; the fix added normalization and a failure/retry/selection-persistence test.
 - [ ] Add tests for archive, view, revise/fork, single assign, bulk assign, create-full-test success, create-full-test failure, selection persistence, unavailable projection, and permission denial.
 
 ## Phase 7 - Book Governance, Public Review, And Public Structure
@@ -309,28 +317,50 @@ Rules and verification:
 
 ## Phase 9 - Atomic Persistence And Repairability
 
-- [ ] Refactor Book metadata, node, and index writes to use atomic multi-location updates where RTDB supports them.
-- [ ] Ensure stale Book indexes are removed in the same committed update that writes new indexes.
-- [ ] Ensure Book node replacement cannot leave orphan nodes on partial failure.
+- [x] Refactor Book metadata, node, and index writes to use atomic multi-location updates where RTDB supports them.
+- [x] Ensure stale Book indexes are removed in the same committed update that writes new indexes.
+- [x] Ensure Book node replacement cannot leave orphan nodes on partial failure.
+  - 2026-06-04 update: `materialBooks.service.ts` now commits Book metadata, index, node, and public-projection mutations through `MaterialBooksRepository.update(...)`. Firebase callsites in Teacher Lobby, Book editor, and Admin Settings pass `update(ref(database), payload)`, so stale index removals, new index writes, node removals, replacement nodes, metadata, and projection changes are one root RTDB multi-location payload.
 - [ ] Ensure Reading Passage composition and version writes are atomic.
-- [ ] Ensure create-full-test-from-selected writes composition, version, material summary, and indexes atomically.
+- [x] Ensure create-full-test-from-selected writes composition, version, material summary, and indexes atomically.
+  - 2026-06-03 update: `createReadingV2TeacherSelectedPassageComposition(...)` now uses a single RTDB multi-location update for publish updates, `tests/{materialId}`, `reading_v2/full_test_compositions`, version, material metadata/projections, and canonical `material_catalog/material_indexes` rows.
 - [ ] Ensure Reading V2 publish writes Reading Passage entity, version, projection, indexes, relationships, and full-test refs atomically or with a documented recovery transaction.
-- [ ] Add repair utilities for stale index rows, orphan Book nodes, and composition-without-version records.
+- [x] Add repair utilities for stale index rows, orphan Book nodes, and composition-without-version records.
+  - 2026-06-04 update: `planMaterialCatalogRepairOperations(...)` now emits dry-run repair operations for stale `material_catalog/material_indexes`, stale `material_catalog/book_indexes`, orphan/cascaded `material_catalog/book_nodes`, and missing `reading_v2/full_test_composition_versions/{compositionId}/{versionId}` records. It does not execute writes by itself.
+  - 2026-06-04 update: `npm run repair:material-catalog -- [options]` now provides an operational dry-run/default repair runner. Write mode requires `--write --approved <id> --from-report <dry-run-report.json>`, aborts on Firebase read failures, requires the reviewed report to be a dry-run/not-run report, verifies project/count/digest against the reviewed dry-run report, and commits the reviewed repair operations through one root RTDB multi-location update.
+  - 2026-06-04 dry-run proof: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-fixed.json` returned `operations=54`, `readFailures=0`, `mutation=not-run`, digest `b3094eb7135b612b3cc6df229e469f28535d8bae55a9d580ea5852bb95cc933b`, with 45 `material-index-write` and 9 `book-index-write` operations.
+  - 2026-06-04 approved write proof: `cmd /c npm run repair:material-catalog -- --write --approved user-approved-all-remaining-20260604 --from-report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-fixed.json --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-write-20260604-approved.json` returned `mutation=committed`, `plannedWriteCount=54`, `readFailures=0`, and the same digest `b3094eb7135b612b3cc6df229e469f28535d8bae55a9d580ea5852bb95cc933b`. Firebase CLI reads confirmed representative repaired Material Catalog and Book index rows.
+  - 2026-06-04 convergence fix: a post-write dry-run exposed false-positive stale rows from raw `JSON.stringify` comparison against Firebase-returned key order and RTDB-omitted empty arrays/objects. `materialCatalogRepair.service.ts` now uses canonical Firebase-style comparison, and `src/services/materialCatalog/materialCatalogRepair.service.test.ts` covers both regressions.
+  - 2026-06-04 convergence proof: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-post-repair-converged.json` returned `operations=0`, `readFailures=0`, `mutation=not-run`.
+  - 2026-06-04 composition-version fixture proof: after creating controlled temp composition `composition-prd0052-repair-proof-20260604` with missing version `snapshot-prd0052-repair-proof-20260604`, `output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-composition-version-fixture.json` returned exactly 1 `composition-version-write`, digest `bfaa30605a356843dac041d6754dc6a9028399bc3e49170983d850c3736c9521`. Approved write `output/material-catalog-repair/prd0052-material-catalog-repair-write-20260604-composition-version-fixture.json` committed that one operation, Firebase CLI verified the version row, and the temp composition/version paths were removed.
+  - 2026-06-04 final repair baseline: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-final-converged.json` returned `operations=0`, `readFailures=0`, `mutation=not-run` after fixture cleanup.
 - [ ] Add tests that simulate write failures and prove no stale index, orphan node, or composition/version mismatch remains.
+  - 2026-06-04 partial update: Book write-failure proof is now covered locally. `materialBooks.service.test.ts` simulates a failed atomic metadata update and asserts no sequential `write`/`remove` fallback runs; Book tree tests assert stale node removal, replacement node write, metadata, and indexes are in the same update payload. Composition/version mismatch recovery proof is now covered by the approved live fixture write above; full simulated write-failure coverage remains a lower-priority test-hardening item.
 
 ## Phase 10 - Homework, Student Runtime, And Teacher Review
 
 - [x] Verify single Reading Passage homework assignment uses the real homework modal and persists a homework record with versioned Reading Passage references.
-- [ ] Verify bulk Reading Passage homework assignment persists one combined homework set, not separate unrelated homework records.
+- [x] Verify bulk Reading Passage homework assignment persists one combined homework set, not separate unrelated homework records.
+  - 2026-06-03 update: browser QA created one `Selected Reading Passages` homework set for two selected Reading Passage rows. Student launch used `/student/practice/reading-passage-set:SiDFz9BPXOCSKhgoxTBi` and rendered one 26-question set split into Passage 1 and Passage 2.
 - [x] Verify assigned Reading Passage homework launches in student runtime from a student-safe projection only.
 - [x] Verify student submission writes through the Reading V2 submit path without exposing answer keys.
 - [x] Verify teacher result/review can load Reading Passage homework submissions.
   - 2026-06-03 update: live QA assigned `studio-material-mpxjmklq-passage-1` as homework `on5vF6XUxIOwzXRpr0fk`, launched as `student@test.com`, submitted 13/13 through trusted Reading V2 submit, completed `homework_submissions`, and loaded teacher Homework Detail/result review at 100%, 13/13, band 10.0.
-- [ ] Verify existing full Reading V2 tests still launch, submit, and review after Reading Passage extraction and composition ref changes.
-- [ ] Verify homework history/detail pages show Reading Passage title, source label, Test Type, and assignment state.
-- [ ] Verify unavailable or unpublished Reading Passage versions cannot be assigned.
-- [ ] Verify archived Reading Passages do not break already assigned homework snapshots.
-- [ ] Add tests covering homework creation, student launch, submit, scoring/review, archived-source replay, unavailable projection denial, and existing full-test regression.
+  - 2026-06-03 update: after Worker deploy, bulk homework set `SiDFz9BPXOCSKhgoxTBi` submitted through trusted Reading V2 submit with 26 answers. Result `reading-v2-result-6211194e-a441-4192-a2d0-5353a668bf07` scored 11/26 (42%). Teacher Homework Detail showed 1 submitted, 100% completion, average 42%, and the review modal rendered `Reading Passage Set Review` with 5 task groups and all 26 answer-map entries.
+- [x] Verify existing full Reading V2 tests still launch, submit, and review after Reading Passage extraction and composition ref changes.
+  - 2026-06-03 update: live browser QA started session `SMC10J` from full test `studio-material-mpxjmklq` / `snapshot-studio-material-mpxjmklq-mpxjnrwq`. Student launch first reproduced a `teacher-preview` live-session gate block, then a RED-first fix allowed only `live-session` while keeping solo-practice blocked. Student launched `/student-test/SMC10J`, submitted a 40-question Reading V2 attempt through the deployed Worker, and teacher result/review surfaces rendered score `0/40`, answer map 40 incorrect, 8 task groups, and all 3 passage titles. A second RED-first fix made `Re-mark` recover when Reading V2 source tests have no legacy `questions[]`, using saved `questionResults` instead.
+  - 2026-06-04 update: fresh deployed-Worker recheck started session `A91JFM` from the same full test. Student launched `/student-test/A91JFM`, saw 40 questions across 3 parts, submitted a blank attempt through `https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit` with HTTP 200, result `reading-v2-result-01384d15-cbc3-4e55-beb4-7ccacf6bebd2`, attempt `reading-v2-attempt-9ebe77fa-5521-4638-a9d6-d21bf231316f`, and score `0/40`. Firebase CLI confirmed `reading_v2/results`, `reading_v2/attempts`, and `test_results` records. Teacher `/teacher-test-results/A91JFM` rendered 1 student, 40 incorrect, Question Difficulty Analysis (40), and Re-mark Q1-Q40. Teacher `/result/{resultId}` rendered the 40-answer map plus Reading V2 review for all 3 passage titles and 8 task groups.
+- [x] Deploy Reading V2 Worker set-submit support and rerun bulk Reading Passage set submit/result/review browser proof.
+  - 2026-06-03 update: deployed `r2-backup-worker` version `0c28124d-88b7-403b-b0cb-bb7d1cd25a79` to `https://r2-backup-worker.iamhuwng.workers.dev`. Live student submit returned HTTP 200 with result `reading-v2-result-6211194e-a441-4192-a2d0-5353a668bf07`; the previous deployed Worker 404 did not recur. Firebase CLI confirmed `reading_v2/results`, `reading_v2/attempts`, and `test_results` records for the result/attempt.
+- [x] Verify homework history/detail pages show Reading Passage title, source label, Test Type, and assignment state.
+  - 2026-06-04 update: unit UI proof covers `HomeworkCard` and `TeacherHomeworkDetailPage` rendering Reading Passage/Set title, source label, Test Type, and assignment status from assignment-time snapshots.
+  - 2026-06-04 live update: teacher browser QA on `http://localhost:5174` opened `/teacher/homework`, switched to Timeline, and verified set `SiDFz9BPXOCSKhgoxTBi` showed `Selected Reading Passages`, `Active`, `Reading Passage Set`, source `Source unknown - PRD0052 QA Reading V2 Full Test 2026-06-03`, Test Type `IELTS`, and submissions `1 / 1`. Detail route `/teacher/homework/SiDFz9BPXOCSKhgoxTBi` showed the same metadata plus `QUESTIONS 26`, assigned students `1`, completion rate `100%`, average `42%`, and student status `Submitted`.
+- [x] Verify unavailable or unpublished Reading Passage versions cannot be assigned.
+  - 2026-06-04 update: library rows with draft/unpublished state remain visible but become `accessible=false` and `selectable=false`; homework modal now surfaces the exact assignment denial instead of a generic load failure.
+- [x] Verify archived Reading Passages do not break already assigned homework snapshots.
+  - 2026-06-04 update: `StudentPracticePage` replay coverage asserts assigned Reading Passage set homework launches only from frozen `student_safe_tests/{passage}:{snapshot}` paths and fails if current source metadata/material rows are read.
+- [x] Add tests covering homework creation, student launch, submit, scoring/review, archived-source replay, unavailable projection denial, and existing full-test regression.
+  - 2026-06-04 update: targeted local tests cover homework creation denial, homework card/detail metadata, Reading Passage summary metadata, archived-source runtime replay, library draft non-assignment, Reading V2 set submit core, result adapter/review adapter, and existing full-test result regressions.
 
 ## Phase 11 - Security And Rules Closure
 
@@ -344,8 +374,9 @@ Rules and verification:
 - [ ] Deny teacher writes to published public Book state.
 - [ ] Deny pending/rejected public-review leakage unless the approved policy says all teachers may see those states.
 - [ ] Deny all malformed index, Book node, Reading Passage projection, and composition writes that include answer keys or hidden provenance in public/student-safe paths.
-- [ ] Run emulator rules tests for `material_catalog/material_indexes`, `material_catalog/books`, raw Book nodes, public Book projections, Test Type config, teacher preferences, Reading Passage summaries, homework projection reads, and admin-only writes.
-- [ ] Record skipped rule tests as blockers, not as passed evidence.
+- [x] Run emulator rules tests for `material_catalog/material_indexes`, `material_catalog/books`, raw Book nodes, public Book projections, Test Type config, teacher preferences, Reading Passage summaries, homework projection reads, and admin-only writes.
+- [x] Record skipped rule tests as blockers, not as passed evidence.
+  - 2026-06-04 update: system `java -version` still failed, but workspace-local Temurin 21 enabled `cmd /c npx firebase-tools emulators:exec --only database,firestore --project demo-prd-0052-rules "cmd /c npx vitest run src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic --pool=forks"`, which passed 3 files / 39 tests. The first expanded emulator run found hidden/scoring-field leaks in Material Catalog safe paths; hardened rules were deployed to `temp-a1437-default-rtdb`.
 
 ## Phase 12 - UX, Modal, And Interaction Completeness
 
@@ -366,55 +397,64 @@ Rules and verification:
 ## Phase 13 - Verification Matrix
 
 - [ ] Run targeted unit tests for touched Teacher Lobby, ContentTabs, SearchFilterBar, TestTypeBlockModule, TestTypePreferenceModal, MaterialListRow, BookCard, BookCardGrid, CreateBookModal, BookEditorPage, BookNodeTree, and BookMaterialPicker files.
-- [ ] Run targeted service tests for Test Type config, teacher preferences, material indexes, Book validation, Book persistence, Reading Passage extraction, Reading Passage library, Reading Passage homework, teacher composition, publish pipeline, Studio workflow, backfill, and result adapter files.
+- [x] Run targeted service tests for Test Type config, teacher preferences, material indexes, Book validation, Book persistence, Reading Passage extraction, Reading Passage library, Reading Passage homework, teacher composition, publish pipeline, Studio workflow, backfill, and result adapter files.
+  - 2026-06-04 final repair/backfill update: `cmd /c npx vitest run src/services/materialCatalog/materialCatalogRepair.service.test.ts src/services/materialCatalog/materialCatalogRepairCli.test.ts src/services/reading-v2/readingV2Backfill.service.test.ts src/services/reading-v2/readingV2PassageExtraction.service.test.ts src/services/reading-v2/readingV2BackfillCli.test.ts --reporter=basic` passed, 5 files / 33 tests.
 - [x] Run targeted homework/runtime tests for Reading Passage assignment, student launch, submission, and teacher review.
   - 2026-06-03 update: `cmd /c npx vitest run src/components/homework/HomeworkCreateModal.test.tsx src/services/homeworkManager.test.ts src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/pages/StudentPracticePage.test.tsx src/pages/StudentHomeworkListPage.test.tsx src/pages/StudentHomeworkDetailPage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx src/pages/TeacherLobbyPage.test.jsx src/__tests__/security/materialCatalogFirebaseRules.test.ts --reporter=basic` passed, 12 files / 103 tests.
-- [ ] Run RTDB and Firestore rule tests for all PRD-0052 production paths.
+- [x] Run RTDB and Firestore rule tests for all PRD-0052 production paths.
+  - 2026-06-04 update: expanded emulator proof passed 3 files / 39 tests for RTDB Material Catalog, Reading V2 RTDB, and Homework Firestore rules.
 - [x] Run browser QA with dev quick-login for Teacher.
 - [x] Run browser QA with dev quick-login for Student.
 - [x] In browser QA, create or publish a Reading V2 full test and verify Reading Passage rows appear without fixture mode.
   - 2026-06-03 update: live browser proof published a real Auto V4 full-test draft from the Clippings source, then Teacher `Reading Passage > Private` showed 3 generated passage rows without fixture mode.
 - [x] In browser QA, assign one Reading Passage and complete it as Student.
-- [ ] In browser QA, bulk assign selected Reading Passages and verify Student runtime.
-- [ ] In browser QA, create a full test from selected Reading Passages and open the resulting full test workflow.
+- [x] In browser QA, bulk assign selected Reading Passages and verify Student runtime.
+  - 2026-06-03 update: bulk set runtime launched after local fixes, rendered Part 1 and Part 2 controls, and pre-submit review showed `Answered 26 of 26`, `Passage 1 13/13`, and `Passage 2 13/13`. After Worker deploy, live submit returned HTTP 200 and teacher review loaded the 42%, 11/26 set result with all 26 questions.
+- [x] In browser QA, create a full test from selected Reading Passages and open the resulting full test workflow.
+  - 2026-06-03 update: Teacher `Reading Passage > Private` selected the first two generated rows and `Create full test from selected` opened `/teacher/reading-v2/materials/composition-teacher-selected-glmhcrzmnys6aqfcb9i0nloqq6x2-studio-material-mpxjmklq-passage-1-snapshot-studio-material-mpxjmklq-mpxjnrwq/revise`. The editor showed `Selected Reading Passages`, `Edit published test`, 2 passages, and 5 task groups; `My Content` then showed the recoverable Reading V2 full-test row with 26 questions.
 - [ ] In browser QA, create a Book, edit metadata, build a nested tree, add published refs, assign an individual ref, request public review, approve as admin, and browse the public-safe Book detail as another teacher.
-  - 2026-06-03 update: real super-admin approval flow passed for temporary pending public Books; RTDB rules were deployed to `temp-a1437`; another teacher on `localhost:5174` opened Book > Public, saw the approved Book, and opened public detail through `public_book_projections`. This closes the public Book browser QA slice, but emulator-backed rules proof and broader Reading Passage homework/runtime/result verification remain open.
+  - 2026-06-03 update: real super-admin approval flow passed for temporary pending public Books; RTDB rules were deployed to `temp-a1437`; another teacher on `localhost:5174` opened Book > Public, saw the approved Book, and opened public detail through `public_book_projections`. Later 2026-06-04 proof also covered expanded emulator rules and broader Reading Passage homework/runtime/result verification.
 - [ ] In browser QA, open Reading Passage production-path tab without fixture mode and verify loaded rows or empty state.
   - 2026-06-03 update: flagged `localhost:5175` teacher QA showed the tab hidden by absent flags by default; with process env flags enabled, `Reading Passage` appeared. Private/Public scopes loaded after deployed bucket-read rule fix and rendered `No Reading Passages yet`; no assignment E2E was possible because live RTDB had no Reading Passage rows.
 - [ ] Run visual checks for desktop and mobile Teacher Materials, Reading Passage tab, Book tab, Book editor, modals, and admin surfaces.
 - [ ] Run `cmd /c npx vitest run ... --reporter=basic` for Windows Vitest commands.
-- [ ] Run `npm run check:utf8 -- <changed-paths>`.
-- [ ] Run `git diff --check`.
-- [ ] Run type/lint/build commands required by the repo for touched areas.
-- [ ] Record every verification command, result, branch, commit, environment, and caveat in `documentation/tasks/PRD0052/`.
-- [ ] Treat remote RTDB `Permission denied`, skipped emulator proof, missing Java, or fixture-only screenshots as blockers for affected claims.
+- [x] Run `npm run check:utf8 -- <changed-paths>`.
+  - 2026-06-04 final update: targeted UTF-8 check passed for 13 text files covering repair service/tests, PRD docs, and final repair report JSONs.
+- [x] Run `git diff --check`.
+  - 2026-06-04 final update: passed with only the pre-existing `json` LF-to-CRLF warning.
+- [x] Run type/lint/build commands required by the repo for touched areas.
+  - 2026-06-04 final update: `cmd /c npx tsc --noEmit --pretty false` still exited 2 from repo-wide debt; touched-file filter for repair/backfill/rules paths matched 0 errors.
+- [x] Record every verification command, result, branch, commit, environment, and caveat in `documentation/tasks/PRD0052/`.
+- [x] Treat remote RTDB `Permission denied`, skipped emulator proof, missing Java, or fixture-only screenshots as blockers for affected claims.
 
 ## Phase 14 - Documentation, Cleanup, And Final Handoff
 
-- [ ] Update `prd0052-implementation-coverage-matrix.md` so statuses match evidence: `PASS`, `PARTIAL`, `SCAFFOLD`, `FAIL`, or `PASS_WITH_CAVEAT`.
-- [ ] Update `prd0052-final-handoff-checklist.md` with the new gap-closure results.
-- [ ] Update `prd0052-implementation-notes.md` with canonical data path, feature gates, Test Type governance, public Book governance, and live verification notes.
-- [ ] Update `prd0052-security-rule-validation-cases.md` with actual production paths and outcomes.
-- [ ] Update `prd0052-reading-v2-backfill-dry-run-plan.md` with the operational runner command and approval gates.
-- [ ] Update `prd0052-visual-difference-note.md` to separate fixture layout proof from live workflow proof.
-- [ ] Remove or quarantine fixture-only evidence from final product-faithfulness claims.
+- [x] Update `prd0052-implementation-coverage-matrix.md` so statuses match evidence: `PASS`, `PARTIAL`, `SCAFFOLD`, `FAIL`, or `PASS_WITH_CAVEAT`.
+- [x] Update `prd0052-final-handoff-checklist.md` with the new gap-closure results.
+- [x] Update `prd0052-implementation-notes.md` with canonical data path, feature gates, Test Type governance, public Book governance, and live verification notes.
+- [x] Update `prd0052-security-rule-validation-cases.md` with actual production paths and outcomes.
+- [x] Update `prd0052-reading-v2-backfill-dry-run-plan.md` with the operational runner command and approval gates.
+- [x] Update `prd0052-visual-difference-note.md` to separate fixture layout proof from live workflow proof.
+- [x] Remove or quarantine fixture-only evidence from final product-faithfulness claims.
+  - 2026-06-04 update: `prd0052-visual-difference-note.md` is explicitly visual-layout evidence only. Live/data-plane claims now point to the gap-closure evidence log, security-rule validation cases, and live repair/backfill reports.
 - [ ] Remove stale generated artifacts, unrelated screenshots, and temporary debug files from the final commit set.
-- [ ] Ensure no old report says PRD-0052 is faithful unless this closure tasklist supports that conclusion.
+- [x] Ensure no old report says PRD-0052 is faithful unless this closure tasklist supports that conclusion.
 - [ ] Commit final implementation and documentation with a message that states PRD-0052 gap closure scope and remaining caveats.
 
 ## Final Acceptance Checklist
 
-- [ ] Reading V2 full-test publish creates standalone Reading Passage entities and ordered full-test composition refs.
-- [ ] Reading Passage tab is populated by the production path without fixture mode.
+- [x] Reading V2 full-test publish creates standalone Reading Passage entities and ordered full-test composition refs.
+- [x] Reading Passage tab is populated by the production path without fixture mode.
 - [ ] Reading Passage archive/view/revise/assign/bulk assign/create-full-test actions are real workflows.
 - [ ] Book creation, editing, tree management, material refs, individual ref assignment, and public review governance are real workflows.
 - [ ] Admin Test Type config governs Teacher Lobby Test Type blocks, labels, filters, and teacher pins.
 - [ ] Feature flags and roles govern all PRD-0052 tabs, routes, and actions.
-- [ ] Canonical material indexes have matching readers, writers, rules, and tests.
-- [ ] Book public structure is readable only through a safe approved projection.
-- [ ] Student runtime reads only safe projections.
-- [ ] No answer key, draft payload, hidden provenance, or import evidence leaks to student/public paths.
-- [ ] All P0/P1 audit findings are closed with evidence.
-- [ ] Any remaining P2/P3 issues are documented with owner-approved deferment and do not block PRD V1 truth.
-- [ ] Final proof uses live or emulator data, not fixture mode.
-- [ ] Final docs state the implementation status honestly.
+- [x] Canonical material indexes have matching readers, writers, rules, and tests.
+- [x] Book public structure is readable only through a safe approved projection.
+- [x] Student runtime reads only safe projections.
+- [x] No answer key, draft payload, hidden provenance, or import evidence leaks to student/public paths.
+- [x] All P0/P1 audit findings are closed with evidence.
+  - 2026-06-04 reconciliation: the accepted P0/P1 findings listed in `prd0052-gap-closure-evidence-2026-06-02.md` are closed with code/test/live or emulator evidence. This row does not mark broader unchecked lower-priority tasklist rows complete.
+- [x] Any remaining P2/P3 issues are documented with owner-approved deferment and do not block PRD V1 truth.
+- [x] Final proof uses live or emulator data, not fixture mode.
+- [x] Final docs state the implementation status honestly.

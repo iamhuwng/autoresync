@@ -187,6 +187,34 @@ describe('HomeworkCreateModal', () => {
         expect(onSuccess).toHaveBeenCalled();
     });
 
+    it('shows exact denial reason for unpublished preselected Reading Passage homework', async () => {
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedTarget={{
+                    type: 'class',
+                    classId: 'class-1',
+                    className: 'IELTS Class',
+                }}
+                preselectedReadingPassage={{
+                    materialId: 'passage-unpublished',
+                    title: 'Unpublished Passage',
+                    questionCount: 13,
+                    testTypeIds: ['ielts'],
+                    hasStudentSafeProjection: false,
+                    accessible: false,
+                    archived: false,
+                }}
+            />
+        );
+
+        expect(await screen.findByText(/Reading Passage passage-unpublished requires a published snapshot before assignment\./))
+            .toBeInTheDocument();
+        expect(createHomework).not.toHaveBeenCalled();
+    });
+
     it('creates a Reading Passage set from selected passage summaries', async () => {
         vi.mocked(createHomework).mockResolvedValue('homework-set-1');
 

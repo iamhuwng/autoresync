@@ -70,6 +70,31 @@ const ambiguousDocument = (): ReadingV2Document => {
   };
 };
 
+const missingVisibleCompletionPromptDocument = (): ReadingV2Document => {
+  const document = legacyDocument('Missing Visible Completion Prompt');
+  const taskGroups = Object.fromEntries(
+    Object.entries(document.taskGroups).map(([taskGroupId, taskGroup]) => {
+      const legacyTaskGroup = { ...taskGroup } as Partial<ReadingV2Document['taskGroups'][string]>;
+      delete legacyTaskGroup.optionSetRefs;
+      delete legacyTaskGroup.validationState;
+      return [taskGroupId, legacyTaskGroup];
+    }),
+  ) as ReadingV2Document['taskGroups'];
+  const interactions = Object.fromEntries(
+    Object.entries(document.interactions).map(([interactionId, interaction]) => {
+      const legacyInteraction = { ...interaction } as Partial<ReadingV2Document['interactions'][string]>;
+      delete legacyInteraction.promptText;
+      return [interactionId, legacyInteraction];
+    }),
+  ) as ReadingV2Document['interactions'];
+
+  return {
+    ...document,
+    taskGroups,
+    interactions,
+  };
+};
+
 const nativeComposition = (): ReadingV2FullTestComposition => ({
   deliveryEngine: 'reading-v2',
   plane: 'packaging',
@@ -167,6 +192,27 @@ describe('readingV2Backfill.service', () => {
     expect(write).toHaveBeenCalled();
   });
 
+  it('routes extracted legacy passages that fail the publish gate to manual review without writes', () => {
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        fullTest('legacy-publish-blocked', {
+          document: missingVisibleCompletionPromptDocument(),
+        }),
+      ],
+      now: NOW,
+    });
+
+    expect(report.totals).toEqual({
+      total: 1,
+      splitReady: 0,
+      manualReview: 1,
+      alreadyBackfilled: 0,
+    });
+    expect(report.rows[0]?.status).toBe('manual-review');
+    expect(report.rows[0]?.issues.map((issue) => issue.code)).toContain('publish-gate-blocked');
+    expect(createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' })).toEqual([]);
+  });
+
   it('builds deterministic idempotent write paths for the same source snapshot', () => {
     const report = planReadingV2FullTestPassageBackfill({
       fullTests: [fullTest('legacy-ready')],
@@ -192,6 +238,26 @@ describe('readingV2Backfill.service', () => {
 
     expect(passageSnapshot?.writeKind).toBe('reading-passage-published-snapshot');
     expect(JSON.stringify(passageSnapshot?.value)).toMatch(/acceptableAnswers|scoringRule/);
+  });
+
+  it('builds writes from reviewed JSON reports when extracted legacy task groups have no validation state', () => {
+    const report = JSON.parse(JSON.stringify(planReadingV2FullTestPassageBackfill({
+      fullTests: [fullTest('legacy-ready')],
+      now: NOW,
+    }))) as ReturnType<typeof planReadingV2FullTestPassageBackfill>;
+    const splitReadyRow = report.rows.find((row) => row.status === 'split-ready');
+
+    expect(splitReadyRow?.extraction).toBeDefined();
+
+    splitReadyRow?.extraction?.passages.forEach((passage) => {
+      Object.values(passage.document.taskGroups).forEach((taskGroup) => {
+        delete (taskGroup as { validationState?: unknown }).validationState;
+      });
+    });
+
+    expect(() =>
+      createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' }),
+    ).not.toThrow();
   });
 
   it('records source full-test id and snapshot version while keeping non-shareable public sources private', () => {

@@ -1,13 +1,13 @@
 # PRD-0052 Final Handoff Checklist
 
-Date: 2026-06-02
+Date: 2026-06-04
 Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 
 ## Summary
 
 - Local implementation and tests cover PRD-0052 Books, Reading Passage library, Test Type config, homework launch/submit, result review, rules, diagnostics, backfill planning, and visual shell behavior.
 - Section 20 local visual QA is complete. Historical fixture-only Reading Passage/Book body proof has been superseded by later live RTDB/browser proof for public Book projection browsing and one Reading V2 full-test publish into generated Reading Passage rows. `prd0052-visual-difference-note.md` remains visual-layout evidence, not current data-plane status.
-- 2026-06-03 live Reading Passage proof covers one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student submit, and teacher result review. It does not close bulk Reading Passage homework, create-full-test-from-selected browser recovery, emulator-backed rule proof, or full PRD-0052 completion.
+- 2026-06-03/2026-06-04 live Reading Passage proof covers one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student submit, teacher result review, bulk Reading Passage set launch/submit/result/review after Worker deploy, create-full-test-from-selected recovery, a fresh deployed-Worker full-test regression, and homework history/detail metadata. Local proof now also covers Book atomic update/write-failure behavior, approval-gated backfill/material repair runners, and expanded RTDB/Firestore emulator rules. Live Material Catalog repair committed 54 reviewed index writes with direct RTDB sample proof, then a fixed compare/convergence dry-run returned 0 operations. A controlled live composition-version fixture produced exactly 1 `composition-version-write`, committed from the reviewed report, was verified in RTDB, then cleaned up; final repair baseline returned 0 operations. Fresh backfill dry-run reclassified the only remaining legacy source as `manual-review`, and the approved live backfill write committed a no-op with `plannedWriteCount=0`. Source-data repair for `studio-material-mojlf55h` is owner-deferred because safe repair requires editorial reconstruction; no partial backfill data was written.
 - No whole-Book assignment was added.
 - No direct blank/manual Reading Passage creation was added.
 
@@ -30,7 +30,7 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 | 21.13 students cannot read Book organizers | PASS | `database.rules.json`, `materialCatalogFirebaseRules.test.ts` |
 | 21.14 student-safe projections exclude sensitive fields | PASS | `readingV2Projection.service.test.ts`, `readingV2VerticalLoop.integration.test.tsx`, `readingV2SubmitCore.test.ts` |
 | 21.15 list queries use indexes/targeted reads | PASS | `useTeacherTests`, `readingV2PassageLibrary.service.ts`, `materialBooks.service.ts`, storage/index tests |
-| 21.16 commands/screenshots recorded | PASS_WITH_CAVEAT | `prd0052-implementation-notes.md`, `prd0052-gap-closure-evidence-2026-06-02.md`, `prd0052-visual-difference-note.md`; Java/emulator caveat remains |
+| 21.16 commands/screenshots recorded | PASS | `prd0052-implementation-notes.md`, `prd0052-gap-closure-evidence-2026-06-02.md`, `prd0052-visual-difference-note.md`; emulator proof now recorded in `prd0052-security-rule-validation-cases.md` |
 | 21.17 tab switching preserves search and active Test Type | PASS | `TeacherLobbyPage.test.jsx` |
 | 21.18 Drafts inactive does not load | PASS | `TeacherLobbyPage.jsx` gates `useTeacherDrafts` with `enabled: contentFilter === 'drafts'` |
 | 21.19 source order numeric/label/unknown | PASS | `readingV2PassageExtraction.service.ts`, `readingV2MaterialMetadata.service.ts`, tests |
@@ -47,20 +47,18 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 | 21.30 Book cards allowed actions only | PASS | `BookCard.jsx`, `BookCardGrid.test.jsx`, `TeacherLobbyPage.test.jsx` |
 | 21.31 admin UI validates allowedMaterialKinds | PASS | `TestTypeAdminPanel.tsx`, `TestTypeAdminPanel.test.tsx` |
 | 21.32 loading/empty/error states | PASS | `TeacherLobbyPage.test.jsx`, `BookEditorPage.test.tsx`, `TestTypeAdminPanel.test.tsx`, homework/student tests |
-| 21.33 coverage matrix no unmapped requirements | PASS | `prd0052-implementation-coverage-matrix.md` |
+| 21.33 coverage matrix no unmapped requirements | PASS_WITH_CAVEAT | `prd0052-implementation-coverage-matrix.md`; accepted P0/P1 reconciliation is closed in `prd0052-gap-closure-evidence-2026-06-02.md`; current caveats are owner-deferred legacy source-data manual review, broad repo `tsc` debt, and broader lower-priority tasklist rows tracked separately |
 | 21.34 Book nodes separate from list rows | PASS | `materialCatalogPaths.ts`, `materialBooks.service.ts`, tests |
 | 21.35 exact Reading V2 path helpers | PASS | `readingV2StoragePaths.service.ts`, `readingV2StoragePaths.service.test.ts` |
 | 21.36 tab changes track snake_case action | PASS | `TeacherLobbyPage.jsx`, `TeacherLobbyPage.test.jsx`, `featureRegistry.test.ts` |
 | 21.37 non-empty node delete confirmation | PASS | `BookNodeTree.tsx`, `BookNodeTree.test.tsx` |
 | 21.38 Book editor says whole-Book assignment unavailable | PASS | `BookEditorPage.tsx`, `BookEditorPage.test.tsx` |
 | 21.39 trusted Reading V2 submission/scoring | PASS | `functions/src/readingV2SubmitCore.ts`, `readingV2PassageSetSubmitCore.test.ts`, `StudentPracticePage.test.tsx` |
-| 21.40 nine security scenarios | PASS | `prd0052-security-rule-validation-cases.md`, security test command log |
+| 21.40 nine security scenarios | PASS | `prd0052-security-rule-validation-cases.md`, expanded emulator command log: 3 files / 39 tests passed with RTDB + Firestore emulators |
 | 21.41 long titles/labels truncate with accessible full text | PASS | `BookCard.jsx/css`, `TestTypeBlockModule.jsx/css` |
-| 21.42 remaining gaps documented | PASS | `prd0052-visual-difference-note.md`, this handoff |
+| 21.42 remaining gaps documented | PASS_WITH_CAVEAT | `prd0052-visual-difference-note.md`, this handoff; the remaining legacy backfill source is owner-deferred manual review due publish-gate issues. Composition-version repair execution now has controlled live fixture proof and final repair convergence is 0 ops. |
 
 ## Open Follow-Up Items
 
-1. Run bulk Reading Passage set homework browser QA.
-2. Run `Create full test from selected Reading Passages` browser QA through created full-test recovery/open flow.
-3. Install Java or provide an emulator-capable environment for RTDB emulator proof, or continue with explicit live-deploy proof where approved.
-4. Keep broad repo `tsc` debt separate from PRD-0052 touched-file proof until a scoped typecheck target exists.
+1. Keep `studio-material-mojlf55h` as an owner-deferred source-data/manual-review item unless an editor supplies corrected visible blank markers and multi-select scoring/order.
+2. Keep broad repo `tsc` debt separate from PRD-0052 touched-file proof until a scoped typecheck target exists.

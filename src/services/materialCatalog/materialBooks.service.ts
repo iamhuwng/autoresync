@@ -53,6 +53,7 @@ export interface MaterialBooksRepository {
   readonly readPublicMaterialSummary?: (materialId: string) => Promise<MaterialCatalogIndexRow | null>;
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove: (path: string) => Promise<void>;
+  readonly update: (payload: Record<string, unknown | null>) => Promise<void>;
 }
 
 export interface PublicBookReviewDecisionInput {
@@ -88,6 +89,7 @@ export interface MaterialBooksAdapter {
   readonly read: (path: string) => Promise<unknown>;
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove?: (path: string) => Promise<void>;
+  readonly update?: (payload: Record<string, unknown | null>) => Promise<void>;
 }
 
 export interface CreateBookDraftInput {
@@ -173,12 +175,21 @@ const withoutUndefined = <T>(value: T): T => {
   return value;
 };
 
-const writeDefined = async (
+const sanitizeUpdatePayload = (
+  payload: Record<string, unknown | null>,
+): Record<string, unknown | null> =>
+  Object.fromEntries(
+    Object.entries(payload).map(([path, value]) => [
+      path,
+      value === null ? null : withoutUndefined(value),
+    ]),
+  );
+
+const commitMaterialBookUpdate = async (
   repository: MaterialBooksRepository,
-  path: string,
-  value: unknown,
+  payload: Record<string, unknown | null>,
 ): Promise<void> => {
-  await repository.write(path, withoutUndefined(value));
+  await repository.update(sanitizeUpdatePayload(payload));
 };
 
 const isPublicBookProjection = (value: unknown): value is MaterialBookPublicProjection =>
@@ -270,23 +281,26 @@ export const createMaterialBooksRepository = (
   },
   write: adapter.write,
   remove: adapter.remove ?? (async () => undefined),
+  update: adapter.update ?? (async (payload) => {
+    const remove = adapter.remove ?? (async () => undefined);
+    for (const [path, value] of Object.entries(payload)) {
+      if (value === null) {
+        await remove(path);
+      } else {
+        await adapter.write(path, value);
+      }
+    }
+  }),
 });
 
-const writeBookWithIndexes = async (
-  repository: MaterialBooksRepository,
+const buildBookWithIndexesUpdate = (
   book: MaterialBookMetadata,
   previous?: MaterialBookMetadata | null,
-): Promise<void> => {
-  await writeDefined(repository, materialCatalogPaths.books(book.bookId), book);
-
-  for (const stalePath of buildMaterialBookIndexCleanup(previous, book)) {
-    await repository.remove(stalePath);
-  }
-
-  for (const write of buildMaterialBookIndexWrites(book)) {
-    await writeDefined(repository, write.path, write.value);
-  }
-};
+): Record<string, unknown | null> => ({
+  [materialCatalogPaths.books(book.bookId)]: book,
+  ...Object.fromEntries(buildMaterialBookIndexCleanup(previous, book).map((path) => [path, null])),
+  ...Object.fromEntries(buildMaterialBookIndexWrites(book).map((write) => [write.path, write.value])),
+});
 
 const requireBook = async (
   repository: MaterialBooksRepository,
@@ -342,11 +356,13 @@ export const createBookDraft = async (
   assertValid(validateMaterialBook({ metadata: book, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(null, book, context));
 
-  await writeBookWithIndexes(repository, book);
-
-  for (const entry of nodes) {
-    await writeDefined(repository, materialCatalogPaths.bookNodes(book.bookId, entry.nodeId), entry);
-  }
+  await commitMaterialBookUpdate(repository, {
+    ...buildBookWithIndexesUpdate(book),
+    ...Object.fromEntries(nodes.map((entry) => [
+      materialCatalogPaths.bookNodes(book.bookId, entry.nodeId),
+      entry,
+    ])),
+  });
 
   return book;
 };
@@ -375,7 +391,7 @@ export const updateBookMetadata = async (
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
-  await writeBookWithIndexes(repository, next, current);
+  await commitMaterialBookUpdate(repository, buildBookWithIndexesUpdate(next, current));
   return next;
 };
 
@@ -405,20 +421,21 @@ export const updateBookTree = async (
   const previousNodes = await repository.listBookNodes(bookId);
   const nextNodeIds = new Set(nodes.map((entry) => entry.nodeId));
 
-  for (const previous of previousNodes) {
-    if (!nextNodeIds.has(previous.nodeId)) {
-      await repository.remove(materialCatalogPaths.bookNodes(bookId, previous.nodeId));
-    }
-  }
-
-  for (const entry of nodes) {
-    await writeDefined(repository, materialCatalogPaths.bookNodes(bookId, entry.nodeId), {
-      ...entry,
-      updatedAt: now,
-    });
-  }
-
-  await writeBookWithIndexes(repository, nextMetadata, current);
+  await commitMaterialBookUpdate(repository, {
+    ...Object.fromEntries(
+      previousNodes
+        .filter((previous) => !nextNodeIds.has(previous.nodeId))
+        .map((previous) => [materialCatalogPaths.bookNodes(bookId, previous.nodeId), null]),
+    ),
+    ...Object.fromEntries(nodes.map((entry) => [
+      materialCatalogPaths.bookNodes(bookId, entry.nodeId),
+      {
+        ...entry,
+        updatedAt: now,
+      },
+    ])),
+    ...buildBookWithIndexesUpdate(nextMetadata, current),
+  });
   return { metadata: nextMetadata, nodes };
 };
 
@@ -572,8 +589,10 @@ export const approvePublicBook = async (
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
 
-  await writeBookWithIndexes(repository, next, current);
-  await writeDefined(repository, materialCatalogPaths.publicBookProjections(bookId), projection);
+  await commitMaterialBookUpdate(repository, {
+    ...buildBookWithIndexesUpdate(next, current),
+    [materialCatalogPaths.publicBookProjections(bookId)]: projection,
+  });
   return next;
 };
 
@@ -598,8 +617,10 @@ export const rejectPublicBookReview = async (
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
-  await writeBookWithIndexes(repository, next, current);
-  await repository.remove(materialCatalogPaths.publicBookProjections(bookId));
+  await commitMaterialBookUpdate(repository, {
+    ...buildBookWithIndexesUpdate(next, current),
+    [materialCatalogPaths.publicBookProjections(bookId)]: null,
+  });
   return next;
 };
 
@@ -624,8 +645,10 @@ export const returnPublicBookToPrivate = async (
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
-  await writeBookWithIndexes(repository, next, current);
-  await repository.remove(materialCatalogPaths.publicBookProjections(bookId));
+  await commitMaterialBookUpdate(repository, {
+    ...buildBookWithIndexesUpdate(next, current),
+    [materialCatalogPaths.publicBookProjections(bookId)]: null,
+  });
   return next;
 };
 

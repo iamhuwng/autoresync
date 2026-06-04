@@ -65,16 +65,35 @@ const createRepo = (
 ): MaterialBooksRepository & {
   writes: Record<string, unknown>[];
   removals: string[];
+  updates: Record<string, unknown | null>[];
+  update: (payload: Record<string, unknown | null>) => Promise<void>;
   readPublicMaterialSummary: ReturnType<typeof vi.fn>;
 } => {
   const bookMap = new Map(books.map((book) => [book.bookId, book]));
   const nodeMap = new Map(Object.entries(nodesByBook));
   const writes: Record<string, unknown>[] = [];
   const removals: string[] = [];
+  const updates: Record<string, unknown | null>[] = [];
+  const applyWrite = (path: string, value: unknown): void => {
+    const bookMatch = path.match(/^material_catalog\/books\/(.+)$/);
+    const nodeMatch = path.match(/^material_catalog\/book_nodes\/([^/]+)\/([^/]+)$/);
+
+    if (bookMatch) {
+      bookMap.set(bookMatch[1], value as MaterialBookMetadata);
+    }
+
+    if (nodeMatch) {
+      const current = [...(nodeMap.get(nodeMatch[1]) ?? [])].filter(
+        (entry) => entry.nodeId !== nodeMatch[2],
+      );
+      nodeMap.set(nodeMatch[1], [...current, value as MaterialBookNode]);
+    }
+  };
 
   return {
     writes,
     removals,
+    updates,
     async readBook(bookId) {
       return bookMap.get(bookId) ?? null;
     },
@@ -92,23 +111,22 @@ const createRepo = (
     },
     async write(path, value) {
       writes.push({ path, value });
-      const bookMatch = path.match(/^material_catalog\/books\/(.+)$/);
-      const nodeMatch = path.match(/^material_catalog\/book_nodes\/([^/]+)\/([^/]+)$/);
-
-      if (bookMatch) {
-        bookMap.set(bookMatch[1], value as MaterialBookMetadata);
-      }
-
-      if (nodeMatch) {
-        const current = [...(nodeMap.get(nodeMatch[1]) ?? [])].filter(
-          (entry) => entry.nodeId !== nodeMatch[2],
-        );
-        nodeMap.set(nodeMatch[1], [...current, value as MaterialBookNode]);
-      }
+      applyWrite(path, value);
     },
     readPublicMaterialSummary: vi.fn(async () => null),
     async remove(path) {
       removals.push(path);
+    },
+    async update(payload) {
+      updates.push(payload);
+      Object.entries(payload).forEach(([path, value]) => {
+        if (value === null) {
+          removals.push(path);
+          return;
+        }
+
+        applyWrite(path, value);
+      });
     },
   };
 };
@@ -131,14 +149,15 @@ describe('materialBooks.service', () => {
     );
 
     expect(book.status).toBe('draft-empty');
-    expect(repo.writes.map((write) => write.path)).toEqual(
-      expect.arrayContaining([
-        'material_catalog/books/book-1',
-        'material_catalog/book_indexes/by_owner/teacher-1/book-1',
-        'material_catalog/book_indexes/by_visibility/private/book-1',
-        'material_catalog/book_indexes/by_test_type/ielts/book-1',
-      ]),
-    );
+    expect(repo.writes).toEqual([]);
+    expect(repo.removals).toEqual([]);
+    expect(repo.updates).toHaveLength(1);
+    expect(Object.keys(repo.updates[0])).toEqual(expect.arrayContaining([
+      'material_catalog/books/book-1',
+      'material_catalog/book_indexes/by_owner/teacher-1/book-1',
+      'material_catalog/book_indexes/by_visibility/private/book-1',
+      'material_catalog/book_indexes/by_test_type/ielts/book-1',
+    ]));
   });
 
   it('writes initial nodes and marks structural Books ready', async () => {
@@ -159,7 +178,8 @@ describe('materialBooks.service', () => {
     );
 
     expect(book.status).toBe('ready');
-    expect(repo.writes.map((write) => write.path)).toContain('material_catalog/book_nodes/book-1/node-1');
+    expect(repo.writes).toEqual([]);
+    expect(Object.keys(repo.updates[0])).toContain('material_catalog/book_nodes/book-1/node-1');
   });
 
   it('updates metadata and cleans stale visibility/Test Type indexes', async () => {
@@ -182,18 +202,18 @@ describe('materialBooks.service', () => {
 
     expect(updated.visibility).toBe('public-library-pending-review');
     expect(updated.updatedAt).toBe(NOW);
-    expect(repo.removals).toEqual(
-      expect.arrayContaining([
-        'material_catalog/book_indexes/by_visibility/private/book-1',
-        'material_catalog/book_indexes/by_test_type/ielts/book-1',
-      ]),
-    );
-    expect(repo.writes.map((write) => write.path)).toEqual(
-      expect.arrayContaining([
-        'material_catalog/book_indexes/by_visibility/public-library-pending-review/book-1',
-        'material_catalog/book_indexes/by_test_type/toeic/book-1',
-      ]),
-    );
+    expect(repo.writes).toEqual([]);
+    expect(repo.removals).toEqual([
+      'material_catalog/book_indexes/by_visibility/private/book-1',
+      'material_catalog/book_indexes/by_test_type/ielts/book-1',
+    ]);
+    expect(repo.updates).toHaveLength(1);
+    expect(repo.updates[0]).toMatchObject({
+      'material_catalog/book_indexes/by_visibility/private/book-1': null,
+      'material_catalog/book_indexes/by_test_type/ielts/book-1': null,
+      'material_catalog/book_indexes/by_visibility/public-library-pending-review/book-1': expect.any(Object),
+      'material_catalog/book_indexes/by_test_type/toeic/book-1': expect.any(Object),
+    });
   });
 
   it('updates Book tree with conflict check and rejects invalid depth', async () => {
@@ -225,8 +245,45 @@ describe('materialBooks.service', () => {
     );
 
     expect(result.metadata.status).toBe('ready');
+    expect(repo.writes).toEqual([]);
     expect(repo.removals).toContain('material_catalog/book_nodes/book-1/node-1');
-    expect(repo.writes.map((write) => write.path)).toContain('material_catalog/book_nodes/book-1/chapter-1');
+    expect(repo.updates.at(-1)).toMatchObject({
+      'material_catalog/book_nodes/book-1/node-1': null,
+      'material_catalog/book_nodes/book-1/chapter-1': expect.any(Object),
+      'material_catalog/books/book-1': expect.objectContaining({ status: 'ready' }),
+    });
+  });
+
+  it('does not perform partial Book writes when an atomic metadata update fails', async () => {
+    const repo = {
+      ...createRepo([metadata({
+        visibility: 'private',
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      })]),
+      update: vi.fn(async () => {
+        throw new Error('atomic update failed');
+      }),
+      write: vi.fn(async () => {
+        throw new Error('sequential write should not run');
+      }),
+      remove: vi.fn(async () => {
+        throw new Error('sequential remove should not run');
+      }),
+    };
+
+    await expect(updateBookMetadata(
+      'book-1',
+      {
+        visibility: 'public-library-pending-review',
+        testTypeIds: [materialCatalogIds.testTypeId('toeic')],
+      },
+      repo,
+      { actorId: 'teacher-1', actorRole: 'teacher', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+    )).rejects.toThrow(/atomic update failed/);
+
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    expect(repo.write).not.toHaveBeenCalled();
+    expect(repo.remove).not.toHaveBeenCalled();
   });
 
   it('lists private and public Books with search and Test Type filters', async () => {
@@ -401,11 +458,11 @@ describe('materialBooks.service', () => {
     );
 
     expect(approved.visibility).toBe('public-library-published');
-    const projectionWrite = repo.writes.find((write) =>
-      write.path === 'material_catalog/public_book_projections/book-1'
-    );
+    expect(repo.writes).toEqual([]);
+    expect(repo.updates).toHaveLength(1);
+    const projectionWrite = repo.updates[0]['material_catalog/public_book_projections/book-1'];
 
-    expect(projectionWrite?.value).toMatchObject({
+    expect(projectionWrite).toMatchObject({
       bookId: 'book-1',
       title: 'Cambridge IELTS 18',
       approvedAt: NOW,
@@ -431,14 +488,12 @@ describe('materialBooks.service', () => {
         },
       ],
     });
-    expect(JSON.stringify(projectionWrite?.value)).not.toContain('visibilitySnapshot');
-    expect(JSON.stringify(projectionWrite?.value)).not.toContain('addedBy');
-    expect(repo.writes.map((write) => write.path)).toEqual(
-      expect.arrayContaining([
-        'material_catalog/books/book-1',
-        'material_catalog/book_indexes/by_visibility/public-library-published/book-1',
-      ]),
-    );
+    expect(JSON.stringify(projectionWrite)).not.toContain('visibilitySnapshot');
+    expect(JSON.stringify(projectionWrite)).not.toContain('addedBy');
+    expect(repo.updates[0]).toMatchObject({
+      'material_catalog/books/book-1': expect.objectContaining({ visibility: 'public-library-published' }),
+      'material_catalog/book_indexes/by_visibility/public-library-published/book-1': expect.any(Object),
+    });
   });
 
   it('approves ready Books when RTDB omits empty node fields', async () => {

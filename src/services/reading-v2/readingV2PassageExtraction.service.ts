@@ -1,6 +1,7 @@
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import {
   readingV2Ids,
+  type ReadingV2Anchor,
   type ReadingV2Document,
   type ReadingV2FullTestComposition,
   type ReadingV2FullTestId,
@@ -20,6 +21,10 @@ import {
   type MaterialTestTypeId,
   type ReadingPassageVisibilityScope,
 } from '../../types/materialCatalog.types';
+import {
+  assertReadingV2PublishGate,
+  ReadingV2PublishGateError,
+} from './readingV2Validation.service';
 
 export type ReadingV2PassageExtractionIssueCode =
   | 'missing-source-input'
@@ -27,7 +32,8 @@ export type ReadingV2PassageExtractionIssueCode =
   | 'missing-task-group'
   | 'missing-interaction'
   | 'missing-answer-key'
-  | 'missing-test-type';
+  | 'missing-test-type'
+  | 'publish-gate-blocked';
 
 export type ReadingV2PassageExtractionIssueSeverity = 'warning' | 'error';
 
@@ -365,21 +371,30 @@ const buildSinglePassageDocument = (
   title: string,
 ): ReadingV2Document => {
   const section = sourceDocument.sections[sectionId];
-  const anchorIds = new Set<string>([
-    ...stimulus.anchorIds,
-    ...interactions.flatMap((interaction) => [
-      interaction.primaryAnchorId,
-      ...(interaction.contextAnchorIds ?? []),
-    ]),
-    ...taskGroups.flatMap((taskGroup) =>
-      taskGroup.stimulusRefs.flatMap((stimulusRef) => stimulusRef.anchorIds ?? []),
-    ),
-  ].filter((anchorId): anchorId is string => Boolean(anchorId)));
-  const anchors = Object.fromEntries(
-    Array.from(anchorIds)
-      .map((anchorId) => [anchorId, sourceDocument.anchors[anchorId]])
-      .filter((entry): entry is [string, NonNullable<typeof entry[1]>] => Boolean(entry[1])),
-  );
+  if (!section) {
+    throw new Error(`Reading V2 section ${sectionId} is missing from source document.`);
+  }
+
+  const anchorIds = new Set<string>();
+  stimulus.anchorIds.forEach((anchorId) => anchorIds.add(anchorId));
+  interactions.forEach((interaction) => {
+    if (interaction.primaryAnchorId) {
+      anchorIds.add(interaction.primaryAnchorId);
+    }
+    (interaction.contextAnchorIds ?? []).forEach((anchorId) => anchorIds.add(anchorId));
+  });
+  taskGroups.forEach((taskGroup) => {
+    taskGroup.stimulusRefs.forEach((stimulusRef) => {
+      (stimulusRef.anchorIds ?? []).forEach((anchorId) => anchorIds.add(anchorId));
+    });
+  });
+  const anchors: Record<string, ReadingV2Anchor> = {};
+  anchorIds.forEach((anchorId) => {
+    const anchor = sourceDocument.anchors[anchorId];
+    if (anchor) {
+      anchors[anchorId] = cloneRecord(anchor);
+    }
+  });
 
   return {
     deliveryEngine: READING_V2_ENGINE,
@@ -396,7 +411,14 @@ const buildSinglePassageDocument = (
     },
     anchors,
     taskGroups: Object.fromEntries(
-      taskGroups.map((taskGroup) => [taskGroup.taskGroupId, cloneRecord(taskGroup)]),
+      taskGroups.map((taskGroup) => [
+        taskGroup.taskGroupId,
+        {
+          ...cloneRecord(taskGroup),
+          optionSetRefs: taskGroup.optionSetRefs ?? [],
+          validationState: taskGroup.validationState ?? { issues: [] },
+        },
+      ]),
     ),
     interactions: Object.fromEntries(
       interactions.map((interaction) => [interaction.interactionId, cloneRecord(interaction)]),
@@ -406,6 +428,31 @@ const buildSinglePassageDocument = (
     ),
     validationState: { issues: [] },
   };
+};
+
+const getPublishGateIssues = (
+  document: ReadingV2Document,
+  sectionId: ReadingV2SectionId,
+): readonly ReadingV2PassageExtractionIssue[] => {
+  try {
+    assertReadingV2PublishGate(document);
+    return [];
+  } catch (error) {
+    if (!(error instanceof ReadingV2PublishGateError)) {
+      throw error;
+    }
+
+    return error.result.blockingIssues.map((blockingIssue) =>
+      issue(
+        'publish-gate-blocked',
+        `Extracted Reading Passage failed publish gate: ${blockingIssue.message}`,
+        {
+          sectionId,
+          interactionId: blockingIssue.objectId,
+        },
+      ),
+    );
+  }
 };
 
 export const extractReadingV2PassageMaterials = (
@@ -481,11 +528,14 @@ export const extractReadingV2PassageMaterials = (
     }
 
     const section = source.document.sections[sectionRow.sectionId];
+    if (!section) {
+      return [];
+    }
     const sourceOrder = parseSourceOrder(section.title, sourceOrderLabel);
     const taskGroups = getSectionTaskGroups(source.document, sectionRow.sectionId);
     const interactions = getTaskGroupInteractions(source.document, taskGroups);
     const optionSets = getTaskGroupOptionSets(source.document, taskGroups);
-    const passageIssues = [
+    const sourcePassageIssues = [
       ...(taskGroups.length === 0
         ? [
             issue(
@@ -504,7 +554,6 @@ export const extractReadingV2PassageMaterials = (
     const interactionIds = interactions.map((interaction) => interaction.interactionId);
     const taskGroupIds = taskGroups.map((taskGroup) => taskGroup.taskGroupId);
     const sourceQuestionRange = deriveQuestionRange(interactions);
-    const hasBlockingIssue = passageIssues.some((entry) => entry.severity === 'error') || Boolean(missingTestTypeIssue);
     const title = buildPassageTitle(source.sourceTitleSnapshot, sourceOrder);
     const singlePassageDocument = buildSinglePassageDocument(
       source.document,
@@ -515,6 +564,11 @@ export const extractReadingV2PassageMaterials = (
       optionSets,
       title,
     );
+    const passageIssues = [
+      ...sourcePassageIssues,
+      ...getPublishGateIssues(singlePassageDocument, sectionRow.sectionId),
+    ];
+    const hasBlockingIssue = passageIssues.some((entry) => entry.severity === 'error') || Boolean(missingTestTypeIssue);
 
     return [
       {

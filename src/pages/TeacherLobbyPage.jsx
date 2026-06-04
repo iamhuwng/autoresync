@@ -1,6 +1,6 @@
 // TeacherLobbyPage composition layer (PRD-0033 refactor)
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { get, ref, remove, set } from 'firebase/database';
+import { get, ref, remove, set, update as updateDb } from 'firebase/database';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
@@ -218,6 +218,10 @@ const TeacherLobbyPage = () => {
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
   const [readingPassageError, setReadingPassageError] = useState(null);
   const [selectedReadingPassageIds, setSelectedReadingPassageIds] = useState([]);
+  const [readingPassageFullTestCreateState, setReadingPassageFullTestCreateState] = useState({
+    status: 'idle',
+    message: null,
+  });
   const [readingPassageHomeworkRequest, setReadingPassageHomeworkRequest] = useState(null);
   const [bookScope, setBookScope] = useState('private');
   const [bookRows, setBookRows] = useState([]);
@@ -305,10 +309,20 @@ const TeacherLobbyPage = () => {
     remove: async (path) => {
       await remove(ref(database, path));
     },
+    update: async (payload) => {
+      await updateDb(ref(database), payload);
+    },
   }), []);
   const readingV2CompositionRepository = useMemo(() => ({
+    read: async (path) => {
+      const snapshot = await get(ref(database, path));
+      return snapshot.val();
+    },
     write: async (path, value) => {
       await set(ref(database, path), value);
+    },
+    update: async (updates) => {
+      await updateDb(ref(database), updates);
     },
   }), []);
   const readingV2PassageArchiveRepository = useMemo(() => ({
@@ -685,6 +699,7 @@ const TeacherLobbyPage = () => {
   useEffect(() => {
     if (contentFilter !== 'reading-passage') {
       setSelectedReadingPassageIds([]);
+      setReadingPassageFullTestCreateState({ status: 'idle', message: null });
       return;
     }
 
@@ -1102,6 +1117,17 @@ const TeacherLobbyPage = () => {
     const selectedIds = new Set(selectedReadingPassageIds);
     return readingPassageRows.filter((row) => selectedIds.has(getReadingPassageId(row)));
   }, [getReadingPassageId, readingPassageRows, selectedReadingPassageIds]);
+  const isCreatingReadingPassageFullTest = readingPassageFullTestCreateState.status === 'creating';
+  const readingPassageFullTestCreateError =
+    readingPassageFullTestCreateState.status === 'failed'
+      ? readingPassageFullTestCreateState.message
+      : null;
+  const readingPassageFullTestCreateLabel =
+    readingPassageFullTestCreateState.status === 'creating'
+      ? 'Creating full test...'
+      : readingPassageFullTestCreateState.status === 'failed'
+        ? 'Retry create full test'
+        : 'Create full test from selected';
 
   const handleAssignSelectedReadingPassages = useCallback(() => {
     if (selectedReadingPassages.length === 0) {
@@ -1128,11 +1154,12 @@ const TeacherLobbyPage = () => {
   }, [getReadingPassageId, selectedReadingPassages, trackAction]);
 
   const handleCreateFullTestFromSelectedReadingPassages = useCallback(async () => {
-    if (!user?.uid || selectedReadingPassages.length === 0) {
+    if (isCreatingReadingPassageFullTest || !user?.uid || selectedReadingPassages.length === 0) {
       return;
     }
 
     const passageIds = selectedReadingPassages.map((passage) => getReadingPassageId(passage));
+    setReadingPassageFullTestCreateState({ status: 'creating', message: null });
     trackAction('createReadingFullTestFromSelectedPassages', {
       passageIds,
       source: 'teacher_materials_reading_passage_selection_toolbar',
@@ -1147,23 +1174,44 @@ const TeacherLobbyPage = () => {
 
       trackAction('teacher_materials_reading_full_test_composition_created', {
         compositionId: result.composition.compositionId,
+        materialId: result.composition.testMaterialId,
         passageCount: selectedReadingPassages.length,
         source: 'teacher_materials_reading_passage_selection_toolbar',
       });
       logTeacherMaterialsDiagnostic('reading_passage_full_test_composition_created', {
         compositionId: result.composition.compositionId,
+        materialId: result.composition.testMaterialId,
         passageCount: selectedReadingPassages.length,
         questionCount: result.composition.questionCount,
       });
+      setReadingPassageFullTestCreateState({ status: 'idle', message: null });
       setSelectedReadingPassageIds([]);
+      navigateTo(
+        'TEACHER_READING_V2_REVISE',
+        { materialId: result.composition.testMaterialId },
+        { reason: 'teacher_materials_reading_passage_full_test_created' },
+      );
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create Reading full test.';
       console.error('Failed to create Reading full-test composition:', error);
+      setReadingPassageFullTestCreateState({
+        status: 'failed',
+        message,
+      });
       logTeacherMaterialsDiagnostic('reading_passage_full_test_composition_failed', {
         passageCount: selectedReadingPassages.length,
-        message: error instanceof Error ? error.message : String(error),
+        message,
       });
     }
-  }, [getReadingPassageId, readingV2CompositionRepository, selectedReadingPassages, trackAction, user?.uid]);
+  }, [
+    getReadingPassageId,
+    isCreatingReadingPassageFullTest,
+    navigateTo,
+    readingV2CompositionRepository,
+    selectedReadingPassages,
+    trackAction,
+    user?.uid,
+  ]);
 
   const toReadingPassageHomeworkCandidate = useCallback((passage) => ({
     materialId: getReadingPassageId(passage),
@@ -1450,9 +1498,15 @@ const TeacherLobbyPage = () => {
                           <button
                             type="button"
                             onClick={handleCreateFullTestFromSelectedReadingPassages}
+                            disabled={isCreatingReadingPassageFullTest}
                           >
-                            Create full test from selected
+                            {readingPassageFullTestCreateLabel}
                           </button>
+                          {readingPassageFullTestCreateError && (
+                            <span className="reading-passage-selection-toolbar__error" role="status">
+                              {readingPassageFullTestCreateError}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +15,7 @@ import {
   type ReadingV2FullTestPassageBackfillWrite,
 } from '../src/services/reading-v2/readingV2Backfill.service';
 import { readingV2StoragePaths } from '../src/services/reading-v2/readingV2StoragePaths.service';
+import { ReadingV2PublishGateError } from '../src/services/reading-v2/readingV2Validation.service';
 import {
   readingV2Ids,
   type ReadingV2Document,
@@ -42,6 +44,7 @@ export interface ReadingV2BackfillCliOptions {
   readonly createdTo?: string;
   readonly limit?: number;
   readonly reportPath?: string;
+  readonly fromReportPath?: string;
   readonly projectId: string;
   readonly help: boolean;
 }
@@ -134,6 +137,7 @@ export const parseBackfillCliArgs = (
   let createdTo: string | undefined;
   let limit: number | undefined;
   let reportPath: string | undefined;
+  let fromReportPath: string | undefined;
   let projectId = env.VITE_FIREBASE_PROJECT_ID || 'temp-a1437';
   let help = false;
 
@@ -176,6 +180,10 @@ export const parseBackfillCliArgs = (
       case '--report':
       case '--report-path':
         reportPath = requireValue(argv, index, arg);
+        index += 1;
+        break;
+      case '--from-report':
+        fromReportPath = requireValue(argv, index, arg);
         index += 1;
         break;
       case '--project':
@@ -227,6 +235,10 @@ export const parseBackfillCliArgs = (
           reportPath = arg.slice('--report-path='.length).trim();
           break;
         }
+        if (arg.startsWith('--from-report=')) {
+          fromReportPath = arg.slice('--from-report='.length).trim();
+          break;
+        }
         if (arg.startsWith('--project=')) {
           projectId = arg.slice('--project='.length).trim();
           break;
@@ -239,6 +251,10 @@ export const parseBackfillCliArgs = (
     throw new Error('Mutation mode requires --write and --approved <approval-id>.');
   }
 
+  if (write && !fromReportPath?.trim()) {
+    throw new Error('Mutation mode requires --from-report <dry-run-report.json>.');
+  }
+
   return {
     dryRun: !write,
     write,
@@ -249,6 +265,7 @@ export const parseBackfillCliArgs = (
     createdTo,
     limit,
     reportPath,
+    fromReportPath: fromReportPath?.trim() || undefined,
     projectId,
     help,
   };
@@ -454,8 +471,115 @@ export const buildBackfillUpdatePayload = (
 ): Record<string, unknown> =>
   Object.fromEntries(writes.map((write) => [write.path, write.value]));
 
+const normalizeBackfillDigestValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeBackfillDigestValue);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !['createdAt', 'updatedAt', 'extractedAt', 'publishedAt', 'publishedBy'].includes(key))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, normalizeBackfillDigestValue(entry)]),
+  );
+};
+
+const buildBackfillReportDigest = (report: Pick<ReadingV2FullTestPassageBackfillReport, 'rows' | 'totals'>): string =>
+  createHash('sha256')
+    .update(JSON.stringify(normalizeBackfillDigestValue({
+      totals: report.totals,
+      rows: report.rows,
+    })))
+    .digest('hex');
+
+const getReviewedProjectId = (report: unknown): string | undefined =>
+  isRecord(report) && typeof report.projectId === 'string' ? report.projectId : undefined;
+
+const getReviewedMutationStatus = (report: unknown): string | undefined =>
+  isRecord(report) &&
+  isRecord(report.mutation) &&
+  typeof report.mutation.status === 'string'
+    ? report.mutation.status
+    : undefined;
+
+const isReviewedBackfillReport = (report: unknown): report is ReadingV2FullTestPassageBackfillReport & {
+  readonly projectId: string;
+  readonly mutation: { readonly status: string };
+} =>
+  isRecord(report) &&
+  report.dryRun === true &&
+  typeof report.generatedAt === 'string' &&
+  isRecord(report.totals) &&
+  Array.isArray(report.rows) &&
+  getReviewedMutationStatus(report) === 'not-run';
+
+const readReviewedReport = async (reportPath: string): Promise<unknown> =>
+  JSON.parse(await readFile(resolve(reportPath), 'utf8'));
+
+export const buildBackfillWritePayloadFromReviewedReport = (input: {
+  readonly options: ReadingV2BackfillCliOptions;
+  readonly currentReport: ReadingV2FullTestPassageBackfillReport;
+  readonly readFailures: readonly BackfillReadFailure[];
+  readonly reviewedReport: unknown;
+}): Record<string, unknown> => {
+  if (input.readFailures.length > 0) {
+    throw new Error(`Backfill write aborted because ${input.readFailures.length} Firebase read(s) failed.`);
+  }
+
+  if (
+    !isReviewedBackfillReport(input.reviewedReport) ||
+    getReviewedProjectId(input.reviewedReport) !== input.options.projectId ||
+    input.reviewedReport.rows.length !== input.currentReport.rows.length ||
+    buildBackfillReportDigest(input.reviewedReport) !== buildBackfillReportDigest(input.currentReport)
+  ) {
+    throw new Error('Backfill write aborted because the reviewed dry-run report does not match current operations.');
+  }
+
+  const writes = createReadingV2FullTestPassageBackfillWritePlan({
+    report: input.reviewedReport,
+    approvedBy: input.options.approvedBy,
+  });
+
+  return buildBackfillUpdatePayload(writes);
+};
+
 const firebaseArgs = (args: readonly string[]): string[] =>
   process.platform === 'win32' ? ['/c', 'firebase', ...args] : [...args];
+
+export const normalizeFirebaseDatabasePath = (path: string): string =>
+  path === '/' || path.startsWith('/') ? path : `/${path}`;
+
+export const describeBackfillMutationError = (
+  error: unknown,
+): {
+  readonly error: string;
+  readonly blockingIssues?: readonly {
+    readonly code: string;
+    readonly severity: string;
+    readonly message: string;
+    readonly objectId?: string;
+  }[];
+} => {
+  if (error instanceof ReadingV2PublishGateError) {
+    return {
+      error: error.message,
+      blockingIssues: error.result.blockingIssues.map((issue) => ({
+        code: issue.code,
+        severity: issue.severity,
+        message: issue.message,
+        objectId: issue.objectId,
+      })),
+    };
+  }
+
+  return {
+    error: error instanceof Error ? error.message : String(error),
+  };
+};
 
 const runFirebaseCli = async (args: readonly string[]): Promise<string> => {
   const { stdout } = await execFileAsync(firebaseBinary, firebaseArgs(args), {
@@ -467,7 +591,7 @@ const runFirebaseCli = async (args: readonly string[]): Promise<string> => {
 };
 
 const readFirebaseJson = async (path: string, projectId: string): Promise<unknown> => {
-  const output = await runFirebaseCli(['database:get', path, '--project', projectId]);
+  const output = await runFirebaseCli(['database:get', normalizeFirebaseDatabasePath(path), '--project', projectId]);
   return output ? JSON.parse(output) : null;
 };
 
@@ -480,7 +604,14 @@ const updateFirebaseJson = async (path: string, data: unknown, projectId: string
   await writeFile(tempFile, JSON.stringify(data), 'utf8');
 
   try {
-    await runFirebaseCli(['database:update', path, tempFile, '--project', projectId, '--force']);
+    await runFirebaseCli([
+      'database:update',
+      normalizeFirebaseDatabasePath(path),
+      tempFile,
+      '--project',
+      projectId,
+      '--force',
+    ]);
   } finally {
     await rm(tempFile, { force: true }).catch(() => undefined);
   }
@@ -543,6 +674,7 @@ Options:
   --dry-run                  Report candidates only (default)
   --write                    Persist planned writes through RTDB multi-location update
   --approved <id>            Required with --write; approval ticket or lead id
+  --from-report <path>       Required with --write; previous dry-run report to verify
   --owner <teacherId>        Filter source full tests by owner
   --material-id <id>         Backfill one source full-test material id
   --created-from <iso>       Include sources at or after timestamp
@@ -581,25 +713,26 @@ export const runReadingV2PassageBackfillCli = async (
     | undefined;
 
   if (options.write) {
-    const writes = createReadingV2FullTestPassageBackfillWritePlan({
-      report,
-      approvedBy: options.approvedBy,
-    });
-    const updatePayload = buildBackfillUpdatePayload(writes);
-
     try {
+      const reviewedReport = await readReviewedReport(options.fromReportPath!);
+      const updatePayload = buildBackfillWritePayloadFromReviewedReport({
+        options,
+        currentReport: report,
+        readFailures,
+        reviewedReport,
+      });
       await updateFirebaseJson('/', updatePayload, options.projectId);
       mutation = {
         status: 'committed',
         approvedBy: options.approvedBy,
-        plannedWriteCount: writes.length,
+        plannedWriteCount: Object.keys(updatePayload).length,
       };
     } catch (error) {
       mutation = {
         status: 'failed',
         approvedBy: options.approvedBy,
-        plannedWriteCount: writes.length,
-        error: error instanceof Error ? error.message : String(error),
+        plannedWriteCount: 0,
+        ...describeBackfillMutationError(error),
       };
     }
   } else {
@@ -622,6 +755,7 @@ export const runReadingV2PassageBackfillCli = async (
     },
     totals: report.totals,
     rows: report.rows,
+    readFailures,
     skippedMaterials: [
       ...buildResult.skippedMaterials,
       ...readFailures.map((failure) => ({
@@ -650,6 +784,7 @@ export const runReadingV2PassageBackfillCli = async (
       `manualReview=${report.totals.manualReview}`,
       `alreadyBackfilled=${report.totals.alreadyBackfilled}`,
       `skipped=${cliReport.skippedMaterials.length}`,
+      `readFailures=${readFailures.length}`,
       `mutation=${mutation.status}`,
     ].join(' '),
   );

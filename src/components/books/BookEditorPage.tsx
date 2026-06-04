@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { get, ref, remove, set } from 'firebase/database';
+import { get, ref, remove, set, update as updateDb } from 'firebase/database';
 import { useParams } from 'react-router-dom';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useAuth } from '../../hooks/useAuth';
@@ -220,6 +220,9 @@ const createFirebaseRepository = (): MaterialBooksRepository =>
     },
     remove: async (path) => {
       await remove(ref(database, path));
+    },
+    update: async (payload) => {
+      await updateDb(ref(database), payload);
     },
   });
 

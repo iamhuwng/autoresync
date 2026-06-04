@@ -1,9 +1,124 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
+import {
+  assertFails,
+  assertSucceeds,
+  initializeTestEnvironment,
+  type RulesTestEnvironment,
+} from '@firebase/rules-unit-testing';
 
 const databaseRules = JSON.parse(readFileSync('database.rules.json', 'utf8')) as {
   rules: Record<string, unknown>;
 };
+const DATABASE_RULES = readFileSync('database.rules.json', 'utf8');
+const PROJECT_ID = 'demo-prd-0052-material-catalog-rules';
+const hasDatabaseEmulator = Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST);
+const describeEmulator = hasDatabaseEmulator ? describe : describe.skip;
+
+let testEnv: RulesTestEnvironment;
+
+const seedMaterialCatalogUsers = async (): Promise<void> => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.database();
+
+    await db.ref('users/student-1/role').set('student');
+    await db.ref('users/teacher-1/role').set('teacher');
+    await db.ref('users/teacher-2/role').set('teacher');
+    await db.ref('users/admin-1/role').set('super_admin');
+    await db.ref('material_catalog/books/book-1').set({
+      bookId: 'book-1',
+      ownerId: 'teacher-1',
+      title: 'Owner Book',
+      testTypeIds: ['ielts'],
+      visibility: 'private',
+      status: 'draft-in-progress',
+      createdAt: '2026-06-04T00:00:00.000Z',
+      updatedAt: '2026-06-04T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+    });
+    await db.ref('material_catalog/material_indexes/by_owner/teacher-1/material-public').set(
+      materialSummary('material-public', 'teacher-1', 'public', 'reading-passage'),
+    );
+    await db.ref('material_catalog/material_indexes/by_visibility/public/material-public').set(
+      materialSummary('material-public', 'teacher-1', 'public', 'reading-passage'),
+    );
+    await db.ref('material_catalog/public_book_projections/book-public').set(publicBookProjection('book-public'));
+  });
+};
+
+const makeMaterialCatalogRuleContexts = () => ({
+  admin: testEnv.authenticatedContext('admin-1'),
+  student: testEnv.authenticatedContext('student-1'),
+  teacher: testEnv.authenticatedContext('teacher-1'),
+  otherTeacher: testEnv.authenticatedContext('teacher-2'),
+  unauthenticated: testEnv.unauthenticatedContext(),
+});
+
+const materialSummary = (
+  materialId: string,
+  ownerId = 'teacher-1',
+  visibility: 'private' | 'public' = 'private',
+  materialKind: 'reading-passage' | 'full-test' | 'book' = 'reading-passage',
+) => ({
+  materialId,
+  ownerId,
+  title: 'Reading Passage Summary',
+  visibility,
+  materialKind,
+  updatedAt: '2026-06-04T00:00:00.000Z',
+});
+
+const bookMetadata = (overrides: Record<string, unknown> = {}) => ({
+  bookId: 'book-2',
+  ownerId: 'teacher-1',
+  title: 'Book Draft',
+  testTypeIds: ['ielts'],
+  visibility: 'private',
+  status: 'draft-empty',
+  createdAt: '2026-06-04T00:00:00.000Z',
+  updatedAt: '2026-06-04T00:00:00.000Z',
+  createdBy: 'teacher-1',
+  updatedBy: 'teacher-1',
+  ...overrides,
+});
+
+const bookNode = (overrides: Record<string, unknown> = {}) => ({
+  nodeId: 'node-1',
+  bookId: 'book-1',
+  type: 'section',
+  title: 'Section',
+  order: 1,
+  createdAt: '2026-06-04T00:00:00.000Z',
+  updatedAt: '2026-06-04T00:00:00.000Z',
+  ...overrides,
+});
+
+const publicBookProjection = (bookId: string, overrides: Record<string, unknown> = {}) => ({
+  bookId,
+  title: 'Public Book',
+  testTypeIds: ['ielts'],
+  visibility: 'public-library-published',
+  status: 'ready',
+  updatedAt: '2026-06-04T00:00:00.000Z',
+  approvedAt: '2026-06-04T00:00:00.000Z',
+  approvedBy: 'admin-1',
+  nodes: {
+    node1: {
+      nodeId: 'node1',
+      type: 'section',
+      title: 'Public Section',
+      order: 1,
+    },
+  },
+  ...overrides,
+});
 
 describe('Material Catalog Firebase rule contract', () => {
   it('defines material_catalog Test Type and teacher preference nodes', () => {
@@ -87,6 +202,7 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(nodeRule['.validate']).not.toContain("newData.hasChildren(['nodeId', 'bookId', 'parentNodeId'");
     expect(nodeRule['.validate']).not.toContain("'materialRefs', 'createdAt'");
     expect(nodeRule['.validate']).toContain('$nodeId');
+    expect(nodeRule['.validate']).toContain("!newData.child('hiddenProvenance').exists()");
   });
 
   it('defines public-safe Book projection read/write rules', () => {
@@ -104,10 +220,11 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(projectionRule['.validate']).not.toContain("'authors', 'testTypeIds', 'tags'");
     expect(projectionRule['.validate']).toContain('approvedBy');
     expect(projectionRule['.validate']).toContain('nodes');
-    expect(asText).not.toContain('answerKey');
-    expect(asText).not.toContain('hiddenProvenance');
-    expect(asText).not.toContain('importEvidence');
-    expect(asText).not.toContain('visibilitySnapshot');
+    expect(asText).toContain("!newData.child('answerKey').exists()");
+    expect(asText).toContain("!newData.child('answerKeys').exists()");
+    expect(asText).toContain("!newData.child('hiddenProvenance').exists()");
+    expect(asText).toContain("!newData.child('importEvidence').exists()");
+    expect(asText).toContain("!newData.child('canonicalEditableDraft').exists()");
   });
 
   it('defines Book listing indexes by owner, visibility, and Test Type', () => {
@@ -168,10 +285,11 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(asText).toContain("newData.child('updatedAt').isString()");
     expect(asText).toContain("newData.child('visibility').val() === 'private'");
     expect(asText).toContain("newData.child('visibility').val() === 'public'");
-    expect(asText).not.toContain('answerKey');
-    expect(asText).not.toContain('hiddenProvenance');
-    expect(asText).not.toContain('importEvidence');
-    expect(asText).not.toContain('canonicalDraft');
+    expect(asText).toContain("!newData.child('answerKey').exists()");
+    expect(asText).toContain("!newData.child('answerKeys').exists()");
+    expect(asText).toContain("!newData.child('hiddenProvenance').exists()");
+    expect(asText).toContain("!newData.child('importEvidence').exists()");
+    expect(asText).toContain("!newData.child('canonicalEditableDraft').exists()");
   });
 
   it('does not require empty test-type children on broad material index buckets', () => {
@@ -211,6 +329,178 @@ describe('Material Catalog Firebase rule contract', () => {
     );
     expect(testTypeRule['.validate']).toContain(
       "newData.child('testTypeMembership').child($testTypeId).val() === true",
+    );
+  });
+});
+
+describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
+  beforeEach(async () => {
+    if (!testEnv) {
+      testEnv = await initializeTestEnvironment({
+        projectId: PROJECT_ID,
+        database: { rules: DATABASE_RULES },
+      });
+    }
+
+    await testEnv.clearDatabase();
+    await seedMaterialCatalogUsers();
+  });
+
+  afterAll(async () => {
+    if (testEnv) {
+      await testEnv.cleanup();
+    }
+  });
+
+  it('gates material index rows by owner, visibility, and student role', async () => {
+    const {
+      admin,
+      otherTeacher,
+      student,
+      teacher,
+      unauthenticated,
+    } = makeMaterialCatalogRuleContexts();
+
+    await assertSucceeds(
+      teacher.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').set(
+        materialSummary('material-1'),
+      ),
+    );
+    await assertSucceeds(teacher.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').once('value'));
+    await assertSucceeds(admin.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').once('value'));
+    await assertFails(otherTeacher.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').once('value'));
+    await assertFails(student.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').once('value'));
+    await assertFails(unauthenticated.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-1').once('value'));
+
+    await assertSucceeds(teacher.database().ref('material_catalog/material_indexes/by_visibility/public/material-public').once('value'));
+    await assertFails(student.database().ref('material_catalog/material_indexes/by_visibility/public/material-public').once('value'));
+  });
+
+  it('rejects hidden/scoring fields in material summary indexes', async () => {
+    const { teacher } = makeMaterialCatalogRuleContexts();
+
+    await assertFails(
+      teacher.database().ref('material_catalog/material_indexes/by_owner/teacher-1/material-unsafe').set({
+        ...materialSummary('material-unsafe'),
+        answerKey: { q1: 'A' },
+      }),
+    );
+    await assertFails(
+      teacher.database().ref('material_catalog/material_indexes/by_visibility/private/material-unsafe').set({
+        ...materialSummary('material-unsafe'),
+        hiddenProvenance: { source: 'draft-1' },
+      }),
+    );
+  });
+
+  it('allows only owners/super admins to write Books and keeps published public state admin-only', async () => {
+    const {
+      admin,
+      otherTeacher,
+      teacher,
+    } = makeMaterialCatalogRuleContexts();
+
+    await assertSucceeds(teacher.database().ref('material_catalog/books/book-2').set(bookMetadata()));
+    await assertFails(otherTeacher.database().ref('material_catalog/books/book-3').set(bookMetadata({ bookId: 'book-3' })));
+    await assertFails(
+      teacher.database().ref('material_catalog/books/book-4').set(bookMetadata({
+        bookId: 'book-4',
+        visibility: 'public-library-published',
+        status: 'ready',
+      })),
+    );
+    await assertSucceeds(
+      admin.database().ref('material_catalog/books/book-4').set(bookMetadata({
+        bookId: 'book-4',
+        visibility: 'public-library-published',
+        status: 'ready',
+      })),
+    );
+  });
+
+  it('gates Book nodes and denies hidden fields inside node payloads', async () => {
+    const {
+      admin,
+      otherTeacher,
+      teacher,
+    } = makeMaterialCatalogRuleContexts();
+
+    await assertSucceeds(teacher.database().ref('material_catalog/book_nodes/book-1/node-1').set(bookNode()));
+    await assertSucceeds(admin.database().ref('material_catalog/book_nodes/book-1/node-2').set(bookNode({ nodeId: 'node-2' })));
+    await assertFails(otherTeacher.database().ref('material_catalog/book_nodes/book-1/node-3').set(bookNode({ nodeId: 'node-3' })));
+    await assertFails(
+      teacher.database().ref('material_catalog/book_nodes/book-1/node-unsafe').set(
+        bookNode({
+          nodeId: 'node-unsafe',
+          hiddenProvenance: { source: 'private-draft' },
+        }),
+      ),
+    );
+  });
+
+  it('keeps public Book projections teacher-readable and super-admin writable only', async () => {
+    const {
+      admin,
+      otherTeacher,
+      student,
+      teacher,
+    } = makeMaterialCatalogRuleContexts();
+
+    await assertSucceeds(teacher.database().ref('material_catalog/public_book_projections/book-public').once('value'));
+    await assertSucceeds(otherTeacher.database().ref('material_catalog/public_book_projections/book-public').once('value'));
+    await assertFails(student.database().ref('material_catalog/public_book_projections/book-public').once('value'));
+    await assertFails(teacher.database().ref('material_catalog/public_book_projections/book-public-2').set(publicBookProjection('book-public-2')));
+    await assertSucceeds(admin.database().ref('material_catalog/public_book_projections/book-public-2').set(publicBookProjection('book-public-2')));
+    await assertFails(
+      admin.database().ref('material_catalog/public_book_projections/book-public-unsafe').set(
+        publicBookProjection('book-public-unsafe', {
+          answerKey: { q1: 'A' },
+        }),
+      ),
+    );
+  });
+
+  it('keeps Test Type config super-admin-only while preferences stay owner/super-admin scoped', async () => {
+    const {
+      admin,
+      otherTeacher,
+      teacher,
+    } = makeMaterialCatalogRuleContexts();
+    const testTypePayload = {
+      testTypeId: 'ielts',
+      canonicalKey: 'ielts',
+      label: 'IELTS',
+      shortLabel: 'IELTS',
+      aliases: ['IELTS'],
+      active: true,
+      teacherSelectable: true,
+      displayOrder: 1,
+      readingSourceOrderLabel: 'Passage',
+      readingSourceOrderLabelPlural: 'Passages',
+      logoAlt: 'IELTS',
+      allowedMaterialKinds: ['full-test', 'reading-passage', 'book'],
+      createdAt: '2026-06-04T00:00:00.000Z',
+      updatedAt: '2026-06-04T00:00:00.000Z',
+      updatedBy: 'admin-1',
+    };
+
+    await assertFails(teacher.database().ref('material_catalog/test_types/ielts').set(testTypePayload));
+    await assertSucceeds(admin.database().ref('material_catalog/test_types/ielts').set(testTypePayload));
+    await assertSucceeds(
+      teacher.database().ref('material_catalog/teacher_test_type_preferences/teacher-1').set({
+        teacherId: 'teacher-1',
+        pinnedTestTypeIds: ['ielts'],
+        updatedAt: '2026-06-04T00:00:00.000Z',
+        updatedBy: 'teacher-1',
+      }),
+    );
+    await assertFails(
+      otherTeacher.database().ref('material_catalog/teacher_test_type_preferences/teacher-1').set({
+        teacherId: 'teacher-1',
+        pinnedTestTypeIds: ['ielts'],
+        updatedAt: '2026-06-04T00:00:00.000Z',
+        updatedBy: 'teacher-2',
+      }),
     );
   });
 });

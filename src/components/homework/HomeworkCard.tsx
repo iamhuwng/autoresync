@@ -4,6 +4,7 @@ import { HomeworkStatusBadge } from './HomeworkStatusBadge';
 import type { HomeworkAssignment, HomeworkTagConfig } from '../../types/homework.types';
 import type { HomeworkSubmission } from '../../types/homework.types';
 import { resetStudentHomework, getHomeworkSubmissions } from '../../services/homeworkSubmissionService';
+import { getReadingPassageHomeworkSummary } from '../../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import './HomeworkCard.css';
 
 interface HomeworkCardProps {
@@ -109,6 +110,7 @@ export function HomeworkCard({
 
     // Use stats from homework if available
     const stats = homework.stats;
+    const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
 
     // ========== Reset Student Feature ==========
     const [showResetModal, setShowResetModal] = useState(false);
@@ -282,6 +284,29 @@ export function HomeworkCard({
                         <span className="info-label">Target:</span>
                         <span className="info-value">{getTargetDisplay()}</span>
                     </div>
+
+                    {readingPassageSummary ? (
+                        <>
+                            <div className="info-item">
+                                <span className="info-label">Material:</span>
+                                <span className="info-value">{readingPassageSummary.label}</span>
+                            </div>
+
+                            {readingPassageSummary.sourceLabels.length > 0 ? (
+                                <div className="info-item">
+                                    <span className="info-label">Source:</span>
+                                    <span className="info-value">{readingPassageSummary.sourceLabels.join(', ')}</span>
+                                </div>
+                            ) : null}
+
+                            {readingPassageSummary.testTypeLabels.length > 0 ? (
+                                <div className="info-item">
+                                    <span className="info-label">Test Type:</span>
+                                    <span className="info-value">{readingPassageSummary.testTypeLabels.join(', ')}</span>
+                                </div>
+                            ) : null}
+                        </>
+                    ) : null}
 
                     <div className="info-item">
                         <span className="info-label">Available:</span>

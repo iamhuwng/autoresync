@@ -3,6 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherLobbyPage from './TeacherLobbyPage';
+import { createReadingV2CanonicalFixture } from '../services/reading-v2/fixtures/readingV2CanonicalFixtures';
+import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
 
 const mocks = vi.hoisted(() => ({
   tests: [],
@@ -49,10 +51,15 @@ vi.mock('../config/readingV2FeatureFlags', async () => {
 });
 
 vi.mock('firebase/database', () => ({
-  ref: (_database, path) => path,
+  ref: (_database, path = '') => path,
   get: vi.fn(async (path) => ({ val: () => mocks.dbReads[path] ?? null })),
   set: vi.fn(async (path, value) => {
     mocks.dbWrites.push({ path, value });
+  }),
+  update: vi.fn(async (_path, updates) => {
+    Object.entries(updates).forEach(([path, value]) => {
+      mocks.dbWrites.push({ path, value });
+    });
   }),
   remove: vi.fn(async (path) => {
     mocks.dbWrites.push({ path, value: null });
@@ -340,6 +347,15 @@ vi.mock('../components/homework/HomeworkCreateModal', () => ({
     ) : null;
   },
 }));
+
+const readingPassageSnapshotFor = (materialId, snapshotVersionId) => ({
+  snapshotVersionId,
+  materialId,
+  ownerId: 'teacher-1',
+  document: createReadingV2CanonicalFixture('sentence-completion'),
+  publishedAt: '2026-06-01T00:00:00.000Z',
+  publishedBy: 'teacher-1',
+});
 
 describe('TeacherLobbyPage Reading V2 integration', () => {
   beforeEach(() => {
@@ -1129,6 +1145,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         actions: [{ key: 'open', label: 'Open' }, { key: 'assign-homework', label: 'Assign homework' }],
       },
     ]);
+    mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')] =
+      readingPassageSnapshotFor('passage-a', 'snapshot-a');
+    mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')] =
+      readingPassageSnapshotFor('passage-b', 'snapshot-b');
 
     render(<TeacherLobbyPage />);
 
@@ -1159,12 +1179,22 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
 
     await waitFor(() => {
-      expect(mocks.dbWrites).toHaveLength(2);
+      expect(mocks.dbWrites.some((write) => write.path.startsWith('tests/'))).toBe(true);
     });
 
-    expect(mocks.dbWrites[0].path).toContain('reading_v2/full_test_compositions/');
-    expect(mocks.dbWrites[1].path).toContain('reading_v2/full_test_composition_versions/');
-    expect(mocks.dbWrites[0].value).toMatchObject({
+    const compositionWrite = mocks.dbWrites.find((write) =>
+      write.path.startsWith('reading_v2/full_test_compositions/'));
+    const versionWrite = mocks.dbWrites.find((write) =>
+      write.path.startsWith('reading_v2/full_test_composition_versions/'));
+    const testWrite = mocks.dbWrites.find((write) => write.path.startsWith('tests/'));
+    const metadataWrite = mocks.dbWrites.find((write) =>
+      write.path.startsWith('reading_v2/material_metadata/'));
+    const studentSafeWrite = mocks.dbWrites.find((write) =>
+      write.path.startsWith('reading_v2/projections/student_safe_tests/'));
+    const catalogIndexWrite = mocks.dbWrites.find((write) =>
+      write.path.startsWith('material_catalog/material_indexes/by_owner/teacher-1/'));
+
+    expect(compositionWrite?.value).toMatchObject({
       title: 'Selected Reading Passages',
       ownerId: 'teacher-1',
       questionCount: 21,
@@ -1186,10 +1216,38 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         }),
       ],
     });
-    expect(mocks.dbWrites[1].value).toMatchObject({
-      compositionId: mocks.dbWrites[0].value.compositionId,
+    expect(versionWrite?.value).toMatchObject({
+      compositionId: compositionWrite.value.compositionId,
       publishedBy: 'teacher-1',
     });
+    expect(testWrite?.value).toMatchObject({
+      materialId: compositionWrite.value.testMaterialId,
+      deliveryEngine: 'reading-v2',
+      materialKind: 'full-test',
+      title: 'Selected Reading Passages',
+      questionCount: 4,
+      publishedSnapshotVersionId: compositionWrite.value.publishedVersionId,
+    });
+    expect(metadataWrite?.value).toMatchObject({
+      materialId: compositionWrite.value.testMaterialId,
+      ownerId: 'teacher-1',
+      materialKind: 'full-test',
+      publishedSnapshotVersionId: compositionWrite.value.publishedVersionId,
+    });
+    expect(studentSafeWrite?.value).toMatchObject({
+      materialId: compositionWrite.value.testMaterialId,
+      projectionKind: 'student-safe',
+    });
+    expect(catalogIndexWrite?.value).toMatchObject({
+      materialId: compositionWrite.value.testMaterialId,
+      ownerId: 'teacher-1',
+      materialKind: 'full-test',
+    });
+    expect(mocks.navigateTo).toHaveBeenCalledWith(
+      'TEACHER_READING_V2_REVISE',
+      { materialId: compositionWrite.value.testMaterialId },
+      { reason: 'teacher_materials_reading_passage_full_test_created' },
+    );
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'createReadingFullTestFromSelectedPassages',
@@ -1201,6 +1259,49 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect.objectContaining({ passageCount: 2 }),
     );
   }, 10000);
+
+  it('keeps Reading Passage selection visible after create-full-test failure', async () => {
+    const user = userEvent.setup();
+    mocks.listReadingPassages.mockResolvedValue([
+      {
+        id: 'passage-a',
+        materialId: 'passage-a',
+        ownerId: 'teacher-1',
+        title: 'Passage A',
+        materialKind: 'reading-passage',
+        questionCount: 10,
+        updatedAt: '2026-05-12T00:00:00Z',
+        visibility: 'private',
+        publishedSnapshotVersionId: 'snapshot-a',
+        sourceOrderDisplay: 'Passage 1',
+        sourceQuestionRange: '1-10',
+        isOwner: true,
+        selectable: true,
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        actions: [{ key: 'open', label: 'Open' }, { key: 'assign-homework', label: 'Assign homework' }],
+      },
+    ]);
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await screen.findByTestId('material-list-row-passage-a');
+
+    await user.click(screen.getByLabelText('Select Passage A'));
+    await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
+
+    expect(await screen.findByText('Selected Reading Passage passage-a published snapshot was not found.'))
+      .toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry create full test' })).toBeEnabled();
+    expect(mocks.dbWrites).toHaveLength(0);
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
+      'TEACHER_READING_V2_REVISE',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
 
   it('shows concise empty state when Reading Passage tab has no rows', async () => {
     const user = userEvent.setup();

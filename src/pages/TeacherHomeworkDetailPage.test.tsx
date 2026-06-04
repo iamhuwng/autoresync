@@ -262,4 +262,40 @@ describe('TeacherHomeworkDetailPage', () => {
       violationCount: 2,
     });
   });
+
+  it('shows Reading Passage homework title, source label, Test Type, and assignment state', async () => {
+    useHomeworkDetailMock.mockReturnValue({
+      homework: {
+        ...homeworkAssignment,
+        id: 'hw-reading-passage',
+        title: 'Making Time for Science',
+        materialTitle: 'Making Time for Science',
+        materialType: 'reading-passage',
+        status: 'active',
+        readingPassageSnapshot: {
+          passageMaterialId: 'passage-1',
+          snapshotVersionId: 'snapshot-1',
+          titleSnapshot: 'Making Time for Science',
+          questionCount: 13,
+          testTypeIds: ['ielts'],
+          sourceOrderDisplay: 'Passage 1',
+          sourceFullTestTitle: 'British Council Practice Test 01',
+        },
+      },
+      submissions: [homeworkSubmission],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Making Time for Science' })).toBeInTheDocument();
+    expect(screen.getByText('active')).toBeInTheDocument();
+    expect(screen.getByText('Reading Passage')).toBeInTheDocument();
+    expect(screen.getByText('Source')).toBeInTheDocument();
+    expect(screen.getByText('Passage 1 - British Council Practice Test 01')).toBeInTheDocument();
+    expect(screen.getByText('Test Type')).toBeInTheDocument();
+    expect(screen.getByText('IELTS')).toBeInTheDocument();
+  });
 });

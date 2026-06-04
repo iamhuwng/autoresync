@@ -87,7 +87,9 @@ vi.mock('../components/results/QuestionAnalytics', () => ({
 }));
 
 vi.mock('../components/results/ReMarkingModal', () => ({
-  ReMarkingModal: () => null,
+  ReMarkingModal: ({ isOpen, questions }: any) => (
+    isOpen ? <div data-testid="remark-modal">Re-mark question count {questions.length}</div> : null
+  ),
 }));
 
 vi.mock('../components/feedback/FeedbackEditor', () => ({
@@ -446,6 +448,25 @@ describe('TeacherTestResultsPage', () => {
         'Teacher One',
       );
     });
+  });
+
+  it('opens re-marking for Reading V2 results when the published test has no legacy questions array', async () => {
+    getMock.mockImplementation(async ({ path }: { path: string }) => {
+      if (path === 'game_sessions/SESSION-1') {
+        return createSnapshot(sessionSnapshot);
+      }
+      if (path === 'tests/test-1') {
+        return createSnapshot({ ...testSnapshot, questions: undefined });
+      }
+      return createSnapshot(null);
+    });
+
+    renderPage();
+
+    await screen.findByText('Student One');
+    fireEvent.click(screen.getAllByText('Re-mark')[0]);
+
+    expect(await screen.findByTestId('remark-modal')).toHaveTextContent('Re-mark question count 1');
   });
 
   it('hands writing sessions off to the dedicated writing results surface', async () => {

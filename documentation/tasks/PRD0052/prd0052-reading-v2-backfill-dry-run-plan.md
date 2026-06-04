@@ -42,7 +42,7 @@ The runner reads these RTDB production families through the Firebase CLI:
 - `reading_v2/published_snapshots`
 - `reading_v2/full_test_compositions`
 
-Default mode is dry-run. Mutation mode writes one root multi-location RTDB update payload built from the service write plan and requires both `--write` and `--approved <approval-id>`.
+Default mode is dry-run. Mutation mode writes one root multi-location RTDB update payload built from the service write plan and requires `--write`, `--approved <approval-id>`, and `--from-report <dry-run-report.json>`. Write mode aborts if Firebase reads fail, if the reviewed report is not dry-run/not-run, if the reviewed report's project/row count/stable digest differs from current planning, or if extracted passage documents fail the Reading V2 publish gate.
 
 Supported filters:
 
@@ -52,6 +52,7 @@ Supported filters:
 - `--created-to <iso>`
 - `--limit <n>`
 - `--report <path>`
+- `--from-report <path>` in write mode only
 - `--project <projectId>`
 
 ## Proposed Write Families
@@ -92,17 +93,23 @@ Runner-specific verification:
 cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/services/reading-v2/readingV2BackfillCli.test.ts src/services/reading-v2/readingV2Backfill.service.test.ts --reporter=basic"
 cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run backfill:reading-v2-passages -- --help"
 cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run backfill:reading-v2-passages -- --dry-run --limit 1 --report output/prd0052-reading-v2-backfill-dry-run-smoke.json"
+cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run backfill:reading-v2-passages -- --write --approved lead-1"
 ```
 
 Live-approved mutation command, only after dry-run report review and explicit approval:
 
 ```powershell
-cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run backfill:reading-v2-passages -- --write --approved <approval-id> --owner <teacherId> --report output/prd0052-reading-v2-backfill-write.json"
+cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run backfill:reading-v2-passages -- --write --approved <approval-id> --from-report <reviewed-dry-run-report.json> --owner <teacherId> --report output/prd0052-reading-v2-backfill-write.json"
 ```
 
-Current smoke caveat:
+Historical smoke caveat:
 
 - 2026-06-02 dry-run smoke did not mutate data and produced `total=0`, `skipped=3`, `mutation=not-run` because Firebase CLI reads for `reading_v2/material_metadata`, `reading_v2/published_snapshots`, and `reading_v2/full_test_compositions` returned permission failures in this environment.
+- 2026-06-04 fix: the runner now normalizes Firebase CLI RTDB paths with a leading `/`, includes `readFailures` in the report/stdout, and aborts write mode before mutation if any source reads fail.
+- 2026-06-04 reviewed-gate update: write mode now requires `--from-report <dry-run-report.json>`. `cmd /c npm run backfill:reading-v2-passages -- --write --approved lead-1` failed before Firebase reads with `Mutation mode requires --from-report <dry-run-report.json>.`
+- 2026-06-04 superseded dry-run: `output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-reviewed-gate.json` returned `splitReady=1` before extracted passage documents were validated by the publish gate.
+- 2026-06-04 fresh publish-gate dry-run: `cmd /c npm run backfill:reading-v2-passages -- --dry-run --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json` returned `total=4`, `splitReady=0`, `manualReview=1`, `alreadyBackfilled=3`, `readFailures=0`, `mutation=not-run`. The only remaining legacy source is `studio-material-mojlf55h` / `snapshot-studio-material-mojlf55h-mojlfaqa` (`PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03`) with 3 extracted passages and 22 `publish-gate-blocked` issues.
+- 2026-06-04 approved no-op write: `cmd /c npm run backfill:reading-v2-passages -- --write --approved user-approved-all-remaining-20260604 --from-report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-write-20260604-no-eligible-sources.json` returned `mutation=committed`, `plannedWriteCount=0`, `readFailures=0`, `splitReady=0`, and `manualReview=1`. This is a reviewed no-op because no source was split-ready; `studio-material-mojlf55h` is owner-deferred source-data manual review because safe repair requires editorial reconstruction, not an automated backfill transform.
 
 2026-06-03 update:
 

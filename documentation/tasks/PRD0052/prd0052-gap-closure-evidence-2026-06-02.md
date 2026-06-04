@@ -19,6 +19,19 @@
 - P1: normal teacher Book editor exposed direct public-library published/rejected states.
 - P2: Book card destructive label said `Archive/Delete` while the implemented action is archive.
 
+## 2026-06-04 Accepted Gap Reconciliation
+
+| Accepted finding | Status | Evidence | Caveat |
+| --- | --- | --- | --- |
+| P0: `material_catalog/material_indexes` rules missing for production readers. | CLOSED_WITH_EVIDENCE | `database.rules.json:297`, `src/__tests__/security/materialCatalogFirebaseRules.test.ts:365`, `documentation/tasks/PRD0052/prd0052-security-rule-validation-cases.md:61` | Live RTDB rules were also deployed to `temp-a1437-default-rtdb`; broad lower-priority tasklist rows remain tracked separately. |
+| P0: Studio/full-test publish could skip standalone Reading Passage extraction. | CLOSED_WITH_EVIDENCE | `src/services/reading-v2/readingV2StudioWorkflow.service.test.ts:403`, `src/services/reading-v2/readingV2PublishPipeline.service.test.ts:371`, `documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md:234` | Legacy backfill source `studio-material-mojlf55h` is an owner-deferred source-data issue, not an open publish-pipeline gate. |
+| P0/P1: Reading Passage archive had no production state mutation/index cleanup. | CLOSED_WITH_EVIDENCE | `src/services/reading-v2/readingV2PassageLibrary.service.ts:357`, `src/services/reading-v2/readingV2PassageLibrary.service.test.ts:361`, `src/pages/TeacherLobbyPage.test.jsx:1079` | Service writes archival state then removes canonical index rows. |
+| P1: Reading Passage assignment eligibility was optimistic. | CLOSED_WITH_EVIDENCE | `src/services/reading-v2/readingV2PassageLibrary.service.ts:290`, `src/components/modern/materialListAdapter.js:475`, `src/components/modern/materialListAdapter.test.js:280` | Draft/unpublished rows can remain visible but are non-selectable/non-assignable. |
+| P1: PRD-0052 tabs/routes ignored rollout capability gates. | CLOSED_WITH_EVIDENCE | `src/config/readingV2FeatureFlags.ts:179`, `src/components/modern/ContentTabs.test.jsx:30`, `src/routes/teacherRoutes.test.tsx:33` | Route remains registered only to redirect disabled direct navigation safely. |
+| P1: Test Type blocks used defaults only, not live admin config/preferences. | CLOSED_WITH_EVIDENCE | `src/pages/TeacherLobbyPage.jsx:352`, `src/pages/TeacherLobbyPage.jsx:413`, `src/pages/TeacherLobbyPage.jsx:1461`, `src/pages/TeacherLobbyPage.jsx:1735`, `src/pages/TeacherLobbyPage.test.jsx:779`, `src/__tests__/security/materialCatalogFirebaseRules.test.ts:463` | Default config remains fallback for empty/read-failed config and logs diagnostics. |
+| P1: normal teacher Book editor exposed direct public published/rejected states. | CLOSED_WITH_EVIDENCE | `src/components/books/BookEditorPage.tsx:679`, `src/components/books/BookEditorPage.tsx:683`, `src/components/books/BookEditorPage.test.tsx:152` | Super-admin public governance remains in Admin Settings, not the normal teacher editor. |
+| P2: Book card destructive label said `Archive/Delete`. | CLOSED_WITH_EVIDENCE | `src/components/modern/BookCard.jsx:80`, `src/components/modern/BookCard.jsx:86`, `src/components/modern/BookCardGrid.test.jsx:69` | Unrelated historical comments containing `Archive/Delete` are not user-facing Book card labels. |
+
 ## Implemented Closure
 
 - Added RTDB rules and rule tests for canonical `material_catalog/material_indexes` owner, public visibility, kind, Test Type, and source-full-test buckets.
@@ -199,7 +212,7 @@
 - Temporary flagged Vite server cleanup
   - Result: PASS. The `localhost:5174` process started for Book flag QA was stopped after browser proof.
 - `java -version`
-  - Result: FAIL. Java is still not on PATH, so emulator-backed RTDB behavior proof remains blocked.
+  - Result: FAIL. Java is still not on PATH, so emulator-backed RTDB behavior proof remained blocked for this slice. Superseded by the later 2026-06-04 workspace-local Java 21 emulator proof.
 - Final focused verification after source/doc updates
   - `cmd /c npx vitest run src/services/materialCatalog/materialBooks.service.test.ts src/components/admin/PublicBookReviewPanel.test.tsx src/pages/AdminSettingsPage.test.tsx src/config/featureRegistry.test.ts src/services/materialCatalog/materialCatalogPaths.test.ts src/services/materialCatalog/bookValidation.service.test.ts src/__tests__/security/materialCatalogFirebaseRules.test.ts src/components/books/BookEditorPage.test.tsx --reporter=basic`
   - Result: PASS, 8 files / 62 tests.
@@ -213,7 +226,7 @@
 ## 2026-06-03 Reading Passage Tab Rule Deployment And Empty-State QA
 
 - `java -version`
-  - Result: FAIL. Java is still not on PATH, so emulator-backed RTDB behavior proof remains blocked.
+  - Result: FAIL. Java is still not on PATH, so emulator-backed RTDB behavior proof remained blocked for this slice. Superseded by the later 2026-06-04 workspace-local Java 21 emulator proof.
 - Focused Reading Passage/homework/runtime/result verification
   - `cmd /c npx vitest run src/components/homework/HomeworkCreateModal.test.tsx src/services/homeworkManager.test.ts src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/pages/StudentPracticePage.test.tsx src/pages/StudentHomeworkListPage.test.tsx src/pages/StudentHomeworkDetailPage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx src/pages/TeacherLobbyPage.test.jsx --reporter=basic`
   - Result before rule patch: PASS, 11 files / 92 tests.
@@ -265,9 +278,9 @@
 ## Remaining Blockers
 
 - Full PRD-0052 is not complete. This pass closes selected P0/P1 gaps, not every phase in the closure tasklist.
-- Browser QA for the public Book admin approval workflow and another-teacher public Book list/detail now has live post-deploy proof. Reading Passage tab/list empty-state also has live post-deploy proof. Clippings-based Reading V2 import/publish planning now has live browser/RTDB proof for one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student launch/submit, and teacher result review. Bulk Reading Passage homework, create-full-test-from-selected UI recovery, emulator-backed rules proof, and full PRD-0052 completion remain open.
-- Emulator-backed RTDB proof remains blocked because Java is still missing from PATH.
-- Live-approved backfill execution, atomic repair utilities, bulk/set homework runtime proof, and create-full-test-from-selected browser recovery proof remain open.
+- Browser QA for the public Book admin approval workflow and another-teacher public Book list/detail now has live post-deploy proof. Reading Passage tab/list empty-state also has live post-deploy proof. Clippings-based Reading V2 import/publish planning now has live browser/RTDB proof for one full-test publish, 3 generated Reading Passage rows, one single-passage homework assignment, student launch/submit, teacher result review, one bulk Reading Passage set launch/submit/result/review after Worker deploy, one fresh deployed-Worker full-test launch/submit/review regression, create-full-test-from-selected recovery, and homework history/detail metadata. Emulator-backed rules proof passed on 2026-06-04 with workspace-local Java 21. Full PRD-0052 completion remains broader than this closure pass because lower-priority browser/visual/tasklist items are still tracked separately.
+- Emulator-backed RTDB/Firestore proof is now covered by a workspace-local Java 21 run: `cmd /c npx firebase-tools emulators:exec --only database,firestore --project demo-prd-0052-rules "cmd /c npx vitest run src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic --pool=forks"` passed with 3 files / 39 tests. Hardened RTDB rules were deployed to `temp-a1437-default-rtdb`.
+- Live backfill execution is covered as an approved no-op after the refreshed dry-run found no split-ready sources. The remaining legacy source `studio-material-mojlf55h` is an owner-deferred source-data manual-review item because extracted passage documents fail the Reading V2 publish gate and safe repair requires editorial reconstruction. Live Material Catalog repair write execution is covered for reviewed index writes, final repair convergence is 0 operations after stable Firebase-style compare hardening, and controlled live fixture proof covered the composition-version repair path. Book atomic write-failure proof is covered by local multi-location update tests.
 - Full `tsc` cannot be used as a passing gate until repo-wide TypeScript debt is addressed or a scoped typecheck target exists.
 
 ## 2026-06-03 Live Reading V2 Publish, Passage Rows, Homework, And Result Review
@@ -307,7 +320,7 @@
 - Caveats
   - This is single Reading Passage homework proof, not bulk Reading Passage set proof.
   - One pre-fix Reading V2 result exists from the first submit attempt before the homework-completion bridge fix.
-  - Emulator-backed rules proof remains blocked by missing Java.
+  - Emulator-backed rules proof was later completed on 2026-06-04 with local Java 21; see the security-rule validation section.
   - Full repo `tsc` still has unrelated baseline debt.
 - Verification after code/doc updates
   - `cmd /c npx vitest run src/services/reading-v2/readingV2RuntimeSubmission.service.test.ts src/pages/StudentPracticePage.test.tsx --reporter=basic`
@@ -318,3 +331,302 @@
   - Result: PASS, UTF-8 check passed for 8 text files.
   - `git diff --check`
   - Result: PASS except Git warning that `firestore.rules` LF will be replaced by CRLF if touched.
+
+## 2026-06-03 Bulk Reading Passage Set Runtime And Worker Set-Submit Fix
+
+- Browser QA setup
+  - Reused teacher/student dev quick-login on `http://localhost:5174`.
+  - Source full test: `studio-material-mpxjmklq` / `snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - Bulk assignment selected two generated Reading Passage rows and created one combined homework set: `SiDFz9BPXOCSKhgoxTBi`.
+- Browser proof before fixes
+  - Student homework list showed `Selected Reading Passages`, due `Jun 10`, class `KKK`, and `Start Homework`.
+  - Launch URL: `/student/practice/reading-passage-set:SiDFz9BPXOCSKhgoxTBi`.
+  - First launch failed with `Error Loading Test`.
+  - Console root cause: `Cannot read properties of undefined (reading 'map')` in `prefixProjectionContent(...)` because live RTDB omitted empty `content.optionSets` on the first assigned passage.
+- Fix 1: RTDB omitted empty `optionSets`
+  - RED: `cmd /c npx vitest run src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts --reporter=basic`
+    - Result: FAIL, new test reproduced `Cannot read properties of undefined (reading 'map')`.
+  - Fix: `prefixProjectionContent(...)` treats omitted `content.optionSets` as an empty list while leaving required content arrays strict.
+  - GREEN: `cmd /c npx vitest run src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts --reporter=basic`
+    - Result: PASS, 1 file / 4 tests.
+- Fix 2: composed set option-bank references
+  - Browser after Fix 1 rendered Part 2 text questions, but matching groups showed prompts without answer controls.
+  - Root cause: set composition prefixed `content.optionSets[].optionSetId`, but left `interaction.responseShape.optionSetId` unprefixed.
+  - RED: `cmd /c npx vitest run src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts --reporter=basic`
+    - Result: FAIL, option-bank ids referenced by interactions did not resolve to composed option sets.
+  - Fix: set projection composition now prefixes `responseShape.optionSetId` for `single-choice`, `multi-select`, and `matching` interactions.
+  - GREEN: `cmd /c npx vitest run src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts --reporter=basic`
+    - Result: PASS, 1 file / 4 tests.
+- Browser proof after runtime fixes
+  - Reloaded `/student/practice/reading-passage-set:SiDFz9BPXOCSKhgoxTBi`.
+  - Runtime rendered Passage 1 and Passage 2 with answer controls, including matching-feature buttons and paragraph-reference selects.
+  - Filled all 26 answers.
+  - Pre-submit review showed `Answered 26 of 26`, `Passage 1 13/13`, and `Passage 2 13/13`.
+  - Fresh runtime console errors were limited to browser/client environment noise (`ERR_BLOCKED_BY_CLIENT` on Firestore Listen termination), not runtime composition errors.
+- Live submit result before Worker deploy
+  - Submit request reached `https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit` with 26 prefixed answers and context `{ surface: "homework", homeworkId: "SiDFz9BPXOCSKhgoxTBi" }`.
+  - Deployed Worker returned `404` with `Reading V2 published snapshot was not found.`
+  - Root cause: deployed Worker still treated `reading-passage-set:{homeworkId}` like a single material snapshot and did not load the Firestore homework set plus assigned passage snapshots.
+  - Browser kept answers on-device and showed `Your answers are still on this device. Try submitting again.`
+- Worker set-submit local fix
+  - Added Worker-local Vitest config at `r2-backup-worker/vitest.config.ts` so Worker tests run in node environment.
+  - RED: `cmd /c npx vitest run --config vitest.config.ts src/reading-v2/submit.test.ts --reporter=basic` from `r2-backup-worker`
+    - Result: FAIL, Worker route returned `404` for a Reading Passage set submit.
+  - Fix: `r2-backup-worker/src/reading-v2/submit.ts` now detects homework `reading-passage-set:*` submissions, reads `homework_assignments/{homeworkId}` through Firestore REST, loads each assigned passage snapshot/review projection/metadata from RTDB, composes trusted set records through `composeReadingPassageSetTrustedRecords(...)`, then writes the normal result/secondary updates.
+  - GREEN: `cmd /c npx vitest run --config vitest.config.ts src/reading-v2/submit.test.ts --reporter=basic` from `r2-backup-worker`
+    - Result: PASS, 1 file / 1 test.
+- Focused verification
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/pages/StudentPracticePage.test.tsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx --reporter=basic`
+    - Result: PASS, 5 files / 38 tests.
+  - `cmd /c npx vitest run --config vitest.config.ts src/reading-v2/submit.test.ts --reporter=basic` from `r2-backup-worker`
+    - Result: PASS, 1 file / 1 test.
+  - `cmd /c npx tsc --noEmit --pretty false` from `r2-backup-worker`
+    - Result: PASS.
+- Worker deployment after user approval
+  - Wrangler account: `iamhuwng@gmail.com`.
+  - Deploy command ran from `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\r2-backup-worker` with bundled Windows x64 Node.
+  - Result: PASS. Deployed `r2-backup-worker` to `https://r2-backup-worker.iamhuwng.workers.dev`.
+  - Version ID: `0c28124d-88b7-403b-b0cb-bb7d1cd25a79`.
+  - Bindings confirmed for project `temp-a1437`, RTDB, R2, retention, media checkpoint, and admin uid.
+- Live bulk-set submit after deploy
+  - Student route: `/student/practice/reading-passage-set:SiDFz9BPXOCSKhgoxTBi`, launched from `/student/homework`.
+  - Runtime diagnostic: `projectionId: homework-set:SiDFz9BPXOCSKhgoxTBi`, `projectionKind: student-safe`, `sectionCount: 2`, `taskGroupCount: 5`.
+  - Pre-submit review showed `Answered 26 of 26`, `Passage 1 13/13`, and `Passage 2 13/13`.
+  - `POST https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit` returned `200`.
+  - Response: `resultId=reading-v2-result-6211194e-a441-4192-a2d0-5353a668bf07`, `attemptId=reading-v2-attempt-7811666a-771e-42e4-8b91-ee404f3f0cc8`, `totalScore=11`, `maxScore=26`, `percentage=42`.
+  - The previous deployed Worker `404` (`Reading V2 published snapshot was not found.`) did not recur.
+- Firebase CLI RTDB proof
+  - `firebase --version`
+    - Result: PASS, `15.0.0`.
+  - `firebase use --project temp-a1437`
+    - Result: PASS, active project `temp-a1437`.
+  - `firebase --project temp-a1437 database:get "/reading_v2/results/reading-v2-result-6211194e-a441-4192-a2d0-5353a668bf07" --pretty`
+    - Result: PASS. Canonical result existed with `materialId: reading-passage-set:SiDFz9BPXOCSKhgoxTBi`, `publishedSnapshotVersion: homework-set:SiDFz9BPXOCSKhgoxTBi`, `studentId: x3hDfjYVN7cJtSbwq0ChIjl1Bk62`, `submittedAt: 2026-06-03T07:01:56.830Z`, and 26 released interactions.
+  - `firebase --project temp-a1437 database:get "/reading_v2/attempts/reading-v2-attempt-7811666a-771e-42e4-8b91-ee404f3f0cc8"`
+    - Result: PASS. Attempt existed with 26 answers, mode `homework`, homework id `SiDFz9BPXOCSKhgoxTBi`, and source snapshot `homework-set:SiDFz9BPXOCSKhgoxTBi`.
+  - `firebase --project temp-a1437 database:get "/test_results/reading-v2-result-6211194e-a441-4192-a2d0-5353a668bf07"`
+    - Result: PASS. Legacy result record existed with title `Selected Reading Passages`, student `Student Test`, score `11/26`, and percentage `42`.
+- Teacher browser proof after deploy
+  - Teacher quick-login opened `/teacher/homework/SiDFz9BPXOCSKhgoxTBi`.
+  - Homework Detail showed `Selected Reading Passages`, 1 assigned student, 1 submitted, completion rate 100%, average score 42%, and `student@test.com` row status `Submitted`.
+  - `View Result` opened the Reading V2 result modal.
+  - Review modal showed `Reading Passage Set Review`, snapshot `homework-set:SiDFz9BPXOCSKhgoxTBi`, score `42%`, `11/26`, band `4.0`, 11 correct, 15 incorrect, and all 26 answer-map entries.
+  - Review rendered both source passages and 5 task groups: note completion, true/false/not given, summary completion, matching features, and matching information.
+  - Console caveat: AI feedback generation had Gemini `503`/`403` resource failures and historical-score reads logged `Permission denied`; question review remained rendered and usable.
+- Caveats
+  - Bulk-set submit/result/review now has live post-deploy proof.
+  - AI feedback generation for the result modal is still unreliable in this browser run because Gemini returned `503`/`403`; this did not block review rendering.
+  - Emulator-backed rules proof was later completed on 2026-06-04 with local Java 21; see the security-rule validation section.
+
+## 2026-06-03 Existing Full Reading V2 Live-Session Regression Proof
+
+- Browser QA setup
+  - Reused teacher/student dev quick-login on `http://localhost:5174`.
+  - Admin remained on `http://localhost:5173`.
+  - Source full test: `studio-material-mpxjmklq` / `snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - Teacher started live session `SMC10J` from `PRD0052 QA Reading V2 Full Test 2026-06-03`.
+- Browser proof before fix
+  - Student joined `/student-wait/SMC10J`.
+  - Direct student launch `/student-test/SMC10J` was blocked with `Reading V2 is not enabled for student launch yet.`
+  - Root cause: `teacher-preview` rollout enabled teacher preview/Reading Passage homework surfaces but not `live-session`.
+- Launch fix
+  - RED: `cmd /c npx vitest run src/services/reading-v2/readingV2LaunchIntegration.service.test.ts --reporter=basic`
+    - Result: FAIL. New regression expected `teacher-preview` + `live-session` to route to runtime while keeping `solo-practice` blocked.
+  - Fix: `readingV2LaunchIntegration.service.ts` now allows `live-session` under `READING_V2_ROLLOUT_MODES.teacherPreview` without enabling unrelated solo-practice launch.
+  - GREEN: `cmd /c npx vitest run src/services/reading-v2/readingV2LaunchIntegration.service.test.ts --reporter=basic`
+    - Result: PASS, 1 file / 11 tests.
+- Live full-test launch/submit proof
+  - Student reload of `/student-test/SMC10J` launched the Reading V2 runtime.
+  - Runtime rendered `The megafires of California` and 40 questions.
+  - Pre-submit review showed `Answered 0 of 40`.
+  - Student submitted with no answers; confirm flow posted to `https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit`.
+  - Worker response was `200` with `resultId=reading-v2-result-1c4b4c6b-e32b-4b99-9bc8-b8354c6f24e9`, `attemptId=reading-v2-attempt-848ff3df-b2c5-47ef-8962-418d9421b64e`, `totalScore=0`, `maxScore=40`, `percentage=0`.
+  - Teacher session monitor showed student `Submitted`, progress `0/40`, and answer list Q1-Q40 as `No answer submitted`.
+  - Teacher results dashboard `/teacher-test-results/SMC10J` showed 1 student, score `0.0 / 40`, `0.0%`, 40 incorrect, and Question Difficulty Analysis count 40.
+- Re-mark/review fix
+  - Browser `Re-mark` on `/teacher-test-results/SMC10J` first crashed with `TypeError: Cannot read properties of undefined (reading 'map')` at `TeacherTestResultsPage.tsx`.
+  - RTDB confirmed `tests/studio-material-mpxjmklq/questions` is `null` for this Reading V2 source, while `test_results/{resultId}/questionResults` contains 40 scored question entries.
+  - RED: `cmd /c npx vitest run src/pages/TeacherTestResultsPage.test.tsx --reporter=basic`
+    - Result: FAIL. New regression reproduced the crash when a Reading V2 published test has no legacy `questions` array.
+  - Fix: `TeacherTestResultsPage.tsx` now treats `TestData.questions` as optional and builds re-mark question options from saved `questionResults` when legacy questions are absent.
+  - GREEN: `cmd /c npx vitest run src/pages/TeacherTestResultsPage.test.tsx --reporter=basic`
+    - Result: PASS, 1 file / 6 tests.
+  - Live browser recheck: `Re-mark` opened `Re-mark Result: Student Test`; selecting Q1 showed current score `0 / 1`, student answer `(No Answer)`, and max possible `1`.
+- Canonical result review proof
+  - Teacher opened `/result/reading-v2-result-1c4b4c6b-e32b-4b99-9bc8-b8354c6f24e9`.
+  - Result detail rendered inside teacher chrome with `Test Results`, title `PRD0052 QA Reading V2 Full Test 2026-06-03`, context `Live Session`, source id `SMC10J`, score `0%`, and answer map 0 correct / 40 incorrect.
+  - Reading V2 review rendered snapshot `snapshot-studio-material-mpxjmklq-mpxjnrwq`, all 40 answer-map entries, and 8 task groups across 3 passages: note completion, true/false/not given, summary completion, matching features, matching information, multiple choice, matching sentence endings, and yes/no/not given.
+  - Review content showed source passage titles `The megafires of California`, `Second nature`, and `When evolution runs backwards`, plus per-question correct answers.
+- Console caveats
+  - Historical score reads logged `Permission denied`.
+  - Result feedback payload fell back to result-derived sections because the Reading V2 source has no legacy `questions` array; question review still rendered.
+  - Existing Mantine rule warnings appeared for legacy result components; no new Mantine import was added in this pass.
+  - Gemini AI feedback generation was still pending/unreliable; question review remained available.
+
+## 2026-06-04 Existing Full Reading V2 Deployed-Worker Recheck
+
+- Browser QA setup
+  - Reused teacher/student dev quick-login on `http://localhost:5174`.
+  - Source full test: `studio-material-mpxjmklq` / `snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - Teacher started fresh live session `A91JFM` from `PRD0052 QA Reading V2 Full Test 2026-06-03`.
+  - Student joined from `/student-wait/A91JFM`, then launched `/student-test/A91JFM` after the session started.
+- Live full-test launch/submit proof
+  - Runtime rendered `The megafires of California`, 40 questions, and footer parts `Part 1`, `Part 2 (14-26)`, and `Part 3 (27-40)`.
+  - Pre-submit review showed `Answered 0 of 40`, `Passage 1 0/13`, `Passage 2 0/13`, and `Passage 3 0/14`.
+  - Student submitted with no answers; confirm flow posted to `https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit`.
+  - Worker response was `200` with `resultId=reading-v2-result-01384d15-cbc3-4e55-beb4-7ccacf6bebd2`, `attemptId=reading-v2-attempt-9ebe77fa-5521-4638-a9d6-d21bf231316f`, `totalScore=0`, `maxScore=40`, `percentage=0`.
+  - Student post-submit modal showed `0 / 40`, `0.0%`, and locked detailed review.
+- Firebase CLI RTDB proof
+  - `reading_v2/results/reading-v2-result-01384d15-cbc3-4e55-beb4-7ccacf6bebd2` existed with `attemptContext.mode=live-session`, `sessionCode=A91JFM`, `publishedSnapshotVersion=snapshot-studio-material-mpxjmklq-mpxjnrwq`, and 40 released interactions.
+  - `reading_v2/attempts/reading-v2-attempt-9ebe77fa-5521-4638-a9d6-d21bf231316f` existed with `sessionCode=A91JFM`, `materialId=studio-material-mpxjmklq`, and `sourceSnapshotVersionId=snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - `test_results/reading-v2-result-01384d15-cbc3-4e55-beb4-7ccacf6bebd2` existed with title `PRD0052 QA Reading V2 Full Test 2026-06-03`, `sessionCode=A91JFM`, `questionResults=40`, `totalScore=0`, `maxScore=40`, and teacher-owned session visibility metadata.
+- Teacher browser proof
+  - `/teacher-test-results/A91JFM` showed `Test Results Dashboard`, source title, `Session: A91JFM | IELTS | Reading`, 1 student, average score `0.0`, average `0.0%`, pass rate `0%`, student row `Student Test`, score `0.0/40`, 40 incorrect, and `Question Difficulty Analysis (40)`.
+  - Browser `Re-mark` opened `Re-mark Result: Student Test`; the select list contained Q1-Q40, and selecting `Q1 (Max: 1)` showed current score `0 / 1`, student answer `(No Answer)`, and max possible `1`.
+  - `/result/reading-v2-result-01384d15-cbc3-4e55-beb4-7ccacf6bebd2` rendered inside teacher chrome with `Test Results`, source title, context `Live Session`, source id `A91JFM`, answer map with 40 incorrect entries, and Reading V2 review snapshot `snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - Review content showed all 3 passage titles: `The megafires of California`, `Second nature`, and `When evolution runs backwards`, plus 8 task groups through `Questions 37-40`.
+- Verification
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2LaunchIntegration.service.test.ts src/pages/TeacherTestResultsPage.test.tsx src/services/reading-v2/readingV2TeacherComposition.service.test.ts src/pages/TeacherLobbyPage.test.jsx src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx --reporter=basic`
+    - Result: PASS, 8 files / 78 tests.
+  - `cmd /c npx vitest run --config vitest.config.ts src/reading-v2/submit.test.ts --reporter=basic` from `r2-backup-worker`
+    - Result: PASS, 1 file / 1 test.
+  - `cmd /c npm run check:utf8 -- documentation/tasks/PRD0052/prd0052-gap-closure-evidence-2026-06-02.md documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md`
+    - Result: PASS, UTF-8 check passed for 2 text files.
+  - `git diff --check`
+    - Result: PASS except existing warning that `json` LF will be replaced by CRLF if touched.
+- Caveats
+  - Result detail still logged historical-score reads as `Permission denied`; the 40-question answer map and Reading V2 review still rendered.
+  - Temporary `output/playwright/prd0052-A91JFM-*.tmp.json` Firebase CLI helper files were removed after use.
+
+## 2026-06-03 Create Full Test From Selected Reading Passages Recovery Proof
+
+- Browser QA setup
+  - Teacher/student server: `http://localhost:5174` with `VITE_READING_PASSAGE_LIBRARY=enabled` and `VITE_READING_PASSAGE_HOMEWORK=enabled`.
+  - Source full test: `studio-material-mpxjmklq` / `snapshot-studio-material-mpxjmklq-mpxjnrwq`.
+  - Teacher `Reading Passage > Private` loaded 3 production Reading Passage rows from `material_catalog/material_indexes`.
+  - Selected first two rows: ranges `1-13` and `14-26`.
+- Browser proof before fix
+  - `Create full test from selected` first showed the new disabled `Creating full test...` state, then failed with visible retry state.
+  - Error: `Cannot read properties of undefined (reading 'forEach')`.
+  - Root cause: live RTDB omitted empty canonical maps, especially empty `document.optionSets`, from the source published passage snapshot. The selected-passage composer validated and merged the raw snapshot without the Firebase round-trip normalization already used by published-revision hydration.
+- Fix
+  - RED/GREEN coverage updated `readingV2TeacherComposition.service.test.ts` so source snapshots can omit `document.optionSets`.
+  - `readingV2TeacherComposition.service.ts` now normalizes Firebase-read published snapshots before validation/merge.
+  - Selected-passage full-test creation now reads source snapshots, prefixes all canonical ids per passage, renumbers review labels across the merged document, publishes a normal full-test snapshot/projections/tests row, writes `reading_v2/full_test_compositions` and version rows, writes canonical `material_catalog/material_indexes`, and skips re-extracting duplicate Reading Passage entities.
+  - Post-review hardening added RED/GREEN coverage for repeated creation from the same first Reading Passage and for choice/matching option-id answer keys. The composition id now includes the creation timestamp, and answer-key option IDs are prefixed when their option bank is prefixed.
+- Browser proof after fix
+  - Retried the same selected rows from the visible retry state.
+  - App routed to `/teacher/reading-v2/materials/composition-teacher-selected-glmhcrzmnys6aqfcb9i0nloqq6x2-studio-material-mpxjmklq-passage-1-snapshot-studio-material-mpxjmklq-mpxjnrwq/revise`.
+  - Revise page opened `Selected Reading Passages` with 2 passages, 5 task groups, and editor state `Edit published test`.
+  - `Passage 1` showed `The megafires of California`; `Passage 2` was available in the passage selector.
+  - Returning to `/lobby` showed the created full test in `My Content` as `Selected Reading Passages`, Reading V2, 26 questions, 120 min, updated Jun 3, 2026.
+- Firebase CLI RTDB proof
+  - `firebase database:get "/tests/{materialId}" --project temp-a1437`
+    - Result: PASS. `deliveryEngine=reading-v2`, `materialKind=full-test`, `title=Selected Reading Passages`, `questionCount=26`, `publishedSnapshotVersionId=selected-2026-06-03t08-50-17-618z`.
+  - RTDB summary command across `tests`, `reading_v2/material_metadata`, `reading_v2/full_test_compositions`, `reading_v2/full_test_composition_versions`, `reading_v2/published_snapshots`, `reading_v2/projections/student_safe_tests`, `material_catalog/material_indexes/by_owner`, and `reading_v2/publish_commits`
+    - Result: PASS. `compositionRefs=2`, `compositionQuestionCount=26`, `sectionCount=2`, first section `passage-1:prd0052-qa-reading-v2-full-test-2026-06-03-section-1`, last section `passage-2:prd0052-qa-reading-v2-full-test-2026-06-03-section-2`, `studentTaskGroupCount=5`, `studentInteractionCount=26`, `catalogKind=full-test`, `commitWritePathCount=17`.
+  - `firebase database:get "/reading_v2/reading_passage_materials/{materialId}" --project temp-a1437`
+    - Result: PASS, `null`. The selected-passage full-test publish did not create duplicate Reading Passage entities for the new full-test material id.
+- Verification
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2TeacherComposition.service.test.ts src/pages/TeacherLobbyPage.test.jsx src/services/reading-v2/readingV2PublishPipeline.service.test.ts --reporter=basic`
+    - Result: PASS, 3 files / 39 tests.
+  - `cmd /c npx tsc --noEmit --pretty false` with touched-file filter for `readingV2TeacherComposition`, `TeacherLobbyPage`, and `readingV2PublishPipeline`
+    - Result: root command still exited 2 from existing repo-wide debt, touched-file match count `0`.
+  - `cmd /c npm run check:utf8 -- documentation/tasks/PRD0052/prd0052-gap-closure-evidence-2026-06-02.md documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md src/services/reading-v2/readingV2TeacherComposition.service.ts src/services/reading-v2/readingV2TeacherComposition.service.test.ts src/services/reading-v2/readingV2PublishPipeline.service.ts src/pages/TeacherLobbyPage.jsx src/pages/TeacherLobbyPage.css src/pages/TeacherLobbyPage.test.jsx`
+    - Result: PASS, UTF-8 check passed for 8 text files.
+  - `git diff --check`
+    - Result: PASS except Git warning that `json` LF will be replaced by CRLF if touched.
+- Caveats
+  - Revise page emitted one existing Studio autosave stale-revision console error (`ReadingV2RepositoryConflictError`) after opening the created published material; the editor still rendered. Returning to the lobby showed no fresh console errors.
+
+## 2026-06-04 Reading Passage Homework Metadata, Assignment Denial, Replay, Backfill, And Repair Planner Proof
+
+- Homework list/detail metadata
+  - `HomeworkCard.tsx` now uses assignment-time Reading Passage snapshots to show `Reading Passage` / `Reading Passage Set`, source labels, and Test Type labels.
+  - `TeacherHomeworkDetailPage.tsx` now shows the same Reading Passage material label, source, Test Type, question count, and existing assignment status.
+  - `readingV2PassageHomeworkLaunch.service.ts` now derives unique `sourceLabels` and normalized `testTypeLabels` for single and set homework.
+- Live browser metadata proof
+  - Server: `http://localhost:5174` with `VITE_READING_V2_ROLLOUT_MODE=teacher-preview`, `VITE_READING_PASSAGE_LIBRARY=enabled`, and `VITE_READING_PASSAGE_HOMEWORK=enabled`.
+  - Teacher quick-login was already active; route opened through `/teacher/homework`.
+  - Timeline homework card for set `SiDFz9BPXOCSKhgoxTBi` rendered title `Selected Reading Passages`, state `Active`, target `Class: KKK`, material `Reading Passage Set`, source `Source unknown - PRD0052 QA Reading V2 Full Test 2026-06-03`, Test Type `IELTS`, and submissions `1 / 1`.
+  - Detail route `/teacher/homework/SiDFz9BPXOCSKhgoxTBi` rendered title `Selected Reading Passages`, state `Active`, target `KKK`, material `Reading Passage Set`, source `Source unknown - PRD0052 QA Reading V2 Full Test 2026-06-03`, Test Type `IELTS`, `QUESTIONS 26`, assigned students `1`, completion rate `100%`, average score `42%`, and student row `Submitted`.
+  - Console result: 0 errors. The only warnings were pre-existing no-Mantine guard warnings for unrelated `ClassSelectionModal.jsx` and `UseAsIsModal.jsx`.
+- Assignment denial and archived replay
+  - Draft/unpublished Reading Passage rows now stay visible but become non-assignable: `readingV2PassageLibrary.service.ts` sets `accessible=false` and `selectable=false` unless the publication state is absent/legacy or `published`.
+  - `HomeworkCreateModal.tsx` now surfaces the exact Reading Passage assignment denial instead of replacing it with `Failed to load materials`.
+  - `StudentPracticePage.test.tsx` now guards archived-source replay by failing if assigned Reading Passage set launch reads current `reading_v2/material_metadata`, current `reading_v2/reading_passage_materials`, or legacy `tests/{passageId}` rows. The runtime path remains frozen snapshot reads under `reading_v2/projections/student_safe_tests/{passageId}:{snapshotId}`.
+- Backfill runner proof
+  - Existing runner: `npm run backfill:reading-v2-passages -- [options]` via `scripts/reading-v2-full-test-passage-backfill.ts`.
+  - Verified dry-run default, `--write --approved` mutation gate, owner/material/date/limit/report filters, invalid-source skips, root update payload creation, approval-gated writes, and deterministic idempotent write paths.
+  - 2026-06-04 hardening: Firebase CLI database paths now normalize to leading `/`, reports/stdout include `readFailures`, write mode aborts before mutation if any source reads fail, write mode requires `--from-report <dry-run-report.json>` with reviewed dry-run/not-run project/row-count/stable-digest validation, and extracted publish-gate failures now route to `manual-review` instead of entering the write plan.
+  - Write-gate proof: `cmd /c npm run backfill:reading-v2-passages -- --write --approved lead-1` failed before Firebase reads with `Mutation mode requires --from-report <dry-run-report.json>.`
+  - Superseded dry-run report: `output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-reviewed-gate.json` initially marked `studio-material-mojlf55h` split-ready before extracted passage documents were checked against the publish gate.
+  - Fresh publish-gate dry-run report: `cmd /c npm run backfill:reading-v2-passages -- --dry-run --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json` returned `total=4`, `splitReady=0`, `manualReview=1`, `alreadyBackfilled=3`, `readFailures=0`, and `mutation=not-run`.
+  - Report review: the only remaining source is `studio-material-mojlf55h` / `snapshot-studio-material-mojlf55h-mojlfaqa`, title `PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03`, with 3 extracted passages and 22 `publish-gate-blocked` issues. Blockers include missing visible completion blank markers for q6-q13/q20-q22/q38-q40 and invalid multi-select scoring shape/order for q23-q26. The 3 other rows are already backfilled.
+  - Approved live no-op write: `cmd /c npm run backfill:reading-v2-passages -- --write --approved user-approved-all-remaining-20260604 --from-report output/reading-v2-backfill/prd0052-reading-v2-backfill-dry-run-20260604-after-publish-gate.json --project temp-a1437 --report output/reading-v2-backfill/prd0052-reading-v2-backfill-write-20260604-no-eligible-sources.json` returned `mutation=committed`, `plannedWriteCount=0`, `readFailures=0`, `splitReady=0`, `manualReview=1`, and `alreadyBackfilled=3`. No Firebase data writes were needed.
+  - Source-data deferment: `studio-material-mojlf55h` remains owner-deferred manual review. No automated live source mutation was attempted because the blockers require editorial reconstruction of visible completion blanks and multi-select scoring/order, not a safe mechanical transform.
+- Repair planner proof
+  - Added `planMaterialCatalogRepairOperations(...)` in `src/services/materialCatalog/materialCatalogRepair.service.ts`.
+  - Planner emits dry-run operation records for review before Firebase writes.
+  - Covered repairs: stale `material_catalog/material_indexes` rows/paths, stale `material_catalog/book_indexes` rows/paths, orphan and cascaded orphan `material_catalog/book_nodes`, and missing `reading_v2/full_test_composition_versions/{compositionId}/{versionId}` rows.
+  - Added approval-gated write helpers: `createMaterialCatalogRepairWritePlan(...)` requires `approvedBy`, and `buildMaterialCatalogRepairUpdatePayload(...)` builds one root RTDB update payload from reviewed repair operations.
+  - Added operational runner: `npm run repair:material-catalog -- [options]` via `scripts/material-catalog-repair.ts`.
+  - Runner defaults to dry-run and reads the planner roots: Reading V2 material metadata, Material Catalog indexes, Book metadata, Book indexes, Book nodes, full-test compositions, and composition-version rows.
+  - 2026-06-04 hardening: Firebase CLI database paths now normalize to leading `/`, read failures make the runner exit nonzero, reviewed reports must be `dryRun: true` with `mutation.status: not-run`, and malformed Book node cleanup uses the RTDB node key rather than an untrusted stored `nodeId` when building removal paths.
+  - Write mode requires `--write --approved <id> --from-report <dry-run-report.json>`, aborts if any Firebase read failed, verifies current operations against the reviewed report's project/count/digest, then executes one root multi-location `database:update /`.
+  - Dry-run report: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-fixed.json` returned `operations=54`, `readFailures=0`, `mutation=not-run`, digest `b3094eb7135b612b3cc6df229e469f28535d8bae55a9d580ea5852bb95cc933b`, and by-kind counts 45 `material-index-write` / 9 `book-index-write`.
+  - First dry-run attempt before the path fix produced `readFailures=7`; that report is not trusted as repair evidence.
+  - Approved live repair: `cmd /c npm run repair:material-catalog -- --write --approved user-approved-all-remaining-20260604 --from-report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-fixed.json --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-write-20260604-approved.json` returned `mutation=committed`, `plannedWriteCount=54`, `readFailures=0`, digest `b3094eb7135b612b3cc6df229e469f28535d8bae55a9d580ea5852bb95cc933b`.
+  - Direct RTDB proof after the repair write: Firebase CLI reads returned populated rows at `/material_catalog/material_indexes/by_owner/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/studio-material-mojlf55h`, `/material_catalog/material_indexes/by_visibility/private/studio-material-mojlf55h`, `/material_catalog/material_indexes/by_material_kind/full-test/studio-material-mojlf55h`, `/material_catalog/book_indexes/by_owner/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/book-mpx8g283`, `/material_catalog/book_indexes/by_visibility/private/book-mpx8g283`, and `/material_catalog/book_indexes/by_test_type/ielts/book-mpx8g283`.
+  - Post-write convergence bug: a follow-up dry-run initially still reported already-written rows because raw `JSON.stringify` comparison treated Firebase key order and RTDB-omitted empty arrays/objects as drift.
+  - Fix: `materialCatalogRepair.service.ts` now uses canonical Firebase-style comparison before planning stale-row operations; `materialCatalogRepair.service.test.ts` covers key-order and omitted-empty-container regressions.
+  - Convergence proof: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-post-repair-converged.json` returned `operations=0`, `readFailures=0`, `mutation=not-run`.
+  - Composition-version fixture dry-run: after creating temp composition `composition-prd0052-repair-proof-20260604` with missing version `snapshot-prd0052-repair-proof-20260604`, `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-composition-version-fixture.json` returned `operations=1`, `readFailures=0`, by-kind `composition-version-write: 1`, digest `bfaa30605a356843dac041d6754dc6a9028399bc3e49170983d850c3736c9521`.
+  - Composition-version fixture write: `cmd /c npm run repair:material-catalog -- --write --approved user-approved-all-remaining-20260604 --from-report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-composition-version-fixture.json --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-write-20260604-composition-version-fixture.json` returned `mutation=committed`, `plannedWriteCount=1`, and Firebase CLI verified the generated version row. The temp composition and version paths were then removed and verified `null`.
+  - Final repair convergence: `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-final-converged.json` returned `operations=0`, `readFailures=0`, `mutation=not-run` after fixture cleanup.
+- Book atomic write-failure proof
+  - `materialBooks.service.ts` now commits Book metadata, stale-index removals, new indexes, Book node removals/replacements, and public projection writes/removals through `MaterialBooksRepository.update(...)`.
+  - Production Firebase adapters in `TeacherLobbyPage.jsx`, `BookEditorPage.tsx`, and `AdminSettingsPage.tsx` pass `update(ref(database), payload)`, so supported RTDB writes use one root multi-location update.
+  - `materialBooks.service.test.ts` now simulates a failed atomic metadata update and verifies no sequential `write` or `remove` fallback runs. The Book tree test verifies stale node removal, replacement node write, metadata, and indexes are in the same update payload.
+  - Scope caveat: full simulated write-failure coverage for every repair kind remains a lower-priority test-hardening item; composition-version mismatch recovery itself now has approved live fixture proof.
+- Expanded emulator rules proof and live rule deploy
+  - RED proof: `cmd /c npx firebase-tools emulators:exec --only database,firestore --project demo-prd-0052-rules "cmd /c npx vitest run src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic --pool=forks"` first failed because `material_catalog/material_indexes`, `material_catalog/book_nodes`, and `material_catalog/public_book_projections` accepted hidden/scoring fields.
+  - Fix: `database.rules.json` now denies `answerKey`, `answerKeys`, `scoringRule`, `authorDiagnostics`, `importEvidence`, `hiddenProvenance`, and `canonicalEditableDraft` on Material Catalog summary/projection/node paths.
+  - GREEN proof: the same emulator command with workspace-local Java 21 passed, 3 files / 39 tests, covering RTDB Material Catalog, Reading V2 RTDB, and Homework Firestore rules.
+  - Live deploy: `cmd /c npx firebase-tools deploy --only database --project temp-a1437` passed; rules syntax was valid and hardened RTDB rules were released to `temp-a1437-default-rtdb`.
+- Verification
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2PassageLibrary.service.test.ts src/components/modern/materialListAdapter.test.js --reporter=basic`
+    - Result: PASS, 2 files / 22 tests.
+  - `cmd /c npx vitest run src/pages/StudentPracticePage.test.tsx src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts --reporter=basic`
+    - Result: PASS, 2 files / 11 tests.
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2Backfill.service.test.ts src/services/reading-v2/readingV2BackfillCli.test.ts --reporter=basic`
+    - Result: PASS, 2 files / 9 tests.
+  - `cmd /c npx vitest run src/services/materialCatalog/materialCatalogRepair.service.test.ts src/services/materialCatalog/materialCatalogRepairCli.test.ts --reporter=basic`
+    - Result: PASS, 2 files / 10 tests.
+  - `cmd /c npx vitest run src/services/reading-v2/readingV2PassageLibrary.service.test.ts src/components/modern/materialListAdapter.test.js src/pages/StudentPracticePage.test.tsx src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/services/reading-v2/readingV2Backfill.service.test.ts src/services/reading-v2/readingV2BackfillCli.test.ts src/services/materialCatalog/materialCatalogRepair.service.test.ts src/components/homework/HomeworkCard.test.tsx src/pages/TeacherHomeworkDetailPage.test.tsx src/components/homework/HomeworkCreateModal.test.tsx src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2LaunchIntegration.service.test.ts src/pages/TeacherTestResultsPage.test.tsx src/services/reading-v2/readingV2TeacherComposition.service.test.ts src/pages/TeacherLobbyPage.test.jsx src/__tests__/readingV2PassageSetSubmitCore.test.ts src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx --reporter=basic`
+    - Result: PASS, 18 files / 127 tests.
+  - `cmd /c npx vitest run src/services/materialCatalog/materialBooks.service.test.ts --reporter=basic`
+    - Result: PASS, 1 file / 15 tests.
+  - `cmd /c npx vitest run src/components/books/BookEditorPage.test.tsx src/components/admin/PublicBookReviewPanel.test.tsx src/pages/AdminSettingsPage.test.tsx src/pages/TeacherLobbyPage.test.jsx --reporter=basic`
+    - Result: PASS, 4 files / 39 tests. Expected stderr came from existing failure-path tests in `TeacherLobbyPage.test.jsx`.
+  - `cmd /c npx tsc --noEmit --pretty false`
+    - Result: root command still exited 2 from existing repo-wide debt; touched-file filter matched 0 errors for the Book atomic persistence and backfill CLI files changed in this follow-up.
+  - `cmd /c npm run check:utf8 -- documentation/tasks/PRD0052/prd0052-gap-closure-evidence-2026-06-02.md documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md src/components/homework/HomeworkCard.tsx src/components/homework/HomeworkCard.test.tsx src/components/homework/HomeworkCreateModal.tsx src/components/homework/HomeworkCreateModal.test.tsx src/pages/TeacherHomeworkDetailPage.tsx src/pages/TeacherHomeworkDetailPage.test.tsx src/pages/StudentPracticePage.test.tsx src/services/reading-v2/readingV2PassageHomeworkLaunch.service.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/services/reading-v2/readingV2PassageLibrary.service.ts src/services/reading-v2/readingV2PassageLibrary.service.test.ts src/services/materialCatalog/materialCatalogRepair.service.ts src/services/materialCatalog/materialCatalogRepair.service.test.ts`
+    - Result: PASS, UTF-8 check passed for 15 text files.
+  - `cmd /c npm run check:utf8 -- src/services/materialCatalog/materialBooks.service.ts src/services/materialCatalog/materialBooks.service.test.ts src/components/admin/PublicBookReviewPanel.test.tsx src/components/books/BookEditorPage.tsx src/pages/TeacherLobbyPage.jsx src/pages/AdminSettingsPage.tsx documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md documentation/tasks/PRD0052/prd0052-gap-closure-evidence-2026-06-02.md documentation/tasks/PRD0052/prd0052-implementation-notes.md documentation/tasks/PRD0052/prd0052-implementation-coverage-matrix.md documentation/tasks/PRD0052/prd0052-final-handoff-checklist.md`
+    - Result: PASS, UTF-8 check passed for 11 text files.
+  - `git diff --check`
+    - Result: PASS, with existing warning that `json` LF will be replaced by CRLF if touched.
+  - `cmd /c npx vitest run src/services/materialCatalog/materialCatalogRepair.service.test.ts src/services/materialCatalog/materialCatalogRepairCli.test.ts src/services/reading-v2/readingV2Backfill.service.test.ts src/services/reading-v2/readingV2PassageExtraction.service.test.ts src/services/reading-v2/readingV2BackfillCli.test.ts --reporter=basic`
+    - Result: PASS, 5 files / 33 tests.
+  - `cmd /c npm run repair:material-catalog -- --dry-run --project temp-a1437 --report output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-final-converged.json`
+    - Result: PASS, `operations=0`, `readFailures=0`, `mutation=not-run`.
+  - `cmd /c npx tsc --noEmit --pretty false`
+    - Result: root command still exited 2 from existing repo-wide debt; touched-file filter for repair/backfill/rules paths matched 0 errors.
+  - `cmd /c npm run check:utf8 -- src/services/materialCatalog/materialCatalogRepair.service.ts src/services/materialCatalog/materialCatalogRepair.service.test.ts src/services/materialCatalog/materialCatalogRepairCli.test.ts documentation/tasks/PRD0052/prd0052-final-handoff-checklist.md documentation/tasks/PRD0052/prd0052-gap-closure-evidence-2026-06-02.md documentation/tasks/PRD0052/prd0052-implementation-coverage-matrix.md documentation/tasks/PRD0052/prd0052-implementation-notes.md documentation/tasks/PRD0052/prd0052-reading-v2-backfill-dry-run-plan.md documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-post-repair-converged.json output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-composition-version-fixture.json output/material-catalog-repair/prd0052-material-catalog-repair-write-20260604-composition-version-fixture.json output/material-catalog-repair/prd0052-material-catalog-repair-dry-run-20260604-final-converged.json`
+    - Result: PASS, UTF-8 check passed for 13 text files.
+  - `git diff --check`
+    - Result: PASS, with existing warning that `json` LF will be replaced by CRLF if touched.
+- Caveats
+  - This section includes fresh live browser proof for homework card/detail metadata, plus local unit/service proof for assignment denial, archived replay, backfill planning, and approval-gated repair planning/writing.
+  - Emulator-backed rules proof passed later on 2026-06-04 with local Java 21 and 3 files / 39 tests.

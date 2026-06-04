@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 import {
+  describeBackfillMutationError,
+  buildBackfillWritePayloadFromReviewedReport,
   buildBackfillSourcesFromFirebaseSnapshot,
   buildBackfillUpdatePayload,
+  normalizeFirebaseDatabasePath,
   parseBackfillCliArgs,
 } from '../../../scripts/reading-v2-full-test-passage-backfill';
+import { planReadingV2FullTestPassageBackfill } from './readingV2Backfill.service';
+import { ReadingV2PublishGateError } from './readingV2Validation.service';
 
 const document = createReadingV2CanonicalFixture('sentence-completion');
 
@@ -27,11 +32,13 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
     });
 
     expect(() => parseBackfillCliArgs(['--write'])).toThrow(/--approved/i);
+    expect(() => parseBackfillCliArgs(['--write', '--approved', 'lead-1'])).toThrow(/from-report/i);
 
-    expect(parseBackfillCliArgs(['--write', '--approved', 'lead-1'])).toMatchObject({
+    expect(parseBackfillCliArgs(['--write', '--approved', 'lead-1', '--from-report', 'dry-run.json'])).toMatchObject({
       dryRun: false,
       write: true,
       approvedBy: 'lead-1',
+      fromReportPath: 'dry-run.json',
     });
   });
 
@@ -126,5 +133,133 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
       'reading_v2/reading_passage_materials/passage-1': { title: 'Passage 1' },
       'material_catalog/material_indexes/by_owner/teacher-1/passage-1': { title: 'Passage 1' },
     });
+  });
+
+  it('normalizes Firebase CLI database paths with a leading slash', () => {
+    expect(normalizeFirebaseDatabasePath('reading_v2/material_metadata')).toBe('/reading_v2/material_metadata');
+    expect(normalizeFirebaseDatabasePath('/reading_v2/published_snapshots')).toBe('/reading_v2/published_snapshots');
+    expect(normalizeFirebaseDatabasePath('/')).toBe('/');
+  });
+
+  it('serializes publish-gate errors with blocking issue details for failed write reports', () => {
+    const details = describeBackfillMutationError(new ReadingV2PublishGateError({
+      issues: [
+        {
+          code: 'missing-scoring-response-shape',
+          severity: 'error',
+          message: 'Interaction q1 needs a visible blank marker.',
+          objectId: 'q1',
+        },
+      ],
+      blockingIssues: [
+        {
+          code: 'missing-scoring-response-shape',
+          severity: 'error',
+          message: 'Interaction q1 needs a visible blank marker.',
+          objectId: 'q1',
+        },
+      ],
+      warningIssues: [],
+      informationalIssues: [],
+      canPublish: false,
+    }));
+
+    expect(details).toEqual({
+      error: 'Reading V2 publish is blocked by validation errors.',
+      blockingIssues: [
+        {
+          code: 'missing-scoring-response-shape',
+          message: 'Interaction q1 needs a visible blank marker.',
+          objectId: 'q1',
+          severity: 'error',
+        },
+      ],
+    });
+  });
+
+  it('binds write mode to a reviewed dry-run report and aborts mismatches/read failures', () => {
+    const { sources } = buildBackfillSourcesFromFirebaseSnapshot({
+      materialMetadata: {
+        'legacy-ready': {
+          materialId: 'legacy-ready',
+          ownerId: 'teacher-1',
+          title: 'Legacy Ready',
+          materialKind: 'full-test',
+          state: 'published',
+          visibility: 'private',
+          publishedSnapshotVersionId: 'snapshot-1',
+          updatedAt: '2026-05-15T00:00:00.000Z',
+          durationMinutes: 60,
+          primaryTestTypeId: 'ielts',
+          testTypeIds: ['ielts'],
+        },
+      },
+      publishedSnapshots: {
+        'legacy-ready': {
+          'snapshot-1': snapshot,
+        },
+      },
+      fullTestCompositions: {},
+    }, {});
+    const currentReport = planReadingV2FullTestPassageBackfill({
+      fullTests: sources,
+      now: '2026-06-04T00:00:00.000Z',
+    });
+    const reviewedReport = {
+      ...currentReport,
+      projectId: 'temp-a1437',
+      mutation: { status: 'not-run' },
+    };
+
+    expect(() => buildBackfillWritePayloadFromReviewedReport({
+      options: parseBackfillCliArgs([
+        '--write',
+        '--approved',
+        'lead-1',
+        '--from-report',
+        'dry-run.json',
+        '--project',
+        'temp-a1437',
+      ]),
+      currentReport,
+      readFailures: [{ path: 'reading_v2/material_metadata', error: 'permission denied' }],
+      reviewedReport,
+    })).toThrow(/read/i);
+
+    expect(() => buildBackfillWritePayloadFromReviewedReport({
+      options: parseBackfillCliArgs([
+        '--write',
+        '--approved',
+        'lead-1',
+        '--from-report',
+        'dry-run.json',
+        '--project',
+        'other-project',
+      ]),
+      currentReport,
+      readFailures: [],
+      reviewedReport,
+    })).toThrow(/reviewed dry-run/i);
+
+    const payload = buildBackfillWritePayloadFromReviewedReport({
+      options: parseBackfillCliArgs([
+        '--write',
+        '--approved',
+        'lead-1',
+        '--from-report',
+        'dry-run.json',
+        '--project',
+        'temp-a1437',
+      ]),
+      currentReport,
+      readFailures: [],
+      reviewedReport,
+    });
+
+    expect(Object.keys(payload)).toEqual(expect.arrayContaining([
+      'reading_v2/reading_passage_materials/legacy-ready-passage-1',
+      'reading_v2/full_test_compositions/composition-legacy-ready-snapshot-1',
+      'reading_v2/full_test_composition_versions/composition-legacy-ready-snapshot-1/snapshot-1',
+    ]));
   });
 });

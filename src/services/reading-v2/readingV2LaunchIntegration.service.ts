@@ -2,6 +2,7 @@
 // metadata/projections here and never inspect canonical drafts or legacy Reading payloads.
 import {
   READING_V2_ENGINE,
+  READING_V2_ROLLOUT_MODES,
   READING_V2_ROLLOUT_MODE,
   READING_PASSAGE_HOMEWORK_MODE,
   READING_PASSAGE_LIBRARY_MODE,
@@ -138,6 +139,13 @@ export const isReadingV2LaunchSurfaceEnabled = (input: {
   readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
 }): boolean => {
   if (isReadingV2PublicRollout(input.rolloutMode ?? READING_V2_ROLLOUT_MODE)) {
+    return true;
+  }
+
+  if (
+    input.surface === 'live-session' &&
+    (input.rolloutMode ?? READING_V2_ROLLOUT_MODE) === READING_V2_ROLLOUT_MODES.teacherPreview
+  ) {
     return true;
   }
 

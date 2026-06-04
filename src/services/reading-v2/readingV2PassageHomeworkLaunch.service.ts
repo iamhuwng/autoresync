@@ -13,6 +13,7 @@ import type {
   ReadingV2ProjectedTaskGroup,
   ReadingV2ProjectionContent,
 } from './readingV2Projection.service';
+import { normalizeTestTypeLabel } from '../materialCatalog/testTypeConfig.service';
 
 export type ReadingPassageHomeworkKind = 'single' | 'set';
 
@@ -24,6 +25,8 @@ export interface ReadingPassageHomeworkSummary {
   readonly questionCount: number;
   readonly meta: readonly string[];
   readonly passageTitles: readonly string[];
+  readonly sourceLabels: readonly string[];
+  readonly testTypeLabels: readonly string[];
 }
 
 export type ReadingPassageHomeworkLaunchItem = ReadingPassageHomeworkSetItem;
@@ -50,6 +53,38 @@ export const getReadingPassageHomeworkLaunchItems = (
   return [];
 };
 
+const uniqueStrings = (values: readonly string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  values.forEach((value) => {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    result.push(trimmed);
+  });
+
+  return result;
+};
+
+const formatReadingPassageSourceLabel = (item: ReadingPassageHomeworkLaunchItem): string | null => {
+  const parts = [item.sourceOrderDisplay, item.sourceFullTestTitle]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(' - ') : null;
+};
+
+const getReadingPassageSourceLabels = (
+  items: readonly ReadingPassageHomeworkLaunchItem[],
+): string[] => uniqueStrings(items.flatMap((item) => formatReadingPassageSourceLabel(item) ?? []));
+
+const getReadingPassageTestTypeLabels = (
+  items: readonly ReadingPassageHomeworkLaunchItem[],
+): string[] => uniqueStrings(items.flatMap((item) => item.testTypeIds.map((testTypeId) => normalizeTestTypeLabel(testTypeId))));
+
 export const getReadingPassageHomeworkSummary = (
   homework: Pick<
     HomeworkAssignment,
@@ -63,6 +98,8 @@ export const getReadingPassageHomeworkSummary = (
   }
 
   const questionCount = items.reduce((sum, item) => sum + item.questionCount, 0);
+  const sourceLabels = getReadingPassageSourceLabels(items);
+  const testTypeLabels = getReadingPassageTestTypeLabels(items);
 
   if (homework.materialType === 'reading-passage') {
     const item = items[0];
@@ -84,6 +121,8 @@ export const getReadingPassageHomeworkSummary = (
       questionCount,
       meta,
       passageTitles: [item.titleSnapshot],
+      sourceLabels,
+      testTypeLabels,
     };
   }
 
@@ -95,6 +134,8 @@ export const getReadingPassageHomeworkSummary = (
     questionCount,
     meta: [`${items.length} passages`, `${questionCount} questions`],
     passageTitles: items.map((item) => item.titleSnapshot),
+    sourceLabels,
+    testTypeLabels,
   };
 };
 
@@ -103,6 +144,23 @@ const prefixId = (prefix: string, value: string | undefined): string | undefined
 
 const prefixIds = (prefix: string, values: readonly string[] | undefined): string[] | undefined =>
   values ? values.map((value) => `${prefix}:${value}`) : undefined;
+
+const prefixResponseShape = (
+  prefix: string,
+  responseShape: ReadingV2ProjectedInteraction['responseShape'],
+): ReadingV2ProjectedInteraction['responseShape'] => {
+  switch (responseShape.kind) {
+    case 'single-choice':
+    case 'multi-select':
+    case 'matching':
+      return {
+        ...responseShape,
+        optionSetId: `${prefix}:${responseShape.optionSetId}` as typeof responseShape.optionSetId,
+      };
+    default:
+      return responseShape;
+  }
+};
 
 const prefixAnchorContent = <T,>(prefix: string, content: T): T => {
   if (Array.isArray(content)) {
@@ -140,6 +198,7 @@ const prefixInteraction = (
   interactionId: `${prefix}:${interaction.interactionId}`,
   taskGroupId: `${prefix}:${interaction.taskGroupId}`,
   displayNumber: visibleNumberOffset + interaction.displayNumber,
+  responseShape: prefixResponseShape(prefix, interaction.responseShape),
   ...(interaction.primaryAnchorId ? { primaryAnchorId: `${prefix}:${interaction.primaryAnchorId}` } : {}),
   ...(interaction.contextAnchorIds ? { contextAnchorIds: prefixIds(prefix, interaction.contextAnchorIds) } : {}),
 });
@@ -197,7 +256,7 @@ const prefixProjectionContent = (input: {
     taskGroups: input.projection.content.taskGroups.map((taskGroup) =>
       prefixTaskGroup(prefix, input.visibleNumberOffset, taskGroup),
     ),
-    optionSets: input.projection.content.optionSets.map((optionSet): ReadingV2ProjectedOptionSet => ({
+    optionSets: (input.projection.content.optionSets ?? []).map((optionSet): ReadingV2ProjectedOptionSet => ({
       ...optionSet,
       optionSetId: `${prefix}:${optionSet.optionSetId}`,
       taskGroupId: `${prefix}:${optionSet.taskGroupId}`,

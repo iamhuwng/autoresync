@@ -266,6 +266,34 @@ describe('readingV2PassageLibrary.service', () => {
     expect(rows[0]?.sourceOrderDisplay).toBe('Section unknown');
   });
 
+  it('keeps draft Reading Passage rows visible but unavailable for assignment', async () => {
+    const testReader = reader({
+      readMetadata: vi.fn(async () =>
+        metadata({
+          state: 'draft',
+          publishedSnapshotVersionId: 'snapshot-1',
+        }) as any,
+      ),
+      readStudentSafeProjection: vi.fn(async () => projection(13) as any),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      materialId: 'passage-1',
+      hasStudentSafeProjection: true,
+      accessible: false,
+      selectable: false,
+      archived: false,
+    });
+  });
+
   it('excludes full tests and non-Reading-Passage metadata from the dedicated Reading Passage list', async () => {
     const testReader = reader({
       listIndexRows: vi.fn(async () => [
