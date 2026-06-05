@@ -30,7 +30,6 @@ describe('BookNodeTree', () => {
       <BookNodeTree
         bookId="book-1"
         nodes={[]}
-        materialCandidates={[]}
         onNodesChange={onNodesChange}
         onTrackAction={onTrackAction}
         createId={() => 'section-1'}
@@ -59,8 +58,80 @@ describe('BookNodeTree', () => {
     });
   });
 
-  it('blocks adding depth 6 children before save', async () => {
+  it('renders the modal outline navigator without visible row command dumps', async () => {
     const user = userEvent.setup();
+    const onSelectNode = vi.fn();
+    const onSelectMaterialRef = vi.fn();
+    const nodes = [
+      makeNode({
+        nodeId: materialCatalogIds.nodeId('section-1'),
+        title: 'Section 1',
+        order: 1,
+        materialRefs: [
+          {
+            refId: materialCatalogIds.refId('ref-1'),
+            materialId: 'passage-1',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'snapshot-1',
+            titleSnapshot: 'IELTS Reading Passage - Huarango',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'available',
+            updateState: 'current',
+            order: 1,
+            addedAt: NOW,
+            addedBy: 'teacher-1',
+          },
+        ],
+      }),
+    ];
+
+    render(
+      <BookNodeTree
+        bookId="book-1"
+        nodes={nodes}
+        onNodesChange={vi.fn()}
+        onSelectNode={onSelectNode}
+        selectedNodeId="section-1"
+        selectedRefId="ref-1"
+        onSelectMaterialRef={onSelectMaterialRef}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Book outline' })).toBeInTheDocument();
+    expect(screen.getByText('1 part - 1 material')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Section' })).toHaveTextContent('+ Section');
+    expect(screen.getByRole('button', { name: 'Add Chapter' })).toHaveTextContent('+ Chapter');
+    expect(screen.getByRole('button', { name: 'Add Test' })).toHaveTextContent('+ Test');
+    expect(screen.queryByRole('button', { name: 'Add Intro Placeholder' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add TOC Placeholder' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Note Placeholder' })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search outline')).toBeInTheDocument();
+
+    const sectionRow = screen.getByTestId('book-node-section-1');
+    expect(sectionRow).toHaveAttribute('aria-selected', 'true');
+    expect(sectionRow).toHaveTextContent('section');
+    expect(sectionRow).toHaveTextContent('1 material - ready');
+    expect(screen.getByText('IELTS Reading Passage - Huarango')).toBeInTheDocument();
+    expect(screen.getByText('reading-passage')).toBeInTheDocument();
+    expect(screen.getByText('available')).toBeInTheDocument();
+    expect(within(sectionRow).getByRole('button', { name: 'Select Section 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select IELTS Reading Passage - Huarango' })).toBeInTheDocument();
+
+    expect(screen.queryByText('Up')).not.toBeInTheDocument();
+    expect(screen.queryByText('Down')).not.toBeInTheDocument();
+    expect(screen.queryByText('Select')).not.toBeInTheDocument();
+    expect(screen.queryByText('Move to')).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add child Section to Section 1' })).not.toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('Search outline'), 'Huarango');
+
+    expect(screen.getByText('IELTS Reading Passage - Huarango')).toBeInTheDocument();
+    expect(screen.queryByText('Section 2')).not.toBeInTheDocument();
+  });
+
+  it('keeps child-add controls out of the outline rows', () => {
     const onNodesChange = vi.fn();
     const nodes = [
       makeNode({ nodeId: materialCatalogIds.nodeId('n1'), title: 'N1', parentNodeId: null }),
@@ -74,20 +145,16 @@ describe('BookNodeTree', () => {
       <BookNodeTree
         bookId="book-1"
         nodes={nodes}
-        materialCandidates={[]}
         onNodesChange={onNodesChange}
         createId={() => 'too-deep'}
       />,
     );
 
-    await user.click(within(screen.getByTestId('book-node-n5')).getByRole('button', { name: 'Add child Section to N5' }));
-
-    expect(screen.getByText('Book nodes can be nested up to 5 levels.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add child Section to N5' })).not.toBeInTheDocument();
     expect(onNodesChange).not.toHaveBeenCalled();
   });
 
-  it('requires confirmation before deleting a node with children or refs', async () => {
-    const user = userEvent.setup();
+  it('does not expose destructive node delete as visible outline row text', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const onNodesChange = vi.fn();
     const nodes = [
@@ -99,22 +166,20 @@ describe('BookNodeTree', () => {
       <BookNodeTree
         bookId="book-1"
         nodes={nodes}
-        materialCandidates={[]}
         onNodesChange={onNodesChange}
       />,
     );
 
-    await user.click(within(screen.getByTestId('book-node-parent')).getByRole('button', { name: 'Delete Parent' }));
-
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(within(screen.getByTestId('book-node-parent')).queryByText('Delete')).not.toBeInTheDocument();
+    expect(confirmSpy).not.toHaveBeenCalled();
     expect(onNodesChange).not.toHaveBeenCalled();
   });
 
-  it('tracks node reorder, node deletion, material attach, and material removal actions', async () => {
+  it('tracks node selection actions from the compact outline', async () => {
     const user = userEvent.setup();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const onNodesChange = vi.fn();
     const onTrackAction = vi.fn();
+    const onSelectNode = vi.fn();
     const nodes = [
       makeNode({
         nodeId: materialCatalogIds.nodeId('section-1'),
@@ -148,50 +213,19 @@ describe('BookNodeTree', () => {
       <BookNodeTree
         bookId="book-1"
         nodes={nodes}
-        materialCandidates={[
-          {
-            materialId: 'full-test-1',
-            title: 'Published Test',
-            materialKind: 'full-test',
-            status: 'published',
-            testTypeIds: [materialCatalogIds.testTypeId('ielts')],
-            visibility: 'private',
-            publishedSnapshotVersionId: 'snapshot-test',
-          },
-        ]}
         onNodesChange={onNodesChange}
         onTrackAction={onTrackAction}
-        createRefId={() => 'ref-new'}
+        onSelectNode={onSelectNode}
+        selectedNodeId="section-1"
         now={() => NOW}
-        actorId="teacher-1"
       />,
     );
 
-    await user.click(within(screen.getByTestId('book-node-section-2')).getByRole('button', { name: 'Move Section 2 up' }));
-    await user.click(screen.getByText('Add published material to Section 1'));
-    const sectionOne = within(screen.getByTestId('book-node-section-1'));
-    await user.click(sectionOne.getByRole('button', { name: 'Attach Published Test' }));
-    await user.click(sectionOne.getByRole('button', { name: 'Remove Passage One' }));
-    await user.click(sectionOne.getByRole('button', { name: 'Delete Section 1' }));
+    await user.click(screen.getByTestId('book-node-section-1'));
 
-    expect(onTrackAction).toHaveBeenCalledWith(
-      'teacher_materials_book_node_reordered',
-      expect.objectContaining({ nodeId: 'section-2', direction: 'up' }),
-    );
-    expect(onTrackAction).toHaveBeenCalledWith(
-      'teacher_materials_book_material_attached',
-      expect.objectContaining({ nodeId: 'section-1', materialId: 'full-test-1', materialKind: 'full-test' }),
-    );
-    expect(onTrackAction).toHaveBeenCalledWith(
-      'teacher_materials_book_material_removed',
-      expect.objectContaining({ nodeId: 'section-1', materialId: 'passage-1', materialKind: 'reading-passage' }),
-    );
-    expect(onTrackAction).toHaveBeenCalledWith(
-      'teacher_materials_book_node_deleted',
-      expect.objectContaining({ nodeId: 'section-1', nodeType: 'section', hadMaterialRefs: true }),
-    );
-
-    confirmSpy.mockRestore();
+    expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ nodeId: 'section-1' }));
+    expect(onNodesChange).not.toHaveBeenCalled();
+    expect(onTrackAction).not.toHaveBeenCalledWith('teacher_materials_book_node_deleted', expect.anything());
   });
 
   it('renders unavailable Book refs from fallback snapshots without leaking hidden metadata', () => {
@@ -262,7 +296,6 @@ describe('BookNodeTree', () => {
       <BookNodeTree
         bookId="book-1"
         nodes={nodes}
-        materialCandidates={[]}
         onNodesChange={vi.fn()}
       />,
     );
