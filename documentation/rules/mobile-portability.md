@@ -41,42 +41,49 @@ If yes → import from `@/core/platform/storage` instead.
 
 ---
 
-## Rule 19 — Platform Hook Abstraction
+## Rule 19 — Platform Hook Abstraction (scoped guideline)
 
-**Trigger:** Writing any hook that directly uses `window.*`, `document.*`, `navigator.*`, or browser-specific events (online/offline, resize, beforeunload, matchMedia).
+> **Update Note (2026-06-05):** Downgraded from a hard "zero-bypass" ban to a **scoped guideline**. Rationale: no mobile target is currently installed (`package.json` has no `react-native`, `@capacitor/*`, or `@react-navigation/*` deps), and the "crashes at runtime" justification applies only to *bare* React Native — Capacitor runs a webview where `window`/`document`/`navigator` work normally. As of this note, ~190 files already use these APIs directly outside the platform layer, so a blanket ban is neither enforced nor realistic. Keep the abstraction for the cross-cutting cases below; exempt one-off DOM. **Reinstate as a hard rule if/when a React Native target is committed.**
 
-**Why it exists:**
-React Native has no `window`, `document`, or `navigator` objects. Hooks like `useMediaQuery` (uses `window.matchMedia`) and `useOnlineStatus` (uses `window` events) crash at runtime in React Native.
+**Trigger:** Writing a hook for a **cross-cutting browser capability** — online/offline status, screen size / breakpoints, app lifecycle (beforeunload/visibility), clipboard, or persistent storage.
 
-**The rule:**
-Platform-dependent hooks must be isolated in `src/core/platform/hooks/` with a platform-agnostic interface. Feature hooks must import from the platform layer, never from browser APIs directly.
+**Why it still matters (even without RN):**
+These capabilities already have a single, tested abstraction in `src/core/platform/`. Routing through it gives consistent behavior, easy mocking in tests, and one swap point if a mobile target is ever added. This value is independent of React Native.
+
+**The guideline:**
+For the capabilities listed below, import the existing platform hook instead of hitting the browser API directly. Do **not** create a second, ad-hoc implementation of something the platform layer already provides.
 
 ```typescript
-// ❌ BANNED — direct window usage in feature hooks
+// ⚠️ AVOID — re-implementing a capability the platform layer already covers
 const [isOnline, setIsOnline] = useState(navigator.onLine);
 window.addEventListener('online', handler);
-
-// ❌ BANNED — direct matchMedia
 const media = window.matchMedia('(max-width: 768px)');
 
-// ✅ CORRECT — use platform hooks
+// ✅ PREFER — use the existing platform hooks
 import { useOnlineStatus } from '@/core/platform/hooks/useOnlineStatus';
 import { useScreenSize } from '@/core/platform/hooks/useScreenSize';
 const isOnline = useOnlineStatus();
 const { isMobile, isTablet } = useScreenSize();
 ```
 
-**Platform hooks to use (in `src/core/platform/hooks/`):**
+**Platform hooks already available (in `src/core/platform/hooks/`):**
 
-| Hook | Web API it abstracts | Mobile Equivalent |
+| Hook | Web API it abstracts | Mobile Equivalent (future) |
 |------|---------------------|-------------------|
 | `useOnlineStatus` | `window` online/offline | `@react-native-community/netinfo` |
 | `useScreenSize` | `window.matchMedia()` | `Dimensions` / `useWindowDimensions` |
 | `useAppLifecycle` | `window.onbeforeunload` | `AppState` + `BackHandler` |
 | `useClipboard` | `navigator.clipboard` | `@react-native-clipboard/clipboard` |
+| `useDocumentTitle` | `document.title` | no-op / native title |
 
-**Self-check:** *"Am I using `window.*` or `document.*` in my hook?"*
-If yes → create or use a platform hook from `src/core/platform/hooks/`.
+**Explicitly EXEMPT (direct `window`/`document` is fine, no abstraction needed):**
+- One-off, intrinsically-DOM, component-local behavior with no reuse and no RN analog — e.g. modal **focus traps**, **body scroll lock**, `ref.focus()`, `event.target`/`currentTarget` checks, `getBoundingClientRect()` for a single layout measurement.
+- Code that is already web-only by nature (a `<dialog>`-style modal, a canvas widget, print handling).
+
+If you find yourself writing the *same* DOM-capability logic in a second place, that's the signal to promote it into `src/core/platform/` — not the first one-off.
+
+**Self-check:** *"Am I re-implementing online status, screen size, lifecycle, clipboard, storage, or document title?"*
+If yes → use the platform hook. If it's a one-off DOM detail local to one component → direct usage is acceptable.
 
 ---
 
