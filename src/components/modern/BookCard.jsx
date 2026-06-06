@@ -39,6 +39,7 @@ const BookCover = ({ book }) => {
 
 const BookCard = ({
   book,
+  canOpenBookEditor = true,
   onOpenBook,
   onEditMetadata,
   onArchiveBook,
@@ -66,7 +67,9 @@ const BookCard = ({
       <button
         type="button"
         className="book-card__action book-card__action--primary"
-        onClick={() => onOpenBook?.(book)}
+        disabled={!canOpenBookEditor}
+        title={canOpenBookEditor ? 'Open Book' : 'Book editor is not available'}
+        onClick={(event) => onOpenBook?.(book, event.currentTarget)}
       >
         Open Book
       </button>

@@ -137,7 +137,8 @@ describe('BookEditorWorkspace', () => {
       />,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Book content' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Book outline' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Book content' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('teacher-header')).not.toBeInTheDocument();
     expect(screen.queryByRole('tablist', { name: 'Book editor tabs' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'IELTS Book' })).not.toBeInTheDocument();
@@ -215,9 +216,11 @@ describe('BookEditorWorkspace', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Book content' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Book content' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Book outline' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Book structure tree' })).toBeInTheDocument();
     const detailPanel = screen.getByRole('complementary', { name: 'Selected item details' });
+    expect(within(detailPanel).getByRole('heading', { name: 'Selected section' })).toBeInTheDocument();
     expect(within(detailPanel).getByRole('heading', { name: 'Selected material' })).toBeInTheDocument();
     expect(within(detailPanel).getByText('Root / Section 1 - Depth 1 - Order 1')).toBeInTheDocument();
     expect(within(detailPanel).getAllByText('Passage One').length).toBeGreaterThanOrEqual(1);
@@ -259,6 +262,9 @@ describe('BookEditorWorkspace', () => {
     expect(within(detailPanel).getByRole('button', { name: 'Move up' })).toBeInTheDocument();
     expect(within(detailPanel).getByRole('button', { name: 'Move down' })).toBeInTheDocument();
     expect(within(detailPanel).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(within(detailPanel).getByRole('button', { name: 'Move up' })).toHaveClass('book-editor-page__icon-button');
+    expect(within(detailPanel).getByRole('button', { name: 'Move up' })).not.toHaveTextContent('Move up');
+    expect(within(detailPanel).getByRole('button', { name: 'Add Chapter' })).not.toHaveTextContent('Add Chapter');
     expect(within(detailPanel).getByRole('heading', { name: 'Attach material' })).toBeInTheDocument();
     expect(within(detailPanel).getByRole('button', { name: 'Attach Published Passage' })).toBeInTheDocument();
     expect(within(detailPanel).queryByText('Whole-Book assignment is not available in V1.')).not.toBeInTheDocument();

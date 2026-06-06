@@ -145,10 +145,21 @@
   cursor: pointer;
 }
 
+.book-card__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .book-card__action--primary {
   border-color: rgba(99, 102, 241, 0.56);
   background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   color: #fff;
+}
+
+.book-card__action--primary:disabled {
+  border-color: rgba(148, 163, 184, 0.72);
+  background: rgba(148, 163, 184, 0.22);
+  color: #475569;
 }
 
 .book-card__action--danger {

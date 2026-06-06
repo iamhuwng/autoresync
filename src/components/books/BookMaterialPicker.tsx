@@ -38,7 +38,7 @@ const BookMaterialPicker = ({ materials, onAttach }: BookMaterialPickerProps) =>
           type="search"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Search title, kind, or Test Type"
+          placeholder="Search published materials"
         />
       </label>
 
@@ -55,8 +55,8 @@ const BookMaterialPicker = ({ materials, onAttach }: BookMaterialPickerProps) =>
                   <span>{material.testTypeIds?.join(', ')}</span>
                 )}
               </div>
-              <button type="button" onClick={() => onAttach(material)}>
-                Attach {material.title}
+              <button type="button" aria-label={`Attach ${material.title}`} onClick={() => onAttach(material)}>
+                Attach
               </button>
             </li>
           ))}

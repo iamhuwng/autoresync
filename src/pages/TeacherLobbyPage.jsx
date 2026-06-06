@@ -67,6 +67,7 @@ import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
 import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal';
 import CreateBookModal from '../components/books/CreateBookModal';
+import BookEditorModal from '../components/books/BookEditorModal';
 import './TeacherLobbyPage.css';
 
 // Modals kept as direct imports (heavy components)
@@ -230,10 +231,15 @@ const TeacherLobbyPage = () => {
   const [bookListVersion, setBookListVersion] = useState(0);
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
+  const [bookEditorOpen, setBookEditorOpen] = useState(false);
+  const [bookEditorBookId, setBookEditorBookId] = useState(null);
+  const [bookEditorDirty, setBookEditorDirty] = useState(false);
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
   const testTypeConfigsRef = useRef(DEFAULT_MATERIAL_TEST_TYPES);
+  const consumedRouteBookOpenRef = useRef(null);
+  const bookEditorLauncherRef = useRef(null);
 
   // ---------- Hooks ----------
   const modals = useModalManager();
@@ -313,6 +319,10 @@ const TeacherLobbyPage = () => {
       await updateDb(ref(database), payload);
     },
   }), []);
+  const activeBookEditorBook = useMemo(
+    () => bookRows.find((book) => (book.bookId || book.id) === bookEditorBookId) ?? null,
+    [bookEditorBookId, bookRows],
+  );
   const readingV2CompositionRepository = useMemo(() => ({
     read: async (path) => {
       const snapshot = await get(ref(database, path));
@@ -655,6 +665,40 @@ const TeacherLobbyPage = () => {
     teacherMaterialsCapabilities.canUseMaterialBooks,
     testTypeConfigs,
     user?.uid,
+  ]);
+
+  useEffect(() => {
+    const routeBookId = location.state?.teacherMaterialsOpenBookId;
+
+    if (!routeBookId || consumedRouteBookOpenRef.current === routeBookId) {
+      return;
+    }
+
+    consumedRouteBookOpenRef.current = routeBookId;
+    setContentFilter('book');
+    setBookScope('private');
+    setBookEditorBookId(routeBookId);
+    bookEditorLauncherRef.current = null;
+    setBookEditorOpen(true);
+    trackAction('openBook', {
+      bookId: routeBookId,
+      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
+    });
+    trackAction('teacher_materials_book_editor_opened', {
+      bookId: routeBookId,
+      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
+    });
+    navigateTo('LOBBY', {}, {
+      reason: 'teacher_materials_book_route_state_consumed',
+      replace: true,
+      force: true,
+      state: {},
+    });
+  }, [
+    location.state?.teacherMaterialsOpenBookId,
+    location.state?.teacherMaterialsOpenBookSource,
+    navigateTo,
+    trackAction,
   ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
@@ -1074,15 +1118,28 @@ const TeacherLobbyPage = () => {
     setBookListVersion((version) => version + 1);
   }, [bookValidationContext, editingBook, materialBooksRepository, trackAction, user?.uid]);
 
-  const handleOpenBook = useCallback((book) => {
+  const handleOpenBook = useCallback((book, launcher) => {
     const bookId = book?.bookId || book?.id;
     if (!bookId) {
       return;
     }
 
+    if (!teacherMaterialsCapabilities.canUseMaterialBookEditor) {
+      return;
+    }
+
     trackAction('openBook', { bookId, source: 'teacher_materials_book_card' });
-    navigateTo('TEACHER_MATERIAL_BOOK', { bookId }, { reason: 'teacher_materials_open_book' });
-  }, [navigateTo, trackAction]);
+    trackAction('teacher_materials_book_editor_opened', { bookId, source: 'teacher_materials_book_card' });
+    setContentFilter('book');
+    setBookEditorBookId(bookId);
+    bookEditorLauncherRef.current = launcher || null;
+    setBookEditorOpen(true);
+  }, [teacherMaterialsCapabilities.canUseMaterialBookEditor, trackAction]);
+
+  const handleCloseBookEditor = useCallback(() => {
+    setBookEditorDirty(false);
+    setBookEditorOpen(false);
+  }, []);
 
   const handleEditBookMetadata = useCallback((book) => {
     trackAction('editBookMetadata', {
@@ -1599,6 +1656,7 @@ const TeacherLobbyPage = () => {
                         books={bookRows}
                         emptyTitle={bookScope === 'public' ? 'No public Books found' : 'No Books yet'}
                         emptyDescription={bookScope === 'public' ? 'No public Books match this view.' : 'Create a Book draft to start organizing materials.'}
+                        canOpenBookEditor={teacherMaterialsCapabilities.canUseMaterialBookEditor}
                         onOpenBook={handleOpenBook}
                         onEditMetadata={handleEditBookMetadata}
                         onArchiveBook={handleArchiveBook}
@@ -1723,6 +1781,20 @@ const TeacherLobbyPage = () => {
           initialValue={editingBookModalValue}
           onClose={handleCloseCreateBookModal}
           onSave={handleSaveBook}
+        />
+
+        <BookEditorModal
+          opened={bookEditorOpen}
+          bookId={bookEditorBookId}
+          initialBook={activeBookEditorBook}
+          repository={materialBooksRepository}
+          onClose={handleCloseBookEditor}
+          onSaved={() => {
+            setBookListVersion((version) => version + 1);
+            setBookEditorDirty(false);
+          }}
+          onDirtyChange={setBookEditorDirty}
+          returnFocusTo={bookEditorLauncherRef.current}
         />
 
         <TestTypePreferenceModal

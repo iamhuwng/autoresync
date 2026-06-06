@@ -35,6 +35,7 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn((_database, path: string) => ({ path })),
   remove: vi.fn(),
   set: vi.fn(),
+  update: vi.fn(),
 }));
 
 vi.mock('../../services/firebase', () => ({
@@ -138,11 +139,11 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('tab', { name: 'Contents' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
-    expect(screen.getByText(/Whole-Book assignment is not available in V1/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Whole-Book assignment is not available in V1/).length).toBeGreaterThanOrEqual(1);
 
-    await user.click(screen.getByRole('tab', { name: 'Settings' }));
+    await user.click(screen.getByRole('tab', { name: 'Overview' }));
 
     expect(screen.getByLabelText('Title')).toHaveValue('IELTS Book');
     expect(screen.getByLabelText('Subtitle')).toHaveValue('Practice');
@@ -156,7 +157,7 @@ describe('BookEditorPage', () => {
     expect(screen.getByLabelText('Test Type ids')).toHaveValue('ielts');
   });
 
-  it('shows a tabbed Contents workspace with selected material inspector', async () => {
+  it('shows a tabbed Content workspace with selected material inspector', async () => {
     const user = userEvent.setup();
     const nodes = [
       makeNode({
@@ -190,29 +191,42 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('tab', { name: 'Contents' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Selected material' })).toBeInTheDocument();
     expect(screen.getAllByText('Passage One').length).toBeGreaterThan(1);
     expect(screen.getByRole('button', { name: 'Assign selected' })).toBeInTheDocument();
     expect(screen.getByText('1 materials in book')).toBeInTheDocument();
     expect(screen.getByText('1 selected')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'Assign' }));
-
-    expect(screen.getByRole('heading', { name: 'Assignable materials' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Assign Passage One' }));
+    expect(screen.queryByRole('tab', { name: 'Assign' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
     expect(screen.getByRole('dialog', { name: 'Create Homework Assignment' })).toHaveTextContent('Passage One');
   });
 
   it('uses Request public review instead of direct public approval or rejection controls', async () => {
     const user = userEvent.setup();
+    let currentBook = makeBook();
+    const repository = {
+      readBook: vi.fn(async () => currentBook),
+      listBookNodes: vi.fn(async () => []),
+      listBooksByIndex: vi.fn(async () => []),
+      write: vi.fn(),
+      remove: vi.fn(),
+      update: vi.fn(async (payload: Record<string, unknown>) => {
+        const nextBook = payload['material_catalog/books/book-123'];
+
+        if (nextBook) {
+          currentBook = nextBook as MaterialBookMetadata;
+        }
+      }),
+    };
 
     render(
       <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
         <Routes>
           <Route
             path="/teacher/materials/books/:bookId"
-            element={<BookEditorPage initialBook={makeBook()} materialCandidates={[]} />}
+            element={<BookEditorPage initialBook={currentBook} materialCandidates={[]} repository={repository} />}
           />
         </Routes>
       </MemoryRouter>,
@@ -224,12 +238,14 @@ describe('BookEditorPage', () => {
     expect(screen.queryByRole('option', { name: 'Public library' })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Public rejected' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Request public review' }));
+    await user.click(screen.getByRole('button', { name: 'Request review' }));
 
     expect(visibility).toHaveValue('public-library-pending-review');
-    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_public_review_requested', {
-      bookId: 'book-123',
-      source: 'book_editor_metadata',
+    await waitFor(() => {
+      expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_public_review_requested', {
+        bookId: 'book-123',
+        source: 'book_editor_metadata',
+      });
     });
   });
 
@@ -267,7 +283,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Assign Passage One' }));
+    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
 
     expect(screen.getByRole('dialog', { name: 'Create Homework Assignment' })).toHaveTextContent('Passage One');
     expect(mocks.homeworkProps.at(-1)).toMatchObject({
@@ -330,7 +346,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Save Book Structure' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Book changed in another tab');

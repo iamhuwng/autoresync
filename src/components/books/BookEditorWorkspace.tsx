@@ -110,6 +110,112 @@ type DeleteNodeRequest = {
 const SUPPORTED_BOOK_PICKER_KINDS = new Set(['full-test', 'reading-passage', 'thcs-thpt-test']);
 const EMPTY_BOOK_NODES: readonly MaterialBookNode[] = [];
 const SELECTED_CHILD_NODE_TYPES: readonly MaterialBookNodeType[] = ['section', 'chapter', 'test'];
+
+type ActionIconName =
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'section-add'
+  | 'chapter-add'
+  | 'test-add'
+  | 'trash'
+  | 'assign'
+  | 'remove';
+
+const ActionIcon = ({ name }: { readonly name: ActionIconName }) => {
+  if (name === 'arrow-up') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 19V5" />
+        <path d="m6 11 6-6 6 6" />
+      </svg>
+    );
+  }
+
+  if (name === 'arrow-down') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 5v14" />
+        <path d="m18 13-6 6-6-6" />
+      </svg>
+    );
+  }
+
+  if (name === 'trash') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 7h16" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M6 7l1 14h10l1-14" />
+        <path d="M9 7V4h6v3" />
+      </svg>
+    );
+  }
+
+  if (name === 'assign') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 4h7l4 4v12H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M14 4v5h5" />
+        <path d="m9 15 2 2 4-5" />
+      </svg>
+    );
+  }
+
+  if (name === 'remove') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 12h12" />
+      </svg>
+    );
+  }
+
+  if (name === 'chapter-add') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 5h7a3 3 0 0 1 3 3v11a3 3 0 0 0-3-3H4V5Z" />
+        <path d="M14 8a3 3 0 0 1 3-3h3v7" />
+        <path d="M18 15v6" />
+        <path d="M15 18h6" />
+      </svg>
+    );
+  }
+
+  if (name === 'test-add') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 4h8l4 4v12H6V4Z" />
+        <path d="M14 4v5h5" />
+        <path d="M9 13h4" />
+        <path d="M11 11v4" />
+        <path d="M9 18h6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 8h6l2 2h8v9H4V8Z" />
+      <path d="M12 13v5" />
+      <path d="M9.5 15.5h5" />
+    </svg>
+  );
+};
+
+const iconForNodeType = (type: MaterialBookNodeType): ActionIconName => {
+  if (type === 'chapter') {
+    return 'chapter-add';
+  }
+
+  if (type === 'test') {
+    return 'test-add';
+  }
+
+  return 'section-add';
+};
+
+const iconButtonContent = (_label: string, icon: ActionIconName) => <ActionIcon name={icon} />;
+
 export const BOOK_EDITOR_TABS: readonly { readonly id: BookEditorTab; readonly label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'content', label: 'Content' },
@@ -228,12 +334,6 @@ const rowToSummary = (row: MaterialIndexRow): BookMaterialSummary => ({
   visibility: row.visibility,
   publishedSnapshotVersionId: row.publishedSnapshotVersionId,
 });
-
-const formatMaterialKind = (kind: string): string =>
-  kind
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 
 const collectMaterialRefPlacements = (bookNodes: readonly MaterialBookNode[]): MaterialRefPlacement[] =>
   [...bookNodes]
@@ -1115,19 +1215,19 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
         <h3 id="book-editor-structure-actions">Structure actions</h3>
       </div>
       <div className="book-editor-page__inspector-actions">
-        <button type="button" className="book-editor-page__secondary-button" onClick={() => handleMoveSelectedNode('up')} disabled={!selectedNode}>
-          Move up
+        <button type="button" className="book-editor-page__icon-button" aria-label="Move up" title="Move up" onClick={() => handleMoveSelectedNode('up')} disabled={!selectedNode}>
+          {iconButtonContent('Move up', 'arrow-up')}
         </button>
-        <button type="button" className="book-editor-page__secondary-button" onClick={() => handleMoveSelectedNode('down')} disabled={!selectedNode}>
-          Move down
+        <button type="button" className="book-editor-page__icon-button" aria-label="Move down" title="Move down" onClick={() => handleMoveSelectedNode('down')} disabled={!selectedNode}>
+          {iconButtonContent('Move down', 'arrow-down')}
         </button>
         {SELECTED_CHILD_NODE_TYPES.map((type) => (
-          <button key={type} type="button" className="book-editor-page__secondary-button" onClick={() => handleAddChildToSelectedNode(type)} disabled={!selectedNode}>
-            Add {nodeLabel(type)}
+          <button key={type} type="button" className="book-editor-page__icon-button" aria-label={`Add ${nodeLabel(type)}`} title={`Add ${nodeLabel(type)}`} onClick={() => handleAddChildToSelectedNode(type)} disabled={!selectedNode}>
+            {iconButtonContent(`Add ${nodeLabel(type)}`, iconForNodeType(type))}
           </button>
         ))}
-        <button type="button" className="book-editor-page__danger-button" onClick={handleRequestDeleteSelectedNode} disabled={!selectedNode}>
-          Delete
+        <button type="button" className="book-editor-page__icon-button book-editor-page__icon-button--danger" aria-label="Delete" title="Delete" onClick={handleRequestDeleteSelectedNode} disabled={!selectedNode}>
+          {iconButtonContent('Delete', 'trash')}
         </button>
       </div>
     </section>
@@ -1147,7 +1247,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
 
     return (
       <section className="book-editor-page__selected-material" aria-labelledby="book-editor-selected-material">
-        <h3 id="book-editor-selected-material">Assignment</h3>
+        <h3 id="book-editor-selected-material">Selected material</h3>
         <div className="book-editor-page__selected-material-card">
           <div>
             <strong>{selectedPlacement.ref.titleSnapshot}</strong>
@@ -1161,21 +1261,24 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
           <span>{selectedPlacement.node.title}</span>
         </div>
         <div className="book-editor-page__inspector-actions">
-          <button type="button" className="book-editor-page__secondary-button" onClick={() => handleMoveSelectedMaterialRef('up')}>
-            Move up
+          <button type="button" className="book-editor-page__icon-button" aria-label="Move up" title="Move up" onClick={() => handleMoveSelectedMaterialRef('up')}>
+            {iconButtonContent('Move up', 'arrow-up')}
           </button>
-          <button type="button" className="book-editor-page__secondary-button" onClick={() => handleMoveSelectedMaterialRef('down')}>
-            Move down
+          <button type="button" className="book-editor-page__icon-button" aria-label="Move down" title="Move down" onClick={() => handleMoveSelectedMaterialRef('down')}>
+            {iconButtonContent('Move down', 'arrow-down')}
           </button>
           <button
             type="button"
+            className="book-editor-page__icon-button book-editor-page__icon-button--primary"
+            aria-label="Assign selected"
+            title="Assign selected"
             onClick={() => handleAssignMaterialRef(selectedPlacement.ref)}
             disabled={!['available'].includes(selectedPlacement.ref.availability)}
           >
-            Assign selected
+            {iconButtonContent('Assign selected', 'assign')}
           </button>
-          <button type="button" className="book-editor-page__secondary-button" onClick={handleRemoveSelectedMaterialRef}>
-            Remove
+          <button type="button" className="book-editor-page__icon-button" aria-label="Remove" title="Remove" onClick={handleRemoveSelectedMaterialRef}>
+            {iconButtonContent('Remove', 'remove')}
           </button>
         </div>
         <p className="book-editor-page__constraint-note">Whole-Book assignment is not available in V1.</p>
@@ -1189,56 +1292,32 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
         <>
           <div className="book-editor-page__inspector-header">
             <div>
-              <h2>{selectedPlacement ? 'Selected material' : `Selected ${nodeLabel(selectedNode.type).toLowerCase()}`}</h2>
-              <p>{selectedPlacementLine(selectedPlacement?.node ?? selectedNode)}</p>
+              <h2>{`Selected ${nodeLabel(selectedNode.type).toLowerCase()}`}</h2>
+              <p>{selectedPlacementLine(selectedNode)}</p>
             </div>
-            <span>{selectedPlacement?.ref.availability ?? displayStatus}</span>
+            <span>{displayStatus}</span>
           </div>
 
-          {selectedPlacement ? (
-            <section className="book-editor-page__inspector-group" aria-labelledby="book-editor-material-summary">
-              <h3 id="book-editor-material-summary">Material details</h3>
-              <dl className="book-editor-page__inspector-fields">
-                <div>
-                  <dt>Title</dt>
-                  <dd>{selectedPlacement.ref.titleSnapshot}</dd>
-                </div>
-                <div>
-                  <dt>Type</dt>
-                  <dd>{formatMaterialKind(selectedPlacement.ref.materialKind)}</dd>
-                </div>
-                <div>
-                  <dt>Test Types</dt>
-                  <dd>{selectedPlacement.ref.testTypeIdsSnapshot.join(', ') || 'No Test Type'}</dd>
-                </div>
-                <div>
-                  <dt>Availability</dt>
-                  <dd>{selectedPlacement.ref.availability}</dd>
-                </div>
-              </dl>
-            </section>
-          ) : (
-            <section className="book-editor-page__inspector-group" aria-labelledby="book-editor-node-details">
-              <h3 id="book-editor-node-details">Details</h3>
-              <div className="book-editor-page__node-detail-grid">
-                <label>
-                  <span>Title</span>
-                  <input value={selectedNode.title} onChange={(event) => handleUpdateSelectedNode({ title: event.target.value })} />
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select value={selectedNode.type} onChange={(event) => handleUpdateSelectedNode({ type: event.target.value as MaterialBookNodeType })}>
-                    {(SELECTED_CHILD_NODE_TYPES.includes(selectedNode.type)
-                      ? SELECTED_CHILD_NODE_TYPES
-                      : [selectedNode.type, ...SELECTED_CHILD_NODE_TYPES]
-                    ).map((type) => (
-                      <option key={type} value={type}>{nodeLabel(type)}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </section>
-          )}
+          <section className="book-editor-page__inspector-group" aria-labelledby="book-editor-node-details">
+            <h3 id="book-editor-node-details">Details</h3>
+            <div className="book-editor-page__node-detail-grid">
+              <label>
+                <span>Title</span>
+                <input value={selectedNode.title} onChange={(event) => handleUpdateSelectedNode({ title: event.target.value })} />
+              </label>
+              <label>
+                <span>Type</span>
+                <select value={selectedNode.type} onChange={(event) => handleUpdateSelectedNode({ type: event.target.value as MaterialBookNodeType })}>
+                  {(SELECTED_CHILD_NODE_TYPES.includes(selectedNode.type)
+                    ? SELECTED_CHILD_NODE_TYPES
+                    : [selectedNode.type, ...SELECTED_CHILD_NODE_TYPES]
+                  ).map((type) => (
+                    <option key={type} value={type}>{nodeLabel(type)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
 
           {renderStructureActions()}
           {renderAttachMaterialGroup()}
@@ -1301,12 +1380,14 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
     return (
       <div className="book-editor-page__workspace">
         <section className="book-editor-page__section book-editor-page__structure-panel" aria-label="Book structure tree">
-          <div className="book-editor-page__section-heading">
-            <div>
-              <h2>Book content</h2>
-              <p>Build structure on the left. Inspect and attach selected items on the right.</p>
+          {!isModalPresentation && (
+            <div className="book-editor-page__section-heading">
+              <div>
+                <h2>Book content</h2>
+                <p>Build structure on the left. Inspect and attach selected items on the right.</p>
+              </div>
             </div>
-          </div>
+          )}
 
           <BookNodeTree
             bookId={book.bookId}

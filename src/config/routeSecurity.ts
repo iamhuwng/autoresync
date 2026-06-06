@@ -173,7 +173,7 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
         path: '/teacher/materials/books/:bookId',
         accessLevel: 'role-restricted',
         allowedRoles: ['teacher', 'super_admin'],
-        description: 'Teacher material Book editor'
+        description: 'Compatibility redirect to Teacher Materials Book editor modal'
     },
     '/create-test': {
         path: '/create-test',

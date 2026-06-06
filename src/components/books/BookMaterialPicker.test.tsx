@@ -21,6 +21,7 @@ describe('BookMaterialPicker', () => {
     );
 
     expect(screen.queryByText('Draft Hidden')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search published materials')).toBeInTheDocument();
     expect(screen.getByText('Published Test')).toBeInTheDocument();
     expect(screen.getByText('full-test')).toBeInTheDocument();
     expect(screen.getByText('ielts')).toBeInTheDocument();
@@ -34,5 +35,25 @@ describe('BookMaterialPicker', () => {
       materialId: 'passage-1',
       materialKind: 'reading-passage',
     }));
+  });
+
+  it('filters compact candidate rows without owning the attach section heading', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <BookMaterialPicker
+        materials={[
+          { materialId: 'test-1', title: 'Cambridge Reading Test', materialKind: 'full-test', status: 'published', testTypeIds: ['ielts'] },
+          { materialId: 'passage-1', title: 'Huarango Passage', materialKind: 'reading-passage', publishedSnapshotVersionId: 'snapshot-1', testTypeIds: ['toeic'] },
+        ]}
+        onAttach={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('heading', { name: 'Attach material' })).not.toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Search published materials'), 'toeic');
+
+    expect(screen.getByText('Huarango Passage')).toBeInTheDocument();
+    expect(screen.queryByText('Cambridge Reading Test')).not.toBeInTheDocument();
   });
 });

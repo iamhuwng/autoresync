@@ -32,6 +32,14 @@ const mocks = vi.hoisted(() => ({
   locationState: null,
   dbReads: {},
   dbWrites: [],
+  capabilities: {
+    canUseTestTypeBlocks: true,
+    canManageAdminTestTypes: true,
+    canUseReadingPassageLibrary: true,
+    canAssignReadingPassageHomework: true,
+    canUseMaterialBooks: true,
+    canUseMaterialBookEditor: true,
+  },
 }));
 
 vi.mock('../config/readingV2FeatureFlags', async () => {
@@ -39,14 +47,7 @@ vi.mock('../config/readingV2FeatureFlags', async () => {
 
   return {
     ...actual,
-    getTeacherMaterialsCapabilities: () => ({
-      canUseTestTypeBlocks: true,
-      canManageAdminTestTypes: true,
-      canUseReadingPassageLibrary: true,
-      canAssignReadingPassageHomework: true,
-      canUseMaterialBooks: true,
-      canUseMaterialBookEditor: true,
-    }),
+    getTeacherMaterialsCapabilities: () => mocks.capabilities,
   };
 });
 
@@ -365,6 +366,14 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.locationState = null;
     mocks.dbReads = {};
     mocks.dbWrites = [];
+    mocks.capabilities = {
+      canUseTestTypeBlocks: true,
+      canManageAdminTestTypes: true,
+      canUseReadingPassageLibrary: true,
+      canAssignReadingPassageHomework: true,
+      canUseMaterialBooks: true,
+      canUseMaterialBookEditor: true,
+    };
     mocks.homeworkModalProps = [];
     mocks.listReadingPassages.mockResolvedValue([]);
     mocks.listTeacherBooks.mockResolvedValue([]);
@@ -684,7 +693,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('opens Book cards through the registered Book editor route and omits whole-Book student actions', async () => {
+  it('opens Book cards in the Teacher Materials modal and omits whole-Book student actions', async () => {
     const user = userEvent.setup();
     mocks.listTeacherBooks.mockResolvedValue([
       {
@@ -703,6 +712,16 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         isOwner: true,
       },
     ]);
+    mocks.dbReads['material_catalog/material_indexes/by_owner/teacher-1'] = {
+      candidate: {
+        materialId: 'passage-candidate',
+        title: 'Candidate Reading Passage',
+        materialKind: 'reading-passage',
+        testTypeIds: ['ielts'],
+        visibility: 'private',
+        publishedSnapshotVersionId: 'snapshot-candidate',
+      },
+    };
 
     render(<TeacherLobbyPage />);
 
@@ -718,12 +737,137 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(within(card).getByRole('button', { name: 'Open Book' }));
 
-    expect(mocks.navigateTo).toHaveBeenCalledWith(
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
       'TEACHER_MATERIAL_BOOK',
-      { bookId: 'book-action' },
-      { reason: 'teacher_materials_open_book' },
+      expect.anything(),
+      expect.anything(),
     );
+    const dialog = screen.getByRole('dialog', { name: /Book Actions/i });
+    expect(dialog).toBeInTheDocument();
+    const modalTabRail = dialog.querySelector('.book-editor-modal__tabs');
+    expect(modalTabRail).toHaveAttribute('role', 'tablist');
+    expect(modalTabRail).toHaveAccessibleName('Book editor tabs');
+    expect(within(modalTabRail).getAllByRole('tab').map((tab) => tab.textContent.trim())).toEqual([
+      'Overview',
+      'Content',
+      'Settings',
+    ]);
+    expect(within(modalTabRail).getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(modalTabRail).queryByRole('tab', { name: 'Assign' })).not.toBeInTheDocument();
+    expect(dialog.querySelector('.book-editor-page__hero')).toBeNull();
+    expect(dialog.querySelector('.book-editor-modal__status')).toBeNull();
+    expect(dialog.querySelector('.book-editor-page__status-strip')).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Add Section' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Attach Candidate Reading Passage' }));
+
+    expect(within(dialog).getByRole('button', { name: 'Assign selected' })).toBeInTheDocument();
+    expect(screen.getAllByText('Whole-Book assignment is not available in V1.').length).toBe(1);
+
+    await user.click(within(modalTabRail).getByRole('tab', { name: 'Settings' }));
+
+    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(within(modalTabRail).getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(within(modalTabRail).getByRole('tab', { name: 'Content' }));
+    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(within(modalTabRail).getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
+
+    await waitFor(() => {
+      expect(mocks.listBookNodes).toHaveBeenCalledWith('book-action');
+    });
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'teacher_materials_book_editor_opened',
+      expect.objectContaining({
+        bookId: 'book-action',
+        source: 'teacher_materials_book_card',
+      }),
+    );
+  });
+
+  it('disables Book editor opening when the Teacher Materials capability is off', async () => {
+    const user = userEvent.setup();
+    mocks.capabilities = {
+      ...mocks.capabilities,
+      canUseMaterialBookEditor: false,
+    };
+    mocks.listTeacherBooks.mockResolvedValue([
+      {
+        id: 'book-disabled',
+        bookId: 'book-disabled',
+        ownerId: 'teacher-1',
+        title: 'Disabled Book',
+        authors: ['A. Nguyen'],
+        publisher: 'Practice Press',
+        visibility: 'private',
+        status: 'draft-empty',
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        tags: [],
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        isOwner: true,
+      },
+    ]);
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Book' }));
+    const card = await screen.findByTestId('book-card-book-disabled');
+    const openButton = within(card).getByRole('button', { name: 'Open Book' });
+
+    expect(openButton).toBeDisabled();
+    expect(openButton).toHaveAttribute('title', 'Book editor is not available');
+
+    await user.click(openButton);
+
+    expect(screen.queryByRole('dialog', { name: /Disabled Book/i })).not.toBeInTheDocument();
     expect(mocks.listBookNodes).not.toHaveBeenCalled();
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
+      'TEACHER_MATERIAL_BOOK',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('opens Book editor modal once from legacy route state and preserves Book tab scope after close', async () => {
+    const user = userEvent.setup();
+    mocks.locationState = {
+      teacherMaterialsOpenBookId: 'book-route',
+      teacherMaterialsOpenBookSource: 'legacy-book-route',
+    };
+    mocks.listTeacherBooks.mockResolvedValue([
+      {
+        id: 'book-route',
+        bookId: 'book-route',
+        ownerId: 'teacher-1',
+        title: 'Route Book',
+        authors: ['A. Nguyen'],
+        publisher: 'Practice Press',
+        visibility: 'private',
+        status: 'draft-empty',
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        tags: [],
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        isOwner: true,
+      },
+    ]);
+
+    render(<TeacherLobbyPage />);
+
+    expect(await screen.findByRole('dialog', { name: /Route Book/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /Close Book editor/i }));
+
+    expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'My Content' }));
+    await user.click(screen.getByRole('button', { name: 'Book' }));
+
+    expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
   });
 
   it('uses live admin Test Type config for Teacher Materials blocks before falling back to defaults', async () => {

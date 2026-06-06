@@ -42,6 +42,7 @@ const BookCardGrid = ({
   books = [],
   emptyTitle = 'No Books yet',
   emptyDescription = 'Books will appear here.',
+  canOpenBookEditor = true,
   onOpenBook,
   onEditMetadata,
   onArchiveBook,
@@ -61,6 +62,7 @@ const BookCardGrid = ({
         <BookCard
           key={book.bookId || book.id}
           book={book}
+          canOpenBookEditor={canOpenBookEditor}
           onOpenBook={onOpenBook}
           onEditMetadata={onEditMetadata}
           onArchiveBook={onArchiveBook}

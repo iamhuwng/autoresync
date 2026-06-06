@@ -42,6 +42,19 @@ describe('teacherRoutes', () => {
     }))).toContain('/teacher/materials/books/:bookId');
   });
 
+  it('redirects enabled Material Book editor navigation to Teacher Materials with modal-open route state', () => {
+    const route = findRoute(
+      createTeacherRoutes({
+        exposeMaterialBookEditorRoutes: true,
+        exposeReadingV2StudioRoutes: false,
+      }),
+      '/teacher/materials/books/:bookId',
+    );
+    const redirect = findElementByTypeName(route?.element, 'TeacherMaterialBookRedirect');
+
+    expect(redirect?.props).toEqual({});
+  });
+
   it('redirects disabled Material Book editor navigation to Teacher Materials with a visible notice state', () => {
     const route = findRoute(
       createTeacherRoutes({

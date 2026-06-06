@@ -115,8 +115,8 @@ describe('BookNodeTree', () => {
     expect(screen.getByText('IELTS Reading Passage - Huarango')).toBeInTheDocument();
     expect(screen.getByText('reading-passage')).toBeInTheDocument();
     expect(screen.getByText('available')).toBeInTheDocument();
-    expect(within(sectionRow).getByRole('button', { name: 'Select Section 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Select IELTS Reading Passage - Huarango' })).toBeInTheDocument();
+    expect(within(sectionRow).getByRole('button', { name: 'Open actions for Section 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open actions for IELTS Reading Passage - Huarango' })).toBeInTheDocument();
 
     expect(screen.queryByText('Up')).not.toBeInTheDocument();
     expect(screen.queryByText('Down')).not.toBeInTheDocument();
@@ -226,6 +226,59 @@ describe('BookNodeTree', () => {
     expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ nodeId: 'section-1' }));
     expect(onNodesChange).not.toHaveBeenCalled();
     expect(onTrackAction).not.toHaveBeenCalledWith('teacher_materials_book_node_deleted', expect.anything());
+  });
+
+  it('opens a compact actions menu from the node row more button', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+    const onTrackAction = vi.fn();
+    const nodes = [
+      makeNode({ nodeId: materialCatalogIds.nodeId('section-1'), title: 'Section 1', order: 1 }),
+    ];
+
+    render(
+      <BookNodeTree
+        bookId="book-1"
+        nodes={nodes}
+        onNodesChange={onNodesChange}
+        onTrackAction={onTrackAction}
+        createId={() => materialCatalogIds.nodeId('chapter-1')}
+        now={() => NOW}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open actions for Section 1' }));
+
+    const menu = screen.getByRole('menu', { name: 'Actions for Section 1' });
+    expect(screen.getByRole('button', { name: 'Open actions for Section 1' }).closest('.book-node-tree')).not.toContainElement(menu);
+    expect(within(menu).getByRole('menuitem', { name: 'Select' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Add Chapter' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+
+    await user.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Actions for Section 1' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open actions for Section 1' }));
+    const reopenedMenu = screen.getByRole('menu', { name: 'Actions for Section 1' });
+
+    await user.click(within(reopenedMenu).getByRole('menuitem', { name: 'Add Chapter' }));
+
+    expect(onNodesChange).toHaveBeenCalledWith([
+      nodes[0],
+      expect.objectContaining({
+        nodeId: 'chapter-1',
+        parentNodeId: 'section-1',
+        type: 'chapter',
+        title: 'Chapter',
+        order: 1,
+      }),
+    ]);
+    expect(onTrackAction).toHaveBeenCalledWith('teacher_materials_book_node_added', {
+      nodeId: 'chapter-1',
+      parentNodeId: 'section-1',
+      nodeType: 'chapter',
+      depth: 2,
+    });
   });
 
   it('renders unavailable Book refs from fallback snapshots without leaking hidden metadata', () => {

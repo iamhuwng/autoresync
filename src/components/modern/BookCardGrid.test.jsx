@@ -74,9 +74,24 @@ describe('BookCardGrid', () => {
     await user.click(within(card).getByRole('button', { name: 'Edit metadata' }));
     await user.click(within(card).getByRole('button', { name: 'Archive' }));
 
-    expect(onOpenBook).toHaveBeenCalledWith(book);
+    expect(onOpenBook).toHaveBeenCalledWith(book, expect.any(HTMLButtonElement));
     expect(onEditMetadata).toHaveBeenCalledWith(book);
     expect(onArchiveBook).toHaveBeenCalledWith(book);
+  });
+
+  it('disables Open Book when Book editor capability is unavailable', async () => {
+    const user = userEvent.setup();
+    const onOpenBook = vi.fn();
+
+    render(<BookCardGrid books={[makeBook()]} canOpenBookEditor={false} onOpenBook={onOpenBook} />);
+
+    const openButton = screen.getByRole('button', { name: 'Open Book' });
+    expect(openButton).toBeDisabled();
+    expect(openButton).toHaveAttribute('title', 'Book editor is not available');
+
+    await user.click(openButton);
+
+    expect(onOpenBook).not.toHaveBeenCalled();
   });
 
   it('hides owner-only Archive for non-owned public Books', () => {

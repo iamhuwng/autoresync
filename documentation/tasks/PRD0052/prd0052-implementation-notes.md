@@ -26,6 +26,214 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 - No new `@mantine/*` imports.
 - No broad canonical content hydration for list rows.
 
+## 2026-06-05 Book Editor Modal Addendum
+
+- **Current source of truth:** `documentation/architecture/book-editor-authoring-modal-architecture.md`.
+- The previous route-backed Book editor contract is superseded for the normal Teacher Materials flow. Normal Book-card `Open Book` must stay on `/lobby`, switch/keep the `Book` tab, and open `BookEditorModal` inside Teacher Lobby.
+- `/teacher/materials/books/:bookId` remains compatibility-only and should redirect into `/lobby` with route state that opens the Book editor modal once.
+- Hard constraints: no `TeacherHeader` inside the Book editor modal; no normal `navigateTo('TEACHER_MATERIAL_BOOK', ...)`; no new `@mantine/*` imports; no whole-Book homework/start action.
+- Modal implementation target: native/custom `BookEditorModal` frame plus reusable `BookEditorWorkspace` body. `BookEditorWorkspace` receives `bookId` as a prop and must not depend on `useParams()`.
+
+### 2026-06-05 Teacher Authoring Modal Philosophy Hold (historical, resolved)
+
+- **Obsolete status:** the pause ended after the three-tab modal shell and Content redesign were implemented. Keep this section as decision history only.
+- The source of truth is `documentation/tasks/PRD0052/tasks-0052-book-editor-modal-in-teacher-materials.md` section `Teacher Authoring Modal Philosophy`.
+- The edit-test modal shell defines the teacher authoring structure: one modal frame owns chrome, one pinned header owns identity/actions, one real tab rail owns mode switching, and the body is only the active work area.
+- Book-specific editing must live inside that structure. `Overview`, `Contents`, `Assign`, and `Settings` are allowed Book modes, but they must use the same header/tab/body grammar as IELTS and THCS edit modals.
+- The body must not preserve page-era chrome: no nested Book hero, no route breadcrumb/title area, no duplicated status chips, no duplicated `Save` or `Request review` command group, and no decorative tab rail plus real inner tabs.
+- The desktop editing mental model is left selection/source structure and right editor/inspector detail, with the canonical left panel near `380px`. Narrow screens may stack while preserving that information architecture.
+- Status and warnings must sit near the work they affect. Whole-Book assignment unavailable belongs near assign-related content, not as a persistent modal footer.
+- Design acceptance requires side-by-side parity checks against IELTS and THCS edit-test modals at `848`, `1366`, and `1586` widths, plus Book modal checks at `375`, `768`, `848`, `1366`, and `1586`.
+- If a patch only preserves `75vw`, `1200px`, `85vh`, glass background, or shadow while keeping page-style body structure, it has not satisfied the source of truth.
+- Current edit-test shell specifics to copy in native CSS: `width: 75vw`, `max-width: 1200px`, `height: 85vh`, flex column frame, hidden frame overflow, flex-pinned header/tab rail, body-only scroll, header `padding: 1rem 1.5rem`, tab rail `padding: 0.5rem 1.5rem`, tab `gap: 2rem`, active violet underline `#8b5cf6`, and inactive slate text `#64748b`.
+- Current edit-test two-pane specifics to copy for Book `Contents`: wrapper `display: flex`, `gap: 1.5rem`, `height: 100%`, `padding: 1rem`; left pane `width: 380px`, `height: 100%`, `flex-shrink: 0`; right pane `flex: 1`, `height: 100%`, `overflow: hidden`.
+- Book tab compliance: `Overview` may be full-width compact summary; `Contents` must be two-pane; `Assign` may be full-width until selected-assignment details exist; `Settings` may be form-first but shell header owns the primary save action.
+- Allowed compromises: native/no-Mantine clone of the shell, Book-specific labels, full-width tabs when no left selection surface exists, stacked panes on narrow screens, and body-local warning copy near affected workflow.
+- Not allowed compromises: old Book hero, route breadcrumb/title area, workspace-owned real tabs, duplicate command groups, persistent footer/status strip, hidden overflow as a layout fix, or changing `TeacherHeader`/Teacher Lobby chrome to make the modal fit.
+
+### 2026-06-05 Book Modal Design Parity Finding (historical, resolved)
+
+- **Obsolete status:** these were pre-redesign findings. The current modal satisfies the shared teacher authoring shell contract described in `documentation/architecture/book-editor-authoring-modal-architecture.md`.
+- Before screenshots captured:
+  - `output/playwright/prd0052-book-modal-before-848.png`
+  - `output/playwright/prd0052-book-modal-before-1366.png`
+  - `output/playwright/prd0052-book-modal-before-1586.png`
+- Reference screenshots captured:
+  - `output/playwright/prd0052-ielts-edit-modal-reference-848.png`
+  - `output/playwright/prd0052-ielts-edit-modal-reference-1366.png`
+  - `output/playwright/prd0052-ielts-edit-modal-reference-1586.png`
+  - `output/playwright/prd0052-thcs-edit-modal-reference-848.png`
+  - `output/playwright/prd0052-thcs-edit-modal-reference-1366.png`
+  - `output/playwright/prd0052-thcs-edit-modal-reference-1586.png`
+- Concrete gaps to close:
+  - Book modal has a modal header plus an inner Book hero.
+  - Book modal keeps real tabs inside `BookEditorWorkspace` instead of the modal frame tab rail.
+  - `book-editor-modal__tabs` is decorative instead of the active tab control.
+  - Book modal has a bottom status strip not present in the edit-test modal frame.
+  - Book body still reads as a page transplanted into a modal because page hero/status/action patterns remain.
+
+### 2026-06-05 Book Modal Body IA Finding (historical, resolved)
+
+- **Obsolete status:** this describes the rejected four-tab body. Current tabs are exactly `Overview`, `Content`, and `Settings`.
+- `Overview` is too thin and should own metadata, statistics, and readiness.
+- `Assign` should not remain a peer tab; assignment belongs to selected material work inside `Content`.
+- `Settings` should own access, public/private state, review state, and maintenance controls.
+- `Content` left pane should own the Book structure tree; right pane should own selected item details and actions.
+- Before body screenshots captured at:
+  - `output/playwright/prd0052-book-modal-body-before/before-848-overview.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-848-contents.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-848-assign.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-848-settings.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1366-overview.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1366-contents.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1366-assign.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1366-settings.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1586-overview.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1586-contents.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1586-assign.png`
+  - `output/playwright/prd0052-book-modal-body-before/before-1586-settings.png`
+
+### 2026-06-05 Book Modal Three-Tab Body Redesign Evidence
+
+- Book modal tab rail is now exactly `Overview`, `Content`, and `Settings`; peer `Assign` is removed.
+- `Overview` owns metadata fields plus readiness/statistics. It no longer owns structure editing.
+- `Content` owns the two-pane structure/detail editor. The left pane is the Book structure tree; the right pane owns selected node/material detail, attach, remove, and selected-material assignment.
+- `Settings` owns visibility/access, public review state, and maintenance copy; metadata fields are not rendered there.
+- `TeacherLobbyPage` no longer passes an empty material-candidate array into `BookEditorModal`, so the modal can load indexed owner/public published materials. Regression coverage attaches an indexed candidate from the Book modal and exposes `Assign selected`.
+- Browser QA after redesign used `http://localhost:5174/lobby`, Book tab, `Testing Book`, and captured:
+  - `output/playwright/prd0052-book-modal-body-after/after-375-overview.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-375-content.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-375-settings.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-768-overview.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-768-content.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-768-settings.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-848-overview.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-848-content.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-848-settings.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-overview.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-content.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-settings.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1586-overview.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1586-content.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1586-settings.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-content-selected-section.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-content-selected-material.png`
+  - `output/playwright/prd0052-book-modal-body-after/after-1366-content-assign-selected-homework.png`
+- Browser metrics passed at `375`, `768`, `848`, `1366`, and `1586`: no document/body horizontal overflow, modal frame inside viewport, `Content` tree/detail readable with side-by-side or stacked layout, no `Assign` tab, and no body-level `Save Book Structure` duplicate.
+- Header save behavior was browser-verified: `Overview` save showed `Metadata saved.`, `Content` save showed `Book structure saved.`, and `Settings` save showed `Metadata saved.`. `Assign selected` opened `Create Homework Assignment`.
+
+### 2026-06-05 Approved Stitch Content Panel Redesign
+
+- The previous three-tab body redesign is not accepted as final UX for the `Content` tab. The approved direction is the Stitch mockup `Book Editor - Content Tab Redesign`.
+- Canonical Stitch references:
+  - Project: `projects/10653178060668333917` (`PRD0052 Book Editor Tabs Mockup`).
+  - Screen: `projects/10653178060668333917/screens/1dc6bbc4059a4cbdb9463da82c3c9e6a`.
+  - Screenshot: `.stitch/designs/book-editor-content-tab-redesign.png`, verified `2560x2048`.
+  - HTML: `.stitch/designs/book-editor-content-tab-redesign.html`, downloaded from `get_screen.htmlCode.downloadUrl`.
+- Design decision:
+  - Left panel becomes a quiet outline navigator: `Book outline`, count summary, compact `+ Section` / `+ Chapter` / `+ Test`, `Search outline`, selected row, indented material-ref child rows, and one compact row menu/icon.
+  - Right panel becomes the selected-item workspace: selected header, placement line, details inputs, structure actions, attach-material search/list, selected-material summary, and selected-material homework/removal actions.
+  - Always-visible tree-row command clusters are explicitly rejected for this slice.
+  - `BookMaterialPicker` belongs only in the right panel attach group.
+  - Whole-Book assignment warning belongs near `Assign selected`, not as a large generic empty-panel warning.
+- Approved implementation divergence:
+  - The Stitch mockup labels one group `Currently Active Draft Item`. Product implementation should use `Selected material` because the referenced item may be published material, not a draft.
+- Verification target:
+  - Browser QA should compare actual `Content` tab screenshots at `848`, `1366`, and `1586` against the Stitch screenshot and HTML anatomy. Do not record the result as "similar"; record concrete matches and intentional deviations.
+
+### 2026-06-05 Approved Stitch Content Panel Implementation Evidence
+
+- Implemented the approved Stitch `Content` anatomy in `BookEditorWorkspace`, `BookNodeTree`, and `BookMaterialPicker`.
+- Left panel now acts as a quiet outline navigator: `Book outline`, count summary, compact `+ Section` / `+ Chapter` / `+ Test`, `Search outline`, selected row with indigo left accent/background, indented material refs, and one compact row action button with accessible name `Open actions for <title>`.
+- Removed always-visible tree command dump from the left panel: no visible row-level `Up`, `Down`, `Select`, `Move to`, or `Delete` controls.
+- Right panel now owns selected-item work: `Selected section` / `Selected chapter` / `Selected test` / `Selected material`, placement line, node title/type details, structure actions, attach-material search/list, selected material summary, `Assign selected`, and `Remove`.
+- `BookMaterialPicker` now uses right-panel attach copy and compact rows: placeholder `Search published materials`, title/kind/Test Type metadata, and right-aligned `Attach` buttons.
+- Intentional divergence from Stitch: product copy uses `Selected material` instead of `Currently Active Draft Item`; whole-Book assignment warning remains short and appears only near selected-material assignment actions.
+- Browser QA used `http://localhost:5174/lobby`, Book tab, `Open Book`, `Content`, with dev teacher session already active. Screenshots captured:
+  - `output/playwright/prd0052-content-redesign-848.png`
+  - `output/playwright/prd0052-content-redesign-1366.png`
+  - `output/playwright/prd0052-content-redesign-1586.png`
+- Browser QA matched the approved Stitch anatomy: left outline remained navigator-only, right panel owned edit/attach/action workspace, no peer `Assign` tab appeared, no body `Save Book Structure` or footer status strip appeared, modal stayed in viewport, and no document/body horizontal overflow was observed at `848`, `1366`, or `1586`.
+- Browser interaction proof: attaching a published candidate exposed `Assign selected`; clicking `Assign selected` opened the homework assignment modal. Browser console error check returned zero errors.
+
+### 2026-06-06 Content Interaction And Modal Polish Closure
+
+- The three-dot node/ref trigger is now a functional actions menu. It is portaled to `document.body`, fixed-positioned over card/panel boundaries, and no longer resizes or clips inside the tree row.
+- Menus close after an action, outside pointer interaction, or `Escape`; they do not remain visible behind the modal discard prompt.
+- Node menus expose select, sibling move, child creation, and delete. Material-ref menus expose select and remove.
+- Right-panel structure and selected-material command rows now use compact `36px` SVG icon buttons with accessible names/tooltips instead of full visible text.
+- Modal shell colors were aligned with the common teacher authoring modal: neutral border/shadow plus violet/indigo primary accents. Legacy teal/green Book-modal chrome was removed.
+- Typography hierarchy was normalized: body labels/chips/statuses use regular/medium weight; stronger weight remains for actual headings and selected-item identity.
+- Canonical current contract is `documentation/architecture/book-editor-authoring-modal-architecture.md`. Earlier “paused”, four-tab, no-menu, and current-gap statements are historical/obsolete.
+- Final targeted verification: 6 files / 62 tests passed; touched Book editor files had no TypeScript diagnostics; whitespace and UTF-8 checks passed.
+
+Pre-change route/open grep from `rg -n "TEACHER_MATERIAL_BOOK|/teacher/materials/books|BookEditorPage|openBook" src`:
+
+```text
+src\constants\routes.ts:70:  TEACHER_MATERIAL_BOOK: '/teacher/materials/books/:bookId',
+src\constants\routes.test.ts:22:      expect(ROUTES.TEACHER_MATERIAL_BOOK).toBe('/teacher/materials/books/:bookId');
+src\constants\routes.test.ts:110:        const path = buildRoute('TEACHER_MATERIAL_BOOK', { bookId: 'book-123' });
+src\constants\routes.test.ts:111:        expect(path).toBe('/teacher/materials/books/book-123');
+src\constants\routes.test.ts:167:          'TEACHER_MATERIAL_BOOK',
+src\config\routeSecurity.ts:172:    '/teacher/materials/books/:bookId': {
+src\config\routeSecurity.ts:173:        path: '/teacher/materials/books/:bookId',
+src\config\featureRegistry.ts:118:      'openBook',
+src\config\featureRegistry.ts:166:      '/teacher/materials/books/:bookId',
+src\config\featureRegistry.ts:202:      'openBook',
+src\config\featureRegistry.test.ts:27:      expect(resolveFeatureFromRoute('/teacher/materials/books/book-123')).toBe('readingV2Studio');
+src\config\featureRegistry.test.ts:95:          'openBook',
+src\config\featureRegistry.test.ts:121:          'openBook',
+src\components\books\BookEditorPage.tsx:32:import './BookEditorPage.css';
+src\components\books\BookEditorPage.tsx:34:interface BookEditorPageProps {
+src\components\books\BookEditorPage.tsx:257:const BookEditorPage = ({
+src\components\books\BookEditorPage.tsx:262:}: BookEditorPageProps) => {
+src\components\books\BookEditorPage.tsx:287:    trackAction('openBook', {
+src\components\books\BookEditorPage.tsx:958:export default BookEditorPage;
+src\components\books\BookEditorPage.test.tsx:6:import BookEditorPage from './BookEditorPage';
+src\components\books\BookEditorPage.test.tsx:97:describe('BookEditorPage', () => {
+src\components\books\BookEditorPage.test.tsx:103:  it('renders from the route-backed Book editor URL and tracks openBook', async () => {
+src\components\books\BookEditorPage.test.tsx:105:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:108:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:109:            element={<BookEditorPage initialBook={makeBook()} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:120:      expect(mocks.trackAction).toHaveBeenCalledWith('openBook', {
+src\components\books\BookEditorPage.test.tsx:131:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:134:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:135:            element={<BookEditorPage initialBook={makeBook()} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:183:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:186:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:187:            element={<BookEditorPage initialBook={makeBook({ status: 'ready' })} initialNodes={nodes} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:211:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:214:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:215:            element={<BookEditorPage initialBook={makeBook()} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:260:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:263:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:264:            element={<BookEditorPage initialBook={makeBook({ status: 'ready' })} initialNodes={nodes} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:302:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:305:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:306:            element={<BookEditorPage repository={permissionRepository} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:323:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:326:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:327:            element={<BookEditorPage initialBook={makeBook({ updatedAt: 'older' })} initialNodes={[]} repository={staleRepository} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:386:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:389:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:390:            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:440:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:443:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:444:            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+src\components\books\BookEditorPage.test.tsx:470:      <MemoryRouter initialEntries={['/teacher/materials/books/book-123']}>
+src\components\books\BookEditorPage.test.tsx:473:            path="/teacher/materials/books/:bookId"
+src\components\books\BookEditorPage.test.tsx:474:            element={<BookEditorPage repository={repository} materialCandidates={[]} />}
+src\routes\teacherRoutes.tsx:42:const BookEditorPage = lazyWithRetry(() => import('../components/books/BookEditorPage.tsx'));
+src\routes\teacherRoutes.tsx:129:    path: '/teacher/materials/books/:bookId',
+src\routes\teacherRoutes.tsx:131:      ? asTeacherErrorBoundaryPage(<BookEditorPage />, 'readingV2Studio', ['teacher', 'super_admin'])
+src\routes\teacherRoutes.test.tsx:37:    }))).toContain('/teacher/materials/books/:bookId');
+src\routes\teacherRoutes.test.tsx:42:    }))).toContain('/teacher/materials/books/:bookId');
+src\routes\teacherRoutes.test.tsx:51:      '/teacher/materials/books/:bookId',
+src\pages\TeacherLobbyPage.test.jsx:722:      'TEACHER_MATERIAL_BOOK',
+src\pages\TeacherLobbyPage.jsx:1083:    trackAction('openBook', { bookId, source: 'teacher_materials_book_card' });
+src\pages\TeacherLobbyPage.jsx:1084:    navigateTo('TEACHER_MATERIAL_BOOK', { bookId }, { reason: 'teacher_materials_open_book' });
+```
+
 ## Existing Branch Progress To Preserve
 
 - `TeacherLobbyPage.jsx` already has `contentFilter` with `reading-passage` and `book` ids documented in state comment.
@@ -152,3 +360,36 @@ Root: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 - Follow-up admin browser QA used the user-provided real super-admin session on `http://localhost:5173/admin/settings`. `Book Reviews` loaded, temporary pending public Books rendered in the queue, and super-admin approval succeeded after service fixes for RTDB-omitted empty node fields and recursive undefined stripping before writes. RTDB rules now also avoid requiring empty-array/null fields that RTDB omits (`authors`, `tags`, `parentNodeId`, `materialRefs`) while preserving required id/title/status/visibility/type gates.
 - RTDB rules were deployed with `cmd /c firebase deploy --only database --project temp-a1437`. Post-deploy live proof: `Book Reviews` approval moved `prd0052-admin-qa-mpx5xfse` to `public-library-published`, removed the pending-review index, wrote the published visibility index, and wrote `material_catalog/public_book_projections/{bookId}`. Another teacher on `http://localhost:5174/lobby` opened Book > Public, saw the approved Book, clicked `Open Book`, and the public detail route rendered `Public Book outline` / `QA Section` through the projection even though RTDB omitted empty `materialRefs` and `parentNodeId`. Temporary QA Books and projections were removed afterward with Firebase CLI and verified as `null`.
 - `java -version` still fails on system PATH, but a workspace-local Temurin 21 runtime unblocked emulator proof. `cmd /c npx firebase-tools emulators:exec --only database,firestore --project demo-prd-0052-rules "cmd /c npx vitest run src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic --pool=forks"` passed with 3 files / 39 tests. The first expanded emulator run exposed hidden/scoring-field leaks in Material Catalog safe paths; `database.rules.json` now denies those fields on summary/projection/node paths, and `cmd /c npx firebase-tools deploy --only database --project temp-a1437` released the hardened RTDB rules.
+
+## 2026-06-05 Book Editor Modal Addendum Implementation
+
+- Normal Teacher Materials Book-card opening now stays on `/lobby` and opens `BookEditorModal`. It no longer calls `navigateTo('TEACHER_MATERIAL_BOOK', ...)`.
+- `/teacher/materials/books/:bookId` is compatibility-only. Enabled routes render `TeacherMaterialBookRedirect`, which redirects to `/lobby` with `teacherMaterialsOpenBookId` state. `TeacherLobbyPage` consumes that state once, opens the Book tab and modal, then replaces lobby history state through `navigateTo('LOBBY', ..., { replace: true, force: true, state: {} })`.
+- `BookEditorWorkspace` owns the reused editor state: prop-driven `bookId`, metadata/node/material loading, public projection fallback, tabs, save metadata, save structure, request-review save, per-ref homework handoff, stale/permission error states, and dirty-state reporting. It does not render `TeacherHeader` or use `useParams()`.
+- `BookEditorPage` is now a compatibility page wrapper around `BookEditorWorkspace` with a top-level `TeacherHeader`; it is no longer the normal Teacher Materials editor surface.
+- `BookEditorModal` is a native/custom no-Mantine modal with `role="dialog"`, pinned header, frame/body/status classes, Escape/backdrop close, dirty discard confirmation, focus return to the launching `Open Book` button, header Save/Request review actions wired into workspace saves, and no nested `TeacherHeader`.
+- `BookNodeTree` now supports `onRequestDeleteNode`; the modal workspace uses an in-modal delete confirmation for non-empty node deletion while preserving the legacy `window.confirm` fallback outside modal hosts.
+- `BookCardGrid` passes `canUseMaterialBookEditor` into `BookCard`; disabled capability makes `Open Book` disabled with title `Book editor is not available` and no route flash.
+
+Verification evidence:
+
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/components/books/BookEditorModal.test.tsx src/components/books/BookEditorWorkspace.test.tsx --reporter=basic --pool=forks"` - passed, 2 files / 8 tests.
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/pages/TeacherLobbyPage.test.jsx --reporter=basic --pool=forks"` - passed, 1 file / 27 tests after route-state cleanup and disabled-capability coverage. Expected stderr came from intentional retryable error-path tests.
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/pages/TeacherLobbyPage.test.jsx src/components/modern/BookCardGrid.test.jsx --reporter=basic --pool=forks"` - passed, 2 files / 32 tests.
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/routes/teacherRoutes.test.tsx src/constants/routes.test.ts src/config/featureRegistry.test.ts --reporter=basic --pool=forks"` - passed, 3 files / 77 tests.
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run src/services/materialCatalog/bookEditor.service.test.ts src/services/materialCatalog/bookValidation.service.test.ts src/services/materialCatalog/materialBooks.service.test.ts src/components/books/BookNodeTree.test.tsx src/components/books/BookMaterialPicker.test.tsx --reporter=basic --pool=forks"` - passed, 5 files / 34 tests.
+- `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx tsc --noEmit --pretty false 2>&1"` - failed from existing repo-wide TypeScript debt. Touched-file extraction errors in `BookEditorPage.tsx` and `BookEditorWorkspace.tsx` were fixed; final filtered touched-file patterns showed no matching errors. Remaining visible failures are existing/global errors such as route import-extension configuration, Mantine v8 prop drift, unrelated strict-null checks, duplicate solo type fields, and service type debt.
+- Browser QA on `http://localhost:5174/lobby` with active teacher session opened Book tab and `Testing Book` through `Open Book`; URL stayed `/lobby`, modal rendered without nested `TeacherHeader`, and legacy direct `/teacher/materials/books/book-mpx8g283` redirected to `/lobby` with modal open.
+- Browser close-state QA reopened `Testing Book`, closed the modal, and confirmed `/lobby` remained on the Book tab with Private scope. Dirty-close QA edited the Title field, clicked close, and saw the in-modal `Discard Book editor changes` confirmation.
+- Browser screenshots captured:
+  - `output/playwright/prd0052-book-editor-modal-375.png`
+  - `output/playwright/prd0052-book-editor-modal-768.png`
+  - `output/playwright/prd0052-book-editor-modal-848.png`
+  - `output/playwright/prd0052-book-editor-modal-1366.png`
+  - `output/playwright/prd0052-book-editor-modal-1586.png`
+- Browser metrics for widths `375`, `768`, `848`, `1366`, and `1586`: `overflowX=false`, modal frame inside viewport, header/body/footer stacked without overlap, `wholeBookWarning=true`, `nestedTeacherHeader=false`.
+
+Remaining browser caveats:
+
+- Live browser did not cover material-ref assignment above the Book modal because the available QA Book had no attached refs.
+- Live browser did not cover node/ref save refresh after modal close; unit coverage verifies `onSaved(bookId)` for metadata save, structure save, and request-review save.

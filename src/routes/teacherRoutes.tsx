@@ -10,6 +10,7 @@ import {
   isReadingV2TeacherRouteExposureAllowed,
 } from '../config/readingV2FeatureFlags.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
+import TeacherMaterialBookRedirect from './TeacherMaterialBookRedirect';
 
 const TeacherLobbyPage = lazyWithRetry(() => import('../pages/TeacherLobbyPage.jsx'));
 const SessionManagementPage = lazyWithRetry(() => import('../pages/SessionManagementPage.tsx'));
@@ -39,7 +40,6 @@ const TeacherGradingPage = lazyWithRetry(() => import('../pages/TeacherGradingPa
 const WritingTestBuilder = lazyWithRetry(() => import('../pages/WritingTestBuilder.tsx'));
 const WritingGradingPage = lazyWithRetry(() => import('../pages/WritingGradingPage.tsx'));
 const TeacherStudentsPage = lazyWithRetry(() => import('../pages/TeacherStudentsPage.tsx'));
-const BookEditorPage = lazyWithRetry(() => import('../components/books/BookEditorPage.tsx'));
 export const TEACHER_MATERIALS_BOOK_EDITOR_DISABLED_NOTICE = 'book-editor-disabled';
 
 function asTeacherPage(
@@ -128,7 +128,7 @@ export const createTeacherRoutes = (
   {
     path: '/teacher/materials/books/:bookId',
     element: exposeMaterialBookEditorRoutes
-      ? asTeacherErrorBoundaryPage(<BookEditorPage />, 'readingV2Studio', ['teacher', 'super_admin'])
+      ? asTeacherErrorBoundaryPage(<TeacherMaterialBookRedirect />, 'readingV2Studio', ['teacher', 'super_admin'])
       : asTeacherErrorBoundaryPage(
         <Navigate
           to={buildRoute('LOBBY')}
