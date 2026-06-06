@@ -257,6 +257,9 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
     onCreateNew,
     createLabel = 'Create New Test',
     showCreateButton = true,
+    visibilityScope,
+    onVisibilityScopeChange,
+    visibilityLabel = 'Visibility',
   }) => (
     <div data-testid="search-filter-bar">
       <label htmlFor="materials-search">Search</label>
@@ -267,6 +270,22 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
       />
       <button type="button" onClick={() => onTestTypeFilterChange?.('ielts')}>Filter IELTS</button>
       <button type="button" onClick={() => onTestTypeFilterChange?.('all')}>Clear Test Type</button>
+      {visibilityScope && (
+        <div role="group" aria-label={visibilityLabel}>
+          <button
+            type="button"
+            aria-label="Private"
+            aria-pressed={visibilityScope === 'private'}
+            onClick={() => onVisibilityScopeChange?.('private')}
+          />
+          <button
+            type="button"
+            aria-label="Public"
+            aria-pressed={visibilityScope === 'public'}
+            onClick={() => onVisibilityScopeChange?.('public')}
+          />
+        </div>
+      )}
       {showCreateButton && (
         <button type="button" onClick={onCreateNew}>{createLabel}</button>
       )}
@@ -606,6 +625,38 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'testCreation',
       'teacher_materials_tab_changed',
       expect.objectContaining({ to: 'reading-passage' }),
+    );
+  });
+
+  it('keeps Reading Passage and Book visibility controls inside the search bar', async () => {
+    const user = userEvent.setup();
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
+    const readingSearchBar = screen.getByTestId('search-filter-bar');
+    const readingVisibility = within(readingSearchBar).getByRole('group', { name: 'Reading Passage visibility' });
+
+    expect(within(readingVisibility).getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(readingVisibility).getByRole('button', { name: 'Public' }));
+
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'changeReadingPassageScope',
+      expect.objectContaining({ scope: 'public', source: 'teacher_materials_reading_passage_tab' }),
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    const bookSearchBar = screen.getByTestId('search-filter-bar');
+    const bookVisibility = within(bookSearchBar).getByRole('group', { name: 'Book visibility' });
+
+    expect(within(bookVisibility).getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(bookVisibility).getByRole('button', { name: 'Public' }));
+
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'changeBookScope',
+      expect.objectContaining({ scope: 'public', source: 'teacher_materials_book_tab' }),
     );
   });
 
@@ -1073,7 +1124,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('does not expose Reading V2 drafts through Teacher Lobby draft cards', async () => {
+  it('keeps Test Type logo controls mounted when opening Drafts', async () => {
     const user = userEvent.setup();
     mocks.drafts = [
       {
@@ -1084,10 +1135,17 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    const { container } = render(<TeacherLobbyPage />);
+
+    const testTypeDock = container.querySelector('.teacher-lobby-test-type-dock');
+    const tabDock = container.querySelector('.teacher-lobby-content-tab-dock');
 
     await user.click(screen.getByRole('tab', { name: 'Drafts' }));
 
+    expect(screen.getByRole('button', { name: /filter materials by IELTS/i })).toBeInTheDocument();
+    expect(testTypeDock).not.toBeNull();
+    expect(tabDock).not.toBeNull();
+    expect(testTypeDock.compareDocumentPosition(tabDock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByTestId('draft-card-draft-v2')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
     expect(mocks.navigateTo).not.toHaveBeenCalled();

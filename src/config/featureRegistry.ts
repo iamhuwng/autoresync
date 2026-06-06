@@ -101,6 +101,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'assignSelectedReadingPassages',
       'createReadingFullTestFromSelectedPassages',
       'archiveReadingPassage',
+      'changeReadingPassageScope',
       'teacher_materials_tab_changed',
       'teacher_materials_test_type_filter_selected',
       'teacher_materials_test_type_filter_cleared',

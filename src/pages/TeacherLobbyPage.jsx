@@ -191,6 +191,36 @@ const safeListDiagnostic = ({ scope, rows, durationMs, searchTerm, activeTestTyp
   testTypeFilterActive: Boolean(activeTestTypeId),
 });
 
+const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
+
+const draftMatchesSearchTerm = (draft, searchTerm) => {
+  const query = normalizeSearchValue(searchTerm);
+
+  if (!query) {
+    return true;
+  }
+
+  const metadata = draft?.metadata || {};
+  const searchableText = [
+    metadata.title,
+    metadata.description,
+    metadata.gradeLevel,
+    metadata.examType,
+    metadata.format,
+    metadata.duration,
+    draft?.title,
+    draft?.testType,
+    draft?.skill,
+    draft?.status,
+    draft?.draftKind,
+  ]
+    .filter(Boolean)
+    .map(normalizeSearchValue)
+    .join(' ');
+
+  return searchableText.includes(query);
+};
+
 const TeacherLobbyPage = () => {
   const { navigateTo } = useNavigation('teacher');
   const { sessionCode } = useParams();
@@ -279,7 +309,9 @@ const TeacherLobbyPage = () => {
 
       return matchesActiveTestType(test, activeTestTypeId, testTypeConfigs);
     });
-  const visibleDrafts = drafts.filter((draft) => !isReadingV2Payload(draft));
+  const visibleDrafts = drafts
+    .filter((draft) => !isReadingV2Payload(draft))
+    .filter((draft) => draftMatchesSearchTerm(draft, searchTerm));
   const visibleReadingV2Count = visibleTests.filter((test) => test?.deliveryEngine === 'reading-v2').length;
   const activeTestScope = contentFilter === 'public'
     ? 'public'
@@ -1064,6 +1096,14 @@ const TeacherLobbyPage = () => {
     }
   }, [getReadingPassageId, readingV2PassageArchiveRepository, trackAction, user?.uid]);
 
+  const handleReadingPassageScopeChange = useCallback((scope) => {
+    setReadingPassageScope(scope);
+    trackAction('changeReadingPassageScope', {
+      scope,
+      source: 'teacher_materials_reading_passage_tab',
+    });
+  }, [trackAction]);
+
   const handleBookScopeChange = useCallback((scope) => {
     setBookScope(scope);
     trackAction('changeBookScope', { scope, source: 'teacher_materials_book_tab' });
@@ -1421,17 +1461,15 @@ const TeacherLobbyPage = () => {
                     </p>
                   </div>
                   <div className="teacher-lobby-header-controls" aria-label="Teacher Materials controls">
-                    {contentFilter !== 'drafts' && (
-                      <div className="teacher-lobby-test-type-dock">
-                        <TestTypeBlockModule
-                          testTypes={testTypeConfigs}
-                          pinnedTestTypeIds={pinnedTestTypeIds}
-                          activeTestTypeId={activeTestTypeId}
-                          onActiveTestTypeChange={handleActiveTestTypeChange}
-                          onOpenPreferences={handleOpenTestTypePreferences}
-                        />
-                      </div>
-                    )}
+                    <div className="teacher-lobby-test-type-dock">
+                      <TestTypeBlockModule
+                        testTypes={testTypeConfigs}
+                        pinnedTestTypeIds={pinnedTestTypeIds}
+                        activeTestTypeId={activeTestTypeId}
+                        onActiveTestTypeChange={handleActiveTestTypeChange}
+                        onOpenPreferences={handleOpenTestTypePreferences}
+                      />
+                    </div>
                     <div className="teacher-lobby-content-tab-dock">
                       <ContentTabs
                         activeTab={contentFilter}
@@ -1461,6 +1499,29 @@ const TeacherLobbyPage = () => {
               {/* Drafts Tab */}
               {contentFilter === 'drafts' ? (
                 <div>
+                  <Card
+                    variant="glass"
+                    hover={false}
+                    className="teacher-materials-search-card"
+                    style={{ animation: 'slideUp 0.5s ease-out 0.1s backwards' }}
+                  >
+                    <CardBody className="teacher-materials-search-card__body">
+                      <SearchFilterBar
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        contentFilter={contentFilter}
+                        testTypeFilter={testTypeFilter}
+                        onTestTypeFilterChange={handleTestTypeFilterChange}
+                        thcsGradeFilter={thcsGradeFilter}
+                        onThcsGradeFilterChange={setThcsGradeFilter}
+                        thcsExamTypeFilter={thcsExamTypeFilter}
+                        onThcsExamTypeFilterChange={setThcsExamTypeFilter}
+                        onCreateNew={handleOpenCreateAction}
+                        showCreateButton={false}
+                      />
+                    </CardBody>
+                  </Card>
+
                   {draftsLoading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                       <div style={{
@@ -1533,74 +1594,53 @@ const TeacherLobbyPage = () => {
                         onCreateNew={handleOpenCreateAction}
                         createLabel={createLabel}
                         showCreateButton={showCreateButton}
+                        visibilityScope={
+                          contentFilter === 'reading-passage'
+                            ? readingPassageScope
+                            : contentFilter === 'book'
+                              ? bookScope
+                              : undefined
+                        }
+                        onVisibilityScopeChange={
+                          contentFilter === 'reading-passage'
+                            ? handleReadingPassageScopeChange
+                            : contentFilter === 'book'
+                              ? handleBookScopeChange
+                              : undefined
+                        }
+                        visibilityLabel={
+                          contentFilter === 'reading-passage'
+                            ? 'Reading Passage visibility'
+                            : contentFilter === 'book'
+                              ? 'Book visibility'
+                              : undefined
+                        }
                       />
                     </CardBody>
                   </Card>
 
-                  {contentFilter === 'reading-passage' && (
+                  {contentFilter === 'reading-passage' && selectedReadingPassages.length > 0 && (
                     <div className="reading-passage-library-tools">
-                      <div
-                        className="reading-passage-scope"
-                        role="group"
-                        aria-label="Reading Passage visibility"
-                      >
-                        {['private', 'public'].map((scope) => (
-                          <button
-                            key={scope}
-                            type="button"
-                            className={`reading-passage-scope__button${readingPassageScope === scope ? ' reading-passage-scope__button--active' : ''}`}
-                            aria-pressed={readingPassageScope === scope}
-                            onClick={() => setReadingPassageScope(scope)}
-                          >
-                            {scope === 'private' ? 'Private' : 'Public'}
-                          </button>
-                        ))}
-                      </div>
-
-                      {selectedReadingPassages.length > 0 && (
-                        <div className="reading-passage-selection-toolbar" aria-label="Reading Passage selection actions">
-                          <span>{selectedReadingPassages.length} selected</span>
-                          <button
-                            type="button"
-                            onClick={handleAssignSelectedReadingPassages}
-                          >
-                            Assign selected
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCreateFullTestFromSelectedReadingPassages}
-                            disabled={isCreatingReadingPassageFullTest}
-                          >
-                            {readingPassageFullTestCreateLabel}
-                          </button>
-                          {readingPassageFullTestCreateError && (
-                            <span className="reading-passage-selection-toolbar__error" role="status">
-                              {readingPassageFullTestCreateError}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {contentFilter === 'book' && (
-                    <div className="reading-passage-library-tools">
-                      <div
-                        className="reading-passage-scope"
-                        role="group"
-                        aria-label="Book visibility"
-                      >
-                        {['private', 'public'].map((scope) => (
-                          <button
-                            key={scope}
-                            type="button"
-                            className={`reading-passage-scope__button${bookScope === scope ? ' reading-passage-scope__button--active' : ''}`}
-                            aria-pressed={bookScope === scope}
-                            onClick={() => handleBookScopeChange(scope)}
-                          >
-                            {scope === 'private' ? 'Private' : 'Public'}
-                          </button>
-                        ))}
+                      <div className="reading-passage-selection-toolbar" aria-label="Reading Passage selection actions">
+                        <span>{selectedReadingPassages.length} selected</span>
+                        <button
+                          type="button"
+                          onClick={handleAssignSelectedReadingPassages}
+                        >
+                          Assign selected
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCreateFullTestFromSelectedReadingPassages}
+                          disabled={isCreatingReadingPassageFullTest}
+                        >
+                          {readingPassageFullTestCreateLabel}
+                        </button>
+                        {readingPassageFullTestCreateError && (
+                          <span className="reading-passage-selection-toolbar__error" role="status">
+                            {readingPassageFullTestCreateError}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

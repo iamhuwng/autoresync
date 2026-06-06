@@ -167,7 +167,7 @@ describe('TestTypeBlockModule', () => {
     expect(onActiveTestTypeChange).not.toHaveBeenCalled();
   });
 
-  it('keeps settings icon keyboard discoverable through focus-within styling contract', async () => {
+  it('keeps settings icon keyboard discoverable without relying on logo focus', async () => {
     const user = userEvent.setup();
     render(
       <TestTypeBlockModule

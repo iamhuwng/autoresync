@@ -135,6 +135,7 @@ const TestTypeBlockModule = ({
             <button
               type="button"
               className="test-type-block"
+              data-test-type-id={testTypeId}
               aria-label={`Filter materials by ${testType.label}`}
               aria-pressed={isActive}
               onClick={() => onActiveTestTypeChange?.(isActive ? null : testTypeId)}

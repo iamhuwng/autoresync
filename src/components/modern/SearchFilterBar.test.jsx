@@ -70,4 +70,25 @@ describe('SearchFilterBar', () => {
     expect(screen.getByRole('option', { name: 'Kiểm Tra' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '15 Phút' })).toBeInTheDocument();
   });
+  it('renders visibility scope buttons inside the search row', async () => {
+    const user = userEvent.setup();
+    const onVisibilityScopeChange = vi.fn();
+
+    render(
+      <SearchFilterBar
+        {...defaultProps}
+        visibilityScope="private"
+        onVisibilityScopeChange={onVisibilityScopeChange}
+        visibilityLabel="Book visibility"
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Book visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveTextContent('');
+
+    await user.click(screen.getByRole('button', { name: 'Public' }));
+
+    expect(onVisibilityScopeChange).toHaveBeenCalledWith('public');
+  });
 });

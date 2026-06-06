@@ -151,7 +151,6 @@
 }
 
 .test-type-block-card:hover .test-type-block__settings,
-.test-type-block-card:focus-within .test-type-block__settings,
 .test-type-block__settings:focus-visible {
   opacity: 1;
 }

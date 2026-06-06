@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Button, NativeSelect } from './index';
-import { PlusIcon, SearchIcon } from './icons.jsx';
+import { GlobeIcon, LockIcon, PlusIcon, SearchIcon } from './icons.jsx';
 import MaterialViewModeToggle from './MaterialViewModeToggle';
 import './SearchFilterBar.css';
 
@@ -19,8 +19,12 @@ const SearchFilterBar = ({
   showCreateButton = true,
   viewMode,
   onViewModeChange,
+  visibilityScope,
+  onVisibilityScopeChange,
+  visibilityLabel,
 }) => {
   const showViewModeToggle = Boolean(viewMode && typeof onViewModeChange === 'function');
+  const showVisibilityScope = Boolean(visibilityScope && typeof onVisibilityScopeChange === 'function');
 
   return (
     <div className="search-filter-bar">
@@ -92,6 +96,35 @@ const SearchFilterBar = ({
       {showViewModeToggle && (
         <div className="search-filter-bar__view-toggle">
           <MaterialViewModeToggle value={viewMode} onChange={onViewModeChange} />
+        </div>
+      )}
+
+      {showVisibilityScope && (
+        <div
+          className="search-filter-bar__visibility"
+          role="group"
+          aria-label={visibilityLabel || 'Visibility'}
+        >
+          {[
+            { value: 'private', label: 'Private', icon: LockIcon },
+            { value: 'public', label: 'Public', icon: GlobeIcon },
+          ].map(({ value, label, icon: Icon }) => {
+            const isActive = visibilityScope === value;
+
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`search-filter-bar__visibility-button${isActive ? ' search-filter-bar__visibility-button--active' : ''}`}
+                aria-label={label}
+                aria-pressed={isActive}
+                title={label}
+                onClick={() => onVisibilityScopeChange(value)}
+              >
+                <Icon size={15} aria-hidden="true" />
+              </button>
+            );
+          })}
         </div>
       )}
 
