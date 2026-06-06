@@ -70,7 +70,7 @@
 }
 
 .teacher-materials-search-card__body {
-  padding: 2rem;
+  padding: 0;
 }
 
 .teacher-materials-route-notice {
@@ -207,10 +207,6 @@
 
   .teacher-lobby-page-subtitle {
     font-size: 0.9375rem;
-  }
-
-  .teacher-materials-search-card__body {
-    padding: 1rem;
   }
 
   .content-tabs {
