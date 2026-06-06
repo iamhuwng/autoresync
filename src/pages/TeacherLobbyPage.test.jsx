@@ -205,8 +205,8 @@ vi.mock('../components/navigation', () => ({
 }));
 
 vi.mock('../components/modern', () => ({
-  Card: ({ children }) => <section>{children}</section>,
-  CardBody: ({ children }) => <div>{children}</div>,
+  Card: ({ children, className = '' }) => <section className={className}>{children}</section>,
+  CardBody: ({ children, className = '' }) => <div className={className}>{children}</div>,
 }));
 
 vi.mock('../components/modern/TestCard', () => ({
@@ -239,12 +239,12 @@ vi.mock('../components/modern/DraftCard', () => ({
 
 vi.mock('../components/modern/ContentTabs', () => ({
   default: ({ activeTab, onTabChange }) => (
-    <nav aria-label="Teacher lobby content tabs" data-active-tab={activeTab}>
-      <button type="button" onClick={() => onTabChange('my')}>My Content</button>
-      <button type="button" onClick={() => onTabChange('public')}>Public Library</button>
-      <button type="button" onClick={() => onTabChange('drafts')}>Drafts</button>
-      <button type="button" onClick={() => onTabChange('reading-passage')}>Reading Passage</button>
-      <button type="button" onClick={() => onTabChange('book')}>Book</button>
+    <nav className="content-tabs" aria-label="Teacher lobby content tabs" data-active-tab={activeTab} role="tablist">
+      <button type="button" role="tab" onClick={() => onTabChange('my')}>My Content</button>
+      <button type="button" role="tab" onClick={() => onTabChange('public')}>Public Library</button>
+      <button type="button" role="tab" onClick={() => onTabChange('drafts')}>Drafts</button>
+      <button type="button" role="tab" onClick={() => onTabChange('reading-passage')}>Reading Passage</button>
+      <button type="button" role="tab" onClick={() => onTabChange('book')}>Book</button>
     </nav>
   ),
 }));
@@ -394,17 +394,31 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(teacherHeader.nextElementSibling?.tagName).toBe('MAIN');
   });
 
-  it('renders content tabs next to the dashboard subtitle', () => {
+  it('renders Test Type controls above attached content tabs without changing the left subtitle block', () => {
     const { container } = render(<TeacherLobbyPage />);
 
     const subtitle = screen.getByText('Manage your tests and start formal assessment sessions');
-    const tabNav = screen.getByRole('navigation', { name: 'Teacher lobby content tabs' });
+    const tabNav = screen.getByRole('tablist', { name: 'Teacher lobby content tabs' });
+    const header = container.querySelector('.teacher-lobby-page-header');
     const subhead = container.querySelector('.teacher-lobby-page-subhead');
+    const controls = container.querySelector('.teacher-lobby-header-controls');
+    const testTypeDock = container.querySelector('.teacher-lobby-test-type-dock');
+    const tabDock = container.querySelector('.teacher-lobby-content-tab-dock');
+    const searchCard = container.querySelector('.teacher-materials-search-card');
 
     expect(subtitle).toBeInTheDocument();
+    expect(header).not.toBeNull();
     expect(subhead).not.toBeNull();
+    expect(controls).not.toBeNull();
+    expect(testTypeDock).not.toBeNull();
+    expect(tabDock).not.toBeNull();
+    expect(searchCard).not.toBeNull();
     expect(subhead).toContainElement(subtitle);
-    expect(subhead).toContainElement(tabNav);
+    expect(controls).toContainElement(testTypeDock);
+    expect(controls).toContainElement(tabDock);
+    expect(tabDock).toContainElement(tabNav);
+    expect(testTypeDock.compareDocumentPosition(tabDock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(header.compareDocumentPosition(searchCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('surfaces a route notice when disabled Book editor navigation redirects back to Materials', () => {
@@ -550,7 +564,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Public Library' }));
+    await user.click(screen.getByRole('tab', { name: 'Public Library' }));
     await user.click(screen.getByRole('button', { name: 'Filter IELTS' }));
     await user.click(screen.getByRole('button', { name: 'Clear Test Type' }));
 
@@ -578,10 +592,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     expect(screen.getByRole('button', { name: 'Create New Test' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
     expect(screen.getByRole('button', { name: 'Create New Book' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     expect(screen.queryByRole('button', { name: /Create New/ })).not.toBeInTheDocument();
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
@@ -623,7 +637,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
     await user.click(await screen.findByRole('button', { name: 'Create New Book' }));
 
     expect(screen.getByRole('dialog', { name: 'Create Book' })).toBeInTheDocument();
@@ -668,7 +682,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
 
     await waitFor(() => {
       expect(mocks.listTeacherBooks).toHaveBeenCalledWith(expect.objectContaining({
@@ -686,7 +700,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       }));
     });
 
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
     expect(mocks.logDiagnostic).toHaveBeenCalledWith(
       'book_list_succeeded',
       expect.objectContaining({ scope: 'public', count: 0 }),
@@ -725,7 +739,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
     const card = await screen.findByTestId('book-card-book-action');
 
     expect(within(card).getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
@@ -765,10 +779,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(within(modalTabRail).getByRole('tab', { name: 'Settings' }));
 
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
     expect(within(modalTabRail).getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
     await user.click(within(modalTabRail).getByRole('tab', { name: 'Content' }));
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
     expect(within(modalTabRail).getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
 
     await waitFor(() => {
@@ -810,7 +824,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
     const card = await screen.findByTestId('book-card-book-disabled');
     const openButton = within(card).getByRole('button', { name: 'Open Book' });
 
@@ -855,17 +869,17 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     render(<TeacherLobbyPage />);
 
     expect(await screen.findByRole('dialog', { name: /Route Book/i })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
     expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByRole('button', { name: /Close Book editor/i }));
 
     expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
     expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'My Content' }));
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'My Content' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
 
     expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
   });
@@ -1004,7 +1018,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(screen.queryByTestId('material-list-row-ielts-beta')).not.toBeInTheDocument();
     expect(screen.queryByTestId('material-list-row-toeic-alpha')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Public Library' }));
+    await user.click(screen.getByRole('tab', { name: 'Public Library' }));
 
     expect(screen.getByLabelText('Search')).toHaveValue('Alpha');
     expect(screen.getByRole('button', { name: /filter materials by IELTS/i })).toHaveAttribute('aria-pressed', 'true');
@@ -1072,7 +1086,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Drafts' }));
+    await user.click(screen.getByRole('tab', { name: 'Drafts' }));
 
     expect(screen.queryByTestId('draft-card-draft-v2')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
@@ -1128,7 +1142,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
 
     expect(screen.getByRole('group', { name: 'Reading Passage visibility' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
@@ -1147,7 +1161,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Public' }));
 
     expect(await screen.findByTestId('material-list-row-passage-public')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'reading-passage');
+    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'reading-passage');
     expect(mocks.listReadingPassages).toHaveBeenLastCalledWith(expect.objectContaining({
       teacherId: 'teacher-1',
       scope: 'public',
@@ -1188,7 +1202,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     const row = await screen.findByTestId('material-list-row-passage-owner');
 
     await user.click(within(row).getByRole('button', { name: 'Open' }));
@@ -1295,7 +1309,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
 
     await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
@@ -1428,7 +1442,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
 
     await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
@@ -1451,7 +1465,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
 
     expect(await screen.findByText('No Reading Passages yet')).toBeInTheDocument();
     expect(screen.getByText('Passages will appear after Reading V2 full tests are published or imported.')).toBeInTheDocument();
@@ -1464,11 +1478,11 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Reading Passage' }));
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     expect(await screen.findByText('Reading Passages unavailable')).toBeInTheDocument();
     expect(screen.getByText('Failed to load Reading Passages.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Book' }));
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
     expect(await screen.findByText('Books unavailable')).toBeInTheDocument();
     expect(screen.getByText('Failed to load Books.')).toBeInTheDocument();
 

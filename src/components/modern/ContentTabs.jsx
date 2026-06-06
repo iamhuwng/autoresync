@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button } from './index';
 import { getTeacherMaterialsCapabilities } from '../../config/readingV2FeatureFlags';
 import './ContentTabs.css';
 
@@ -15,18 +14,23 @@ const ContentTabs = ({ activeTab, onTabChange, capabilities = getTeacherMaterial
   const visibleTabs = tabs.filter((tab) => !tab.capability || capabilities?.[tab.capability]);
 
   return (
-    <nav className="content-tabs" aria-label="Material content filters">
-      {visibleTabs.map((tab) => (
-        <Button
-          key={tab.id}
-          variant={activeTab === tab.id ? 'primary' : 'glass'}
-          size="sm"
-          onClick={() => onTabChange(tab.id)}
-          className="content-tab-button"
-        >
-          {tab.label}
-        </Button>
-      ))}
+    <nav className="content-tabs" role="tablist" aria-label="Material content filters">
+      {visibleTabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onTabChange(tab.id)}
+            className={`content-tab-button${isActive ? ' content-tab-button--active' : ''}`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </nav>
   );
 };

@@ -393,3 +393,26 @@ Remaining browser caveats:
 
 - Live browser did not cover material-ref assignment above the Book modal because the available QA Book had no attached refs.
 - Live browser did not cover node/ref save refresh after modal close; unit coverage verifies `onSaved(bookId)` for metadata save, structure save, and request-review save.
+
+## 2026-06-06 Teacher Materials Attached Tabs Layout
+
+- Source of truth: `documentation/mockups/teacher-materials-attached-tabs-mockup.html`.
+- Moved the existing Test Type blocks above the content tabs without changing their component styling or second-click clear behavior.
+- Rebuilt `ContentTabs` as accessible attached tabs with a white active surface and purple top accent.
+- Kept the left `Test Dashboard` title/subtitle block independent from the right control stack so it does not stretch vertically.
+- Attached the content-tab rail to the search card top edge while preserving search and create-button behavior.
+- Teacher mobile view is out of scope by user direction; desktop and tablet are the required Teacher UI QA surfaces.
+
+Verification evidence:
+
+- `cmd /c npx vitest run src/components/modern/ContentTabs.test.jsx src/components/modern/TestTypeBlockModule.test.jsx src/components/modern/SearchFilterBar.test.jsx src/pages/TeacherLobbyPage.test.jsx --reporter=basic --pool=forks` - passed, 4 files / 38 tests.
+- `cmd /c npm run build` - passed; bundle budget passed.
+- `cmd /c npm run check:utf8 -- <touched files>` - passed, 7 files.
+- `git diff --check -- <touched files>` - passed.
+- Touched-file ESLint remains blocked by the pre-existing unused `bookEditorDirty` value in `TeacherLobbyPage.jsx`; the same declaration exists in `HEAD` and was not changed by this layout task.
+- Browser QA on `http://localhost:5174/lobby` verified the left title block, Test Type placement, attached tabs, search row, and second-click IELTS clear behavior.
+- Browser screenshots:
+  - `output/playwright/teacher-materials-attached-tabs-implementation-768.png`
+  - `output/playwright/teacher-materials-attached-tabs-implementation-848.png`
+  - `output/playwright/teacher-materials-attached-tabs-implementation-1366.png`
+  - `output/playwright/teacher-materials-attached-tabs-implementation-1586.png`

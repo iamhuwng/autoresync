@@ -1409,20 +1409,37 @@ const TeacherLobbyPage = () => {
               {/* Page Header */}
               <div
                 className="teacher-lobby-page-header"
-                style={{ marginBottom: '2.5rem', animation: 'slideDown 0.5s ease-out' }}
+                style={{ animation: 'slideDown 0.5s ease-out' }}
               >
-                <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
-                  Test Dashboard
-                </h1>
                 <div className="teacher-lobby-page-subhead">
-                  <p className="teacher-lobby-page-subtitle">
-                    Manage your tests and start formal assessment sessions
-                  </p>
-                  <ContentTabs
-                    activeTab={contentFilter}
-                    onTabChange={handleContentFilterChange}
-                    capabilities={teacherMaterialsCapabilities}
-                  />
+                  <div className="teacher-lobby-title-block">
+                    <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
+                      Test Dashboard
+                    </h1>
+                    <p className="teacher-lobby-page-subtitle">
+                      Manage your tests and start formal assessment sessions
+                    </p>
+                  </div>
+                  <div className="teacher-lobby-header-controls" aria-label="Teacher Materials controls">
+                    {contentFilter !== 'drafts' && (
+                      <div className="teacher-lobby-test-type-dock">
+                        <TestTypeBlockModule
+                          testTypes={testTypeConfigs}
+                          pinnedTestTypeIds={pinnedTestTypeIds}
+                          activeTestTypeId={activeTestTypeId}
+                          onActiveTestTypeChange={handleActiveTestTypeChange}
+                          onOpenPreferences={handleOpenTestTypePreferences}
+                        />
+                      </div>
+                    )}
+                    <div className="teacher-lobby-content-tab-dock">
+                      <ContentTabs
+                        activeTab={contentFilter}
+                        onTabChange={handleContentFilterChange}
+                        capabilities={teacherMaterialsCapabilities}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1496,8 +1513,13 @@ const TeacherLobbyPage = () => {
               ) : (
                 /* Tests Tab (My Content / Public Library) */
                 <>
-                  <Card variant="glass" style={{ marginBottom: '2rem', animation: 'slideUp 0.5s ease-out 0.1s backwards' }}>
-                    <CardBody>
+                  <Card
+                    variant="glass"
+                    hover={false}
+                    className="teacher-materials-search-card"
+                    style={{ animation: 'slideUp 0.5s ease-out 0.1s backwards' }}
+                  >
+                    <CardBody className="teacher-materials-search-card__body">
                       <SearchFilterBar
                         searchTerm={searchTerm}
                         onSearchChange={setSearchTerm}
@@ -1514,14 +1536,6 @@ const TeacherLobbyPage = () => {
                       />
                     </CardBody>
                   </Card>
-
-                  <TestTypeBlockModule
-                    testTypes={testTypeConfigs}
-                    pinnedTestTypeIds={pinnedTestTypeIds}
-                    activeTestTypeId={activeTestTypeId}
-                    onActiveTestTypeChange={handleActiveTestTypeChange}
-                    onOpenPreferences={handleOpenTestTypePreferences}
-                  />
 
                   {contentFilter === 'reading-passage' && (
                     <div className="reading-passage-library-tools">
