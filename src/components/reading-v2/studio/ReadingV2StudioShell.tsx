@@ -2193,6 +2193,9 @@ export function ReadingV2StudioShell({
       case 'unsupported-import-structure':
         return 'Some imported content could not be placed into the test.';
       case 'invalid-packaged-material-assembly':
+        if (/wrong judgement vocabulary/i.test(issue.message)) {
+          return `${getQuestionLabelForObject(issue.objectId)}: Wrong judgement vocabulary.`;
+        }
         return 'The test structure needs review before publishing.';
       case 'orphan-interaction':
         return 'A question is not inside a question group.';
@@ -3090,6 +3093,14 @@ export function ReadingV2StudioShell({
         onTableCompletionAction={handleTableCompletionAction}
         onQuestionLinkNavigation={handleQuestionLinkNavigation}
         onQuestionLinkRepair={handleQuestionLinkRepair}
+        onReviewIssuesAction={(action, actionMetadata) => emitAction(action, {
+          outcome: actionMetadata?.outcome,
+          issueId: actionMetadata?.issueId,
+          issueType: actionMetadata?.issueType,
+          questionStart: actionMetadata?.questionStart,
+          questionEnd: actionMetadata?.questionEnd,
+          issueCount: actionMetadata?.issueCount,
+        })}
         onAddQuestion={handleAddQuestionToGroup}
         onDuplicateQuestionGroup={handleDuplicateQuestionGroup}
         onDeleteQuestionGroup={handleDeleteQuestionGroup}

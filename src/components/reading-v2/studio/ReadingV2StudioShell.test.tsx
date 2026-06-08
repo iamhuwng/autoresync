@@ -379,10 +379,11 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    expect(within(screen.getByLabelText('Validation messages')).getByText('Questions 1-2')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Validation messages')).getByText(/Provider omitted this question group/)).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText('Questions 1-2')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText(/Local repair rebuilt it from source/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /validation item/ }));
+    const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(reviewIssues).getByRole('button', { name: 'Questions 1-2: Review Required' })).toBeInTheDocument();
+    expect(within(reviewIssues).queryByText(/Provider omitted this question group/)).not.toBeInTheDocument();
+    expect(within(reviewIssues).queryByText(/Local repair rebuilt it from source/)).not.toBeInTheDocument();
   });
 
   it('keeps imported review details collapsed by default and accepts import from the developer action row', () => {
@@ -639,8 +640,11 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    expect(screen.getByText(/items? need attention\./)).toBeInTheDocument();
-    expect(screen.getByText('Passage 1 needs a title.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /validation items/ }));
+    const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(reviewIssues).getByText('5 review items')).toBeInTheDocument();
+    expect(within(reviewIssues).getAllByRole('button', { name: 'Review item: Review Required' })).toHaveLength(5);
+    expect(within(reviewIssues).queryByText('Passage 1 needs a title')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
 
