@@ -107,6 +107,20 @@ None of those author-only artifacts may leak into student-safe delivery payloads
 +----------------------------------------------------------------------------------+
 ```
 
+Warning/review schema update:
+
+```text
+Warning pill
+  -> click-stable Review issues panel
+  -> short issue rows, e.g. Q12: Missing answer
+  -> row click navigates to the affected task group/question
+  -> affected question/group card highlights and shows inline issue chips
+```
+
+The warning pill must not depend on hover for critical information. Hover/title text may be used only as a short hint.
+
+Canonical warning/review contract: `documentation/architecture/reading-v2-studio-review-issues-contract.md`.
+
 ---
 
 ## 5. Layout Contract
@@ -329,6 +343,8 @@ Studio must support:
 - create or inspect extraction
 - inspect provenance
 - inspect import evidence
+- open review issues
+- navigate from a review issue to the affected question or task group
 - leave and return without losing stable draft identity
 
 Published-edit behavior is locked:

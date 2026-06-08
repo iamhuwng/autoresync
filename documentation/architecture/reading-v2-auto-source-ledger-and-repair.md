@@ -2,6 +2,7 @@
 
 > **Created:** 2026-05-14
 > **Scope:** Durable architecture note for Reading V2 Auto source-ledger, source-fidelity verification, targeted repair, and redacted Clippings harness behavior.
+> **Status:** Historical ledger/repair companion. Use `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md` as the canonical Auto V4 handoff and provider contract.
 > **Current companion:** `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`
 
 ## Ownership Contract
@@ -26,12 +27,12 @@ Local normalization assigns stable IDs from passage/order/range. Provider eviden
 
 Studio remains the review, repair, validation, preview, and publish surface.
 
-V4 clarification:
+Legacy V4 clarification:
 
 - The local ledger is an advisory guardrail, not product authority for messy but human-readable source.
-- Gemini/Groq provider output plus Studio diagnostics form the user-facing parse/review contract.
+- V4/Gemini provider output plus Studio diagnostics form the user-facing parse/review contract.
 - Local code should warn, block publish, or fail closed when output is unsafe; it should not become a broad messy-format parser.
-- Low Groq completion must trigger Groq self-repair with verifier feedback before bounded local audit/repair decides Studio handoff.
+- Groq is no longer an active whole-test or per-passage fallback for Auto V4. It is reserved for future teacher-triggered or verifier-triggered repair of one weak group.
 
 ## Source Ledger
 
@@ -69,7 +70,7 @@ V3 uses additional bounded prompts:
 
 Neither V3 prompt asks a provider to produce Studio-ready canonical Reading V2 objects.
 
-V4 keeps the same boundary but makes the Groq stage mandatory for question-area normalization. Groq output is measured against `groupHints`, question coverage, source-proof fields, reference banks, and layout preservation. When coverage is low or unsafe, the app feeds the verifier issues back to Groq for a structured JSON retry before local repair runs.
+V4 keeps the same source-boundary principle but does not make Groq mandatory for question-area normalization. The active target is Gemini-only staged extraction plus local source-ledger verification. Future Groq use must be group-scoped repair only, not fallback parsing.
 
 ## Verifier And Repair
 
@@ -101,9 +102,14 @@ Repair diagnostics:
 
 Repair diagnostics include redacted loop metadata: attempt number, source range, verifier issue codes, repair scope, provider result, and verifier result where applicable. Repair scopes group failures by passage, question range, task group, answer-key region, or structured-layout block. This makes repeated failures measurable without storing prompt text, raw source text, or provider output.
 
-If verifier errors remain, Auto fails closed in the modal instead of opening Studio as a misleading partial draft.
+If verifier errors remain, classify them with the canonical Auto V4 handoff taxonomy:
+
+- open Studio as `editable-needs-review` when a canonical-safe draft can be hydrated and the issue is localizable for teacher repair;
+- fail closed before Studio only when no canonical-safe editable candidate can be built or the failure is global/non-localizable.
 
 When Auto succeeds with a reviewable draft, the candidate carries only redacted `autoImportDiagnostics` records: code, severity, teacher-safe message, passage number, and question number. Studio groups those records into source-structure, question-binding, task-type, option-bank, structured-layout, and publish-readiness repair categories. Raw source text, prompt text, and provider payloads are not stored in the candidate diagnostics.
+
+Teacher-facing warning navigation is defined in `documentation/architecture/reading-v2-studio-review-issues-contract.md`. Ledger/verifier warnings should become normalized Review Issues rows when Studio can open a canonical-safe editable draft.
 
 Local normalization owns stable canonical IDs and task ownership. For Auto Gemini structured payloads, local source name takes precedence over Gemini `sourceFile` when creating the ID stem. Explicit source question ranges own question grouping; Gemini `sectionInstructionId` is used only as a fallback when no local range exists.
 
@@ -145,7 +151,7 @@ Current V4 Clippings gold E2E command:
 npm run reading-v2:auto-v4-clippings-e2e -- --source "C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md" --out output/reading-v2-auto-v4-clippings-e2e/report.json --allow-live-v4-provider
 ```
 
-The flag is required because it sends local Clippings source to Gemini and per-passage question areas to Groq.
+The flag is required because it sends local Clippings source to a live AI provider. Historical V3 modes sent per-passage question areas to Groq; active Auto V4 must not use Groq as a whole-test fallback.
 
 ## Verification Evidence
 

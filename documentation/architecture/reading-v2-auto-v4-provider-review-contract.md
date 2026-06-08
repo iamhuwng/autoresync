@@ -1,7 +1,32 @@
 # Reading V2 Auto V4 Provider Review Contract
 
 > **Created:** 2026-05-24
-> **Scope:** Architecture contract for Reading V2 Auto V4 provider split, key inventory, source-proof audit, Groq self-repair, and Studio review handoff.
+> **Scope:** Canonical architecture contract for Reading V2 Auto V4 provider ownership, source-proof audit, Studio review handoff, and publish safety.
+> **Status:** Canonical decision record as of 2026-06-08. This doc supersedes diary-style rollout notes and stale provider-split text where they conflict.
+
+## Decision Authority
+
+Use this order when Reading V2 Auto V4 docs disagree:
+
+1. This architecture contract.
+2. Active tasklists that explicitly link back to this contract.
+3. Current implementation tests and findings.
+4. Historical rollout notes, conversation transcripts, and dated evidence reports.
+
+The historical completion baseline is commit `f00fe351` (`feat(reading-v2): retire v3 auto lane`). That commit's tasklist records the final product direction: V4/Gemini is the only default Auto parser path, raw teacher input is source truth, whole-test V3/Groq fallback is retired, and Groq is reserved for future small group repair only. Its code still defaulted the V4 extractor through `aiService`, so provider-router access in that commit is treated as an implementation gap, not the target architecture.
+
+## Active Contract
+
+Reading V2 Auto V4 default parsing is Gemini-only staged extraction. It must not use the shared Gemini/Groq router as a whole-test fallback path.
+
+Current ownership:
+
+- V4/Gemini owns the main full-document structure extraction.
+- Raw teacher input and the local source ledger own source truth.
+- Local verifier/guardrails own readiness, diagnostics, publish blockers, and Studio handoff.
+- Groq is reserved only for future teacher-triggered or verifier-triggered repair of one weak question group, using the smallest useful source slice.
+- Groq must not receive full IELTS tests as a fallback replacement for Gemini.
+- "Blocked" must be qualified. A diagnostic can block `Ready`, `Accept into Draft`, or publish without blocking Studio entry.
 
 ## Canonical Philosophy
 
@@ -15,9 +40,30 @@ Reading V2 Auto V4 is a safe assistant, not an autonomous judge.
 
 This philosophy applies across passage boundaries, question areas, task groups, instruction text, reference banks, answer-key areas, clipped web pollution, and layout structures such as notes, tables, flowcharts, and diagrams.
 
-## Provider Split
+## Studio Handoff Taxonomy
 
-The intended V4 pipeline is:
+Auto V4 is an import assistant, not a publish bot. Less than perfect parsing is expected.
+
+- `ready`: Studio opens. Required source checks pass, no publish blocker remains, and teacher can publish after normal review.
+- `editable-needs-review`: Studio opens. Publish stays disabled or blocked until the teacher fixes or accepts review items. Use this for localized missing content, under-represented groups, uncertain task type, missing/flattened note/table/flowchart/diagram structure, source drift warnings, answer-binding uncertainty, and localized structured-layout conflicts where a canonical-safe degraded draft can be built.
+- `blocked-before-studio`: Studio does not open a draft. Use only when no canonical-safe editable candidate can be built, when the failure is global or non-localizable, when normalization throws before a draft object exists, when raw source/artifact evidence is unavailable, or when opening Studio would persist an invalid canonical document.
+
+Hard validation must never be weakened for publish or runtime. The importer must not hydrate malformed canonical data. But a publish blocker is not automatically a Studio blocker.
+
+## Structured Layout Conflict Policy
+
+Never create duplicate canonical anchors or repeated `stimulus.anchorIds`. If the provider assigns one question number to multiple table cells, flowchart steps, or diagram targets:
+
+1. If all repeated positions are the same physical source position, collapse the duplicate anchor deterministically.
+2. If positions differ but the affected group is localizable, build a canonical-safe degraded Studio group with explicit review diagnostics and raw layout evidence. Publish remains blocked until the teacher repairs it.
+3. If a canonical-safe degraded group cannot be built, fail before Studio with a typed diagnostic.
+4. Do not silently choose one cell or split one visible question into multiple answers.
+
+This preserves the original Auto V4 philosophy: the teacher should fix bad-but-editable imports in Studio, while the repository guard still rejects malformed canonical documents.
+
+## Historical Provider Split
+
+The original May 24 V4 pipeline below is historical and no longer the active default:
 
 ```text
 Raw source
@@ -55,9 +101,9 @@ Local code owns:
 - deterministic assembly into canonical Reading V2 structures
 - Studio review blockers and publish safety
 
-## Groq Self-Repair Contract
+## Historical Groq Self-Repair Contract
 
-Groq is mandatory in this pipeline because Gemini quota is not generous enough for the whole job and because question-area normalization is a separate task.
+Groq was mandatory in this superseded pipeline because Gemini quota was not generous enough for the whole job and because question-area normalization was treated as a separate task. That design no longer authorizes whole-test Groq fallback in Auto V4.
 
 When Groq returns malformed JSON, low coverage, missing groups/questions, task-type conflict, missing bank evidence, blank mismatch, or source-proof drift, the app must feed Groq precise feedback and retry before local repair decides the final Studio handoff.
 
@@ -99,7 +145,7 @@ Historical Firebase Functions wrappers may exist in the repo while migration is 
 Studio can open a draft when:
 
 - passage count, task-group count, question count, and answer-key count are editable
-- canonical validation has no structural blockers
+- the candidate can hydrate into a canonical-safe draft without violating contract guards
 - answer values are not silently mismatched
 - incomplete provider coverage is visible as review/publish blockers
 
@@ -109,8 +155,11 @@ Studio must keep publish blocked when:
 - reference/option bank ownership is missing or uncertain
 - answer binding needs teacher review
 - transcript verifier found source-proof gaps
+- localized structured layout conflicts were degraded into teacher-visible repair items
 
 This separates import success from publish readiness. A successful Auto V4 run may still be `needs_review`.
+
+Teacher-facing review UI is owned by `documentation/architecture/reading-v2-studio-review-issues-contract.md`. Auto V4 diagnostics and publish blockers that are safe to edit in Studio must route through that normalized issue model instead of hover-only tooltip text.
 
 ## Publish Handoff
 
@@ -127,11 +176,11 @@ This means normal test making, paste/import text, and Auto V4 all converge befor
 
 Detailed reference: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
 
-## Current Evidence
+## Historical Evidence
 
-The live Clippings gold E2E for `Practice Cam 10 Reading Test 04.md` recorded:
+Historical May 24 live Clippings gold E2E for `Practice Cam 10 Reading Test 04.md` recorded:
 
-- provider path: `gemini-groq`
+- historical provider path: `gemini-groq`
 - model label: `gemini-2.5-flash+groq-structured-json`
 - key inventory: 4 Gemini keys and 7 Groq keys loaded in the trusted harness
 - output: 3 passages, 8 task groups, 40 questions, 40 answer rows
@@ -142,3 +191,10 @@ The live Clippings gold E2E for `Practice Cam 10 Reading Test 04.md` recorded:
 Detailed local artifact: `output/reading-v2-auto-v4-clippings-e2e/report.json` (not committed).
 
 Committed task record: `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-v4-clippings-gold-e2e.md`.
+
+Historical May 25 completion evidence at `f00fe351` recorded:
+
+- commit message: "Remove the whole-test V3/Groq package pipeline from active Auto parsing"
+- tasklist direction: V4/Gemini main parser, raw source authority, Groq only for group-scoped repair
+- canonical validation behavior: validation blockers are added to Studio diagnostics as publish blockers when normalization produces a candidate
+- fail-closed behavior: reserved for guardrail errors or normalization failure before a safe draft can exist

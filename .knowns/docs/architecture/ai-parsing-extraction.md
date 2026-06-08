@@ -236,10 +236,13 @@ Verification from this fix: focused Vitest passed for `readingV2AutoImport.servi
 
 ## 2026-05-24 Amendment - Reading V2 Auto V4 Provider Review Contract
 
-Reading V2 Auto V4 uses a split-provider workflow: Gemini is the topology and answer-key witness, Groq is the per-passage question-area structured JSON normalizer, and local code is the verifier/assembler/Studio guardrail.
+Updated 2026-06-08: the split-provider wording below is historical. Reading V2 Auto V4 default parsing is Gemini-only staged extraction. Whole-test V3/Groq fallback is retired, and Groq is reserved only for future small teacher-triggered or verifier-triggered repair of one weak question group.
 
-The durable rule is that local code must not become a brittle parser for every messy source format. Low Groq completion or unsafe transcript output must feed precise coverage/verifier feedback back to Groq for self-repair before bounded local audit/repair decides whether Studio receives a `needs_review` draft or the import fails closed.
+The durable rule is that local code must not become a brittle parser for every messy source format. Bad-but-editable imports should open Studio as `editable-needs-review` when a canonical-safe draft can be built. Unsafe or non-editable imports fail closed before Studio.
+
+Teacher-facing warnings route through the Reading V2 Studio Review Issues contract: click-stable panel, compact `Question X: Error Type` rows, row click navigates to the affected editor question, and diagnostics export keeps raw backend messages.
 
 Cloud Functions are off-limit for new Reading V2 work. The approved trusted backend boundary is Cloudflare Worker or another explicitly approved small backend service.
 
 See @doc/architecture/reading-v2-auto-v4-provider-review-contract.
+See also `documentation/architecture/reading-v2-studio-review-issues-contract.md`.

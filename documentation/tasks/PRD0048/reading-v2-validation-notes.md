@@ -6,6 +6,36 @@ Updated: 2026-05-01
 
 Build Workspace validation continues to convert blocking issues into teacher-readable messages instead of exposing schema terms. The visible validation panel describes what needs attention before publishing.
 
+## Review Issues UX Contract
+
+Canonical contract: `documentation/architecture/reading-v2-studio-review-issues-contract.md`.
+
+The topbar warning pill opens a click-stable `Review issues` panel. The pill count must equal the visible actionable rows in the panel.
+
+Teacher-facing issue rows use this shape:
+
+```text
+Q<number>: <short issue type>
+Questions <start>-<end>: <short issue type>
+```
+
+Examples:
+
+- `Q12: Wrong judgement vocabulary`
+- `Q18: Missing answer-key row`
+- `Questions 31-35: Question text changed`
+- `Questions 9-13: Table cell missing`
+
+Default severity mapping:
+
+- `publish-blocker`: blocks publish and requires teacher edit before publish.
+- `needs-review`: Auto V4/source verifier issue that can enter Studio and be repaired or accepted by the teacher.
+- `info`: provenance, source-ledger note, or successful repair evidence.
+
+Real import incidents are regression fixtures. They must not become canonical behavior definitions for one test, one question range, one answer vocabulary, or one table shape.
+
+Deprecated: full warning details hidden in hover/title tooltip. Replacement: stable Review Issues panel plus inline issue chips on affected question groups.
+
 ## Active Editor Validation
 
 Active task-type editors must provide enough data to save, preview, publish, and render in the student runtime. For active task types, publish remains blocked by the shared Reading V2 validation gate when required prompts, option text, answer keys, anchors, or canonical ownership are missing.
