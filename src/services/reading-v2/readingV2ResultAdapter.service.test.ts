@@ -3,6 +3,7 @@ import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { readingV2Ids, type ReadingV2PublishedSnapshot, type ReadingV2Result } from '../../types/readingV2.types';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import { READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE } from './fixtures/readingV2ProjectionFixtures';
+import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import {
   buildReadingV2GroupedReviewPayload,
   buildReadingV2RegradePersistencePlan,
@@ -581,6 +582,105 @@ describe('readingV2ResultAdapter.service', () => {
       excerpt: expect.stringContaining('Fixture passage paragraph A'),
     });
     expect(savedResult.questionResults.map((question) => question.questionNumber)).toEqual([1, 2]);
+  });
+
+  it('includes table cells selected through secondary cell.anchorIds in review excerpts', () => {
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['table-completion'].review;
+    const sourceSnapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-multi-anchor-review');
+    const taskGroupId = readingV2Ids.taskGroupId('task-group-multi-anchor-review');
+    const interactionId = readingV2Ids.interactionId('interaction-multi-anchor-review-2');
+    const firstAnchorId = readingV2Ids.anchorId('anchor-multi-table-1');
+    const secondAnchorId = readingV2Ids.anchorId('anchor-multi-table-2');
+    const projection: ReadingV2DerivedProjection = {
+      ...baseProjection,
+      projectionId: 'review:multi-anchor-table',
+      sourceSnapshotVersionId,
+      content: {
+        ...baseProjection.content,
+        title: 'Multi-anchor review table',
+        sections: [],
+        stimuli: [
+          {
+            stimulusId: 'stimulus-multi-anchor-table',
+            kind: 'table',
+            title: 'Multi-anchor table',
+            anchorIds: [firstAnchorId, secondAnchorId],
+            content: {
+              kind: 'table-content',
+              rows: [
+                [
+                  { text: 'Feature', role: 'header' },
+                  { text: 'Detail', role: 'header' },
+                ],
+                [
+                  { text: 'Shared label' },
+                  {
+                    text: 'Shared table cell for questions 1 and 2',
+                    isBlank: true,
+                    anchorId: firstAnchorId,
+                    anchorIds: [firstAnchorId, secondAnchorId],
+                  },
+                ],
+              ],
+            },
+          },
+        ],
+        anchors: [
+          { anchorId: firstAnchorId, stimulusId: 'stimulus-multi-anchor-table', kind: 'table-cell', label: 'Question 1 table blank' },
+          { anchorId: secondAnchorId, stimulusId: 'stimulus-multi-anchor-table', kind: 'table-cell', label: 'Question 2 table blank' },
+        ],
+        taskGroups: [
+          {
+            taskGroupId,
+            officialTaskType: 'table-completion',
+            engineeringFamily: 'structured-layout',
+            instructionBlocks: [{ id: 'instruction-1', text: 'Complete the table.' }],
+            stimulusRefs: [{ stimulusId: 'stimulus-multi-anchor-table', anchorIds: [secondAnchorId] }],
+            interactions: [
+              {
+                interactionId,
+                taskGroupId,
+                displayNumber: 2,
+                responseShape: { kind: 'structured-entry', structure: 'table' },
+                primaryAnchorId: secondAnchorId,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const result: ReadingV2Result = {
+      resultId: readingV2Ids.resultId('result-multi-anchor-review'),
+      testId: 'material-multi-anchor-review',
+      studentId: 'student-1',
+      ownerId: 'teacher-1',
+      deliveryEngine: READING_V2_ENGINE,
+      publishedSnapshotVersion: sourceSnapshotVersionId,
+      attemptContext: { mode: 'solo-practice' },
+      submittedAt: '2026-06-06T00:00:00.000Z',
+      interactions: [
+        {
+          interactionId,
+          taskGroupId,
+          displayNumber: 2,
+          taskFamily: 'structured-layout',
+          officialTaskType: 'table-completion',
+          studentAnswer: 'student answer',
+          scoredAnswer: 'expected answer',
+          score: 1,
+          maxScore: 1,
+          reviewState: 'pending',
+          anchorRef: secondAnchorId,
+        },
+      ],
+    };
+
+    const reviewPayload = buildReadingV2GroupedReviewPayload({ result, projection });
+
+    expect(reviewPayload.taskGroups[0]?.stimulusContext[0]).toEqual(expect.objectContaining({
+      anchorLabels: ['Question 2 table blank'],
+      excerpt: expect.stringContaining('Shared table cell for questions 1 and 2'),
+    }));
   });
 
   it('builds a producer-consumer persistence plan for V2 and existing result readers', () => {

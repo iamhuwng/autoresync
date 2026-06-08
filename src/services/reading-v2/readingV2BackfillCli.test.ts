@@ -73,6 +73,52 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
           'snapshot-1': snapshot,
         },
       },
+      studentSafeProjections: {
+        'legacy-ready:snapshot-1': {
+          deliveryEngine: 'reading-v2',
+          plane: 'projection',
+          schemaVersion: 1,
+          projectionId: 'student-safe:legacy-ready:snapshot-1',
+          projectionKind: 'student-safe',
+          ownerId: 'teacher-1',
+          sourceSnapshotVersionId: 'snapshot-1',
+          sourceDocumentId: document.documentId,
+          generatedAt: '2026-05-15T00:00:00.000Z',
+          materialId: 'legacy-ready',
+          content: {
+            title: document.title,
+            materialId: 'legacy-ready',
+            sections: [],
+            stimuli: [],
+            anchors: [],
+            taskGroups: [],
+            optionSets: [],
+          },
+        },
+      },
+      reviewProjections: {
+        'legacy-ready:snapshot-1': {
+          deliveryEngine: 'reading-v2',
+          plane: 'projection',
+          schemaVersion: 1,
+          projectionId: 'review:legacy-ready:snapshot-1',
+          projectionKind: 'review',
+          ownerId: 'teacher-1',
+          sourceSnapshotVersionId: 'snapshot-1',
+          sourceDocumentId: document.documentId,
+          generatedAt: '2026-05-15T00:00:00.000Z',
+          materialId: 'legacy-ready',
+          content: {
+            title: document.title,
+            materialId: 'legacy-ready',
+            sections: [],
+            stimuli: [],
+            anchors: [],
+            taskGroups: [],
+            optionSets: [],
+          },
+        },
+      },
       fullTestCompositions: {
         'composition-existing': {
           deliveryEngine: 'reading-v2',
@@ -105,6 +151,8 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
       visibility: 'public',
       publicShareable: false,
     });
+    expect(result.sources[0].studentSafeProjection?.projectionKind).toBe('student-safe');
+    expect(result.sources[0].reviewProjection?.projectionKind).toBe('review');
     expect(result.skippedMaterials).toEqual([
       expect.objectContaining({
         materialId: 'missing-snapshot',

@@ -91,6 +91,7 @@ export const buildReadingV2AutoImportPrompt = ({
   '7. For table-completion, preserve the source table under sectionInstructions[].table.rows.',
   '8. For flowchart-completion, preserve the source flow under sectionInstructions[].flowchart.steps.',
   '9. For diagram-labeling, preserve diagram labels/targets under sectionInstructions[].diagram.',
+  '9a. Do not assign the same questionNumber to more than one table cell, flowchart step, or diagram target. If the source layout is ambiguous, add a diagnostic instead of duplicating the number.',
   '10. Use labeledOptions for choice/summary-list option banks.',
   '11. Use sectionReferences for matching banks such as headings, paragraph letters, names, or sentence endings.',
   '11a. For multiple-choice groups with separate A-D choices per question, put choices on each question.labeledOptions, not one merged sectionInstructions[].labeledOptions bank.',

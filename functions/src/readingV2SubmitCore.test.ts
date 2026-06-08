@@ -287,6 +287,182 @@ describe('readingV2SubmitCore', () => {
     expect(JSON.stringify(plan.savedResult.readingV2.reviewPayload)).not.toContain('scoringRule');
   });
 
+  it('keeps multi-anchor table cell excerpts in trusted review payloads', () => {
+    const request = parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'student-safe:material-1:snapshot-1',
+      sourceSnapshotVersionId: 'snapshot-1',
+      materialId: 'material-1',
+      answers: [{
+        interactionId: 'interaction_1',
+        taskGroupId: 'task_group_1',
+        displayNumber: 1,
+        value: 'answer one',
+      }],
+      context: { surface: 'solo-practice' },
+    });
+    const reviewProjection = {
+      ...makeReviewProjection(),
+      content: {
+        ...makeReviewProjection().content,
+        title: 'Trusted multi-anchor table',
+        stimuli: [{
+          stimulusId: 'stimulus_table',
+          kind: 'table',
+          title: 'Trusted table',
+          content: {
+            kind: 'table-content',
+            rows: [
+              [{ text: 'Feature', role: 'header' }, { text: 'Detail', role: 'header' }],
+              [
+                { text: 'Shared label' },
+                {
+                  text: 'Shared worker table cell for questions 1 and 2',
+                  anchorId: 'anchor_1',
+                  anchorIds: ['anchor_1', 'anchor_2'],
+                },
+              ],
+            ],
+          },
+        }],
+        anchors: [
+          { anchorId: 'anchor_1', stimulusId: 'stimulus_table', kind: 'table-cell', label: 'Question 1 table blank' },
+          { anchorId: 'anchor_2', stimulusId: 'stimulus_table', kind: 'table-cell', label: 'Question 2 table blank' },
+        ],
+        taskGroups: [{
+          taskGroupId: 'task_group_1',
+          officialTaskType: 'table-completion',
+          engineeringFamily: 'structured-layout',
+          instructionBlocks: [{ id: 'instruction_1', text: 'Complete the table.' }],
+          stimulusRefs: [{ stimulusId: 'stimulus_table', anchorIds: ['anchor_2'] }],
+          interactions: [{
+            interactionId: 'interaction_1',
+            taskGroupId: 'task_group_1',
+            displayNumber: 1,
+          }],
+        }],
+      },
+    };
+
+    const plan = buildReadingV2TrustedSubmissionPlan({
+      request,
+      auth: { uid: 'student-1', name: 'Student One' },
+      records: {
+        snapshot: makeSnapshot(),
+        reviewProjection,
+        metadata: { title: 'Trusted multi-anchor table', durationMinutes: 60 },
+        session: null,
+      },
+      identity: {
+        resultId: 'result-multi-anchor-table',
+        attemptId: 'attempt-multi-anchor-table',
+        submittedAtIso: '2026-06-06T00:00:00.000Z',
+        submittedAtMs: 1780272300000,
+      },
+    });
+
+    expect(plan.savedResult.readingV2.reviewPayload.taskGroups[0].stimulusContext[0]).toEqual(expect.objectContaining({
+      anchorLabels: ['Question 2 table blank'],
+      excerpt: expect.stringContaining('Shared worker table cell for questions 1 and 2'),
+    }));
+  });
+
+  it('prefixes only canonical structured-content anchors when composing passage-set trusted records', () => {
+    const homework = {
+      ...makeReadingPassageSetHomework(),
+      readingPassageSet: {
+        titleSnapshot: 'Structured Passage Set',
+        items: [makeReadingPassageSetHomework().readingPassageSet.items[0]],
+      },
+    };
+    const item = homework.readingPassageSet.items[0];
+    const reviewProjection = {
+      ...makePassageReviewProjection({
+        snapshotVersionId: item.snapshotVersionId,
+        title: item.titleSnapshot,
+      }),
+      content: {
+        ...makePassageReviewProjection({
+          snapshotVersionId: item.snapshotVersionId,
+          title: item.titleSnapshot,
+        }).content,
+        stimuli: [
+          {
+            stimulusId: 'stimulus_table',
+            kind: 'table',
+            anchorIds: ['anchor_1', 'anchor_2'],
+            content: {
+              kind: 'table-content',
+              rows: [[{
+                text: 'Structured table blank',
+                anchorId: 'anchor_1',
+                anchorIds: ['anchor_1', 'anchor_2'],
+              }]],
+            },
+          },
+          {
+            stimulusId: 'stimulus_media',
+            kind: 'image',
+            anchorIds: [],
+            content: {
+              kind: 'media-content',
+              alt: 'Media',
+              sourceInfo: {
+                anchorId: 'external-anchor-like-key',
+                anchorIds: ['external-anchor-like-array'],
+              },
+            },
+          },
+        ],
+        anchors: [
+          { anchorId: 'anchor_1', stimulusId: 'stimulus_table', kind: 'table-cell', label: 'Anchor 1' },
+          { anchorId: 'anchor_2', stimulusId: 'stimulus_table', kind: 'table-cell', label: 'Anchor 2' },
+        ],
+        taskGroups: [{
+          taskGroupId: 'task_group_1',
+          officialTaskType: 'table-completion',
+          engineeringFamily: 'structured-layout',
+          instructionBlocks: [{ id: 'instruction_1', text: 'Complete the table.' }],
+          stimulusRefs: [{ stimulusId: 'stimulus_table', anchorIds: ['anchor_1', 'anchor_2'] }],
+          interactions: [{
+            interactionId: 'interaction_1',
+            taskGroupId: 'task_group_1',
+            displayNumber: 1,
+          }],
+        }],
+      },
+    };
+
+    const records = composeReadingPassageSetTrustedRecords({
+      homework,
+      passageRecords: [{
+        item,
+        snapshot: makePassageSnapshot({
+          materialId: item.passageMaterialId,
+          snapshotVersionId: item.snapshotVersionId,
+          answer: 'Answer A',
+        }),
+        reviewProjection,
+      }],
+      generatedAt: '2026-06-06T00:00:00.000Z',
+    });
+    const table = records.reviewProjection.content.stimuli.find((stimulus: Record<string, any>) =>
+      stimulus.stimulusId === 'passage-1:stimulus_table',
+    );
+    const media = records.reviewProjection.content.stimuli.find((stimulus: Record<string, any>) =>
+      stimulus.stimulusId === 'passage-1:stimulus_media',
+    );
+
+    expect(table.content.rows[0][0]).toEqual(expect.objectContaining({
+      anchorId: 'passage-1:anchor_1',
+      anchorIds: ['passage-1:anchor_1', 'passage-1:anchor_2'],
+    }));
+    expect(media.content.sourceInfo).toEqual({
+      anchorId: 'external-anchor-like-key',
+      anchorIds: ['external-anchor-like-array'],
+    });
+  });
+
   it('scores Reading Passage set homework against assigned passage snapshots', () => {
     const homework = makeReadingPassageSetHomework();
     const trustedRecords = composeReadingPassageSetTrustedRecords({

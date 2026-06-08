@@ -38,6 +38,7 @@ import {
 } from './readingV2PassageExtraction.service';
 import {
   assertReadingV2PublishGate,
+  ReadingV2PublishGateError,
   validateReadingV2Draft,
   type ReadingV2ValidationResult,
 } from './readingV2Validation.service';
@@ -156,6 +157,7 @@ export interface ReadingV2PublishPipelineInput {
     readonly durationMinutes?: number;
   };
   readonly returnContext?: string;
+  readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
 }
 
 export interface ReadingV2PublishPipelineResult {
@@ -200,6 +202,50 @@ const buildRelationshipIndexWrites = (
   { surface: 'result-identity', materialId, snapshotVersionId, source: 'review-projection' },
   { surface: 'analytics', materialId, snapshotVersionId, source: 'analytics-projection' },
 ];
+
+const compactDiagnosticPayload = (payload: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
+
+const sourceTitleSlugFor = (input: Pick<ReadingV2PublishPipelineInput, 'metadata' | 'document'>): string =>
+  (input.metadata?.title ?? input.document.title)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'reading-v2';
+
+const emitPublishCanonicalValidationBlocked = (
+  input: ReadingV2PublishPipelineInput,
+  validation: ReadingV2ValidationResult,
+): void => {
+  validation.blockingIssues.forEach((issue) => {
+    input.onDiagnosticEvent?.('publish_canonical_validation_blocked', compactDiagnosticPayload({
+      outcome: 'blocked',
+      issueCode: issue.code,
+      materialId: input.materialId,
+      sourceTitleSlug: sourceTitleSlugFor(input),
+      stimulusId: issue.objectId?.startsWith('stimulus-') ? issue.objectId : undefined,
+    }));
+  });
+};
+
+const emitPassageExtractionCanonicalValidationBlocked = (
+  input: ReadingV2PublishPipelineInput,
+  extraction: ReadingV2PassageExtractionResult,
+): void => {
+  extraction.validationIssues
+    .filter((issue) => issue.severity === 'error')
+    .forEach((issue) => {
+      input.onDiagnosticEvent?.('passage_extraction_canonical_validation_blocked', compactDiagnosticPayload({
+        outcome: 'blocked',
+        issueCode: issue.code,
+        materialId: input.materialId,
+        sourceTitleSlug: sourceTitleSlugFor(input),
+        stimulusId: issue.sectionId,
+      }));
+    });
+};
 
 const toMaterialId = (value: string): ReadingV2MaterialId => readingV2Ids.materialId(value);
 
@@ -573,7 +619,15 @@ export const dispatchReadingV2PublishCommitPlanToSinks = (
 export const publishReadingV2Material = (
   input: ReadingV2PublishPipelineInput,
 ): ReadingV2PublishPipelineResult => {
-  const validation = assertReadingV2PublishGate(input.document);
+  let validation: ReadingV2ValidationResult;
+  try {
+    validation = assertReadingV2PublishGate(input.document);
+  } catch (error) {
+    if (error instanceof ReadingV2PublishGateError) {
+      emitPublishCanonicalValidationBlocked(input, error.result);
+    }
+    throw error;
+  }
   const snapshotVersionId =
     input.snapshotVersionId ??
     readingV2Ids.snapshotVersionId(`snapshot-${input.materialId}-${Date.now().toString(36)}`);
@@ -639,6 +693,7 @@ export const publishReadingV2Material = (
     : undefined;
 
   if (readingPassageExtraction?.validationIssues.some((entry) => entry.severity === 'error')) {
+    emitPassageExtractionCanonicalValidationBlocked(input, readingPassageExtraction);
     const codes = readingPassageExtraction.validationIssues
       .filter((entry) => entry.severity === 'error')
       .map((entry) => entry.code)

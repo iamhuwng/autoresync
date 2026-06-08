@@ -15,6 +15,11 @@ import {
   readingV2StudioRepository,
   saveReadingV2StudioDraft,
 } from './readingV2StudioWorkflow.service';
+import {
+  READING_V2_STRUCTURED_MATERIALS_END,
+  READING_V2_STRUCTURED_MATERIALS_START,
+} from './readingV2ExternalAiPrompt.service';
+import { validateReadingV2Draft } from './readingV2Validation.service';
 
 describe('readingV2StudioWorkflow.service', () => {
   it('resolves create mode into a persisted editable draft context', () => {
@@ -155,6 +160,80 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(context.importCandidate?.sourceKind).toBe('auto-gemini');
     expect(context.message).toMatch(/Auto-generated Reading V2 draft/);
     expect(Object.values(context.document.interactions)[0]?.scoringRule.acceptableAnswers).toEqual(['teacher key']);
+  });
+
+  it('opens a reviewable Auto draft when localized duplicate structured-layout questions are canonical-safe', () => {
+    const duplicateAnchorPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'cambridge-ielts-10-test-1-reading-table-1-3',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Auto duplicate anchor import',
+            passages: [
+              {
+                title: 'Auto duplicate anchor import',
+                content: 'This Auto V4 passage has enough source text for duplicate anchor rejection.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q9-10',
+                taskType: 'table-completion',
+                text: 'Complete the table below.',
+                questionRange: { start: 9, end: 10 },
+                table: {
+                  rows: [
+                    [{ text: 'Feature', role: 'header' }, { text: 'Detail', role: 'header' }],
+                    [{ text: 'First row' }, { text: 'First duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Second row' }, { text: 'Second duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Third row' }, { text: 'Valid second blank _____.', questionNumber: 10 }],
+                  ],
+                },
+              },
+            ],
+            questions: [
+              { questionNumber: 9, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'First duplicate blank.' },
+              { questionNumber: 10, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'Valid second blank.' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const draftId = readingV2Ids.draftId('studio-workflow-auto-duplicate-anchor');
+
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId,
+      materialId: 'studio-workflow-auto-duplicate-anchor-material',
+      ownerId: 'teacher-modal',
+      initialMetadata: {
+        title: 'Auto Duplicate Anchor Import',
+        ownerId: 'teacher-modal',
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        rawText: duplicateAnchorPayload,
+        answerKeyText: ['9 alpha', '10 beta'].join('\n'),
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+
+    expect(context.status).toBe('ready');
+    expect(context.message).toContain('ready in Studio');
+    expect(validateReadingV2Draft(context.document).blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'duplicate-structured-layout-question',
+        questionNumber: 9,
+      }),
+    ]));
+    expect(readingV2StudioRepository.loadDraft(draftId)).not.toBeNull();
   });
 
   it('saves with revision tokens and rejects stale writes through the repository boundary', () => {

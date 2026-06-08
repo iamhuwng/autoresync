@@ -29,6 +29,19 @@ interface GoldGroup {
   readonly sourceLines: string;
 }
 
+interface GoldStructuredTableLayout {
+  readonly kind: 'table';
+  readonly passage: number;
+  readonly range: string;
+  readonly rowCount: number;
+  readonly columnCount: number;
+  readonly blanks: readonly {
+    readonly question: number;
+    readonly row: number;
+    readonly column: number;
+  }[];
+}
+
 interface GoldBaseline {
   readonly sourceName: string;
   readonly sourcePath: string;
@@ -39,6 +52,7 @@ interface GoldBaseline {
     readonly questionRange: string;
   }[];
   readonly groups: readonly GoldGroup[];
+  readonly structuredLayouts?: readonly GoldStructuredTableLayout[];
   readonly answers: readonly {
     readonly question: number;
     readonly answer: string;
@@ -442,12 +456,43 @@ const appStructureFor = (result: ReadingV2AutoImportResult, rawText: string) => 
           promptCoveredByRawSpan: normalizedFieldCoverage(sourceSpanText, interaction.promptText),
           acceptableAnswers: interaction.scoringRule.acceptableAnswers ?? [],
         }));
+      const tableStimulus = taskGroup.stimulusRefs
+        .map((stimulusRef) => document.stimuli[stimulusRef.stimulusId])
+        .find((stimulus) => stimulus?.content.kind === 'table-content');
+      const tableLayout = tableStimulus?.content.kind === 'table-content'
+        ? {
+            kind: 'table' as const,
+            rowCount: tableStimulus.content.rows.length,
+            columnCount: Math.max(0, ...tableStimulus.content.rows.map((row) => row.length)),
+            blanks: tableStimulus.content.rows.flatMap((row, rowIndex) =>
+              row.flatMap((cell, columnIndex) => {
+                const anchorIds = cell.anchorIds && cell.anchorIds.length > 0
+                  ? cell.anchorIds
+                  : cell.anchorId
+                    ? [cell.anchorId]
+                    : [];
+                return anchorIds.flatMap((anchorId) => {
+                  const interaction = taskGroup.interactionIds
+                    .map((interactionId) => document.interactions[interactionId])
+                    .find((candidate) => candidate?.primaryAnchorId === anchorId);
+                  const question = interaction
+                    ? numberByInteraction.get(interaction.interactionId)
+                    : undefined;
+                  return typeof question === 'number'
+                    ? [{ question, row: rowIndex + 1, column: columnIndex + 1 }]
+                    : [];
+                });
+              }),
+            ),
+          }
+        : null;
       return {
         taskGroupId: taskGroup.taskGroupId,
         officialTaskType: taskGroup.officialTaskType,
         range,
         interactionCount: numbers.length,
         publishValidationState: taskGroup.validationState.status,
+        structuredLayout: tableLayout,
         fieldContent: {
           sourceRange: quality?.sourceSpan
             ? `${quality.sourceSpan.startLineId}-${quality.sourceSpan.endLineId}`
@@ -581,6 +626,68 @@ const compareGoldToApp = (
   const missingTaskGroups = expectedTaskGroupKeys.filter((key) => !appTaskGroupKeySet.has(key));
   const extraTaskGroups = appTaskGroupKeys.filter((key) => !expectedTaskGroupKeySet.has(key));
   const hasTaskGroupShapeMismatch = missingTaskGroups.length > 0 || extraTaskGroups.length > 0;
+  const structuredLayoutIssues = (gold.structuredLayouts ?? []).flatMap((expectedLayout) => {
+    const actualGroup = appStructure?.taskGroups.find((group) => group.range === expectedLayout.range);
+    const actualLayout = actualGroup?.structuredLayout;
+    if (!actualLayout || actualLayout.kind !== expectedLayout.kind) {
+      return [{
+        passage: expectedLayout.passage,
+        range: expectedLayout.range,
+        kind: expectedLayout.kind,
+        issue: 'missing-structured-layout',
+        expected: expectedLayout,
+        actual: actualLayout ?? null,
+      }];
+    }
+
+    const actualBlankByQuestion = new Map(actualLayout.blanks.map((blank) => [blank.question, blank]));
+    const blankIssues = expectedLayout.blanks.flatMap((expectedBlank) => {
+      const actualBlank = actualBlankByQuestion.get(expectedBlank.question);
+      if (!actualBlank) {
+        return [{
+          passage: expectedLayout.passage,
+          range: expectedLayout.range,
+          kind: expectedLayout.kind,
+          issue: 'missing-blank',
+          question: expectedBlank.question,
+          expected: expectedBlank,
+          actual: null,
+        }];
+      }
+      if (actualBlank.row !== expectedBlank.row || actualBlank.column !== expectedBlank.column) {
+        return [{
+          passage: expectedLayout.passage,
+          range: expectedLayout.range,
+          kind: expectedLayout.kind,
+          issue: 'misplaced-blank',
+          question: expectedBlank.question,
+          expected: expectedBlank,
+          actual: actualBlank,
+        }];
+      }
+      return [];
+    });
+    const shapeIssues = actualLayout.rowCount === expectedLayout.rowCount
+      && actualLayout.columnCount === expectedLayout.columnCount
+      ? []
+      : [{
+          passage: expectedLayout.passage,
+          range: expectedLayout.range,
+          kind: expectedLayout.kind,
+          issue: 'layout-shape-mismatch',
+          expected: {
+            rowCount: expectedLayout.rowCount,
+            columnCount: expectedLayout.columnCount,
+          },
+          actual: {
+            rowCount: actualLayout.rowCount,
+            columnCount: actualLayout.columnCount,
+          },
+        }];
+
+    return [...shapeIssues, ...blankIssues];
+  });
+  const hasStructuredLayoutMismatch = structuredLayoutIssues.length > 0;
   const fieldContentCoverageIssues = appStructure?.taskGroups
     .map((group) => {
       const issueCounts = {
@@ -629,6 +736,8 @@ const compareGoldToApp = (
       ? 'blocked'
     : hasSilentQuestionLoss
       ? 'needs-code-fix'
+    : hasStructuredLayoutMismatch
+      ? 'needs-code-fix'
       : missingQuestions.length > 0
         ? 'provider-weakness-caught'
     : hasPublishBlockers
@@ -653,6 +762,8 @@ const compareGoldToApp = (
     missingTaskGroups,
     extraTaskGroups,
     hasTaskGroupShapeMismatch,
+    structuredLayoutIssues,
+    hasStructuredLayoutMismatch,
     fieldContentCoverageIssues,
     hasReviewableDiagnostics,
     expectedTaskGroups: gold.groups.map((group) => ({
@@ -722,8 +833,9 @@ const main = async () => {
       goldParse: [
         'Read source frontmatter and passage/question headings.',
         'Used source line coordinates for passage and group boundaries.',
-        'Classified task groups by explicit instruction text and option banks.',
-        'Copied answer-key values from visible answer section only.',
+      'Classified task groups by explicit instruction text and option banks.',
+      'Compared structured table shape and blank coordinates when the gold baseline defines them.',
+      'Copied answer-key values from visible answer section only.',
         'Compared app output by coverage, task group shape, answer-key binding, diagnostics, and publish safety.',
       ],
       appParse: args.allowLiveV4Provider

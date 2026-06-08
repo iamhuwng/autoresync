@@ -212,6 +212,137 @@ describe('readingV2PassageHomeworkLaunch service', () => {
     expect(composed.analytics?.interactionCount).toBe(interactionIds.length);
   });
 
+  it('prefixes only canonical anchor fields inside projected structured content', () => {
+    const homework = makeHomework({
+      id: 'homework-set-structured',
+      materialId: 'reading-passage-set:homework-set-structured',
+      materialTitle: 'Structured Passage Set',
+      materialType: 'reading-passage-set',
+      readingPassageSet: {
+        titleSnapshot: 'Structured Passage Set',
+        items: [{
+          order: 1,
+          passageMaterialId: 'passage-structured',
+          snapshotVersionId: 'snapshot-structured',
+          titleSnapshot: 'Structured Passage',
+          questionCount: 3,
+          testTypeIds: ['ielts'],
+        }],
+      },
+    });
+    const projection = makeProjection('passage-structured', 'snapshot-structured', 'Structured Passage');
+    const structuredProjection: ReadingV2DerivedProjection = {
+      ...projection,
+      content: {
+        ...projection.content,
+        sections: [{
+          sectionId: 'section-structured',
+          title: 'Structured section',
+          stimulusIds: ['stimulus-table', 'stimulus-flow', 'stimulus-diagram', 'stimulus-media'],
+          taskGroupIds: ['task-group-structured'],
+        }],
+        stimuli: [
+          {
+            stimulusId: 'stimulus-table',
+            kind: 'table',
+            anchorIds: ['anchor-table-1', 'anchor-table-2'],
+            content: {
+              kind: 'table-content',
+              rows: [[{
+                text: 'Table blank',
+                anchorId: 'anchor-table-1',
+                anchorIds: ['anchor-table-1', 'anchor-table-2'],
+              }]],
+            },
+          },
+          {
+            stimulusId: 'stimulus-flow',
+            kind: 'flowchart',
+            anchorIds: ['anchor-flow-1'],
+            content: {
+              kind: 'flowchart-content',
+              steps: [{ stepId: 'step-1', text: 'Flow blank', anchorId: 'anchor-flow-1' }],
+            },
+          },
+          {
+            stimulusId: 'stimulus-diagram',
+            kind: 'diagram',
+            anchorIds: ['anchor-diagram-1'],
+            content: {
+              kind: 'diagram-content',
+              imageAlt: 'Diagram',
+              hotspots: [{ label: 'Target', anchorId: 'anchor-diagram-1', xPercent: 50, yPercent: 50 }],
+            },
+          },
+          {
+            stimulusId: 'stimulus-media',
+            kind: 'image',
+            anchorIds: [],
+            content: {
+              kind: 'media-content',
+              alt: 'Image',
+              sourceInfo: {
+                anchorId: 'external-anchor-like-key',
+                anchorIds: ['external-anchor-like-array'],
+              },
+            } as unknown as ReadingV2DerivedProjection['content']['stimuli'][number]['content'],
+          },
+        ],
+        anchors: [
+          { anchorId: 'anchor-table-1', stimulusId: 'stimulus-table', kind: 'table-cell', label: 'Table 1' },
+          { anchorId: 'anchor-table-2', stimulusId: 'stimulus-table', kind: 'table-cell', label: 'Table 2' },
+          { anchorId: 'anchor-flow-1', stimulusId: 'stimulus-flow', kind: 'flow-step', label: 'Flow 1' },
+          { anchorId: 'anchor-diagram-1', stimulusId: 'stimulus-diagram', kind: 'diagram-hotspot', label: 'Diagram 1' },
+        ],
+        taskGroups: [{
+          taskGroupId: 'task-group-structured',
+          officialTaskType: 'table-completion',
+          engineeringFamily: 'structured-layout',
+          instructionBlocks: [{ id: 'instruction-structured', text: 'Complete the structured tasks.' }],
+          stimulusRefs: [
+            { stimulusId: 'stimulus-table', anchorIds: ['anchor-table-1', 'anchor-table-2'] },
+            { stimulusId: 'stimulus-flow', anchorIds: ['anchor-flow-1'] },
+            { stimulusId: 'stimulus-diagram', anchorIds: ['anchor-diagram-1'] },
+          ],
+          interactions: [{
+            interactionId: 'interaction-structured',
+            taskGroupId: 'task-group-structured',
+            displayNumber: 1,
+            responseShape: { kind: 'structured-entry', structure: 'table' },
+            primaryAnchorId: 'anchor-table-2',
+          }],
+        }],
+        optionSets: [],
+      },
+    };
+
+    const composed = composeReadingPassageSetProjection({
+      homework,
+      projections: [structuredProjection],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+    const table = composed.content.stimuli.find((stimulus) => stimulus.stimulusId === 'passage-1:stimulus-table');
+    const flow = composed.content.stimuli.find((stimulus) => stimulus.stimulusId === 'passage-1:stimulus-flow');
+    const diagram = composed.content.stimuli.find((stimulus) => stimulus.stimulusId === 'passage-1:stimulus-diagram');
+    const media = composed.content.stimuli.find((stimulus) => stimulus.stimulusId === 'passage-1:stimulus-media');
+    const tableCell = table?.content.kind === 'table-content' ? table.content.rows[0]?.[0] : undefined;
+    const flowStep = flow?.content.kind === 'flowchart-content' ? flow.content.steps[0] : undefined;
+    const hotspot = diagram?.content.kind === 'diagram-content' ? diagram.content.hotspots[0] : undefined;
+    const mediaContent = media?.content as unknown as { sourceInfo?: { anchorId?: string; anchorIds?: string[] } };
+
+    expect(tableCell).toMatchObject({
+      anchorId: 'passage-1:anchor-table-1',
+      anchorIds: ['passage-1:anchor-table-1', 'passage-1:anchor-table-2'],
+    });
+    expect(flowStep?.anchorId).toBe('passage-1:anchor-flow-1');
+    expect(hotspot?.anchorId).toBe('passage-1:anchor-diagram-1');
+    expect(mediaContent.sourceInfo).toEqual({
+      anchorId: 'external-anchor-like-key',
+      anchorIds: ['external-anchor-like-array'],
+    });
+    expect(new Set(composed.content.anchors.map((anchor) => anchor.anchorId)).size).toBe(composed.content.anchors.length);
+  });
+
   it('composes a Reading Passage set when Firebase omits an empty optionSets array', () => {
     const homework = makeHomework({
       id: 'homework-set-1',

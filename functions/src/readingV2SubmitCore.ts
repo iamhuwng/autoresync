@@ -282,26 +282,81 @@ const prefixIds = (prefix: string, values: unknown): string[] =>
     ? values.map((value) => prefixId(prefix, value)).filter((value): value is string => typeof value === 'string')
     : [];
 
-const prefixAnchorRefs = (prefix: string, value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => prefixAnchorRefs(prefix, entry));
+const prefixedStimulusContent = (prefix: string, content: unknown): unknown => {
+  if (!isRecord(content)) {
+    return content;
   }
 
-  if (!isRecord(value)) {
-    return value;
+  if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
+    return {
+      ...content,
+      paragraphs: content.paragraphs.map((paragraph: unknown) =>
+        isRecord(paragraph)
+          ? { ...paragraph, anchorId: prefixId(prefix, paragraph.anchorId) ?? paragraph.anchorId }
+          : paragraph,
+      ),
+    };
   }
 
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
-    if (key === 'anchorId') {
-      return [key, prefixId(prefix, entry)];
-    }
+  if (content.kind === 'table-content' && Array.isArray(content.rows)) {
+    return {
+      ...content,
+      rows: content.rows.map((row: unknown) =>
+        Array.isArray(row)
+          ? row.map((cell: unknown) => {
+              if (!isRecord(cell)) {
+                return cell;
+              }
 
-    if (key === 'anchorIds') {
-      return [key, prefixIds(prefix, entry)];
-    }
+              const splitSourceCells = Array.isArray(cell.splitSourceCells)
+                ? cell.splitSourceCells.map((sourceCell: unknown) =>
+                    isRecord(sourceCell)
+                      ? {
+                          ...sourceCell,
+                          anchorId: prefixId(prefix, sourceCell.anchorId) ?? sourceCell.anchorId,
+                          anchorIds: Array.isArray(sourceCell.anchorIds)
+                            ? prefixIds(prefix, sourceCell.anchorIds)
+                            : sourceCell.anchorIds,
+                        }
+                      : sourceCell,
+                  )
+                : cell.splitSourceCells;
 
-    return [key, prefixAnchorRefs(prefix, entry)];
-  }));
+              return {
+                ...cell,
+                anchorId: prefixId(prefix, cell.anchorId) ?? cell.anchorId,
+                anchorIds: Array.isArray(cell.anchorIds) ? prefixIds(prefix, cell.anchorIds) : cell.anchorIds,
+                splitSourceCells,
+              };
+            })
+          : row,
+      ),
+    };
+  }
+
+  if (content.kind === 'flowchart-content' && Array.isArray(content.steps)) {
+    return {
+      ...content,
+      steps: content.steps.map((step: unknown) =>
+        isRecord(step)
+          ? { ...step, anchorId: prefixId(prefix, step.anchorId) ?? step.anchorId }
+          : step,
+      ),
+    };
+  }
+
+  if (content.kind === 'diagram-content' && Array.isArray(content.hotspots)) {
+    return {
+      ...content,
+      hotspots: content.hotspots.map((hotspot: unknown) =>
+        isRecord(hotspot)
+          ? { ...hotspot, anchorId: prefixId(prefix, hotspot.anchorId) ?? hotspot.anchorId }
+          : hotspot,
+      ),
+    };
+  }
+
+  return content;
 };
 
 const findProjectedTaskGroup = (
@@ -395,7 +450,7 @@ const prefixedReviewContent = (input: {
         ...stimulus,
         stimulusId: requiredString(prefixId(input.prefix, stimulus.stimulusId), 'prefixed stimulusId'),
         anchorIds: prefixIds(input.prefix, stimulus.anchorIds),
-        content: prefixAnchorRefs(input.prefix, stimulus.content),
+        content: prefixedStimulusContent(input.prefix, stimulus.content),
       }))
       : [],
     anchors: Array.isArray(content.anchors)
@@ -562,6 +617,20 @@ const stimulusExcerpt = (
 ): string => {
   const content = stimulus.content ?? {};
   const selectedAnchorIds = new Set(anchorIds);
+  const tableCellMatchesSelectedAnchors = (cell: Record<string, any>): boolean => {
+    if (selectedAnchorIds.size === 0) {
+      return true;
+    }
+
+    const cellAnchorIds = Array.isArray(cell.anchorIds) && cell.anchorIds.length > 0
+      ? cell.anchorIds
+      : typeof cell.anchorId === 'string'
+        ? [cell.anchorId]
+        : [];
+    return cellAnchorIds.some((anchorId: unknown) =>
+      typeof anchorId === 'string' && selectedAnchorIds.has(anchorId),
+    );
+  };
 
   if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
     const paragraphs = selectedAnchorIds.size > 0
@@ -575,9 +644,7 @@ const stimulusExcerpt = (
   if (content.kind === 'table-content' && Array.isArray(content.rows)) {
     const cells = content.rows
       .flat()
-      .filter((cell: Record<string, any>) =>
-        selectedAnchorIds.size === 0 || (cell.anchorId && selectedAnchorIds.has(cell.anchorId)),
-      )
+      .filter(tableCellMatchesSelectedAnchors)
       .map((cell: Record<string, any>) => cell.text)
       .filter(Boolean);
     return truncateContext(cells.join(' | '));

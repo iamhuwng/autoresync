@@ -82,6 +82,7 @@ class AIRouterService implements IAIService {
    */
   async parseQuestionsAndAnswers(text: string): Promise<Result<{ questions: AIParseResult['questions']; answerKey: AIParseResult['answerKey']; confidence: number; }>> {
     const providerOrder = this.getProviderOrder();
+    const providerFailures: string[] = [];
 
     for (const providerName of providerOrder) {
       const provider = this.providers[providerName];
@@ -100,6 +101,8 @@ class AIRouterService implements IAIService {
 
       console.error(`❌ ${providerName} questions+answers parsing failed: ${result.error}`);
 
+      providerFailures.push(`${providerName}: ${result.error.slice(0, 500)}`);
+
       if (!this.config.enableFallback) {
         return result;
       }
@@ -107,7 +110,7 @@ class AIRouterService implements IAIService {
 
     return {
       success: false,
-      error: 'All AI providers failed to parse questions and answers',
+      error: `All AI providers failed to parse questions and answers. ${providerFailures.join(' | ')}`,
     };
   }
 

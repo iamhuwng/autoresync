@@ -99,6 +99,11 @@ export interface ReadingV2ValidationIssue {
   readonly severity: ReadingV2ValidationSeverity;
   readonly message: string;
   readonly objectId?: string;
+  readonly passageNumber?: number;
+  readonly instructionIndex?: number;
+  readonly layoutKind?: 'table' | 'flowchart' | 'diagram';
+  readonly questionNumber?: number;
+  readonly stimulusId?: string;
 }
 
 export interface ReadingV2ValidationState {

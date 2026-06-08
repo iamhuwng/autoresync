@@ -14,6 +14,7 @@ import {
   type ReadingV2FullTestPassageBackfillSource,
   type ReadingV2FullTestPassageBackfillWrite,
 } from '../src/services/reading-v2/readingV2Backfill.service';
+import type { ReadingV2DerivedProjection } from '../src/services/reading-v2/readingV2Projection.service';
 import { readingV2StoragePaths } from '../src/services/reading-v2/readingV2StoragePaths.service';
 import { ReadingV2PublishGateError } from '../src/services/reading-v2/readingV2Validation.service';
 import {
@@ -61,6 +62,8 @@ export interface BackfillFirebaseSnapshot {
   readonly materialMetadata: unknown;
   readonly publishedSnapshots: unknown;
   readonly fullTestCompositions: unknown;
+  readonly studentSafeProjections?: unknown;
+  readonly reviewProjections?: unknown;
 }
 
 export interface BackfillSourceBuildResult {
@@ -299,6 +302,16 @@ const isFullTestComposition = (value: unknown): value is ReadingV2FullTestCompos
   typeof value.testMaterialId === 'string' &&
   Array.isArray(value.passageRefs);
 
+const isDerivedProjection = (
+  value: unknown,
+  projectionKind: 'student-safe' | 'review',
+): value is ReadingV2DerivedProjection =>
+  isRecord(value) &&
+  getString(value, 'projectionKind') === projectionKind &&
+  typeof value.projectionId === 'string' &&
+  typeof value.sourceSnapshotVersionId === 'string' &&
+  isRecord(value.content);
+
 const asRecordMap = (value: unknown): Record<string, unknown> =>
   isRecord(value) ? value : {};
 
@@ -355,10 +368,24 @@ const matchesFilters = (
 const testTypeIdsFor = (metadata: JsonRecord): MaterialTestTypeId[] | undefined =>
   getStringArray(metadata, 'testTypeIds')?.map((id) => materialCatalogIds.testTypeId(id));
 
+const projectionFor = (
+  projections: Record<string, unknown>,
+  materialId: string,
+  snapshotVersionId: string,
+  projectionKind: 'student-safe' | 'review',
+): ReadingV2DerivedProjection | undefined => {
+  const projection = projections[`${materialId}:${snapshotVersionId}`];
+  return isDerivedProjection(projection, projectionKind) ? projection : undefined;
+};
+
 const toSource = (
   metadata: JsonRecord,
   snapshot: ReadingV2PublishedSnapshot,
   existingComposition: ReadingV2FullTestComposition | null,
+  projections: {
+    readonly studentSafeProjection?: ReadingV2DerivedProjection;
+    readonly reviewProjection?: ReadingV2DerivedProjection;
+  } = {},
 ): ReadingV2FullTestPassageBackfillSource => {
   const materialId = readingV2Ids.materialId(getString(metadata, 'materialId') ?? snapshot.materialId);
   const snapshotVersionId = readingV2Ids.snapshotVersionId(snapshot.snapshotVersionId);
@@ -380,6 +407,8 @@ const toSource = (
     publicShareable: metadata.publicShareable === true,
     durationMinutes: getNumber(metadata, 'durationMinutes'),
     existingComposition,
+    studentSafeProjection: projections.studentSafeProjection,
+    reviewProjection: projections.reviewProjection,
   };
 };
 
@@ -393,6 +422,8 @@ export const buildBackfillSourcesFromFirebaseSnapshot = (
   const materialMetadata = asRecordMap(snapshot.materialMetadata);
   const publishedSnapshots = asRecordMap(snapshot.publishedSnapshots);
   const compositions = asRecordMap(snapshot.fullTestCompositions);
+  const studentSafeProjections = asRecordMap(snapshot.studentSafeProjections);
+  const reviewProjections = asRecordMap(snapshot.reviewProjections);
   const skippedMaterials: BackfillSkippedMaterial[] = [];
   const sources: ReadingV2FullTestPassageBackfillSource[] = [];
 
@@ -460,7 +491,10 @@ export const buildBackfillSourcesFromFirebaseSnapshot = (
       return;
     }
 
-    sources.push(toSource(rawMetadata, rawSnapshot, getExistingComposition(compositions, materialId)));
+    sources.push(toSource(rawMetadata, rawSnapshot, getExistingComposition(compositions, materialId), {
+      studentSafeProjection: projectionFor(studentSafeProjections, materialId, snapshotVersionId, 'student-safe'),
+      reviewProjection: projectionFor(reviewProjections, materialId, snapshotVersionId, 'review'),
+    }));
   });
 
   return { sources, skippedMaterials };
@@ -638,10 +672,18 @@ const loadFirebaseBackfillSnapshot = async (projectId: string): Promise<{
   readonly readFailures: readonly BackfillReadFailure[];
 }> => {
   const readFailures: BackfillReadFailure[] = [];
-  const [materialMetadata, publishedSnapshots, fullTestCompositions] = await Promise.all([
+  const [
+    materialMetadata,
+    publishedSnapshots,
+    fullTestCompositions,
+    studentSafeProjections,
+    reviewProjections,
+  ] = await Promise.all([
     readPathWithFailure('reading_v2/material_metadata', projectId, readFailures),
     readPathWithFailure('reading_v2/published_snapshots', projectId, readFailures),
     readPathWithFailure('reading_v2/full_test_compositions', projectId, readFailures),
+    readPathWithFailure('reading_v2/projections/student_safe_tests', projectId, readFailures),
+    readPathWithFailure('reading_v2/projections/review', projectId, readFailures),
   ]);
 
   return {
@@ -649,6 +691,8 @@ const loadFirebaseBackfillSnapshot = async (projectId: string): Promise<{
       materialMetadata,
       publishedSnapshots,
       fullTestCompositions,
+      studentSafeProjections,
+      reviewProjections,
     },
     readFailures,
   };
@@ -769,6 +813,8 @@ export const runReadingV2PassageBackfillCli = async (
       materialMetadata: 'reading_v2/material_metadata',
       publishedSnapshots: 'reading_v2/published_snapshots',
       fullTestCompositions: 'reading_v2/full_test_compositions',
+      studentSafeProjections: 'reading_v2/projections/student_safe_tests',
+      reviewProjections: 'reading_v2/projections/review',
       readingPassageMaterials: readingV2StoragePaths.readingPassageMaterials('{passageMaterialId}'),
     },
   };

@@ -3,6 +3,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReadingV2StudioPage from './ReadingV2StudioPage';
 import { createTeacherRoutes } from '../routes/teacherRoutes';
+import {
+  READING_V2_STRUCTURED_MATERIALS_END,
+  READING_V2_STRUCTURED_MATERIALS_START,
+} from '../services/reading-v2/readingV2ExternalAiPrompt.service';
 
 const trackActionMock = vi.fn();
 
@@ -199,6 +203,84 @@ describe('ReadingV2StudioPage', () => {
       mode: 'create-from-auto',
       entryPoint: 'test-creation-modal',
     })));
+  });
+
+  it('opens Studio for localized duplicate structured-layout questions when the draft is canonical-safe', async () => {
+    const duplicateAnchorPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'cambridge-ielts-10-test-1-reading-table-1-3',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Auto duplicate anchor import',
+            passages: [
+              {
+                title: 'Auto duplicate anchor import',
+                content: 'This Auto V4 passage has enough source text for duplicate anchor rejection.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q9-10',
+                taskType: 'table-completion',
+                text: 'Complete the table below.',
+                questionRange: { start: 9, end: 10 },
+                table: {
+                  rows: [
+                    [{ text: 'Feature', role: 'header' }, { text: 'Detail', role: 'header' }],
+                    [{ text: 'First row' }, { text: 'First duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Second row' }, { text: 'Second duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Third row' }, { text: 'Valid second blank _____.', questionNumber: 10 }],
+                  ],
+                },
+              },
+            ],
+            questions: [
+              { questionNumber: 9, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'First duplicate blank.' },
+              { questionNumber: 10, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'Valid second blank.' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+
+    renderRoute({
+      pathname: '/teacher/reading-v2/import',
+      state: {
+        entryPoint: 'test-creation-modal',
+        startMode: 'create-from-auto',
+        initialMetadata: {
+          title: 'Auto Duplicate Anchor Import',
+          ownerId: 'teacher-modal',
+        },
+        initialImportCandidate: {
+          sourceKind: 'auto-gemini',
+          rawText: duplicateAnchorPayload,
+          answerKeyText: ['9 alpha', '10 beta'].join('\n'),
+          evidence: ['Detected source from Auto V4'],
+          uncertaintyMarkers: [],
+          publishBlockingPlaceholders: [],
+        },
+      },
+    }, '/teacher/reading-v2/import');
+
+    expect(await screen.findByRole('main')).toHaveAttribute('data-mode', 'create-from-auto');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('IELTS Reading V2: Build Test')).toBeInTheDocument();
+    await waitFor(() => expect(trackActionMock).toHaveBeenCalledWith(
+      'openStudio',
+      expect.objectContaining({
+        mode: 'create-from-auto',
+      }),
+    ));
+    expect(trackActionMock).not.toHaveBeenCalledWith(
+      'studioImportCandidateRejected',
+      expect.anything(),
+    );
   });
 
   it('resolves import, draft, and revision routes without separate Studio products', async () => {

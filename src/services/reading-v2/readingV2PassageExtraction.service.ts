@@ -33,7 +33,8 @@ export type ReadingV2PassageExtractionIssueCode =
   | 'missing-interaction'
   | 'missing-answer-key'
   | 'missing-test-type'
-  | 'publish-gate-blocked';
+  | 'publish-gate-blocked'
+  | 'backfill-canonical-validation-blocked';
 
 export type ReadingV2PassageExtractionIssueSeverity = 'warning' | 'error';
 

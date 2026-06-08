@@ -25,6 +25,7 @@ import {
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
+import { validateReadingV2Draft } from './readingV2Validation.service';
 import {
   commitReadingV2PublishPlanToFirebase,
   type ReadingV2FirebasePublishCommitResult,
@@ -155,6 +156,20 @@ const toStudioMetadataRecord = (
   testTypeConfigs: metadata.testTypeConfigs ? [...metadata.testTypeConfigs] : undefined,
 });
 
+const toReadingV2StudioMaterialKind = (
+  materialKind: ReadingV2MaterialMetadata['materialKind'] | undefined,
+): ReadingV2StudioWorkflowMetadata['materialKind'] | undefined => {
+  if (
+    materialKind === 'full-test' ||
+    materialKind === 'task-group-material' ||
+    materialKind === 'extracted-task-group-material'
+  ) {
+    return materialKind;
+  }
+
+  return undefined;
+};
+
 const shouldExtractReadingPassagesOnPublish = (
   metadata: ReadingV2StudioWorkflowMetadata,
 ): boolean =>
@@ -259,6 +274,33 @@ const createInvalidContext = (input: {
 const isImportCreateMode = (mode: ReadingV2StudioWorkflowMode): boolean =>
   mode === 'create-from-import' || mode === 'create-from-auto';
 
+const NON_EDITABLE_IMPORT_ISSUE_CODES = new Set([
+  'duplicate-stimulus-anchor',
+]);
+
+const createInvalidImportCandidateContext = (input: {
+  readonly mode: ReadingV2StudioWorkflowMode;
+  readonly draftId: ReadingV2DraftId;
+  readonly materialId: ReadingV2MaterialId;
+  readonly ownerId: string;
+  readonly title?: string;
+  readonly issueMessages: readonly string[];
+}): ReadingV2StudioWorkflowContext =>
+  createInvalidContext({
+    mode: input.mode,
+    draftId: input.draftId,
+    materialId: input.materialId,
+    ownerId: input.ownerId,
+    title: input.title && input.title.trim().length > 0
+      ? input.title
+      : 'Auto import needs review',
+    message: [
+      'Auto import needs review before Studio can open.',
+      ...input.issueMessages,
+    ].join(' '),
+    provenanceSummary: 'Auto import candidate rejected before Studio draft hydration because canonical anchor validation failed',
+  });
+
 const createDraftContext = (input: {
   readonly mode: ReadingV2StudioWorkflowMode;
   readonly draftId: ReadingV2DraftId;
@@ -282,6 +324,27 @@ const createDraftContext = (input: {
       : createImportPendingDocument(input.initialMetadata?.title)
     : createDocument(input.initialMetadata?.title ?? input.title);
   const existing = readingV2StudioRepository.loadDraft(input.draftId);
+
+  if (!existing && importCreateMode && input.initialImportCandidate) {
+    const validation = validateReadingV2Draft(document);
+    const nonEditableImportIssues = validation.blockingIssues.filter((issue) =>
+      NON_EDITABLE_IMPORT_ISSUE_CODES.has(issue.code),
+    );
+
+    if (nonEditableImportIssues.length > 0) {
+      return createInvalidImportCandidateContext({
+        mode: input.mode,
+        draftId: input.draftId,
+        materialId: input.materialId,
+        ownerId: input.ownerId,
+        title: input.initialMetadata?.title ?? document.title,
+        issueMessages: nonEditableImportIssues.map((issue) =>
+          `${issue.code.replace(/-/g, ' ')}: ${issue.message}`,
+        ),
+      });
+    }
+  }
+
   const draft = existing ?? readingV2StudioRepository.createDraft({
     draftId: input.draftId,
     ownerId: input.ownerId,
@@ -431,7 +494,7 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
         studioMetadata: toStudioMetadataRecord(createReadingV2StudioDefaultMetadata({
           title: input.sourceMetadata?.title ?? latestSnapshot.document.title,
           ownerId,
-          materialKind: input.sourceMetadata?.materialKind,
+          materialKind: toReadingV2StudioMaterialKind(input.sourceMetadata?.materialKind),
           durationMinutes: input.sourceMetadata?.durationMinutes,
           difficulty: input.sourceMetadata?.difficulty,
           targetBand: input.sourceMetadata?.targetBand,

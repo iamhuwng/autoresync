@@ -123,6 +123,34 @@ describe('readingV2Validation.service', () => {
     expect(result.blockingIssues.some((issue) => issue.code === 'invalid-packaged-material-assembly')).toBe(true);
   });
 
+  it('reports duplicate stimulus anchor registries as typed blocking validation issues', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['table-completion']) as ReadingV2Document;
+    const stimulus = Object.values(document.stimuli)[0]!;
+    const duplicateAnchorId = stimulus.anchorIds[0]!;
+    const invalidDocument: ReadingV2Document = {
+      ...document,
+      stimuli: {
+        ...document.stimuli,
+        [stimulus.stimulusId]: {
+          ...stimulus,
+          anchorIds: [...stimulus.anchorIds, duplicateAnchorId],
+        },
+      },
+    };
+
+    const result = validateReadingV2Draft(invalidDocument);
+
+    expect(result.canPublish).toBe(false);
+    expect(result.blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'duplicate-stimulus-anchor',
+        objectId: stimulus.stimulusId,
+        message: expect.stringContaining('duplicate anchor'),
+      }),
+    ]));
+    expect(() => assertReadingV2PublishGate(invalidDocument)).toThrow(ReadingV2PublishGateError);
+  });
+
   it('blocks broken anchor references before publish', () => {
     const document = fixtureDocument();
     const [interactionId] = Object.keys(document.interactions);

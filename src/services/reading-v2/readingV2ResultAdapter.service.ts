@@ -399,6 +399,20 @@ const stimulusExcerpt = (
 ): string => {
   const content = stimulus.content;
   const selectedAnchorIds = new Set(anchorIds);
+  const tableCellMatchesSelectedAnchors = (
+    cell: { readonly anchorId?: string; readonly anchorIds?: readonly string[] },
+  ): boolean => {
+    if (selectedAnchorIds.size === 0) {
+      return true;
+    }
+
+    const cellAnchorIds = cell.anchorIds && cell.anchorIds.length > 0
+      ? cell.anchorIds
+      : cell.anchorId
+        ? [cell.anchorId]
+        : [];
+    return cellAnchorIds.some((anchorId) => selectedAnchorIds.has(anchorId));
+  };
 
   if (content.kind === 'passage-content') {
     const paragraphs = selectedAnchorIds.size > 0
@@ -410,7 +424,7 @@ const stimulusExcerpt = (
   if (content.kind === 'table-content') {
     const cells = content.rows
       .flat()
-      .filter((cell) => selectedAnchorIds.size === 0 || (cell.anchorId && selectedAnchorIds.has(cell.anchorId)))
+      .filter(tableCellMatchesSelectedAnchors)
       .map((cell) => cell.text)
       .filter(Boolean);
     return truncateContext(cells.join(' | '));

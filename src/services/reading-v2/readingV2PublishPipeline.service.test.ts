@@ -78,6 +78,59 @@ const twoPassageDocument = (): ReadingV2Document => {
   };
 };
 
+const tableDocumentWithMultiAnchorCell = (): ReadingV2Document => {
+  const document = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('table-completion'),
+    'Reading Passage 1',
+    [1, 2],
+  );
+  const stimulus = Object.values(document.stimuli).find((candidate) => candidate.content.kind === 'table-content');
+
+  if (!stimulus || stimulus.content.kind !== 'table-content') {
+    throw new Error('Table fixture missing table stimulus.');
+  }
+
+  const [firstAnchorId, secondAnchorId] = stimulus.anchorIds;
+  const bodyRow = stimulus.content.rows[1];
+  const firstBodyCell = bodyRow?.[0];
+  const secondBodyCell = bodyRow?.[1];
+
+  if (!firstAnchorId || !secondAnchorId || !bodyRow || !firstBodyCell || !secondBodyCell) {
+    throw new Error('Table fixture missing body cells or anchors.');
+  }
+
+  return {
+    ...document,
+    stimuli: {
+      ...document.stimuli,
+      [stimulus.stimulusId]: {
+        ...stimulus,
+        content: {
+          ...stimulus.content,
+          rows: [
+            stimulus.content.rows[0]!,
+            [
+              {
+                ...firstBodyCell,
+                anchorId: firstAnchorId,
+                anchorIds: [firstAnchorId, secondAnchorId],
+                text: 'First _____ and second _____ share one source cell',
+              },
+              {
+                ...secondBodyCell,
+                anchorId: undefined,
+                anchorIds: undefined,
+                isBlank: false,
+                text: 'Continuation detail',
+              },
+            ],
+          ],
+        },
+      },
+    },
+  };
+};
+
 describe('readingV2PublishPipeline.service', () => {
   it('previews without creating live session, assignment, attempt, homework, course, or result records', () => {
     const preview = generateReadingV2PreviewOnly({
@@ -179,6 +232,55 @@ describe('readingV2PublishPipeline.service', () => {
     ).toThrow(/blocked/);
     expect(projectionSink).not.toHaveBeenCalled();
     expect(repository.store.publishedSnapshots.size).toBe(0);
+  });
+
+  it('blocks duplicate stimulus anchors before creating any publish writes', () => {
+    const repository = createReadingV2Repository();
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+    const document = fixtureDocument();
+    const [stimulusId] = Object.keys(document.stimuli);
+    const stimulus = stimulusId ? document.stimuli[stimulusId] : undefined;
+    const [anchorId] = stimulus?.anchorIds ?? [];
+
+    if (!stimulusId || !stimulus || !anchorId) {
+      throw new Error('Fixture missing stimulus anchor.');
+    }
+
+    const invalidDocument: ReadingV2Document = {
+      ...document,
+      stimuli: {
+        ...document.stimuli,
+        [stimulusId]: {
+          ...stimulus,
+          anchorIds: [anchorId, anchorId],
+        },
+      },
+    };
+
+    expect(() =>
+      publishReadingV2Material({
+        repository,
+        materialId: readingV2Ids.materialId('material-duplicate-anchor-blocked'),
+        ownerId: 'teacher-1',
+        document: invalidDocument,
+        publishedBy: 'teacher-1',
+        snapshotVersionId: readingV2Ids.snapshotVersionId('snapshot-duplicate-anchor-blocked'),
+        onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
+      }),
+    ).toThrow(/blocked/);
+    expect(repository.store.publishedSnapshots.size).toBe(0);
+    expect(repository.store.fullTests.size).toBe(0);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'publish_canonical_validation_blocked',
+        payload: expect.objectContaining({
+          outcome: 'blocked',
+          issueCode: 'duplicate-stimulus-anchor',
+          materialId: 'material-duplicate-anchor-blocked',
+          stimulusId,
+        }),
+      }),
+    ]));
   });
 
   it('dispatches external sink writes only from an explicit commit plan', () => {
@@ -368,6 +470,57 @@ describe('readingV2PublishPipeline.service', () => {
     );
   });
 
+  it('publishes standalone Reading Passage material from a valid multi-anchor table cell', () => {
+    const repository = createReadingV2Repository();
+    const materialId = readingV2Ids.materialId('material-multi-anchor-table-full-test');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-multi-anchor-table-full-test');
+    const result = publishReadingV2Material({
+      repository,
+      materialId,
+      ownerId: 'teacher-1',
+      document: tableDocumentWithMultiAnchorCell(),
+      publishedBy: 'teacher-1',
+      snapshotVersionId,
+      publishedAt: '2026-06-01T00:00:00.000Z',
+      metadata: {
+        title: 'Multi Anchor Table Full Test',
+        materialKind: 'full-test',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        visibility: 'library-eligible',
+      },
+    });
+    const firstPassageId = 'material-multi-anchor-table-full-test-passage-1';
+    const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
+    const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
+    const passageSnapshotPath = readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId);
+    const passageSnapshot = byPath[passageSnapshotPath] as { document?: ReadingV2Document } | undefined;
+    const tableStimulus = passageSnapshot
+      ? Object.values(passageSnapshot.document?.stimuli ?? {}).find((stimulus) => stimulus.content.kind === 'table-content')
+      : undefined;
+    const tableCell = tableStimulus?.content.kind === 'table-content'
+      ? tableStimulus.content.rows[1]?.[0]
+      : undefined;
+
+    expect(result.validation.canPublish).toBe(true);
+    expect(result.readingPassageExtraction?.canPublish).toBe(true);
+    expect(result.readingPassageExtraction?.passages).toHaveLength(1);
+    expect(tableCell).toMatchObject({
+      text: 'First _____ and second _____ share one source cell',
+      anchorIds: expect.arrayContaining([
+        expect.stringContaining('anchor-table-completion-1'),
+        expect.stringContaining('anchor-table-completion-2'),
+      ]),
+    });
+    expect(Object.keys(byPath)).toEqual(expect.arrayContaining([
+      readingV2StoragePaths.readingPassageMaterials(firstPassageId),
+      passageSnapshotPath,
+      readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId),
+      readingV2StoragePaths.reviewProjections(firstPassageId, snapshotVersionId),
+    ]));
+  });
+
   it('auto-extracts Reading Passages when full-test metadata is published without caller opt-in', () => {
     const repository = createReadingV2Repository();
     const materialId = readingV2Ids.materialId('material-auto-full-test-passages');
@@ -433,6 +586,7 @@ describe('readingV2PublishPipeline.service', () => {
 
   it('blocks full-test publish when Reading Passage extraction reports a blocking issue', () => {
     const repository = createReadingV2Repository();
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
 
     expect(() =>
       publishReadingV2Material({
@@ -445,8 +599,19 @@ describe('readingV2PublishPipeline.service', () => {
         readingPassageExtraction: {
           visibility: 'public',
         },
+        onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
       }),
     ).toThrow(/passage extraction blocked publish.*missing-test-type/);
     expect(repository.store.publishedSnapshots.size).toBe(0);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'passage_extraction_canonical_validation_blocked',
+        payload: expect.objectContaining({
+          outcome: 'blocked',
+          issueCode: 'missing-test-type',
+          materialId: 'material-missing-type',
+        }),
+      }),
+    ]));
   });
 });

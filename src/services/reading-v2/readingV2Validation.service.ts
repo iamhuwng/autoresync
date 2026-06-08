@@ -9,6 +9,7 @@ import {
 } from '../../types/readingV2.types';
 import {
   assertValidReadingV2CanonicalDocument,
+  findDuplicateReadingV2StimulusAnchorIssues,
   isReadingV2PublishBlocked,
 } from './readingV2ContractGuards.service';
 import { canonicalizeReadingV2JudgementAnswer } from './readingV2JudgementAnswers.service';
@@ -828,6 +829,7 @@ export const validateReadingV2Draft = (
   const issues: ReadingV2ValidationIssue[] = [
     ...validationIssues(document.validationState),
     ...Object.values(document.taskGroups).flatMap((taskGroup) => validationIssues(taskGroup.validationState)),
+    ...findDuplicateReadingV2StimulusAnchorIssues(document),
   ];
 
   try {

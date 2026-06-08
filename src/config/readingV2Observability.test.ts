@@ -42,6 +42,20 @@ describe('readingV2Observability', () => {
     );
   });
 
+  it('covers PRD-0048 canonical anchor foundation diagnostics', () => {
+    expect(READING_V2_OBSERVABILITY_EVENTS.map((event) => event.eventName)).toEqual(
+      expect.arrayContaining([
+        'canonical_anchor_guard_failed',
+        'duplicate_structured_layout_question',
+        'structured_layout_anchor_cardinality_mismatch',
+        'studio_import_candidate_rejected',
+        'publish_canonical_validation_blocked',
+        'passage_extraction_canonical_validation_blocked',
+        'backfill_canonical_validation_blocked',
+      ]),
+    );
+  });
+
   it('uses privacy-safe required properties and identifiers', () => {
     READING_V2_OBSERVABILITY_EVENTS.forEach((event) => {
       expect(event.requiredProperties).toContain('outcome');

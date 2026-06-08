@@ -256,6 +256,30 @@ export default function ReadingV2StudioPage() {
     trackAction,
   ]);
 
+  useEffect(() => {
+    if (isRevisionHydrating || revisionHydrationError || studioContext.status !== 'invalid') {
+      return;
+    }
+
+    trackAction('studioImportCandidateRejected', compactActionMetadata({
+      mode,
+      draftId: params.draftId,
+      materialId: params.materialId,
+      entryPoint: routeState.entryPoint,
+      outcome: 'blocked',
+      issueCode: 'invalid-import-candidate',
+    }));
+  }, [
+    isRevisionHydrating,
+    mode,
+    params.draftId,
+    params.materialId,
+    revisionHydrationError,
+    routeState.entryPoint,
+    studioContext.status,
+    trackAction,
+  ]);
+
   if (isRevisionHydrating) {
     return (
       <main aria-busy="true" style={{ padding: '2rem' }}>
@@ -271,6 +295,16 @@ export default function ReadingV2StudioPage() {
         <h1>READING-V2</h1>
         <p>Unable to open this published Reading V2 material for editing.</p>
         <p>{revisionHydration.message ?? 'The published snapshot could not be hydrated.'}</p>
+      </main>
+    );
+  }
+
+  if (studioContext.status === 'invalid') {
+    return (
+      <main role="alert" style={{ padding: '2rem' }}>
+        <h1>READING-V2</h1>
+        <p>Unable to open this Reading V2 Studio draft.</p>
+        <p>{studioContext.message ?? 'Auto import needs review before Studio can open.'}</p>
       </main>
     );
   }

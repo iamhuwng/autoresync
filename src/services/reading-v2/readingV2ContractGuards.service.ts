@@ -43,6 +43,37 @@ export const isReadingV2PublishBlocked = (
 const hasOwn = <T extends object>(record: T, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, key);
 
+export const findDuplicateReadingV2StimulusAnchorIssues = (
+  document: ReadingV2Document,
+): ReadingV2ValidationIssue[] => {
+  const issues: ReadingV2ValidationIssue[] = [];
+
+  Object.values(document.stimuli).forEach((stimulus) => {
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+
+    stimulus.anchorIds.forEach((anchorId) => {
+      if (seen.has(anchorId)) {
+        duplicates.push(anchorId);
+        return;
+      }
+
+      seen.add(anchorId);
+    });
+
+    if (duplicates.length > 0) {
+      issues.push({
+        code: 'duplicate-stimulus-anchor',
+        severity: 'error',
+        message: `Stimulus ${stimulus.stimulusId} references duplicate anchors: ${Array.from(new Set(duplicates)).join(', ')}.`,
+        objectId: stimulus.stimulusId,
+      });
+    }
+  });
+
+  return issues;
+};
+
 const stimulusAnchorScope = (stimulus: ReadingV2StimulusNode): Set<string> =>
   new Set(stimulus.anchorIds);
 
@@ -148,6 +179,9 @@ export const assertValidReadingV2CanonicalDocument = (
   const referencedTaskGroupIds = new Set<string>();
   const referencedInteractionIds = new Set<string>();
   const referencedOptionSetIds = new Set<string>();
+  const duplicateAnchorIssuesByStimulus = new Map(
+    findDuplicateReadingV2StimulusAnchorIssues(document).map((issue) => [issue.objectId, issue]),
+  );
 
   document.sectionIds.forEach((sectionId) => {
     if (!hasOwn(document.sections, sectionId)) {
@@ -216,8 +250,9 @@ export const assertValidReadingV2CanonicalDocument = (
       }
     });
 
-    if (new Set(stimulus.anchorIds).size !== stimulus.anchorIds.length) {
-      throw new Error(`Stimulus ${stimulus.stimulusId} references duplicate anchors.`);
+    const duplicateAnchorIssue = duplicateAnchorIssuesByStimulus.get(stimulus.stimulusId);
+    if (duplicateAnchorIssue) {
+      throw new Error(duplicateAnchorIssue.message);
     }
   });
 

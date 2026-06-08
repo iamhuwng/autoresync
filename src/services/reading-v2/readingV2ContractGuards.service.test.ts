@@ -91,6 +91,26 @@ describe('readingV2ContractGuards.service', () => {
     );
   });
 
+  it('rejects stimuli that repeat anchor ids in the canonical registry', () => {
+    const fixture = cloneDocument(READING_V2_CANONICAL_FIXTURES['table-completion']);
+    const stimulus = Object.values(fixture.stimuli)[0];
+    const duplicateAnchorId = stimulus.anchorIds[0];
+    const invalidFixture: ReadingV2Document = {
+      ...fixture,
+      stimuli: {
+        ...fixture.stimuli,
+        [stimulus.stimulusId]: {
+          ...stimulus,
+          anchorIds: [...stimulus.anchorIds, duplicateAnchorId],
+        },
+      },
+    };
+
+    expect(() => assertValidReadingV2CanonicalDocument(invalidFixture)).toThrow(
+      /references duplicate anchors/,
+    );
+  });
+
   it('rejects section references to missing stimuli before Studio can save broken drafts', () => {
     const fixture = cloneDocument(READING_V2_CANONICAL_FIXTURES['multiple-choice']);
     const sectionId = fixture.sectionIds[0];

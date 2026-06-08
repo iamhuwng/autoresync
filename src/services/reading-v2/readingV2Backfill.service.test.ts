@@ -8,6 +8,7 @@ import {
 import { materialCatalogIds } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
+import { generateReadingV2StudentSafeProjection } from './readingV2Projection.service';
 import {
   createReadingV2FullTestPassageBackfillWritePlan,
   planReadingV2FullTestPassageBackfill,
@@ -50,6 +51,20 @@ const ambiguousDocument = (): ReadingV2Document => {
   const sectionId = document.sectionIds[0];
   const stimulus = Object.values(document.stimuli)[0];
   const secondStimulusId = readingV2Ids.stimulusId('extra-stimulus');
+  const anchorPairs = stimulus.anchorIds.map((anchorId, index) => [
+    anchorId,
+    readingV2Ids.anchorId(`extra-stimulus-anchor-${index + 1}`),
+  ] as const);
+  const anchorIdMap = new Map(anchorPairs);
+  const remappedContent = stimulus.content.kind === 'passage-content'
+    ? {
+        ...stimulus.content,
+        paragraphs: stimulus.content.paragraphs.map((paragraph) => ({
+          ...paragraph,
+          anchorId: paragraph.anchorId ? anchorIdMap.get(paragraph.anchorId) ?? paragraph.anchorId : undefined,
+        })),
+      }
+    : stimulus.content;
 
   return {
     ...document,
@@ -65,7 +80,23 @@ const ambiguousDocument = (): ReadingV2Document => {
       [secondStimulusId]: {
         ...stimulus,
         stimulusId: secondStimulusId,
+        content: remappedContent,
+        anchorIds: anchorPairs.map(([, newAnchorId]) => newAnchorId),
       },
+    },
+    anchors: {
+      ...document.anchors,
+      ...Object.fromEntries(anchorPairs.map(([originalAnchorId, newAnchorId]) => {
+        const originalAnchor = document.anchors[originalAnchorId];
+        return [
+          newAnchorId,
+          {
+            ...originalAnchor,
+            anchorId: newAnchorId,
+            stimulusId: secondStimulusId,
+          },
+        ];
+      })),
     },
   };
 };
@@ -92,6 +123,58 @@ const missingVisibleCompletionPromptDocument = (): ReadingV2Document => {
     ...document,
     taskGroups,
     interactions,
+  };
+};
+
+const duplicateStimulusRegistryDocument = (): ReadingV2Document => {
+  const document = legacyDocument('Duplicate Stimulus Registry');
+  const stimulus = Object.values(document.stimuli)[0];
+  const anchorId = stimulus.anchorIds[0];
+
+  return {
+    ...document,
+    stimuli: {
+      ...document.stimuli,
+      [stimulus.stimulusId]: {
+        ...stimulus,
+        anchorIds: [...stimulus.anchorIds, anchorId],
+      },
+    },
+  };
+};
+
+const duplicateVisibleNumberDocument = (): ReadingV2Document => {
+  const document = legacyDocument('Duplicate Visible Number');
+  const interactionEntries = Object.entries(document.interactions);
+  const [firstInteractionId, firstInteraction] = interactionEntries[0];
+  const [secondInteractionId, secondInteraction] = interactionEntries[1];
+
+  return {
+    ...document,
+    interactions: {
+      ...document.interactions,
+      [firstInteractionId]: {
+        ...firstInteraction,
+        reviewLabel: { displayNumber: 9 },
+      },
+      [secondInteractionId]: {
+        ...secondInteraction,
+        reviewLabel: { displayNumber: 9 },
+      },
+    },
+  };
+};
+
+const missingAnchorDocument = (): ReadingV2Document => {
+  const document = legacyDocument('Missing Anchor');
+  const stimulus = Object.values(document.stimuli)[0];
+  const missingAnchorId = stimulus.anchorIds[0];
+  const anchors = { ...document.anchors };
+  delete anchors[missingAnchorId];
+
+  return {
+    ...document,
+    anchors,
   };
 };
 
@@ -209,7 +292,8 @@ describe('readingV2Backfill.service', () => {
       alreadyBackfilled: 0,
     });
     expect(report.rows[0]?.status).toBe('manual-review');
-    expect(report.rows[0]?.issues.map((issue) => issue.code)).toContain('publish-gate-blocked');
+    expect(report.rows[0]?.canonicalSafety.classification).toBe('unsafe-to-write');
+    expect(report.rows[0]?.issues.map((issue) => issue.code)).toContain('backfill-canonical-validation-blocked');
     expect(createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' })).toEqual([]);
   });
 
@@ -282,5 +366,118 @@ describe('readingV2Backfill.service', () => {
     expect(material.sourceFullTestId).toBe('full-test-public');
     expect(material.sourceSnapshotVersionId).toBe('public-not-shareable-snapshot');
     expect(composition.publishedVersionId).toBe('public-not-shareable-snapshot');
+  });
+
+  it('classifies deterministic duplicate stimulus registries as auto-repairable before extraction writes', () => {
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        fullTest('legacy-auto-repairable', {
+          document: duplicateStimulusRegistryDocument(),
+        }),
+      ],
+      now: NOW,
+    });
+    const row = report.rows[0];
+
+    expect(row.status).toBe('split-ready');
+    expect(row.canonicalSafety?.classification).toBe('auto-repairable');
+    expect(row.canonicalSafety?.issues.map((issue) => issue.code)).toContain('duplicate-stimulus-anchor-id');
+
+    const extractedStimulus = row.extraction?.passages[0]?.document.stimuli[
+      Object.keys(row.extraction.passages[0].document.stimuli)[0]
+    ];
+    expect(extractedStimulus?.anchorIds).toEqual([...new Set(extractedStimulus?.anchorIds)]);
+
+    const writes = createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' });
+    expect(writes.length).toBeGreaterThan(0);
+  });
+
+  it('routes duplicate visible numbers to manual review without writes', () => {
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        fullTest('legacy-duplicate-visible', {
+          document: duplicateVisibleNumberDocument(),
+        }),
+      ],
+      now: NOW,
+    });
+
+    expect(report.rows[0]?.status).toBe('manual-review');
+    expect(report.rows[0]?.passageCount).toBe(0);
+    expect(report.rows[0]?.canonicalSafety?.classification).toBe('manual-review-required');
+    expect(report.rows[0]?.canonicalSafety?.issues.map((issue) => issue.code)).toContain('duplicate-visible-number');
+    expect(createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' })).toEqual([]);
+  });
+
+  it('classifies missing anchor objects as unsafe-to-write and blocks derived passage writes', () => {
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        fullTest('legacy-missing-anchor', {
+          document: missingAnchorDocument(),
+        }),
+      ],
+      now: NOW,
+      onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
+    });
+
+    expect(report.rows[0]?.status).toBe('manual-review');
+    expect(report.rows[0]?.passageCount).toBe(0);
+    expect(report.rows[0]?.canonicalSafety?.classification).toBe('unsafe-to-write');
+    expect(report.rows[0]?.canonicalSafety?.issues.map((issue) => issue.code)).toContain('missing-stimulus-anchor');
+    expect(createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' })).toEqual([]);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'backfill_canonical_validation_blocked',
+        payload: expect.objectContaining({
+          outcome: 'blocked',
+          issueCode: 'missing-stimulus-anchor',
+          materialId: 'legacy-missing-anchor',
+          sourceTitleSlug: 'legacy-missing-anchor',
+        }),
+      }),
+    ]));
+  });
+
+  it('reports stored projection anchor mismatches during dry-run safety scan', () => {
+    const document = legacyDocument('Projection Mismatch');
+    const source = fullTest('legacy-projection-mismatch', { document });
+    const projection = generateReadingV2StudentSafeProjection({
+      snapshotVersionId: source.sourceSnapshotVersionId,
+      materialId: source.materialId,
+      ownerId: source.ownerId,
+      document,
+      publishedAt: NOW,
+      publishedBy: source.publishedBy,
+    }, NOW);
+    const mismatchedProjection = {
+      ...projection,
+      content: {
+        ...projection.content,
+        stimuli: projection.content.stimuli.map((stimulus, index) =>
+          index === 0
+            ? {
+                ...stimulus,
+                anchorIds: [...stimulus.anchorIds, 'projection-only-anchor'],
+              }
+            : stimulus,
+        ),
+      },
+    };
+
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        {
+          ...source,
+          studentSafeProjection: mismatchedProjection,
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(report.rows[0]?.status).toBe('manual-review');
+    expect(report.rows[0]?.canonicalSafety?.classification).toBe('unsafe-to-write');
+    expect(report.rows[0]?.canonicalSafety?.issues.map((issue) => issue.code)).toContain('projection-anchor-mismatch');
+    expect(createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' })).toEqual([]);
   });
 });

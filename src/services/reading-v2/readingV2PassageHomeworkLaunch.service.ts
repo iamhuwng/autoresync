@@ -162,31 +162,67 @@ const prefixResponseShape = (
   }
 };
 
-const prefixAnchorContent = <T,>(prefix: string, content: T): T => {
-  if (Array.isArray(content)) {
-    return content.map((item) => prefixAnchorContent(prefix, item)) as T;
+const prefixStimulusContent = (
+  prefix: string,
+  content: ReadingV2ProjectedStimulus['content'],
+): ReadingV2ProjectedStimulus['content'] => {
+  if (content.kind === 'passage-content') {
+    return {
+      ...content,
+      paragraphs: content.paragraphs.map((paragraph) => ({
+        ...paragraph,
+        ...(paragraph.anchorId ? { anchorId: prefixId(prefix, paragraph.anchorId) as typeof paragraph.anchorId } : {}),
+      })),
+    };
   }
 
-  if (!content || typeof content !== 'object') {
-    return content;
+  if (content.kind === 'table-content') {
+    return {
+      ...content,
+      rows: content.rows.map((row) =>
+        row.map((cell) => ({
+          ...cell,
+          ...(cell.anchorId ? { anchorId: prefixId(prefix, cell.anchorId) as typeof cell.anchorId } : {}),
+          ...(cell.anchorIds ? { anchorIds: prefixIds(prefix, cell.anchorIds) as unknown as typeof cell.anchorIds } : {}),
+          ...(cell.splitSourceCells
+            ? {
+                splitSourceCells: cell.splitSourceCells.map((sourceCell) => ({
+                  ...sourceCell,
+                  ...(sourceCell.anchorId
+                    ? { anchorId: prefixId(prefix, sourceCell.anchorId) as typeof sourceCell.anchorId }
+                    : {}),
+                  ...(sourceCell.anchorIds
+                    ? { anchorIds: prefixIds(prefix, sourceCell.anchorIds) as unknown as typeof sourceCell.anchorIds }
+                    : {}),
+                })),
+              }
+            : {}),
+        })),
+      ),
+    };
   }
 
-  const next: Record<string, unknown> = {};
-  Object.entries(content as Record<string, unknown>).forEach(([key, value]) => {
-    if (key === 'anchorId' && typeof value === 'string') {
-      next[key] = prefixId(prefix, value);
-      return;
-    }
+  if (content.kind === 'flowchart-content') {
+    return {
+      ...content,
+      steps: content.steps.map((step) => ({
+        ...step,
+        ...(step.anchorId ? { anchorId: prefixId(prefix, step.anchorId) as typeof step.anchorId } : {}),
+      })),
+    };
+  }
 
-    if (key === 'anchorIds' && Array.isArray(value)) {
-      next[key] = value.map((item) => (typeof item === 'string' ? prefixId(prefix, item) : item));
-      return;
-    }
+  if (content.kind === 'diagram-content') {
+    return {
+      ...content,
+      hotspots: content.hotspots.map((hotspot) => ({
+        ...hotspot,
+        anchorId: prefixId(prefix, hotspot.anchorId) as typeof hotspot.anchorId,
+      })),
+    };
+  }
 
-    next[key] = prefixAnchorContent(prefix, value);
-  });
-
-  return next as T;
+  return content;
 };
 
 const prefixInteraction = (
@@ -246,7 +282,7 @@ const prefixProjectionContent = (input: {
       ...stimulus,
       stimulusId: `${prefix}:${stimulus.stimulusId}`,
       anchorIds: stimulus.anchorIds.map((anchorId) => `${prefix}:${anchorId}`),
-      content: prefixAnchorContent(prefix, stimulus.content),
+      content: prefixStimulusContent(prefix, stimulus.content),
     })),
     anchors: input.projection.content.anchors.map((anchor): ReadingV2ProjectedAnchor => ({
       ...anchor,
