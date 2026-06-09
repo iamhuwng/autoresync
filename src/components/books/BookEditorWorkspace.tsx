@@ -1,9 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
+import { type ChangeEvent, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { get, ref, remove, set, update as updateDb } from 'firebase/database';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useAuth } from '../../hooks/useAuth';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { database } from '../../services/firebase';
+import r2StorageService from '../../services/r2Storage';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
 import {
   createMaterialBooksRepository,
@@ -110,6 +111,13 @@ type DeleteNodeRequest = {
 const SUPPORTED_BOOK_PICKER_KINDS = new Set(['full-test', 'reading-passage', 'thcs-thpt-test']);
 const EMPTY_BOOK_NODES: readonly MaterialBookNode[] = [];
 const SELECTED_CHILD_NODE_TYPES: readonly MaterialBookNodeType[] = ['section', 'chapter', 'test'];
+const BOOK_COVER_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
+const BOOK_COVER_MAX_BYTES = 5 * 1024 * 1024;
+
+type BookCoverUploadState = {
+  readonly status: 'idle' | 'uploading' | 'success' | 'error';
+  readonly message: string | null;
+};
 
 type ActionIconName =
   | 'arrow-up'
@@ -244,6 +252,20 @@ const splitCsv = (value: string): string[] =>
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
+
+const validateBookCoverFile = (file: File): string | null => {
+  if (!BOOK_COVER_ACCEPT.split(',').includes(file.type)) {
+    return 'Only JPEG, PNG, WebP, and GIF cover images are supported.';
+  }
+
+  if (file.size > BOOK_COVER_MAX_BYTES) {
+    return 'Book cover image must be 5MB or smaller.';
+  }
+
+  return null;
+};
+
+const getBookCoverObjectKey = (bookId: string): string => `book-covers/${bookId}/cover`;
 
 const classifyBookEditorError = (message: string | null, hasBook: boolean): {
   readonly title: string;
@@ -411,6 +433,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
 }, workspaceRef) => {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const mainRef = useRef<HTMLElement | null>(null);
   const initialNodeList = initialNodes ?? EMPTY_BOOK_NODES;
   const resolvedRepository = useMemo(() => repository ?? createFirebaseRepository(), [repository]);
   const [book, setBook] = useState<MaterialBookMetadata | null>(initialBook ?? null);
@@ -424,6 +447,10 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const [loading, setLoading] = useState(!initialBook && Boolean(bookId));
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [coverUploadState, setCoverUploadState] = useState<BookCoverUploadState>({
+    status: 'idle',
+    message: null,
+  });
   const [assignmentRequest, setAssignmentRequest] = useState<AssignmentRequest | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
   const [internalActiveTab, setInternalActiveTab] = useState<BookEditorTab>('content');
@@ -433,6 +460,15 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const [deleteNodeRequest, setDeleteNodeRequest] = useState<DeleteNodeRequest | null>(null);
   const errorState = classifyBookEditorError(error, Boolean(book));
   const isModalPresentation = presentation === 'modal';
+
+  useEffect(() => {
+    if (!mainRef.current) {
+      return;
+    }
+
+    mainRef.current.scrollTop = 0;
+    mainRef.current.scrollLeft = 0;
+  }, [effectiveActiveTab]);
 
   useEffect(() => {
     if (!bookId) {
@@ -687,6 +723,49 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
       ...current,
       [field]: value,
     }));
+  };
+
+  const handleBookCoverUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+
+    if (!file || !book) {
+      return;
+    }
+
+    const validationError = validateBookCoverFile(file);
+
+    if (validationError) {
+      setCoverUploadState({ status: 'error', message: validationError });
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+    setCoverUploadState({ status: 'uploading', message: 'Uploading Book cover to Cloudflare R2...' });
+
+    try {
+      const currentCoverKey = r2StorageService.getKeyFromUrl(metadataForm.coverUrl);
+      const result = await r2StorageService.uploadFileAtKey(
+        file,
+        currentCoverKey ?? getBookCoverObjectKey(book.bookId),
+      );
+      updateForm('coverUrl', result.url);
+      setCoverUploadState({
+        status: 'success',
+        message: 'Cover uploaded. Save the Book to keep this cover.',
+      });
+      trackAction('teacher_materials_book_cover_uploaded', {
+        bookId: book.bookId,
+        key: result.key,
+        source: 'book_editor_settings',
+      });
+    } catch (uploadError) {
+      setCoverUploadState({
+        status: 'error',
+        message: uploadError instanceof Error ? uploadError.message : 'Unable to upload Book cover.',
+      });
+    }
   };
 
   const updateActiveTab = (tab: BookEditorTab) => {
@@ -1159,10 +1238,6 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
           <input value={metadataForm.isbn} onChange={(event) => updateForm('isbn', event.target.value)} />
         </label>
         <label>
-          <span>Cover URL</span>
-          <input value={metadataForm.coverUrl} onChange={(event) => updateForm('coverUrl', event.target.value)} />
-        </label>
-        <label>
           <span>Tags</span>
           <input value={metadataForm.tags} onChange={(event) => updateForm('tags', event.target.value)} />
         </label>
@@ -1201,6 +1276,41 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
           <p>Use the modal header to request review. Save keeps the selected access state.</p>
         </div>
       </fieldset>
+
+      <section className="book-editor-page__cover-panel" aria-labelledby="book-editor-cover">
+        <div>
+          <h3 id="book-editor-cover">Book cover</h3>
+          <p>Upload a cover image to Cloudflare R2, then save the Book to persist it.</p>
+        </div>
+        <div className="book-editor-page__cover-body">
+          <div className="book-editor-page__cover-preview" aria-label="Current Book cover">
+            {metadataForm.coverUrl ? (
+              <img src={metadataForm.coverUrl} alt="Current Book cover" />
+            ) : (
+              <span>No cover</span>
+            )}
+          </div>
+          <div className="book-editor-page__cover-controls">
+            <label className="book-editor-page__cover-upload">
+              <span>Upload cover image</span>
+              <input
+                type="file"
+                accept={BOOK_COVER_ACCEPT}
+                onChange={(event) => void handleBookCoverUpload(event)}
+                disabled={coverUploadState.status === 'uploading'}
+              />
+            </label>
+            {coverUploadState.message && (
+              <p
+                className={`book-editor-page__cover-message book-editor-page__cover-message--${coverUploadState.status}`}
+                role={coverUploadState.status === 'error' ? 'alert' : 'status'}
+              >
+                {coverUploadState.message}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
 
       <section className="book-editor-page__maintenance-panel" aria-labelledby="book-editor-maintenance">
         <h3 id="book-editor-maintenance">Maintenance</h3>
@@ -1412,9 +1522,16 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
     );
   };
 
+  const workspaceClassName = [
+    'book-editor-page',
+    'book-editor-workspace',
+    `book-editor-workspace--${presentation}`,
+    `book-editor-workspace--tab-${effectiveActiveTab}`,
+  ].join(' ');
+
   return (
-    <div className={`book-editor-page book-editor-workspace book-editor-workspace--${presentation}`}>
-      <main className="book-editor-page__main">
+    <div className={workspaceClassName}>
+      <main ref={mainRef} className="book-editor-page__main">
         {presentation === 'page-compat' && (
           <section className="book-editor-page__hero" aria-labelledby="book-editor-title">
             <div className="book-editor-page__hero-copy">

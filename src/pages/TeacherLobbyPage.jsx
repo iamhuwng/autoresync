@@ -260,7 +260,6 @@ const TeacherLobbyPage = () => {
   const [bookError, setBookError] = useState(null);
   const [bookListVersion, setBookListVersion] = useState(0);
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
-  const [editingBook, setEditingBook] = useState(null);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
   const [bookEditorDirty, setBookEditorDirty] = useState(false);
@@ -826,7 +825,6 @@ const TeacherLobbyPage = () => {
   const handleOpenCreateBookModal = useCallback(() => {
     trackAction('openCreateBookModal', { source: 'teacher_lobby_book_tab' });
     trackAction('teacher_materials_book_create_opened', { source: 'teacher_lobby_book_tab' });
-    setEditingBook(null);
     setCreateBookModalOpen(true);
   }, [trackAction]);
 
@@ -845,7 +843,6 @@ const TeacherLobbyPage = () => {
 
   const handleCloseCreateBookModal = useCallback(() => {
     setCreateBookModalOpen(false);
-    setEditingBook(null);
   }, []);
 
   const bookValidationContext = useMemo(() => ({
@@ -1114,49 +1111,31 @@ const TeacherLobbyPage = () => {
       throw new Error('You must be signed in to create a Book.');
     }
 
-    if (editingBook) {
-      await updateBookMetadata(
-        editingBook.bookId || editingBook.id,
-        value,
-        materialBooksRepository,
-        bookValidationContext,
-      );
-      trackAction('editBookMetadata', {
-        bookId: editingBook.bookId || editingBook.id,
-        source: 'teacher_materials_book_modal',
-      });
-      trackAction('teacher_materials_book_updated', {
-        bookId: editingBook.bookId || editingBook.id,
-        source: 'teacher_materials_book_modal',
-      });
-    } else {
-      const createdBook = await createBookDraft(
-        {
-          ...value,
-          ownerId: user.uid,
-        },
-        materialBooksRepository,
-        bookValidationContext,
-      );
-      trackAction('createBook', {
-        source: 'teacher_materials_book_modal',
-        testTypeIds: value.testTypeIds,
-        visibility: value.visibility,
-      });
-      trackAction('teacher_materials_book_created', {
-        bookId: createdBook.bookId,
-        source: 'teacher_materials_book_modal',
-        testTypeCount: value.testTypeIds.length,
-        visibility: value.visibility,
-      });
-    }
+    const createdBook = await createBookDraft(
+      {
+        ...value,
+        ownerId: user.uid,
+      },
+      materialBooksRepository,
+      bookValidationContext,
+    );
+    trackAction('createBook', {
+      source: 'teacher_materials_book_modal',
+      testTypeIds: value.testTypeIds,
+      visibility: value.visibility,
+    });
+    trackAction('teacher_materials_book_created', {
+      bookId: createdBook.bookId,
+      source: 'teacher_materials_book_modal',
+      testTypeCount: value.testTypeIds.length,
+      visibility: value.visibility,
+    });
 
     setCreateBookModalOpen(false);
-    setEditingBook(null);
     setContentFilter('book');
     setBookScope(value.visibility === 'private' ? 'private' : 'public');
     setBookListVersion((version) => version + 1);
-  }, [bookValidationContext, editingBook, materialBooksRepository, trackAction, user?.uid]);
+  }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid]);
 
   const handleOpenBook = useCallback((book, launcher) => {
     const bookId = book?.bookId || book?.id;
@@ -1180,15 +1159,6 @@ const TeacherLobbyPage = () => {
     setBookEditorDirty(false);
     setBookEditorOpen(false);
   }, []);
-
-  const handleEditBookMetadata = useCallback((book) => {
-    trackAction('editBookMetadata', {
-      bookId: book?.bookId || book?.id,
-      source: 'teacher_materials_book_card',
-    });
-    setEditingBook(book);
-    setCreateBookModalOpen(true);
-  }, [trackAction]);
 
   const handleArchiveBook = useCallback(async (book) => {
     const bookId = book?.bookId || book?.id;
@@ -1383,17 +1353,6 @@ const TeacherLobbyPage = () => {
   }));
   const createLabel = contentFilter === 'book' ? 'Create New Book' : 'Create New Test';
   const showCreateButton = contentFilter !== 'reading-passage';
-  const editingBookModalValue = editingBook ? {
-    title: editingBook.title || '',
-    subtitle: editingBook.subtitle || '',
-    authors: editingBook.authors || [],
-    publisher: editingBook.publisher || '',
-    series: editingBook.series || '',
-    coverUrl: editingBook.coverUrl || '',
-    testTypeIds: editingBook.testTypeIds || [],
-    tags: editingBook.tags || [],
-    visibility: editingBook.visibility || 'private',
-  } : undefined;
 
   // ---------- Render ----------
   return (
@@ -1712,7 +1671,6 @@ const TeacherLobbyPage = () => {
                         emptyDescription={bookScope === 'public' ? 'No public Books match this view.' : 'Create a Book draft to start organizing materials.'}
                         canOpenBookEditor={teacherMaterialsCapabilities.canUseMaterialBookEditor}
                         onOpenBook={handleOpenBook}
-                        onEditMetadata={handleEditBookMetadata}
                         onArchiveBook={handleArchiveBook}
                       />
                     )
@@ -1830,9 +1788,8 @@ const TeacherLobbyPage = () => {
 
         <CreateBookModal
           opened={createBookModalOpen}
-          title={editingBook ? 'Edit Book Metadata' : 'Create Book'}
+          title="Create Book"
           testTypes={testTypeConfigs}
-          initialValue={editingBookModalValue}
           onClose={handleCloseCreateBookModal}
           onSave={handleSaveBook}
         />

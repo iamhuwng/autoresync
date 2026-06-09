@@ -41,7 +41,6 @@ describe('BookCardGrid', () => {
   it('shows metadata chips, tooltip title, and only allowed Book actions', async () => {
     const user = userEvent.setup();
     const onOpenBook = vi.fn();
-    const onEditMetadata = vi.fn();
     const onArchiveBook = vi.fn();
     const book = makeBook();
 
@@ -49,7 +48,6 @@ describe('BookCardGrid', () => {
       <BookCardGrid
         books={[book]}
         onOpenBook={onOpenBook}
-        onEditMetadata={onEditMetadata}
         onArchiveBook={onArchiveBook}
       />,
     );
@@ -64,28 +62,26 @@ describe('BookCardGrid', () => {
     expect(within(card).getByText('Private')).toBeInTheDocument();
     expect(within(card).getByText('draft-empty')).toBeInTheDocument();
 
-    expect(within(card).getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Start Test/i })).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Assign Homework/i })).not.toBeInTheDocument();
 
-    await user.click(within(card).getByRole('button', { name: 'Open Book' }));
-    await user.click(within(card).getByRole('button', { name: 'Edit metadata' }));
+    await user.click(within(card).getByRole('button', { name: 'Edit' }));
     await user.click(within(card).getByRole('button', { name: 'Archive' }));
 
     expect(onOpenBook).toHaveBeenCalledWith(book, expect.any(HTMLButtonElement));
-    expect(onEditMetadata).toHaveBeenCalledWith(book);
     expect(onArchiveBook).toHaveBeenCalledWith(book);
   });
 
-  it('disables Open Book when Book editor capability is unavailable', async () => {
+  it('disables Edit when Book editor capability is unavailable', async () => {
     const user = userEvent.setup();
     const onOpenBook = vi.fn();
 
     render(<BookCardGrid books={[makeBook()]} canOpenBookEditor={false} onOpenBook={onOpenBook} />);
 
-    const openButton = screen.getByRole('button', { name: 'Open Book' });
+    const openButton = screen.getByRole('button', { name: 'Edit' });
     expect(openButton).toBeDisabled();
     expect(openButton).toHaveAttribute('title', 'Book editor is not available');
 
@@ -97,8 +93,8 @@ describe('BookCardGrid', () => {
   it('hides owner-only Archive for non-owned public Books', () => {
     render(<BookCardGrid books={[makeBook({ isOwner: false, visibility: 'public-library-published' })]} />);
 
-    expect(screen.getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
   });
 

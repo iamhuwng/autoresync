@@ -41,7 +41,6 @@ const BookCard = ({
   book,
   canOpenBookEditor = true,
   onOpenBook,
-  onEditMetadata,
   onArchiveBook,
 }) => (
   <article className="book-card" data-testid={`book-card-${book.bookId || book.id}`}>
@@ -68,17 +67,10 @@ const BookCard = ({
         type="button"
         className="book-card__action book-card__action--primary"
         disabled={!canOpenBookEditor}
-        title={canOpenBookEditor ? 'Open Book' : 'Book editor is not available'}
+        title={canOpenBookEditor ? 'Edit Book' : 'Book editor is not available'}
         onClick={(event) => onOpenBook?.(book, event.currentTarget)}
       >
-        Open Book
-      </button>
-      <button
-        type="button"
-        className="book-card__action"
-        onClick={() => onEditMetadata?.(book)}
-      >
-        Edit metadata
+        Edit
       </button>
       {book.isOwner && (
         <button

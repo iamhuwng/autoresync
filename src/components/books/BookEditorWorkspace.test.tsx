@@ -12,6 +12,9 @@ import {
 const mocks = vi.hoisted(() => ({
   trackAction: vi.fn(),
   homeworkProps: [] as any[],
+  uploadFilePermanent: vi.fn(),
+  uploadFileAtKey: vi.fn(),
+  getKeyFromUrl: vi.fn(),
 }));
 
 const NOW = '2026-06-01T00:00:00.000Z';
@@ -38,6 +41,19 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('../../services/firebase', () => ({
   database: {},
+}));
+
+vi.mock('../../services/r2Storage', () => ({
+  default: {
+    uploadFilePermanent: (...args: any[]) => mocks.uploadFilePermanent(...args),
+    uploadFileAtKey: (...args: any[]) => mocks.uploadFileAtKey(...args),
+    getKeyFromUrl: (...args: any[]) => mocks.getKeyFromUrl(...args),
+  },
+  r2StorageService: {
+    uploadFilePermanent: (...args: any[]) => mocks.uploadFilePermanent(...args),
+    uploadFileAtKey: (...args: any[]) => mocks.uploadFileAtKey(...args),
+    getKeyFromUrl: (...args: any[]) => mocks.getKeyFromUrl(...args),
+  },
 }));
 
 vi.mock('../homework/HomeworkCreateModal', () => ({
@@ -113,6 +129,20 @@ describe('BookEditorWorkspace', () => {
   beforeEach(() => {
     mocks.trackAction.mockClear();
     mocks.homeworkProps.length = 0;
+    mocks.uploadFilePermanent.mockReset();
+    mocks.uploadFileAtKey.mockReset();
+    mocks.getKeyFromUrl.mockReset();
+    mocks.getKeyFromUrl.mockReturnValue(null);
+    mocks.uploadFilePermanent.mockResolvedValue({
+      url: 'https://pub.example/book-cover.jpg',
+      key: 'book-covers/book-123/cover.jpg',
+      isTemp: false,
+    });
+    mocks.uploadFileAtKey.mockResolvedValue({
+      url: 'https://pub.example/book-covers/book-123/cover',
+      key: 'book-covers/book-123/cover',
+      isTemp: false,
+    });
   });
 
   it('loads by bookId prop, omits modal chrome, and responds to external active-tab control', async () => {
@@ -288,12 +318,71 @@ describe('BookEditorWorkspace', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Book settings' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Book settings' }).closest('.book-editor-workspace')).toHaveClass(
+      'book-editor-workspace--tab-settings',
+    );
     expect(screen.getByRole('group', { name: 'Book access' })).toBeInTheDocument();
     expect(screen.getByLabelText('Visibility')).toBeInTheDocument();
     expect(screen.getByText('Public review')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Book cover' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Upload cover image')).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp,image/gif');
+    expect(screen.queryByLabelText('Cover URL')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Authors')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Publisher')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('ISBN')).not.toBeInTheDocument();
+  });
+
+  it('uploads Book cover to permanent Cloudflare R2 storage from Settings', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <BookEditorWorkspace
+        bookId="book-123"
+        initialBook={makeBook()}
+        initialNodes={[]}
+        materialCandidates={[]}
+        presentation="modal"
+        activeTab="settings"
+      />,
+    );
+
+    const file = new File(['cover'], 'cover.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('Upload cover image'), file);
+
+    await waitFor(() => {
+      expect(mocks.uploadFileAtKey).toHaveBeenCalledWith(file, 'book-covers/book-123/cover');
+    });
+    expect(screen.queryByLabelText('Cover URL')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Current Book cover' })).toHaveAttribute('src', 'https://pub.example/book-covers/book-123/cover');
+    expect(screen.getByText('Cover uploaded. Save the Book to keep this cover.')).toBeInTheDocument();
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_cover_uploaded', {
+      bookId: 'book-123',
+      key: 'book-covers/book-123/cover',
+      source: 'book_editor_settings',
+    });
+  });
+
+  it('overwrites the current R2 Book cover key when uploading a replacement', async () => {
+    const user = userEvent.setup();
+    mocks.getKeyFromUrl.mockReturnValue('book-covers/book-123/legacy-cover.png');
+
+    render(
+      <BookEditorWorkspace
+        bookId="book-123"
+        initialBook={makeBook({ coverUrl: 'https://pub.example/book-covers/book-123/legacy-cover.png' })}
+        initialNodes={[]}
+        materialCandidates={[]}
+        presentation="modal"
+        activeTab="settings"
+      />,
+    );
+
+    const file = new File(['cover'], 'replacement.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('Upload cover image'), file);
+
+    await waitFor(() => {
+      expect(mocks.uploadFileAtKey).toHaveBeenCalledWith(file, 'book-covers/book-123/legacy-cover.png');
+    });
   });
 
   it('calls onSaved after metadata and structure saves and reports dirty changes', async () => {

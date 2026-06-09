@@ -10,7 +10,7 @@ Defines the current Book editor shell, tab ownership, interaction boundaries, an
 
 ## Entry And Shell Contract
 
-- Normal `Open Book` stays on `/lobby` and opens `BookEditorModal`.
+- Normal `Edit` stays on `/lobby` and opens `BookEditorModal`.
 - `/teacher/materials/books/:bookId` is compatibility-only and redirects to `/lobby` with one-time modal-open state.
 - `BookEditorModal` owns title, status chips, `Save`, `Request review`, close, tab rail, focus containment, scroll lock, and dirty-close confirmation.
 - `BookEditorWorkspace` owns editor state and active body content. It receives `bookId` by prop, does not use `useParams()`, and does not render `TeacherHeader`.
@@ -23,7 +23,9 @@ The modal has exactly three tabs:
 
 - `Overview`: metadata, readiness, and statistics.
 - `Content`: Book structure, selected-node editing, material attachment, selected-material actions, and selected-material homework assignment.
-- `Settings`: visibility, access, public-review state, and maintenance controls.
+- `Settings`: visibility, access, public-review state, cover upload/storage, and maintenance controls.
+
+Book cover uploads use the stable R2 object key `book-covers/{bookId}/cover`; replacing the cover overwrites the previous object instead of showing or editing raw storage URLs in the modal.
 
 Retired:
 

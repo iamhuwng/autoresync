@@ -793,14 +793,14 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('tab', { name: 'Book' }));
     const card = await screen.findByTestId('book-card-book-action');
 
-    expect(within(card).getByRole('button', { name: 'Open Book' })).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Edit metadata' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Start Test/i })).not.toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Assign Homework/i })).not.toBeInTheDocument();
     expect(mocks.listBookNodes).not.toHaveBeenCalled();
 
-    await user.click(within(card).getByRole('button', { name: 'Open Book' }));
+    await user.click(within(card).getByRole('button', { name: 'Edit' }));
 
     expect(mocks.navigateTo).not.toHaveBeenCalledWith(
       'TEACHER_MATERIAL_BOOK',
@@ -877,7 +877,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Book' }));
     const card = await screen.findByTestId('book-card-book-disabled');
-    const openButton = within(card).getByRole('button', { name: 'Open Book' });
+    const openButton = within(card).getByRole('button', { name: 'Edit' });
 
     expect(openButton).toBeDisabled();
     expect(openButton).toHaveAttribute('title', 'Book editor is not available');

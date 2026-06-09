@@ -111,7 +111,7 @@ describe('BookEditorModal', () => {
 
       return (
         <>
-          <button ref={setLauncher} type="button" data-testid="launcher">Open Book</button>
+          <button ref={setLauncher} type="button" data-testid="launcher">Edit</button>
           <BookEditorModal
             opened
             bookId="book-123"

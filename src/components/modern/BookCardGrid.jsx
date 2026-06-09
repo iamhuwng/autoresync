@@ -44,7 +44,6 @@ const BookCardGrid = ({
   emptyDescription = 'Books will appear here.',
   canOpenBookEditor = true,
   onOpenBook,
-  onEditMetadata,
   onArchiveBook,
 }) => {
   if (books.length === 0) {
@@ -64,7 +63,6 @@ const BookCardGrid = ({
           book={book}
           canOpenBookEditor={canOpenBookEditor}
           onOpenBook={onOpenBook}
-          onEditMetadata={onEditMetadata}
           onArchiveBook={onArchiveBook}
         />
       ))}

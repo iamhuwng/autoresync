@@ -152,7 +152,7 @@ describe('BookEditorPage', () => {
     expect(screen.getByLabelText('Edition')).toHaveValue('1');
     expect(screen.getByLabelText('Series')).toHaveValue('Core');
     expect(screen.getByLabelText('ISBN')).toHaveValue('9780000000000');
-    expect(screen.getByLabelText('Cover URL')).toHaveValue('https://example.test/cover.jpg');
+    expect(screen.queryByLabelText('Cover URL')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Tags')).toHaveValue('reading');
     expect(screen.getByLabelText('Test Type ids')).toHaveValue('ielts');
   });
