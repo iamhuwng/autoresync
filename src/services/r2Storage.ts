@@ -221,10 +221,11 @@ class R2StorageService {
      * Useful when you have the URL but need the key for moving
      */
     getKeyFromUrl(url: string): string | null {
-        if (!url.includes(PUBLIC_URL)) {
+        const publicPrefix = `${PUBLIC_URL}/`;
+        if (!url.startsWith(publicPrefix)) {
             return null;
         }
-        return url.replace(`${PUBLIC_URL}/`, '');
+        return url.slice(publicPrefix.length).split(/[?#]/, 1)[0] || null;
     }
 
     /**
@@ -260,6 +261,22 @@ class R2StorageService {
     }
 
     /**
+     * Replace an existing R2 audio object in place when possible.
+     * First uploads continue through the normal temp upload flow.
+     */
+    async uploadAudioReplacement(
+        file: File,
+        currentUrl?: string | null,
+        folderName: string = 'audio',
+        onProgress?: UploadProgress
+    ): Promise<UploadResult> {
+        const existingKey = currentUrl ? this.getKeyFromUrl(currentUrl) : null;
+        return existingKey
+            ? this.uploadFileAtKey(file, existingKey, onProgress)
+            : this.uploadAudio(file, folderName, onProgress);
+    }
+
+    /**
      * Upload image file to R2 (temp folder)
      * Compatible with googleDriveService.uploadImage interface
      * NOTE: This is for TEST CREATION images that need temp → permanent flow
@@ -269,6 +286,21 @@ class R2StorageService {
         folderName: string = 'images'
     ): Promise<UploadResult> {
         return this.uploadFile(file, folderName);
+    }
+
+    /**
+     * Replace an existing R2 image in place when possible.
+     * External URLs and first uploads continue through the normal temp upload flow.
+     */
+    async uploadImageReplacement(
+        file: File,
+        currentUrl?: string | null,
+        folderName: string = 'images'
+    ): Promise<UploadResult> {
+        const existingKey = currentUrl ? this.getKeyFromUrl(currentUrl) : null;
+        return existingKey
+            ? this.uploadFileAtKey(file, existingKey)
+            : this.uploadImage(file, folderName);
     }
 
     /**
@@ -288,10 +320,21 @@ class R2StorageService {
     ): Promise<UploadResult> {
         // Upload directly to permanent location (no temp/ prefix)
         const filename = `${folder}/${Date.now()}-${file.name}`;
+        return this.uploadFileAtKey(file, filename, onProgress);
+    }
 
+    /**
+     * Upload file directly to an exact permanent key.
+     * Reusing the same key overwrites the previous R2 object and prevents orphan files.
+     */
+    async uploadFileAtKey(
+        file: File,
+        keyName: string,
+        onProgress?: UploadProgress
+    ): Promise<UploadResult> {
         try {
             console.log('📤 Requesting upload URL for permanent storage...');
-            const signResponse = await fetch(`${WORKER_URL}?filename=${encodeURIComponent(filename)}`, {
+            const signResponse = await fetch(`${WORKER_URL}?filename=${encodeURIComponent(keyName)}`, {
                 method: 'POST',
             });
 
@@ -334,7 +377,7 @@ class R2StorageService {
 
             await uploadPromise;
 
-            const publicUrl = `${PUBLIC_URL}/${key}`;
+            const publicUrl = `${PUBLIC_URL}/${key}?v=${Date.now()}`;
             console.log('✅ Upload complete (permanent):', publicUrl);
 
             return {
@@ -358,10 +401,19 @@ class R2StorageService {
      */
     async uploadAvatar(
         file: File,
-        userId?: string
+        userId?: string,
+        currentUrl?: string | null
     ): Promise<UploadResult> {
-        const folder = userId ? `avatars/${userId}` : 'avatars';
-        return this.uploadFilePermanent(file, folder);
+        const existingKey = currentUrl ? this.getKeyFromUrl(currentUrl) : null;
+        if (existingKey) {
+            return this.uploadFileAtKey(file, existingKey);
+        }
+
+        if (userId) {
+            return this.uploadFileAtKey(file, `avatars/${userId}/avatar`);
+        }
+
+        return this.uploadFilePermanent(file, 'avatars');
     }
 
     /**
@@ -392,4 +444,3 @@ const r2StorageService = new R2StorageService();
 export default r2StorageService;
 export { R2StorageService };
 export type { UploadResult, UploadProgress, MoveResult };
-

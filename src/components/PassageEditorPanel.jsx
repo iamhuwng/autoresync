@@ -109,7 +109,9 @@ const PassageEditorPanel = ({
     setUploadError(null);
 
     try {
-      const imageData = await r2StorageService.uploadImage(file);
+      const imageData = passage.type === 'image'
+        ? await r2StorageService.uploadImageReplacement(file, passage.imageUrl)
+        : await r2StorageService.uploadImage(file);
       console.log('✅ Image uploaded to R2:', imageData.url);
 
       if (passage.type === 'image') {

@@ -196,8 +196,9 @@ const ListeningTestBuilder: React.FC = () => {
     try {
       console.log(`📤 Uploading audio for Section ${sectionNumber} to R2...`);
 
-      const result = await r2StorageService.uploadAudio(
+      const result = await r2StorageService.uploadAudioReplacement(
         file,
+        metadata.sections.find((section) => section.number === sectionNumber)?.audioUrl,
         'listening-audio',
         (percent: number, bytesUploaded: number, totalBytes: number) => {
           // Update progress

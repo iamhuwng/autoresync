@@ -519,7 +519,7 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ taskNumber, task, onChange, taskT
         setUploading(true);
         setImgError('');
         try {
-            const result = await r2StorageService.uploadImage(file);
+            const result = await r2StorageService.uploadImageReplacement(file, task.promptImageUrl);
             onChange({ ...task, promptImageUrl: result.url, _imageKey: result.key });
         } catch {
             setImgError('Upload failed. Please try again.');

@@ -67,7 +67,7 @@ export default function WritingTaskPanel({ taskNumber, task, onChange }: Writing
 
         setUploading(true);
         try {
-            const result = await r2StorageService.uploadImage(file, 'images');
+            const result = await r2StorageService.uploadImageReplacement(file, task.promptImageUrl, 'images');
             onChange({ ...task, promptImageUrl: result.url, _imageKey: result.key });
         } catch (err) {
             console.error('Image upload failed:', err);
