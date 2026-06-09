@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readingV2Ids } from '../../types/readingV2.types';
+import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.types';
 import { materialCatalogIds } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
@@ -20,6 +20,73 @@ import {
   READING_V2_STRUCTURED_MATERIALS_START,
 } from './readingV2ExternalAiPrompt.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
+
+const withSectionTitleAndNumbers = (
+  document: ReadingV2Document,
+  sectionTitle: string,
+  reviewNumbers: readonly number[],
+): ReadingV2Document => {
+  const sectionId = document.sectionIds[0];
+
+  if (!sectionId) {
+    throw new Error('Fixture document missing section.');
+  }
+
+  return {
+    ...document,
+    sections: {
+      ...document.sections,
+      [sectionId]: {
+        ...document.sections[sectionId],
+        title: sectionTitle,
+      },
+    },
+    interactions: Object.fromEntries(
+      Object.entries(document.interactions).map(([interactionId, interaction], index) => [
+        interactionId,
+        {
+          ...interaction,
+          reviewLabel: {
+            ...interaction.reviewLabel,
+            displayNumber: reviewNumbers[index],
+          },
+        },
+      ]),
+    ),
+  };
+};
+
+const threePassageAutoV4Document = (): ReadingV2Document => {
+  const first = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('sentence-completion'),
+    'Reading Passage 1',
+    [1, 13],
+  );
+  const second = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('true-false-not-given'),
+    'Reading Passage 2',
+    [14, 26],
+  );
+  const third = withSectionTitleAndNumbers(
+    createReadingV2CanonicalFixture('table-completion'),
+    'Reading Passage 3',
+    [27, 40],
+  );
+
+  return {
+    ...first,
+    documentId: readingV2Ids.documentId('doc-auto-v4-three-passages'),
+    title: 'IELTS Cambridge 20 - Test 1: Reading',
+    sectionIds: [...first.sectionIds, ...second.sectionIds, ...third.sectionIds],
+    sections: { ...first.sections, ...second.sections, ...third.sections },
+    stimuli: { ...first.stimuli, ...second.stimuli, ...third.stimuli },
+    anchors: { ...first.anchors, ...second.anchors, ...third.anchors },
+    taskGroups: { ...first.taskGroups, ...second.taskGroups, ...third.taskGroups },
+    interactions: { ...first.interactions, ...second.interactions, ...third.interactions },
+    optionSets: { ...first.optionSets, ...second.optionSets, ...third.optionSets },
+    validationState: { issues: [] },
+  };
+};
 
 describe('readingV2StudioWorkflow.service', () => {
   it('resolves create mode into a persisted editable draft context', () => {
@@ -640,6 +707,100 @@ describe('readingV2StudioWorkflow.service', () => {
           order: 1,
         }),
       ],
+    });
+  });
+
+  it('publishes Auto V4 full-test drafts with three generated Reading Passage entities and composition refs', async () => {
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: 'studio-workflow-auto-v4-publish',
+      materialId: 'studio-workflow-auto-v4-material',
+      ownerId: 'teacher-auto-v4',
+      initialMetadata: {
+        title: 'IELTS Cambridge 20 - Test 1: Reading',
+        ownerId: 'teacher-auto-v4',
+        materialKind: 'full-test',
+        visibility: 'private',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        rawText: [
+          '## Reading Passage 1',
+          'Auto V4 source passage one.',
+          '#### Questions 1-13',
+          '**1** answer one',
+          '## Reading Passage 2',
+          'Auto V4 source passage two.',
+          '#### Questions 14-26',
+          '**14** answer fourteen',
+          '## Reading Passage 3',
+          'Auto V4 source passage three.',
+          '#### Questions 27-40',
+          '**27** answer twenty seven',
+        ].join('\n'),
+        answerKeyText: '1 one\n14 fourteen\n27 twenty seven',
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+    const snapshot = {
+      draftId: context.draftId,
+      materialId: context.materialId,
+      document: threePassageAutoV4Document(),
+      metadata: {
+        ...context.metadata,
+        title: 'IELTS Cambridge 20 - Test 1: Reading',
+        materialKind: 'full-test' as const,
+        visibility: 'private' as const,
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      revisionToken: context.revisionToken,
+      returnContext: 'teacher-lobby',
+    };
+    const commitAdapter = vi.fn(async (commitPlan) => ({
+      commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
+      operationKeys: commitPlan.operations.map((operation) => operation.operationKey),
+      updates: {},
+      status: 'committed' as const,
+    }));
+
+    await publishReadingV2StudioDraft(snapshot, commitAdapter);
+    const commitPlan = commitAdapter.mock.calls[0]?.[0];
+    const storageWrites = commitPlan?.operations
+      .filter((operation) => operation.kind === 'storage-write')
+      ?? [];
+    const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
+    const passageIds = [1, 2, 3].map((order) => `studio-workflow-auto-v4-material-passage-${order}`);
+    const compositionPath = Object.keys(byPath).find((path) =>
+      path.startsWith('reading_v2/full_test_compositions/'),
+    );
+
+    expect(context.mode).toBe('create-from-auto');
+    expect(commitAdapter).toHaveBeenCalledOnce();
+    expect(passageIds.map((passageId) => byPath[readingV2StoragePaths.readingPassageMaterials(passageId)])).toEqual([
+      expect.objectContaining({ passageMaterialId: passageIds[0], sourceFullTestId: context.materialId, state: 'published' }),
+      expect.objectContaining({ passageMaterialId: passageIds[1], sourceFullTestId: context.materialId, state: 'published' }),
+      expect.objectContaining({ passageMaterialId: passageIds[2], sourceFullTestId: context.materialId, state: 'published' }),
+    ]);
+    expect(passageIds.map((passageId) => byPath[`material_catalog/material_indexes/by_owner/teacher-auto-v4/${passageId}`])).toEqual([
+      expect.objectContaining({ materialId: passageIds[0], materialKind: 'reading-passage', visibility: 'private' }),
+      expect.objectContaining({ materialId: passageIds[1], materialKind: 'reading-passage', visibility: 'private' }),
+      expect.objectContaining({ materialId: passageIds[2], materialKind: 'reading-passage', visibility: 'private' }),
+    ]);
+    expect(byPath[compositionPath!]).toMatchObject({
+      testMaterialId: context.materialId,
+      passageRefs: passageIds.map((passageMaterialId, index) =>
+        expect.objectContaining({
+          passageMaterialId,
+          order: index + 1,
+        }),
+      ),
     });
   });
 
