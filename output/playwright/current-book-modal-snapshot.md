@@ -1,0 +1,137 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - heading "Materials" [level=1] [ref=e7]
+    - generic [ref=e9]:
+      - button "Materials" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: Materials
+      - generic [ref=e13]:
+        - button "Students" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]: Students
+        - button "Classes" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]: Classes
+        - button "Courses" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: Courses
+        - button "Homework" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: Homework
+        - button "Grading" [ref=e22] [cursor=pointer]:
+          - generic [ref=e23]: Grading
+      - button "Sessions" [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: Sessions
+      - generic [ref=e28]:
+        - button "Notifications" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+        - button "Open profile menu" [ref=e37] [cursor=pointer]:
+          - img "Teacher Test" [ref=e39]
+          - generic [ref=e40]: Teacher Test
+  - main [ref=e41]:
+    - generic [ref=e42]:
+      - generic [ref=e43]:
+        - heading "Test Dashboard" [level=1] [ref=e44]
+        - generic [ref=e45]:
+          - paragraph [ref=e46]: Manage your tests and start formal assessment sessions
+          - navigation "Material content filters" [ref=e47]:
+            - button "My Content" [ref=e48] [cursor=pointer]:
+              - generic [ref=e49]: My Content
+            - button "Public Library" [ref=e50] [cursor=pointer]:
+              - generic [ref=e51]: Public Library
+            - button "Drafts" [ref=e52] [cursor=pointer]:
+              - generic [ref=e53]: Drafts
+            - button "Reading Passage" [ref=e54] [cursor=pointer]:
+              - generic [ref=e55]: Reading Passage
+            - button "Book" [ref=e56] [cursor=pointer]:
+              - generic [ref=e57]: Book
+      - generic [ref=e60]:
+        - generic [ref=e63]:
+          - generic:
+            - img
+          - textbox "Search by title or keyword..." [ref=e64]
+        - button "Create New Book" [ref=e732] [cursor=pointer]:
+          - generic [ref=e66]:
+            - img [ref=e67]
+            - text: Create New Book
+      - region "Test Type filters" [ref=e69]:
+        - article [ref=e70]:
+          - button "Filter materials by IELTS" [ref=e71] [cursor=pointer]:
+            - img "IELTS logo" [ref=e73]
+          - button "Edit pinned Test Types" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+        - article [ref=e78]:
+          - button "Filter materials by TOEIC" [ref=e79] [cursor=pointer]:
+            - img "TOEIC logo" [ref=e81]
+          - button "Edit pinned Test Types" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+        - article [ref=e86]:
+          - button "Filter materials by TOEFL" [ref=e87] [cursor=pointer]:
+            - img "TOEFL logo" [ref=e89]
+          - button "Edit pinned Test Types" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+        - article [ref=e94]:
+          - button "Filter materials by THCS" [ref=e95] [cursor=pointer]:
+            - img "THCS logo" [ref=e97]
+          - button "Edit pinned Test Types" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+      - group "Book visibility" [ref=e734]:
+        - button "Private" [pressed] [ref=e735] [cursor=pointer]
+        - button "Public" [ref=e736] [cursor=pointer]
+      - region "Book grid" [ref=e737]:
+        - article [ref=e738]:
+          - generic "Generated cover for Testing Book" [ref=e740]:
+            - generic [ref=e741]: IELTS
+            - generic [ref=e742]: Testing Book
+          - generic [ref=e743]:
+            - generic "Testing Book" [ref=e744]
+            - generic "Test" [ref=e745]
+            - generic "Testing Book metadata" [ref=e746]:
+              - generic [ref=e747]: IELTS
+              - generic [ref=e748]: Private
+              - generic [ref=e749]: draft-empty
+          - generic "Testing Book actions" [ref=e750]:
+            - button "Open Book" [ref=e751] [cursor=pointer]
+            - button "Edit metadata" [ref=e752] [cursor=pointer]
+            - button "Archive" [ref=e753] [cursor=pointer]
+  - dialog "Testing Book" [active] [ref=e755]:
+    - banner [ref=e756]:
+      - generic [ref=e757]:
+        - heading "Testing Book" [level=2] [ref=e758]
+        - generic "Book editor status" [ref=e759]:
+          - generic [ref=e760]: draft-empty
+          - generic [ref=e761]: private
+          - generic [ref=e762]: ielts
+      - generic [ref=e763]:
+        - button "Save" [ref=e764] [cursor=pointer]:
+          - img [ref=e765]
+          - text: Save
+        - button "Request review" [ref=e769] [cursor=pointer]
+        - button "Close Book editor" [ref=e770] [cursor=pointer]:
+          - img [ref=e771]
+    - tablist "Book editor tabs" [ref=e774]:
+      - tab "Overview" [ref=e775] [cursor=pointer]:
+        - img [ref=e776]
+        - generic [ref=e779]: Overview
+      - tab "Content" [selected] [ref=e780] [cursor=pointer]:
+        - img [ref=e781]
+        - generic [ref=e785]: Content
+      - tab "Settings" [ref=e786] [cursor=pointer]:
+        - img [ref=e787]
+        - generic [ref=e790]: Settings
+    - main [ref=e793]:
+      - generic [ref=e794]:
+        - region "Book structure tree" [ref=e795]:
+          - generic [ref=e796]:
+            - generic [ref=e797]:
+              - heading "Book content" [level=2] [ref=e798]
+              - paragraph [ref=e799]: Build structure on the left. Inspect and attach selected items on the right.
+            - button "Save Book Structure" [ref=e800] [cursor=pointer]
+          - region "Book outline" [ref=e801]:
+            - generic [ref=e802]:
+              - generic [ref=e803]
+              - generic [ref=e806]
+            - generic [ref=e813]:
+              - strong [ref=e814]: Book needs content
+              - generic [ref=e815]: Add a section, then attach published materials from the section picker.
+        - complementary "Selected item details" [ref=e816]:
+          - generic [ref=e817]:
+            - heading "Selected item details" [level=2] [ref=e818]
+            - generic [ref=e819]: None
+          - paragraph [ref=e820]: Add or select a Book part in Content to inspect, attach, or assign materials.
+          - paragraph [ref=e821]: Whole-Book assignment is not available in V1. Assign selected referenced materials instead.

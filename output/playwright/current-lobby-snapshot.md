@@ -1,0 +1,34 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - heading "Materials" [level=1] [ref=e7]
+    - generic [ref=e9]:
+      - button "Materials" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: Materials
+      - generic [ref=e13]:
+        - button "Students" [ref=e14] [cursor=pointer]
+        - button "Classes" [ref=e16] [cursor=pointer]
+        - button "Courses" [ref=e18] [cursor=pointer]
+        - button "Homework" [ref=e20] [cursor=pointer]
+        - button "Grading" [ref=e22] [cursor=pointer]
+      - button "Sessions" [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: Sessions
+      - generic [ref=e28]:
+        - button "Notifications" [ref=e32] [cursor=pointer]
+        - button "Open profile menu" [ref=e37] [cursor=pointer]
+  - main [ref=e41]:
+    - generic [ref=e42]:
+      - generic [ref=e43]:
+        - heading "Test Dashboard" [level=1] [ref=e44]
+        - generic [ref=e45]
+      - generic [ref=e60]:
+        - generic [ref=e63]
+        - button "Create New Test" [ref=e65] [cursor=pointer]
+      - region "Test Type filters" [ref=e69]:
+        - article [ref=e70]
+        - article [ref=e78]
+        - article [ref=e86]
+        - article [ref=e94]
+      - region "Materials list view" [ref=e102]:
+        - row "Material Items Updated Actions" [ref=e103]
+        - generic [ref=e108]
+        - generic [ref=e731]: Showing 1 to 18 of 18 tests

@@ -1,0 +1,293 @@
+{
+  "sourceName": "Practice Cam 10 Reading Test 01",
+  "sourcePath": "C:/Users/The Lord/Desktop/luyentap/Clippings/Practice Cam 10 Reading Test 01.md",
+  "passages": [
+    {
+      "passage": 1,
+      "title": "Stepwells",
+      "sourceLines": "53-136",
+      "questionRange": "1-13"
+    },
+    {
+      "passage": 2,
+      "title": "EUROPEAN TRANSPORT SYSTEMS 1990-2010",
+      "sourceLines": "137-256",
+      "questionRange": "14-26"
+    },
+    {
+      "passage": 3,
+      "title": "The psychology of innovation",
+      "sourceLines": "257-386",
+      "questionRange": "27-40"
+    }
+  ],
+  "groups": [
+    {
+      "passage": 1,
+      "range": "1-5",
+      "start": 1,
+      "end": 5,
+      "taskType": "true-false-not-given",
+      "sourceLines": "85-105"
+    },
+    {
+      "passage": 1,
+      "range": "6-8",
+      "start": 6,
+      "end": 8,
+      "taskType": "short-answer",
+      "answerRule": "ONE WORD ONLY",
+      "sourceLines": "107-119"
+    },
+    {
+      "passage": 1,
+      "range": "9-13",
+      "start": 9,
+      "end": 13,
+      "taskType": "table-completion",
+      "answerRule": "ONE WORD AND/OR A NUMBER",
+      "sourceLines": "121-135"
+    },
+    {
+      "passage": 2,
+      "range": "14-21",
+      "start": 14,
+      "end": 21,
+      "taskType": "matching-headings",
+      "answerRule": "i-xi headings",
+      "sourceLines": "181-231"
+    },
+    {
+      "passage": 2,
+      "range": "22-26",
+      "start": 22,
+      "end": 26,
+      "taskType": "true-false-not-given",
+      "sourceLines": "233-255"
+    },
+    {
+      "passage": 3,
+      "range": "27-30",
+      "start": 27,
+      "end": 30,
+      "taskType": "multiple-choice",
+      "answerRule": "A-D per question",
+      "sourceLines": "287-331"
+    },
+    {
+      "passage": 3,
+      "range": "31-35",
+      "start": 31,
+      "end": 35,
+      "taskType": "matching-sentence-endings",
+      "answerRule": "A-G endings list",
+      "sourceLines": "333-361"
+    },
+    {
+      "passage": 3,
+      "range": "36-40",
+      "start": 36,
+      "end": 40,
+      "taskType": "yes-no-not-given",
+      "sourceLines": "363-385"
+    }
+  ],
+  "structuredLayouts": [
+    {
+      "kind": "table",
+      "passage": 1,
+      "range": "9-13",
+      "rowCount": 6,
+      "columnCount": 4,
+      "blanks": [
+        {
+          "question": 9,
+          "row": 2,
+          "column": 4
+        },
+        {
+          "question": 10,
+          "row": 3,
+          "column": 3
+        },
+        {
+          "question": 11,
+          "row": 3,
+          "column": 4
+        },
+        {
+          "question": 12,
+          "row": 5,
+          "column": 4
+        },
+        {
+          "question": 13,
+          "row": 6,
+          "column": 3
+        }
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "question": 1,
+      "answer": "FALSE"
+    },
+    {
+      "question": 2,
+      "answer": "TRUE"
+    },
+    {
+      "question": 3,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 4,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 5,
+      "answer": "TRUE"
+    },
+    {
+      "question": 6,
+      "answer": "pavilions"
+    },
+    {
+      "question": 7,
+      "answer": "drought"
+    },
+    {
+      "question": 8,
+      "answer": "tourists"
+    },
+    {
+      "question": 9,
+      "answer": "Earthquake"
+    },
+    {
+      "question": 10,
+      "answer": "Four sides/ 4 sides"
+    },
+    {
+      "question": 11,
+      "answer": "Tank"
+    },
+    {
+      "question": 12,
+      "answer": "verandas/ verandahs"
+    },
+    {
+      "question": 13,
+      "answer": "underwater"
+    },
+    {
+      "question": 14,
+      "answer": "viii"
+    },
+    {
+      "question": 15,
+      "answer": "iii"
+    },
+    {
+      "question": 16,
+      "answer": "xi"
+    },
+    {
+      "question": 17,
+      "answer": "i"
+    },
+    {
+      "question": 18,
+      "answer": "v"
+    },
+    {
+      "question": 19,
+      "answer": "x"
+    },
+    {
+      "question": 20,
+      "answer": "ii"
+    },
+    {
+      "question": 21,
+      "answer": "iv"
+    },
+    {
+      "question": 22,
+      "answer": "TRUE"
+    },
+    {
+      "question": 23,
+      "answer": "FALSE"
+    },
+    {
+      "question": 24,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 25,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 26,
+      "answer": "FALSE"
+    },
+    {
+      "question": 27,
+      "answer": "C"
+    },
+    {
+      "question": 28,
+      "answer": "A"
+    },
+    {
+      "question": 29,
+      "answer": "D"
+    },
+    {
+      "question": 30,
+      "answer": "B"
+    },
+    {
+      "question": 31,
+      "answer": "G"
+    },
+    {
+      "question": 32,
+      "answer": "E"
+    },
+    {
+      "question": 33,
+      "answer": "A"
+    },
+    {
+      "question": 34,
+      "answer": "F"
+    },
+    {
+      "question": 35,
+      "answer": "B"
+    },
+    {
+      "question": 36,
+      "answer": "NO"
+    },
+    {
+      "question": 37,
+      "answer": "YES"
+    },
+    {
+      "question": 38,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 39,
+      "answer": "NOT GIVEN"
+    },
+    {
+      "question": 40,
+      "answer": "NO"
+    }
+  ]
+}

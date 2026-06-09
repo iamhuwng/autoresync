@@ -1,0 +1,653 @@
+{
+  "generatedAt": "2026-06-07T01:33:38.158Z",
+  "verdict": "blocked",
+  "source": {
+    "path": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 10 Reading Test 01.md",
+    "byteLength": 26872,
+    "charLength": 26656,
+    "lineCount": 473,
+    "sha256": "c3065bd4a754630fabbb1105602a7e166df96a459fb147de394feb70cf12c81b",
+    "fullTextIncluded": false
+  },
+  "method": {
+    "goldParse": [
+      "Read source frontmatter and passage/question headings.",
+      "Used source line coordinates for passage and group boundaries.",
+      "Classified task groups by explicit instruction text and option banks.",
+      "Compared structured table shape and blank coordinates when the gold baseline defines them.",
+      "Copied answer-key values from visible answer section only.",
+      "Compared app output by coverage, task group shape, answer-key binding, diagnostics, and publish safety."
+    ],
+    "appParse": "Live Auto V4 provider path via generateReadingV2AutoImportCandidate."
+  },
+  "gold": {
+    "sourceName": "Practice Cam 10 Reading Test 01",
+    "sourcePath": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 10 Reading Test 01.md",
+    "passages": [
+      {
+        "passage": 1,
+        "title": "Stepwells",
+        "sourceLines": "53-136",
+        "questionRange": "1-13"
+      },
+      {
+        "passage": 2,
+        "title": "EUROPEAN TRANSPORT SYSTEMS 1990-2010",
+        "sourceLines": "137-256",
+        "questionRange": "14-26"
+      },
+      {
+        "passage": 3,
+        "title": "The psychology of innovation",
+        "sourceLines": "257-384",
+        "questionRange": "27-40"
+      }
+    ],
+    "groups": [
+      {
+        "passage": 1,
+        "range": "1-5",
+        "start": 1,
+        "end": 5,
+        "taskType": "true-false-not-given",
+        "sourceLines": "85-105"
+      },
+      {
+        "passage": 1,
+        "range": "6-8",
+        "start": 6,
+        "end": 8,
+        "taskType": "short-answer",
+        "answerRule": "ONE WORD ONLY",
+        "sourceLines": "107-119"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "start": 9,
+        "end": 13,
+        "taskType": "table-completion",
+        "answerRule": "ONE WORD AND/OR A NUMBER",
+        "sourceLines": "121-135"
+      },
+      {
+        "passage": 2,
+        "range": "14-21",
+        "start": 14,
+        "end": 21,
+        "taskType": "matching-headings",
+        "answerRule": "i-xi headings list",
+        "sourceLines": "181-231"
+      },
+      {
+        "passage": 2,
+        "range": "22-26",
+        "start": 22,
+        "end": 26,
+        "taskType": "true-false-not-given",
+        "sourceLines": "233-253"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "start": 27,
+        "end": 30,
+        "taskType": "multiple-choice",
+        "answerRule": "A-D per question",
+        "sourceLines": "287-331"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "start": 31,
+        "end": 35,
+        "taskType": "matching-sentence-endings",
+        "answerRule": "A-G endings list",
+        "sourceLines": "333-361"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "start": 36,
+        "end": 40,
+        "taskType": "yes-no-not-given",
+        "sourceLines": "363-383"
+      }
+    ],
+    "structuredLayouts": [
+      {
+        "kind": "table",
+        "passage": 1,
+        "range": "9-13",
+        "rowCount": 6,
+        "columnCount": 4,
+        "blanks": [
+          {
+            "question": 9,
+            "row": 2,
+            "column": 4
+          },
+          {
+            "question": 10,
+            "row": 3,
+            "column": 3
+          },
+          {
+            "question": 11,
+            "row": 3,
+            "column": 4
+          },
+          {
+            "question": 12,
+            "row": 5,
+            "column": 4
+          },
+          {
+            "question": 13,
+            "row": 6,
+            "column": 3
+          }
+        ]
+      }
+    ],
+    "answers": [
+      {
+        "question": 1,
+        "answer": "FALSE"
+      },
+      {
+        "question": 2,
+        "answer": "TRUE"
+      },
+      {
+        "question": 3,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 4,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 5,
+        "answer": "TRUE"
+      },
+      {
+        "question": 6,
+        "answer": "pavilions"
+      },
+      {
+        "question": 7,
+        "answer": "drought"
+      },
+      {
+        "question": 8,
+        "answer": "tourists"
+      },
+      {
+        "question": 9,
+        "answer": "Earthquake"
+      },
+      {
+        "question": 10,
+        "answer": "Four sides/ 4 sides"
+      },
+      {
+        "question": 11,
+        "answer": "Tank"
+      },
+      {
+        "question": 12,
+        "answer": "verandas/ verandahs"
+      },
+      {
+        "question": 13,
+        "answer": "underwater"
+      },
+      {
+        "question": 14,
+        "answer": "viii"
+      },
+      {
+        "question": 15,
+        "answer": "iii"
+      },
+      {
+        "question": 16,
+        "answer": "xi"
+      },
+      {
+        "question": 17,
+        "answer": "i"
+      },
+      {
+        "question": 18,
+        "answer": "v"
+      },
+      {
+        "question": 19,
+        "answer": "x"
+      },
+      {
+        "question": 20,
+        "answer": "ii"
+      },
+      {
+        "question": 21,
+        "answer": "iv"
+      },
+      {
+        "question": 22,
+        "answer": "TRUE"
+      },
+      {
+        "question": 23,
+        "answer": "FALSE"
+      },
+      {
+        "question": 24,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 25,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 26,
+        "answer": "FALSE"
+      },
+      {
+        "question": 27,
+        "answer": "C"
+      },
+      {
+        "question": 28,
+        "answer": "A"
+      },
+      {
+        "question": 29,
+        "answer": "D"
+      },
+      {
+        "question": 30,
+        "answer": "B"
+      },
+      {
+        "question": 31,
+        "answer": "G"
+      },
+      {
+        "question": 32,
+        "answer": "E"
+      },
+      {
+        "question": 33,
+        "answer": "A"
+      },
+      {
+        "question": 34,
+        "answer": "F"
+      },
+      {
+        "question": 35,
+        "answer": "B"
+      },
+      {
+        "question": 36,
+        "answer": "NO"
+      },
+      {
+        "question": 37,
+        "answer": "YES"
+      },
+      {
+        "question": 38,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 39,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 40,
+        "answer": "NO"
+      }
+    ]
+  },
+  "ledger": {
+    "category": "full-test-with-answer-key",
+    "expectedFullTest": true,
+    "passageCount": 3,
+    "passageNumbers": [
+      1,
+      2,
+      3
+    ],
+    "questionCount": 40,
+    "questionRange": "1-40",
+    "questionRanges": [
+      {
+        "passageNumber": 1,
+        "range": "1-5",
+        "lineNumber": 85
+      },
+      {
+        "passageNumber": 1,
+        "range": "6-8",
+        "lineNumber": 107
+      },
+      {
+        "passageNumber": 1,
+        "range": "9-13",
+        "lineNumber": 121
+      },
+      {
+        "passageNumber": 2,
+        "range": "14-21",
+        "lineNumber": 181
+      },
+      {
+        "passageNumber": 2,
+        "range": "22-26",
+        "lineNumber": 233
+      },
+      {
+        "passageNumber": 3,
+        "range": "27-30",
+        "lineNumber": 287
+      },
+      {
+        "passageNumber": 3,
+        "range": "31-35",
+        "lineNumber": 333
+      },
+      {
+        "passageNumber": 3,
+        "range": "36-40",
+        "lineNumber": 363
+      }
+    ],
+    "answerKeyRowCount": 38,
+    "answerKeyQuestionRange": "1-9, 11, 13-40",
+    "referenceBankCount": 0,
+    "pollutionMarkerCount": 2,
+    "issues": [
+      {
+        "code": "source-pollution-detected",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "ledgerAdvisory": {
+    "localPreflightCoverageIsAdvisory": true,
+    "expectedGoldAnswerRows": 40,
+    "detectedLedgerAnswerRows": 38,
+    "missingByLocalLedgerOnly": [
+      10,
+      12
+    ],
+    "interpretation": "Local preflight did not classify every visible source answer row. This is a measurement limitation, not a product blocker. The same philosophy applies to messy question areas, task groups, reference banks, passage boundaries, and clipped source clutter: Auto V4 provider output and Studio diagnostics remain the authoritative user-facing parse contract."
+  },
+  "appResult": {
+    "success": false,
+    "reviewStatus": "blocked",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+    "passageCount": 0,
+    "questionCount": 0,
+    "error": "All Gemini API keys exhausted, blocked, or rate-limited",
+    "diagnostics": [
+      {
+        "code": "provider-quota-exhausted",
+        "severity": "error",
+        "message": "AI provider quota, rate limit, or key-slot exhaustion was detected. Stop live probing until keys recover or more capacity is configured.",
+        "providerResult": "failure"
+      },
+      {
+        "code": "gemini-request-failed",
+        "severity": "error",
+        "message": "All Gemini API keys exhausted, blocked, or rate-limited",
+        "providerResult": "failure"
+      }
+    ],
+    "publishBlockingPlaceholders": [],
+    "uncertaintyMarkers": []
+  },
+  "appStructure": null,
+  "diagnosticEvents": [
+    {
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": false,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 26656,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 26656,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 38,
+        "sourceName": "Practice Cam 10 Reading Test 01.md"
+      }
+    }
+  ],
+  "comparison": {
+    "expectedPassageCount": 3,
+    "appPassageCount": 0,
+    "expectedQuestionCount": 40,
+    "appQuestionCount": 0,
+    "expectedAnswerCount": 40,
+    "appAnswerCount": 0,
+    "missingQuestions": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ],
+    "extraQuestions": [],
+    "missingAnswerValues": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ],
+    "mismatchedAnswerValues": [],
+    "missingTaskGroups": [
+      "1-5:true-false-not-given",
+      "6-8:short-answer",
+      "9-13:table-completion",
+      "14-21:matching-headings",
+      "22-26:true-false-not-given",
+      "27-30:multiple-choice",
+      "31-35:matching-sentence-endings",
+      "36-40:yes-no-not-given"
+    ],
+    "extraTaskGroups": [],
+    "hasTaskGroupShapeMismatch": true,
+    "structuredLayoutIssues": [
+      {
+        "passage": 1,
+        "range": "9-13",
+        "kind": "table",
+        "issue": "missing-structured-layout",
+        "expected": {
+          "kind": "table",
+          "passage": 1,
+          "range": "9-13",
+          "rowCount": 6,
+          "columnCount": 4,
+          "blanks": [
+            {
+              "question": 9,
+              "row": 2,
+              "column": 4
+            },
+            {
+              "question": 10,
+              "row": 3,
+              "column": 3
+            },
+            {
+              "question": 11,
+              "row": 3,
+              "column": 4
+            },
+            {
+              "question": 12,
+              "row": 5,
+              "column": 4
+            },
+            {
+              "question": 13,
+              "row": 6,
+              "column": 3
+            }
+          ]
+        },
+        "actual": null
+      }
+    ],
+    "hasStructuredLayoutMismatch": true,
+    "fieldContentCoverageIssues": [],
+    "hasReviewableDiagnostics": false,
+    "expectedTaskGroups": [
+      {
+        "passage": 1,
+        "range": "1-5",
+        "taskType": "true-false-not-given"
+      },
+      {
+        "passage": 1,
+        "range": "6-8",
+        "taskType": "short-answer"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "taskType": "table-completion"
+      },
+      {
+        "passage": 2,
+        "range": "14-21",
+        "taskType": "matching-headings"
+      },
+      {
+        "passage": 2,
+        "range": "22-26",
+        "taskType": "true-false-not-given"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "taskType": "multiple-choice"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "taskType": "matching-sentence-endings"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "taskType": "yes-no-not-given"
+      }
+    ],
+    "appTaskGroups": [],
+    "fieldScan": [],
+    "hasPublishBlockers": false,
+    "hasSilentQuestionLoss": false,
+    "verdict": "blocked"
+  },
+  "advice": [
+    "Keep Auto V4 as assistant, not judge: open editable drafts when safe, but block publish until repair items are handled.",
+    "Do not turn local preflight into a second brittle source parser; it is an advisory guardrail before the provider-owned parse across passage structure, question areas, task groups, option/reference banks, and answer keys.",
+    "Treat missing answer-key bindings, question coverage, task-group coverage, and ambiguous source areas as review diagnostics unless normalization cannot build an editable draft.",
+    "Improve provider prompts only after report proves which task group or answer range is consistently lost.",
+    "Never accept silent coverage loss: missing questions require diagnostics and publish blockers."
+  ]
+}

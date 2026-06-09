@@ -1,0 +1,11 @@
+﻿timestamp=20260603-071439
+project=temp-a1437
+instance=temp-a1437-default-rtdb
+root=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased
+local=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-071439\predeploy-local-database.rules.json
+remote=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-071439\predeploy-remote-deployed-database.rules.json
+local_sha256=D160DC068F34E92ABF174237D1D918AB085E0BE879EB774487D4E73B2175D662
+remote_sha256=47E971AB7074C4C62C9FB9E72BFCEB2FF73EB799561B0AED614F0B7994F3457B
+postdeploy_remote=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-071439\postdeploy-remote-deployed-database.rules.json
+postdeploy_remote_sha256=47E971AB7074C4C62C9FB9E72BFCEB2FF73EB799561B0AED614F0B7994F3457B
+post_matches_predeploy_local=True

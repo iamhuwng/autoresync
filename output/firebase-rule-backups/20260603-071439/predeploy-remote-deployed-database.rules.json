@@ -1,0 +1,919 @@
+{
+    "rules": {
+        ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+        "users": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$uid": {
+                ".read": "auth != null",
+                ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "role": {
+                    ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
+                },
+                "status": {
+                    ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
+                },
+                "forceReauth": {
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || $uid === auth.uid"
+                }
+            },
+            ".indexOn": [
+                "email",
+                "role",
+                "status"
+            ]
+        },
+        "student_teacher_assignments": {
+            ".read": "auth != null",
+            "$assignmentId": {
+                ".read": "data.child('teacherId').val() === auth.uid || data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "teacherId",
+                "studentId",
+                "status"
+            ]
+        },
+        "student_teacher_links": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$teacherId": {
+                ".read": "$teacherId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && auth.uid === $teacherId)",
+                "$studentId": {
+                    ".validate": "newData.val() === true || !newData.exists()"
+                }
+            }
+        },
+        "assignment_history": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$historyId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "studentId",
+                "teacherId",
+                "timestamp"
+            ]
+        },
+        "results": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$resultId": {
+                ".read": "data.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'teacher'",
+                ".write": "auth != null"
+            },
+            ".indexOn": [
+                "userId",
+                "quizId",
+                "sessionId"
+            ]
+        },
+        "test_results": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$resultId": {
+                ".read": "data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').child('ownershipResolved').val() === true && (data.child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid || (data.child('visibility').child('contextType').val() === 'solo_practice' && root.child('student_teacher_links').child(auth.uid).child(data.child('studentId').val()).val() === true)))",
+                ".write": "auth != null"
+            },
+            ".indexOn": [
+                "studentId",
+                "sessionCode",
+                "courseId",
+                "classId",
+                "moduleId",
+                "submittedAt"
+            ]
+        },
+        "test_results_by_teacher": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$teacherId": {
+                ".read": "$teacherId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "auth != null",
+                ".indexOn": [
+                    "submittedAt"
+                ]
+            }
+        },
+        "test_results_by_student": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$resultId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('test_results').child($resultId).child('studentId').val() === $studentId && root.child('test_results').child($resultId).child('visibility').child('ownershipResolved').val() === true && root.child('test_results').child($resultId).child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)"
+                },
+                ".indexOn": [
+                    "submittedAt"
+                ]
+            }
+        },
+        "test_results_solo_practice_by_student": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('student_teacher_links').child(auth.uid).child($studentId).val() === true)",
+                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$resultId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['resultId', 'submittedAt']) && newData.child('resultId').val() === $resultId)"
+                },
+                ".indexOn": [
+                    "submittedAt"
+                ]
+            }
+        },
+        "test_results_by_session": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$sessionCode": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('studentId').val() === auth.uid || newData.child('studentId').val() === auth.uid",
+                "$resultId": {
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('test_results').child($resultId).child('sessionCode').val() === $sessionCode && root.child('test_results').child($resultId).child('studentId').val() === auth.uid) || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('test_results').child($resultId).child('sessionCode').val() === $sessionCode && root.child('test_results').child($resultId).child('visibility').child('ownershipResolved').val() === true && root.child('test_results').child($resultId).child('visibility').child('visibilityOwnerTeacherId').val() === auth.uid)"
+                },
+                ".indexOn": [
+                    "submittedAt"
+                ]
+            }
+        },
+        "test_results_by_course": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$courseId": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
+                "$studentId": {
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('courses').child($courseId).child('ownerId').val() === auth.uid",
+                    ".indexOn": [
+                        "submittedAt"
+                    ]
+                }
+            }
+        },
+        "test_results_by_class": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$classId": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
+                "$studentId": {
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('classes').child($classId).child('createdBy').val() === auth.uid",
+                    ".indexOn": [
+                        "submittedAt"
+                    ]
+                }
+            }
+        },
+        "writing_grading_locks": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$submissionId": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".validate": "!newData.exists() || (newData.hasChildren(['teacherId', 'sessionId', 'heartbeatAt', 'expiresAt']) && newData.child('teacherId').isString() && newData.child('sessionId').isString() && newData.child('heartbeatAt').isNumber() && newData.child('expiresAt').isNumber())"
+            }
+        },
+        "audit_logs": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".write": "auth != null",
+            ".indexOn": [
+                "userId",
+                "action",
+                "timestamp",
+                "target"
+            ]
+        },
+        "courses": {
+            ".read": "auth != null",
+            "$courseId": {
+                ".write": "(root.child('users').child(auth.uid).child('role').val() === 'teacher' && (!data.exists() || data.child('ownerId').val() === auth.uid)) || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "practiceSettings": {
+                    ".read": "auth != null",
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                },
+                "modules": {
+                    "$moduleId": {
+                        "practiceSettings": {
+                            ".read": "auth != null",
+                            ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                        },
+                        "materials": {
+                            "$materialId": {
+                                "practiceSettings": {
+                                    ".read": "auth != null",
+                                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ".indexOn": [
+                "ownerId",
+                "code",
+                "visibility",
+                "archivedAt"
+            ]
+        },
+        "course_modules": {
+            ".read": "auth != null",
+            "$moduleId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "courseId"
+            ]
+        },
+        "course_materials": {
+            ".read": "auth != null",
+            "$materialId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "courseId",
+                "moduleId"
+            ]
+        },
+        "course_enrollments": {
+            ".read": "auth != null",
+            "$enrollmentId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth != null && !data.exists())"
+            },
+            ".indexOn": [
+                "studentId",
+                "courseId",
+                "status"
+            ]
+        },
+        "student_requests": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "teacherId",
+                "studentEmail",
+                "status"
+            ]
+        },
+        "course_announcements": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".indexOn": [
+                "courseId"
+            ]
+        },
+        "course_requests": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "$requestId": {
+                ".read": "auth != null",
+                ".write": "auth != null"
+            },
+            ".indexOn": [
+                "studentId",
+                "teacherId",
+                "courseId",
+                "status",
+                "expiresAt"
+            ]
+        },
+        "course_types": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        },
+        "material_catalog": {
+            "test_types": {
+                ".read": "auth != null",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$testTypeId": {
+                    ".validate": "!newData.exists() || (newData.hasChildren(['testTypeId', 'canonicalKey', 'label', 'shortLabel', 'aliases', 'active', 'teacherSelectable', 'displayOrder', 'readingSourceOrderLabel', 'readingSourceOrderLabelPlural', 'logoAlt', 'allowedMaterialKinds', 'createdAt', 'updatedAt', 'updatedBy']) && newData.child('testTypeId').val() === $testTypeId && newData.child('canonicalKey').isString() && newData.child('label').isString() && newData.child('shortLabel').isString() && newData.child('active').isBoolean() && newData.child('teacherSelectable').isBoolean() && newData.child('displayOrder').isNumber())"
+                },
+                ".indexOn": [
+                    "active",
+                    "teacherSelectable",
+                    "displayOrder"
+                ]
+            },
+            "teacher_test_type_preferences": {
+                "$teacherId": {
+                    ".read": "auth != null && ($teacherId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && ($teacherId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['teacherId', 'pinnedTestTypeIds', 'updatedAt', 'updatedBy']) && newData.child('teacherId').val() === $teacherId && newData.child('updatedAt').isString() && newData.child('updatedBy').isString())"
+                }
+            },
+            "material_indexes": {
+                "by_owner": {
+                    "$ownerId": {
+                        ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$materialId": {
+                            ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid && ((newData.exists() && newData.child('ownerId').val() === $ownerId) || (!newData.exists() && data.child('ownerId').val() === $ownerId))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('ownerId').val() === $ownerId && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && (newData.child('materialKind').val() === 'reading-passage' || newData.child('materialKind').val() === 'full-test' || newData.child('materialKind').val() === 'book'))"
+                        }
+                    }
+                },
+                "by_visibility": {
+                    "$visibility": {
+                        ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$materialId": {
+                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && newData.child('visibility').val() === $visibility) || (!newData.exists() && data.child('ownerId').val() === auth.uid && data.child('visibility').val() === $visibility))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('visibility').val() === $visibility && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && (newData.child('materialKind').val() === 'reading-passage' || newData.child('materialKind').val() === 'full-test' || newData.child('materialKind').val() === 'book'))"
+                        }
+                    }
+                },
+                "by_material_kind": {
+                    "$materialKind": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('materialKind').val() === $materialKind && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                },
+                "by_test_type": {
+                    "$testTypeId": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('testTypeMembership').child($testTypeId).val() === true && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                },
+                "by_source_full_test": {
+                    "$sourceFullTestId": {
+                        "$materialId": {
+                            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid) || (!newData.exists() && data.child('ownerId').val() === auth.uid))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'materialKind', 'testTypeIds', 'testTypeMembership', 'sourceFullTestId', 'updatedAt']) && newData.child('materialId').val() === $materialId && newData.child('sourceFullTestId').val() === $sourceFullTestId && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+                        }
+                    }
+                }
+            },
+            "books": {
+                "$bookId": {
+                    ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('ownerId').val() === auth.uid && (!newData.child('visibility').exists() || (newData.child('visibility').val() !== 'public-library-published' && newData.child('visibility').val() !== 'public-library-rejected'))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'testTypeIds', 'visibility', 'status', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']) && newData.child('bookId').val() === $bookId && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('createdAt').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public-library-pending-review' || newData.child('visibility').val() === 'public-library-published' || newData.child('visibility').val() === 'public-library-rejected') && (newData.child('status').val() === 'draft-empty' || newData.child('status').val() === 'draft-in-progress' || newData.child('status').val() === 'ready' || newData.child('status').val() === 'archived'))",
+                    ".indexOn": [
+                        "ownerId",
+                        "visibility",
+                        "status",
+                        "updatedAt"
+                    ]
+                }
+            },
+            "public_book_projections": {
+                "$bookId": {
+                    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'title', 'testTypeIds', 'visibility', 'status', 'updatedAt', 'approvedAt', 'approvedBy', 'nodes']) && newData.child('bookId').val() === $bookId && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('approvedAt').isString() && newData.child('approvedBy').isString() && newData.child('visibility').val() === 'public-library-published' && newData.child('status').val() === 'ready')"
+                }
+            },
+            "book_nodes": {
+                "$bookId": {
+                    ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('material_catalog').child('books').child($bookId).child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    "$nodeId": {
+                        ".validate": "!newData.exists() || (newData.hasChildren(['nodeId', 'bookId', 'type', 'title', 'order', 'createdAt', 'updatedAt']) && (!newData.child('parentNodeId').exists() || newData.child('parentNodeId').isString()) && newData.child('nodeId').val() === $nodeId && newData.child('bookId').val() === $bookId && newData.child('title').isString() && newData.child('order').isNumber() && (newData.child('type').val() === 'intro-placeholder' || newData.child('type').val() === 'toc-placeholder' || newData.child('type').val() === 'note-placeholder' || newData.child('type').val() === 'section' || newData.child('type').val() === 'chapter' || newData.child('type').val() === 'test'))"
+                    },
+                    ".indexOn": [
+                        "parentNodeId",
+                        "order",
+                        "type"
+                    ]
+                }
+            },
+            "book_indexes": {
+                "by_owner": {
+                    "$ownerId": {
+                        ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$bookId": {
+                            ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'visibility', 'status', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('bookId').val() === $bookId && newData.child('ownerId').val() === $ownerId)"
+                        }
+                    }
+                },
+                "by_visibility": {
+                    "$visibility": {
+                        ".read": "auth != null && (($visibility === 'public-library-published' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && ($visibility === 'private' || $visibility === 'public-library-pending-review')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$bookId": {
+                            ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'visibility', 'status', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('bookId').val() === $bookId && newData.child('visibility').val() === $visibility)"
+                        }
+                    }
+                },
+                "by_test_type": {
+                    "$testTypeId": {
+                        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$bookId": {
+                            ".validate": "!newData.exists() || (newData.hasChildren(['bookId', 'ownerId', 'title', 'visibility', 'status', 'testTypeIds', 'testTypeMembership', 'updatedAt']) && newData.child('bookId').val() === $bookId && newData.child('testTypeMembership').child($testTypeId).val() === true)"
+                        }
+                    }
+                }
+            }
+        },
+        "course_type_requests": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".indexOn": [
+                "status"
+            ]
+        },
+        "classes": {
+            ".read": "auth != null",
+            "$classId": {
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "students": {
+                    "$studentId": {
+                        ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                    }
+                }
+            },
+            ".indexOn": [
+                "classCode",
+                "createdBy"
+            ]
+        },
+        "student_classes": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$classId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid)",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt']) && newData.child('joinedAt').isNumber() && (!newData.child('status').exists() || newData.child('status').isString()))"
+                }
+            }
+        },
+        "game_sessions": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "status",
+                "teacherId",
+                "createdAt"
+            ]
+        },
+        "session_test_payloads": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "student_safe_tests": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "quizzes": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "userId",
+                "createdAt"
+            ]
+        },
+        "tests": {
+            ".read": "auth != null",
+            "$testId": {
+                ".read": "auth != null && (data.child('isPublic').val() === true || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'teacher')",
+                ".write": "(root.child('users').child(auth.uid).child('role').val() === 'teacher' && (!data.exists() || data.child('ownerId').val() === auth.uid)) || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            },
+            ".indexOn": [
+                "userId",
+                "ownerId",
+                "createdBy",
+                "isPublic",
+                "createdAt",
+                "testType"
+            ]
+        },
+        "drafts": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$draftId": {
+                ".read": "data.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "(data.child('userId').val() === auth.uid || !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".validate": "newData.hasChildren(['userId', 'testType', 'skillType', 'status'])"
+            },
+            ".indexOn": [
+                "userId",
+                "status",
+                "createdAt",
+                "updatedAt"
+            ]
+        },
+        "notifications": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$userId": {
+                ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": "auth != null",
+                ".indexOn": [
+                    "createdAt",
+                    "read"
+                ]
+            }
+        },
+        "history": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "userId",
+                "timestamp"
+            ]
+        },
+        "materials": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".indexOn": [
+                "createdBy",
+                "visibility"
+            ]
+        },
+        "course_progress": {
+            ".read": "auth != null",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$courseId": {
+                    ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                }
+            }
+        },
+        "invitations": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".indexOn": [
+                "email",
+                "role",
+                "status"
+            ]
+        },
+        "class_course_links": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".indexOn": [
+                "classId",
+                "courseId",
+                "teacherId"
+            ]
+        },
+        "enrollment_requests": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "courseId",
+                "studentId",
+                "status"
+            ]
+        },
+        "teacher_sessions": {
+            ".read": "auth != null",
+            "$sessionId": {
+                ".read": "data.child('teacherId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'teacher'",
+                ".write": "auth != null"
+            },
+            ".indexOn": [
+                "teacherId",
+                "classId",
+                "status",
+                "createdAt"
+            ]
+        },
+        "guest_results": {
+            ".read": "auth != null",
+            "$guestName": {
+                ".write": true,
+                ".indexOn": [
+                    "submittedAt",
+                    "guestName"
+                ]
+            }
+        },
+        "account_deletions": {
+            ".read": "auth != null",
+            "$userId": {
+                ".write": "$userId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            }
+        },
+        "feedback": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$sessionCode": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$studentId": {
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || $studentId === auth.uid",
+                    ".indexOn": [
+                        "submittedAt"
+                    ]
+                }
+            }
+        },
+        "student_badges": {
+            ".read": "auth != null",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$badgeId": {
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                }
+            }
+        },
+        "attendance": {
+            ".read": "auth != null",
+            "$sessionId": {
+                ".read": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$studentId": {
+                    ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || $studentId === auth.uid"
+                }
+            }
+        },
+        "academic_records": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "$studentId": {
+                ".read": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": "$studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".indexOn": [
+                    "lastTestDate",
+                    "lastHomeworkDate"
+                ]
+            }
+        },
+        "reports": {
+            "errors": {
+                "$date": {
+                    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'",
+                    "$errorId": {
+                        ".validate": "newData.hasChildren(['timestamp', 'message', 'feature', 'severity', 'userId'])"
+                    }
+                }
+            },
+            "events": {
+                "$date": {
+                    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'"
+                }
+            },
+            "result_visibility": {
+                "unresolved": {
+                    "$resultId": {
+                        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'guest'",
+                        ".validate": "!newData.exists() || (root.child('test_results').child($resultId).exists() && newData.hasChildren(['resultId', 'studentId', 'contextType', 'unresolvedReason', 'sourceLookupAttempted', 'ownershipResolved', 'createdAt', 'updatedAt', 'reportVersion']) && newData.child('resultId').val() === $resultId && newData.child('ownershipResolved').val() === false && newData.child('studentId').val() === root.child('test_results').child($resultId).child('studentId').val())"
+                    }
+                }
+            },
+            "config": {
+                ".read": "auth != null",
+                ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+            }
+        },
+        "reading_v2": {
+            ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            "drafts": {
+                "$draftId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['draftId', 'ownerId', 'document', 'revisionToken', 'state', 'updatedAt']) && newData.child('draftId').val() === $draftId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "updatedAt"
+                    ]
+                }
+            },
+            "passage_assets": {
+                "$assetId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['passageAssetId', 'ownerId']) && newData.child('passageAssetId').val() === $assetId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "topic"
+                    ],
+                    "versions": {
+                        "$versionId": {
+                            ".read": "auth != null && (root.child('reading_v2').child('passage_assets').child($assetId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && (!data.exists()) && (root.child('reading_v2').child('passage_assets').child($assetId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.child('passageAssetId').val() === $assetId && newData.child('versionId').val() === $versionId)"
+                        }
+                    }
+                }
+            },
+            "task_group_materials": {
+                "$materialId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId']) && newData.child('materialId').val() === $materialId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "engineeringFamily",
+                        "officialTaskType"
+                    ]
+                }
+            },
+            "full_tests": {
+                "$fullTestId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['fullTestId', 'ownerId']) && newData.child('fullTestId').val() === $fullTestId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "libraryVisibility"
+                    ]
+                }
+            },
+            "reading_passage_materials": {
+                "$materialId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'state', 'currentVersionId', 'publishedVersionId']) && newData.child('materialId').val() === $materialId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "state",
+                        "visibility",
+                        "primaryTestTypeId",
+                        "sourceFullTestId"
+                    ]
+                }
+            },
+            "reading_passage_material_versions": {
+                "$materialId": {
+                    "$versionId": {
+                        ".read": "auth != null && (root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'versionId', 'ownerId']) && newData.child('materialId').val() === $materialId && newData.child('versionId').val() === $versionId)"
+                    }
+                }
+            },
+            "full_test_compositions": {
+                "$compositionId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'ownerId', 'testMaterialId', 'passageRefs', 'publishedVersionId']) && newData.child('compositionId').val() === $compositionId)",
+                    ".indexOn": [
+                        "ownerId",
+                        "testMaterialId",
+                        "publishedVersionId"
+                    ]
+                }
+            },
+            "full_test_composition_versions": {
+                "$compositionId": {
+                    "$versionId": {
+                        ".read": "auth != null && (root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'versionId', 'ownerId']) && newData.child('compositionId').val() === $compositionId && newData.child('versionId').val() === $versionId)"
+                    }
+                }
+            },
+            "material_metadata": {
+                "$materialId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'deliveryEngine', 'title', 'publishedSnapshotVersionId']) && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                    ".indexOn": [
+                        "ownerId",
+                        "visibility",
+                        "publishedSnapshotVersionId"
+                    ]
+                }
+            },
+            "listing_indexes": {
+                "$surface": {
+                    "$materialId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['surface', 'materialId', 'ownerId', 'deliveryEngine', 'materialKind']) && newData.child('surface').val() === $surface && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                        ".indexOn": [
+                            "ownerId",
+                            "visibility",
+                            "materialKind",
+                            "sourceFullTestId"
+                        ]
+                    }
+                }
+            },
+            "relationship_indexes": {
+                "$surface": {
+                    "$materialId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['surface', 'materialId', 'snapshotVersionId', 'source', 'ownerId', 'deliveryEngine']) && newData.child('surface').val() === $surface && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                        ".indexOn": [
+                            "snapshotVersionId",
+                            "source",
+                            "ownerId"
+                        ]
+                    }
+                }
+            },
+            "published_snapshots": {
+                "$materialId": {
+                    "$snapshotVersionId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'snapshotVersionId', 'ownerId']) && newData.child('materialId').val() === $materialId && newData.child('snapshotVersionId').val() === $snapshotVersionId)"
+                    }
+                }
+            },
+            "projections": {
+                "preview": {
+                    "$draftId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                    }
+                },
+                "student_safe_tests": {
+                    "$testId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('scoringRule').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
+                    }
+                },
+                "session_test_payloads": {
+                    "$sessionCode": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('scoringRule').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
+                    }
+                },
+                "review": {
+                    "$projectionId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId', 'projectionKind', 'sourceSnapshotVersionId']) && newData.child('projectionKind').val() === 'review' && !newData.child('canonicalEditableDraft').exists())"
+                    }
+                }
+            },
+            "attempts": {
+                "$attemptId": {
+                    ".read": "auth != null && (data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['attemptId', 'studentId']) && newData.child('attemptId').val() === $attemptId)",
+                    ".indexOn": [
+                        "studentId",
+                        "materialId",
+                        "sessionCode"
+                    ]
+                }
+            },
+            "results": {
+                "$resultId": {
+                    ".read": "auth != null && (data.child('studentId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('studentId').val() === auth.uid || newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['resultId', 'studentId', 'ownerId']) && newData.child('resultId').val() === $resultId && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                    ".indexOn": [
+                        "studentId",
+                        "ownerId",
+                        "materialId",
+                        "submittedAt"
+                    ]
+                }
+            },
+            "review_indexes": {
+                "$resultId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])",
+                    ".indexOn": [
+                        "taskGroupId"
+                    ]
+                }
+            },
+            "analytics_outputs": {
+                "$outputId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('authorDiagnostics').exists())",
+                    ".indexOn": [
+                        "materialId",
+                        "engineeringFamily",
+                        "officialTaskType"
+                    ]
+                }
+            },
+            "provenance": {
+                "$recordId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                }
+            },
+            "where_used": {
+                "$assetId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || newData.hasChildren(['ownerId'])"
+                }
+            },
+            "publish_commits": {
+                "$commitId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['commitKey', 'materialId', 'snapshotVersionId', 'ownerId', 'deliveryEngine', 'operationKeys', 'writePaths', 'committedAt']) && newData.child('deliveryEngine').val() === 'reading-v2')"
+                }
+            }
+        },
+        "system_flags": {
+            ".read": "auth != null",
+            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        }
+    }
+}
+

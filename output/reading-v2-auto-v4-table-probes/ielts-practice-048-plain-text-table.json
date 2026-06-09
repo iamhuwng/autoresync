@@ -1,0 +1,404 @@
+{
+  "label": "ielts-practice-048-plain-text-table",
+  "path": "[redacted-windows-path]",
+  "expectedTableRange": "14-18",
+  "why": "Plain-text table with separate DATE/FEATURES/AIM/EXAMPLE lines, no markdown pipes or HTML cell tags.",
+  "startedAt": "2026-06-07T00:46:09.868Z",
+  "finishedAt": "2026-06-07T00:47:21.706Z",
+  "source": {
+    "sha256": "276c134dcaf8ab36d996139c9f37f0aac68b1d79bb6f1736f75135a9aafe4e71",
+    "charLength": 23093,
+    "lineCount": 407,
+    "fullTextIncluded": false
+  },
+  "ledger": {
+    "category": "full-test-with-answer-key",
+    "passageCount": 3,
+    "questionCount": 40,
+    "answerKeyRows": 40,
+    "answerKeyRange": "1-40",
+    "issues": [
+      {
+        "code": "source-pollution-detected",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "appResult": {
+    "success": true,
+    "reviewStatus": "needs_review",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+    "passageCount": 3,
+    "questionCount": 40,
+    "error": null,
+    "diagnostics": [
+      {
+        "code": "auto-pipeline-lane-selected",
+        "severity": "info",
+        "message": "Auto pipeline lane selected: V4 full-document staged parser."
+      },
+      {
+        "code": "auto-v4-staged-parser-used",
+        "severity": "info",
+        "message": "Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload."
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 passage stage completed with gemini.",
+        "stage": "auto-v4-passages",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 question/answer stage completed with gemini.",
+        "stage": "auto-v4-questions",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 1 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 1,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage, Parrot Alex.",
+        "passageNumber": 1,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 2 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 2,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+        "passageNumber": 2,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 3 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 3,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage, The Rainmaker.",
+        "passageNumber": 3,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "answer-key-extracted",
+        "severity": "info",
+        "message": "Auto extracted answer-key rows from the raw source."
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 1-6 is source-verified and ready.",
+        "groupRange": "1-6",
+        "questionNumber": 1,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 7-10 is weak: group-source-underrepresented.",
+        "groupRange": "7-10",
+        "questionNumber": 7,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 11-13 is source-verified and ready.",
+        "groupRange": "11-13",
+        "questionNumber": 11,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 14-18 is weak: group-source-underrepresented.",
+        "groupRange": "14-18",
+        "questionNumber": 14,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "high-risk-token-changed",
+        "severity": "warning",
+        "message": "Group 14-18 is weak: high-risk-token-changed.",
+        "groupRange": "14-18",
+        "questionNumber": 14,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "question-text-changed",
+        "severity": "warning",
+        "message": "Group 14-18 is weak: question-text-changed.",
+        "groupRange": "14-18",
+        "questionNumber": 14,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "table-cell-missing",
+        "severity": "warning",
+        "message": "Group 14-18 is weak: table-cell-missing.",
+        "groupRange": "14-18",
+        "questionNumber": 14,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 19-21 is source-verified and ready.",
+        "groupRange": "19-21",
+        "questionNumber": 19,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 22-26 is source-verified and ready.",
+        "groupRange": "22-26",
+        "questionNumber": 22,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 27-31 is source-verified and ready.",
+        "groupRange": "27-31",
+        "questionNumber": 27,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-quality-ready",
+        "severity": "info",
+        "message": "Group 32-36 is source-verified and ready.",
+        "groupRange": "32-36",
+        "questionNumber": 32,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 37-40 is weak: group-source-underrepresented.",
+        "groupRange": "37-40",
+        "questionNumber": 37,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "source-ledger-warning",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Diagram Labelling needs an image before publishing."
+      }
+    ]
+  },
+  "structure": {
+    "sectionCount": 3,
+    "taskGroupCount": 9,
+    "interactionCount": 40,
+    "visibleQuestionRange": "1-40",
+    "answerKeyRows": 40,
+    "answerKeyRange": "1-40",
+    "validation": {
+      "blockingIssueCount": 1,
+      "warningIssueCount": 1,
+      "blockingCodes": [
+        "invalid-packaged-material-assembly"
+      ],
+      "warningCodes": [
+        "unresolved-import-uncertainty"
+      ],
+      "blockingMessages": [
+        "Diagram Labelling needs an image before publishing."
+      ],
+      "warningMessages": [
+        "Imported instructions for Questions 7-10 contain non-standard source wording. Studio used the standard IELTS task-type instruction; review source instruction evidence: \"Complete the following summary of the paragraphs of Reading Passage. Using NO MORE THAN THREE WORDS from the Reading Passage for each answer. Write your answers in boxes 7-10 on...\""
+      ]
+    },
+    "taskGroups": [
+      {
+        "range": "1-6",
+        "taskType": "true-false-not-given",
+        "interactionCount": 6,
+        "table": null
+      },
+      {
+        "range": "7-10",
+        "taskType": "summary-completion-text",
+        "interactionCount": 4,
+        "table": null
+      },
+      {
+        "range": "11-13",
+        "taskType": "short-answer",
+        "interactionCount": 3,
+        "table": null
+      },
+      {
+        "range": "14-18",
+        "taskType": "table-completion",
+        "interactionCount": 5,
+        "table": {
+          "stimulusId": "048-reading-practice-test-48-table-2-1",
+          "rowCount": 5,
+          "columnCount": 4,
+          "blanks": [
+            {
+              "question": 14,
+              "row": 1,
+              "column": 4,
+              "text": "A Little Pretty Pocket Book (exported to 15 ___ )"
+            },
+            {
+              "question": 15,
+              "row": 2,
+              "column": 4,
+              "text": "A Little Pretty Pocket Book (exported to ___ )"
+            },
+            {
+              "question": 16,
+              "row": 3,
+              "column": 4,
+              "text": "Nursery rhymes and 17 ___"
+            },
+            {
+              "question": 17,
+              "row": 4,
+              "column": 4,
+              "text": "Nursery rhymes and ___"
+            },
+            {
+              "question": 18,
+              "row": 5,
+              "column": 2,
+              "text": "Stories of harm-free ___"
+            }
+          ]
+        }
+      },
+      {
+        "range": "19-21",
+        "taskType": "matching-features",
+        "interactionCount": 3,
+        "table": null
+      },
+      {
+        "range": "22-26",
+        "taskType": "true-false-not-given",
+        "interactionCount": 5,
+        "table": null
+      },
+      {
+        "range": "27-31",
+        "taskType": "yes-no-not-given",
+        "interactionCount": 5,
+        "table": null
+      },
+      {
+        "range": "32-36",
+        "taskType": "diagram-labeling",
+        "interactionCount": 5,
+        "table": null
+      },
+      {
+        "range": "37-40",
+        "taskType": "summary-completion-text",
+        "interactionCount": 4,
+        "table": null
+      }
+    ]
+  },
+  "tableGroup": {
+    "range": "14-18",
+    "taskType": "table-completion",
+    "interactionCount": 5,
+    "table": {
+      "stimulusId": "048-reading-practice-test-48-table-2-1",
+      "rowCount": 5,
+      "columnCount": 4,
+      "blanks": [
+        {
+          "question": 14,
+          "row": 1,
+          "column": 4,
+          "text": "A Little Pretty Pocket Book (exported to 15 ___ )"
+        },
+        {
+          "question": 15,
+          "row": 2,
+          "column": 4,
+          "text": "A Little Pretty Pocket Book (exported to ___ )"
+        },
+        {
+          "question": 16,
+          "row": 3,
+          "column": 4,
+          "text": "Nursery rhymes and 17 ___"
+        },
+        {
+          "question": 17,
+          "row": 4,
+          "column": 4,
+          "text": "Nursery rhymes and ___"
+        },
+        {
+          "question": 18,
+          "row": 5,
+          "column": 2,
+          "text": "Stories of harm-free ___"
+        }
+      ]
+    }
+  },
+  "diagnosticEvents": [
+    {
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": false,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 22935,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 22935,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 40,
+        "sourceName": "048 - Reading Practice Test 48.md"
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "startedAt": "2026-06-08T09:33:38.955Z",
+  "endedAt": "2026-06-08T09:34:22.773Z",
+  "sourceLength": 26656,
+  "success": false,
+  "reviewStatus": null,
+  "error": "All Gemini API keys exhausted, blocked, or rate-limited",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+  "passageCount": null,
+  "questionCount": null,
+  "diagnosticCount": 2,
+  "diagnostics": [
+    {
+      "code": "provider-quota-exhausted",
+      "severity": "error",
+      "message": "AI provider quota, rate limit, or key-slot exhaustion was detected. Stop live probing until keys recover or more capacity is configured."
+    },
+    {
+      "code": "gemini-request-failed",
+      "severity": "error",
+      "message": "All Gemini API keys exhausted, blocked, or rate-limited"
+    }
+  ],
+  "events": [
+    {
+      "timestamp": "2026-06-08T09:33:39.041Z",
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": true,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 26656,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "timestamp": "2026-06-08T09:33:39.053Z",
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 26656,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 38,
+        "sourceName": "IELTS Reading-v2 Test - June 2026"
+      }
+    }
+  ],
+  "publishBlockingPlaceholders": [],
+  "candidateSummary": null
+}
