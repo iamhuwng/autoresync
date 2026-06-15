@@ -3133,6 +3133,14 @@ export function ReadingV2StudioShell({
     emitAction('passageEditorAction', { outcome: action, ...actionMetadata });
   };
 
+  const handleBuildWorkspaceMetadataChange = (nextMetadata: ReadingV2StudioMetadata) => {
+    setMetadata(nextMetadata);
+    emitAction('metadataEdit', {
+      outcome: 'workspaceVisibilityChange',
+      visibility: nextMetadata.visibility,
+    });
+  };
+
   return (
     <main className="reading-v2-studio reading-v2-studio--build" data-host={host} data-mode={mode}>
       <ReadingV2BuildWorkspace
@@ -3163,6 +3171,7 @@ export function ReadingV2StudioShell({
         onSelectPassage={handleSelectPassage}
         onAddPassage={canEditPassageCollection ? handleAddPassage : undefined}
         onRemovePassage={canEditPassageCollection ? handleRemovePassage : undefined}
+        onMetadataChange={handleBuildWorkspaceMetadataChange}
         onPassageTitleChange={handlePassageTitleChange}
         onPassageTextChange={handlePassageTextChange}
         onAddQuestionGroup={handleAddTaskGroup}

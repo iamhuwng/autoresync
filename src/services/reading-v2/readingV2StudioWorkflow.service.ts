@@ -479,6 +479,7 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
     const latestSnapshot = input.sourceSnapshot ?? loadLatestPublishedSnapshotForMaterial(materialId);
 
     if (latestSnapshot) {
+      const revisionOwnerId = input.sourceMetadata?.ownerId ?? latestSnapshot.ownerId ?? ownerId;
       if (!readingV2StudioRepository.loadPublishedSnapshot(latestSnapshot.materialId, latestSnapshot.snapshotVersionId)) {
         readingV2StudioRepository.publishSnapshot({
           materialId: latestSnapshot.materialId,
@@ -492,12 +493,12 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
       const existingRevisionDraft = readingV2StudioRepository.loadDraft(draftId);
       const draft = existingRevisionDraft ?? readingV2StudioRepository.createDraft({
         draftId,
-        ownerId,
+        ownerId: revisionOwnerId,
         materialId,
         document: latestSnapshot.document,
         studioMetadata: toStudioMetadataRecord(createReadingV2StudioDefaultMetadata({
           title: input.sourceMetadata?.title ?? latestSnapshot.document.title,
-          ownerId,
+          ownerId: revisionOwnerId,
           materialKind: toReadingV2StudioMaterialKind(input.sourceMetadata?.materialKind),
           durationMinutes: input.sourceMetadata?.durationMinutes,
           difficulty: input.sourceMetadata?.difficulty,
@@ -521,7 +522,7 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
         metadata: createReadingV2StudioDefaultMetadata({
           ...storedMetadata,
           title: storedMetadata?.title ?? draft.document.title,
-          ownerId,
+          ownerId: revisionOwnerId,
           provenanceSummary:
             storedMetadata?.provenanceSummary ??
             `Revision draft from published snapshot ${latestSnapshot.snapshotVersionId}; live snapshot remains immutable`,

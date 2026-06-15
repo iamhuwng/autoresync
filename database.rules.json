@@ -733,7 +733,7 @@
             },
             "reading_passage_materials": {
                 "$materialId": {
-                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('visibility').val() === 'public' && data.child('state').val() === 'published'))",
                     ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".validate": "!newData.exists() || (newData.hasChildren(['passageMaterialId', 'ownerId', 'state', 'currentSnapshotVersionId']) && newData.child('passageMaterialId').val() === $materialId)",
                     ".indexOn": [
@@ -748,7 +748,7 @@
             "reading_passage_material_versions": {
                 "$materialId": {
                     "$versionId": {
-                        ".read": "auth != null && (root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".read": "auth != null && (root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('reading_v2').child('reading_passage_materials').child($materialId).child('visibility').val() === 'public' && root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'))",
                         ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('reading_passage_materials').child($materialId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".validate": "!newData.exists() || (newData.hasChildren(['passageMaterialId', 'currentSnapshotVersionId', 'ownerId']) && newData.child('passageMaterialId').val() === $materialId && newData.child('currentSnapshotVersionId').val() === $versionId)"
                     }
@@ -831,7 +831,7 @@
             "published_snapshots": {
                 "$materialId": {
                     "$snapshotVersionId": {
-                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('reading_v2').child('reading_passage_materials').child($materialId).child('visibility').val() === 'public' && root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'))",
                         ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'snapshotVersionId', 'ownerId']) && newData.child('materialId').val() === $materialId && newData.child('snapshotVersionId').val() === $snapshotVersionId)"
                     }

@@ -377,29 +377,44 @@ export default function ReadingV2StudioPage() {
           revisionSource.snapshot?.snapshotVersionId !== result.snapshotVersionId;
 
         if (isSinglePassageRevision && revisionSource.snapshot) {
-          const summary = await referenceUpdateRepository.discoverTargets({
-            ownerId: snapshot.metadata.ownerId,
-            passageMaterialId: result.materialId,
-            previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
-            nextSnapshotVersionId: result.snapshotVersionId,
-          });
-
-          trackAction('reading_v2_single_passage_version_published', {
-            materialId: result.materialId,
-            previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
-            nextSnapshotVersionId: result.snapshotVersionId,
-            updateTargetCount: summary.targets.length,
-          });
-
-          if (summary.targets.length > 0) {
-            setReferenceUpdateModal({
-              status: 'open',
-              passageTitle: snapshot.document.title,
-              summary,
+          try {
+            const summary = await referenceUpdateRepository.discoverTargets({
+              ownerId: snapshot.metadata.ownerId,
+              passageMaterialId: result.materialId,
+              previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+              nextSnapshotVersionId: result.snapshotVersionId,
             });
-            trackAction('reading_v2_update_references_opened', {
+
+            trackAction('reading_v2_single_passage_version_published', {
               materialId: result.materialId,
+              previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+              nextSnapshotVersionId: result.snapshotVersionId,
               updateTargetCount: summary.targets.length,
+            });
+
+            if (summary.targets.length > 0) {
+              setReferenceUpdateModal({
+                status: 'open',
+                passageTitle: snapshot.document.title,
+                summary,
+              });
+              trackAction('reading_v2_update_references_opened', {
+                materialId: result.materialId,
+                updateTargetCount: summary.targets.length,
+              });
+            }
+          } catch (error) {
+            if (import.meta.env.DEV && !import.meta.env.VITEST) {
+              console.warn('[Diag][ReadingV2Studio] reference_update_discovery_failed_after_publish', {
+                message: error instanceof Error ? error.message : String(error),
+                materialId: result.materialId,
+                previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+                nextSnapshotVersionId: result.snapshotVersionId,
+              });
+            }
+            trackAction('reading_v2_update_references_skipped', {
+              materialId: result.materialId,
+              outcome: 'discovery-failed-after-publish',
             });
           }
         }

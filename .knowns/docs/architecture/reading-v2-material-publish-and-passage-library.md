@@ -2,7 +2,7 @@
 title: Reading V2 Material Publish And Passage Library
 description: Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.
 createdAt: '2026-06-03T00:00:00.000Z'
-updatedAt: '2026-06-15T00:00:00.000Z'
+updatedAt: '2026-06-16T00:00:00.000Z'
 tags:
   - architecture
   - reading-v2
@@ -122,6 +122,31 @@ Auto V4 is an import assistant only. It does not bypass Studio validation or the
 Standalone `reading-passage` materials contain exactly one passage. Single-passage Studio for revision, manual remake, or passage-version editing must hide passage add/remove collection controls and edit only that entity's existing passage.
 
 Obsolete as of 2026-06-15: treating one shared Studio shell as permission to show `Add Passage` in every Studio mode. Resume, revision, duplicate, extraction, and single-passage repair modes share draft infrastructure but do not automatically inherit passage-collection controls.
+
+## Studio Passage Visibility
+
+Individual `reading-passage` Studio revisions expose `Private / Public` in the main question panel next to `Add Question Group`.
+
+Control mapping:
+
+- `Private` maps to `private`
+- `Public` maps to `library-eligible`
+
+Publish must carry the selected visibility into canonical metadata, the Reading Passage row, and Material Catalog visibility indexes.
+
+Obsolete as of 2026-06-16: visibility is not a hidden Developer Details-only control for single Reading Passage revision flows.
+
+## Post-Publish Reference Discovery
+
+Single-passage published-revision flows may attempt update-target discovery after the publish commit succeeds.
+
+That discovery step is best-effort only:
+
+- a denied discovery read must not convert a committed publish into a publish failure
+- the committed material and material indexes remain authoritative
+- the update-references modal may be skipped when discovery cannot read target data
+
+This keeps publish success aligned with the committed RTDB write instead of the follow-up discovery phase.
 
 ## Verification Anchors
 

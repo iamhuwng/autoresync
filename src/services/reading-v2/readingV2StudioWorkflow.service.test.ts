@@ -508,6 +508,33 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(readingV2StudioRepository.loadPublishedSnapshot(materialId, readingV2Ids.snapshotVersionId('snapshot-latest'))?.document.title).toBe('Latest live title');
   });
 
+  it('keeps the published owner when direct revise routes do not provide an owner', () => {
+    const materialId = readingV2Ids.materialId('studio-workflow-revision-source-owner-material');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-source-owner');
+    const document = {
+      ...createReadingV2CanonicalFixture('summary-completion-text'),
+      title: 'Source owned passage',
+    };
+
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'revise-published',
+      draftId: 'studio-workflow-revision-source-owner',
+      materialId,
+      sourceSnapshot: {
+        materialId,
+        snapshotVersionId,
+        ownerId: 'teacher-real',
+        document,
+        publishedBy: 'teacher-real',
+        publishedAt: '2026-04-03T00:00:00.000Z',
+      },
+    });
+
+    expect(context.status).toBe('ready');
+    expect(context.metadata.ownerId).toBe('teacher-real');
+    expect(readingV2StudioRepository.loadDraft(context.draftId)?.ownerId).toBe('teacher-real');
+  });
+
   it('generates local-only preview and commits publish results through the injected adapter', async () => {
     const context = resolveReadingV2StudioWorkflowContext({
       mode: 'revise-published',

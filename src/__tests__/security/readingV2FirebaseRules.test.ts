@@ -464,6 +464,254 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     );
   });
 
+  it('lets teachers clone public Reading Passage canonical sources but keeps students out of author snapshots', async () => {
+    const { otherTeacher, student } = makeReadingV2RuleContexts();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+
+      await db.ref('reading_v2/reading_passage_materials/public-passage').set({
+        deliveryEngine: 'reading-v2',
+        plane: 'canonical',
+        schemaVersion: 1,
+        passageMaterialId: 'public-passage',
+        ownerId: 'teacher-1',
+        visibility: 'public',
+        state: 'published',
+        currentSnapshotVersionId: 'snapshot-public',
+        title: 'Public Passage',
+      });
+      await db.ref('reading_v2/reading_passage_material_versions/public-passage/snapshot-public').set({
+        passageMaterialId: 'public-passage',
+        currentSnapshotVersionId: 'snapshot-public',
+        ownerId: 'teacher-1',
+        document: { containsAnswerKeys: true },
+      });
+      await db.ref('reading_v2/published_snapshots/public-passage/snapshot-public').set({
+        materialId: 'public-passage',
+        snapshotVersionId: 'snapshot-public',
+        ownerId: 'teacher-1',
+        document: { containsAnswerKeys: true },
+      });
+    });
+
+    await assertSucceeds(
+      otherTeacher.database().ref('reading_v2/reading_passage_materials/public-passage').once('value'),
+    );
+    await assertSucceeds(
+      otherTeacher.database().ref('reading_v2/reading_passage_material_versions/public-passage/snapshot-public').once('value'),
+    );
+    await assertSucceeds(
+      otherTeacher.database().ref('reading_v2/published_snapshots/public-passage/snapshot-public').once('value'),
+    );
+    await assertFails(
+      student.database().ref('reading_v2/reading_passage_materials/public-passage').once('value'),
+    );
+    await assertFails(
+      student.database().ref('reading_v2/published_snapshots/public-passage/snapshot-public').once('value'),
+    );
+  });
+
+  it('allows teacher clone writes when version rows and duplicate indexes match owner contract', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const updates = {
+      'reading_v2/reading_passage_materials/cloned-passage': {
+        deliveryEngine: 'reading-v2',
+        plane: 'canonical',
+        schemaVersion: 1,
+        passageMaterialId: 'cloned-passage',
+        ownerId: 'teacher-1',
+        visibility: 'private',
+        state: 'published',
+        currentSnapshotVersionId: 'snapshot-cloned',
+        title: 'Cloned Passage',
+      },
+      'reading_v2/reading_passage_material_versions/cloned-passage/snapshot-cloned': {
+        passageMaterialId: 'cloned-passage',
+        currentSnapshotVersionId: 'snapshot-cloned',
+        ownerId: 'teacher-1',
+        document: { title: 'Cloned Passage' },
+        publishedAt: '2026-06-16T00:00:00.000Z',
+        publishedBy: 'teacher-1',
+      },
+      'reading_v2/published_snapshots/cloned-passage/snapshot-cloned': {
+        materialId: 'cloned-passage',
+        snapshotVersionId: 'snapshot-cloned',
+        ownerId: 'teacher-1',
+        document: { title: 'Cloned Passage' },
+      },
+      'reading_v2/projections/student_safe_tests/cloned-passage:snapshot-cloned': {
+        materialId: 'cloned-passage',
+        ownerId: 'teacher-1',
+        projectionKind: 'student-safe',
+      },
+      'reading_v2/projections/review/cloned-passage:snapshot-cloned': {
+        materialId: 'cloned-passage',
+        ownerId: 'teacher-1',
+        projectionKind: 'review',
+        sourceSnapshotVersionId: 'snapshot-cloned',
+      },
+      'reading_v2/material_metadata/cloned-passage': {
+        materialId: 'cloned-passage',
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        title: 'Cloned Passage',
+        publishedSnapshotVersionId: 'snapshot-cloned',
+        state: 'published',
+      },
+      'reading_v2/duplicate_indexes/passages_by_owner/teacher-1/cloned-passage': {
+        schemaVersion: 1,
+        ownerId: 'teacher-1',
+        passageMaterialId: 'cloned-passage',
+        currentVersionId: 'snapshot-cloned',
+        title: 'Cloned Passage',
+        state: 'published',
+        visibility: 'private',
+        source: { sourceOrderDisplay: 'Passage 1' },
+        testType: { testTypeIds: ['ielts'] },
+        questionCount: 1,
+        updatedAt: '2026-06-16T00:00:00.000Z',
+        bodyShingleSize: 5,
+        questionShingleSize: 3,
+        bodyShingleHashes: [],
+        questionShingleHashes: [],
+      },
+    };
+
+    await assertSucceeds(teacher.database().ref().update(updates));
+    await assertFails(
+      teacher.database().ref('reading_v2/reading_passage_material_versions/invalid-clone/snapshot-invalid').set({
+        passageMaterialId: 'invalid-clone',
+        currentSnapshotVersionId: 'snapshot-invalid',
+        document: { title: 'Invalid Clone' },
+      }),
+    );
+  });
+
+  it('allows owners to republish a private Reading Passage as library eligible', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const materialId = 'passage-visibility-republish';
+    const previousSnapshotVersionId = 'snapshot-private';
+    const nextSnapshotVersionId = 'snapshot-public';
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+
+      await db.ref(`reading_v2/reading_passage_materials/${materialId}`).set({
+        deliveryEngine: 'reading-v2',
+        plane: 'canonical',
+        schemaVersion: 1,
+        passageMaterialId: materialId,
+        ownerId: 'teacher-1',
+        visibility: 'private',
+        state: 'published',
+        currentSnapshotVersionId: previousSnapshotVersionId,
+        title: 'Private Passage',
+      });
+      await db.ref(`reading_v2/material_metadata/${materialId}`).set({
+        materialId,
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: 'Private Passage',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+        publishedSnapshotVersionId: previousSnapshotVersionId,
+        state: 'published',
+        updatedAt: '2026-06-15T19:00:00.000Z',
+      });
+    });
+
+    const updates = {
+      [`reading_v2/published_snapshots/${materialId}/${nextSnapshotVersionId}`]: {
+        materialId,
+        snapshotVersionId: nextSnapshotVersionId,
+        ownerId: 'teacher-1',
+        document: { title: 'Public Passage' },
+      },
+      [`reading_v2/projections/student_safe_tests/${materialId}:${nextSnapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'student-safe',
+        sourceSnapshotVersionId: nextSnapshotVersionId,
+      },
+      [`reading_v2/projections/session_test_payloads/publish-template:${nextSnapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'session-safe',
+        sourceSnapshotVersionId: nextSnapshotVersionId,
+      },
+      [`reading_v2/projections/review/${materialId}:${nextSnapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'review',
+        sourceSnapshotVersionId: nextSnapshotVersionId,
+      },
+      [`reading_v2/analytics_outputs/${materialId}:${nextSnapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'analytics',
+        sourceSnapshotVersionId: nextSnapshotVersionId,
+      },
+      [`reading_v2/material_metadata/${materialId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: 'Public Passage',
+        materialKind: 'reading-passage',
+        visibility: 'library-eligible',
+        publishedSnapshotVersionId: nextSnapshotVersionId,
+        state: 'published',
+        updatedAt: '2026-06-15T19:12:11.000Z',
+      },
+      [`reading_v2/relationship_indexes/teacher-lobby/${materialId}`]: {
+        surface: 'teacher-lobby',
+        materialId,
+        snapshotVersionId: nextSnapshotVersionId,
+        source: 'published-metadata',
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+      },
+      [`material_catalog/material_indexes/by_visibility/public/${materialId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        title: 'Public Passage',
+        visibility: 'public',
+        materialKind: 'reading-passage',
+        updatedAt: '2026-06-15T19:12:11.000Z',
+      },
+      [`tests/${materialId}`]: {
+        id: materialId,
+        materialId,
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        contentEngine: 'reading-v2',
+        runtimeEngine: 'reading-v2',
+        title: 'Public Passage',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        isPublic: true,
+        materialKind: 'reading-passage',
+        productLabel: 'Reading V2',
+        publishedSnapshotVersionId: nextSnapshotVersionId,
+        updatedAt: '2026-06-15T19:12:11.000Z',
+      },
+      [`reading_v2/publish_commits/${materialId}:${nextSnapshotVersionId}`]: {
+        commitKey: `${materialId}/${nextSnapshotVersionId}`,
+        materialId,
+        snapshotVersionId: nextSnapshotVersionId,
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        operationKeys: [`${materialId}/${nextSnapshotVersionId}/metadata`],
+        writePaths: [`reading_v2/material_metadata/${materialId}`],
+        committedAt: '2026-06-15T19:12:11.000Z',
+      },
+    };
+
+    await assertSucceeds(teacher.database().ref().update(updates));
+  });
+
   it('allows students to create/read their own attempts and denies cross-student attempts', async () => {
     const { otherStudent, student } = makeReadingV2RuleContexts();
     const attemptPath = 'reading_v2/attempts/attempt-1';

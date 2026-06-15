@@ -1,6 +1,6 @@
 {
   "docPath": "architecture/reading-v2-material-publish-and-passage-library",
-  "currentVersion": 4,
+  "currentVersion": 5,
   "versions": [
     {
       "id": "v1",
@@ -143,6 +143,27 @@
           "teacher-materials",
           "reading-passage",
           "homework"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/reading-v2-material-publish-and-passage-library.md"
+      }
+    },
+    {
+      "id": "v5",
+      "docPath": "architecture/reading-v2-material-publish-and-passage-library",
+      "version": 5,
+      "timestamp": "2026-06-16T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "See v4 snapshot.content",
+          "newValue": "Added Studio passage visibility control in the main question panel and clarified that post-publish reference discovery is best-effort and cannot flip a committed publish into failure."
+        }
+      ],
+      "snapshot": {
+        "title": "Reading V2 Material Publish And Passage Library",
+        "description": "Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.",
+        "tags": [
+          "architecture"
         ],
         "content": "Mirror: .knowns/docs/architecture/reading-v2-material-publish-and-passage-library.md"
       }

@@ -30,6 +30,19 @@ Studio passage-collection controls are mode-scoped.
 
 Obsolete interpretation retired 2026-06-15: "same Studio shell supports all modes" does not mean passage-collection controls are enabled in all modes. Resume, published revision, duplicate, extraction, and single-passage repair modes inherit the same draft model, but they do not automatically inherit the `Add Passage` affordance.
 
+## Studio Passage Visibility
+
+Individual `reading-passage` Studio revisions expose `Private / Public` in the main question panel next to `Add Question Group`.
+
+Control mapping:
+
+- `Private` maps to `private`
+- `Public` maps to `library-eligible`
+
+Publish must carry the selected visibility into the canonical material metadata, Reading Passage row, and Material Catalog visibility indexes.
+
+Obsolete interpretation retired 2026-06-16: visibility is not a hidden Developer Details-only control for single Reading Passage revision flows.
+
 ## Publish Model
 
 For a full Reading V2 test, publish writes two related material layers:
@@ -85,6 +98,18 @@ Exception:
 - staying in Studio in that case does not authorize direct mutation of the live published snapshot or live projections
 
 Obsolete interpretation retired 2026-06-15: "publish may remain in the same Studio context for normal creation/import flows." That wording is no longer valid for non-revision publish success.
+
+## Post-Publish Reference Discovery
+
+Single-passage published-revision flows may attempt to discover update targets after the publish commit succeeds.
+
+That discovery step is best-effort only:
+
+- a denied discovery read must not convert a committed publish into a publish failure
+- the committed material and material indexes remain authoritative
+- the update-references modal may be skipped when discovery cannot read target data
+
+This keeps publish success aligned with the committed RTDB write instead of the follow-up discovery phase.
 
 ## Material Catalog Index Contract
 

@@ -14,6 +14,7 @@ import {
 
 const trackActionMock = vi.fn();
 const navigateToMock = vi.fn();
+const discoverTargetsMock = vi.fn();
 
 vi.mock('../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({
@@ -41,6 +42,13 @@ vi.mock('../services/reading-v2/readingV2FirebasePublishAdapter.service', () => 
   })),
 }));
 
+vi.mock('../services/reading-v2/readingV2ReferenceUpdateFirebaseRepository.service', () => ({
+  createFirebaseReadingV2ReferenceUpdateRepository: () => ({
+    discoverTargets: discoverTargetsMock,
+    applySelected: vi.fn(),
+  }),
+}));
+
 vi.mock('../services/reading-v2/readingV2StudioFirebaseHydration.service', async () => {
   const { createReadingV2CanonicalFixture } = await vi.importActual<typeof import('../services/reading-v2/fixtures/readingV2CanonicalFixtures')>(
     '../services/reading-v2/fixtures/readingV2CanonicalFixtures',
@@ -62,7 +70,7 @@ vi.mock('../services/reading-v2/readingV2StudioFirebaseHydration.service', async
           deliveryEngine: 'reading-v2',
           productLabel: 'Reading V2',
           title: document.title,
-          materialKind: 'full-test',
+          materialKind: materialId === 'single-passage-1' ? 'reading-passage' : 'full-test',
           durationMinutes: 60,
           difficulty: 'intermediate',
           targetBand: 'Band 6-7',
@@ -99,6 +107,18 @@ describe('ReadingV2StudioPage', () => {
   beforeEach(() => {
     trackActionMock.mockClear();
     navigateToMock.mockClear();
+    discoverTargetsMock.mockResolvedValue({
+      passageMaterialId: 'single-passage-1',
+      previousSnapshotVersionId: 'snapshot-live',
+      nextSnapshotVersionId: 'snapshot-new',
+      targets: [],
+      excluded: {
+        nonOwnedReferenceCount: 0,
+        alreadyCurrentCount: 0,
+        frozenAssignmentCount: 0,
+        resultSnapshotCount: 0,
+      },
+    });
     readingV2StudioRepository.store.drafts.clear();
     readingV2StudioRepository.store.publishedSnapshots.clear();
     readingV2StudioRepository.store.passageAssets.clear();
@@ -268,6 +288,26 @@ describe('ReadingV2StudioPage', () => {
       draftId: draft.draftId,
       reason: 'reading_v2_studio_publish_success',
     }));
+  });
+
+  it('does not report publish failure when post-publish reference discovery is denied', async () => {
+    const user = userEvent.setup();
+    discoverTargetsMock.mockRejectedValueOnce(new Error('PERMISSION_DENIED: Permission denied'));
+
+    renderRoute(
+      '/teacher/reading-v2/materials/single-passage-1/revise',
+      '/teacher/reading-v2/materials/:materialId/revise',
+    );
+
+    await waitFor(() => expect(screen.getByRole('main')).toHaveAttribute('data-mode', 'revise-published'));
+    await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+    expect(await screen.findAllByText('Published successfully.')).not.toHaveLength(0);
+    expect(trackActionMock).toHaveBeenCalledWith('reading_v2_update_references_skipped', expect.objectContaining({
+      materialId: 'single-passage-1',
+      outcome: 'discovery-failed-after-publish',
+    }));
+    expect(screen.queryByText(/Publish permission denied/i)).not.toBeInTheDocument();
   });
 
   it('opens Studio for localized duplicate structured-layout questions when the draft is canonical-safe', async () => {

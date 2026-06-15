@@ -27,7 +27,7 @@ import {
   mapReadingV2BuildValidationMessagesToReviewIssues,
   type ReadingV2ReviewIssue,
 } from '../../../services/reading-v2/readingV2ReviewIssueMapping.service';
-import type { ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
+import type { ReadingV2StudioMetadata, ReadingV2Visibility } from './ReadingV2MetadataPanel';
 import { ReadingV2PassageEditor } from './ReadingV2PassageEditor';
 import { ReadingV2ReviewIssuesPanel } from './ReadingV2ReviewIssuesPanel';
 import { ReadingV2TableCompletionBuilder } from './ReadingV2TableCompletionBuilder';
@@ -91,6 +91,7 @@ export interface ReadingV2BuildWorkspaceProps {
   readonly onSelectPassage: (passageNumber: number) => void;
   readonly onAddPassage?: () => void;
   readonly onRemovePassage?: (passageNumber: number) => void;
+  readonly onMetadataChange: (metadata: ReadingV2StudioMetadata) => void;
   readonly onPassageTitleChange: (passageNumber: number, title: string) => void;
   readonly onPassageTextChange: (passageNumber: number, text: string) => void;
   readonly onAddQuestionGroup: (taskType: ReadingV2CanonicalTaskType) => void;
@@ -4874,6 +4875,7 @@ export function ReadingV2BuildWorkspace({
   onSelectPassage,
   onAddPassage,
   onRemovePassage,
+  onMetadataChange,
   onPassageTitleChange,
   onPassageTextChange,
   onAddQuestionGroup,
@@ -5068,6 +5070,13 @@ export function ReadingV2BuildWorkspace({
       issueCount: reviewIssues.length,
     });
   };
+
+  const handleVisibilityChange = (visibility: ReadingV2Visibility) => {
+    onMetadataChange({ ...metadata, visibility });
+  };
+
+  const passageVisibility = metadata.visibility === 'library-eligible' ? 'public' : 'private';
+  const showPassageVisibilityControl = metadata.materialKind === 'reading-passage';
 
   function scrollQuestionIntoView(questionNumber: number) {
     if (typeof window === 'undefined' || !window.document) {
@@ -5584,9 +5593,34 @@ export function ReadingV2BuildWorkspace({
               <h2>Questions for Passage {selectedPassageNumber}</h2>
               <p>{selectedPassageTaskGroups.length} group{selectedPassageTaskGroups.length === 1 ? '' : 's'} in this passage, {allTaskGroups.length} total.</p>
             </div>
-            <button className="reading-v2-studio__button reading-v2-studio__button--primary" type="button" onClick={openAddGroupModal}>
-              Add Question Group
-            </button>
+            <div className="reading-v2-build__question-actions">
+              {showPassageVisibilityControl ? (
+                <fieldset className="reading-v2-build__visibility-control">
+                  <legend className="reading-v2-studio__sr-only">Reading Passage visibility</legend>
+                  <button
+                    type="button"
+                    className="reading-v2-build__visibility-option"
+                    data-selected={passageVisibility === 'private' ? 'true' : 'false'}
+                    aria-pressed={passageVisibility === 'private'}
+                    onClick={() => handleVisibilityChange('private')}
+                  >
+                    Private
+                  </button>
+                  <button
+                    type="button"
+                    className="reading-v2-build__visibility-option"
+                    data-selected={passageVisibility === 'public' ? 'true' : 'false'}
+                    aria-pressed={passageVisibility === 'public'}
+                    onClick={() => handleVisibilityChange('library-eligible')}
+                  >
+                    Public
+                  </button>
+                </fieldset>
+              ) : null}
+              <button className="reading-v2-studio__button reading-v2-studio__button--primary" type="button" onClick={openAddGroupModal}>
+                Add Question Group
+              </button>
+            </div>
           </header>
 
           {selectedPassageTaskGroups.length === 0 ? (

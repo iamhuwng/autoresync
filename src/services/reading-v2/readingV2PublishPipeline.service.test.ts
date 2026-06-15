@@ -844,6 +844,59 @@ describe('readingV2PublishPipeline.service', () => {
     );
   });
 
+  it('updates standalone Reading Passage canonical and catalog rows on republish', () => {
+    const repository = createReadingV2Repository();
+    const materialId = readingV2Ids.materialId('material-standalone-passage');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-standalone-passage');
+    const result = publishReadingV2Material({
+      repository,
+      materialId,
+      ownerId: 'teacher-1',
+      document: withSectionTitleAndNumbers(fixtureDocument(), 'Reading Passage 1', [1, 13]),
+      publishedBy: 'teacher-1',
+      snapshotVersionId,
+      publishedAt: '2026-06-15T19:12:11.000Z',
+      metadata: {
+        title: 'Standalone Passage',
+        materialKind: 'reading-passage',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        sourceFullTestId: readingV2Ids.materialId('source-full-test'),
+        sourceSnapshotVersionId: readingV2Ids.snapshotVersionId('source-snapshot'),
+        sourceQuestionRange: '1-13',
+        visibility: 'library-eligible',
+      },
+    });
+    const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
+    const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
+
+    expect(byPath[readingV2StoragePaths.readingPassageMaterials(materialId)]).toMatchObject({
+      passageMaterialId: materialId,
+      ownerId: 'teacher-1',
+      visibility: 'public',
+      state: 'published',
+      currentSnapshotVersionId: snapshotVersionId,
+      title: 'Standalone Passage',
+      sourceFullTestId: 'source-full-test',
+      sourceSnapshotVersionId: 'source-snapshot',
+      sourceQuestionRange: '1-13',
+    });
+    expect(byPath[readingV2StoragePaths.readingPassageMaterialVersions(materialId, snapshotVersionId)])
+      .toMatchObject({
+        passageMaterialId: materialId,
+        currentSnapshotVersionId: snapshotVersionId,
+        ownerId: 'teacher-1',
+      });
+    expect(byPath[`material_catalog/material_indexes/by_visibility/public/${materialId}`]).toMatchObject({
+      materialId,
+      ownerId: 'teacher-1',
+      visibility: 'public',
+      materialKind: 'reading-passage',
+    });
+    expect(byPath[`material_catalog/material_indexes/by_visibility/private/${materialId}`]).toBeNull();
+  });
+
   it('does not auto-extract Reading Passages for explicit task-group material publishes', () => {
     const repository = createReadingV2Repository();
     const result = publishReadingV2Material({

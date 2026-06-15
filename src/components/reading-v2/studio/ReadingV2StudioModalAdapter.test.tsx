@@ -182,6 +182,29 @@ describe('ReadingV2StudioModalAdapter', () => {
     }));
   });
 
+  it('keeps publish successful when update-reference discovery fails after commit', async () => {
+    const onAction = vi.fn();
+    discoverTargetsMock.mockRejectedValueOnce(new Error('PERMISSION_DENIED: Permission denied'));
+
+    render(
+      <ReadingV2StudioModalAdapter
+        mode="revise-published"
+        materialId="single-passage-1"
+        onAction={onAction}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByRole('main')).toHaveAttribute('data-host', 'modal'));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    expect(await screen.findAllByText('Published successfully.')).not.toHaveLength(0);
+    expect(onAction).toHaveBeenCalledWith('reading_v2_update_references_skipped', expect.objectContaining({
+      materialId: 'single-passage-1',
+      outcome: 'discovery-failed-after-publish',
+    }));
+    expect(screen.queryByText(/Publish permission denied/i)).not.toBeInTheDocument();
+  });
+
   it('surfaces duplicate warnings from publish result without blocking the completed publish', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();

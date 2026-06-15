@@ -278,6 +278,14 @@ export const commitReadingV2PublishPlanToFirebase = async (
       status: 'committed',
     };
   } catch (writeError) {
+    if (import.meta.env.DEV && !import.meta.env.VITEST) {
+      console.error('[Diag][ReadingV2PublishFirebase] publish_update_denied', JSON.stringify({
+        commitPath: firebaseUpdates.commitPath,
+        writePaths: Object.keys(firebaseUpdates.updates).sort(),
+        operationKeys: firebaseUpdates.operationKeys,
+      }));
+    }
+
     try {
       const commitSnapshot = await get(ref(targetDatabase, firebaseUpdates.commitPath));
 

@@ -9,6 +9,7 @@ import type {
   ReadingV2BuildValidationMessage,
   ReadingV2QuestionLinkTarget,
 } from './ReadingV2BuildWorkspace';
+import type { ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
 
 vi.mock('./ReadingV2PassageEditor', () => ({
   ReadingV2PassageEditor: ({
@@ -56,6 +57,7 @@ const renderWorkspace = (
     readonly withImageBlock?: boolean;
     readonly layoutHint?: string;
     readonly validationMessages?: readonly ReadingV2BuildValidationMessage[];
+    readonly metadata?: ReadingV2StudioMetadata;
   } = {},
 ) => {
   let document = createReadingV2CanonicalFixture(taskType);
@@ -176,11 +178,12 @@ const renderWorkspace = (
   const onQuestionLinkRepair = vi.fn();
   const onSelectTaskGroup = vi.fn();
   const onReviewIssuesAction = vi.fn();
+  const onMetadataChange = vi.fn();
 
   render(
     <ReadingV2BuildWorkspace
       document={document}
-      metadata={metadata}
+      metadata={options.metadata ?? metadata}
       modeLabel="Create blank"
       passageSlots={passageSlots}
       selectedPassageNumber={1}
@@ -200,6 +203,7 @@ const renderWorkspace = (
       onPublish={vi.fn()}
       onExit={vi.fn()}
       onSelectPassage={vi.fn()}
+      onMetadataChange={onMetadataChange}
       onPassageTitleChange={vi.fn()}
       onPassageTextChange={onPassageTextChange}
       onAddQuestionGroup={vi.fn()}
@@ -234,10 +238,33 @@ const renderWorkspace = (
     onQuestionLinkRepair,
     onSelectTaskGroup,
     onReviewIssuesAction,
+    onMetadataChange,
   };
 };
 
 describe('ReadingV2BuildWorkspace task-type editors', () => {
+  it('exposes public and private visibility beside Add Question Group for passage materials', () => {
+    const { onMetadataChange } = renderWorkspace('summary-completion-text', {
+      metadata: {
+        ...metadata,
+        materialKind: 'reading-passage',
+      },
+    });
+
+    const visibilityGroup = screen.getByRole('group', { name: 'Reading Passage visibility' });
+    const privateButton = within(visibilityGroup).getByRole('button', { name: 'Private' });
+    const publicButton = within(visibilityGroup).getByRole('button', { name: 'Public' });
+
+    expect(privateButton).toHaveAttribute('aria-pressed', 'true');
+    expect(publicButton).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(publicButton);
+
+    expect(onMetadataChange).toHaveBeenCalledWith(expect.objectContaining({
+      visibility: 'library-eligible',
+    }));
+  });
+
   it('opens click-stable review issues panel instead of exposing full tooltip text', () => {
     renderWorkspace('summary-completion-text', {
       validationMessages: [
