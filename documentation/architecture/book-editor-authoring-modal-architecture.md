@@ -27,6 +27,8 @@ The modal has exactly three tabs:
 
 Book cover uploads use the stable R2 object key `book-covers/{bookId}/cover`; replacing the cover overwrites the previous object instead of showing or editing raw storage URLs in the modal.
 
+Broken Reading Passage refs are handled inside the existing `Content` tab. Do not add a fourth repair tab, a route-first repair page, or a separate Book repair modal. The Content pane may show a repair region for selected broken refs, with reason codes, replace/remove actions, and restore-start for owned archived sources.
+
 Retired:
 
 - peer `Assign` tab;
@@ -95,6 +97,8 @@ Retired:
 - No new `@mantine/*` imports.
 - No whole-Book homework/start action.
 - Attach/remove operations mutate Book snapshot refs only, never source materials.
+- Broken-ref repair mutates Book material refs only. It must not mutate source Reading Passage materials, assignment-pinned projections, or completed result snapshots.
+- Broken-ref reason summaries may include `archived`, `missing`, `inaccessible`, `missing-version`, and `missing-projection`; repair UI must not expose passage bodies, answer keys, canonical payloads, or student data.
 - Delete and dirty-close confirmations stay inside the modal.
 - Modal traps focus, restores focus after close, and locks background scrolling.
 - Tree uses `tree`/`treeitem`/`group` semantics and exposes expanded state.

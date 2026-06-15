@@ -131,7 +131,9 @@ When a teacher starts a new Reading V2 material from an existing Teacher Lobby c
 2. The lobby forwards the selected mode into the Studio pipeline.
 3. The teacher sees or confirms metadata before publish.
 4. Import candidates must become canonical drafts before answer-key editing, settings, preview, or publish.
-5. The teacher returns to the same lobby/profile context after save, discard, or publish where that context owns the action.
+5. Save and discard return to the same lobby/profile context where that context owns the action.
+6. Successful non-revision publish returns the teacher to the Teacher Lobby/Materials context so the just-published test is re-entered through normal material-card/list workflows.
+7. Published-revision follow-up may stay in Studio only for bounded draft-revision actions; it must not imply direct mutation of the live published snapshot.
 
 Teacher Lobby may show card metadata after publish, but it must not become the metadata source of truth or own canonical draft mutations.
 
@@ -150,6 +152,7 @@ Teacher Lobby integration tests must prove:
 - Reading V2 draft cards resume Studio draft mode.
 - Published Reading V2 edit creates or opens a draft revision rather than mutating the live published snapshot.
 - Create/import/resume/revise actions enter the same Reading V2 test-making pipeline and do not split metadata, answer-key, settings, or publish into disconnected products.
+- Successful non-revision publish returns to Teacher Lobby/Materials instead of leaving a stale editable Studio shell on screen.
 - Metadata shown on cards comes from approved material metadata/index reads, not from canonical draft inspection.
 - Existing IELTS Reading, Listening, Writing, THCS, and non-V2 material cards keep their current behavior.
 - Standalone passage assets are hidden from broad Teacher Lobby exposure unless `READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY` explicitly enables that later phase.

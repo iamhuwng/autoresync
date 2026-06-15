@@ -618,7 +618,7 @@ Teacher test making must remain one ordered flow:
 6. material-level settings inside `Settings`
 7. validation and teacher-only preview
 8. publish snapshot and derived projections
-9. return to existing platform relationships
+9. successful non-revision publish exits Studio into existing platform relationships through Teacher Lobby/Materials context; later edits require revision plus republish
 
 Implementation law:
 

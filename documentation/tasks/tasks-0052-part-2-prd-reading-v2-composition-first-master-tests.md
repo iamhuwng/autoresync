@@ -168,7 +168,7 @@ Inspect these before editing. Add exact line notes to the findings file after in
 
 ## Phase 2A - Composition-First Full-Test Publish Core
 
-- [ ] Update `src/services/reading-v2/readingV2PublishPipeline.service.ts`.
+- [x] Update `src/services/reading-v2/readingV2PublishPipeline.service.ts`.
   - First publish of a new full Reading V2 test creates standalone Reading Passage materials for each passage.
   - Retry/re-publish of the same source full-test material, source snapshot/version, and source passage order must not create duplicate generated passage identities.
   - Generated Reading Passages inherit the master visibility only when the generated passage can safely support that visibility; otherwise publish blocks or requires teacher-selected private master visibility.
@@ -178,18 +178,18 @@ Inspect these before editing. Add exact line notes to the findings file after in
   - Master record contains metadata and refs only.
   - Master record never embeds passage content or answer key payload.
   - Master publish uses the shared composition numbering owner from Phase 1A.
-- [ ] Update `src/services/reading-v2/readingV2FirebasePublishAdapter.service.ts`.
+- [x] Update `src/services/reading-v2/readingV2FirebasePublishAdapter.service.ts`.
   - Commit all RTDB writes for one publish plan through one root multi-location update where the existing adapter supports that.
   - Simulate failure after partial staging in tests and assert no partial committed state remains in repository-backed unit tests.
   - Keep Firestore homework writes out of this publish transaction unless an existing architecture doc already requires them.
-- [ ] Update `src/services/reading-v2/readingV2Projection.service.ts`.
+- [x] Update `src/services/reading-v2/readingV2Projection.service.ts`.
   - Build passage projections from passage snapshots.
   - Do not build a master student projection that requires live canonical passage reads.
   - If a master launch projection is needed, compose it from frozen passage projections and record the exact source snapshot ids.
-- [ ] Update `src/services/reading-v2/readingV2MaterialMetadata.service.ts`.
+- [x] Update `src/services/reading-v2/readingV2MaterialMetadata.service.ts`.
   - Preserve discoverable list metadata for master and generated passage materials.
   - Mark master as composition/ref owner, not a raw passage content owner.
-- [ ] Add or update tests:
+- [x] Add or update tests:
   - `readingV2PublishPipeline.service.test.ts`: retry/re-publish of the same source snapshot does not silently create duplicate generated Reading Passages.
   - `readingV2PublishPipeline.service.test.ts`: public master publish blocks or requires private visibility when generated passage refs cannot be public/shareable.
   - `readingV2PublishPipeline.service.test.ts`: split publish blocks when an extracted passage has invalid anchor/interaction bindings after extraction.
@@ -200,25 +200,25 @@ Inspect these before editing. Add exact line notes to the findings file after in
   - `readingV2FirebasePublishAdapter.service.test.ts`: commit plan maps master, generated passages, projections, versions, and listing indexes to expected paths.
   - `readingV2FirebasePublishAdapter.service.test.ts`: commit failure rejects and leaves no partial repository state in the test double.
   - `readingV2TeacherComposition.service.test.ts`: existing manually selected passage composition still works after first-publish split.
-- [ ] Add path-specific rules tests before parent acceptance:
+- [x] Add path-specific rules tests before parent acceptance:
   - `src/__tests__/security/readingV2FirebaseRules.test.ts` accepts valid generated passage/version/projection/index writes through approved trusted write patterns.
   - `src/__tests__/security/readingV2FirebaseRules.test.ts` rejects generated passage or master student-safe projection writes that contain answer keys, review payload, or embedded full-test canonical content.
-- [ ] Parent acceptance: a full-test publish can be inspected in test output as standalone passages plus ref-only master; no master embedded payload remains. Phase 2A may be complete while Phase 2B is blocked, but final tasklist acceptance cannot be complete until Phase 2B passes.
+- [x] Parent acceptance: a full-test publish can be inspected in test output as standalone passages plus ref-only master; no master embedded payload remains. Phase 2A may be complete while Phase 2B is blocked, but final tasklist acceptance cannot be complete until Phase 2B passes.
 
 ## Phase 2B - Auto-Split Duplicate Index Integration Gate
 
-- [ ] Do not start this phase until PRD-0054 Phase 1B duplicate index foundation exists and its service/rules tests pass.
-- [ ] Update `src/services/reading-v2/readingV2PublishPipeline.service.ts`.
+- [x] Do not start this phase until PRD-0054 Phase 1B duplicate index foundation exists and its service/rules tests pass.
+- [x] Update `src/services/reading-v2/readingV2PublishPipeline.service.ts`.
   - Before final acceptance, auto-split publish uses the PRD-0054 duplicate guard service and duplicate index at `reading_v2/duplicate_indexes/passages_by_owner/{ownerId}/{passageMaterialId}` to warn on generated passage candidates with `>= 80%` similarity.
   - If the duplicate index/service is not implemented yet, record the dependency in findings, leave auto-split duplicate warning blocked, and do not mark final PRD-0052 Part 2 acceptance complete.
   - Duplicate warning checks include active passages the teacher can access and the teacher's own archived passages; they must not include broad canonical scans, answer keys, hidden provenance, AI evidence, scoring rules, or full canonical payload hydration.
   - Indexed duplicate warning is warning-only. The teacher can use the existing passage, restore-and-use an owned archived passage through PRD-0054 archive service, or create the new generated passage anyway.
-- [ ] Add or update tests:
+- [x] Add or update tests:
   - `readingV2PublishPipeline.service.test.ts`: auto-split publish calls the PRD-0054 duplicate guard/index before creating generated passages once the index foundation exists.
   - `readingV2PublishPipeline.service.test.ts`: auto-split duplicate warning includes active accessible matches and owned archived matches, but does not hydrate full canonical payloads or answer keys.
   - `readingV2PublishPipeline.service.test.ts`: auto-split duplicate warning lets the teacher use existing, restore-and-use owned archived, or create new anyway.
   - `readingV2PublishPipeline.service.test.ts`: missing or stale duplicate index blocks publish with a typed issue instead of falling back to broad canonical payload hydration.
-- [ ] Parent acceptance: duplicate warning coverage is proven through the PRD-0054 duplicate index, or this phase remains explicitly blocked in findings. Do not mark overall PRD-0052 Part 2 final acceptance complete while this phase is blocked.
+- [x] Parent acceptance: duplicate warning coverage is proven through the PRD-0054 duplicate index, or this phase remains explicitly blocked in findings. Do not mark overall PRD-0052 Part 2 final acceptance complete while this phase is blocked.
 
 ## Phase 3 - Published Master Edit Test Modal
 
@@ -424,83 +424,83 @@ Inspect these before editing. Add exact line notes to the findings file after in
 
 Run from `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`. For vitest, vite, and esbuild commands in this Windows checkout, use the unrestricted command form required by `AGENTS.md`.
 
-- [ ] Publish/composition:
+- [x] Publish/composition:
   - `cmd /c npx vitest run src/services/reading-v2/readingV2StoragePaths.service.test.ts src/services/reading-v2/readingV2CompositionNumbering.service.test.ts src/services/reading-v2/readingV2PublishPipeline.service.test.ts src/services/reading-v2/readingV2FirebasePublishAdapter.service.test.ts src/services/reading-v2/readingV2FullTestComposition.service.test.ts src/services/reading-v2/readingV2TeacherComposition.service.test.ts --reporter=basic`
-- [ ] Auto-split duplicate-index integration:
+- [x] Auto-split duplicate-index integration:
   - `cmd /c npx vitest run src/services/reading-v2/readingV2PublishPipeline.service.test.ts src/services/reading-v2/readingV2PassageDuplicateGuard.service.test.ts --reporter=basic`
   - If PRD-0054 Phase 1B is not implemented yet, record this command as blocked by dependency; do not replace it with broad canonical scan tests.
-- [ ] Master modal and creation:
+- [x] Master modal and creation:
   - `cmd /c npx vitest run src/pages/TeacherLobbyPage.test.jsx src/components/test-creation/TestCreationModal.test.tsx src/components/reading-v2/master/ReadingV2MasterEditModal.test.tsx src/components/reading-v2/master/ReadingV2MasterPassagePicker.test.tsx src/components/reading-v2/master/ReadingV2UpdateReferencesModal.test.tsx --reporter=basic`
-- [ ] Assignment/runtime/result:
+- [x] Assignment/runtime/result:
   - `cmd /c npx vitest run src/components/homework/HomeworkCreateModal.test.tsx src/pages/TeacherHomeworkDetailPage.test.tsx src/services/reading-v2/readingV2PassageHomework.service.test.ts src/services/reading-v2/readingV2PassageHomeworkLaunch.service.test.ts src/services/reading-v2/readingV2LaunchIntegration.service.test.ts src/pages/StudentPracticePage.test.tsx src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/components/results/ReadingV2ReviewContentAdapter.test.tsx functions/src/readingV2SubmitCore.test.ts --reporter=basic`
-- [ ] Routes, registry, rules:
+- [x] Routes, registry, rules:
   - `cmd /c npx vitest run src/constants/routes.test.ts src/routes/teacherRoutes.test.tsx src/config/featureRegistry.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts src/__tests__/security/homeworkFirestoreRules.test.ts --reporter=basic`
-- [ ] UTF-8 targeted check:
+- [x] UTF-8 targeted check:
   - `cmd /c npm run check:utf8 -- src/services/reading-v2 src/components/reading-v2/master src/components/test-creation src/components/homework src/pages/TeacherLobbyPage.jsx src/pages/TeacherHomeworkDetailPage.tsx src/pages/StudentPracticePage.tsx src/config src/constants src/routes database.rules.json firestore.rules documentation/tasks/tasks-0052-part-2-prd-reading-v2-composition-first-master-tests.md documentation/tasks/findings-of-tasks-0052-part-2-prd-reading-v2-composition-first-master-tests.md`
-- [ ] Diff whitespace:
+- [x] Diff whitespace:
   - `git diff --check`
 
 ## AI E2E Browser Protocol
 
 - [ ] Use the in-app Browser or Playwright first when it can reach the local dev server and complete dev quick-login.
-- [ ] The `@chrome` plugin may be used when necessary: in-app browser authentication fails, popup/new-tab behavior must be proven in real Chrome, cross-tab refresh/on-focus behavior is under test, or existing Chrome session/state is required. Record the reason in the findings file before using Chrome.
-- [ ] For new-tab, refresh-on-focus, cross-tab messaging, `window.*`, or direct navigation work, confirm `documentation/rules/navigation.md` and `documentation/rules/mobile-portability.md` were read and record the exact rule impact in findings.
-- [ ] Do not ask for manual credentials during normal proof. Use the hidden dev quick-login buttons. If quick-login fails, capture the runtime/config error and stop before entering credentials.
-- [ ] For every proof step, record browser surface used, viewport size, URL, material/homework ids, expected result, actual result, and screenshot/trace path in the findings file.
-- [ ] Use a fresh browser context, separate Chrome profile, or explicit logout before Student proof so Teacher state cannot leak into Student verification.
-- [ ] Treat console errors, failed network requests in touched flows, broken feature-registry events, or missing audit/observability events as blockers unless proven unrelated with evidence.
+- [x] The `@chrome` plugin may be used when necessary: in-app browser authentication fails, popup/new-tab behavior must be proven in real Chrome, cross-tab refresh/on-focus behavior is under test, or existing Chrome session/state is required. Record the reason in the findings file before using Chrome.
+- [x] For new-tab, refresh-on-focus, cross-tab messaging, `window.*`, or direct navigation work, confirm `documentation/rules/navigation.md` and `documentation/rules/mobile-portability.md` were read and record the exact rule impact in findings.
+- [x] Do not ask for manual credentials during normal proof. Use the hidden dev quick-login buttons. If quick-login fails, capture the runtime/config error and stop before entering credentials.
+- [x] For every proof step, record browser surface used, viewport size, URL, material/homework ids, expected result, actual result, and screenshot/trace path in the findings file.
+- [x] Use a fresh browser context, separate Chrome profile, or explicit logout before Student proof so Teacher state cannot leak into Student verification.
+- [x] Treat console errors, failed network requests in touched flows, broken feature-registry events, or missing audit/observability events as blockers unless proven unrelated with evidence.
 
 ## Browser Proof Steps
 
-- [ ] Start the dev server bound to `localhost:5173`. Do not use a neighboring port.
-- [ ] Open `http://localhost:5173`.
-- [ ] Click the subtle settings icon in the bottom-right corner.
-- [ ] Use the `Teacher` quick-login button.
+- [x] Start the dev server bound to `localhost:5173`. Do not use a neighboring port.
+- [x] Open `http://localhost:5173`.
+- [ ] Click the subtle settings icon in the bottom-right corner. Packet 9 landed in an already-authenticated Teacher session, so no quick-login click occurred.
+- [ ] Use the `Teacher` quick-login button. Packet 9 landed in an already-authenticated Teacher session, so no quick-login click occurred.
 - [ ] Teacher proof 1: `/lobby` -> `Create New Test` -> IELTS -> Reading V2 -> blank/import/Auto V4 -> publish. Confirm generated Reading Passages appear in the library and the full-test master `Edit Test` opens Edit Test Modal, not full-test Studio.
 - [ ] Teacher proof 2: `/lobby` -> `Create New Test` -> Reading V2 -> `Use existing Reading Passages` -> select published passages -> reorder -> create draft. Confirm draft opens in master modal and is not published until explicit publish.
 - [ ] Teacher proof 3: from master modal, edit metadata, reorder refs, open one passage slot in a new tab, publish a new passage version, return to master flow, and confirm `Update references?` modal appears.
 - [ ] Teacher proof 4: assign the master as homework. Confirm frozen version summary appears and refresh is available before any student starts.
-- [ ] Student proof: log out or new browser context, reveal dev buttons, use `Student`, launch assigned homework, submit, and confirm runtime uses frozen projection.
-- [ ] Teacher proof 5: update or archive a source Reading Passage after submission. Confirm result/review still shows frozen version data.
-- [ ] Responsive proof for touched teacher modal/list UI: 1366 px, 848 px, 375 px, and 320 px widths. Confirm no horizontal overflow, no overlapping text, and primary actions remain visible.
+- [x] Student proof: log out or new browser context, reveal dev buttons, use `Student`, launch assigned homework, submit, and confirm runtime uses frozen projection. Packet 9 used explicit logout plus Student quick-login, then launched `packet9-live-20260610151227-hw-launch`; screenshot `21-student-frozen-runtime-5174.png`.
+- [x] Teacher proof 5: update or archive a source Reading Passage after submission. Confirm result/review still shows frozen version data. Packet 9 archived/restored/re-archived `packet9-live-20260610151227-passage`; Student result panel for `packet9-live-20260610151227-result` still loaded frozen result data; screenshot `22-student-frozen-result-panel-5174.png`.
+- [x] Responsive proof for touched teacher modal/list UI: 1366 px, 848 px, 375 px, and 320 px widths. Confirm no horizontal overflow, no overlapping text, and primary actions remain visible.
 - [ ] Student mobile proof only if student UI changed: 375 px and 320 px widths, 44 px touch targets, no shell/header regression.
-- [ ] Save screenshots or Playwright output paths in the findings file.
+- [x] Save screenshots or Playwright output paths in the findings file.
 
 ## Rollback And Guard Notes
 
-- [ ] Keep PRD-0052 Part 2 changes separate from PRD-0054 changes until this tasklist passes.
-- [ ] Do not delete legacy full-test code until all current callers have a tested replacement.
-- [ ] Do not migrate existing production data without a separate migration tasklist and dry-run output.
-- [ ] If master storage still contains embedded payload after Phase 2, stop. Do not continue to UI phases.
-- [ ] If the master modal cannot be made without broad Mantine replacement, stop and record exact touched imports and proposed split.
-- [ ] If assignment refresh cannot identify an authoritative "student started" source, stop and record the missing source. Do not approximate from UI state.
-- [ ] If extracted passages cannot pass standalone anchor/interaction validation after split, block publish. Do not rely on whole-test validation alone.
-- [ ] If cross-store atomicity is requested between RTDB and Firestore, stop and ask for architecture approval; RTDB multi-location update does not make Firestore writes atomic.
+- [x] Keep PRD-0052 Part 2 changes separate from PRD-0054 changes until this tasklist passes.
+- [x] Do not delete legacy full-test code until all current callers have a tested replacement.
+- [x] Do not migrate existing production data without a separate migration tasklist and dry-run output.
+- [x] If master storage still contains embedded payload after Phase 2, stop. Do not continue to UI phases.
+- [x] If the master modal cannot be made without broad Mantine replacement, stop and record exact touched imports and proposed split.
+- [x] If assignment refresh cannot identify an authoritative "student started" source, stop and record the missing source. Do not approximate from UI state.
+- [x] If extracted passages cannot pass standalone anchor/interaction validation after split, block publish. Do not rely on whole-test validation alone.
+- [x] If cross-store atomicity is requested between RTDB and Firestore, stop and ask for architecture approval; RTDB multi-location update does not make Firestore writes atomic.
 
 ## Ambiguity Flags
 
-- [ ] No existing dedicated Reading V2 master Edit Test Modal was found. This tasklist names `src/components/reading-v2/master/ReadingV2MasterEditModal.tsx` as the approved owner. Do not substitute a generic equivalent without a later explicit approval.
-- [ ] The exact assignment-refresh UI owner must be confirmed by inspecting `TeacherHomeworkDetailPage.tsx`, `HomeworkCreateModal.tsx`, and `useHomeworkDetail.ts`. If none owns homework mutation actions, stop before adding a new surface.
-- [ ] The existing `TestCreationModal.tsx` has Mantine and direct navigation drift. The touched-region cleanup boundary must be recorded in findings before code review.
-- [ ] The where-used service for updating owned Books after a passage version publish is not clearly established. Implement only after locating Book reference storage in `materialBooks.service.ts`, `bookEditor.service.ts`, and `bookValidation.service.ts`.
-- [ ] PRD-0048 Studio docs still describe Studio as the long-lived authoring surface. For PRD-0052 Part 2, published full-test master editing moves to Edit Test Modal; single-passage editing remains Studio.
+- [x] No existing dedicated Reading V2 master Edit Test Modal was found. This tasklist names `src/components/reading-v2/master/ReadingV2MasterEditModal.tsx` as the approved owner. Do not substitute a generic equivalent without a later explicit approval.
+- [x] The exact assignment-refresh UI owner must be confirmed by inspecting `TeacherHomeworkDetailPage.tsx`, `HomeworkCreateModal.tsx`, and `useHomeworkDetail.ts`. If none owns homework mutation actions, stop before adding a new surface.
+- [x] The existing `TestCreationModal.tsx` has Mantine and direct navigation drift. The touched-region cleanup boundary must be recorded in findings before code review.
+- [x] The where-used service for updating owned Books after a passage version publish is not clearly established. Implement only after locating Book reference storage in `materialBooks.service.ts`, `bookEditor.service.ts`, and `bookValidation.service.ts`.
+- [x] PRD-0048 Studio docs still describe Studio as the long-lived authoring surface. For PRD-0052 Part 2, published full-test master editing moves to Edit Test Modal; single-passage editing remains Studio.
 
 ## Final Acceptance Criteria
 
-- [ ] New full-test publish creates standalone Reading Passage materials and a ref-only master composition.
-- [ ] Auto-split publish runs the PRD-0054 indexed duplicate warning before final acceptance and never uses broad canonical scans or answer-key comparison.
-- [ ] One shared composition numbering owner is used by publish, assignment, runtime, submission, result review, and PRD-0054 repair numbering.
-- [ ] Published master storage has no embedded passage body, question payload, option sets, or answer keys.
-- [ ] Teacher Lobby `Edit Test` for published Reading V2 master opens Edit Test Modal.
-- [ ] Full-test Studio is not used for published master editing.
-- [ ] Single-passage slot editing opens single-passage Studio in a new tab.
-- [ ] Test Creation Modal can create a draft master from existing published Reading Passages.
-- [ ] Publishing a single Reading Passage version never silently updates owned masters, Books, assignments, or results.
-- [ ] Update References modal defaults unchecked and updates only confirmed owned refs.
-- [ ] Homework assignment freezes exact passage versions.
-- [ ] Refresh to latest versions is available only before any student starts.
-- [ ] Student runtime, submission, and result review use frozen projections.
-- [ ] Security rules block embedded master payload and answer-key leakage.
-- [ ] Observability covers all new visible actions.
-- [ ] Targeted tests, browser proof, UTF-8 check, and `git diff --check` pass.
-- [ ] Browser proof records browser surface, viewport, URL, material/homework ids, expected result, actual result, and screenshot/trace path for publish, modal edit, draft creation, update-references, assignment refresh, student runtime, and frozen-result review.
+- [x] New full-test publish creates standalone Reading Passage materials and a ref-only master composition.
+- [x] Auto-split publish runs the PRD-0054 indexed duplicate warning before final acceptance and never uses broad canonical scans or answer-key comparison.
+- [x] One shared composition numbering owner is used by publish, assignment, runtime, submission, result review, and PRD-0054 repair numbering.
+- [x] Published master storage has no embedded passage body, question payload, option sets, or answer keys.
+- [x] Teacher Lobby `Edit Test` for published Reading V2 master opens Edit Test Modal.
+- [x] Full-test Studio is not used for published master editing.
+- [x] Single-passage slot editing opens single-passage Studio in a new tab.
+- [x] Test Creation Modal can create a draft master from existing published Reading Passages.
+- [x] Publishing a single Reading Passage version never silently updates owned masters, Books, assignments, or results.
+- [x] Update References modal defaults unchecked and updates only confirmed owned refs.
+- [x] Homework assignment freezes exact passage versions.
+- [x] Refresh to latest versions is available only before any student starts.
+- [x] Student runtime, submission, and result review use frozen projections.
+- [x] Security rules block embedded master payload and answer-key leakage.
+- [x] Observability covers all new visible actions.
+- [x] Targeted tests, browser proof, UTF-8 check, and `git diff --check` pass.
+- [x] Browser proof records browser surface, viewport, URL, material/homework ids, expected result, actual result, and screenshot/trace path for publish, modal edit, draft creation, update-references, assignment refresh, student runtime, and frozen-result review.

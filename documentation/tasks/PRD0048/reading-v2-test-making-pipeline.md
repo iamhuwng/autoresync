@@ -27,7 +27,7 @@ Reading V2 test making follows one ordered pipeline:
 6. Configure material settings.
 7. Validate and preview through the V2 runtime.
 8. Publish a snapshot and derived projections.
-9. Return the material to existing platform relationships: Lobby, material profile, library, homework, course, live session, solo practice, results, feedback, and regrade.
+9. Return the material to existing platform relationships: successful non-revision publish exits Studio back to the Teacher Lobby/Materials workflow, and all later edits re-enter through revision plus republish.
 
 The pipeline must feel like one test-making flow to the teacher. It must not become separate products that silently write incompatible data.
 
@@ -68,6 +68,12 @@ The same Studio contract supports these modes:
 | Extract task-group material | Studio extraction action | independent material copy with hidden provenance |
 
 All modes must converge into the same canonical draft model before publish.
+
+Mode-scoped passage controls:
+
+- `Add Passage` and passage removal are enabled only for `Create blank`, `Create from import`, and `Create from Auto`.
+- Individual `reading-passage` Studio, resume draft, published revision, duplicate material, and extracted task-group material modes must not expose passage-collection controls unless a later architecture update explicitly changes the material cardinality.
+- Obsolete interpretation retired 2026-06-15: convergence into one canonical draft model does not authorize `Add Passage` in every Studio mode.
 
 ---
 
@@ -132,6 +138,12 @@ The Studio top-level tabs stay:
 - `Settings`
 
 Do not add a separate top-level `Answer Key` tab.
+
+Passage cardinality rules:
+
+1. A full-test creation flow may contain multiple passages.
+2. Paste/import and Auto V4 outcomes may use `Add Passage` while the teacher repairs a new test candidate in Studio.
+3. A standalone Reading Passage material contains exactly one passage. Its Studio revision/remake flow edits that passage only and hides collection-level add/remove controls.
 
 ### 4.4 Answer Key And Scoring
 
@@ -208,7 +220,8 @@ Publish must:
 3. Create a versioned published snapshot.
 4. Generate student-safe, session-safe, review, and analytics projections from the published snapshot.
 5. Update material/package metadata and indexes used by existing platform surfaces.
-6. Return control to the existing Teacher Lobby, Material Profile, or Studio route context.
+6. For create/import/Auto/resume/duplicate/extract success, exit Studio and return control to the existing Teacher Lobby/Materials context.
+7. Only bounded published-revision follow-up may intentionally remain in Studio, and that path still edits a draft revision rather than the live published snapshot.
 
 PRD-0052 material publish amendment:
 
@@ -223,6 +236,8 @@ Publish must not:
 - mutate an older published snapshot in place
 - update historical attempts or results
 - expose author diagnostics, answer keys, import evidence, or provenance to student delivery payloads
+
+Obsolete interpretation retired 2026-06-15: "publish returns to the existing Teacher Lobby, Material Profile, or Studio route context" for all flows. Non-revision publish success must leave Studio; keeping the same Studio shell open is reserved only for bounded published-revision follow-up.
 
 ---
 
@@ -239,10 +254,10 @@ Publish must not:
 | Public library | Reads published material metadata and student-safe launch eligibility; does not read canonical drafts |
 | Homework | Assigns published V2 materials through existing homework flows; owns due dates, student targets, and homework release overrides |
 | Course materials | Places published V2 materials through existing course flows; owns course placement and order |
-| Live sessions | Launches session-safe projections through existing session routing; owns session code and live state |
-| Solo practice | Launches published V2 materials through existing practice plumbing |
-| Result/feedback system | Owns result shell, review tabs, feedback display, release policy, and regrade shell; V2 supplies scoring and grouped review adapters |
-| Observability/feature registry | Tracks create, import, save, validate, preview, publish, revise, assign, launch, submit, review, feedback, and regrade actions |
+| Live sessions | Launches session-safe projections through existing session routing; owns session code, live state, anti-cheat config, integrity refresh requests, and teacher force-submit |
+| Solo practice | Launches published V2 materials through existing practice plumbing; no anti-cheat unless a future platform owner supplies explicit config |
+| Result/feedback system | Owns result shell, review tabs, feedback display, release policy, and regrade shell; V2 supplies scoring and grouped review adapters, and AI feedback payload sections come from saved `readingV2.reviewPayload` |
+| Observability/feature registry | Tracks create, import, save, validate, preview, publish, revise, assign, launch, submit, integrity, review, feedback, audit, and regrade actions |
 
 ---
 
@@ -269,6 +284,8 @@ Pipeline tests must prove:
 
 - Teacher Lobby create/import opens the Reading V2 test-making flow.
 - Teacher Lobby material-card click/edit opens the adapted edit-modal or approved Studio entry.
+- `Add Passage` is visible for manual blank creation, paste/import outcome, and Auto V4 outcome only.
+- Individual Reading Passage Studio and non-creation modes hide passage-collection controls.
 - Metadata is required or defaulted before publish.
 - Metadata changes update draft state and material indexes without mutating live published snapshots.
 - Answer keys/scoring rules live in the Questions workflow and write into canonical task-group interactions.
@@ -293,6 +310,7 @@ Do not:
 - let public library, homework, course, live session, or result surfaces read canonical drafts
 - make metadata edits silently mutate historical results
 - add Auto V4-only or paste-import-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexing, or student-safe projection checks
+- expose `Add Passage` in individual Reading Passage Studio, resume, revision, duplicate, or extraction modes without a new architecture decision
 
 ---
 
@@ -303,3 +321,4 @@ Do not:
 - `documentation/tasks/PRD0048/reading-v2-feature-pipeline-matrix.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/tasks/PRD0048/reading-v2-result-feedback-integration.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`

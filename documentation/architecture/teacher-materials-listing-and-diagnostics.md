@@ -83,6 +83,10 @@ Canonical Reading Passage list buckets:
 
 These rows are safe summaries only. They must not include passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
 
+Reading Passage material filters include an Archive subtab for owned archived Reading Passage rows. Active Reading Passage lists and add-existing pickers must exclude archived rows. Archive rows are still safe summary rows; they may expose title, source, owner, visibility, test types, version ids, archived state, broken-ref summary counts, and restore eligibility, but never canonical bodies, answer keys, projections, or review payloads.
+
+Broken-ref badges in listing surfaces must come from safe summary fields already present on material index or Book summary rows, such as `hasBrokenRefs`, `brokenRefCount`, and reason-code summaries. Listing code must not hydrate full canonical Reading V2 payloads to compute badges at render time. If a safe summary is unavailable, the detailed modal may compute and display the broken-ref state after explicit open/edit action.
+
 ## Realtime Contract
 
 Realtime listeners must match the active listing scope:
@@ -140,6 +144,7 @@ These patterns are obsolete for normal Teacher Lobby material loading:
 - reading the full `/tests` table and filtering by ownership client-side
 - reading the full `/tests` table and filtering public rows client-side
 - hydrating Reading V2 canonical documents or projections just to render material cards
+- computing archive, restore, or broken-ref list badges by hydrating canonical payloads in the lobby list
 - using `reading_v2/listing_indexes` as production QA proof for Reading Passage list rows
 - logging grid readiness before the loaded data scope matches the active tab
 - adding always-on console timing logs outside the gated diagnostics helper

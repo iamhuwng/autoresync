@@ -2,7 +2,7 @@
 title: Reading V2 Auto V4 Provider Review Contract
 description: Reading V2 Auto V4 provider ownership, source-proof audit, Studio review handoff, publish safety, and Review Issues routing.
 createdAt: '2026-05-23T21:41:01.704Z'
-updatedAt: '2026-06-08T00:00:00.000Z'
+updatedAt: '2026-06-15T00:00:00.000Z'
 tags:
   - architecture
   - reading-v2
@@ -53,8 +53,12 @@ After teacher review, validation, and publish:
 - generated Reading Passage materials are extracted from full-test source order
 - each generated passage gets canonical material/version data, a published snapshot, student-safe/review projections, and Material Catalog summary rows
 - the master full-test material keeps ordered passage material/snapshot refs
+- successful non-revision publish exits Studio back to Teacher Lobby/Materials context
+- later changes require explicit revision plus republish, not continued same-window editing
 
 Do not add Auto V4-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexes, or student-safe projection checks.
+
+Exception: bounded published-revision follow-up may stay in Studio, but only on a draft revision.
 
 Detailed reference: @doc/architecture/reading-v2-material-publish-and-passage-library.
 

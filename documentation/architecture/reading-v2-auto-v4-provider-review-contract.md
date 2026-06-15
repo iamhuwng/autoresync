@@ -171,8 +171,12 @@ After teacher review, validation, and publish:
 - generated Reading Passage materials are extracted from the full-test source order
 - each generated passage gets canonical material/version data, a published snapshot, student-safe/review projections, and Material Catalog summary rows
 - the master full-test material keeps ordered references to the generated passage material ids and snapshot/version ids
+- successful non-revision publish exits Studio back to the existing Teacher Lobby/Materials context instead of leaving the teacher inside the same draft shell
+- any later change after publish must go through explicit revision and republish, not continued same-window editing of supposedly live entities
 
 This means normal test making, paste/import text, and Auto V4 all converge before publish. Do not add Auto V4-only publish shortcuts that bypass Reading Passage extraction, Material Catalog indexes, or student-safe projection checks.
+
+Published-revision follow-up is the only allowed exception. If that flow stays in Studio for a bounded post-publish action, it still operates on a draft revision, not on the live published snapshot or live projections.
 
 Detailed reference: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
 

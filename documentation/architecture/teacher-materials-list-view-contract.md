@@ -84,13 +84,15 @@ Current slots:
 | Slot | Action family |
 | --- | --- |
 | 1 | `Edit`, `View`, `Use as-is`, `Complete` |
-| 2 | `Delete` |
+| 2 | `Delete`, `Remove from library` |
 | 3 | `Start Test`, `Clone` |
-| 4 | `Assign HW` |
+| 4 | `Assign HW`, `Restore` |
 
 Buttons are icon-only visually, with `aria-label` and `title` preserving accessible names. Visible text labels must remain visually hidden, not removed from the DOM.
 
 `Assign HW` is not a reason to widen THCS rows. It occupies slot 4 when present.
+
+Reading Passage archive uses the teacher-facing action label `Remove from library`, not hard-delete language. The restore action appears only in archived Reading Passage scope and occupies the fixed restore/action slot without changing row geometry.
 
 ## Typography Contract
 
@@ -116,6 +118,7 @@ Rows may use:
 - count and duration summary fields
 - updated or created timestamp
 - material type, skill, grade, exam, completeness, and ownership flags
+- archive state and safe broken-ref summary fields already present on the row
 
 Rows must not hydrate:
 
@@ -133,6 +136,8 @@ Drafts remain grid-only in PRD-0050. `useTeacherDrafts` still loads only when th
 
 Public Library rows must not expose owner-only actions such as `Delete`.
 
+Reading Passage active scope excludes archived rows. Reading Passage Archive scope lists owned archived rows and exposes restore where allowed. Broken-ref row state is a badge/disabled-action state from safe summary fields; it must not create a wider row, add a new column, or move actions outside the fixed rail.
+
 ## Retired Patterns
 
 These patterns are obsolete for Teacher Lobby Materials list mode:
@@ -144,6 +149,7 @@ These patterns are obsolete for Teacher Lobby Materials list mode:
 - blanket `font-weight: 700` or `800` across headers, titles, badges, metrics, and actions
 - optional action overflow menus used to hide a broken action rail at desktop widths
 - fake status or folder filters without backed data and handlers
+- hard-delete wording for reversible Reading Passage archive actions
 
 Historical PRD/mockup text may still mention some of these ideas as design exploration. Treat this architecture contract as the release-source of truth after PRD-0050 implementation review.
 

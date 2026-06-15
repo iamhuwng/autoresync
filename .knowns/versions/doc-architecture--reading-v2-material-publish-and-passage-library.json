@@ -1,6 +1,6 @@
 {
   "docPath": "architecture/reading-v2-material-publish-and-passage-library",
-  "currentVersion": 1,
+  "currentVersion": 3,
   "versions": [
     {
       "id": "v1",
@@ -48,6 +48,77 @@
           "homework"
         ],
         "title": "Reading V2 Material Publish And Passage Library"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/reading-v2-material-publish-and-passage-library",
+      "version": 2,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "\n# Reading V2 Material Publish And Passage Library\n\n## Purpose\n\nReading V2 authoring can start from normal Studio test making, paste/import, or Auto V4. All paths converge in Studio and publish through the same data plane.\n\nFull-test publish creates:\n\n- one master full-test material\n- one generated Reading Passage material per source passage\n- ordered refs from the master full test to generated passage material ids and snapshot/version ids\n\nRepo architecture mirror: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.\n\n## Publish Contract\n\nEach generated Reading Passage must have:\n\n- `reading_v2/reading_passage_materials/{materialId}`\n- `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`\n- `reading_v2/published_snapshots/{materialId}/{snapshotVersionId}`\n- `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`\n- `reading_v2/projections/review/{materialId}:{snapshotVersionId}`\n- `reading_v2/material_metadata/{materialId}`\n- safe summary rows under `material_catalog/material_indexes/*`\n\nThe full-test composition layer lives at:\n\n- `reading_v2/full_test_compositions/{compositionId}`\n- `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`\n\n## Material Catalog Decision\n\n`material_catalog/material_indexes` is the production Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.\n\n`reading_v2/listing_indexes` is obsolete/compatibility-only for PRD-0052 QA unless a future migration updates readers, writers, rules, tests, and browser proof.\n\nIndex rows must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.\n\n## Runtime And Homework\n\nStudent Reading V2 runtime consumes namespaced projections, not canonical teacher data.\n\nFor Reading Passage homework, assignment binds an explicit `materialId` plus `snapshotVersionId`. Trusted submit scores server-side, then the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`.\n\nBoth the Reading V2 result and Firestore homework submission completion are required for Student Homework, Teacher Homework Detail, and result review to agree.\n\n## Boundaries\n\nReading V1 stays on legacy `/tests` plus root `/student_safe_tests`.\n\nReading V2 uses `reading_v2/*` material, snapshot, projection, publish, and result paths plus Material Catalog summary indexes.\n\nAuto V4 is an import assistant only. It does not bypass Studio validation or the shared publish contract.\n\n## Verification Anchors\n\n- publish plan includes canonical per-passage `published_snapshots`\n- generated Reading Passage rows appear from `material_catalog/material_indexes`\n- student-safe/list paths contain no answer keys or provenance\n- single Reading Passage homework launches from assignment-pinned projection\n- trusted submit writes a Reading V2 result and completes linked `homework_submissions`\n- teacher result review loads Reading V2 review projection\n",
+          "newValue": "\n# Reading V2 Material Publish And Passage Library\n\n## Purpose\n\nReading V2 authoring can start from normal Studio test making, paste/import, or Auto V4. All paths converge in Studio and publish through the same data plane.\n\nFull-test publish creates:\n\n- one master full-test material\n- one generated Reading Passage material per source passage\n- ordered refs from the master full test to generated passage material ids and snapshot/version ids\n\nRepo architecture mirror: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.\n\n## Publish Contract\n\nEach generated Reading Passage must have:\n\n- `reading_v2/reading_passage_materials/{materialId}`\n- `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`\n- `reading_v2/published_snapshots/{materialId}/{snapshotVersionId}`\n- `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`\n- `reading_v2/projections/review/{materialId}:{snapshotVersionId}`\n- `reading_v2/material_metadata/{materialId}`\n- safe summary rows under `material_catalog/material_indexes/*`\n\nThe full-test composition layer lives at:\n\n- `reading_v2/full_test_compositions/{compositionId}`\n- `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`\n\n## Material Catalog Decision\n\n`material_catalog/material_indexes` is the production Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.\n\n`reading_v2/listing_indexes` is obsolete/compatibility-only for PRD-0052 QA unless a future migration updates readers, writers, rules, tests, and browser proof.\n\nIndex rows must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.\n\n## Runtime And Homework\n\nStudent Reading V2 runtime consumes namespaced projections, not canonical teacher data.\n\nFor Reading Passage homework, assignment binds an explicit `materialId` plus `snapshotVersionId`. Trusted submit scores server-side, then the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`.\n\nBoth the Reading V2 result and Firestore homework submission completion are required for Student Homework, Teacher Homework Detail, and result review to agree.\n\n## Boundaries\n\nReading V1 stays on legacy `/tests` plus root `/student_safe_tests`.\n\nReading V2 uses `reading_v2/*` material, snapshot, projection, publish, and result paths plus Material Catalog summary indexes.\n\nAuto V4 is an import assistant only. It does not bypass Studio validation or the shared publish contract.\n\n## Studio Passage Cardinality\n\n`Add Passage` and passage removal controls are available only for new multi-passage test creation surfaces:\n\n- manual blank Studio creation (`create-blank`)\n- paste/import output in Studio (`create-from-import`)\n- Auto V4 output in Studio (`create-from-auto`)\n\nStandalone `reading-passage` materials contain exactly one passage. Single-passage Studio for revision, manual remake, or passage-version editing must hide passage add/remove collection controls and edit only that entity's existing passage.\n\nObsolete as of 2026-06-15: treating one shared Studio shell as permission to show `Add Passage` in every Studio mode. Resume, revision, duplicate, extraction, and single-passage repair modes share draft infrastructure but do not automatically inherit passage-collection controls.\n\n## Verification Anchors\n\n- publish plan includes canonical per-passage `published_snapshots`\n- generated Reading Passage rows appear from `material_catalog/material_indexes`\n- student-safe/list paths contain no answer keys or provenance\n- single Reading Passage Studio hides `Add Passage`\n- single Reading Passage homework launches from assignment-pinned projection\n- trusted submit writes a Reading V2 result and completes linked `homework_submissions`\n- teacher result review loads Reading V2 review projection\n"
+        },
+        {
+          "field": "description",
+          "oldValue": "Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.",
+          "newValue": "Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary."
+        },
+        {
+          "field": "tags",
+          "oldValue": [
+            "architecture",
+            "reading-v2",
+            "prd-0052",
+            "teacher-materials",
+            "reading-passage",
+            "homework"
+          ],
+          "newValue": [
+            "architecture"
+          ]
+        },
+        {
+          "field": "title",
+          "oldValue": "Reading V2 Material Publish And Passage Library",
+          "newValue": "Reading V2 Material Publish And Passage Library"
+        }
+      ],
+      "snapshot": {
+        "content": "\n# Reading V2 Material Publish And Passage Library\n\n## Purpose\n\nReading V2 authoring can start from normal Studio test making, paste/import, or Auto V4. All paths converge in Studio and publish through the same data plane.\n\nFull-test publish creates:\n\n- one master full-test material\n- one generated Reading Passage material per source passage\n- ordered refs from the master full test to generated passage material ids and snapshot/version ids\n\nRepo architecture mirror: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.\n\n## Publish Contract\n\nEach generated Reading Passage must have:\n\n- `reading_v2/reading_passage_materials/{materialId}`\n- `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`\n- `reading_v2/published_snapshots/{materialId}/{snapshotVersionId}`\n- `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`\n- `reading_v2/projections/review/{materialId}:{snapshotVersionId}`\n- `reading_v2/material_metadata/{materialId}`\n- safe summary rows under `material_catalog/material_indexes/*`\n\nThe full-test composition layer lives at:\n\n- `reading_v2/full_test_compositions/{compositionId}`\n- `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`\n\n## Material Catalog Decision\n\n`material_catalog/material_indexes` is the production Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.\n\n`reading_v2/listing_indexes` is obsolete/compatibility-only for PRD-0052 QA unless a future migration updates readers, writers, rules, tests, and browser proof.\n\nIndex rows must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.\n\n## Runtime And Homework\n\nStudent Reading V2 runtime consumes namespaced projections, not canonical teacher data.\n\nFor Reading Passage homework, assignment binds an explicit `materialId` plus `snapshotVersionId`. Trusted submit scores server-side, then the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`.\n\nBoth the Reading V2 result and Firestore homework submission completion are required for Student Homework, Teacher Homework Detail, and result review to agree.\n\n## Boundaries\n\nReading V1 stays on legacy `/tests` plus root `/student_safe_tests`.\n\nReading V2 uses `reading_v2/*` material, snapshot, projection, publish, and result paths plus Material Catalog summary indexes.\n\nAuto V4 is an import assistant only. It does not bypass Studio validation or the shared publish contract.\n\n## Studio Passage Cardinality\n\n`Add Passage` and passage removal controls are available only for new multi-passage test creation surfaces:\n\n- manual blank Studio creation (`create-blank`)\n- paste/import output in Studio (`create-from-import`)\n- Auto V4 output in Studio (`create-from-auto`)\n\nStandalone `reading-passage` materials contain exactly one passage. Single-passage Studio for revision, manual remake, or passage-version editing must hide passage add/remove collection controls and edit only that entity's existing passage.\n\nObsolete as of 2026-06-15: treating one shared Studio shell as permission to show `Add Passage` in every Studio mode. Resume, revision, duplicate, extraction, and single-passage repair modes share draft infrastructure but do not automatically inherit passage-collection controls.\n\n## Verification Anchors\n\n- publish plan includes canonical per-passage `published_snapshots`\n- generated Reading Passage rows appear from `material_catalog/material_indexes`\n- student-safe/list paths contain no answer keys or provenance\n- single Reading Passage Studio hides `Add Passage`\n- single Reading Passage homework launches from assignment-pinned projection\n- trusted submit writes a Reading V2 result and completes linked `homework_submissions`\n- teacher result review loads Reading V2 review projection\n",
+        "description": "Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.",
+        "tags": [
+          "architecture"
+        ],
+        "title": "Reading V2 Material Publish And Passage Library"
+      }
+    },
+    {
+      "id": "v3",
+      "docPath": "architecture/reading-v2-material-publish-and-passage-library",
+      "version": 3,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "See v2 snapshot.content",
+          "newValue": "Added master full-test projection contract, student-readable launch bridge rule, rollout-gating note, and verification anchors for fixed student homework launch."
+        }
+      ],
+      "snapshot": {
+        "title": "Reading V2 Material Publish And Passage Library",
+        "description": "Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.",
+        "tags": [
+          "architecture",
+          "reading-v2",
+          "prd-0052",
+          "teacher-materials",
+          "reading-passage",
+          "homework"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/reading-v2-material-publish-and-passage-library.md"
       }
     }
   ]

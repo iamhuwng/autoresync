@@ -119,6 +119,12 @@ Show:
 * Passage 2
 * Passage 3
 
+Scope:
+
+* This three-passage selector and any `Add Passage` affordance apply only to manual blank test creation, paste/import Studio outcomes, and Auto V4 Studio outcomes.
+* Individual Reading Passage Studio is a one-passage editor. It must not show `Add Passage` or collection-level passage removal, even if older Stitch screen exports include that visual affordance.
+* Obsolete interpretation retired 2026-06-15: Stitch Add Passage links are visual source art for allowed creation modes only, not a universal Studio control.
+
 Behavior:
 
 * Selecting Passage 1 shows Passage 1 content on the left and Passage 1 questions on the right.

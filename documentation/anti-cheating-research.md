@@ -2,6 +2,8 @@
 
 > **Date:** 2026-03-14
 > **Status:** Research / Planning
+>
+> **2026-06-15 Reading V2 status:** This file is historical research. For current Reading V2 live-session/homework integration, use `documentation/architecture/reading-v2-runtime-integrations.md`. Reading V2 now reuses the platform anti-cheat hook/config, passes optional `integrityReport` through trusted submit, and persists telemetry for review/monitoring. The gap and roadmap tables below still describe older/global surfaces unless a row explicitly says Reading V2.
 > **Scope:** All student assessment surfaces — Tests (IELTS), Quizzes, THCS Practice, Homework
 
 ---
@@ -19,6 +21,8 @@ Before designing new features, here's what already exists in the codebase:
 | **Input Locking (Grace Period)** | IELTS Tests (PRD-0019) | Locks answer inputs during the 5-second grace period before auto-submit. |
 
 ### Gaps Identified
+
+Historical note: the gap rows below are obsolete for Reading V2 live-session/homework surfaces as of 2026-06-15 where they mention tab-switch detection, fullscreen enforcement, copy/paste prevention, visibility tracking, or server-side answer validation. Those Reading V2 surfaces use `useTestIntegrity` through their runtime hosts and submit through the trusted Reading V2 endpoint. The rows may still apply to other legacy assessment surfaces.
 
 | Gap | Description |
 |-----|-------------|
@@ -279,6 +283,18 @@ function useTestIntegrity(options: {
 
 ---
 
+### 2026-06-15 Reading V2 Implementation Status
+
+Reading V2 live-session and homework runs have the foundation wired through existing platform primitives:
+
+- `useTestIntegrity` handles tab/focus/fullscreen/copy/paste/right-click telemetry and auto-submit triggers.
+- Live sessions read anti-cheat config from `game_sessions/{sessionCode}.antiCheatConfig`.
+- Homework reads anti-cheat config from `homework_assignments/{homeworkId}.antiCheatConfig`.
+- Trusted Reading V2 submit accepts optional `integrityReport` and persists it with attempt/result review data.
+- "Cloud Function grading" is obsolete wording for Reading V2. Active production path is the trusted Worker-backed Reading V2 submit flow.
+
+---
+
 ## 4. Data Model Additions
 
 ### 4.1 Integrity Tracking (RTDB)
@@ -332,6 +348,15 @@ type IntegrityFlag =
 ```
 
 ---
+
+### 4.4 Current Reading V2 Data Contract
+
+For Reading V2, use canonical types in `src/types/integrity.types.ts`:
+
+- `AntiCheatConfig`
+- `IntegrityReport`
+
+Live-session telemetry still flows through existing `game_sessions/{sessionCode}/players/{playerId}` integrity hook paths before submit. Homework telemetry is carried through trusted Reading V2 submit as optional `integrityReport`. Backend preserves report for review/monitoring and does not trust it for scoring.
 
 ## 5. Technical Considerations
 
@@ -444,6 +469,12 @@ type IntegrityFlag =
 4. **Server-side grading:** Is the architectural refactor worth the effort for current project scale?
 5. **Mobile:** How do we handle legitimate interrupts (phone calls) vs. cheating on mobile devices?
 6. **Privacy:** Do teachers need to consent to logging student behavior? (Vietnamese education law)
+
+### Reading V2 Resolved Decisions
+
+- Scope: Reading V2 anti-cheat is active for live sessions and homework when config exists. Solo/public/course practice remain off unless a future owner adds explicit config.
+- Default config: missing Reading V2 config means off.
+- Server-side grading: Reading V2 uses trusted submit against canonical/review data, not client scoring and not a new Cloud Function grading path.
 
 ---
 

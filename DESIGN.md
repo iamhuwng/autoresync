@@ -425,6 +425,7 @@ Rules:
 - Stitch files are visual source of truth only for Reading V2 Build Workspace where the handoff says so.
 - Unsupported Stitch elements must be disabled, hidden, or documented; do not show fake active capability.
 - Reading V2 task-type labels and validation copy must be teacher-readable.
+- Reading V2 passage-collection controls are capability-gated: `Add Passage` belongs only to manual blank test creation, paste/import Studio outcomes, and Auto V4 Studio outcomes. Individual Reading Passage Studio is a one-passage editor and must hide passage add/remove collection controls.
 
 ### Out-Of-Scope Admin
 

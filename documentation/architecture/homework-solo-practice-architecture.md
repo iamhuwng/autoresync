@@ -185,6 +185,51 @@ Required rules:
 Detailed reference:
 - `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 
+## 2026-06-15 Amendment - Reading V2 Homework Anti-Cheat And Integrity Submit
+
+Reading V2 homework now participates in the existing PRD-0036 anti-cheat pipeline.
+
+Required rules:
+- `StudentPracticePage.tsx` must read `homework_assignments/{homeworkId}.antiCheatConfig` for Reading V2 homework launches.
+- Missing homework anti-cheat config means Reading V2 homework integrity protection is off.
+- The full Reading V2 runtime shell must be wrapped by the anti-copy/paste container when copy/paste protection is enabled.
+- Fullscreen and shortcut detection must reuse the existing test integrity hooks.
+- Integrity-triggered auto-submit must flow through the runtime `forceSubmitToken`, not through a separate V2-only submit path.
+- Reading V2 homework submit must flush integrity events and attach `integrityReport` to the trusted Reading V2 submit payload.
+- The trusted submit backend persists integrity telemetry, but scoring remains canonical-snapshot based and must not trust browser integrity data.
+
+Scope boundary:
+- This amendment changes Reading V2 homework runtime and submit telemetry.
+- It does not enable anti-cheat for solo, public-library, or course-material Reading V2 launches unless a future platform owner provides an explicit config.
+- It does not replace legacy IELTS Reading or Writing anti-cheat behavior.
+
+Detailed reference:
+- `documentation/architecture/reading-v2-runtime-integrations.md`
+
+## 2026-06-15 Amendment - Reading V2 Return Path Contract
+
+Reading V2 solo-practice and homework launches now require an explicit in-runtime exit path instead of relying on browser history.
+
+Required rules:
+- `StudentPracticePage.tsx` remains the owner of launch-context-to-destination mapping for non-live Reading V2 exits.
+- the rendered `ReadingV2RuntimeShell` must expose a visible top-right `X` control through host wiring
+- homework exits return to `STUDENT_HOMEWORK`
+- course-material exits return to `STUDENT_COURSE_DETAIL` for the active `courseId`
+- solo-practice, public-library, and private-material library exits return to `STUDENT_LIBRARY`
+- exit routing must preserve the existing student shell entry semantics instead of inventing a standalone Reading V2 landing page
+
+Scope boundary:
+- this amendment covers non-live Reading V2 launches from homework and student practice entry points
+- it does not change live-session Reading V2 routing in `TestPageRouter.tsx`
+- it does not change Writing, Listening, or legacy Reading V1 exit behavior in the same pass
+
+Obsolete as of 2026-06-15:
+- expecting students to use browser back because Reading V2 runtime has no explicit return affordance
+- treating public/private solo practice as context-free launches that can safely strand the student inside the runtime shell
+
+Detailed reference:
+- `documentation/architecture/reading-v2-runtime-integrations.md`
+
 ## 2026-05-12 Amendment - Mobile Listening Section Audio Navigation
 
 Solo and homework IELTS Listening use the same mobile section-audio navigation contract as live mobile Listening when a student actively changes section context.

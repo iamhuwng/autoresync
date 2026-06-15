@@ -11,6 +11,7 @@ Authoritative companion docs:
 - `documentation/tasks/PRD0048/reading-v2-student-runtime-v1-parity-contract.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/tasks/PRD0048/reading-v2-result-feedback-integration.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 
 This file freezes access points, owning surfaces, pipeline order, outputs, tests, and forbidden patterns for PRD-0048 feature areas that are broader than the Studio test-making flow.
 
@@ -50,6 +51,7 @@ Global forbidden patterns:
 - do not let platform feature settings become canonical Reading content
 - do not mutate published snapshots, historical attempts, historical results, or extracted provenance in place
 - do not add a new Teacher Lobby page or standalone Reading V2 result-review page
+- do not expose `Add Passage` outside manual blank Studio creation, paste/import Studio outcome, or Auto V4 Studio outcome; single Reading Passage entities remain one passage
 
 ---
 
@@ -191,7 +193,8 @@ Required pipeline:
 6. Create an immutable published snapshot.
 7. Generate student-safe, session-safe, review, and analytics projections from the snapshot.
 8. Update material metadata and relationship indexes used by Lobby, Material Profile, library, assignment pickers, live launch, solo launch, result identity, and analytics.
-9. Return to the originating Studio, Teacher Lobby, or Material Profile context.
+9. For create/import/Auto/resume/duplicate/extract success, exit Studio and return to the Teacher Lobby/Materials context.
+10. If the flow is bounded published-revision follow-up, remaining in Studio is allowed only on a draft revision and never as direct live published editing.
 
 Required outputs:
 
@@ -211,6 +214,8 @@ Tests must prove:
 - answer keys and author diagnostics never reach student-safe/session-safe payloads
 - projections regenerate from canonical/package truth and cannot become editable source truth
 - historical attempts/results remain unchanged after republish
+- Studio passage-collection controls stay mode-scoped: available for manual blank, paste/import, and Auto V4 creation outcomes only, hidden for single Reading Passage and non-creation modes
+- non-revision publish success does not leave the teacher in a stale Studio shell that implies further direct live editing
 
 ---
 
@@ -240,12 +245,14 @@ Required pipeline:
 6. Select desktop/tablet or phone layout.
 7. Render task-family interaction components from projections only.
 8. Save answer state against stable interaction IDs and visible question numbers.
-9. Submit through the V2 submission pipeline.
+9. Apply platform-owned runtime integrations from `documentation/architecture/reading-v2-runtime-integrations.md`.
+10. Submit through the V2 submission pipeline.
 
 Required outputs:
 
 - runtime answer state keyed by stable interaction identity
 - submission payload bound to material and projection/snapshot version
+- optional integrity report telemetry when anti-cheat config is active
 
 Tests must prove:
 
@@ -255,6 +262,7 @@ Tests must prove:
 - desktop/tablet imitates current Reading V1 two-column UI
 - phone imitates current Reading V1 passage-first UI, question sheet, and pre-submit review flow
 - all five task families capture answer state from projection fixtures
+- live and homework V2 launches wire existing anti-cheat hooks without changing V1 launch behavior
 - unsupported schema versions fail closed
 - no legacy Reading renderer interprets V2 projections
 
@@ -287,6 +295,7 @@ Required pipeline:
 7. Live V2 launches generate or consume session-safe projections.
 8. Runtime opens through `ReadingV2RuntimeShell`.
 9. Completion/status writes flow back through existing platform completion mechanisms with V2 result identity.
+10. Live and homework hosts apply existing anti-cheat config and include integrity telemetry in V2 trusted submit where available.
 
 Required outputs:
 
@@ -320,7 +329,7 @@ Owner:
 
 Required pipeline:
 
-1. Runtime submits answers with stable interaction IDs, task-group IDs, visible numbers, attempt context, and snapshot/session projection version.
+1. Runtime submits answers with stable interaction IDs, task-group IDs, visible numbers, attempt context, snapshot/session projection version, and optional `integrityReport`.
 2. Scoring reads the exact published canonical snapshot used by the attempt.
 3. Saved result stores snapshot/version binding permanently.
 4. Result fan-out indexes update existing result surfaces.
@@ -328,7 +337,8 @@ Required pipeline:
 6. Reading V2 result adapter supplies grouped task review content to existing review shell.
 7. Release policy sanitizes student-visible score, correct answers, explanations, and answer keys.
 8. Feedback uses existing feedback surfaces and services.
-9. Regrade creates a new versioned result/regrade artifact and never mutates historical answer or snapshot truth.
+9. Reading V2 feedback payload sections come from the saved `readingV2.reviewPayload`, not legacy V1 test storage.
+10. Regrade creates a new versioned result/regrade artifact and never mutates historical answer or snapshot truth.
 
 Required outputs:
 
@@ -337,6 +347,7 @@ Required outputs:
 - grouped review adapter payload
 - release-policy-safe student result view
 - feedback records through existing system
+- integrity telemetry on attempt/result records when supplied by the runtime host
 - immutable regrade artifact
 
 Tests must prove:
@@ -344,6 +355,8 @@ Tests must prove:
 - scoring never uses legacy Reading heuristics
 - result records bind to the exact snapshot/projection version used at attempt time
 - existing result shells render V2 through adapters
+- Reading V2 feedback payloads use saved V2 review payloads while V1 feedback remains on existing loaders
+- trusted submit persists optional integrity telemetry without using it for scoring
 - student result surfaces cannot see unreleased answers, answer keys, author diagnostics, provenance, or import evidence
 - no standalone Reading V2 teacher/student result-review routes or pages exist
 - regrade does not mutate historical result truth
@@ -370,7 +383,7 @@ Required pipeline:
 1. Register Reading V2 feature surfaces and actions.
 2. Keep rollout default closed.
 3. Gate route, lobby, launch, and public-library exposure.
-4. Track create, import, metadata edit, save, validate, preview, publish, extract, launch, submit, review, feedback, regrade, and error states.
+4. Track create, import, metadata edit, save, validate, preview, publish, extract, launch, submit, integrity, review, feedback, regrade, audit, and error states.
 5. Prevent automatic migration of historical Reading tests.
 6. Run source-packet lint and vertical-loop integration test before readiness.
 
@@ -378,6 +391,7 @@ Required outputs:
 
 - feature registry entries
 - action/event metadata
+- bounded admin audit monitor for Reading V2 audit summaries
 - rollout guard constants
 - non-migration guard tests
 - vertical-loop fixture
@@ -387,6 +401,7 @@ Tests must prove:
 - Reading V2 is not public by default
 - historical Reading tests do not silently enter V2
 - observability covers every introduced user-facing workflow
+- admin monitor reads `reading_v2/audit_events` summaries without exposing raw sensitive payload fields
 - source packet stays complete
 - vertical loop reaches existing result/feedback shells without entering legacy Reading interpretation
 

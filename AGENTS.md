@@ -10,27 +10,6 @@ Before any UI or UX work, read [`documentation/architecture/ui-design-standards.
 
 For teacher pages, `TeacherHeader` owns shared header design and must stay attached to the top page/shell edge. Put page padding, max-width, and content spacing inside `main` or a content wrapper, never around `TeacherHeader`.
 
-## Test Command Execution On Windows (MANDATORY)
-
-When the working directory is any Windows checkout/worktree of this `luyentap` repository, including temporary feature folders that will later merge into `origin/main`:
-- Treat it as in scope if the repo root has this `AGENTS.md` plus luyentap app files such as `package.json`, `src/`, and `documentation/`.
-- Treat sibling folders like `C:\Users\The Lord\Desktop\luyentap-*` as in scope when they are Git worktrees or branch checkouts of the same repo.
-
-For `vitest`, `vite`, or `esbuild`:
-- Do not first run these commands inside the sandbox.
-- Start those commands with escalated execution on the first attempt.
-- Prefer the command form `cmd /c npx vitest run ... --reporter=basic`.
-- If using npm script form, prefer `cmd /c npm test -- --run --reporter=basic`.
-- Do not retry after a sandbox `spawn EPERM`; start unrestricted instead.
-
-## Text Encoding Guardrail (MANDATORY)
-
-These rules are obligatory for file creation, conversion, and editing:
-- All newly created or edited text files must be UTF-8.
-- If a text file is legacy ANSI/Windows-1252, convert it to UTF-8 before further routine editing whenever practical.
-- Prefer repo guardrails over ad hoc byte-safe editing: `.editorconfig`, `.gitattributes`, and `npm run check:utf8`.
-- Use `npm run check:utf8:staged` for staged changes, `npm run check:utf8:all` for a broader repo scan, and `npm run check:utf8 -- <paths...>` for targeted verification.
-
 ## Dev Login Shortcuts (MANDATORY)
 
 When testing authenticated teacher or student flows in this repo:
@@ -40,6 +19,14 @@ When testing authenticated teacher or student flows in this repo:
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
 - If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
+
+## Live Browser Testing URLs (MANDATORY)
+
+When opening, probing, or reporting live browser QA URLs in this repo:
+- Use `http://localhost:<port>`, never `http://127.0.0.1:<port>`.
+- Use port `5173` for teacher flows.
+- Use port `5174` for student flows.
+- Keep browser sessions, dev-server commands, logs, and final reported URLs aligned with those role ports.
 
 ## Google Cloud CLI First (MANDATORY)
 
@@ -63,6 +50,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Before `git pull`, `git fetch + merge`, or sync operations | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Adding new RTDB node or Firestore collection | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Adding or modifying Reading V2 audit events, audit service, audit path, or audit rules | [`architecture/reading-v2-audit-trail.md`](documentation/architecture/reading-v2-audit-trail.md) |
+| Changing Reading V2 runtime host integration with anti-cheat, trusted submit, AI feedback payloads, or admin monitoring | [`architecture/reading-v2-runtime-integrations.md`](documentation/architecture/reading-v2-runtime-integrations.md) |
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |

@@ -81,6 +81,7 @@ This PRD must follow that model. Wherever this PRD says a broken master is repai
 
 - Edit Test Modal handles master composition repair, such as add existing, remove passage, replace ref, and broken-slot state
 - single-passage Studio handles passage authoring, manual remake, and passage-version editing
+- single-passage Studio is not full-test Studio; it must hide `Add Passage` and any passage-collection remove controls because a Reading Passage entity contains exactly one passage
 - no full-test Studio is used for already published master tests
 
 ---
@@ -402,6 +403,8 @@ FR-STUDIO-BROKEN-6. The broken state must explain the reason using safe text, fo
 FR-STUDIO-BROKEN-7. A master with unresolved broken refs must stay blocked for publish and new assignment.
 
 FR-STUDIO-BROKEN-8. `Re-make this passage manually` must open single-passage Studio in another browser tab.
+
+FR-STUDIO-BROKEN-9. The single-passage Studio opened by repair must not expose `Add Passage`; replacement authoring edits one passage and publishes one replacement Reading Passage.
 
 ### 7.7 Edit Test Modal Repair: Add Existing
 

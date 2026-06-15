@@ -1,6 +1,6 @@
 {
   "docPath": "architecture/student-test-delivery-projections",
-  "currentVersion": 1,
+  "currentVersion": 2,
   "versions": [
     {
       "id": "v1",
@@ -46,6 +46,36 @@
           "homework"
         ],
         "title": "Student Test Delivery Projections"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/student-test-delivery-projections",
+      "version": 2,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "See v1 snapshot.content",
+          "newValue": "Added composition-first master projection requirement and student homework bridge rule for non-live Reading V2 full-test detail and launch."
+        },
+        {
+          "field": "description",
+          "oldValue": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections and homework completion linkage.",
+          "newValue": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections, homework completion linkage, and student-readable bridge rules."
+        }
+      ],
+      "snapshot": {
+        "title": "Student Test Delivery Projections",
+        "description": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections, homework completion linkage, and student-readable bridge rules.",
+        "tags": [
+          "architecture",
+          "student-runtime",
+          "projections",
+          "reading-v2",
+          "homework"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/student-test-delivery-projections.md"
       }
     }
   ]

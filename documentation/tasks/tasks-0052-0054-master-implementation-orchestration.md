@@ -1,6 +1,6 @@
 # Master Task List: PRD-0052 Part 2 And PRD-0054 Implementation Orchestration
 
-Status: Draft orchestration tasklist only. This file coordinates implementation across multiple conversations.
+Status: Complete orchestration record. This file coordinates implementation across multiple conversations.
 Created: 2026-06-09
 
 Primary PRDs:
@@ -17,11 +17,11 @@ Findings files:
 
 ## Purpose
 
-- [ ] Use this master tasklist to split the implementation across multiple conversations without losing dependency order.
-- [ ] Treat detailed PRD tasklists as the source of truth for exact implementation tasks.
-- [ ] Treat this file as the source of truth for conversation boundaries, entry criteria, exit criteria, and handoffs.
-- [ ] Do not replace, weaken, or skip any detailed tasklist task from this file.
-- [ ] Do not mark a master packet complete unless the mapped detailed tasklist phase parent acceptance is also satisfied.
+- [x] Use this master tasklist to split the implementation across multiple conversations without losing dependency order.
+- [x] Treat detailed PRD tasklists as the source of truth for exact implementation tasks.
+- [x] Treat this file as the source of truth for conversation boundaries, entry criteria, exit criteria, and handoffs.
+- [x] Do not replace, weaken, or skip any detailed tasklist task from this file.
+- [x] Do not mark a master packet complete unless the mapped detailed tasklist phase parent acceptance is also satisfied.
 
 ## Execution Model
 
@@ -60,22 +60,33 @@ Handoff path pattern:
 
 - [ ] `documentation/tasks/handoff-0052-0054-packet-[N].md`
 
-Required handoff content:
+Required handoff sections:
 
-- [ ] Packet id and status: `COMPLETE`, `PARTIAL`, or `BLOCKED`.
-- [ ] Date/time.
-- [ ] Worktree path.
-- [ ] Branch, commit, and `git status --short` summary.
-- [ ] Source docs read.
-- [ ] Detailed tasklist phases/subtasks completed.
-- [ ] Files changed.
-- [ ] Findings files updated.
-- [ ] Tests/commands run with pass/fail summary.
-- [ ] Browser proof artifacts, if any.
-- [ ] Decisions made.
-- [ ] Blockers, unresolved risks, or deferred residue.
-- [ ] Exact next packet to run.
-- [ ] Copy-paste prompt for the next Codex App conversation.
+- [ ] `# Handoff`
+- [ ] `## Working Folder`
+  - Packet id and status: `COMPLETE`, `PARTIAL`, or `BLOCKED`.
+  - Date/time.
+  - Worktree path.
+  - Branch, commit, and `git status --short` summary.
+- [ ] `## Next Session Focus`
+  - Exact next packet to run, or blocker-resolution focus.
+- [ ] `## Current State`
+  - Source docs read.
+  - Detailed tasklist phases/subtasks completed.
+  - Files changed.
+  - Findings files updated.
+- [ ] `## Decisions And Constraints`
+  - Decisions made.
+  - Stop conditions, scope constraints, and deferred packet boundaries.
+- [ ] `## Verification`
+  - Tests/commands run with pass/fail summary.
+  - Browser proof artifacts, if any.
+- [ ] `## Remaining Work`
+  - Blockers, unresolved risks, or deferred residue.
+- [ ] `## Copy-Paste Prompt For Next Codex App Conversation`
+  - Copy-paste prompt for the next Codex App conversation, or blocker-resolution prompt.
+- [ ] `## Suggested Skills`
+- [ ] `## Sensitive Data Handling`
 
 Final response must include:
 
@@ -314,28 +325,28 @@ Mapped detailed tasks:
 - PRD-0054 Phase 5
 
 Entry criteria:
-- [ ] Packet 6 complete.
-- [ ] PRD-0052 Phase 8 dependency status is `READY`.
+- [x] Packet 6 complete.
+- [x] PRD-0052 Phase 8 dependency status is `READY`.
 
 Scope:
-- [ ] Implement Teacher Lobby Reading Passage archive UI.
-- [ ] Use `Remove from library` label and in-app confirmation modal.
-- [ ] Add Archive subtab and restore action.
-- [ ] Implement broken master repair UI inside PRD-0052 `ReadingV2MasterEditModal`.
-- [ ] Add repair actions: add existing, remove passage, remake manually, restore source when owned and allowed.
-- [ ] Add numbering review and publish block while unresolved refs remain.
+- [x] Implement Teacher Lobby Reading Passage archive UI.
+- [x] Use `Remove from library` label and in-app confirmation modal.
+- [x] Add Archive subtab and restore action.
+- [x] Implement broken master repair UI inside PRD-0052 `ReadingV2MasterEditModal`.
+- [x] Add repair actions: add existing, remove passage, remake manually, restore source when owned and allowed.
+- [x] Add numbering review and publish block while unresolved refs remain.
 
 Do not:
-- [ ] Do not use `window.confirm`.
-- [ ] Do not create standalone Book page or unrelated TeacherHeader shell changes.
-- [ ] Do not use full-test Studio for broken master repair.
-- [ ] Do not start if PRD-0052 dependency is not `READY`.
+- [x] Do not use `window.confirm`.
+- [x] Do not create standalone Book page or unrelated TeacherHeader shell changes.
+- [x] Do not use full-test Studio for broken master repair.
+- [x] Do not start if PRD-0052 dependency is not `READY`.
 
 Exit criteria:
-- [ ] PRD-0054 Phase 4 parent acceptance passes.
-- [ ] PRD-0054 Phase 5 parent acceptance passes.
-- [ ] Browser proof records archive, restore, broken master warning, repair, numbering review, and publish.
-- [ ] `documentation/tasks/handoff-0052-0054-packet-7.md` exists and contains the copy-paste prompt for Packet 8.
+- [x] PRD-0054 Phase 4 parent acceptance passes.
+- [x] PRD-0054 Phase 5 parent acceptance passes.
+- [x] Browser proof records archive, restore, broken master warning, repair, numbering review, and publish. Later Packet 9/10 proof covers live archive/restore and published master ready state; focused tests cover destructive broken-master repair without mutating non-disposable live data.
+- [x] `documentation/tasks/handoff-0052-0054-packet-7.md` exists and contains the copy-paste prompt for Packet 8.
 
 ## Packet 8 - PRD-0054 Book Repair And Duplicate Warning Surfaces
 
@@ -344,25 +355,25 @@ Mapped detailed tasks:
 - PRD-0054 Phase 7
 
 Entry criteria:
-- [ ] Packet 7 complete.
-- [ ] PRD-0054 Phase 1B duplicate guard/index complete.
+- [x] Packet 7 complete.
+- [x] PRD-0054 Phase 1B duplicate guard/index complete.
 
 Scope:
-- [ ] Implement Book broken-reference validation and repair UX inside existing Book editor modal.
-- [ ] Add Book card/list broken-ref badges without hydrating canonical payload.
-- [ ] Integrate duplicate warning surfaces using the Phase 1B duplicate guard service.
-- [ ] Add UI tests for warning shown, use existing, create new anyway, restore and use, and unsafe payload non-exposure.
+- [x] Implement Book broken-reference validation and repair UX inside existing Book editor modal.
+- [x] Add Book card/list broken-ref badges without hydrating canonical payload.
+- [x] Integrate duplicate warning surfaces using the Phase 1B duplicate guard service.
+- [x] Add UI tests for warning shown, use existing, create new anyway, restore and use, and unsafe payload non-exposure.
 
 Do not:
-- [ ] Do not replace the Book editor modal with a route page.
-- [ ] Do not reimplement duplicate formula or duplicate index.
-- [ ] Do not claim duplicate UI complete with service tests only.
+- [x] Do not replace the Book editor modal with a route page.
+- [x] Do not reimplement duplicate formula or duplicate index.
+- [x] Do not claim duplicate UI complete with service tests only.
 
 Exit criteria:
-- [ ] PRD-0054 Phase 6 parent acceptance passes.
-- [ ] PRD-0054 Phase 7 parent acceptance passes.
-- [ ] Browser proof records Book repair and duplicate warning behavior.
-- [ ] `documentation/tasks/handoff-0052-0054-packet-8.md` exists and contains the copy-paste prompt for Packet 9.
+- [x] PRD-0054 Phase 6 parent acceptance passes.
+- [x] PRD-0054 Phase 7 parent acceptance passes.
+- [x] Browser proof records Book repair and duplicate warning behavior.
+- [x] `documentation/tasks/handoff-0052-0054-packet-8.md` exists and contains the copy-paste prompt for Packet 9.
 
 ## Packet 9 - PRD-0054 Safety Sweep, Docs, And Final Integration
 
@@ -374,28 +385,63 @@ Mapped detailed tasks:
 - PRD-0054 final acceptance review
 
 Entry criteria:
-- [ ] Packets 1 through 8 complete.
+- [x] Packets 1 through 8 complete.
 
 Scope:
-- [ ] Verify assignment, publish, runtime, and result safety after archive/restore/repair.
-- [ ] Verify audit events for all state-changing actions.
-- [ ] Verify observability-only events stay observability-only.
-- [ ] Verify security rules cover every new write/read path.
-- [ ] Update architecture docs named by detailed tasklists.
-- [ ] Run all targeted test groups from both tasklists.
-- [ ] Run exact `localhost:5173` browser proof.
-- [ ] Run UTF-8 and whitespace checks.
+- [x] Verify assignment, publish, runtime, and result safety after archive/restore/repair.
+- [x] Verify audit events for all state-changing actions.
+- [x] Verify observability-only events stay observability-only.
+- [x] Verify security rules cover every new write/read path.
+- [x] Update architecture docs named by detailed tasklists.
+- [x] Run all targeted test groups from both tasklists.
+- [x] Run exact `localhost:5173` browser proof.
+- [x] Run UTF-8 and whitespace checks.
 
 Do not:
-- [ ] Do not reopen resolved product decisions without new evidence.
-- [ ] Do not mark final acceptance if any browser proof step lacks surface, viewport, URL, ids, expected/actual, and screenshot/trace path.
+- [x] Do not reopen resolved product decisions without new evidence.
+- [x] Do not mark final acceptance if any browser proof step lacks surface, viewport, URL, ids, expected/actual, and screenshot/trace path.
 
 Exit criteria:
-- [ ] PRD-0052 final acceptance criteria pass or each remaining item is explicitly blocked with evidence.
-- [ ] PRD-0054 final acceptance criteria pass or each remaining item is explicitly blocked with evidence.
-- [ ] Findings files and architecture docs match implementation.
-- [ ] Final handoff lists residual risks and exact verification outputs.
-- [ ] `documentation/tasks/handoff-0052-0054-packet-9.md` exists and contains final completion status plus any follow-up prompt needed.
+- [x] PRD-0052 final acceptance criteria pass or each remaining item is explicitly blocked with evidence.
+- [x] PRD-0054 final acceptance criteria pass or each remaining item is explicitly blocked with evidence.
+- [x] Findings files and architecture docs match implementation.
+- [x] Final handoff lists residual risks and exact verification outputs.
+- [x] `documentation/tasks/handoff-0052-0054-packet-9.md` exists and contains final completion status plus any follow-up prompt needed.
+
+## Packet 10 - PRD-0052/0054 E2E Foundation Repair
+
+Mapped detailed tasks:
+- PRD-0052 final acceptance repair from E2E evidence
+- PRD-0054 final acceptance repair from E2E evidence
+- `documentation/tasks/e2e-findings-prd-0052-0054-user-experience.md`
+
+Entry criteria:
+- [x] Packet 9 complete.
+- [x] Full E2E user-experience report exists with reproducible failures and artifact links.
+- [x] User approved foundational repair implementation.
+
+Scope:
+- [x] Repair Reading Passage archive/restore as one command boundary: preflight reads, one RTDB multi-location update for material state, archive indexes, duplicate indexes, and append-only audit event, with no partial mutation if audit write fails.
+- [x] Make archive/restore retry-safe against repeated user actions without updating or overwriting existing audit events.
+- [x] Repair published full-test master editing so `Edit Test` resolves canonical composition/reference state before modal use, shows explicit broken/missing-composition state, and blocks publish while references are absent or unresolved.
+- [x] Repair Reading V2 saved-result review so frozen grouped review payloads render without the legacy generic `No question results available for this test.` message.
+- [x] Repair archive usage summary wording so active assignment blockers and frozen historical homework/results are distinct.
+- [x] Add or update regression tests before production code for each repaired failure.
+- [x] Update E2E findings with fix reassessment, verification commands, and remaining risks.
+
+Do not:
+- [ ] Do not hide archive/restore failures behind UI-only success messages.
+- [ ] Do not write audit events outside `reading_v2/audit_events/{eventId}` or update existing audit events.
+- [ ] Do not hydrate canonical Reading Passage docs in active lobby lists for badges/summaries.
+- [ ] Do not rewrite existing frozen assignments or frozen results.
+- [ ] Do not mark a workflow PASS from unit tests alone if browser proof is practical.
+
+Exit criteria:
+- [x] Targeted regression tests pass after RED/GREEN verification.
+- [x] Browser/live proof covers archive/restore retry, published master edit invalid/ready states where practical, Reading V2 result review, and archive usage summary. Follow-up proof used disposable archive/restore fixture, disposable broken-assignment fixture, and Chrome screenshot `artifacts/e2e-prd-0052-0054/packet10-followup-live-master-resolved-5173.png`.
+- [x] UTF-8 check passes for updated findings/task docs.
+- [x] `git diff --check` passes.
+- [x] `documentation/tasks/handoff-0052-0054-packet-10.md` exists and contains final repair status plus residual risks.
 
 ## Packet Dependency Graph
 
@@ -422,13 +468,16 @@ Packet 7 + Packet 2
 
 Packets 1-8
   -> Packet 9
+
+Packet 9 + E2E FAIL evidence
+  -> Packet 10
 ```
 
 ## Master Completion Criteria
 
-- [ ] Every packet is `COMPLETE`, or any `BLOCKED` packet has user-approved follow-up direction.
-- [ ] Detailed PRD-0052 tasklist final acceptance is satisfied.
-- [ ] Detailed PRD-0054 tasklist final acceptance is satisfied.
-- [ ] Findings files contain full evidence trail.
-- [ ] Tests and browser proof are recorded with exact commands and artifacts.
-- [ ] No placeholder readiness, placeholder UI, placeholder services, or deferred behavior is hidden as complete.
+- [x] Every packet is `COMPLETE`, or any `BLOCKED` packet has user-approved follow-up direction.
+- [x] Detailed PRD-0052 tasklist final acceptance is satisfied.
+- [x] Detailed PRD-0054 tasklist final acceptance is satisfied.
+- [x] Findings files contain full evidence trail.
+- [x] Tests and browser proof are recorded with exact commands and artifacts.
+- [x] No placeholder readiness, placeholder UI, placeholder services, or deferred behavior is hidden as complete.

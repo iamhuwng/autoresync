@@ -79,3 +79,17 @@ Implementation must update:
 ## Rule Interaction
 
 Read `documentation/rules/infrastructure.md` before adding this RTDB node. Read `documentation/rules/observability.md` before adding or changing any user-facing action that triggers these events.
+
+## Admin Monitor Read Contract
+
+`src/pages/AdminReportsPage.tsx` may read recent rows from `reading_v2/audit_events` for production health monitoring.
+
+Rules:
+
+- The admin monitor is read-only.
+- It should read a bounded recent set, currently `limitToLast(25)`.
+- It may show summary fields such as action, entity, actor, source route, and timestamp.
+- It must not render raw `before`, `after`, canonical payloads, passage bodies, answer keys, student answers, scoring rules, AI review evidence, hidden provenance, or import evidence.
+- It must not become a repair, archive, restore, or override writer. State-changing flows still go through the owning Reading V2 service and append-only audit writer.
+
+Related architecture: `documentation/architecture/reading-v2-runtime-integrations.md`.

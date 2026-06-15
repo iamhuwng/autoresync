@@ -3,6 +3,7 @@
 > **Generated:** 2026-04-28
 > **Source documents:** PRD-0048, findings-of-tasks-0048, tasks-0048
 > **Codebase scope:** `src/components/reading-v2/`, `src/services/reading-v2/`, `src/types/readingV2*`, `src/pages/ReadingV2StudioPage.tsx`, `src/pages/TestPageRouter.tsx`, `src/pages/StudentPracticePage.tsx`, `src/config/readingV2FeatureFlags.ts`, `src/constants/routes.ts`
+> **Status note, 2026-06-15:** this is a historical gap assessment, not current product truth. Where this document says all Studio modes converge in one shell, read that as shared draft infrastructure only. It is obsolete if used to justify `Add Passage` in every Studio mode. Current authority: `documentation/architecture/reading-v2-material-publish-and-passage-library.md`, `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`, and `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`.
 
 ---
 
@@ -12,7 +13,7 @@
 
 | Responsibility | PRD Reference | Summary |
 |---|---|---|
-| **Unified authoring shell** | §4.1, Decision 4 | One Studio shell governs create-blank, create-from-import, resume-draft, revise-published, duplicate, and extract-task-group — all modes converge here. |
+| **Unified authoring shell** | §4.1, Decision 4 | One Studio shell governs create-blank, create-from-import, create-from-auto, resume-draft, revise-published, duplicate, and extract-task-group. All modes share draft infrastructure, but passage-collection controls are enabled only for manual blank creation, paste/import outcomes, and Auto V4 outcomes. |
 | **Canonical document model** | §5.1, Decision 2 | The Studio edits a `ReadingV2Document` with first-class sections, stimuli, anchors, task groups, interactions, option sets, and scoring rules. |
 | **Three-tab layout** | §7.1 | Stimulus (passage/table/flowchart/diagram editor), Questions (task group + interaction + answer key), Settings (metadata, visibility, duration). |
 | **Two-column mental model** | Decision 7 | Left = stimulus/context/outline, Right = task-group editing / question logic. |
