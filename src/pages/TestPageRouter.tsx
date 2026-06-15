@@ -43,6 +43,11 @@ import {
   submitReadingV2RuntimeAttempt,
 } from '../services/reading-v2/readingV2RuntimeSubmission.service';
 import { sessionService } from '../services/sessionService';
+import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste';
+import { useFullscreenMode } from '../hooks/test/useFullscreenMode';
+import { useIntegrityRefreshRequest } from '../hooks/test/useIntegrityRefreshRequest';
+import { useTestIntegrity } from '../hooks/test/useTestIntegrity';
+import type { AntiCheatConfig } from '../types/integrity.types';
 
 // PRD-0027: Lazy-load THCS-THPT student layout
 const THCSTestLayout = lazy(() => import('../components/thcs-student/THCSTestLayout'));
@@ -61,6 +66,7 @@ interface ReadingV2LiveSessionState {
   readonly pausedDurationMs: number;
   readonly durationMinutes: number | null;
   readonly forceSubmitToken: string | number | null;
+  readonly integrityRefreshRequestedAt: number | null;
 }
 
 const READING_V2_RUNTIME_GUARD_MESSAGE =
@@ -155,8 +161,55 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
     pausedDurationMs: 0,
     durationMinutes: null,
     forceSubmitToken: null,
+    integrityRefreshRequestedAt: null,
   });
+  const [readingV2AntiCheatConfig, setReadingV2AntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+  const [readingV2IntegrityAutoSubmitToken, setReadingV2IntegrityAutoSubmitToken] = useState<string | null>(null);
   const readingV2CompletionRedirectRef = useRef<string | null>(null);
+  const readingV2RuntimeContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    addEvent: addReadingV2IntegrityEvent,
+    shouldAutoSubmit: shouldAutoSubmitReadingV2,
+    flushEvents: flushReadingV2IntegrityEvents,
+    getIntegrityReport: getReadingV2IntegrityReport,
+  } = useTestIntegrity({
+    config: readingV2AntiCheatConfig,
+    context: 'session',
+    surface: 'reading_v2_live_session',
+    sessionCode: sessionCode || '',
+    studentId: sessionService.getPlayerId() || '',
+    testId: readingV2Projection?.materialId || '',
+  });
+
+  useAntiCopyPaste({
+    enabled: readingV2AntiCheatConfig?.detectCopyPaste || false,
+    containerRef: readingV2RuntimeContainerRef as React.RefObject<HTMLElement>,
+    onEvent: addReadingV2IntegrityEvent,
+    detectRightClick: readingV2AntiCheatConfig?.detectRightClick || false,
+    detectKeyboardShortcuts: readingV2AntiCheatConfig?.detectKeyboardShortcuts || false,
+  });
+
+  useFullscreenMode({
+    enabled: readingV2AntiCheatConfig?.requireFullscreen || false,
+    onFullscreenExit: addReadingV2IntegrityEvent,
+  });
+
+  useIntegrityRefreshRequest({
+    enabled: skill === 'ReadingV2' && readingV2LiveSession.status === 'in-progress',
+    requestTimestamp: readingV2LiveSession.integrityRefreshRequestedAt,
+    onRefreshRequested: () => flushReadingV2IntegrityEvents('teacher_refresh'),
+  });
+
+  useEffect(() => {
+    if (!shouldAutoSubmitReadingV2) {
+      return;
+    }
+
+    setReadingV2IntegrityAutoSubmitToken((previous) =>
+      previous ?? `integrity-auto-submit:${Date.now()}`
+    );
+  }, [shouldAutoSubmitReadingV2]);
 
   useEffect(() => {
     const detectSkill = async () => {
@@ -170,6 +223,8 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         setReadingV2Projection(null);
         setReadingV2DurationMinutes(null);
         setReadingV2Answers({});
+        setReadingV2AntiCheatConfig(null);
+        setReadingV2IntegrityAutoSubmitToken(null);
         const t0 = performance.now();
 
         // PERF FIX: Only read testId from session, NOT the entire session node
@@ -415,6 +470,12 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         ?? (playerData?.forceSubmittedBy === 'teacher' && playerData?.hasCompletedTest === true
           ? 'teacher-force-submit'
           : null);
+      const antiCheatConfig = data.antiCheatConfig && typeof data.antiCheatConfig === 'object'
+        ? data.antiCheatConfig as AntiCheatConfig
+        : null;
+      const integrityRefreshRequestedAt = typeof data.integrityRefreshRequestedAt === 'number'
+        ? data.integrityRefreshRequestedAt
+        : null;
       const studentReadingV2State = playerId ? data.students?.[playerId]?.readingV2 : undefined;
       const completedResultId = typeof studentReadingV2State?.resultId === 'string'
         ? studentReadingV2State.resultId
@@ -496,7 +557,9 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         pausedDurationMs,
         durationMinutes,
         forceSubmitToken: teacherForceToken,
+        integrityRefreshRequestedAt,
       });
+      setReadingV2AntiCheatConfig(antiCheatConfig);
     });
 
     return () => unsubscribe();
@@ -517,8 +580,12 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
     });
 
     try {
+      await flushReadingV2IntegrityEvents('reading_v2_live_submit');
       const result = await submitReadingV2RuntimeAttempt({
-        payload,
+        payload: {
+          ...payload,
+          integrityReport: readingV2AntiCheatConfig ? getReadingV2IntegrityReport() : null,
+        },
         context: {
           surface: 'live-session',
           sessionCode,
@@ -540,7 +607,15 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
       });
       throw submitError;
     }
-  }, [readingV2Projection?.content.title, readingV2Projection?.materialId, sessionCode, trackAction]);
+  }, [
+    flushReadingV2IntegrityEvents,
+    getReadingV2IntegrityReport,
+    readingV2AntiCheatConfig,
+    readingV2Projection?.content.title,
+    readingV2Projection?.materialId,
+    sessionCode,
+    trackAction,
+  ]);
   const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()
     ? handleReadingV2Submit
     : undefined;
@@ -585,8 +660,10 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
     case 'ReadingV2':
       if (readingV2Projection) {
         const liveLifecycle: ReadingV2RuntimeLifecycle = {
-          status: readingV2LiveSession.status,
-          forceSubmitToken: readingV2LiveSession.forceSubmitToken,
+          status: readingV2LiveSession.status === 'expired'
+            ? 'completed'
+            : readingV2LiveSession.status,
+          forceSubmitToken: readingV2IntegrityAutoSubmitToken ?? readingV2LiveSession.forceSubmitToken,
         };
         const liveTimer: ReadingV2RuntimeTimer = {
           durationMinutes: readingV2LiveSession.durationMinutes ?? readingV2DurationMinutes,
@@ -597,15 +674,17 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         };
 
         return (
-          <ReadingV2RuntimeShell
-            projection={readingV2Projection}
-            onSubmit={readingV2SubmitHandler}
-            initialAnswers={readingV2Answers}
-            onAnswersChange={setReadingV2Answers}
-            persistenceKey={`reading-v2:live:${sessionCode ?? 'unknown-session'}:${readingV2Projection.projectionId}`}
-            lifecycle={liveLifecycle}
-            timer={liveTimer}
-          />
+          <div ref={readingV2RuntimeContainerRef}>
+            <ReadingV2RuntimeShell
+              projection={readingV2Projection}
+              onSubmit={readingV2SubmitHandler}
+              initialAnswers={readingV2Answers}
+              onAnswersChange={setReadingV2Answers}
+              persistenceKey={`reading-v2:live:${sessionCode ?? 'unknown-session'}:${readingV2Projection.projectionId}`}
+              lifecycle={liveLifecycle}
+              timer={liveTimer}
+            />
+          </div>
         );
       }
       return <StudentTestPage />;

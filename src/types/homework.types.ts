@@ -194,6 +194,11 @@ export interface ReadingPassageHomeworkSetItem extends ReadingPassageHomeworkSna
 export interface ReadingPassageHomeworkSet {
     titleSnapshot: string;
     items: ReadingPassageHomeworkSetItem[];
+    compositionId?: string;
+    compositionVersionId?: string;
+    assignmentPayloadPath?: string;
+    assignmentPayloadKey?: string;
+    frozenAt?: string;
 }
 
 /**
@@ -229,6 +234,9 @@ export interface HomeworkAssignment {
 
     /** Ordered Reading Passage set snapshot. Only set for materialType === 'reading-passage-set'. */
     readingPassageSet?: ReadingPassageHomeworkSet;
+
+    /** Frozen Reading V2 composed assignment projection path for composition-backed Reading Passage sets. */
+    readingV2AssignmentPayloadPath?: string;
 
     // ========== Target ==========
     /** Who should complete this homework */

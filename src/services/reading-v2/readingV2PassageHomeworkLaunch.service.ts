@@ -14,6 +14,11 @@ import type {
   ReadingV2ProjectionContent,
 } from './readingV2Projection.service';
 import { normalizeTestTypeLabel } from '../materialCatalog/testTypeConfig.service';
+import {
+  composeReadingV2CompositionNumbering,
+  type ReadingV2CompositionNumbering,
+  type ReadingV2CompositionNumberingPassageInput,
+} from './readingV2CompositionNumbering.service';
 
 export type ReadingPassageHomeworkKind = 'single' | 'set';
 
@@ -227,21 +232,24 @@ const prefixStimulusContent = (
 
 const prefixInteraction = (
   prefix: string,
-  visibleNumberOffset: number,
+  interactionDisplayNumbers: Readonly<Record<string, number>>,
   interaction: ReadingV2ProjectedInteraction,
-): ReadingV2ProjectedInteraction => ({
-  ...interaction,
-  interactionId: `${prefix}:${interaction.interactionId}`,
-  taskGroupId: `${prefix}:${interaction.taskGroupId}`,
-  displayNumber: visibleNumberOffset + interaction.displayNumber,
-  responseShape: prefixResponseShape(prefix, interaction.responseShape),
-  ...(interaction.primaryAnchorId ? { primaryAnchorId: `${prefix}:${interaction.primaryAnchorId}` } : {}),
-  ...(interaction.contextAnchorIds ? { contextAnchorIds: prefixIds(prefix, interaction.contextAnchorIds) } : {}),
-});
+): ReadingV2ProjectedInteraction => {
+  const prefixedInteractionId = `${prefix}:${interaction.interactionId}`;
+  return {
+    ...interaction,
+    interactionId: prefixedInteractionId,
+    taskGroupId: `${prefix}:${interaction.taskGroupId}`,
+    displayNumber: interactionDisplayNumbers[prefixedInteractionId] ?? interaction.displayNumber,
+    responseShape: prefixResponseShape(prefix, interaction.responseShape),
+    ...(interaction.primaryAnchorId ? { primaryAnchorId: `${prefix}:${interaction.primaryAnchorId}` } : {}),
+    ...(interaction.contextAnchorIds ? { contextAnchorIds: prefixIds(prefix, interaction.contextAnchorIds) } : {}),
+  };
+};
 
 const prefixTaskGroup = (
   prefix: string,
-  visibleNumberOffset: number,
+  interactionDisplayNumbers: Readonly<Record<string, number>>,
   taskGroup: ReadingV2ProjectedTaskGroup,
 ): ReadingV2ProjectedTaskGroup => ({
   ...taskGroup,
@@ -256,14 +264,14 @@ const prefixTaskGroup = (
     ...(ref.anchorIds ? { anchorIds: prefixIds(prefix, ref.anchorIds) } : {}),
   })),
   interactions: taskGroup.interactions.map((interaction) =>
-    prefixInteraction(prefix, visibleNumberOffset, interaction),
+    prefixInteraction(prefix, interactionDisplayNumbers, interaction),
   ),
 });
 
 const prefixProjectionContent = (input: {
   readonly item: ReadingPassageHomeworkLaunchItem;
   readonly projection: ReadingV2DerivedProjection;
-  readonly visibleNumberOffset: number;
+  readonly compositionNumbering: ReadingV2CompositionNumbering;
 }): ReadingV2ProjectionContent => {
   const prefix = `passage-${input.item.order}`;
 
@@ -290,7 +298,7 @@ const prefixProjectionContent = (input: {
       stimulusId: `${prefix}:${anchor.stimulusId}`,
     })),
     taskGroups: input.projection.content.taskGroups.map((taskGroup) =>
-      prefixTaskGroup(prefix, input.visibleNumberOffset, taskGroup),
+      prefixTaskGroup(prefix, input.compositionNumbering.interactionDisplayNumbers, taskGroup),
     ),
     optionSets: (input.projection.content.optionSets ?? []).map((optionSet): ReadingV2ProjectedOptionSet => ({
       ...optionSet,
@@ -300,8 +308,28 @@ const prefixProjectionContent = (input: {
   };
 };
 
-const countInteractions = (projection: ReadingV2DerivedProjection): number =>
-  projection.content.taskGroups.reduce((sum, group) => sum + group.interactions.length, 0);
+const createCompositionNumberingInput = (
+  items: readonly ReadingPassageHomeworkLaunchItem[],
+  projections: readonly ReadingV2DerivedProjection[],
+): readonly ReadingV2CompositionNumberingPassageInput[] =>
+  projections.map((projection, index) => {
+    const item = items[index];
+    if (!item || !isReadingPassageHomeworkSetItem(item)) {
+      throw new Error('Reading Passage set item is missing order.');
+    }
+
+    const prefix = `passage-${item.order}`;
+    return {
+      order: item.order,
+      passageMaterialId: item.passageMaterialId,
+      snapshotVersionId: item.snapshotVersionId,
+      interactions: projection.content.taskGroups.flatMap((taskGroup) =>
+        taskGroup.interactions.map((interaction) => ({
+          interactionId: `${prefix}:${interaction.interactionId}`,
+        })),
+      ),
+    };
+  });
 
 export const composeReadingPassageSetProjection = (input: {
   readonly homework: Pick<HomeworkAssignment, 'id' | 'materialId' | 'readingPassageSet' | 'materialType'>;
@@ -314,11 +342,41 @@ export const composeReadingPassageSetProjection = (input: {
     throw new Error('Reading Passage set projection requires reading-passage-set homework.');
   }
 
+  return composeReadingV2PassageSetRuntimeProjection({
+    title: input.homework.readingPassageSet.titleSnapshot,
+    materialId: input.homework.materialId,
+    sourceDocumentId: `homework:${input.homework.id}`,
+    projectionId: `homework-set:${input.homework.id}`,
+    projectionKind: 'student-safe',
+    sourceSnapshotVersionId: `homework-set:${input.homework.id}`,
+    runtimeContract: 'student-runtime',
+    items,
+    projections: input.projections,
+    generatedAt: input.generatedAt,
+  });
+};
+
+export const composeReadingV2PassageSetRuntimeProjection = (input: {
+  readonly title: string;
+  readonly materialId: string;
+  readonly sourceDocumentId: string;
+  readonly projectionId: string;
+  readonly projectionKind: ReadingV2DerivedProjection['projectionKind'];
+  readonly sourceSnapshotVersionId: string;
+  readonly runtimeContract?: ReadingV2DerivedProjection['runtimeContract'];
+  readonly items: readonly ReadingPassageHomeworkLaunchItem[];
+  readonly projections: readonly ReadingV2DerivedProjection[];
+  readonly generatedAt?: string;
+}): ReadingV2DerivedProjection => {
+  const items = [...input.items].sort((left, right) => left.order - right.order);
+
   if (items.length === 0 || items.length !== input.projections.length) {
     throw new Error('Reading Passage set projection requires one student-safe projection per assigned passage.');
   }
 
-  let visibleNumberOffset = 0;
+  const compositionNumbering = composeReadingV2CompositionNumbering({
+    passages: createCompositionNumberingInput(items, input.projections),
+  });
   const contents = input.projections.map((projection, index) => {
     const item = items[index];
 
@@ -336,9 +394,8 @@ export const composeReadingPassageSetProjection = (input: {
     const content = prefixProjectionContent({
       item,
       projection,
-      visibleNumberOffset,
+      compositionNumbering,
     });
-    visibleNumberOffset += countInteractions(projection);
     return content;
   });
   const firstProjection = input.projections[0];
@@ -354,16 +411,17 @@ export const composeReadingPassageSetProjection = (input: {
   return {
     ...firstProjection,
     deliveryEngine: READING_V2_ENGINE,
-    projectionId: `homework-set:${input.homework.id}`,
-    sourceDocumentId: `homework:${input.homework.id}`,
-    materialId: input.homework.materialId as ReadingV2DerivedProjection['materialId'],
-    projectionKind: 'student-safe',
-    sourceSnapshotVersionId: `homework-set:${input.homework.id}` as ReadingV2DerivedProjection['sourceSnapshotVersionId'],
+    projectionId: input.projectionId,
+    sourceDocumentId: input.sourceDocumentId,
+    materialId: input.materialId as ReadingV2DerivedProjection['materialId'],
+    projectionKind: input.projectionKind,
+    sourceSnapshotVersionId: input.sourceSnapshotVersionId as ReadingV2DerivedProjection['sourceSnapshotVersionId'],
     generatedAt: input.generatedAt ?? firstProjection.generatedAt,
-    runtimeContract: 'student-runtime',
+    runtimeContract: input.runtimeContract ?? firstProjection.runtimeContract,
+    compositionNumbering,
     content: {
-      title: input.homework.readingPassageSet.titleSnapshot,
-      materialId: input.homework.materialId,
+      title: input.title,
+      materialId: input.materialId,
       sections: contents.flatMap((content) => content.sections),
       stimuli: contents.flatMap((content) => content.stimuli),
       anchors: contents.flatMap((content) => content.anchors),

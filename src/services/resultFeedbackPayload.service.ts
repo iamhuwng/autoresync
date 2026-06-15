@@ -7,6 +7,11 @@ import { getTestFromFirebase, type TestData } from './testStorage';
 import type { TestResultRecord } from './testResults.service';
 import { getThcsTestFromFirebase } from './thcsTestStorage';
 import type { THCSGradingResult, THCSSection } from '../types/thcs-test.types';
+import {
+  isReadingV2SavedResult,
+  type ReadingV2GroupedReviewPayload,
+  type ReadingV2ReviewInteraction,
+} from './reading-v2/readingV2ResultAdapter.service';
 
 export interface ResultFeedbackPayload {
   gradingResult: THCSGradingResult;
@@ -70,6 +75,86 @@ function normalizeOptions(options: unknown): string[] | undefined {
   }
 
   return options.map((option) => String(option ?? '').trim());
+}
+
+function normalizeReadingV2ReviewAnswer(answer: unknown): string | string[] {
+  return normalizeGenericAnswer(answer);
+}
+
+function mapReadingV2ReviewQuestion(interaction: ReadingV2ReviewInteraction) {
+  return {
+    id: `reading-v2-feedback-q-${interaction.interactionId}`,
+    questionNumber: interaction.displayNumber,
+    questionText: `Question ${interaction.displayNumber}`,
+    type: normalizeFeedbackQuestionType(interaction.officialTaskType),
+    intent: normalizeFeedbackQuestionType(interaction.taskFamily || interaction.officialTaskType),
+    correctAnswer: interaction.reviewState === 'released'
+      ? normalizeReadingV2ReviewAnswer(interaction.correctAnswer)
+      : undefined,
+  };
+}
+
+function buildSectionsFromReadingV2ReviewPayload(
+  reviewPayload: ReadingV2GroupedReviewPayload,
+): THCSSection[] {
+  const sections = reviewPayload.taskGroups
+    .map((taskGroup, index) => {
+      const questions = taskGroup.interactions
+        .map(mapReadingV2ReviewQuestion)
+        .sort((left, right) => left.questionNumber - right.questionNumber);
+
+      if (questions.length === 0) {
+        return null;
+      }
+
+      const firstStimulus = taskGroup.stimulusContext[0];
+      const passageTitle = taskGroup.passageSection?.title || firstStimulus?.title || reviewPayload.title;
+      const passageContent = taskGroup.stimulusContext
+        .map((context) => context.excerpt)
+        .filter(Boolean)
+        .join('\n\n');
+
+      return {
+        id: taskGroup.taskGroupId,
+        name: taskGroup.title
+          || taskGroup.passageSection?.title
+          || `${reviewPayload.materialLabel || 'Reading V2'} Task ${index + 1}`,
+        order: index,
+        totalPoints: questions.length,
+        pointMode: 'auto',
+        instructionText: taskGroup.instructionText || '',
+        isCustomInstruction: false,
+        layout: 'single-column',
+        passage: passageContent
+          ? {
+              id: taskGroup.stimulusContext[0]?.stimulusId || `${taskGroup.taskGroupId}-passage`,
+              title: passageTitle,
+              content: passageContent,
+              wordCount: passageContent.split(/\s+/).filter(Boolean).length,
+            }
+          : undefined,
+        questions: questions as any,
+      } as THCSSection;
+    })
+    .filter((section): section is THCSSection => Boolean(section));
+
+  if (sections.length > 0) {
+    return sections;
+  }
+
+  return [
+    {
+      id: 'reading-v2-overall',
+      name: reviewPayload.title || 'Reading V2',
+      order: 0,
+      totalPoints: 0,
+      pointMode: 'auto',
+      instructionText: '',
+      isCustomInstruction: false,
+      layout: 'single-column',
+      questions: [] as any,
+    },
+  ];
 }
 
 function mapGenericQuestion(rawQuestion: TestData['questions'][number]) {
@@ -270,7 +355,9 @@ export async function buildResultFeedbackPayload(
   }
 
   const questionResultsRecord = buildQuestionResultsRecord(result);
-  const sourceSections = await loadSourceSections(result);
+  const sourceSections = isReadingV2SavedResult(result) && result.readingV2.reviewPayload
+    ? buildSectionsFromReadingV2ReviewPayload(result.readingV2.reviewPayload)
+    : await loadSourceSections(result);
   const feedbackMetadata = buildSavedResultFeedbackMetadata(result);
   const feedbackKind = feedbackMetadata.kind;
 

@@ -238,6 +238,20 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     expect(screen.getByText('Reading V2 Saved Result')).toBeInTheDocument();
   });
 
+  it('does not show the legacy empty-question message when Reading V2 grouped review payload exists', () => {
+    render(
+      <SharedSavedResultCore
+        result={{ ...MOCK_READING_V2_RESULT, questionResults: [] }}
+        variant="modal"
+      />,
+    );
+
+    expect(screen.getByTestId('reading-v2-review-adapter')).toBeInTheDocument();
+    expect(screen.getByText('Questions 1-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('ssrc-empty-questions')).not.toBeInTheDocument();
+    expect(screen.queryByText('No question results available for this test.')).not.toBeInTheDocument();
+  });
+
   it('hides ReviewTab when feedbackTiming is never', () => {
     render(
       <SharedSavedResultCore

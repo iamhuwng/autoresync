@@ -18,7 +18,7 @@
  * - Settings cascade: material > module > course > defaults
  */
 
-import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
@@ -27,6 +27,7 @@ import { DEFAULT_PRACTICE_SETTINGS } from '../types/practice.types';
 import type { ResolvedPracticeSettings } from '../types/practice.types';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { useNavigation } from '../hooks/useNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
@@ -35,6 +36,7 @@ import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import {
     ReadingV2RuntimeShell,
     type ReadingV2AnswerValue,
+    type ReadingV2RuntimeLifecycle,
     type ReadingV2RuntimeSubmitPayload,
 } from '../components/reading-v2/runtime/ReadingV2RuntimeShell';
 import type { PracticeContext } from '../components/practice/IELTSPracticeView';
@@ -63,6 +65,10 @@ import {
     composeReadingPassageSetProjection,
     getReadingPassageHomeworkLaunchItems,
 } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
+import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste';
+import { useFullscreenMode } from '../hooks/test/useFullscreenMode';
+import { useTestIntegrity } from '../hooks/test/useTestIntegrity';
+import type { AntiCheatConfig } from '../types/integrity.types';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -156,6 +162,26 @@ const getReadingV2LaunchSurface = (locationState: PracticeLocationState): Readin
     return 'solo-practice';
 };
 
+const normalizePositiveTimerMinutes = (value: unknown): number | null => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+        return null;
+    }
+
+    return value;
+};
+
+const getReadingV2MetadataTimerMinutes = (metadata: unknown): number | null => {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return null;
+    }
+
+    const record = metadata as Record<string, unknown>;
+
+    return normalizePositiveTimerMinutes(record.timerMinutes)
+        ?? normalizePositiveTimerMinutes(record.durationMinutes)
+        ?? normalizePositiveTimerMinutes(record.duration);
+};
+
 const readStudentSafeReadingPassageProjection = async (input: {
     materialId: string;
     snapshotVersionId: string;
@@ -182,6 +208,21 @@ const readStudentSafeReadingPassageProjection = async (input: {
     return launchDecision.projection;
 };
 
+const readFrozenReadingPassageAssignmentProjection = async (
+    assignmentPayloadPath: string | undefined,
+): Promise<ReadingV2DerivedProjection | null> => {
+    if (!assignmentPayloadPath) {
+        return null;
+    }
+
+    const projectionSnap = await get(ref(database, assignmentPayloadPath));
+    if (!projectionSnap.exists()) {
+        throw new Error('Reading V2 frozen assignment payload is missing.');
+    }
+
+    return projectionSnap.val() as ReadingV2DerivedProjection;
+};
+
 const resolveReadingPassageHomeworkProjection = async (input: {
     homework: HomeworkAssignment;
     launchSurface: ReadingV2LaunchSurface;
@@ -190,6 +231,16 @@ const resolveReadingPassageHomeworkProjection = async (input: {
 
     if (items.length === 0) {
         return null;
+    }
+
+    if (input.homework.materialType === 'reading-passage-set') {
+        const frozenProjection = await readFrozenReadingPassageAssignmentProjection(
+            input.homework.readingPassageSet?.assignmentPayloadPath,
+        );
+
+        if (frozenProjection) {
+            return frozenProjection;
+        }
     }
 
     const projections = await Promise.all(
@@ -221,6 +272,7 @@ const StudentPracticePageContent: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
     const location = useLocation();
     const navigate = useNavigate();
+    const { navigateTo } = useNavigation('student');
     const { user } = useAuth();
     const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
 
@@ -235,11 +287,14 @@ const StudentPracticePageContent: React.FC = () => {
     const [readingV2Projection, setReadingV2Projection] = useState<ReadingV2DerivedProjection | null>(null);
     const [readingPassageHomeworkKind, setReadingPassageHomeworkKind] = useState<'reading-passage' | 'reading-passage-set' | null>(null);
     const [readingV2Answers, setReadingV2Answers] = useState<Readonly<Record<string, ReadingV2AnswerValue>>>({});
+    const [readingV2AntiCheatConfig, setReadingV2AntiCheatConfig] = useState<AntiCheatConfig | null>(null);
+    const [readingV2IntegrityAutoSubmitToken, setReadingV2IntegrityAutoSubmitToken] = useState<string | null>(null);
     const [readingV2StartedAt] = useState(() => (
         typeof locationState.startedAt === 'number' ? locationState.startedAt : Date.now()
     ));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const readingV2RuntimeContainerRef = useRef<HTMLDivElement>(null);
 
     // ── Load settings + detect test type ───────────────────────────────────────
     useEffect(() => {
@@ -255,12 +310,18 @@ const StudentPracticePageContent: React.FC = () => {
             setWritingHomeworkContext(undefined);
             setReadingV2Projection(null);
             setReadingPassageHomeworkKind(null);
+            setReadingV2AntiCheatConfig(null);
+            setReadingV2IntegrityAutoSubmitToken(null);
 
             try {
                 setReadingV2Answers({});
                 const homeworkForLaunch = locationState.isHomework && locationState.homeworkId
                     ? await getHomeworkById(locationState.homeworkId)
                     : null;
+                const homeworkAntiCheatConfig = locationState.isHomework && homeworkForLaunch
+                    ? (homeworkForLaunch as { antiCheatConfig?: AntiCheatConfig | null }).antiCheatConfig ?? null
+                    : null;
+                setReadingV2AntiCheatConfig(homeworkAntiCheatConfig);
                 const readingPassageHomeworkProjection = homeworkForLaunch
                     ? await resolveReadingPassageHomeworkProjection({
                         homework: homeworkForLaunch,
@@ -355,20 +416,35 @@ const StudentPracticePageContent: React.FC = () => {
                         sourceSnapshotVersionId: launchDecision.projection.sourceSnapshotVersionId,
                         outcome: 'success',
                     });
-                    const readingV2Settings = locationState.courseId && locationState.moduleId
-                        ? await resolvePracticeSettings(
+                    const metadataTimerMinutes = getReadingV2MetadataTimerMinutes(launchTestData);
+                    const homeworkTimerMinutes = locationState.timerMinutes !== undefined
+                        ? locationState.timerMinutes
+                        : homeworkForLaunch?.config?.timerMinutes !== undefined
+                            ? homeworkForLaunch.config.timerMinutes
+                            : metadataTimerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes;
+
+                    let readingV2Settings: ResolvedPracticeSettings;
+                    if (locationState.courseId && locationState.moduleId) {
+                        readingV2Settings = await resolvePracticeSettings(
                             locationState.courseId,
                             locationState.moduleId,
                             materialId,
-                            { timerMinutes: null, feedbackTiming: 'after_completion' }
-                        )
-                        : locationState.isHomework
-                            ? {
-                                ...DEFAULT_PRACTICE_SETTINGS,
-                                timerMinutes: locationState.timerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
-                                maxAttempts: locationState.maxAttempts ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
-                            }
-                            : DEFAULT_PRACTICE_SETTINGS;
+                            { timerMinutes: metadataTimerMinutes, feedbackTiming: 'after_completion' }
+                        );
+                    } else if (locationState.isHomework) {
+                        readingV2Settings = {
+                            ...DEFAULT_PRACTICE_SETTINGS,
+                            timerMinutes: homeworkTimerMinutes,
+                            maxAttempts: locationState.maxAttempts
+                                ?? homeworkForLaunch?.config?.maxAttempts
+                                ?? DEFAULT_PRACTICE_SETTINGS.maxAttempts,
+                        };
+                    } else {
+                        readingV2Settings = {
+                            ...DEFAULT_PRACTICE_SETTINGS,
+                            timerMinutes: metadataTimerMinutes ?? DEFAULT_PRACTICE_SETTINGS.timerMinutes,
+                        };
+                    }
 
                     setReadingV2Projection(launchDecision.projection);
                     setTestSkill('Reading');
@@ -552,6 +628,44 @@ const StudentPracticePageContent: React.FC = () => {
         submissionId: locationState.submissionId,
     };
 
+    const {
+        addEvent: addReadingV2IntegrityEvent,
+        shouldAutoSubmit: shouldAutoSubmitReadingV2,
+        flushEvents: flushReadingV2IntegrityEvents,
+        getIntegrityReport: getReadingV2IntegrityReport,
+    } = useTestIntegrity({
+        config: readingV2AntiCheatConfig,
+        context: locationState.isHomework ? 'homework' : 'solo',
+        surface: 'reading_v2_practice',
+        studentId: user?.uid || '',
+        testId: readingV2Projection?.materialId || materialId || '',
+        homeworkId: locationState.homeworkId,
+        submissionId: locationState.submissionId,
+    });
+
+    useAntiCopyPaste({
+        enabled: readingV2AntiCheatConfig?.detectCopyPaste || false,
+        containerRef: readingV2RuntimeContainerRef as React.RefObject<HTMLElement>,
+        onEvent: addReadingV2IntegrityEvent,
+        detectRightClick: readingV2AntiCheatConfig?.detectRightClick || false,
+        detectKeyboardShortcuts: readingV2AntiCheatConfig?.detectKeyboardShortcuts || false,
+    });
+
+    useFullscreenMode({
+        enabled: readingV2AntiCheatConfig?.requireFullscreen || false,
+        onFullscreenExit: addReadingV2IntegrityEvent,
+    });
+
+    useEffect(() => {
+        if (!shouldAutoSubmitReadingV2) {
+            return;
+        }
+
+        setReadingV2IntegrityAutoSubmitToken((previous) =>
+            previous ?? `integrity-auto-submit:${Date.now()}`
+        );
+    }, [shouldAutoSubmitReadingV2]);
+
     const handleReadingV2Submit = useCallback(async (payload: ReadingV2RuntimeSubmitPayload) => {
         const launchSurface = getReadingV2LaunchSurface(locationState);
         const submissionMaterialId = payload.materialId ?? materialId ?? 'unknown-material';
@@ -568,8 +682,12 @@ const StudentPracticePageContent: React.FC = () => {
         });
 
         try {
+            await flushReadingV2IntegrityEvents('reading_v2_practice_submit');
             const result = await submitReadingV2RuntimeAttempt({
-                payload,
+                payload: {
+                    ...payload,
+                    integrityReport: readingV2AntiCheatConfig ? getReadingV2IntegrityReport() : null,
+                },
                 context: {
                     surface: launchSurface,
                     homeworkId: locationState.homeworkId,
@@ -630,6 +748,9 @@ const StudentPracticePageContent: React.FC = () => {
         locationState.moduleId,
         locationState.submissionId,
         materialId,
+        flushReadingV2IntegrityEvents,
+        getReadingV2IntegrityReport,
+        readingV2AntiCheatConfig,
         readingV2Projection?.content.title,
         readingPassageHomeworkKind,
         readingV2StartedAt,
@@ -638,6 +759,38 @@ const StudentPracticePageContent: React.FC = () => {
     const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()
         ? handleReadingV2Submit
         : undefined;
+
+    const handleReadingV2Exit = useCallback(() => {
+        const launchSurface = getReadingV2LaunchSurface(locationState);
+
+        trackAction('leaveTest', {
+            surface: launchSurface,
+            materialId: materialId ?? null,
+            homeworkId: locationState.homeworkId ?? null,
+            courseId: locationState.courseId ?? null,
+            moduleId: locationState.moduleId ?? null,
+        });
+
+        if (locationState.isHomework) {
+            navigateTo('STUDENT_HOMEWORK', undefined, { reason: 'reading_v2_exit_homework', force: true });
+            return;
+        }
+
+        if (locationState.courseId) {
+            navigateTo('STUDENT_COURSE_DETAIL', { courseId: locationState.courseId }, {
+                reason: 'reading_v2_exit_course_material',
+                force: true,
+            });
+            return;
+        }
+
+        navigateTo('STUDENT_LIBRARY', undefined, { reason: 'reading_v2_exit_library', force: true });
+    }, [
+        locationState,
+        materialId,
+        navigateTo,
+        trackAction,
+    ]);
 
     // ── Loading ────────────────────────────────────────────────────────────────
     if (loading) {
@@ -676,21 +829,32 @@ const StudentPracticePageContent: React.FC = () => {
     // ── Route to correct view ──────────────────────────────────────────────────
 
     if (testType === 'ReadingV2' && readingV2Projection) {
+        const readingV2Lifecycle: ReadingV2RuntimeLifecycle | undefined = readingV2IntegrityAutoSubmitToken
+            ? {
+                status: 'in-progress',
+                forceSubmitToken: readingV2IntegrityAutoSubmitToken,
+            }
+            : undefined;
+
         return (
-            <ReadingV2RuntimeShell
-                projection={readingV2Projection}
-                onSubmit={readingV2SubmitHandler}
-                initialAnswers={readingV2Answers}
-                onAnswersChange={setReadingV2Answers}
-                persistenceKey={`reading-v2:practice:${user?.uid ?? 'anonymous'}:${materialId}:${readingV2Projection.projectionId}`}
-                timer={{
-                    durationMinutes: resolvedSettings.timerMinutes,
-                    startedAt: resolvedSettings.timerMinutes ? readingV2StartedAt : null,
-                    pausedDurationMs: 0,
-                    running: true,
-                    autoSubmitOnExpiry: true,
-                }}
-            />
+            <div ref={readingV2RuntimeContainerRef}>
+                <ReadingV2RuntimeShell
+                    projection={readingV2Projection}
+                    onSubmit={readingV2SubmitHandler}
+                    onExit={handleReadingV2Exit}
+                    initialAnswers={readingV2Answers}
+                    onAnswersChange={setReadingV2Answers}
+                    persistenceKey={`reading-v2:practice:${user?.uid ?? 'anonymous'}:${materialId}:${readingV2Projection.projectionId}`}
+                    lifecycle={readingV2Lifecycle}
+                    timer={{
+                        durationMinutes: resolvedSettings.timerMinutes,
+                        startedAt: resolvedSettings.timerMinutes ? readingV2StartedAt : null,
+                        pausedDurationMs: 0,
+                        running: true,
+                        autoSubmitOnExpiry: true,
+                    }}
+                />
+            </div>
         );
     }
 

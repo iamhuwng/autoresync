@@ -37,7 +37,9 @@ export type ReadingV2LaunchDecision =
         | 'rollout-disabled'
         | 'missing-projection'
         | 'invalid-projection-kind'
-        | 'canonical-draft-not-allowed';
+        | 'canonical-draft-not-allowed'
+        | 'archived-or-removed'
+        | 'broken-master';
       readonly message: string;
     }
   | {
@@ -128,6 +130,43 @@ export interface ReadingV2LaunchMaterialSummary {
 
 const BLOCKED_PUBLIC_MESSAGE =
   'Reading V2 is not enabled for student launch yet.';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isFrozenAssignmentProjection = (projection: unknown): boolean =>
+  isRecord(projection) && isRecord(projection.assignmentManifest);
+
+const isBrokenOrRemovedCurrentMaster = (metadata: unknown): ReadingV2LaunchDecision | null => {
+  if (!isRecord(metadata)) {
+    return null;
+  }
+
+  const materialKind = String(metadata.materialKind ?? '').trim();
+  const isMaster = materialKind === 'full-test' || materialKind === 'reading-v2-full-test-composition';
+  if (!isMaster) {
+    return null;
+  }
+
+  const state = String(metadata.state ?? 'published').trim().toLowerCase();
+  if (state === 'archived' || state === 'removed') {
+    return {
+      status: 'blocked',
+      reason: 'archived-or-removed',
+      message: 'Reading V2 master is removed or archived and cannot be launched from the current library record.',
+    };
+  }
+
+  if (metadata.hasBrokenRefs === true || Number(metadata.brokenRefCount ?? 0) > 0) {
+    return {
+      status: 'blocked',
+      reason: 'broken-master',
+      message: 'Reading V2 master has unresolved broken Reading Passage refs.',
+    };
+  }
+
+  return null;
+};
 
 export const isReadingV2LaunchCandidate = (metadata: unknown): boolean =>
   isReadingV2Payload(metadata);
@@ -317,6 +356,13 @@ export const resolveReadingV2LaunchDecision = (input: {
       reason: 'rollout-disabled',
       message: BLOCKED_PUBLIC_MESSAGE,
     };
+  }
+
+  if (!isFrozenAssignmentProjection(input.projection)) {
+    const brokenOrRemoved = isBrokenOrRemovedCurrentMaster(input.metadata);
+    if (brokenOrRemoved) {
+      return brokenOrRemoved;
+    }
   }
 
   if (!input.projection || typeof input.projection !== 'object') {

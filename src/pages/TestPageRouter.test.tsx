@@ -12,6 +12,15 @@ const {
   mockTrackAction,
   mockNavigateTo,
   mockGetPlayerId,
+  readingV2RuntimePropsMock,
+  submitReadingV2RuntimeAttemptMock,
+  useTestIntegrityMock,
+  useAntiCopyPasteMock,
+  useFullscreenModeMock,
+  useIntegrityRefreshRequestMock,
+  flushIntegrityEventsMock,
+  getIntegrityReportMock,
+  addIntegrityEventMock,
 } = vi.hoisted(() => ({
   mockGet: vi.fn(),
   mockOnValue: vi.fn(),
@@ -19,6 +28,15 @@ const {
   mockTrackAction: vi.fn(),
   mockNavigateTo: vi.fn(),
   mockGetPlayerId: vi.fn(() => 'student-1'),
+  readingV2RuntimePropsMock: vi.fn(),
+  submitReadingV2RuntimeAttemptMock: vi.fn(),
+  useTestIntegrityMock: vi.fn(),
+  useAntiCopyPasteMock: vi.fn(),
+  useFullscreenModeMock: vi.fn(),
+  useIntegrityRefreshRequestMock: vi.fn(),
+  flushIntegrityEventsMock: vi.fn(),
+  getIntegrityReportMock: vi.fn(),
+  addIntegrityEventMock: vi.fn(),
 }));
 
 vi.mock('../services/firebase', () => ({
@@ -52,6 +70,27 @@ vi.mock('../services/sessionService', () => ({
   sessionService: {
     getPlayerId: () => mockGetPlayerId(),
   },
+}));
+
+vi.mock('../services/reading-v2/readingV2RuntimeSubmission.service', () => ({
+  isReadingV2RuntimeSubmissionConfigured: () => true,
+  submitReadingV2RuntimeAttempt: (...args: unknown[]) => submitReadingV2RuntimeAttemptMock(...args),
+}));
+
+vi.mock('../hooks/test/useTestIntegrity', () => ({
+  useTestIntegrity: (...args: unknown[]) => useTestIntegrityMock(...args),
+}));
+
+vi.mock('../hooks/test/useAntiCopyPaste', () => ({
+  useAntiCopyPaste: (...args: unknown[]) => useAntiCopyPasteMock(...args),
+}));
+
+vi.mock('../hooks/test/useFullscreenMode', () => ({
+  useFullscreenMode: (...args: unknown[]) => useFullscreenModeMock(...args),
+}));
+
+vi.mock('../hooks/test/useIntegrityRefreshRequest', () => ({
+  useIntegrityRefreshRequest: (...args: unknown[]) => useIntegrityRefreshRequestMock(...args),
 }));
 
 vi.mock('../services/reading-v2/readingV2LaunchIntegration.service', async () => {
@@ -99,7 +138,32 @@ vi.mock('../components/writing-student/WritingTestPage', () => ({
 }));
 
 vi.mock('../components/reading-v2/runtime/ReadingV2RuntimeShell', () => ({
-  ReadingV2RuntimeShell: () => <div>reading-v2-runtime</div>,
+  ReadingV2RuntimeShell: (props: any) => {
+    readingV2RuntimePropsMock(props);
+    return (
+      <div>
+        <div>reading-v2-runtime</div>
+        {props.onSubmit ? (
+          <button
+            type="button"
+            onClick={() => props.onSubmit({
+              materialId: props.projection?.materialId,
+              projectionId: props.projection?.projectionId,
+              sourceSnapshotVersionId: props.projection?.sourceSnapshotVersionId,
+              answers: [{
+                interactionId: 'interaction-1',
+                taskGroupId: 'task-group-1',
+                visibleNumber: 1,
+                value: 'A',
+              }],
+            })}
+          >
+            Submit Reading V2
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 function createSnapshot(value: any, exists = true) {
@@ -124,6 +188,35 @@ describe('TestPageRouter', () => {
     vi.clearAllMocks();
     mockGetPlayerId.mockReturnValue('student-1');
     mockOnValue.mockReturnValue(vi.fn());
+    submitReadingV2RuntimeAttemptMock.mockResolvedValue({
+      resultId: 'result-1',
+      attemptId: 'attempt-1',
+      totalScore: 1,
+      maxScore: 1,
+      percentage: 100,
+    });
+    flushIntegrityEventsMock.mockResolvedValue(undefined);
+    getIntegrityReportMock.mockReturnValue({
+      violationCount: 1,
+      totalEvents: 1,
+      tabSwitchCount: 1,
+      totalTimeAwayMs: 3000,
+      copyAttempts: 0,
+      pasteAttempts: 0,
+      rightClickAttempts: 0,
+      fullscreenExitCount: 0,
+      keyboardShortcutAttempts: 0,
+      forceSubmitted: false,
+      forceSubmittedBy: null,
+      riskLevel: 'low',
+      events: [],
+    });
+    useTestIntegrityMock.mockReturnValue({
+      addEvent: addIntegrityEventMock,
+      shouldAutoSubmit: false,
+      flushEvents: flushIntegrityEventsMock,
+      getIntegrityReport: getIntegrityReportMock,
+    });
     mockGet.mockImplementation(async ({ path }: { path: string }) => {
       switch (path) {
         case 'game_sessions/FMQYME/testId':
@@ -278,5 +371,172 @@ describe('TestPageRouter', () => {
     });
 
     expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+  });
+
+  it('passes live Reading V2 timer and force-submit state to the runtime shell', async () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.sessionSafe;
+    const metadata = {
+      materialId: 'reading-v2-material-1',
+      deliveryEngine: READING_V2_ENGINE,
+      productLabel: 'Reading V2',
+      title: 'Reading V2 Live Test',
+      materialKind: 'full-test',
+      durationMinutes: 60,
+      difficulty: 'medium',
+      tags: ['ielts'],
+      visibility: 'class-only',
+      publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+    };
+
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('reading-v2-material-1');
+        case 'game_sessions/FMQYME/readingV2':
+          return createSnapshot(metadata);
+        case `reading_v2/projections/session_test_payloads/FMQYME:${projection.sourceSnapshotVersionId}`:
+          return createSnapshot(projection);
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    mockOnValue.mockImplementation((_sessionRef, callback: (snapshot: ReturnType<typeof createSnapshot>) => void) => {
+      callback(createSnapshot({
+        status: 'in-progress',
+        testId: 'reading-v2-material-1',
+        startTime: 123456,
+        duration: 45,
+        pausedDuration: 5000,
+        players: {
+          'student-1': {
+            forceSubmitRequestedAt: 7890,
+          },
+        },
+      }));
+      return vi.fn();
+    });
+
+    renderRouter();
+
+    expect(await screen.findByText('reading-v2-runtime')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(readingV2RuntimePropsMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        lifecycle: expect.objectContaining({
+          status: 'in-progress',
+          forceSubmitToken: 7890,
+        }),
+        timer: expect.objectContaining({
+          durationMinutes: 45,
+          startedAt: 123456,
+          pausedDurationMs: 5000,
+          running: true,
+          autoSubmitOnExpiry: true,
+        }),
+      }));
+    });
+  });
+
+  it('enables Reading V2 live anti-cheat and submits the integrity report', async () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.sessionSafe;
+    const metadata = {
+      materialId: 'reading-v2-material-1',
+      deliveryEngine: READING_V2_ENGINE,
+      productLabel: 'Reading V2',
+      title: 'Reading V2 Live Test',
+      materialKind: 'full-test',
+      durationMinutes: 60,
+      difficulty: 'medium',
+      tags: ['ielts'],
+      visibility: 'class-only',
+      publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+    };
+    const antiCheatConfig = {
+      preset: 'standard',
+      detectTabSwitch: true,
+      detectCopyPaste: true,
+      detectRightClick: true,
+      detectFullscreenExit: true,
+      detectKeyboardShortcuts: true,
+      enableStudentWarnings: true,
+      enableAutoSubmit: true,
+      autoSubmitThreshold: 5,
+      requireFullscreen: true,
+      shuffleQuestions: false,
+      shuffleOptions: false,
+      nullifyRemainingAttempts: false,
+    };
+
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('reading-v2-material-1');
+        case 'game_sessions/FMQYME/readingV2':
+          return createSnapshot(metadata);
+        case `reading_v2/projections/session_test_payloads/FMQYME:${projection.sourceSnapshotVersionId}`:
+          return createSnapshot(projection);
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    mockOnValue.mockImplementation((_sessionRef, callback: (snapshot: ReturnType<typeof createSnapshot>) => void) => {
+      callback(createSnapshot({
+        status: 'in-progress',
+        testId: 'reading-v2-material-1',
+        startTime: 123456,
+        duration: 45,
+        antiCheatConfig,
+        integrityRefreshRequestedAt: 9999,
+        players: {
+          'student-1': {},
+        },
+      }));
+      return vi.fn();
+    });
+
+    const user = await import('@testing-library/user-event').then((mod) => mod.default.setup());
+
+    renderRouter();
+
+    await screen.findByText('reading-v2-runtime');
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    expect(useTestIntegrityMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      config: antiCheatConfig,
+      context: 'session',
+      surface: 'reading_v2_live_session',
+      sessionCode: 'FMQYME',
+      studentId: 'student-1',
+      testId: projection.materialId,
+    }));
+    expect(useAntiCopyPasteMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      enabled: true,
+      detectRightClick: true,
+      detectKeyboardShortcuts: true,
+      onEvent: addIntegrityEventMock,
+    }));
+    expect(useFullscreenModeMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      enabled: true,
+      onFullscreenExit: addIntegrityEventMock,
+    }));
+    expect(useIntegrityRefreshRequestMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      enabled: true,
+      requestTimestamp: 9999,
+    }));
+    expect(flushIntegrityEventsMock).toHaveBeenCalledWith('reading_v2_live_submit');
+    expect(submitReadingV2RuntimeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        integrityReport: expect.objectContaining({
+          violationCount: 1,
+          tabSwitchCount: 1,
+        }),
+      }),
+      context: expect.objectContaining({
+        surface: 'live-session',
+        sessionCode: 'FMQYME',
+      }),
+    }));
   });
 });

@@ -4,6 +4,7 @@ import { readingV2Ids, type ReadingV2PublishedSnapshot, type ReadingV2Result } f
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import { READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE } from './fixtures/readingV2ProjectionFixtures';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
+import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
 import {
   buildReadingV2GroupedReviewPayload,
   buildReadingV2RegradePersistencePlan,
@@ -108,6 +109,72 @@ describe('readingV2ResultAdapter.service', () => {
     expect(result.interactions).toHaveLength(2);
     expect(result.interactions.every((interaction) => interaction.score === 1)).toBe(true);
     expect(result.interactions.map((interaction) => interaction.displayNumber)).toEqual([1, 2]);
+  });
+
+  it('builds review from frozen result numbering instead of recomputing projection numbers', () => {
+    const projection = structuredClone(
+      READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['sentence-completion'].review,
+    ) as ReadingV2DerivedProjection;
+    const firstGroup = projection.content.taskGroups[0]!;
+    const interactions = firstGroup.interactions;
+    const numbering = composeReadingV2CompositionNumbering({
+      passages: [{
+        order: 1,
+        passageMaterialId: 'passage-a',
+        snapshotVersionId: projection.sourceSnapshotVersionId,
+        interactions: interactions.map((interaction) => ({ interactionId: interaction.interactionId })),
+      }],
+      previousInteractionDisplayNumbers: {
+        [interactions[0]!.interactionId]: 31,
+        [interactions[1]!.interactionId]: 32,
+      },
+      preserveBeforeOrder: 2,
+    });
+    const frozenResult = {
+      resultId: readingV2Ids.resultId('result-frozen-numbering'),
+      testId: 'material-sentence-completion',
+      studentId: 'student-1',
+      ownerId: 'teacher-1',
+      publishedSnapshotVersion: projection.sourceSnapshotVersionId,
+      attemptId: readingV2Ids.attemptId('attempt-frozen-numbering'),
+      attemptContext: { mode: 'homework' as const },
+      interactions: interactions.map((interaction) => ({
+        interactionId: interaction.interactionId,
+        taskGroupId: interaction.taskGroupId,
+        displayNumber: numbering.interactionDisplayNumbers[interaction.interactionId]!,
+        taskFamily: firstGroup.engineeringFamily,
+        officialTaskType: firstGroup.officialTaskType,
+        studentAnswer: 'answer',
+        scoredAnswer: 'answer',
+        score: 1,
+        maxScore: 1,
+        reviewState: 'released' as const,
+      })),
+      totalScore: 2,
+      maxScore: 2,
+      submittedAt: '2026-06-01T00:00:00.000Z',
+    } satisfies ReadingV2Result;
+    const liveProjection = {
+      ...projection,
+      content: {
+        ...projection.content,
+        taskGroups: projection.content.taskGroups.map((taskGroup) => ({
+          ...taskGroup,
+          interactions: taskGroup.interactions.map((interaction) => ({
+            ...interaction,
+            displayNumber: 1,
+          })),
+        })),
+      },
+    };
+
+    const reviewPayload = buildReadingV2GroupedReviewPayload({
+      result: frozenResult,
+      projection: liveProjection,
+    });
+
+    expect(reviewPayload.taskGroups[0]!.interactions.map((interaction) => interaction.displayNumber))
+      .toEqual([31, 32]);
   });
 
   it('scores binary judgement aliases without accepting misspellings', () => {

@@ -81,6 +81,76 @@ const getFeedbackTimingDescription = (timing: string): string => {
     }
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+
+const firstString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) {
+            return value;
+        }
+    }
+
+    return undefined;
+};
+
+const firstNumber = (...values: unknown[]): number | undefined => {
+    for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+    }
+
+    return undefined;
+};
+
+const stringArray = (value: unknown): readonly string[] =>
+    Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
+        : [];
+
+const buildReadingV2MetadataFromStudentBridge = (testData: TestData): ReadingV2MaterialMetadata => {
+    const bridge = asRecord(testData);
+    const bridgeMetadata = asRecord(bridge.metadata);
+    const materialId = firstString(bridge.materialId, bridge.id) ?? '';
+    const title = firstString(bridgeMetadata.title, bridge.title) ?? 'Reading V2 material';
+    const materialKind = firstString(bridgeMetadata.materialKind, bridge.materialKind) ?? 'full-test';
+
+    return {
+        materialId: materialId as ReadingV2MaterialMetadata['materialId'],
+        ownerId: firstString(bridge.ownerId, bridgeMetadata.ownerId) ?? '',
+        compositionId: firstString(bridgeMetadata.compositionId, bridge.compositionId) as ReadingV2MaterialMetadata['compositionId'],
+        state: firstString(bridgeMetadata.state, bridge.state) as ReadingV2MaterialMetadata['state'],
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title,
+        materialKind: materialKind as ReadingV2MaterialMetadata['materialKind'],
+        durationMinutes: firstNumber(
+            bridgeMetadata.durationMinutes,
+            bridgeMetadata.duration,
+            bridge.durationMinutes,
+            bridge.duration,
+        ) ?? 0,
+        difficulty: firstString(bridgeMetadata.difficulty, bridge.difficulty) ?? 'intermediate',
+        targetBand: firstString(bridgeMetadata.targetBand, bridge.targetBand),
+        description: firstString(bridgeMetadata.description, bridge.description) ?? '',
+        tags: stringArray(bridgeMetadata.tags),
+        visibility: (firstString(bridgeMetadata.visibility, bridge.visibility) ?? 'private') as ReadingV2MaterialMetadata['visibility'],
+        primaryTestTypeId: firstString(bridgeMetadata.primaryTestTypeId, bridge.primaryTestTypeId) as ReadingV2MaterialMetadata['primaryTestTypeId'],
+        testTypeIds: stringArray(bridgeMetadata.testTypeIds).length > 0
+            ? stringArray(bridgeMetadata.testTypeIds) as ReadingV2MaterialMetadata['testTypeIds']
+            : stringArray(bridge.testTypeIds) as ReadingV2MaterialMetadata['testTypeIds'],
+        publishedSnapshotVersionId: firstString(
+            bridgeMetadata.publishedSnapshotVersionId,
+            bridge.publishedSnapshotVersionId,
+        ),
+        updatedAt: firstString(bridgeMetadata.updatedAt, bridge.updatedAt) ?? new Date(0).toISOString(),
+        relationshipSurfaces: ['homework-assignment'],
+    };
+};
+
 const formatTimeAgo = (timestamp: number): string => {
     const diff = Date.now() - timestamp;
     const minutes = Math.floor(diff / (1000 * 60));
@@ -647,19 +717,17 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                     return;
                 }
 
-                const metadataPlan = buildReadingV2LaunchReadPlan({
-                    surface: 'homework',
-                    materialId: homework.materialId,
-                });
-                const metadataSnapshot = await get(ref(database, metadataPlan.metadataPath));
-                const metadata = metadataSnapshot.exists()
-                    ? metadataSnapshot.val() as ReadingV2MaterialMetadata
-                    : null;
+                const result = await getTestFromFirebase(homework.materialId);
+                if (result.success && result.data) {
+                    if (!isReadingV2LaunchCandidate(result.data)) {
+                        setMaterial(result.data);
+                        return;
+                    }
 
-                if (metadata && isReadingV2LaunchCandidate(metadata)) {
+                    const metadata = buildReadingV2MetadataFromStudentBridge(result.data);
                     const projectionPlan = buildReadingV2LaunchReadPlan({
                         surface: 'homework',
-                        materialId: homework.materialId,
+                        materialId: metadata.materialId,
                         snapshotVersionId: metadata.publishedSnapshotVersionId,
                     });
                     const projectionSnapshot = await get(ref(database, projectionPlan.projectionPath));
@@ -682,11 +750,6 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         metadata: summary.metadata,
                     } as unknown as TestData);
                     return;
-                }
-
-                const result = await getTestFromFirebase(homework.materialId);
-                if (result.success && result.data) {
-                    setMaterial(result.data);
                 }
             } catch (err) {
                 console.error('Error loading material:', err);

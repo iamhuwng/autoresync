@@ -67,6 +67,42 @@ describe('readingV2RuntimeSubmission', () => {
         surface: 'solo-practice',
         sourceName: 'Reading fixture',
       },
+      integrityReport: null,
+    }));
+  });
+
+  it('carries the browser integrity report to the trusted endpoint', () => {
+    const integrityReport = {
+      violationCount: 2,
+      totalEvents: 3,
+      tabSwitchCount: 1,
+      totalTimeAwayMs: 1200,
+      copyAttempts: 1,
+      pasteAttempts: 0,
+      rightClickAttempts: 0,
+      fullscreenExitCount: 1,
+      keyboardShortcutAttempts: 0,
+      forceSubmitted: false,
+      forceSubmittedBy: null,
+      riskLevel: 'medium',
+      events: [],
+    } as const;
+
+    expect(buildReadingV2TrustedSubmissionRequest({
+      payload: {
+        ...payload,
+        integrityReport,
+      },
+      context: {
+        surface: 'homework',
+        homeworkId: 'hw-1',
+      },
+    })).toEqual(expect.objectContaining({
+      integrityReport,
+      context: expect.objectContaining({
+        surface: 'homework',
+        homeworkId: 'hw-1',
+      }),
     }));
   });
 

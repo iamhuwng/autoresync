@@ -207,6 +207,11 @@ describe('readingV2PassageHomeworkLaunch service', () => {
     expect(composed.content.taskGroups[0].interactions[0].displayNumber).toBe(1);
     expect(composed.content.taskGroups[firstProjection.content.taskGroups.length].interactions[0].displayNumber)
       .toBe(firstInteractionCount + 1);
+    expect(composed.compositionNumbering?.interactionDisplayNumbers).toMatchObject({
+      [composed.content.taskGroups[0].interactions[0].interactionId]: 1,
+      [composed.content.taskGroups[firstProjection.content.taskGroups.length].interactions[0].interactionId]:
+        firstInteractionCount + 1,
+    });
     expect(responseShapeOptionSetIds.length).toBeGreaterThan(0);
     expect(responseShapeOptionSetIds.every((optionSetId) => optionSetIds.has(optionSetId))).toBe(true);
     expect(composed.analytics?.interactionCount).toBe(interactionIds.length);

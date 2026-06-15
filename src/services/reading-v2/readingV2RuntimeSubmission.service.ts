@@ -3,6 +3,7 @@
 import { auth } from '../firebase';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import type { ReadingV2LaunchSurface } from './readingV2LaunchIntegration.service';
+import type { IntegrityReport } from '../../types/integrity.types';
 
 export type ReadingV2ClientAnswerValue = string | readonly string[];
 
@@ -18,6 +19,7 @@ export interface ReadingV2RuntimeSubmissionPayload {
   readonly sourceSnapshotVersionId: string;
   readonly materialId?: string;
   readonly answers: readonly ReadingV2RuntimeSubmissionAnswer[];
+  readonly integrityReport?: IntegrityReport | null;
 }
 
 export interface ReadingV2RuntimeSubmissionContext {
@@ -42,6 +44,7 @@ export interface ReadingV2TrustedSubmissionRequest {
     readonly displayNumber: number;
     readonly value: ReadingV2ClientAnswerValue;
   }[];
+  readonly integrityReport?: IntegrityReport | null;
   readonly context: ReadingV2RuntimeSubmissionContext;
 }
 
@@ -112,6 +115,7 @@ export const buildReadingV2TrustedSubmissionRequest = (input: {
     displayNumber: answer.visibleNumber,
     value: answer.value,
   })),
+  integrityReport: input.payload.integrityReport ?? null,
   context: input.context,
 });
 

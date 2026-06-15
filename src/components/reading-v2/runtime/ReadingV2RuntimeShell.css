@@ -102,6 +102,8 @@
 .reading-v2-runtime__desktop-header-status {
   min-width: 180px;
   display: flex;
+  align-items: center;
+  gap: 10px;
   justify-content: flex-end;
 }
 
@@ -111,6 +113,31 @@
   font-size: 12px;
   font-weight: 700;
   text-align: right;
+}
+
+.reading-v2-runtime__exit-button {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  padding: 0;
+}
+
+.reading-v2-runtime__exit-button:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+  color: #111827;
+}
+
+.reading-v2-runtime__exit-button:focus-visible {
+  outline: 3px solid rgb(77 68 227 / 24%);
+  outline-offset: 2px;
 }
 
 .reading-v2-runtime__lifecycle-banner {
@@ -130,6 +157,7 @@
 .reading-v2-runtime__finish-button,
 .reading-v2-runtime__mobile-submit,
 .reading-v2-runtime__mobile-overflow,
+.reading-v2-runtime__exit-button,
 .reading-v2-runtime__passage-tab,
 .reading-v2-runtime__footer-part,
 .reading-v2-runtime__footer-question,
