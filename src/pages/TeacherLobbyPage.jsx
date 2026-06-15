@@ -42,7 +42,10 @@ import {
 import { restoreReadingV2PassageMaterial } from '../services/reading-v2/readingV2PassageArchive.service';
 import { writeReadingV2AuditEvent } from '../services/reading-v2/readingV2AuditTrail.service';
 import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
-import { createReadingV2TeacherSelectedPassageDraft } from '../services/reading-v2/readingV2TeacherComposition.service';
+import {
+  createReadingV2TeacherSelectedPassageDraft,
+  removeReadingV2MasterComposition,
+} from '../services/reading-v2/readingV2TeacherComposition.service';
 import { buildReadingV2ExtractedFullTestCompositionId } from '../services/reading-v2/readingV2PassageExtraction.service';
 import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
 import { ReadingV2MasterEditModal } from '../components/reading-v2/master/ReadingV2MasterEditModal';
@@ -207,6 +210,45 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
   }
 };
 
+const getReadingV2MasterTitle = (master) =>
+  master?.title || master?.metadata?.title || 'Untitled Reading V2 master';
+
+const getReadingV2MasterPassageRefs = (master) => {
+  if (Array.isArray(master?.passageRefs)) {
+    return master.passageRefs;
+  }
+  if (Array.isArray(master?.passages)) {
+    return master.passages;
+  }
+  return [];
+};
+
+const getReadingV2MasterPassageId = (passageRef) =>
+  passageRef?.passageMaterialId || passageRef?.materialId || passageRef?.id || '';
+
+const getReadingV2MasterPassageTitle = (passageRef, index) =>
+  passageRef?.title || passageRef?.titleSnapshot || `Reading Passage ${index + 1}`;
+
+const toReadingV2MasterArchivePassage = (passageRef, master, index) => {
+  const materialId = getReadingV2MasterPassageId(passageRef);
+  const ownerId = passageRef?.ownerId || master?.ownerId;
+  const versionId = passageRef?.currentVersionId || passageRef?.snapshotVersionId || passageRef?.publishedSnapshotVersionId;
+
+  return {
+    materialId,
+    ownerId,
+    title: getReadingV2MasterPassageTitle(passageRef, index),
+    visibility: passageRef?.visibility || master?.visibility || 'private',
+    materialKind: 'reading-passage',
+    testTypeIds: passageRef?.testTypeIds || passageRef?.testTypeIdsSnapshot || master?.testTypeIds || [],
+    sourceFullTestId: passageRef?.source?.sourceFullTestId || master?.testMaterialId || master?.materialId || master?.id,
+    updatedAt: passageRef?.updatedAt || master?.updatedAt || new Date().toISOString(),
+    currentVersionId: versionId,
+    publishedSnapshotVersionId: versionId,
+    questionCount: passageRef?.questionCount ?? passageRef?.questionCountSnapshot,
+  };
+};
+
 const getConfigTokensForTestType = (activeTestTypeId, testTypeConfigs = DEFAULT_MATERIAL_TEST_TYPES) => {
   const activeId = normalizeTestTypeToken(activeTestTypeId);
   const tokens = new Set();
@@ -342,6 +384,10 @@ const TeacherLobbyPage = () => {
     mode: 'published',
     master: null,
   });
+  const [readingV2MasterRemoveRequest, setReadingV2MasterRemoveRequest] = useState(null);
+  const [readingV2MasterRemoveAcknowledged, setReadingV2MasterRemoveAcknowledged] = useState(false);
+  const [readingV2MasterRemoveError, setReadingV2MasterRemoveError] = useState(null);
+  const [readingV2MasterRemoveStatus, setReadingV2MasterRemoveStatus] = useState('idle');
   const [readingV2ExistingPassageDraftMetadata, setReadingV2ExistingPassageDraftMetadata] = useState(null);
   const [readingPassageFullTestCreateState, setReadingPassageFullTestCreateState] = useState({
     status: 'idle',
@@ -458,6 +504,9 @@ const TeacherLobbyPage = () => {
     },
     write: async (path, value) => {
       await set(ref(database, path), value);
+    },
+    remove: async (path) => {
+      await remove(ref(database, path));
     },
     update: async (updates) => {
       await updateDb(ref(database), updates);
@@ -1158,13 +1207,149 @@ const TeacherLobbyPage = () => {
   }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, readingV2CompositionRepository, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
+    if (isReadingV2MasterMaterial(test)) {
+      const master = await resolveReadingV2MasterModalRecord(test, readingV2CompositionRepository);
+      setReadingV2MasterRemoveRequest(master);
+      setReadingV2MasterRemoveAcknowledged(false);
+      setReadingV2MasterRemoveError(null);
+      setReadingV2MasterRemoveStatus('idle');
+      trackAction('master_delete_requested', {
+        materialId: master?.testMaterialId || master?.materialId || master?.id,
+        compositionId: master?.compositionId,
+        source: 'teacher_materials_test_card',
+      });
+      return;
+    }
+
     const isThcs = test.testType === 'THCS-THPT';
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
     const testTitle = isThcs || isWritingTest ? test.metadata?.title : test.title;
     if (window.confirm(`Are you sure you want to delete "${testTitle || 'this test'}"?`)) {
       await deleteTest(test);
     }
-  }, [deleteTest]);
+  }, [deleteTest, readingV2CompositionRepository, trackAction]);
+
+  const handleCancelReadingV2MasterRemove = useCallback(() => {
+    setReadingV2MasterRemoveRequest(null);
+    setReadingV2MasterRemoveAcknowledged(false);
+    setReadingV2MasterRemoveError(null);
+    setReadingV2MasterRemoveStatus('idle');
+  }, []);
+
+  const handleConfirmReadingV2MasterRemove = useCallback(async ({ includeLinkedPassages }) => {
+    const master = readingV2MasterRemoveRequest;
+    if (!master || !user?.uid || readingV2MasterRemoveStatus === 'removing') {
+      return;
+    }
+
+    const passageRefs = getReadingV2MasterPassageRefs(master);
+    const nonOwnedRefs = passageRefs.filter((passageRef) => {
+      const ownerId = passageRef?.ownerId || master.ownerId;
+      return ownerId && ownerId !== user.uid;
+    });
+    if (includeLinkedPassages && (nonOwnedRefs.length > 0 || !readingV2MasterRemoveAcknowledged)) {
+      return;
+    }
+
+    setReadingV2MasterRemoveStatus('removing');
+    setReadingV2MasterRemoveError(null);
+
+    try {
+      if (includeLinkedPassages) {
+        trackAction('master_linked_passages_remove_requested', {
+          materialId: master.testMaterialId || master.materialId || master.id,
+          compositionId: master.compositionId,
+          passageCount: passageRefs.length,
+          source: 'teacher_materials_master_delete_modal',
+        });
+
+        for (const [index, passageRef] of passageRefs.entries()) {
+          const archivePassage = toReadingV2MasterArchivePassage(passageRef, master, index);
+          if (!archivePassage.materialId || !archivePassage.ownerId) {
+            throw new Error('Linked Reading Passage is missing archive identity.');
+          }
+          await archiveReadingV2PassageMaterial({
+            actorUserId: user.uid,
+            actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
+            teacherId: user.uid,
+            passage: archivePassage,
+            repository: readingV2PassageArchiveRepository,
+            usageSummary: {
+              usedElsewhere: true,
+              usageCategories: ['master'],
+            },
+            correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:linked:${archivePassage.materialId}`,
+            sourceFeatureId: 'teacher_materials_reading_master_and_linked_passages_removed',
+            sourceRoute: '/lobby',
+          });
+        }
+      }
+
+      await removeReadingV2MasterComposition({
+        actorUserId: user.uid,
+        actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
+        composition: {
+          ...master,
+          ownerId: master.ownerId || user.uid,
+          testMaterialId: master.testMaterialId || master.materialId || master.id,
+          title: getReadingV2MasterTitle(master),
+          visibility: master.visibility || 'private',
+          testTypeIds: master.testTypeIds || [],
+          updatedAt: master.updatedAt || new Date().toISOString(),
+          passageRefs,
+        },
+        repository: readingV2CompositionRepository,
+        correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:remove`,
+        sourceFeatureId: includeLinkedPassages
+          ? 'teacher_materials_reading_master_and_linked_passages_removed'
+          : 'teacher_materials_reading_master_removed',
+        sourceRoute: '/lobby',
+      });
+
+      trackAction(
+        includeLinkedPassages
+          ? 'teacher_materials_reading_master_and_linked_passages_removed'
+          : 'teacher_materials_reading_master_removed',
+        {
+          materialId: master.testMaterialId || master.materialId || master.id,
+          compositionId: master.compositionId,
+          passageCount: passageRefs.length,
+          source: 'teacher_materials_master_delete_modal',
+        },
+      );
+      logTeacherMaterialsDiagnostic('reading_v2_master_removed', {
+        materialId: master.testMaterialId || master.materialId || master.id,
+        compositionId: master.compositionId,
+        linkedPassagesArchived: includeLinkedPassages,
+        passageCount: passageRefs.length,
+      });
+      setReadingV2MasterRemoveRequest(null);
+      setReadingV2MasterRemoveAcknowledged(false);
+      setReadingV2MasterRemoveStatus('idle');
+      await refreshTests();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove Reading V2 master.';
+      console.error('Failed to remove Reading V2 master:', error);
+      setReadingV2MasterRemoveError(message);
+      setReadingV2MasterRemoveStatus('failed');
+      logTeacherMaterialsDiagnostic('reading_v2_master_remove_failed', {
+        materialId: master.testMaterialId || master.materialId || master.id,
+        compositionId: master.compositionId,
+        linkedPassagesRequested: includeLinkedPassages,
+        message,
+      });
+    }
+  }, [
+    profile?.role,
+    readingV2CompositionRepository,
+    readingV2MasterRemoveAcknowledged,
+    readingV2MasterRemoveRequest,
+    readingV2MasterRemoveStatus,
+    readingV2PassageArchiveRepository,
+    refreshTests,
+    trackAction,
+    user?.uid,
+  ]);
 
   const handleDeleteDraft = useCallback(async (draft) => {
     const draftTitle = draft.metadata?.title || 'Untitled Draft';
@@ -2246,6 +2431,87 @@ const TeacherLobbyPage = () => {
                         onClick={handleConfirmArchiveReadingPassage}
                       >
                         Remove from library
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </section>
+          </div>
+        )}
+
+        {readingV2MasterRemoveRequest && (
+          <div className="teacher-materials-confirm-modal" role="presentation">
+            <div className="teacher-materials-confirm-modal__scrim" onClick={handleCancelReadingV2MasterRemove} />
+            <section
+              aria-label="Remove Reading V2 master?"
+              aria-modal="true"
+              className="teacher-materials-confirm-modal__panel"
+              role="dialog"
+            >
+              {(() => {
+                const passageRefs = getReadingV2MasterPassageRefs(readingV2MasterRemoveRequest);
+                const nonOwnedCount = passageRefs.filter((passageRef) => {
+                  const ownerId = passageRef?.ownerId || readingV2MasterRemoveRequest.ownerId;
+                  return ownerId && ownerId !== user?.uid;
+                }).length;
+                const linkedRemovalBlocked = nonOwnedCount > 0;
+                const linkedRemovalDisabled =
+                  linkedRemovalBlocked ||
+                  !readingV2MasterRemoveAcknowledged ||
+                  readingV2MasterRemoveStatus === 'removing';
+                const passageCountLabel = `${passageRefs.length} linked Reading Passage${passageRefs.length === 1 ? '' : 's'}`;
+
+                return (
+                  <>
+                    <h2>Remove Reading V2 master?</h2>
+                    <p>
+                      {`"${getReadingV2MasterTitle(readingV2MasterRemoveRequest)}" can be removed by itself, or with its owned linked Reading Passages.`}
+                    </p>
+                    <div className="teacher-materials-confirm-modal__summary">
+                      <span>{passageCountLabel}</span>
+                      <span>{`${nonOwnedCount} non-owned ${nonOwnedCount === 1 ? 'passage' : 'passages'}`}</span>
+                    </div>
+                    <p>Existing assigned work and saved results stay available from frozen snapshots.</p>
+                    {linkedRemovalBlocked && (
+                      <p className="reading-passage-selection-toolbar__error" role="status">
+                        {`Linked passage removal is blocked because ${nonOwnedCount} ${nonOwnedCount === 1 ? 'passage is' : 'passages are'} not owned by you.`}
+                      </p>
+                    )}
+                    <label className="teacher-materials-confirm-modal__check">
+                      <input
+                        type="checkbox"
+                        checked={readingV2MasterRemoveAcknowledged}
+                        onChange={(event) => setReadingV2MasterRemoveAcknowledged(event.target.checked)}
+                      />
+                      <span>I understand linked passages may be used by other masters, Books, or active assignment setup.</span>
+                    </label>
+                    {readingV2MasterRemoveError && (
+                      <p className="reading-passage-selection-toolbar__error" role="status">
+                        {readingV2MasterRemoveError}
+                      </p>
+                    )}
+                    <div className="teacher-materials-confirm-modal__actions">
+                      <button
+                        type="button"
+                        onClick={handleCancelReadingV2MasterRemove}
+                        disabled={readingV2MasterRemoveStatus === 'removing'}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmReadingV2MasterRemove({ includeLinkedPassages: false })}
+                        disabled={readingV2MasterRemoveStatus === 'removing'}
+                      >
+                        Remove master only
+                      </button>
+                      <button
+                        type="button"
+                        disabled={linkedRemovalDisabled}
+                        onClick={() => handleConfirmReadingV2MasterRemove({ includeLinkedPassages: true })}
+                      >
+                        Remove master and linked passages
                       </button>
                     </div>
                   </>

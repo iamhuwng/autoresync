@@ -255,7 +255,10 @@ Inspect these before editing. Add exact line notes to the findings file after in
   - Use soft archive/remove-from-library semantics unless an existing tested hard-delete owner exists.
   - Removed masters disappear from active master lists in V1.
   - Do not add a normal teacher master Archive tab or master restore UI in V1 unless a later PRD explicitly approves it.
-  - Do not delete passage materials when deleting/removing a master.
+  - Master removal must present explicit modal choices: remove master only, remove master and owned linked passages, or cancel.
+  - Master-only removal must not archive linked passage materials.
+  - Linked-passage removal must archive only actor-owned linked Reading Passages through the normal passage archive service; it must block when any linked passage is not owned by the actor.
+  - Obsolete 2026-06-15: "Do not delete passage materials when deleting/removing a master" means no hard delete and no implicit cascade. It does not forbid the explicit `Remove master and linked passages` archive option for owned linked passages.
   - Deleting/removing a master does not mutate assignments or completed results.
   - Deleting/removing a master blocks future launches from active lists.
 - [ ] Add tests:
@@ -269,6 +272,7 @@ Inspect these before editing. Add exact line notes to the findings file after in
   - `readingV2ResultAdapter.service.test.ts` continues to review old frozen results for deleted/archived live refs.
 - [ ] Update security rules:
   - `database.rules.json` permits owner/admin archive/restore/delete state writes only through allowed metadata/index fields.
+  - Material Catalog active-index cleanup permits owner delete when canonical `reading_v2/material_metadata/{materialId}/ownerId` proves ownership, even if the stale index row is already missing.
   - `database.rules.json` rejects deletion or mutation of immutable published snapshots by teacher archive/restore flows.
   - `src/__tests__/security/readingV2FirebaseRules.test.ts` covers valid archive/restore and invalid snapshot deletion.
 - [ ] Parent acceptance: broken current masters cannot be assigned or launched, while frozen assigned/completed work remains reviewable.
@@ -450,6 +454,7 @@ Inspect these before editing. Add exact line notes to the findings file after in
   - Add visible action ids for archive, restore, repair, delete/remove, duplicate warning, and Book repair actions.
 - [x] Update or verify `database.rules.json`; phase-specific rule tests from Phase 1A, Phase 1B, Phase 2, and Phase 3 cannot be deferred to this sweep:
   - Archive/restore writes limited to owner/admin metadata and index paths.
+  - Archive/remove active-index cleanup remains idempotent when canonical Reading V2 metadata proves owner permission.
   - Archive/restore cannot mutate immutable snapshots or old versions.
   - Archive index rows cannot include body, answers, or review payload.
   - Broken-ref summary fields cannot include student answers or answer keys.

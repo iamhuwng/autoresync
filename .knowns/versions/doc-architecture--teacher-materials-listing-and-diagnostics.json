@@ -1,6 +1,6 @@
 {
   "docPath": "architecture/teacher-materials-listing-and-diagnostics",
-  "currentVersion": 4,
+  "currentVersion": 5,
   "versions": [
     {
       "id": "v1",
@@ -143,6 +143,31 @@
           "diagnostics"
         ],
         "title": "Teacher Materials Listing And Diagnostics"
+      }
+    },
+    {
+      "id": "v5",
+      "docPath": "architecture/teacher-materials-listing-and-diagnostics",
+      "version": 5,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "See v4 snapshot.content",
+          "newValue": "Added Reading V2 master removal boundary and retired legacy tests-only delete plus index-row-only cleanup proof."
+        }
+      ],
+      "snapshot": {
+        "title": "Teacher Materials Listing And Diagnostics",
+        "description": "Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "materials",
+          "performance",
+          "diagnostics"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/teacher-materials-listing-and-diagnostics.md"
       }
     }
   ]

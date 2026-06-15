@@ -56,6 +56,19 @@ Events must not include passage body, canonical payload, answer keys, student an
 
 View-only events such as broken-ref warning viewed or duplicate warning shown belong to feature observability, not this audit path.
 
+## Master Removal Events
+
+`reading_master_removed` is written after a Reading V2 master full-test is soft-removed.
+
+The event covers both Teacher Lobby modal outcomes:
+
+- `Remove master only`
+- `Remove master and linked passages`
+
+Linked passage archive events remain separate `reading_passage_archived` events because each linked passage state change is owned by the Reading Passage archive service. Do not encode passage bodies, answer keys, review payloads, or frozen assignment/result payloads in either event family.
+
+Feature observability owns UI decision/action ids such as `master_delete_requested`, `master_linked_passages_remove_requested`, `teacher_materials_reading_master_removed`, and `teacher_materials_reading_master_and_linked_passages_removed`.
+
 ## Implementation Ownership
 
 Use a Reading V2 service:

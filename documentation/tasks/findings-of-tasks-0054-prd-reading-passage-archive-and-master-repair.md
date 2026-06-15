@@ -790,3 +790,49 @@ Result: 3 files passed, 22 tests passed.
 - Broken current master guard: PASS by focused tests and disposable live proof.
 - Master/Book repair, duplicate warning, audit, rules, and frozen-result proof remain satisfied from Packets 7-9 plus Packet 10 follow-up.
 - No PRD-0054 blocker remains.
+
+## 2026-06-15 Master Removal Wiring And Rule Repair
+
+- Status: COMPLETE.
+- Trigger: live teacher delete for `IELTS Cambridge 10 - Test 02` removed only legacy `/tests/{materialId}` and left canonical `reading_v2/material_metadata`, `reading_v2/full_test_compositions`, and linked generated Reading Passages active.
+- Root cause 1: `TeacherLobbyPage` still routed Reading V2 master delete through generic legacy `deleteTest`, which removes only `/tests/{testId}`.
+- Root cause 2: `removeReadingV2MasterComposition` existed but did not remove legacy `/tests/{masterMaterialId}`, so a properly soft-removed Reading V2 master could still leak through legacy-backed Teacher Lobby rows.
+- Root cause 3: RTDB Material Catalog cleanup rules required the existing index row's own `ownerId` to permit delete. Stale/missing active index rows caused owner cleanup to fail with `PERMISSION_DENIED` before canonical `reading_v2/material_metadata/{materialId}` ownership was considered.
+
+### Implementation Evidence
+
+- `TeacherLobbyPage` now opens a PRD-0054 modal for Reading V2 master delete instead of legacy `window.confirm`.
+- Modal choices: `Remove master only`, `Remove master and linked passages`, and `Cancel`.
+- Master-only path calls `removeReadingV2MasterComposition`, soft-removes master composition/metadata, removes active Material Catalog index rows, removes legacy `/tests/{masterMaterialId}`, writes audit, and refreshes the list.
+- Linked-passage path first archives actor-owned linked Reading Passages through `archiveReadingV2PassageMaterial`; it blocks when any linked passage is not owner-owned.
+- `database.rules.json` now permits owner cleanup of stale/missing Material Catalog active-index rows when canonical `reading_v2/material_metadata/{materialId}/ownerId === auth.uid`.
+- Remote RTDB rules were deployed to Firebase project `temp-a1437` with `firebase deploy --only database --project temp-a1437`.
+
+### Tests And Proof
+
+PASS:
+
+```powershell
+cmd /c npx vitest run src/pages/TeacherLobbyPage.test.jsx src/services/reading-v2/readingV2TeacherComposition.service.test.ts src/__tests__/security/materialCatalogFirebaseRules.test.ts src/__tests__/security/readingV2FirebaseRules.test.ts --reporter=basic
+```
+
+Result: 4 files passed, 70 tests passed, 13 emulator-gated skipped.
+
+PASS:
+
+```powershell
+cmd /c npm run build
+cmd /c npm run check:utf8
+node -e "JSON.parse(require('fs').readFileSync('database.rules.json','utf8')); console.log('database.rules.json OK')"
+```
+
+Live smoke proof:
+
+- `http://localhost:5173/lobby` loaded via Teacher quick-login.
+- Clicking Delete on Reading V2 master `Selected Reading Passages` opened `Remove Reading V2 master?` modal with both removal choices and frozen-assignment/result safety copy.
+- Remote rules readback after deploy showed the canonical ownership fallback in all active Material Catalog cleanup buckets.
+
+### Contract Update
+
+- Obsolete interpretation retired: master removal always leaves all linked generated passages active.
+- Current V1 contract: master-only removal is default; explicit linked-passage option archives only actor-owned linked passages; no hard delete of canonical Reading V2 materials, snapshots, projections, assignments, or completed results.

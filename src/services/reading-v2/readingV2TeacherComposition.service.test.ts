@@ -407,6 +407,7 @@ describe('readingV2TeacherComposition.service', () => {
       `material_catalog/material_indexes/by_visibility/private/${composition.testMaterialId}`,
       `material_catalog/material_indexes/by_material_kind/full-test/${composition.testMaterialId}`,
       `material_catalog/material_indexes/by_test_type/ielts/${composition.testMaterialId}`,
+      `tests/${composition.testMaterialId}`,
     ]));
     expect([...writes.map((write) => write.path), ...removes].some((path) =>
       path.includes('reading_passage_materials/passage-a') ||
@@ -416,6 +417,7 @@ describe('readingV2TeacherComposition.service', () => {
     expect(result.changedPaths).toEqual(expect.arrayContaining([
       `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
       `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
+      `tests/${composition.testMaterialId}`,
     ]));
   });
 });

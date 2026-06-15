@@ -268,6 +268,33 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(visibilityRule['.validate']).toContain("newData.child('materialId').val() === $materialId");
   });
 
+  it('allows owner cleanup of stale material summary indexes from canonical metadata ownership', () => {
+    const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
+    const indexes = materialCatalog.material_indexes as Record<string, unknown>;
+    const ownerRule = ((indexes.by_owner as Record<string, unknown>).$ownerId as Record<string, unknown>)
+      .$materialId as Record<string, string>;
+    const visibilityRule = ((indexes.by_visibility as Record<string, unknown>).$visibility as Record<string, unknown>)
+      .$materialId as Record<string, string>;
+    const kindRule = ((indexes.by_material_kind as Record<string, unknown>).$materialKind as Record<string, unknown>)
+      .$materialId as Record<string, string>;
+    const testTypeRule = ((indexes.by_test_type as Record<string, unknown>).$testTypeId as Record<string, unknown>)
+      .$materialId as Record<string, string>;
+    const sourceRule = ((indexes.by_source_full_test as Record<string, unknown>).$sourceFullTestId as Record<string, unknown>)
+      .$materialId as Record<string, string>;
+
+    [
+      ownerRule,
+      visibilityRule,
+      kindRule,
+      testTypeRule,
+      sourceRule,
+    ].forEach((rule) => {
+      expect(rule['.write']).toContain(
+        "root.child('reading_v2').child('material_metadata').child($materialId).child('ownerId').val() === auth.uid",
+      );
+    });
+  });
+
   it('validates material summary indexes as safe lightweight rows only', () => {
     const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
     const indexes = materialCatalog.material_indexes as Record<string, unknown>;

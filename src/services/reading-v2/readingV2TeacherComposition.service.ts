@@ -931,6 +931,10 @@ export const removeReadingV2MasterComposition = async (input: {
     changedPaths.push(path);
   }
 
+  const legacyTestPath = `tests/${input.composition.testMaterialId}`;
+  await input.repository.remove(legacyTestPath);
+  changedPaths.push(legacyTestPath);
+
   const eventId = `${input.correlationId}:reading_master_removed:${input.composition.compositionId}`;
   const auditPath = getReadingV2AuditEventPath(eventId);
   const event = buildReadingV2AuditEvent({

@@ -87,6 +87,12 @@ Reading Passage material filters include an Archive subtab for owned archived Re
 
 Broken-ref badges in listing surfaces must come from safe summary fields already present on material index or Book summary rows, such as `hasBrokenRefs`, `brokenRefCount`, and reason-code summaries. Listing code must not hydrate full canonical Reading V2 payloads to compute badges at render time. If a safe summary is unavailable, the detailed modal may compute and display the broken-ref state after explicit open/edit action.
 
+### Removal And Stale Index Cleanup
+
+Teacher Lobby delete for Reading V2 master rows must not call the legacy generic delete path. It must use the Reading V2 master removal lifecycle and show the PRD-0054 modal choices.
+
+Material index cleanup is allowed to be idempotent. Rules and services must tolerate stale or missing active Material Catalog rows when canonical `reading_v2/material_metadata/{materialId}/ownerId` proves the authenticated teacher owns the Reading V2 material. This protects archive/remove retries and partial-cleanup recovery without hydrating unsafe canonical payloads for list rendering.
+
 ## Realtime Contract
 
 Realtime listeners must match the active listing scope:
@@ -146,6 +152,8 @@ These patterns are obsolete for normal Teacher Lobby material loading:
 - hydrating Reading V2 canonical documents or projections just to render material cards
 - computing archive, restore, or broken-ref list badges by hydrating canonical payloads in the lobby list
 - using `reading_v2/listing_indexes` as production QA proof for Reading Passage list rows
+- using legacy `/tests` delete alone for Reading V2 master full-test removal
+- requiring an existing Material Catalog index row as the only proof for owner cleanup when canonical Reading V2 metadata proves ownership
 - logging grid readiness before the loaded data scope matches the active tab
 - adding always-on console timing logs outside the gated diagnostics helper
 - treating the compact list view as a data-contract rewrite or as permission to hydrate heavier payloads
@@ -181,5 +189,6 @@ Keep this path healthy with these rules:
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
+- `documentation/architecture/reading-v2-material-removal-lifecycle.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`

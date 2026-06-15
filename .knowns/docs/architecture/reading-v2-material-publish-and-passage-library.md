@@ -72,6 +72,18 @@ Obsolete as of 2026-06-15: leaving create/import-style publish success inside th
 
 Index rows must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
 
+Archive/remove cleanup may use canonical `reading_v2/material_metadata/{materialId}/ownerId === auth.uid` as fallback owner proof when active Material Catalog index rows are stale or missing.
+
+## Master Removal Lifecycle
+
+Reading V2 master full-test removal is soft removal. Teacher Lobby delete opens a modal with `Remove master only`, `Remove master and linked passages`, and `Cancel`.
+
+Master-only removal sets master composition/metadata state to `removed`, removes active Material Catalog rows, removes legacy `/tests/{masterMaterialId}`, writes `reading_master_removed` audit, and does not archive linked passages.
+
+Linked-passage removal archives only actor-owned linked Reading Passages through the Reading Passage archive service, then removes the master. It blocks when any linked passage is not owned by the actor.
+
+Obsolete as of 2026-06-15: treating master removal as always leaving every linked generated passage active. New contract is master-only by default with explicit optional archive of owned linked passages.
+
 ## Runtime And Homework
 
 Student Reading V2 runtime consumes namespaced projections, not canonical teacher data.

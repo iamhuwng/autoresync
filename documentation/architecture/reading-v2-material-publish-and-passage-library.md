@@ -100,6 +100,12 @@ Required buckets:
 
 Index rows are summary rows only. They must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
 
+Archive/remove cleanup must be idempotent for stale or missing active index rows. RTDB rules may use canonical Reading V2 metadata ownership as fallback proof for owner cleanup:
+
+- `reading_v2/material_metadata/{materialId}/ownerId === auth.uid`
+
+This fallback is required when active index rows are already missing or malformed but canonical metadata still proves the actor owns the Reading V2 material. It does not allow arbitrary material catalog deletion and does not bypass super-admin role checks.
+
 `reading_v2/listing_indexes` is obsolete for production Teacher Materials proof. It may remain as a compatibility/internal helper, but it is not the source for PRD-0052 Reading Passage list QA or Book material picker QA.
 
 ## Archive, Restore, And Broken References
@@ -119,6 +125,22 @@ Broken-reference checks are summary/guard checks, not student runtime mutation. 
 - `missing-projection`: referenced student-safe or review projection is missing.
 
 Broken masters are repaired inside `ReadingV2MasterEditModal`. Broken Books are repaired inside `BookEditorModal` and `BookEditorWorkspace`. Repair may replace a ref, remove a ref, or start restore for an owned archived source. Repair must not rewrite assignment-pinned projections or completed results.
+
+## Master Removal Lifecycle
+
+Reading V2 master full-test removal uses soft removal semantics. It is not a hard delete of canonical Reading V2 data.
+
+Teacher Lobby delete for a Reading V2 master must open a modal with three outcomes:
+
+- `Remove master only`
+- `Remove master and linked passages`
+- `Cancel`
+
+Master-only removal sets the master composition and master metadata state to `removed`, removes active Material Catalog rows for the master, removes legacy `/tests/{masterMaterialId}`, and writes `reading_master_removed` audit. It does not archive linked Reading Passage materials.
+
+The linked-passage option archives each owned linked Reading Passage through the Reading Passage archive service before removing the master. It is blocked when any linked passage is not owned by the actor. Existing assignments, frozen assignment payloads, immutable snapshots, projections, and completed results are not mutated by either option.
+
+Obsolete interpretation retired 2026-06-15: "Do not delete passage materials when deleting/removing a master" meant no hard delete and no implicit cascade. It no longer forbids the explicit `Remove master and linked passages` modal choice from archiving actor-owned linked passages.
 
 ## Student Runtime Contract
 
@@ -200,5 +222,6 @@ Required proof for changes touching this contract:
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
+- `documentation/architecture/reading-v2-material-removal-lifecycle.md`
 - `documentation/tasks/PRD0052/tasks-0052-prd-teacher-materials-books-and-reading-passage-library-gap-closure.md`
 - `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`

@@ -102,6 +102,8 @@ Do not reintroduce these for normal Teacher Lobby material cards:
 - full `/tests` read plus client-side public filtering
 - Reading V2 canonical document/projection hydration for card lists
 - using `reading_v2/listing_indexes` as production proof for Reading Passage rows
+- using legacy `/tests` delete alone for Reading V2 master full-test removal
+- requiring an existing Material Catalog index row as the only proof for owner cleanup when canonical Reading V2 metadata proves ownership
 - always-on console timing logs outside gated diagnostics
 
 ## Evidence
@@ -145,3 +147,9 @@ Retired: using list order, search order, or filtered row position to choose mate
 ## Reading V2 Material Publish Boundary
 
 Full Reading V2 publish and generated Reading Passage material behavior is governed by @doc/architecture/reading-v2-material-publish-and-passage-library.
+
+## Reading V2 Removal Boundary
+
+Reading V2 master removal is governed by @doc/architecture/reading-v2-material-removal-lifecycle.
+
+Teacher Lobby must use the PRD-0054 modal choices for Reading V2 master delete. Material Catalog cleanup must tolerate stale or missing active index rows when canonical Reading V2 metadata proves ownership.

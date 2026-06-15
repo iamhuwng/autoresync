@@ -644,6 +644,219 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
   });
 
+  it('opens the PRD0054 master removal modal instead of the legacy delete confirmation for Reading V2 masters', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'master-1',
+        materialId: 'master-1',
+        compositionId: 'composition-master-1-snapshot-1',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        title: 'IELTS Cambridge 10 - Test 02: Reading',
+        ownerId: 'teacher-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        publishedSnapshotVersionId: 'snapshot-1',
+        publishedVersionId: 'snapshot-1',
+        passageRefs: [
+          {
+            refId: 'ref-1',
+            passageMaterialId: 'passage-1',
+            materialId: 'passage-1',
+            ownerId: 'teacher-1',
+            titleSnapshot: 'Passage 1',
+            snapshotVersionId: 'snapshot-1',
+            currentVersionId: 'snapshot-1',
+          },
+        ],
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+    const row = screen.getByTestId('material-list-row-master-1');
+    await user.click(within(row).getByRole('button', { name: 'Delete' }));
+
+    expect(window.confirm).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Remove Reading V2 master?' });
+    expect(dialog).toHaveTextContent('IELTS Cambridge 10 - Test 02: Reading');
+    expect(dialog).toHaveTextContent('1 linked Reading Passage');
+    expect(within(dialog).getByRole('button', { name: 'Remove master only' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Remove master and linked passages' })).toBeInTheDocument();
+  });
+
+  it('soft-removes a Reading V2 master and writes audit without archiving linked passages when master-only is selected', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'master-1',
+        materialId: 'master-1',
+        compositionId: 'composition-master-1-snapshot-1',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        title: 'IELTS Cambridge 10 - Test 02: Reading',
+        ownerId: 'teacher-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        testTypeIds: ['ielts'],
+        visibility: 'private',
+        updatedAt: '2026-06-14T12:29:04.355Z',
+        publishedSnapshotVersionId: 'snapshot-1',
+        publishedVersionId: 'snapshot-1',
+        passageRefs: [
+          {
+            refId: 'ref-1',
+            passageMaterialId: 'passage-1',
+            materialId: 'passage-1',
+            ownerId: 'teacher-1',
+            titleSnapshot: 'Passage 1',
+            snapshotVersionId: 'snapshot-1',
+            currentVersionId: 'snapshot-1',
+          },
+        ],
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+    await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).getByRole('button', { name: 'Remove master only' }));
+
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1/state',
+          value: 'removed',
+        },
+        {
+          path: 'reading_v2/material_metadata/master-1/state',
+          value: 'removed',
+        },
+        {
+          path: 'tests/master-1',
+          value: null,
+        },
+      ]));
+    });
+    expect(mocks.dbWrites.some((write) => write.path === 'reading_v2/material_metadata/passage-1/state')).toBe(false);
+    expect(mocks.dbWrites.some((write) => String(write.path).startsWith('reading_v2/audit_events/'))).toBe(true);
+    expect(mocks.refreshTests).toHaveBeenCalled();
+  });
+
+  it('archives owned linked Reading Passages when removing a Reading V2 master with linked passages', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'master-1',
+        materialId: 'master-1',
+        compositionId: 'composition-master-1-snapshot-1',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        title: 'IELTS Cambridge 10 - Test 02: Reading',
+        ownerId: 'teacher-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        testTypeIds: ['ielts'],
+        visibility: 'private',
+        updatedAt: '2026-06-14T12:29:04.355Z',
+        publishedSnapshotVersionId: 'snapshot-1',
+        publishedVersionId: 'snapshot-1',
+        passageRefs: [
+          {
+            refId: 'ref-1',
+            passageMaterialId: 'passage-1',
+            materialId: 'passage-1',
+            ownerId: 'teacher-1',
+            titleSnapshot: 'Passage 1',
+            title: 'Passage 1',
+            snapshotVersionId: 'snapshot-1',
+            currentVersionId: 'snapshot-1',
+            questionCountSnapshot: 13,
+            visibility: 'private',
+            testTypeIdsSnapshot: ['ielts'],
+          },
+          {
+            refId: 'ref-2',
+            passageMaterialId: 'passage-2',
+            materialId: 'passage-2',
+            ownerId: 'teacher-1',
+            titleSnapshot: 'Passage 2',
+            title: 'Passage 2',
+            snapshotVersionId: 'snapshot-1',
+            currentVersionId: 'snapshot-1',
+            questionCountSnapshot: 14,
+            visibility: 'private',
+            testTypeIdsSnapshot: ['ielts'],
+          },
+        ],
+      },
+    ];
+    ['passage-1', 'passage-2'].forEach((passageId) => {
+      mocks.dbReads[`reading_v2/material_metadata/${passageId}`] = { ownerId: 'teacher-1', state: 'published' };
+      mocks.dbReads[`reading_v2/reading_passage_materials/${passageId}`] = { ownerId: 'teacher-1', state: 'published' };
+    });
+
+    render(<TeacherLobbyPage />);
+    await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('dialog', { name: 'Remove Reading V2 master?' });
+    await user.click(within(dialog).getByRole('checkbox', { name: /I understand/i }));
+    await user.click(within(dialog).getByRole('button', { name: 'Remove master and linked passages' }));
+
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: 'reading_v2/material_metadata/passage-1/state',
+          value: 'archived',
+        },
+        {
+          path: 'reading_v2/material_metadata/passage-2/state',
+          value: 'archived',
+        },
+        {
+          path: 'material_catalog/material_indexes/by_owner/teacher-1/passage-1',
+          value: null,
+        },
+      ]));
+    });
+    expect(mocks.dbWrites.some((write) => write.path === 'reading_v2/material_metadata/master-1/state' && write.value === 'removed')).toBe(true);
+  });
+
+  it('blocks linked-passage master removal when any linked Reading Passage is not owner-owned', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'master-1',
+        materialId: 'master-1',
+        compositionId: 'composition-master-1-snapshot-1',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        title: 'IELTS Cambridge 10 - Test 02: Reading',
+        ownerId: 'teacher-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        publishedSnapshotVersionId: 'snapshot-1',
+        publishedVersionId: 'snapshot-1',
+        passageRefs: [
+          {
+            refId: 'ref-1',
+            passageMaterialId: 'passage-1',
+            materialId: 'passage-1',
+            ownerId: 'other-teacher',
+            titleSnapshot: 'Public passage',
+            snapshotVersionId: 'snapshot-1',
+            currentVersionId: 'snapshot-1',
+          },
+        ],
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+    await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Remove Reading V2 master?' });
+    expect(dialog).toHaveTextContent('Linked passage removal is blocked because 1 passage is not owned by you.');
+    expect(within(dialog).getByRole('button', { name: 'Remove master and linked passages' })).toBeDisabled();
+  });
+
   it('hides standalone Reading V2 passage assets from the lobby grid by default', () => {
     mocks.tests = [
       {

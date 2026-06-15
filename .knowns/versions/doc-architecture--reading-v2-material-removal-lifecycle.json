@@ -1,0 +1,42 @@
+{
+  "docPath": "architecture/reading-v2-material-removal-lifecycle",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/reading-v2-material-removal-lifecycle",
+      "version": 1,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Reading V2 Material Removal Lifecycle"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reading V2 PRD-0054 removal contract for master full-test soft removal, optional linked-passage archive, stale Material Catalog cleanup, audit events, and frozen work safety."
+        },
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "Initial mirror for Reading V2 master removal lifecycle and stale Material Catalog cleanup contract."
+        }
+      ],
+      "snapshot": {
+        "title": "Reading V2 Material Removal Lifecycle",
+        "description": "Reading V2 PRD-0054 removal contract for master full-test soft removal, optional linked-passage archive, stale Material Catalog cleanup, audit events, and frozen work safety.",
+        "tags": [
+          "architecture",
+          "reading-v2",
+          "prd-0054",
+          "teacher-materials",
+          "archive",
+          "removal"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/reading-v2-material-removal-lifecycle.md"
+      }
+    }
+  ]
+}
