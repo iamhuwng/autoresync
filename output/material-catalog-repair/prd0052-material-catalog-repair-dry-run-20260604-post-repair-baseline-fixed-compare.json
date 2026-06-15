@@ -1,0 +1,153 @@
+{
+  "dryRun": true,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-06-04T13:41:00.893Z",
+  "totals": {
+    "operations": 6,
+    "operationDigest": "2a3cfa3698ecc8598fd603e8cf20d186a0deab93828b9a3e6bc82130bdd3bc5a",
+    "readFailures": 0,
+    "byKind": {
+      "material-index-write": 3,
+      "book-index-write": 3
+    }
+  },
+  "operations": [
+    {
+      "kind": "material-index-write",
+      "path": "material_catalog/material_indexes/by_owner/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/studio-material-mojlf55h",
+      "value": {
+        "materialId": "studio-material-mojlf55h",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03",
+        "visibility": "private",
+        "materialKind": "full-test",
+        "testTypeIds": [],
+        "testTypeMembership": {},
+        "updatedAt": "2026-04-29T05:07:09.202Z"
+      },
+      "reason": "stale-material-index-row"
+    },
+    {
+      "kind": "material-index-write",
+      "path": "material_catalog/material_indexes/by_visibility/private/studio-material-mojlf55h",
+      "value": {
+        "materialId": "studio-material-mojlf55h",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03",
+        "visibility": "private",
+        "materialKind": "full-test",
+        "testTypeIds": [],
+        "testTypeMembership": {},
+        "updatedAt": "2026-04-29T05:07:09.202Z"
+      },
+      "reason": "stale-material-index-row"
+    },
+    {
+      "kind": "material-index-write",
+      "path": "material_catalog/material_indexes/by_material_kind/full-test/studio-material-mojlf55h",
+      "value": {
+        "materialId": "studio-material-mojlf55h",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03",
+        "visibility": "private",
+        "materialKind": "full-test",
+        "testTypeIds": [],
+        "testTypeMembership": {},
+        "updatedAt": "2026-04-29T05:07:09.202Z"
+      },
+      "reason": "stale-material-index-row"
+    },
+    {
+      "kind": "book-index-write",
+      "path": "material_catalog/book_indexes/by_owner/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/book-mpx8g283",
+      "value": {
+        "bookId": "book-mpx8g283",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "Testing Book",
+        "subtitle": "Test",
+        "authors": [
+          "Test"
+        ],
+        "publisher": "Test",
+        "series": "Test",
+        "visibility": "private",
+        "status": "draft-empty",
+        "testTypeIds": [
+          "ielts"
+        ],
+        "testTypeMembership": {
+          "ielts": true
+        },
+        "tags": [],
+        "updatedAt": "2026-06-02T22:52:18.627Z"
+      },
+      "reason": "stale-book-index-row"
+    },
+    {
+      "kind": "book-index-write",
+      "path": "material_catalog/book_indexes/by_visibility/private/book-mpx8g283",
+      "value": {
+        "bookId": "book-mpx8g283",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "Testing Book",
+        "subtitle": "Test",
+        "authors": [
+          "Test"
+        ],
+        "publisher": "Test",
+        "series": "Test",
+        "visibility": "private",
+        "status": "draft-empty",
+        "testTypeIds": [
+          "ielts"
+        ],
+        "testTypeMembership": {
+          "ielts": true
+        },
+        "tags": [],
+        "updatedAt": "2026-06-02T22:52:18.627Z"
+      },
+      "reason": "stale-book-index-row"
+    },
+    {
+      "kind": "book-index-write",
+      "path": "material_catalog/book_indexes/by_test_type/ielts/book-mpx8g283",
+      "value": {
+        "bookId": "book-mpx8g283",
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "title": "Testing Book",
+        "subtitle": "Test",
+        "authors": [
+          "Test"
+        ],
+        "publisher": "Test",
+        "series": "Test",
+        "visibility": "private",
+        "status": "draft-empty",
+        "testTypeIds": [
+          "ielts"
+        ],
+        "testTypeMembership": {
+          "ielts": true
+        },
+        "tags": [],
+        "updatedAt": "2026-06-02T22:52:18.627Z"
+      },
+      "reason": "stale-book-index-row"
+    }
+  ],
+  "readFailures": [],
+  "mutation": {
+    "status": "not-run",
+    "plannedWriteCount": 0
+  },
+  "storagePaths": {
+    "materialMetadata": "reading_v2/material_metadata",
+    "materialIndexes": "material_catalog/material_indexes",
+    "books": "material_catalog/books",
+    "bookIndexes": "material_catalog/book_indexes",
+    "bookNodes": "material_catalog/book_nodes",
+    "fullTestCompositions": "reading_v2/full_test_compositions",
+    "fullTestCompositionVersions": "reading_v2/full_test_composition_versions"
+  }
+}

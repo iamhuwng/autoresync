@@ -1,0 +1,666 @@
+<style>
+  :root {
+    --lt-purple: #8b5cf6;
+    --lt-purple-dark: #7c3aed;
+    --lt-ink: #1e293b;
+    --lt-muted: #64748b;
+    --lt-border: rgba(203, 213, 225, 0.42);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(139, 92, 246, 0.08), transparent 28%),
+      radial-gradient(circle at 70% 8%, rgba(20, 184, 166, 0.10), transparent 32%),
+      linear-gradient(135deg, #f6f4ff 0%, #eefbff 52%, #fbfaf2 100%);
+  }
+
+  .lt-page {
+    margin: -28px -32px 0;
+    min-height: 100vh;
+    color: var(--lt-ink);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .lt-header {
+    height: 56px;
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  }
+
+  .lt-brand {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .lt-nav {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .lt-nav-tab,
+  .lt-profile {
+    height: 36px;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    color: var(--lt-ink);
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-nav-tab.active {
+    background: var(--lt-purple);
+    color: #ffffff;
+    border-color: rgba(139, 92, 246, 0.9);
+  }
+
+  .lt-profile {
+    gap: 8px;
+    border-radius: 20px;
+  }
+
+  .lt-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f97316, #f8e2bb);
+  }
+
+  .lt-main {
+    max-width: 1368px;
+    margin: 0 auto;
+    padding: 42px 16px 64px;
+  }
+
+  .lt-title {
+    margin: 0 0 14px;
+    color: var(--lt-ink);
+    font-size: 40px;
+    line-height: 1.1;
+    font-weight: 850;
+  }
+
+  .lt-subtitle {
+    margin: 0 0 40px;
+    color: var(--lt-muted);
+    font-size: 16px;
+  }
+
+  .lt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 40px;
+  }
+
+  .lt-tab {
+    height: 36px;
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.92);
+    display: inline-flex;
+    align-items: center;
+    padding: 0 18px;
+    color: var(--lt-ink);
+    font-size: 14px;
+    font-weight: 750;
+    box-shadow: 0 3px 9px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-tab.active {
+    background: var(--lt-purple);
+    color: #ffffff;
+    border-color: var(--lt-purple);
+    box-shadow: 0 8px 22px rgba(139, 92, 246, 0.34);
+  }
+
+  .lt-toolbar {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 32px;
+  }
+
+  .lt-search {
+    height: 48px;
+    border: 1px solid rgba(203, 213, 225, 0.45);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.86);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #94a3b8;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+
+  .lt-search-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #e9efff;
+    display: grid;
+    place-items: center;
+    color: #334155;
+    font-weight: 800;
+  }
+
+  .lt-cta {
+    height: 48px;
+    border: 0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: #ffffff;
+    padding: 0 22px;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.30);
+    white-space: nowrap;
+  }
+
+  .lt-type-grid,
+  .lt-book-grid {
+    display: grid;
+    gap: clamp(8px, 1.4vw, 24px);
+    margin-bottom: 24px;
+  }
+
+  .lt-type-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: center;
+  }
+
+  .lt-book-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .lt-type-card,
+  .lt-book-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--lt-border);
+    box-shadow: 0 10px 40px -10px rgba(139, 92, 246, 0.25);
+  }
+
+  .lt-type-card.active {
+    border-color: rgba(139, 92, 246, 0.72);
+    box-shadow: 0 14px 44px -14px rgba(139, 92, 246, 0.50);
+  }
+
+  .lt-type-cover,
+  .lt-book-cover {
+    min-height: 168px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 14px;
+    color: #ffffff;
+  }
+
+  .lt-type-cover {
+    justify-content: center;
+    align-items: center;
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.10), rgba(30, 41, 59, 0.02)),
+      linear-gradient(135deg, #dbeafe 0%, #f6f4ff 100%);
+  }
+
+  .lt-type-cover.sky {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.08), rgba(30, 41, 59, 0.02)),
+      linear-gradient(135deg, #cffafe 0%, #eff6ff 100%);
+  }
+
+  .lt-type-cover.mint {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.08), rgba(30, 41, 59, 0.02)),
+      linear-gradient(135deg, #ccfbf1 0%, #f0fdfa 100%);
+  }
+
+  .lt-type-cover.rose {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.08), rgba(30, 41, 59, 0.02)),
+      linear-gradient(135deg, #ffe4e6 0%, #fff7ed 100%);
+  }
+
+  .lt-logo-frame {
+    width: min(78%, 220px);
+    aspect-ratio: 2.45 / 1;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(226, 232, 240, 0.88);
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+  }
+
+  .lt-logo-frame svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .lt-type-settings {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    border: 1px solid rgba(203, 213, 225, 0.55);
+    background: rgba(255, 255, 255, 0.62);
+    color: #334155;
+    display: grid;
+    place-items: center;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+    opacity: 0.18;
+  }
+
+  .lt-type-card:hover .lt-type-settings,
+  .lt-type-card:focus-within .lt-type-settings {
+    opacity: 1;
+  }
+
+  .lt-type-body,
+  .lt-book-body {
+    padding: 16px;
+    display: grid;
+    gap: 9px;
+  }
+
+  .lt-type-title,
+  .lt-book-name,
+  .lt-material-title {
+    color: var(--lt-ink);
+    font-size: 15px;
+    line-height: 1.25;
+    font-weight: 800;
+  }
+
+  .lt-type-meta,
+  .lt-book-meta,
+  .lt-material-meta {
+    color: var(--lt-muted);
+    font-size: 13px;
+  }
+
+  .lt-type-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .lt-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .lt-badge.gray {
+    color: #64748b;
+    background: rgba(241, 245, 249, 0.9);
+  }
+
+  .lt-badge.purple {
+    color: #7c3aed;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+
+  .lt-badge.green {
+    color: #16a34a;
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  .lt-list {
+    border: 1px solid rgba(203, 213, 225, 0.35);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13);
+  }
+
+  .lt-row {
+    min-height: 72px;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) 160px 130px 160px;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .lt-row:last-child {
+    border-bottom: 0;
+  }
+
+  .lt-material {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .lt-material-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(139, 92, 246, 0.13);
+    display: grid;
+    place-items: center;
+    color: #7c3aed;
+    font-size: 15px;
+    font-weight: 850;
+    flex: none;
+  }
+
+  .lt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .lt-action {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.48);
+    background: rgba(255, 255, 255, 0.88);
+    display: grid;
+    place-items: center;
+    color: #334155;
+    font-weight: 800;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-section-label {
+    margin: 26px 0 14px;
+    color: var(--lt-muted);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .lt-book-cover {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.20), rgba(30, 41, 59, 0.05)),
+      linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+  }
+
+  .lt-book-cover.rose {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.20), rgba(30, 41, 59, 0.05)),
+      linear-gradient(135deg, #f43f5e 0%, #f97316 100%);
+  }
+
+  .lt-book-cover .lt-badge {
+    width: fit-content;
+  }
+
+  .lt-book-name {
+    color: #ffffff;
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 850;
+  }
+
+  @media (max-width: 1100px) {
+    .lt-book-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lt-row {
+      grid-template-columns: minmax(240px, 1fr) 130px 120px;
+    }
+
+    .lt-row .lt-actions {
+      display: none;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .lt-type-cover {
+      min-height: 118px;
+      padding: 10px;
+    }
+
+    .lt-logo-frame {
+      width: 92%;
+      padding: 8px;
+    }
+
+    .lt-type-body {
+      padding: 10px;
+      gap: 7px;
+    }
+
+    .lt-type-meta {
+      display: none;
+    }
+
+    .lt-badge {
+      min-height: 24px;
+      padding: 0 8px;
+      font-size: 11px;
+    }
+  }
+</style>
+
+<div class="lt-page">
+  <div class="lt-header">
+    <div class="lt-brand">Materials</div>
+    <div class="lt-nav">
+      <div class="lt-nav-tab active">Materials</div>
+      <div class="lt-nav-tab">Students</div>
+      <div class="lt-nav-tab">Classes</div>
+      <div class="lt-nav-tab">Courses</div>
+      <div class="lt-nav-tab">Homework</div>
+      <div class="lt-profile"><div class="lt-avatar"></div>Teacher Test</div>
+    </div>
+  </div>
+
+  <main class="lt-main">
+    <h1 class="lt-title">Test Dashboard</h1>
+    <p class="lt-subtitle">Manage your tests and start formal assessment sessions</p>
+
+    <div class="lt-tabs">
+      <div class="lt-tab active">My Content</div>
+      <div class="lt-tab">Public Library</div>
+      <div class="lt-tab">Drafts</div>
+      <div class="lt-tab">Reading Passage</div>
+      <div class="lt-tab">Book</div>
+    </div>
+
+    <div class="lt-toolbar">
+      <div class="lt-search">
+        <div class="lt-search-icon">o</div>
+        Search by title or keyword...
+      </div>
+      <button class="lt-cta">+ Create New Test</button>
+    </div>
+
+    <div class="lt-type-grid">
+      <div class="lt-type-card active" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit IELTS block">&#9881;</button>
+        <div class="lt-type-cover">
+          <div class="lt-logo-frame">
+            <svg viewBox="0 0 420 170" role="img" aria-label="IELTS logo">
+              <rect width="420" height="170" rx="18" fill="#ffffff"/>
+              <text x="38" y="103" fill="#cf142b" font-family="Arial, Helvetica, sans-serif" font-size="70" font-weight="900">IELTS</text>
+              <circle cx="335" cy="85" r="42" fill="#1f4e79" opacity="0.94"/>
+              <path d="M315 83h40M335 63v42M309 71c19 16 34 16 52 0M309 99c19-16 34-16 52 0" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="lt-type-body">
+          <div class="lt-type-meta">International English Language Testing System</div>
+          <div class="lt-type-badges">
+            <span class="lt-badge gray">31 materials</span>
+            <span class="lt-badge purple">Reading</span>
+            <span class="lt-badge green">Pinned</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lt-type-card" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit TOEIC block">&#9881;</button>
+        <div class="lt-type-cover sky">
+          <div class="lt-logo-frame">
+            <svg viewBox="0 0 420 170" role="img" aria-label="TOEIC logo">
+              <rect width="420" height="170" rx="18" fill="#ffffff"/>
+              <text x="44" y="105" fill="#004b8d" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="900">TOEIC</text>
+              <path d="M328 56c29 15 42 37 38 66-18 8-44 8-72 1 28-13 37-34 34-67z" fill="#00a6d6"/>
+              <path d="M304 72c18 24 18 45 0 65-18-9-33-21-45-37 24 0 39-9 45-28z" fill="#78be20"/>
+            </svg>
+          </div>
+        </div>
+        <div class="lt-type-body">
+          <div class="lt-type-meta">Workplace English practice bank</div>
+          <div class="lt-type-badges">
+            <span class="lt-badge gray">8 materials</span>
+            <span class="lt-badge purple">Listening</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lt-type-card" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit TOEFL block">&#9881;</button>
+        <div class="lt-type-cover mint">
+          <div class="lt-logo-frame">
+            <svg viewBox="0 0 420 170" role="img" aria-label="TOEFL logo">
+              <rect width="420" height="170" rx="18" fill="#ffffff"/>
+              <text x="38" y="104" fill="#005eb8" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900">TOEFL</text>
+              <rect x="293" y="50" width="76" height="76" rx="17" fill="#00a3e0"/>
+              <path d="M310 88h42M331 67v42" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="lt-type-body">
+          <div class="lt-type-meta">Academic English prep collection</div>
+          <div class="lt-type-badges">
+            <span class="lt-badge gray">5 materials</span>
+            <span class="lt-badge purple">Mixed</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lt-type-card" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit THCS block">&#9881;</button>
+        <div class="lt-type-cover rose">
+          <div class="lt-logo-frame">
+            <svg viewBox="0 0 420 170" role="img" aria-label="THCS logo">
+              <rect width="420" height="170" rx="18" fill="#ffffff"/>
+              <text x="44" y="100" fill="#be123c" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="900">THCS</text>
+              <text x="50" y="130" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">Grade 6-9</text>
+              <path d="M303 45h70v82h-70z" fill="#f97316" opacity="0.92"/>
+              <path d="M316 62h44M316 82h44M316 102h28" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="lt-type-body">
+          <div class="lt-type-meta">Vietnam secondary exam materials</div>
+          <div class="lt-type-badges">
+            <span class="lt-badge gray">17 materials</span>
+            <span class="lt-badge purple">Grade 9</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lt-list">
+      <div class="lt-row">
+        <div class="lt-material">
+          <div class="lt-material-icon">R</div>
+          <div>
+            <div class="lt-material-title">Cambridge 18 Test 2 - Reading Passage 1</div>
+            <div class="lt-material-meta">Reading Passage - Source Passage 1 - 13 questions</div>
+          </div>
+        </div>
+        <div><span class="lt-badge purple">IELTS</span></div>
+        <div class="lt-material-meta">May 29</div>
+        <div class="lt-actions">
+          <div class="lt-action">E</div>
+          <div class="lt-action">A</div>
+          <div class="lt-action">...</div>
+        </div>
+      </div>
+
+      <div class="lt-row">
+        <div class="lt-material">
+          <div class="lt-material-icon">T</div>
+          <div>
+            <div class="lt-material-title">IELTS Reading Test - April 2026</div>
+            <div class="lt-material-meta">Full test - 3 passages - 47 questions</div>
+          </div>
+        </div>
+        <div><span class="lt-badge purple">IELTS</span></div>
+        <div class="lt-material-meta">May 24</div>
+        <div class="lt-actions">
+          <div class="lt-action">E</div>
+          <div class="lt-action">P</div>
+          <div class="lt-action">...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lt-section-label">Book tab visual exception</div>
+
+    <div class="lt-toolbar">
+      <div class="lt-search">
+        <div class="lt-search-icon">o</div>
+        Search books...
+      </div>
+      <button class="lt-cta">+ Create New Book</button>
+    </div>
+
+    <div class="lt-book-grid">
+      <div class="lt-book-card">
+        <div class="lt-book-cover">
+          <span class="lt-badge gray">IELTS</span>
+          <div class="lt-book-name">Cambridge 18 Reading</div>
+        </div>
+        <div class="lt-book-body">
+          <div class="lt-material-title">Cambridge 18 Reading</div>
+          <div class="lt-book-meta">4 tests - 12 passages - intro + TOC placeholders</div>
+        </div>
+      </div>
+
+      <div class="lt-book-card">
+        <div class="lt-book-cover rose">
+          <span class="lt-badge gray">IELTS</span>
+          <div class="lt-book-name">Academic Reading Pack</div>
+        </div>
+        <div class="lt-book-body">
+          <div class="lt-material-title">Academic Reading Pack</div>
+          <div class="lt-book-meta">3 chapters - 9 passages - 2 tests</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>

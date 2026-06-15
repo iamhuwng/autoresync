@@ -1,0 +1,1917 @@
+import { type ChangeEvent, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { get, ref, remove, set, update as updateDb } from 'firebase/database';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { useAuth } from '../../hooks/useAuth';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { database } from '../../services/firebase';
+import r2StorageService from '../../services/r2Storage';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
+import {
+  createMaterialBooksRepository,
+  updateBookMetadata,
+  updateBookTree,
+  type MaterialBooksRepository,
+} from '../../services/materialCatalog/materialBooks.service';
+import { deriveMaterialBookStatus } from '../../services/materialCatalog/bookValidation.service';
+import {
+  attachMaterialRefToNode,
+  bookNodeHasContent,
+  createBookEditorNode,
+  deleteBookNodeWithDescendants,
+  filterPublishedMaterialSummaries,
+  getBookNodeDepth,
+  reorderBookNode,
+  reorderMaterialRef,
+  BOOK_NODE_MAX_DEPTH,
+  type BookMaterialSummary,
+  removeMaterialRefFromNode,
+  replaceMaterialRefInNode,
+} from '../../services/materialCatalog/bookEditor.service';
+import {
+  materialCatalogIds,
+  type MaterialBookMaterialRef,
+  type MaterialBookMetadata,
+  type MaterialBookNode,
+  type MaterialBookNodeType,
+  type MaterialBookPublicProjection,
+  type MaterialBookVisibility,
+} from '../../types/materialCatalog.types';
+import type { ReadingPassageHomeworkCandidate } from '../../services/reading-v2/readingV2PassageHomework.service';
+import { writeReadingV2AuditEvent } from '../../services/reading-v2/readingV2AuditTrail.service';
+import { HomeworkCreateModal } from '../homework/HomeworkCreateModal';
+import BookMaterialPicker from './BookMaterialPicker';
+import BookNodeTree from './BookNodeTree';
+import './BookEditorWorkspace.css';
+
+interface BookEditorWorkspaceProps {
+  readonly bookId: string;
+  readonly initialBook?: MaterialBookMetadata;
+  readonly initialNodes?: readonly MaterialBookNode[];
+  readonly materialCandidates?: readonly BookMaterialSummary[];
+  readonly repository?: MaterialBooksRepository;
+  readonly presentation: 'modal' | 'page-compat';
+  readonly activeTab?: BookEditorTab;
+  readonly onActiveTabChange?: (tab: BookEditorTab) => void;
+  readonly onClose?: () => void;
+  readonly onSaved?: (bookId: string) => void;
+  readonly onDirtyChange?: (dirty: boolean) => void;
+}
+
+export interface BookEditorWorkspaceHandle {
+  readonly saveActive: () => void;
+  readonly requestPublicReview: () => void;
+}
+
+interface MetadataFormState {
+  readonly title: string;
+  readonly subtitle: string;
+  readonly authors: string;
+  readonly publisher: string;
+  readonly edition: string;
+  readonly series: string;
+  readonly isbn: string;
+  readonly coverUrl: string;
+  readonly tags: string;
+  readonly description: string;
+  readonly visibility: MaterialBookVisibility;
+  readonly testTypeIds: string;
+}
+
+export type BookEditorTab = 'overview' | 'content' | 'settings';
+
+type AssignmentRequest =
+  | {
+      readonly kind: 'reading-passage';
+      readonly ref: MaterialBookMaterialRef;
+      readonly candidate: ReadingPassageHomeworkCandidate;
+    }
+  | {
+      readonly kind: 'material';
+      readonly ref: MaterialBookMaterialRef;
+      readonly filter: 'test' | 'thcs-test';
+    };
+
+type MaterialIndexRow = {
+  readonly materialId: string;
+  readonly title: string;
+  readonly materialKind: BookMaterialSummary['materialKind'];
+  readonly testTypeIds?: readonly string[];
+  readonly visibility?: string;
+  readonly publishedSnapshotVersionId?: string;
+};
+
+type MaterialRefPlacement = {
+  readonly node: MaterialBookNode;
+  readonly ref: MaterialBookMaterialRef;
+};
+
+type DeleteNodeRequest = {
+  readonly node: MaterialBookNode;
+  readonly confirmDelete: () => void;
+};
+
+const SUPPORTED_BOOK_PICKER_KINDS = new Set(['full-test', 'reading-passage', 'thcs-thpt-test']);
+const EMPTY_BOOK_NODES: readonly MaterialBookNode[] = [];
+const SELECTED_CHILD_NODE_TYPES: readonly MaterialBookNodeType[] = ['section', 'chapter', 'test'];
+const BOOK_COVER_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
+const BOOK_COVER_MAX_BYTES = 5 * 1024 * 1024;
+
+type BookCoverUploadState = {
+  readonly status: 'idle' | 'uploading' | 'success' | 'error';
+  readonly message: string | null;
+};
+
+type ActionIconName =
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'section-add'
+  | 'chapter-add'
+  | 'test-add'
+  | 'trash'
+  | 'assign'
+  | 'remove';
+
+const ActionIcon = ({ name }: { readonly name: ActionIconName }) => {
+  if (name === 'arrow-up') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 19V5" />
+        <path d="m6 11 6-6 6 6" />
+      </svg>
+    );
+  }
+
+  if (name === 'arrow-down') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 5v14" />
+        <path d="m18 13-6 6-6-6" />
+      </svg>
+    );
+  }
+
+  if (name === 'trash') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 7h16" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M6 7l1 14h10l1-14" />
+        <path d="M9 7V4h6v3" />
+      </svg>
+    );
+  }
+
+  if (name === 'assign') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 4h7l4 4v12H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M14 4v5h5" />
+        <path d="m9 15 2 2 4-5" />
+      </svg>
+    );
+  }
+
+  if (name === 'remove') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 12h12" />
+      </svg>
+    );
+  }
+
+  if (name === 'chapter-add') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 5h7a3 3 0 0 1 3 3v11a3 3 0 0 0-3-3H4V5Z" />
+        <path d="M14 8a3 3 0 0 1 3-3h3v7" />
+        <path d="M18 15v6" />
+        <path d="M15 18h6" />
+      </svg>
+    );
+  }
+
+  if (name === 'test-add') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 4h8l4 4v12H6V4Z" />
+        <path d="M14 4v5h5" />
+        <path d="M9 13h4" />
+        <path d="M11 11v4" />
+        <path d="M9 18h6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 8h6l2 2h8v9H4V8Z" />
+      <path d="M12 13v5" />
+      <path d="M9.5 15.5h5" />
+    </svg>
+  );
+};
+
+const iconForNodeType = (type: MaterialBookNodeType): ActionIconName => {
+  if (type === 'chapter') {
+    return 'chapter-add';
+  }
+
+  if (type === 'test') {
+    return 'test-add';
+  }
+
+  return 'section-add';
+};
+
+const iconButtonContent = (_label: string, icon: ActionIconName) => <ActionIcon name={icon} />;
+
+export const BOOK_EDITOR_TABS: readonly { readonly id: BookEditorTab; readonly label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'content', label: 'Content' },
+  { id: 'settings', label: 'Settings' },
+];
+
+const emptyForm: MetadataFormState = {
+  title: '',
+  subtitle: '',
+  authors: '',
+  publisher: '',
+  edition: '',
+  series: '',
+  isbn: '',
+  coverUrl: '',
+  tags: '',
+  description: '',
+  visibility: 'private',
+  testTypeIds: '',
+};
+
+const csv = (values: readonly string[] | undefined): string => (values ?? []).join(', ');
+
+const splitCsv = (value: string): string[] =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const validateBookCoverFile = (file: File): string | null => {
+  if (!BOOK_COVER_ACCEPT.split(',').includes(file.type)) {
+    return 'Only JPEG, PNG, WebP, and GIF cover images are supported.';
+  }
+
+  if (file.size > BOOK_COVER_MAX_BYTES) {
+    return 'Book cover image must be 5MB or smaller.';
+  }
+
+  return null;
+};
+
+const getBookCoverObjectKey = (bookId: string): string => `book-covers/${bookId}/cover`;
+
+const classifyBookEditorError = (message: string | null, hasBook: boolean): {
+  readonly title: string;
+  readonly message: string;
+  readonly retryable: boolean;
+} | null => {
+  if (!message) {
+    return null;
+  }
+
+  if (/permission|denied/i.test(message)) {
+    return {
+      title: 'Permission denied',
+      message: 'You do not have access to this Book or one of its referenced snapshots.',
+      retryable: false,
+    };
+  }
+
+  if (/changed since it was loaded|reload before saving|stale/i.test(message)) {
+    return {
+      title: 'Book changed in another tab',
+      message: 'Reload the Book before saving so you do not overwrite a newer structure.',
+      retryable: true,
+    };
+  }
+
+  if (/validation|invalid|required/i.test(message)) {
+    return {
+      title: 'Validation error',
+      message,
+      retryable: false,
+    };
+  }
+
+  if (/snapshot|inaccessible|unavailable ref/i.test(message)) {
+    return {
+      title: 'Referenced snapshot unavailable',
+      message: 'A referenced material snapshot is unavailable. The Book can still show fallback metadata for repair.',
+      retryable: true,
+    };
+  }
+
+  return {
+    title: hasBook ? 'Book update failed' : 'Book failed to load',
+    message,
+    retryable: !hasBook,
+  };
+};
+
+const formFromBook = (book: MaterialBookMetadata | null | undefined): MetadataFormState => {
+  if (!book) {
+    return emptyForm;
+  }
+
+  return {
+    title: book.title,
+    subtitle: book.subtitle ?? '',
+    authors: csv(book.authors),
+    publisher: book.publisher ?? '',
+    edition: book.edition ?? '',
+    series: book.series ?? '',
+    isbn: book.isbn ?? '',
+    coverUrl: book.coverUrl ?? '',
+    tags: csv(book.tags),
+    description: book.description ?? '',
+    visibility: book.visibility,
+    testTypeIds: csv(book.testTypeIds),
+  };
+};
+
+const isMaterialIndexRow = (value: unknown): value is MaterialIndexRow =>
+  Boolean(value) &&
+  typeof value === 'object' &&
+  typeof (value as MaterialIndexRow).materialId === 'string' &&
+  typeof (value as MaterialIndexRow).title === 'string' &&
+  typeof (value as MaterialIndexRow).materialKind === 'string' &&
+  SUPPORTED_BOOK_PICKER_KINDS.has((value as MaterialIndexRow).materialKind);
+
+const rowsFromIndexValue = (value: unknown): MaterialIndexRow[] =>
+  Object.values(value ?? {}).filter(isMaterialIndexRow);
+
+const rowToSummary = (row: MaterialIndexRow): BookMaterialSummary => ({
+  materialId: row.materialId,
+  title: row.title,
+  materialKind: row.materialKind,
+  status: 'published',
+  testTypeIds: row.testTypeIds ?? [],
+  visibility: row.visibility,
+  publishedSnapshotVersionId: row.publishedSnapshotVersionId,
+});
+
+const collectMaterialRefPlacements = (bookNodes: readonly MaterialBookNode[]): MaterialRefPlacement[] =>
+  [...bookNodes]
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title))
+    .flatMap((node) =>
+      [...node.materialRefs]
+        .sort((left, right) => left.order - right.order || left.titleSnapshot.localeCompare(right.titleSnapshot))
+        .map((ref) => ({ node, ref })),
+    );
+
+const brokenRefLabel = (availability: string): string => {
+  if (availability === 'archived') {
+    return 'Removed';
+  }
+
+  if (availability === 'missing') {
+    return 'Missing';
+  }
+
+  if (availability === 'inaccessible') {
+    return 'No access';
+  }
+
+  if (availability === 'missing-version') {
+    return 'Missing version';
+  }
+
+  if (availability === 'missing-projection') {
+    return 'Missing projection';
+  }
+
+  return availability;
+};
+
+const isBrokenBookRef = (ref: MaterialBookMaterialRef): boolean =>
+  ref.materialKind === 'reading-passage' &&
+  (ref.availability !== 'available' || !ref.snapshotVersionId);
+
+const sortedBookChildren = (
+  bookNodes: readonly MaterialBookNode[],
+  parentNodeId: string | null,
+): MaterialBookNode[] =>
+  bookNodes
+    .filter((node) => (node.parentNodeId ?? null) === parentNodeId)
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title) || left.nodeId.localeCompare(right.nodeId));
+
+const nodeLabel = (type: MaterialBookNodeType): string =>
+  type
+    .replace('-placeholder', '')
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const bookFromPublicProjection = (projection: MaterialBookPublicProjection): MaterialBookMetadata => ({
+  bookId: projection.bookId,
+  ownerId: 'public-library',
+  title: projection.title,
+  subtitle: projection.subtitle,
+  authors: projection.authors,
+  publisher: projection.publisher,
+  series: projection.series,
+  coverUrl: projection.coverUrl,
+  testTypeIds: projection.testTypeIds,
+  tags: projection.tags,
+  visibility: 'public-library-published',
+  status: 'ready',
+  createdAt: projection.approvedAt,
+  updatedAt: projection.updatedAt,
+  createdBy: projection.approvedBy,
+  updatedBy: projection.approvedBy,
+});
+
+const createFirebaseRepository = (): MaterialBooksRepository =>
+  createMaterialBooksRepository({
+    read: async (path) => {
+      const snapshot = await get(ref(database, path));
+      return snapshot.val();
+    },
+    write: async (path, value) => {
+      await set(ref(database, path), value);
+    },
+    remove: async (path) => {
+      await remove(ref(database, path));
+    },
+    update: async (payload) => {
+      await updateDb(ref(database), payload);
+    },
+  });
+
+const serializeForDirtyCheck = (value: unknown): string => JSON.stringify(value);
+
+const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWorkspaceProps>(({
+  bookId,
+  initialBook,
+  initialNodes,
+  materialCandidates,
+  repository,
+  presentation,
+  activeTab,
+  onActiveTabChange,
+  onSaved,
+  onDirtyChange,
+}, workspaceRef) => {
+  const { user, profile } = useAuth();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const initialNodeList = initialNodes ?? EMPTY_BOOK_NODES;
+  const resolvedRepository = useMemo(() => repository ?? createFirebaseRepository(), [repository]);
+  const [book, setBook] = useState<MaterialBookMetadata | null>(initialBook ?? null);
+  const [nodes, setNodes] = useState<readonly MaterialBookNode[]>(initialNodeList);
+  // Last persisted/loaded node state; the dirty baseline for structure changes.
+  // Unlike the immutable `initialNodeList` prop, this advances on load and save.
+  const [baselineNodes, setBaselineNodes] = useState<readonly MaterialBookNode[]>(initialNodeList);
+  const [publicProjection, setPublicProjection] = useState<MaterialBookPublicProjection | null>(null);
+  const [metadataForm, setMetadataForm] = useState<MetadataFormState>(() => formFromBook(initialBook));
+  const [loadedCandidates, setLoadedCandidates] = useState<readonly BookMaterialSummary[]>([]);
+  const [loading, setLoading] = useState(!initialBook && Boolean(bookId));
+  const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [coverUploadState, setCoverUploadState] = useState<BookCoverUploadState>({
+    status: 'idle',
+    message: null,
+  });
+  const [assignmentRequest, setAssignmentRequest] = useState<AssignmentRequest | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [internalActiveTab, setInternalActiveTab] = useState<BookEditorTab>('content');
+  const effectiveActiveTab = activeTab ?? internalActiveTab;
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const [repairSelections, setRepairSelections] = useState<Record<string, string>>({});
+  const [repairInteractionComplete, setRepairInteractionComplete] = useState(false);
+  const [deleteNodeRequest, setDeleteNodeRequest] = useState<DeleteNodeRequest | null>(null);
+  const errorState = classifyBookEditorError(error, Boolean(book));
+  const isModalPresentation = presentation === 'modal';
+
+  useEffect(() => {
+    if (!mainRef.current) {
+      return;
+    }
+
+    mainRef.current.scrollTop = 0;
+    mainRef.current.scrollLeft = 0;
+  }, [effectiveActiveTab]);
+
+  useEffect(() => {
+    if (!bookId) {
+      return;
+    }
+
+    trackAction('openBook', {
+      bookId,
+      source: presentation === 'modal' ? 'book_editor_modal' : 'book_editor_route',
+    });
+  }, [bookId, presentation, trackAction]);
+
+  useEffect(() => {
+    if (!initialBook) {
+      return;
+    }
+
+      setBook(initialBook);
+      setPublicProjection(null);
+      setMetadataForm(formFromBook(initialBook));
+    setNodes(initialNodeList);
+    setBaselineNodes(initialNodeList);
+  }, [initialBook, initialNodeList]);
+
+  useEffect(() => {
+    if (!initialBook || initialNodes !== undefined || !bookId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    resolvedRepository.listBookNodes(bookId)
+      .then((loadedNodes) => {
+        if (!cancelled) {
+          setNodes(loadedNodes);
+          setBaselineNodes(loadedNodes);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNodes([]);
+          setBaselineNodes([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, initialBook, initialNodes, resolvedRepository]);
+
+  useEffect(() => {
+    if (!book || !onDirtyChange) {
+      return;
+    }
+
+    const dirty =
+      serializeForDirtyCheck(metadataForm) !== serializeForDirtyCheck(formFromBook(book)) ||
+      serializeForDirtyCheck(nodes) !== serializeForDirtyCheck(baselineNodes);
+
+    onDirtyChange(dirty);
+  }, [book, baselineNodes, metadataForm, nodes, onDirtyChange]);
+
+  useEffect(() => {
+    if (initialBook || !bookId) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const loadPublicProjection = async (): Promise<{
+      readonly loaded: boolean;
+      readonly error?: unknown;
+    }> => {
+      let projection: MaterialBookPublicProjection | null | undefined;
+
+      try {
+        projection = await resolvedRepository.readPublicBookProjection?.(bookId);
+      } catch (projectionError) {
+        return { loaded: false, error: projectionError };
+      }
+
+      if (!projection || cancelled) {
+        return { loaded: false };
+      }
+
+      const projectionBook = bookFromPublicProjection(projection);
+      setPublicProjection(projection);
+      setBook(projectionBook);
+      setMetadataForm(formFromBook(projectionBook));
+      setNodes([]);
+      setBaselineNodes([]);
+      setError(null);
+      return { loaded: true };
+    };
+
+    const loadBook = async () => {
+      try {
+        const loadedBook = await resolvedRepository.readBook(bookId);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!loadedBook) {
+          const loadedProjection = await loadPublicProjection();
+
+          if (!loadedProjection.loaded && !cancelled) {
+            setError(
+              loadedProjection.error instanceof Error
+                ? loadedProjection.error.message
+                : 'Book not found.',
+            );
+          }
+          return;
+        }
+
+        const loadedNodes = await resolvedRepository.listBookNodes(bookId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setPublicProjection(null);
+        setBook(loadedBook);
+        setMetadataForm(formFromBook(loadedBook));
+        setNodes(loadedNodes);
+        setBaselineNodes(loadedNodes);
+      } catch (loadError) {
+        const loadedProjection = await loadPublicProjection();
+
+        if (!loadedProjection.loaded && !cancelled) {
+          const effectiveError = loadedProjection.error ?? loadError;
+
+          setError(effectiveError instanceof Error ? effectiveError.message : 'Unable to load Book.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadBook();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, initialBook, loadVersion, resolvedRepository]);
+
+  useEffect(() => {
+    if (materialCandidates || !user?.uid) {
+      return;
+    }
+
+    let cancelled = false;
+
+    Promise.all([
+      get(ref(database, `material_catalog/material_indexes/by_owner/${user.uid}`)),
+      get(ref(database, 'material_catalog/material_indexes/by_visibility/public')),
+    ])
+      .then(([ownerSnapshot, publicSnapshot]) => {
+        if (cancelled) {
+          return;
+        }
+
+        const byKey = new Map<string, BookMaterialSummary>();
+        [...rowsFromIndexValue(ownerSnapshot.val()), ...rowsFromIndexValue(publicSnapshot.val())]
+          .map(rowToSummary)
+          .forEach((summary) => {
+            byKey.set(`${summary.materialKind}:${summary.materialId}`, summary);
+          });
+
+        setLoadedCandidates(filterPublishedMaterialSummaries([...byKey.values()]));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadedCandidates([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [materialCandidates, user?.uid]);
+
+  const pickerMaterials = materialCandidates ?? loadedCandidates;
+  const displayStatus = deriveMaterialBookStatus(nodes, book?.status === 'archived');
+  const materialRefPlacements = useMemo(() => collectMaterialRefPlacements(nodes), [nodes]);
+  const brokenRefPlacements = useMemo(
+    () => materialRefPlacements.filter((placement) => isBrokenBookRef(placement.ref)),
+    [materialRefPlacements],
+  );
+  const repairCandidates = useMemo(
+    () => filterPublishedMaterialSummaries(pickerMaterials)
+      .filter((material) => material.materialKind === 'reading-passage' && !material.archived)
+      .sort((left, right) => left.title.localeCompare(right.title)),
+    [pickerMaterials],
+  );
+  const attachablePickerMaterials = useMemo(() => {
+    const attachedMaterialIds = new Set(materialRefPlacements.map((placement) => placement.ref.materialId));
+
+    return pickerMaterials.filter((material) => !attachedMaterialIds.has(material.materialId));
+  }, [materialRefPlacements, pickerMaterials]);
+  const selectedPlacement = useMemo(
+    () =>
+      materialRefPlacements.find((placement) => placement.ref.refId === selectedRefId) ??
+      materialRefPlacements[0] ??
+      null,
+    [materialRefPlacements, selectedRefId],
+  );
+  const selectedNode = useMemo(
+    () =>
+      (selectedNodeId ? nodes.find((node) => node.nodeId === selectedNodeId) : null) ??
+      selectedPlacement?.node ??
+      nodes.find((node) => (node.parentNodeId ?? null) === null) ??
+      nodes[0] ??
+      null,
+    [nodes, selectedNodeId, selectedPlacement],
+  );
+
+  useEffect(() => {
+    if (nodes.length === 0) {
+      if (selectedNodeId) {
+        setSelectedNodeId(null);
+      }
+      return;
+    }
+
+    if (!selectedNodeId || !nodes.some((node) => node.nodeId === selectedNodeId)) {
+      setSelectedNodeId(nodes[0]?.nodeId ?? null);
+    }
+  }, [nodes, selectedNodeId]);
+
+  useEffect(() => {
+    if (materialRefPlacements.length === 0) {
+      if (selectedRefId) {
+        setSelectedRefId(null);
+      }
+      return;
+    }
+
+    const firstPlacement = materialRefPlacements[0];
+
+    if (firstPlacement && (!selectedRefId || !materialRefPlacements.some((placement) => placement.ref.refId === selectedRefId))) {
+      setSelectedRefId(firstPlacement.ref.refId);
+    }
+  }, [materialRefPlacements, selectedRefId]);
+
+  const handleNodesChange = (nextNodes: readonly MaterialBookNode[]) => {
+    setNodes(nextNodes);
+
+    if (nextNodes.length === 0) {
+      setSelectedNodeId(null);
+      setSelectedRefId(null);
+      return;
+    }
+
+    if (!selectedNodeId || !nextNodes.some((node) => node.nodeId === selectedNodeId)) {
+      setSelectedNodeId(nextNodes[0]?.nodeId ?? null);
+    }
+  };
+
+  const updateForm = (field: keyof MetadataFormState, value: string) => {
+    setMetadataForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleBookCoverUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+
+    if (!file || !book) {
+      return;
+    }
+
+    const validationError = validateBookCoverFile(file);
+
+    if (validationError) {
+      setCoverUploadState({ status: 'error', message: validationError });
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+    setCoverUploadState({ status: 'uploading', message: 'Uploading Book cover to Cloudflare R2...' });
+
+    try {
+      const currentCoverKey = r2StorageService.getKeyFromUrl(metadataForm.coverUrl);
+      const result = await r2StorageService.uploadFileAtKey(
+        file,
+        currentCoverKey ?? getBookCoverObjectKey(book.bookId),
+      );
+      updateForm('coverUrl', result.url);
+      setCoverUploadState({
+        status: 'success',
+        message: 'Cover uploaded. Save the Book to keep this cover.',
+      });
+      trackAction('teacher_materials_book_cover_uploaded', {
+        bookId: book.bookId,
+        key: result.key,
+        source: 'book_editor_settings',
+      });
+    } catch (uploadError) {
+      setCoverUploadState({
+        status: 'error',
+        message: uploadError instanceof Error ? uploadError.message : 'Unable to upload Book cover.',
+      });
+    }
+  };
+
+  const updateActiveTab = (tab: BookEditorTab) => {
+    if (activeTab === undefined) {
+      setInternalActiveTab(tab);
+      return;
+    }
+
+    onActiveTabChange?.(tab);
+  };
+
+  const metadataUpdateFromForm = (form: MetadataFormState) => ({
+    title: form.title,
+    subtitle: form.subtitle || undefined,
+    authors: splitCsv(form.authors),
+    publisher: form.publisher || undefined,
+    edition: form.edition || undefined,
+    series: form.series || undefined,
+    isbn: form.isbn || undefined,
+    coverUrl: form.coverUrl || undefined,
+    tags: splitCsv(form.tags),
+    description: form.description || undefined,
+    visibility: form.visibility,
+    testTypeIds: splitCsv(form.testTypeIds).map((testTypeId) => materialCatalogIds.testTypeId(testTypeId)),
+  });
+
+  const handleRequestPublicReview = async (): Promise<void> => {
+    if (!book) {
+      return;
+    }
+
+    const nextForm = {
+      ...metadataForm,
+      visibility: 'public-library-pending-review' as MaterialBookVisibility,
+    };
+
+    setMetadataForm(nextForm);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const next = await updateBookMetadata(
+        book.bookId,
+        metadataUpdateFromForm(nextForm),
+        resolvedRepository,
+        {
+          actorId: user?.uid ?? 'unknown',
+          actorRole: profile?.role ?? 'teacher',
+          testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        },
+      );
+
+      setBook(next);
+      setMetadataForm(formFromBook(next));
+      setSaveMessage('Public review requested.');
+      trackAction('teacher_materials_book_public_review_requested', {
+        bookId: next.bookId,
+        source: 'book_editor_metadata',
+      });
+      trackAction('teacher_materials_book_updated', { bookId: next.bookId, source: 'book_editor_request_review' });
+      onSaved?.(next.bookId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to request public review.');
+    }
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!book) {
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const next = await updateBookMetadata(
+        book.bookId,
+        metadataUpdateFromForm(metadataForm),
+        resolvedRepository,
+        {
+          actorId: user?.uid ?? 'unknown',
+          actorRole: profile?.role ?? 'teacher',
+          testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        },
+      );
+
+      setBook(next);
+      setMetadataForm(formFromBook(next));
+      setSaveMessage('Metadata saved.');
+      trackAction('editBookMetadata', { bookId: next.bookId, source: 'book_editor' });
+      trackAction('teacher_materials_book_updated', { bookId: next.bookId, source: 'book_editor_metadata' });
+      onSaved?.(next.bookId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save Book metadata.');
+    }
+  };
+
+  const handleSaveStructure = async () => {
+    if (!book) {
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const result = await updateBookTree(
+        book.bookId,
+        nodes,
+        { expectedUpdatedAt: book.updatedAt },
+        resolvedRepository,
+        {
+          actorId: user?.uid ?? 'unknown',
+          actorRole: profile?.role ?? 'teacher',
+          testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        },
+      );
+
+      setBook(result.metadata);
+      setNodes(result.nodes);
+      setBaselineNodes(result.nodes);
+      setMetadataForm(formFromBook(result.metadata));
+      setSaveMessage(`Book structure saved. Readiness: ${result.metadata.status}.`);
+      trackAction('saveBookStructure', { bookId: result.metadata.bookId, nodeCount: result.nodes.length });
+      trackAction('teacher_materials_book_updated', {
+        bookId: result.metadata.bookId,
+        source: 'book_editor_structure',
+        nodeCount: result.nodes.length,
+      });
+      onSaved?.(result.metadata.bookId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save Book structure.');
+    }
+  };
+
+  const handleSaveActive = async () => {
+    if (!book) {
+      return;
+    }
+
+    const isContentTab = effectiveActiveTab === 'content';
+    const metadataDirty =
+      serializeForDirtyCheck(metadataForm) !== serializeForDirtyCheck(formFromBook(book));
+    const structureDirty =
+      serializeForDirtyCheck(nodes) !== serializeForDirtyCheck(baselineNodes);
+
+    // The active tab always saves its own domain (a deliberate per-tab contract).
+    // The other domain is flushed only when it is dirty, so unsaved edits made on a
+    // different tab are not silently dropped by a tab-scoped Save.
+    const shouldSaveMetadata = !isContentTab || metadataDirty;
+    const shouldSaveStructure = isContentTab || structureDirty;
+
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      let currentBook = book;
+
+      if (shouldSaveMetadata) {
+        currentBook = await updateBookMetadata(
+          book.bookId,
+          metadataUpdateFromForm(metadataForm),
+          resolvedRepository,
+          {
+            actorId: user?.uid ?? 'unknown',
+            actorRole: profile?.role ?? 'teacher',
+            testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+          },
+        );
+
+        setBook(currentBook);
+        setMetadataForm(formFromBook(currentBook));
+        trackAction('editBookMetadata', { bookId: currentBook.bookId, source: 'book_editor' });
+        trackAction('teacher_materials_book_updated', { bookId: currentBook.bookId, source: 'book_editor_metadata' });
+      }
+
+      if (shouldSaveStructure) {
+        const result = await updateBookTree(
+          book.bookId,
+          nodes,
+          { expectedUpdatedAt: currentBook.updatedAt },
+          resolvedRepository,
+          {
+            actorId: user?.uid ?? 'unknown',
+            actorRole: profile?.role ?? 'teacher',
+            testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+          },
+        );
+
+        setBook(result.metadata);
+        setNodes(result.nodes);
+        setBaselineNodes(result.nodes);
+        setMetadataForm(formFromBook(result.metadata));
+        setSaveMessage(`Book structure saved. Readiness: ${result.metadata.status}.`);
+        trackAction('saveBookStructure', { bookId: result.metadata.bookId, nodeCount: result.nodes.length });
+        trackAction('teacher_materials_book_updated', {
+          bookId: result.metadata.bookId,
+          source: 'book_editor_structure',
+          nodeCount: result.nodes.length,
+        });
+        onSaved?.(result.metadata.bookId);
+        return;
+      }
+
+      setSaveMessage('Metadata saved.');
+      onSaved?.(currentBook.bookId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save Book.');
+    }
+  };
+
+  useImperativeHandle(workspaceRef, () => ({
+    saveActive: () => {
+      void handleSaveActive();
+    },
+    requestPublicReview: () => {
+      void handleRequestPublicReview();
+    },
+  }));
+
+  const handleAssignMaterialRef = (materialRef: MaterialBookMaterialRef) => {
+    if (materialRef.materialKind === 'reading-passage') {
+      setAssignmentRequest({
+        kind: 'reading-passage',
+        ref: materialRef,
+        candidate: {
+          materialId: materialRef.materialId,
+          title: materialRef.titleSnapshot,
+          questionCount: 0,
+          testTypeIds: materialRef.testTypeIdsSnapshot,
+          publishedSnapshotVersionId: materialRef.snapshotVersionId,
+          hasStudentSafeProjection: true,
+          accessible: materialRef.availability === 'available',
+          archived: materialRef.availability === 'archived',
+        },
+      });
+      trackAction('assignBookMaterialRef', {
+        bookId: book?.bookId,
+        materialId: materialRef.materialId,
+        materialKind: materialRef.materialKind,
+      });
+      trackAction('teacher_materials_reading_passage_assigned', {
+        bookId: book?.bookId,
+        materialId: materialRef.materialId,
+        source: 'book_editor_material_ref',
+      });
+      return;
+    }
+
+    if (materialRef.materialKind === 'full-test' || materialRef.materialKind === 'thcs-thpt-test') {
+      setAssignmentRequest({
+        kind: 'material',
+        ref: materialRef,
+        filter: materialRef.materialKind === 'thcs-thpt-test' ? 'thcs-test' : 'test',
+      });
+      trackAction('assignBookMaterialRef', {
+        bookId: book?.bookId,
+        materialId: materialRef.materialId,
+        materialKind: materialRef.materialKind,
+      });
+    }
+  };
+
+  const handleAttachMaterialToSelectedNode = (material: BookMaterialSummary) => {
+    if (!selectedNode) {
+      return;
+    }
+
+    const refId = `ref-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const nextNode = attachMaterialRefToNode(selectedNode, material, {
+      actorId: user?.uid ?? 'unknown',
+      refId,
+    });
+
+    handleNodesChange(nodes.map((node) => (node.nodeId === selectedNode.nodeId ? nextNode : node)));
+    const attachedRef = nextNode.materialRefs.find((ref) => ref.refId === refId);
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(attachedRef?.refId ?? null);
+    trackAction('teacher_materials_book_material_attached', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      materialId: material.materialId,
+      materialKind: material.materialKind,
+      source: 'book_editor_selected_item',
+    });
+  };
+
+  const handleRemoveSelectedMaterialRef = () => {
+    if (!selectedPlacement) {
+      return;
+    }
+
+    const nextNode = removeMaterialRefFromNode(selectedPlacement.node, selectedPlacement.ref.refId);
+    handleNodesChange(nodes.map((node) => (node.nodeId === nextNode.nodeId ? nextNode : node)));
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(nextNode.materialRefs[0]?.refId ?? null);
+    trackAction('teacher_materials_book_material_removed', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      materialId: selectedPlacement.ref.materialId,
+      materialKind: selectedPlacement.ref.materialKind,
+      source: 'book_editor_selected_item',
+    });
+  };
+
+  const writeBookBrokenRefAudit = async (
+    sourceFeatureId: string,
+    placement: MaterialRefPlacement,
+    after: Record<string, unknown>,
+  ) => {
+    if (!book || !user?.uid) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const eventId = `${book.bookId}:reading_book_broken_ref_repaired:${placement.ref.refId}:${Date.now()}`;
+
+    await writeReadingV2AuditEvent({
+      eventId,
+      createdAt,
+      actorUserId: user.uid,
+      actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
+      action: 'reading_book_broken_ref_repaired',
+      entityType: 'reading-book',
+      entityId: book.bookId,
+      ownerId: book.ownerId,
+      materialId: placement.ref.materialId,
+      titleSnapshot: placement.ref.titleSnapshot,
+      before: {
+        nodeId: placement.node.nodeId,
+        refId: placement.ref.refId,
+        materialId: placement.ref.materialId,
+        availability: placement.ref.availability,
+      },
+      after,
+      correlationId: eventId,
+      sourceFeatureId,
+      sourceRoute: presentation === 'modal' ? '/lobby' : '/teacher/materials/books/:bookId',
+    });
+  };
+
+  const handleReplaceBrokenRef = (placement: MaterialRefPlacement, replacementMaterialId: string | undefined) => {
+    if (!replacementMaterialId) {
+      return;
+    }
+
+    const replacement = repairCandidates.find((material) => material.materialId === replacementMaterialId);
+
+    if (!replacement) {
+      return;
+    }
+
+    const nextNode = replaceMaterialRefInNode(placement.node, placement.ref.refId, replacement, {
+      actorId: user?.uid ?? 'unknown',
+    });
+
+    handleNodesChange(nodes.map((node) => (node.nodeId === nextNode.nodeId ? nextNode : node)));
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(placement.ref.refId);
+    setRepairInteractionComplete(true);
+    trackAction('teacher_materials_book_ref_repaired_existing', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      replacementMaterialId: replacement.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_repaired_existing', placement, {
+      repairAction: 'replace-existing',
+      replacementMaterialId: replacement.materialId,
+    }).catch(() => undefined);
+  };
+
+  const handleRemoveBrokenRef = (placement: MaterialRefPlacement) => {
+    const nextNode = removeMaterialRefFromNode(placement.node, placement.ref.refId);
+
+    handleNodesChange(nodes.map((node) => (node.nodeId === nextNode.nodeId ? nextNode : node)));
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(nextNode.materialRefs[0]?.refId ?? null);
+    setRepairInteractionComplete(true);
+    trackAction('teacher_materials_book_ref_removed', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_removed', placement, {
+      repairAction: 'remove-ref',
+    }).catch(() => undefined);
+  };
+
+  const handleRestoreBrokenRef = (placement: MaterialRefPlacement) => {
+    setSelectedNodeId(placement.node.nodeId);
+    setSelectedRefId(placement.ref.refId);
+    trackAction('teacher_materials_book_ref_restore_started', {
+      bookId: book?.bookId,
+      nodeId: placement.node.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_restore_started', placement, {
+      repairAction: 'restore-source-started',
+    }).catch(() => undefined);
+  };
+
+  const handleUpdateSelectedNode = (updates: Partial<Pick<MaterialBookNode, 'title' | 'type'>>) => {
+    if (!selectedNode) {
+      return;
+    }
+
+    handleNodesChange(nodes.map((node) => (
+      node.nodeId === selectedNode.nodeId
+        ? {
+            ...node,
+            ...updates,
+          }
+        : node
+    )));
+  };
+
+  const handleMoveSelectedNode = (direction: 'up' | 'down') => {
+    if (!selectedNode) {
+      return;
+    }
+
+    try {
+      handleNodesChange(reorderBookNode(nodes, selectedNode.nodeId, direction));
+      trackAction('teacher_materials_book_node_reordered', {
+        bookId: book?.bookId,
+        nodeId: selectedNode.nodeId,
+        direction,
+        mode: 'sibling_order',
+        source: 'book_editor_selected_item',
+      });
+      setError(null);
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : 'Unable to move Book node.');
+    }
+  };
+
+  const handleRequestDeleteSelectedNode = () => {
+    if (!selectedNode) {
+      return;
+    }
+
+    const confirmDelete = () => {
+      handleNodesChange(deleteBookNodeWithDescendants(nodes, selectedNode.nodeId));
+      trackAction('teacher_materials_book_node_deleted', {
+        bookId: book?.bookId,
+        nodeId: selectedNode.nodeId,
+        nodeType: selectedNode.type,
+        hadMaterialRefs: bookNodeHasContent(nodes, selectedNode.nodeId),
+        source: 'book_editor_selected_item',
+      });
+    };
+
+    setDeleteNodeRequest({ node: selectedNode, confirmDelete });
+  };
+
+  const handleAddChildToSelectedNode = (type: MaterialBookNodeType) => {
+    if (!book || !selectedNode) {
+      return;
+    }
+
+    setError(null);
+
+    if (getBookNodeDepth(nodes, selectedNode.nodeId) >= BOOK_NODE_MAX_DEPTH) {
+      setError('Book nodes can be nested up to 5 levels.');
+      return;
+    }
+
+    const nextNode = createBookEditorNode({
+      bookId: book.bookId,
+      nodeId: `node-${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      title: nodeLabel(type),
+      parentNodeId: selectedNode.nodeId,
+      order: sortedBookChildren(nodes, selectedNode.nodeId).length + 1,
+      now: () => new Date().toISOString(),
+    });
+
+    handleNodesChange([...nodes, nextNode]);
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(null);
+    trackAction('teacher_materials_book_node_added', {
+      bookId: book.bookId,
+      nodeId: nextNode.nodeId,
+      parentNodeId: selectedNode.nodeId,
+      nodeType: type,
+      depth: getBookNodeDepth(nodes, selectedNode.nodeId) + 1,
+      source: 'book_editor_selected_item',
+    });
+  };
+
+  const handleMoveSelectedMaterialRef = (direction: 'up' | 'down') => {
+    if (!selectedPlacement) {
+      return;
+    }
+
+    handleNodesChange(nodes.map((node) => (
+      node.nodeId === selectedPlacement.node.nodeId
+        ? reorderMaterialRef(node, selectedPlacement.ref.refId, direction)
+        : node
+    )));
+  };
+
+  const selectedNodePath = (node: MaterialBookNode | null): string => {
+    if (!node) {
+      return 'No selection';
+    }
+
+    const path: string[] = [];
+    let current: MaterialBookNode | undefined = node;
+
+    while (current) {
+      path.unshift(current.title);
+      current = current.parentNodeId ? nodes.find((entry) => entry.nodeId === current?.parentNodeId) : undefined;
+    }
+
+    return `Root / ${path.join(' / ')}`;
+  };
+
+  const selectedPlacementLine = (node: MaterialBookNode | null): string => {
+    if (!node) {
+      return 'No Book part selected';
+    }
+
+    return `${selectedNodePath(node)} - Depth ${getBookNodeDepth(nodes, node.nodeId)} - Order ${node.order}`;
+  };
+
+  const homeworkModal = assignmentRequest && (
+    <HomeworkCreateModal
+      isOpen
+      onClose={() => setAssignmentRequest(null)}
+      onSuccess={() => setAssignmentRequest(null)}
+      preselectedMaterialId={assignmentRequest.kind === 'material' ? assignmentRequest.ref.materialId : undefined}
+      preselectedMaterialFilter={assignmentRequest.kind === 'material' ? assignmentRequest.filter : 'reading-passage'}
+      preselectedReadingPassage={assignmentRequest.kind === 'reading-passage' ? assignmentRequest.candidate : undefined}
+    />
+  );
+
+  const renderMetadataFields = () => (
+      <div className="book-editor-page__form-grid">
+        <label>
+          <span>Title</span>
+          <input value={metadataForm.title} onChange={(event) => updateForm('title', event.target.value)} />
+        </label>
+        <label>
+          <span>Subtitle</span>
+          <input value={metadataForm.subtitle} onChange={(event) => updateForm('subtitle', event.target.value)} />
+        </label>
+        <label>
+          <span>Authors</span>
+          <input value={metadataForm.authors} onChange={(event) => updateForm('authors', event.target.value)} />
+        </label>
+        <label>
+          <span>Publisher</span>
+          <input value={metadataForm.publisher} onChange={(event) => updateForm('publisher', event.target.value)} />
+        </label>
+        <label>
+          <span>Edition</span>
+          <input value={metadataForm.edition} onChange={(event) => updateForm('edition', event.target.value)} />
+        </label>
+        <label>
+          <span>Series</span>
+          <input value={metadataForm.series} onChange={(event) => updateForm('series', event.target.value)} />
+        </label>
+        <label>
+          <span>ISBN</span>
+          <input value={metadataForm.isbn} onChange={(event) => updateForm('isbn', event.target.value)} />
+        </label>
+        <label>
+          <span>Tags</span>
+          <input value={metadataForm.tags} onChange={(event) => updateForm('tags', event.target.value)} />
+        </label>
+        <label>
+          <span>Test Type ids</span>
+          <input value={metadataForm.testTypeIds} onChange={(event) => updateForm('testTypeIds', event.target.value)} />
+        </label>
+        <label className="book-editor-page__wide-field">
+          <span>Description</span>
+          <textarea value={metadataForm.description} onChange={(event) => updateForm('description', event.target.value)} />
+        </label>
+      </div>
+  );
+
+  const renderSettingsTab = () => (
+    <section className="book-editor-page__section" aria-labelledby="book-editor-settings">
+      <div className="book-editor-page__section-heading">
+        <div>
+          <h2 id="book-editor-settings">Book settings</h2>
+          <p>Access, public review state, and maintenance controls.</p>
+        </div>
+      </div>
+
+      <fieldset className="book-editor-page__access-group">
+        <legend>Book access</legend>
+        <label>
+          <span>Visibility</span>
+          <select value={metadataForm.visibility} onChange={(event) => updateForm('visibility', event.target.value)}>
+            <option value="private">Private</option>
+            <option value="public-library-pending-review">Public review requested</option>
+          </select>
+        </label>
+        <div className="book-editor-page__review-state">
+          <span>Public review</span>
+          <strong>{metadataForm.visibility === 'public-library-pending-review' ? 'Requested' : 'Not requested'}</strong>
+          <p>Use the modal header to request review. Save keeps the selected access state.</p>
+        </div>
+      </fieldset>
+
+      <section className="book-editor-page__cover-panel" aria-labelledby="book-editor-cover">
+        <div>
+          <h3 id="book-editor-cover">Book cover</h3>
+          <p>Upload a cover image to Cloudflare R2, then save the Book to persist it.</p>
+        </div>
+        <div className="book-editor-page__cover-body">
+          <div className="book-editor-page__cover-preview" aria-label="Current Book cover">
+            {metadataForm.coverUrl ? (
+              <img src={metadataForm.coverUrl} alt="Current Book cover" />
+            ) : (
+              <span>No cover</span>
+            )}
+          </div>
+          <div className="book-editor-page__cover-controls">
+            <label className="book-editor-page__cover-upload">
+              <span>Upload cover image</span>
+              <input
+                type="file"
+                accept={BOOK_COVER_ACCEPT}
+                onChange={(event) => void handleBookCoverUpload(event)}
+                disabled={coverUploadState.status === 'uploading'}
+              />
+            </label>
+            {coverUploadState.message && (
+              <p
+                className={`book-editor-page__cover-message book-editor-page__cover-message--${coverUploadState.status}`}
+                role={coverUploadState.status === 'error' ? 'alert' : 'status'}
+              >
+                {coverUploadState.message}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="book-editor-page__maintenance-panel" aria-labelledby="book-editor-maintenance">
+        <h3 id="book-editor-maintenance">Maintenance</h3>
+        <p>Archive, delete, and public-library approval controls stay constrained to supported governance workflows.</p>
+      </section>
+    </section>
+  );
+
+  const renderStructureActions = () => (
+    <section className="book-editor-page__inspector-group" aria-labelledby="book-editor-structure-actions">
+      <div className="book-editor-page__inspector-group-heading">
+        <h3 id="book-editor-structure-actions">Structure actions</h3>
+      </div>
+      <div className="book-editor-page__inspector-actions">
+        <button type="button" className="book-editor-page__icon-button" aria-label="Move up" title="Move up" onClick={() => handleMoveSelectedNode('up')} disabled={!selectedNode}>
+          {iconButtonContent('Move up', 'arrow-up')}
+        </button>
+        <button type="button" className="book-editor-page__icon-button" aria-label="Move down" title="Move down" onClick={() => handleMoveSelectedNode('down')} disabled={!selectedNode}>
+          {iconButtonContent('Move down', 'arrow-down')}
+        </button>
+        {SELECTED_CHILD_NODE_TYPES.map((type) => (
+          <button key={type} type="button" className="book-editor-page__icon-button" aria-label={`Add ${nodeLabel(type)}`} title={`Add ${nodeLabel(type)}`} onClick={() => handleAddChildToSelectedNode(type)} disabled={!selectedNode}>
+            {iconButtonContent(`Add ${nodeLabel(type)}`, iconForNodeType(type))}
+          </button>
+        ))}
+        <button type="button" className="book-editor-page__icon-button book-editor-page__icon-button--danger" aria-label="Delete" title="Delete" onClick={handleRequestDeleteSelectedNode} disabled={!selectedNode}>
+          {iconButtonContent('Delete', 'trash')}
+        </button>
+      </div>
+    </section>
+  );
+
+  const renderAttachMaterialGroup = () => (
+    <section className="book-editor-page__attach-flow" aria-labelledby="book-editor-attach-material">
+      <h3 id="book-editor-attach-material">Attach material</h3>
+      <BookMaterialPicker materials={attachablePickerMaterials} onAttach={handleAttachMaterialToSelectedNode} />
+    </section>
+  );
+
+  const renderBrokenRefsGroup = () => {
+    if (!book) {
+      return null;
+    }
+
+    return (
+      <section className="book-editor-page__repair-panel" role="region" aria-label="Book broken refs">
+        <div className="book-editor-page__inspector-group-heading">
+          <h3>Book broken refs</h3>
+        </div>
+        {brokenRefPlacements.length === 0 ? (
+          <p>All Book refs are usable.</p>
+        ) : (
+          <ul className="book-editor-page__repair-list">
+            {brokenRefPlacements.map((placement) => {
+              const selection = repairSelections[placement.ref.refId] ?? repairCandidates[0]?.materialId ?? '';
+              const isOwnedArchived =
+                placement.ref.availability === 'archived' &&
+                Boolean(user?.uid) &&
+                (placement.ref.ownerIdSnapshot ?? placement.ref.addedBy) === user?.uid;
+
+              return (
+                <li key={placement.ref.refId} className="book-editor-page__repair-item">
+                  <div className="book-editor-page__repair-summary">
+                    <strong>{placement.ref.titleSnapshot}</strong>
+                    <span>{placement.node.title}</span>
+                    <span>{brokenRefLabel(placement.ref.availability)}</span>
+                  </div>
+                  <label>
+                    <span>{`Replacement for ${placement.ref.titleSnapshot}`}</span>
+                    <select
+                      value={selection}
+                      aria-label={`Replacement for ${placement.ref.titleSnapshot}`}
+                      onChange={(event) => setRepairSelections((current) => ({
+                        ...current,
+                        [placement.ref.refId]: event.target.value,
+                      }))}
+                    >
+                      {repairCandidates.map((candidate) => (
+                        <option key={candidate.materialId} value={candidate.materialId}>
+                          {candidate.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="book-editor-page__repair-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleReplaceBrokenRef(placement, selection)}
+                      disabled={!selection}
+                    >
+                      Replace broken ref
+                    </button>
+                    <button type="button" className="book-editor-page__secondary-button" onClick={() => handleRemoveBrokenRef(placement)}>
+                      Remove broken ref
+                    </button>
+                    {isOwnedArchived && (
+                      <button type="button" className="book-editor-page__secondary-button" onClick={() => handleRestoreBrokenRef(placement)}>
+                        Restore source
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    );
+  };
+
+  const renderSelectedMaterialGroup = () => {
+    if (!selectedPlacement) {
+      return null;
+    }
+
+    return (
+      <section className="book-editor-page__selected-material" aria-labelledby="book-editor-selected-material">
+        <h3 id="book-editor-selected-material">Selected material</h3>
+        <div className="book-editor-page__selected-material-card">
+          <div>
+            <strong>{repairInteractionComplete ? `Selected: ${selectedPlacement.ref.titleSnapshot}` : selectedPlacement.ref.titleSnapshot}</strong>
+            <div className="book-editor-page__selected-material-meta">
+              <span>{selectedPlacement.ref.materialKind}</span>
+              <span>{selectedPlacement.ref.testTypeIdsSnapshot.join(', ') || 'No Test Type'}</span>
+              <span>{selectedPlacement.ref.availability}</span>
+              {selectedPlacement.ref.updateState === 'newer-version-available' && <span>newer version</span>}
+            </div>
+          </div>
+          <span>{selectedPlacement.node.title}</span>
+        </div>
+        <div className="book-editor-page__inspector-actions">
+          <button type="button" className="book-editor-page__icon-button" aria-label="Move up" title="Move up" onClick={() => handleMoveSelectedMaterialRef('up')}>
+            {iconButtonContent('Move up', 'arrow-up')}
+          </button>
+          <button type="button" className="book-editor-page__icon-button" aria-label="Move down" title="Move down" onClick={() => handleMoveSelectedMaterialRef('down')}>
+            {iconButtonContent('Move down', 'arrow-down')}
+          </button>
+          <button
+            type="button"
+            className="book-editor-page__icon-button book-editor-page__icon-button--primary"
+            aria-label="Assign selected"
+            title="Assign selected"
+            onClick={() => handleAssignMaterialRef(selectedPlacement.ref)}
+            disabled={!['available'].includes(selectedPlacement.ref.availability)}
+          >
+            {iconButtonContent('Assign selected', 'assign')}
+          </button>
+          <button type="button" className="book-editor-page__icon-button" aria-label="Remove" title="Remove" onClick={handleRemoveSelectedMaterialRef}>
+            {iconButtonContent('Remove', 'remove')}
+          </button>
+        </div>
+        <p className="book-editor-page__constraint-note">Whole-Book assignment is not available in V1.</p>
+      </section>
+    );
+  };
+
+  const renderSelectedMaterialInspector = () => (
+    <aside className="book-editor-page__inspector" aria-label="Selected item details">
+      {selectedNode ? (
+        <>
+          <div className="book-editor-page__inspector-header">
+            <div>
+              <h2>{`Selected ${nodeLabel(selectedNode.type).toLowerCase()}`}</h2>
+              <p>{selectedPlacementLine(selectedNode)}</p>
+            </div>
+            <span>{displayStatus}</span>
+          </div>
+
+          <section className="book-editor-page__inspector-group" aria-labelledby="book-editor-node-details">
+            <h3 id="book-editor-node-details">Details</h3>
+            <div className="book-editor-page__node-detail-grid">
+              <label>
+                <span>Title</span>
+                <input value={selectedNode.title} onChange={(event) => handleUpdateSelectedNode({ title: event.target.value })} />
+              </label>
+              <label>
+                <span>Type</span>
+                <select value={selectedNode.type} onChange={(event) => handleUpdateSelectedNode({ type: event.target.value as MaterialBookNodeType })}>
+                  {(SELECTED_CHILD_NODE_TYPES.includes(selectedNode.type)
+                    ? SELECTED_CHILD_NODE_TYPES
+                    : [selectedNode.type, ...SELECTED_CHILD_NODE_TYPES]
+                  ).map((type) => (
+                    <option key={type} value={type}>{nodeLabel(type)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          {renderStructureActions()}
+          {renderAttachMaterialGroup()}
+          {renderSelectedMaterialGroup()}
+        </>
+      ) : (
+        <p className="book-editor-page__empty-state">Add or select a Book part in Content to inspect, attach, or assign materials.</p>
+      )}
+      {renderBrokenRefsGroup()}
+    </aside>
+  );
+
+  const renderOverviewTab = () => (
+    <div className="book-editor-page__overview-body">
+      <section className="book-editor-page__section" aria-labelledby="book-editor-overview">
+        <div className="book-editor-page__section-heading">
+          <div>
+            <h2 id="book-editor-overview">Book overview</h2>
+            <p>Metadata, readiness, and catalog health.</p>
+          </div>
+          {!isModalPresentation && (
+            <button type="button" onClick={() => void handleSaveMetadata()}>
+              Save Metadata
+            </button>
+          )}
+        </div>
+
+        {renderMetadataFields()}
+      </section>
+
+      <section className="book-editor-page__section" aria-labelledby="book-editor-readiness">
+        <div className="book-editor-page__section-heading">
+          <div>
+            <h2 id="book-editor-readiness">Readiness</h2>
+            <p>Compact summary of Book health.</p>
+          </div>
+        </div>
+        <div className="book-editor-page__overview-grid">
+          <div className="book-editor-page__metric-card">
+            <span>Readiness</span>
+            <strong>{displayStatus}</strong>
+          </div>
+          <div className="book-editor-page__metric-card">
+            <span>Materials</span>
+            <strong>{materialRefPlacements.length}</strong>
+          </div>
+          <div className="book-editor-page__metric-card">
+            <span>Visibility</span>
+            <strong>{metadataForm.visibility}</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderContentTab = () => {
+    if (!book) {
+      return null;
+    }
+
+    return (
+      <div className="book-editor-page__workspace">
+        <section className="book-editor-page__section book-editor-page__structure-panel" aria-label="Book structure tree">
+          {!isModalPresentation && (
+            <div className="book-editor-page__section-heading">
+              <div>
+                <h2>Book content</h2>
+                <p>Build structure on the left. Inspect and attach selected items on the right.</p>
+              </div>
+            </div>
+          )}
+
+          <BookNodeTree
+            bookId={book.bookId}
+            nodes={nodes}
+            onNodesChange={handleNodesChange}
+            selectedNodeId={selectedNode?.nodeId ?? null}
+            onSelectNode={(node) => setSelectedNodeId(node.nodeId)}
+            selectedRefId={selectedPlacement?.ref.refId ?? null}
+            onSelectMaterialRef={(materialRef, node) => {
+              setSelectedNodeId(node.nodeId);
+              setSelectedRefId(materialRef.refId);
+            }}
+            onRequestDeleteNode={(node, confirmDelete) => setDeleteNodeRequest({ node, confirmDelete })}
+            onTrackAction={(actionName, metadata) => trackAction(actionName, {
+              bookId: book.bookId,
+              ...(metadata ?? {}),
+            })}
+          />
+        </section>
+        {renderSelectedMaterialInspector()}
+      </div>
+    );
+  };
+
+  const workspaceClassName = [
+    'book-editor-page',
+    'book-editor-workspace',
+    `book-editor-workspace--${presentation}`,
+    `book-editor-workspace--tab-${effectiveActiveTab}`,
+  ].join(' ');
+
+  return (
+    <div className={workspaceClassName}>
+      <main ref={mainRef} className="book-editor-page__main">
+        {presentation === 'page-compat' && (
+          <section className="book-editor-page__hero" aria-labelledby="book-editor-title">
+            <div className="book-editor-page__hero-copy">
+              <p className="book-editor-page__breadcrumb">Books / {book?.title ?? 'Book Editor'}</p>
+              <h1 id="book-editor-title" className="book-editor-page__title">{book?.title ?? 'Book Editor'}</h1>
+              <div className="book-editor-page__chips" aria-label="Book status">
+                <span>{displayStatus}</span>
+                <span>{metadataForm.visibility || 'private'}</span>
+                <span>{metadataForm.testTypeIds || 'No Test Type'}</span>
+                <span>{bookId || 'Unknown Book'}</span>
+              </div>
+              <p className="book-editor-page__copy">
+                Whole-Book assignment is not available in V1. Assign selected referenced materials instead.
+              </p>
+            </div>
+            {book && !publicProjection && (
+              <div className="book-editor-page__hero-actions">
+                <button type="button" className="book-editor-page__secondary-button" onClick={() => updateActiveTab('content')}>
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (effectiveActiveTab === 'overview' || effectiveActiveTab === 'settings') {
+                      void handleSaveMetadata();
+                      return;
+                    }
+                    void handleSaveStructure();
+                  }}
+                >
+                  Save
+                </button>
+                <button type="button" className="book-editor-page__secondary-button" onClick={() => void handleRequestPublicReview()}>
+                  Request review
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {loading && <p className="book-editor-page__status">Loading Book...</p>}
+        {errorState && (
+          <div className="book-editor-page__error" role="alert">
+            <strong>{errorState.title}</strong>
+            <p>{errorState.message}</p>
+            {errorState.retryable && (
+              <button type="button" onClick={() => setLoadVersion((version) => version + 1)}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+        {saveMessage && <p className="book-editor-page__status">{saveMessage}</p>}
+
+        {book && !publicProjection && presentation === 'page-compat' && (
+          <nav className="book-editor-page__tabs" aria-label="Book editor tabs" role="tablist">
+            {BOOK_EDITOR_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={effectiveActiveTab === tab.id}
+                className={effectiveActiveTab === tab.id ? 'is-active' : undefined}
+                onClick={() => updateActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {publicProjection && (
+          <section className="book-editor-page__section" aria-labelledby="book-editor-public-outline">
+            <div className="book-editor-page__section-heading">
+              <div>
+                <h2 id="book-editor-public-outline">Public Book outline</h2>
+                <p>Approved public structure.</p>
+              </div>
+            </div>
+            <ol className="book-editor-page__public-outline">
+              {[...publicProjection.nodes]
+                .sort((left, right) => left.order - right.order)
+                .map((node) => {
+                  const materialRefs = Array.isArray(node.materialRefs) ? node.materialRefs : [];
+
+                  return (
+                    <li key={node.nodeId} className="book-editor-page__public-node">
+                      <strong>{node.title}</strong>
+                      {materialRefs.length > 0 && (
+                        <ol>
+                          {[...materialRefs]
+                            .sort((left, right) => left.order - right.order)
+                            .map((materialRef) => (
+                              <li key={materialRef.refId}>{materialRef.title}</li>
+                            ))}
+                        </ol>
+                      )}
+                    </li>
+                  );
+                })}
+            </ol>
+          </section>
+        )}
+
+        {book && !publicProjection && (
+          <>
+            {effectiveActiveTab === 'overview' && renderOverviewTab()}
+            {effectiveActiveTab === 'content' && renderContentTab()}
+            {effectiveActiveTab === 'settings' && renderSettingsTab()}
+            {presentation === 'page-compat' && (
+              <div className="book-editor-page__status-strip" aria-label="Book editor status">
+                <span>{materialRefPlacements.length} materials in book</span>
+                <span>{selectedPlacement ? '1 selected' : '0 selected'}</span>
+                <span>Save state separate from readiness</span>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+      {homeworkModal}
+      {deleteNodeRequest && (
+        <div className="book-editor-workspace__confirm-backdrop">
+          <div
+            className="book-editor-workspace__confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-editor-delete-node-title"
+          >
+            <h2 id="book-editor-delete-node-title">Delete Book node</h2>
+            <p>
+              Delete "{deleteNodeRequest.node.title}" and its child placements?
+            </p>
+            <p>Source materials are not deleted.</p>
+            <div className="book-editor-workspace__confirm-actions">
+              <button
+                type="button"
+                className="book-editor-page__secondary-button"
+                onClick={() => setDeleteNodeRequest(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteNodeRequest.confirmDelete();
+                  setDeleteNodeRequest(null);
+                }}
+              >
+                Delete node
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+BookEditorWorkspace.displayName = 'BookEditorWorkspace';
+
+export default BookEditorWorkspace;

@@ -1,0 +1,40 @@
+{
+  "dryRun": true,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-06-04T11:25:22.097Z",
+  "filters": {},
+  "totals": {
+    "total": 0,
+    "splitReady": 0,
+    "manualReview": 0,
+    "alreadyBackfilled": 0
+  },
+  "rows": [],
+  "skippedMaterials": [
+    {
+      "materialId": "reading_v2/published_snapshots",
+      "reason": "permission-failure",
+      "detail": "Command failed: cmd /c firebase database:get reading_v2/published_snapshots --project temp-a1437\n"
+    },
+    {
+      "materialId": "reading_v2/material_metadata",
+      "reason": "permission-failure",
+      "detail": "Command failed: cmd /c firebase database:get reading_v2/material_metadata --project temp-a1437\n"
+    },
+    {
+      "materialId": "reading_v2/full_test_compositions",
+      "reason": "permission-failure",
+      "detail": "Command failed: cmd /c firebase database:get reading_v2/full_test_compositions --project temp-a1437\n"
+    }
+  ],
+  "mutation": {
+    "status": "not-run",
+    "plannedWriteCount": 0
+  },
+  "storagePaths": {
+    "materialMetadata": "reading_v2/material_metadata",
+    "publishedSnapshots": "reading_v2/published_snapshots",
+    "fullTestCompositions": "reading_v2/full_test_compositions",
+    "readingPassageMaterials": "reading_v2/reading_passage_materials/{passageMaterialId}"
+  }
+}

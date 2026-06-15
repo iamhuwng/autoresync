@@ -67,13 +67,55 @@ describe('readingV2RuntimeSubmission', () => {
         surface: 'solo-practice',
         sourceName: 'Reading fixture',
       },
+      integrityReport: null,
+    }));
+  });
+
+  it('carries the browser integrity report to the trusted endpoint', () => {
+    const integrityReport = {
+      violationCount: 2,
+      totalEvents: 3,
+      tabSwitchCount: 1,
+      totalTimeAwayMs: 1200,
+      copyAttempts: 1,
+      pasteAttempts: 0,
+      rightClickAttempts: 0,
+      fullscreenExitCount: 1,
+      keyboardShortcutAttempts: 0,
+      forceSubmitted: false,
+      forceSubmittedBy: null,
+      riskLevel: 'medium',
+      events: [],
+    } as const;
+
+    expect(buildReadingV2TrustedSubmissionRequest({
+      payload: {
+        ...payload,
+        integrityReport,
+      },
+      context: {
+        surface: 'homework',
+        homeworkId: 'hw-1',
+      },
+    })).toEqual(expect.objectContaining({
+      integrityReport,
+      context: expect.objectContaining({
+        surface: 'homework',
+        homeworkId: 'hw-1',
+      }),
     }));
   });
 
   it('posts the request with a Firebase ID token and returns the trusted result identity', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ resultId: 'result-1', attemptId: 'attempt-1' }),
+      text: async () => JSON.stringify({
+        resultId: 'result-1',
+        attemptId: 'attempt-1',
+        totalScore: 13,
+        maxScore: 13,
+        percentage: 100,
+      }),
     });
 
     const result = await submitReadingV2RuntimeAttempt({
@@ -83,7 +125,13 @@ describe('readingV2RuntimeSubmission', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toEqual({ resultId: 'result-1', attemptId: 'attempt-1' });
+    expect(result).toEqual({
+      resultId: 'result-1',
+      attemptId: 'attempt-1',
+      totalScore: 13,
+      maxScore: 13,
+      percentage: 100,
+    });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://example.test/reading-v2-submit',
       expect.objectContaining({

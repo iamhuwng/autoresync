@@ -34,6 +34,7 @@ describe('readingV2AutoImportPrompt', () => {
     expect(prompt).not.toContain('"id": "p1-q1-5"');
     expect(prompt).toContain('For note-completion, preserve note bullets/headings under sectionInstructions[].note');
     expect(prompt).toContain('do not duplicate repeated note headings into every questionText');
+    expect(prompt).toContain('Do not assign the same questionNumber to more than one table cell, flowchart step, or diagram target');
     expect(prompt).toContain('Preserve source Markdown marks such as **bold**, *italic*, __bold__, _italic_, and `code`');
     expect(prompt).toContain('Remove IELTS source instruction prose from student-visible content fields');
     expect(prompt).toContain('Do not put word-limit tags or phrases in questionText');

@@ -1,0 +1,319 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default rule: deny all access unless explicitly allowed below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // API Keys Configuration
+    match /settings/api_keys {
+      // Only authenticated users can read (or specific admin roles depending on app structure)
+      // Since it's client-side, we limit to authenticated users.
+      // Ideally, a custom claim like `request.auth.token.admin == true` would be best,
+      // but restricting to at least authenticated users is better than public access.
+      allow read, write: if request.auth != null;
+    }
+
+    // Homework tag configuration
+    match /app_config/homework_tags {
+      allow read, write: if request.auth != null;
+    }
+
+    // Allow users to read and write their own data (assuming standard structure)
+    // You should expand these rules to match your other collections
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CORE COLLECTIONS — Hardened 2026-02-27 (previously: allow read, write: if auth != null)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    match /tests/{testId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /sessions/{sessionId} {
+      // Sessions need broad read (students joining) and write (teachers creating, students updating)
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /results/{resultId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow delete: if false;  // Results are permanent academic records
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DRAFT COLLECTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // IELTS Drafts (PRD-0022) — Hardened 2026-02-27 to match RTDB standard
+    // Previously: allow read, write: if request.auth != null (no ownership check)
+    match /drafts/{draftId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HOMEWORK SYSTEM (PRD-0016) — Added 2026-02-27
+    // Previously: NO RULES (default-deny blocked all operations)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Homework assignments — teachers create, students read their assigned ones
+    match /homework_assignments/{assignmentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Homework submissions — students create their own, teachers can reset
+    // SECURITY FIX (2026-03-12): Previously `allow delete: if false` blocked the
+    // teacher homework reset feature. Teachers (homework creators) need to delete
+    // submissions when resetting a student's homework. Each submission now stores
+    // a `teacherId` field (the homework creator's UID) set at creation time.
+    match /homework_submissions/{submissionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && (request.resource.data.studentId == request.auth.uid
+            || (request.resource.data.teacherId == request.auth.uid
+                && request.resource.data.administrativeImport.source == 'external-admin-import'
+                && request.resource.data.administrativeImport.importedByTeacherId == request.auth.uid
+                && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid));
+      // Students can update own submissions; teachers can update for grading
+      // Third condition: allows teacher to backfill teacherId on old submissions
+      // (created before teacherId was introduced) by writing their own UID.
+      allow update: if request.auth != null
+        && (resource.data.studentId == request.auth.uid
+            || resource.data.teacherId == request.auth.uid
+            || request.resource.data.teacherId == request.auth.uid);
+      // Only the homework creator (teacher) can delete submissions (for reset)
+      allow delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Homework templates — teacher-owned
+    match /homework_templates/{templateId} {
+      allow read: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Homework reminder status — system-managed per-homework tracking
+    match /homework_reminder_status/{statusId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STUDENT FEATURES (PRD-0016) — Added 2026-02-27
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Student streaks — doc ID = studentId, students write own data only
+    match /student_streaks/{studentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == studentId;
+    }
+
+    // Student groups — teacher-owned groups of students
+    match /student_groups/{groupId} {
+      allow read: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UTILITY COLLECTIONS — Added 2026-02-27
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Parsing cache — ephemeral checkpoints for document parser
+    match /parsingCache/{cacheId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // AI correction logs — append-only learning data
+    match /correctionLogs/{logId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;  // Append-only audit trail
+    }
+
+    // Email queue (Firebase Extension trigger collection)
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;  // Only Firebase Extension processes these
+    }
+
+    // Game sessions (Firestore mirror of RTDB)
+    match /game_sessions/{sessionId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    // PRD-0027: THCS-THPT Draft Collection
+    // Owner-only: teacher can only CRUD their own drafts.
+    // SECURITY FIX (2026-02-27): Previously used combined `allow read, write` with
+    // resource.data.userId — this silently blocked creates because resource.data is
+    // null for new documents. Also, create had no ownership validation, allowing
+    // any user to create drafts under another user's userId.
+    // Fix follows the thcs_templates gold standard: separate create/read/update/delete.
+    match /thcs_drafts/{draftId} {
+      // Read: only the owner can read their own drafts
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // Create: must be authenticated AND the userId in the new document must match the caller
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+
+      // Update: only the owner can update (resource.data exists for existing docs)
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      // Delete: only the owner can delete
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // PRD-0027: THCS-THPT Library Collection
+    // Read: any authenticated user (browse public library).
+    // Write: only the creator or super_admin.
+    // SECURITY FIX (2026-02-27): Previously combined `allow write` checked
+    // resource.data.createdBy (null on create), and `allow create` was wide open
+    // (no createdBy validation — any user could impersonate another).
+    // Fix follows the thcs_templates pattern with explicit create/update/delete.
+    match /thcs_library/{testId} {
+      // Read: any authenticated user can browse the library
+      allow read: if request.auth != null;
+
+      // Create: must be authenticated AND createdBy must equal the caller's UID
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // Update: only the original creator or super_admin
+      allow update: if request.auth != null
+        && (resource.data.createdBy == request.auth.uid
+            || request.auth.token.role == 'super_admin');
+
+      // Delete: only the original creator or super_admin
+      allow delete: if request.auth != null
+        && (resource.data.createdBy == request.auth.uid
+            || request.auth.token.role == 'super_admin');
+    }
+
+
+
+    // PRD-0029 Phase 3 Task 7.1: THCS Test Templates Collection
+    match /thcs_templates/{templateId} {
+      allow read: if request.auth != null && (
+        resource.data.isPublic == true || resource.data.ownerId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
+    // PRD-0029 Phase 3 Task 4.4: Linked Tests Sub-collection
+    match /users/{userId}/thcs_linked_tests/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // IELTS WRITING SYSTEM (PRD-0030) — Added 2026-02-28
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Writing submissions — broad authenticated reads keep grading queue queries compatible.
+    // Updates still require the student owner or teacher-linked grading metadata.
+    function isAssignedWritingTeacher(submissionId) {
+      return get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.assigningTeacherId == request.auth.uid
+        || get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.selectedTeacherId == request.auth.uid;
+    }
+
+    match /writing_submissions/{submissionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (resource.data.studentId == request.auth.uid
+            || resource.data.context.assigningTeacherId == request.auth.uid
+            || resource.data.context.selectedTeacherId == request.auth.uid
+            || request.resource.data.context.assigningTeacherId == request.auth.uid
+            || request.resource.data.context.selectedTeacherId == request.auth.uid
+            || request.resource.data.grading.teacherId == request.auth.uid);
+      allow delete: if false;  // Submissions are permanent records
+    }
+
+    // Writing test drafts — teacher-owned CRUD
+    match /writing_drafts/{draftId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // [GAP-02] User settings — per-user private settings (annotation categories, etc.)
+    // Private grading drafts. Assigned teachers can read/update/delete so the
+    // discard-and-take-over workflow is possible without exposing the draft to students.
+    match /writing_grading_drafts/{submissionId} {
+      allow get: if request.auth != null && (
+        isAssignedWritingTeacher(submissionId)
+        || (exists(/databases/$(database)/documents/writing_grading_drafts/$(submissionId))
+            && resource.data.ownerTeacherId == request.auth.uid)
+      );
+      allow list: if false;
+      allow create: if request.auth != null
+        && request.resource.data.ownerTeacherId == request.auth.uid
+        && isAssignedWritingTeacher(submissionId);
+      allow update, delete: if request.auth != null && (
+        resource.data.ownerTeacherId == request.auth.uid
+        || isAssignedWritingTeacher(submissionId)
+      );
+    }
+
+    match /writing_grading_ai_cache/{submissionId} {
+      allow get: if request.auth != null && isAssignedWritingTeacher(submissionId);
+      allow list: if false;
+      allow create: if request.auth != null
+        && isAssignedWritingTeacher(submissionId);
+      allow update: if request.auth != null
+        && isAssignedWritingTeacher(submissionId);
+      allow delete: if false;
+
+      match /generation_runs/{runId} {
+        allow get: if request.auth != null && isAssignedWritingTeacher(submissionId);
+        allow list: if false;
+        allow create, update: if request.auth != null
+          && isAssignedWritingTeacher(submissionId);
+        allow delete: if false;
+      }
+    }
+
+    match /users/{userId}/settings/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

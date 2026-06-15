@@ -19,3 +19,7 @@ Self-check (MUST complete all before marking work done):
 - [ ] `useFeatureTracking()` hook is called in the page component
 - [ ] Every button, form, and workflow step calls `trackAction()`
 - [ ] No hardcoded feature ID strings exist - all reference the registry
+
+Reading V2 PRD-0054 note:
+- State-changing archive, restore, repair, remove, and duplicate-decision actions must also write to `reading_v2/audit_events/{eventId}` through the contract in `documentation/architecture/reading-v2-audit-trail.md`.
+- View-only events such as broken-ref viewed or duplicate warning shown remain observability events only unless a later audit policy explicitly changes that.

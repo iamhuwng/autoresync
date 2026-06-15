@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Book Editor - Contents Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#0b1c30",
+                        "primary-container": "#0f766e",
+                        "surface-bright": "#f8f9ff",
+                        "secondary": "#4648d4",
+                        "on-secondary-fixed-variant": "#2f2ebe",
+                        "surface-container": "#e5eeff",
+                        "on-primary-fixed": "#00201d",
+                        "surface": "#f8f9ff",
+                        "on-primary-container": "#a3faef",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#fffbff",
+                        "on-surface": "#0b1c30",
+                        "surface-container-highest": "#d3e4fe",
+                        "outline": "#6e7977",
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#3e4947",
+                        "tertiary": "#a6002f",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#d2093f",
+                        "primary-fixed": "#9cf2e8",
+                        "background": "#f8f9ff",
+                        "tertiary-fixed": "#ffdada",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#80d5cb",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#920028",
+                        "surface-variant": "#d3e4fe",
+                        "on-tertiary-container": "#ffe4e4",
+                        "surface-dim": "#cbdbf5",
+                        "inverse-on-surface": "#eaf1ff",
+                        "outline-variant": "#bdc9c6",
+                        "on-tertiary-fixed": "#40000c",
+                        "surface-container-low": "#eff4ff",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-fixed": "#e1e0ff",
+                        "tertiary-fixed-dim": "#ffb3b6",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "inverse-primary": "#80d5cb",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#6063ee",
+                        "surface-tint": "#006a63",
+                        "primary": "#005c55",
+                        "inverse-surface": "#213145",
+                        "on-secondary-fixed": "#07006c",
+                        "secondary-fixed-dim": "#c0c1ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "panel-gap": "1px",
+                        "unit": "4px",
+                        "stack-md": "16px",
+                        "container-padding": "24px",
+                        "stack-sm": "8px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Inter"],
+                        "headline": ["Inter"],
+                        "display": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "title-md": ["16px", { "lineHeight": "24px", "fontWeight": "500" }],
+                        "headline": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "display": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background h-screen flex flex-col font-sans overflow-hidden">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-surface text-primary font-title-md text-title-md docked full-width top-0 border-b border-outline-variant flat no shadows flex justify-between items-center h-14 px-container-padding w-full z-50">
+<div class="font-headline text-headline text-on-surface">Book Editor</div>
+<div class="flex items-center space-x-gutter">
+<button class="text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<div class="flex items-center space-x-2 pl-4 border-l border-outline-variant">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="Teacher Test" class="w-full h-full object-cover" data-alt="A professional headshot of a smiling female teacher in a brightly lit modern office environment. The image uses a clean, light-mode aesthetic with soft lighting and neutral background colors. High resolution, sharp focus, professional photography style suitable for a SaaS application avatar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUqvBRMKlT2yDsCbRhAQDVxJ427SQBNqMwjjgifchnVyB38cVfDZwXpQJjUwgCC4-LYZIgVsfhDDWlcTpgVSTcHtb-lgBc5mKyesZ28Oy4t7Ce0ZQJxGreqS48rmfYk2mPL_mCSYguuZt2rprcCFl_o8aHuMNN647WjwwmuZ8Jn0qftCOTGPUUB1B7jvk1LIBq8ssz2i3xdRRNDEnlAtroVtN6OEEWiN_tRVy29ixC4z3zEFySgeLGYEa2rqI6rFXaEta3Fw3U6xk6"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Application Area -->
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- Workspace Header & Tabs -->
+<div class="bg-surface-container-lowest border-b border-outline-variant px-container-padding pt-6 pb-0 flex flex-col shrink-0">
+<div class="flex justify-between items-start mb-6">
+<!-- Left: Title & Context -->
+<div class="flex flex-col gap-1">
+<nav class="flex text-on-surface-variant font-label-sm text-label-sm items-center gap-2">
+<a class="hover:text-primary transition-colors" href="#">Books</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-on-surface">Testing Book</span>
+</nav>
+<div class="flex items-center gap-4 mt-1">
+<h1 class="font-display text-display text-on-surface">Testing Book</h1>
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded-full font-label-sm text-label-sm border border-outline-variant/50">Draft-empty</span>
+<span class="px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded-full font-label-sm text-label-sm border border-outline-variant/50">Private</span>
+<span class="px-2 py-0.5 bg-primary-container/10 text-primary-container border border-primary-container/20 rounded-full font-label-sm text-label-sm">IELTS</span>
+</div>
+</div>
+</div>
+<!-- Right: Actions & Warnings -->
+<div class="flex flex-col items-end gap-2">
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 border border-outline text-on-surface rounded font-label-md text-label-md hover:bg-surface-container-low transition-colors">Preview</button>
+<button class="px-4 py-2 border border-outline text-on-surface rounded font-label-md text-label-md hover:bg-surface-container-low transition-colors">Save</button>
+<button class="px-4 py-2 bg-primary-container text-on-primary rounded font-label-md text-label-md hover:opacity-90 transition-opacity">Request review</button>
+</div>
+<div class="text-error font-label-sm text-label-sm flex items-center gap-1 bg-error-container/30 px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">info</span>
+                        Whole-book assignment is not available in V1. Assign selected referenced materials instead.
+                    </div>
+</div>
+</div>
+<!-- Segmented Tabs -->
+<div class="flex border-b border-outline-variant w-full overflow-x-auto">
+<button class="px-6 py-3 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors border-b-2 border-transparent">Overview</button>
+<button class="px-6 py-3 font-label-md text-label-md text-primary border-b-2 border-primary bg-surface-container/20">Contents</button>
+<button class="px-6 py-3 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors border-b-2 border-transparent">Assign</button>
+<button class="px-6 py-3 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors border-b-2 border-transparent">Settings</button>
+</div>
+</div>
+<!-- Split View Workspace -->
+<div class="flex-1 flex overflow-hidden bg-background">
+<!-- Left Column: Structure -->
+<div class="flex-1 overflow-y-auto p-container-padding flex flex-col gap-6">
+<!-- Toolbar -->
+<div class="flex gap-2">
+<button class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant bg-surface-container-lowest rounded text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">add</span>
+                        Add section
+                    </button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant bg-surface-container-lowest rounded text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">post_add</span>
+                        Add material
+                    </button>
+</div>
+<!-- Section 1 -->
+<div class="flex flex-col gap-2">
+<h2 class="font-headline text-headline text-on-surface flex items-center gap-2 group cursor-pointer w-fit">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">expand_more</span>
+                        Section 1
+                    </h2>
+<div class="flex flex-col gap-panel-gap pl-6">
+<!-- Unselected Row -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded flex items-center p-3 hover:border-outline transition-colors group cursor-pointer">
+<div class="material-symbols-outlined text-on-surface-variant mr-3 cursor-grab opacity-50 group-hover:opacity-100">drag_indicator</div>
+<div class="flex-1 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<span class="font-body-md text-body-md text-on-surface font-medium">Reading Passage A</span>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm border-l border-outline-variant pl-4">
+<span>Type: Reading</span>
+<span>•</span>
+<span>12 Questions</span>
+<span>•</span>
+<span>20m</span>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded"><span class="material-symbols-outlined text-[18px]">open_in_new</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</div>
+</div>
+<!-- Selected Row -->
+<div class="bg-[#eef2ff] border-l-2 border-secondary border-t border-r border-b border-secondary/20 rounded flex items-center p-3 cursor-pointer shadow-sm relative overflow-hidden">
+<!-- Selection indicator subtle background pattern -->
+<div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, #4648d4 25%, transparent 25%, transparent 75%, #4648d4 75%, #4648d4), repeating-linear-gradient(45deg, #4648d4 25%, #f8f9ff 25%, #f8f9ff 75%, #4648d4 75%, #4648d4); background-position: 0 0, 10px 10px; background-size: 20px 20px;"></div>
+<div class="material-symbols-outlined text-secondary mr-3 cursor-grab z-10">drag_indicator</div>
+<div class="flex-1 flex items-center justify-between z-10">
+<div class="flex items-center gap-4">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Writing Task 1</span>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm border-l border-outline-variant/40 pl-4">
+<span>Type: Writing</span>
+<span>•</span>
+<span>1 Task</span>
+<span>•</span>
+<span>40m</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1 text-secondary hover:bg-white/50 rounded"><span class="material-symbols-outlined text-[18px]">open_in_new</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 2 -->
+<div class="flex flex-col gap-2 mt-4">
+<h2 class="font-headline text-headline text-on-surface flex items-center gap-2 group cursor-pointer w-fit">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">expand_more</span>
+                        Section 2
+                    </h2>
+<div class="flex flex-col gap-panel-gap pl-6">
+<button class="w-full border-2 border-dashed border-outline-variant/60 rounded flex items-center justify-center p-3 text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-low hover:border-outline transition-colors gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span> Add material
+                        </button>
+</div>
+</div>
+</div>
+<!-- Right Column: Inspector Panel -->
+<div class="w-80 bg-surface-container-lowest border-l border-outline-variant flex flex-col shrink-0 h-full overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface">
+<h3 class="font-title-md text-title-md text-on-surface">Selected material</h3>
+<button class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">close</span></button>
+</div>
+<div class="p-5 flex-1 overflow-y-auto flex flex-col gap-6">
+<!-- Content Fields -->
+<div class="flex flex-col gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Title</label>
+<input class="w-full px-3 py-2 border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary/20 transition-all" type="text" value="Writing Task 1"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Type</label>
+<select class="w-full px-3 py-2 border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary bg-white">
+<option selected="">Writing</option>
+<option>Reading</option>
+<option>Listening</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Duration</label>
+<input class="w-full px-3 py-2 border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary transition-all" type="text" value="40m"/>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Tags</label>
+<div class="flex flex-wrap gap-2 p-2 border border-outline-variant rounded bg-surface-container-lowest min-h-[42px]">
+<span class="px-2 py-0.5 bg-surface-variant text-on-surface rounded-full font-label-sm text-label-sm flex items-center gap-1">IELTS <span class="material-symbols-outlined text-[12px] cursor-pointer hover:text-error">close</span></span>
+<span class="px-2 py-0.5 bg-surface-variant text-on-surface rounded-full font-label-sm text-label-sm flex items-center gap-1">Academic <span class="material-symbols-outlined text-[12px] cursor-pointer hover:text-error">close</span></span>
+</div>
+</div>
+</div>
+<div class="border-t border-outline-variant pt-6 flex flex-col gap-3">
+<button class="w-full px-4 py-2 bg-surface-container-lowest border border-outline text-on-surface rounded font-label-md text-label-md hover:bg-surface-container-low transition-colors shadow-sm">Save item</button>
+<button class="w-full px-4 py-2 bg-surface-container-lowest text-error border border-transparent rounded font-label-md text-label-md hover:bg-error-container/20 transition-colors">Remove from book</button>
+</div>
+<!-- Assignment Section -->
+<div class="mt-auto pt-6 border-t border-outline-variant flex flex-col gap-3">
+<button class="w-full px-4 py-2 bg-primary-container text-on-primary rounded font-label-md text-label-md hover:opacity-90 transition-opacity flex justify-center items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">assignment</span> Assign selected
+                        </button>
+<div class="text-error font-label-sm text-label-sm p-3 bg-error-container/20 rounded border border-error-container">
+                            Whole-book assignment is not available in V1. Assign selected referenced materials instead.
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer (Shared Component) -->
+<footer class="bg-surface-container-low text-secondary font-label-sm text-label-sm font-label-sm text-label-sm docked full-width bottom-0 h-8 border-t border-outline-variant flat no shadows fixed bottom-0 left-0 w-full z-40 flex items-center px-container-padding space-x-gutter justify-between cursor-default">
+<div class="text-on-surface-variant">2 materials in book | 1 selected | <span class="text-tertiary ml-2 px-2 py-0.5 bg-tertiary-container/10 rounded-full border border-tertiary/20">Unsaved changes</span></div>
+</footer>
+</body></html>

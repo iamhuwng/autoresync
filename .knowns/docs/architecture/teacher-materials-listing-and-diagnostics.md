@@ -2,7 +2,7 @@
 title: Teacher Materials Listing And Diagnostics
 description: 'Canonical Teacher Lobby materials-listing contract after the May 2026 performance repair: indexed owner/public reads, scoped realtime/cache, gated diagnostics, and obsolete full-tests scan patterns.'
 createdAt: '2026-05-11T17:23:18.736Z'
-updatedAt: '2026-05-30T15:08:01.141Z'
+updatedAt: '2026-06-03T00:00:00.000Z'
 tags:
   - architecture
   - teacher-lobby
@@ -49,6 +49,22 @@ Super admin My Content is the only valid broad all-tests exception.
 
 Drafts stay on `useTeacherDrafts` and should only load when the Drafts tab is active.
 
+## PRD-0052 Reading Passage And Book Index Contract
+
+Reading Passage rows and Book material-picker candidates use `material_catalog/material_indexes`, not canonical Reading V2 documents.
+
+Production buckets:
+
+- `material_catalog/material_indexes/by_owner/{teacherId}`
+- `material_catalog/material_indexes/by_visibility/{visibility}`
+- `material_catalog/material_indexes/by_material_kind/{materialKind}`
+- `material_catalog/material_indexes/by_test_type/{testTypeId}`
+- `material_catalog/material_indexes/by_source_full_test/{fullTestMaterialId}`
+
+Rows are safe summaries only. They must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
+
+`reading_v2/listing_indexes` is obsolete/compatibility-only for PRD-0052 QA unless a future migration rewires readers, writers, rules, tests, and browser proof.
+
 ## Realtime Contract
 
 Realtime listeners must match the list scope:
@@ -85,6 +101,7 @@ Do not reintroduce these for normal Teacher Lobby material cards:
 - full `/tests` read plus client-side ownership filtering
 - full `/tests` read plus client-side public filtering
 - Reading V2 canonical document/projection hydration for card lists
+- using `reading_v2/listing_indexes` as production proof for Reading Passage rows
 - always-on console timing logs outside gated diagnostics
 
 ## Evidence
@@ -124,3 +141,7 @@ Leading material icon and accent semantics are governed by @doc/architecture/tea
 This listing contract owns what material rows load and diagnose, not how visual type/status markers are selected.
 
 Retired: using list order, search order, or filtered row position to choose material accent colors.
+
+## Reading V2 Material Publish Boundary
+
+Full Reading V2 publish and generated Reading Passage material behavior is governed by @doc/architecture/reading-v2-material-publish-and-passage-library.

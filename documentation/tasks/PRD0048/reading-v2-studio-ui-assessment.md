@@ -400,3 +400,19 @@ Updated companion notes:
 - `documentation/tasks/PRD0048/reading-v2-validation-notes.md`
 - `documentation/tasks/PRD0048/reading-v2-runtime-preview-notes.md`
 - `documentation/tasks/PRD0048/reading-v2-deferred-feature-flagged-gaps.md`
+
+## 2026-06-08 Update: Review Issues Panel Replaces Hover Tooltip
+
+The Build Workspace warning surface no longer treats the topbar warning pill tooltip as the primary review UI.
+
+Canonical contract: `documentation/architecture/reading-v2-studio-review-issues-contract.md`.
+
+Current contract:
+
+- The warning pill is a click trigger for a stable `Review issues` panel.
+- The pill count must match the number of visible actionable rows in that panel.
+- Teacher-facing rows use short labels such as `Q12: Missing answer` or `Questions 31-35: Question text changed`.
+- Clicking a question-level row moves the editor to the owning task group and emits diagnostic question-link navigation.
+- Affected question-group cards show inline issue chips from the same normalized issue list.
+- The old full-detail hover/title tooltip behavior is deprecated. A tooltip may remain only as a short hint, for example `Click to review issues`.
+- Backend messages remain available in diagnostic exports, but they are hidden by default from teacher-facing row titles.

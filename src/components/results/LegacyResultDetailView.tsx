@@ -25,7 +25,6 @@ import { classifyTeacherResultVisibility } from '../../services/resultVisibility
 import { isEligibleForSavedResultFeedback, useFeedbackAutoTrigger } from '../../hooks/useFeedbackAutoTrigger';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import type {
-    DeletedSourceDisplayMetadata,
     ResolvedResultVisibilityVerdict,
     ResultVisibilitySourceType,
 } from '../../types/results.types';
@@ -110,11 +109,15 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
         || currentSourceName
         || deletedSourceMetadata,
     );
+    const hasNewerSourceVersion = Boolean(currentSourceName && sourceDisplayName && currentSourceName !== sourceDisplayName);
     const soloPracticeViewOnly = Boolean(visibilityVerdict?.soloPractice.isSoloPractice);
     const sourceVisibilityLabel = formatVisibilityClassificationLabel({
         isSoloPractice: soloPracticeViewOnly,
         visibilityOwnerTeacherId: visibilitySnapshot?.visibilityOwnerTeacherId ?? null,
     });
+    const assignmentAttemptNumber = typeof result?.context?.assignment?.attemptNumber === 'number'
+        ? result.context.assignment.attemptNumber
+        : null;
     const allowTeacherOwnedSections = Boolean(visibilityVerdict?.shouldAllowTeacherActions);
     const isWritingResult = Boolean(
         result && (
@@ -422,6 +425,15 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
                             </div>
                         )}
 
+                        {hasNewerSourceVersion && (
+                            <div data-testid="result-source-newer-version-note" style={sourceMetadataRowStyle}>
+                                <span style={sourceMetadataLabelStyle}>Version note</span>
+                                <span style={sourceMetadataSecondaryValueStyle}>
+                                    Newer source version available; this review remains bound to the assigned snapshot.
+                                </span>
+                            </div>
+                        )}
+
                         {sourceContextLabel && (
                             <div data-testid="result-source-context" style={sourceMetadataRowStyle}>
                                 <span style={sourceMetadataLabelStyle}>Visibility context</span>
@@ -433,6 +445,13 @@ export const LegacyResultDetailView: React.FC<LegacyResultDetailViewProps> = ({
                             <span style={sourceMetadataLabelStyle}>Source ID</span>
                             <span style={sourceMetadataSecondaryValueStyle}>{visibilitySnapshot?.sourceId ?? 'Unavailable'}</span>
                         </div>
+
+                        {assignmentAttemptNumber !== null && (
+                            <div data-testid="result-source-attempt" style={sourceMetadataRowStyle}>
+                                <span style={sourceMetadataLabelStyle}>Attempt</span>
+                                <span style={sourceMetadataSecondaryValueStyle}>Attempt {assignmentAttemptNumber}</span>
+                            </div>
+                        )}
 
                         {sourceResolutionLabel && (
                             <div data-testid="result-source-resolution" style={sourceMetadataRowStyle}>

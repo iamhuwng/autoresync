@@ -19,25 +19,41 @@ const defaultProps = {
 };
 
 describe('SearchFilterBar', () => {
-  it('renders optional view toggle and create action', async () => {
+  it('renders create action and hides view toggle unless explicitly provided', async () => {
     const user = userEvent.setup();
-    const onViewModeChange = vi.fn();
     const onCreateNew = vi.fn();
 
     render(
       <SearchFilterBar
         {...defaultProps}
         onCreateNew={onCreateNew}
-        viewMode="grid"
-        onViewModeChange={onViewModeChange}
       />
     );
 
-    await user.click(screen.getByRole('button', { name: 'List view' }));
-    expect(onViewModeChange).toHaveBeenCalledWith('list');
+    expect(screen.queryByRole('button', { name: 'List view' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /create new test/i }));
     expect(onCreateNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports Book-specific create label and Reading Passage no-create mode', () => {
+    const { rerender } = render(
+      <SearchFilterBar
+        {...defaultProps}
+        createLabel="Create New Book"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /create new book/i })).toBeInTheDocument();
+
+    rerender(
+      <SearchFilterBar
+        {...defaultProps}
+        showCreateButton={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /create new/i })).not.toBeInTheDocument();
   });
 
   it('keeps public THCS filters backed by existing values with readable labels', () => {
@@ -53,5 +69,52 @@ describe('SearchFilterBar', () => {
     expect(screen.getByRole('option', { name: 'Cuối Kì' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Kiểm Tra' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '15 Phút' })).toBeInTheDocument();
+  });
+  it('renders visibility scope buttons inside the search row', async () => {
+    const user = userEvent.setup();
+    const onVisibilityScopeChange = vi.fn();
+
+    render(
+      <SearchFilterBar
+        {...defaultProps}
+        visibilityScope="private"
+        onVisibilityScopeChange={onVisibilityScopeChange}
+        visibilityLabel="Book visibility"
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Book visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Private' })).toHaveTextContent('');
+
+    await user.click(screen.getByRole('button', { name: 'Public' }));
+
+    expect(onVisibilityScopeChange).toHaveBeenCalledWith('public');
+  });
+
+  it('supports a Reading Passage Archive scope option without changing default scopes', async () => {
+    const user = userEvent.setup();
+    const onVisibilityScopeChange = vi.fn();
+
+    render(
+      <SearchFilterBar
+        {...defaultProps}
+        visibilityScope="archived"
+        onVisibilityScopeChange={onVisibilityScopeChange}
+        visibilityLabel="Reading Passage visibility"
+        visibilityScopeOptions={[
+          { value: 'private', label: 'Private' },
+          { value: 'public', label: 'Public' },
+          { value: 'archived', label: 'Archive' },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Reading Passage visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Private' }));
+
+    expect(onVisibilityScopeChange).toHaveBeenCalledWith('private');
   });
 });

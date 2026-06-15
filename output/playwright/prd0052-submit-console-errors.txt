@@ -1,0 +1,5 @@
+Total messages: 85 (Errors: 2, Warnings: 7)
+Returning 2 messages for level "error"
+
+[ERROR] Failed to load resource: net::ERR_BLOCKED_BY_CLIENT @ https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=BiMYMEJpIJFY-3C57sfiSS_fkEqgTQfKs4atMe9IwVOjLBWM8NZMbw&SID=Q1lZ-v-N_PI50i0TvF5EQQ&RID=16316&TYPE=terminate&zx=lqx0w5mslf7n:0
+[ERROR] Failed to load resource: the server responded with a status of 404 () @ https://r2-backup-worker.iamhuwng.workers.dev/api/reading-v2/submit:0

@@ -9,6 +9,7 @@ import {
 } from '../../types/readingV2.types';
 import {
   assertValidReadingV2CanonicalDocument,
+  findDuplicateReadingV2StimulusAnchorIssues,
   isReadingV2PublishBlocked,
 } from './readingV2ContractGuards.service';
 import { canonicalizeReadingV2JudgementAnswer } from './readingV2JudgementAnswers.service';
@@ -823,9 +824,12 @@ const validateDiagramLabelingTaskGroup = (
 export const validateReadingV2Draft = (
   document: ReadingV2Document,
 ): ReadingV2ValidationResult => {
+  const validationIssues = (value: { readonly issues?: unknown } | undefined): ReadingV2ValidationIssue[] =>
+    Array.isArray(value?.issues) ? value.issues as ReadingV2ValidationIssue[] : [];
   const issues: ReadingV2ValidationIssue[] = [
-    ...document.validationState.issues,
-    ...Object.values(document.taskGroups).flatMap((taskGroup) => taskGroup.validationState.issues),
+    ...validationIssues(document.validationState),
+    ...Object.values(document.taskGroups).flatMap((taskGroup) => validationIssues(taskGroup.validationState)),
+    ...findDuplicateReadingV2StimulusAnchorIssues(document),
   ];
 
   try {

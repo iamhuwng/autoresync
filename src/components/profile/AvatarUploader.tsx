@@ -5,10 +5,11 @@
  * Part of PRD-0015: Academic Record & Enhanced Profile System
  */
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Group, Avatar, Button, Text, FileButton, Stack, Progress } from '@mantine/core';
 import { IconUpload, IconX } from '@tabler/icons-react';
 import r2StorageService from '@/services/r2Storage';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AvatarUploaderProps {
     currentAvatarUrl?: string | null;
@@ -23,12 +24,11 @@ export function AvatarUploader({
     onRemove,
     disabled
 }: AvatarUploaderProps) {
+    const { user } = useAuth();
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
-    const fileInputRef = useRef<() => void>(null);
-
     const displayUrl = previewUrl || currentAvatarUrl;
 
     const validateFile = (file: File): string | null => {
@@ -132,7 +132,7 @@ export function AvatarUploader({
             // NOTE: Avatars should NOT use the temp folder strategy
             // The temp→permanent flow is only for test creation workflow
             // where files might be abandoned during creation.
-            const result = await r2StorageService.uploadAvatar(resizedFile);
+            const result = await r2StorageService.uploadAvatar(resizedFile, user?.uid, currentAvatarUrl);
 
             // Call callback with URL (already permanent, no move needed)
             onUploadComplete(result.url);

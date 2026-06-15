@@ -1,0 +1,804 @@
+# Task List: PRD-0052 Teacher Materials Books And Reading Passage Library
+
+Created: 2026-06-01
+Source PRD: `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md`
+Status: Draft
+
+## Relevant Files
+
+- `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md` - Product requirements and closed decisions for Books, Reading Passage library, Test Type blocks, and Teacher Materials tab behavior.
+- `documentation/tasks/0052-visual-similarity-extraction-and-rebuild-plan.md` - Mandatory visual extraction and similarity plan. This is the visual gate for PRD-0052.
+- `.superpowers/brainstorm/prd0052-20260601-023550/content/teacher-materials-prd0050-derived-v5.html` - Approved PRD-0052 mockup direction derived from PRD-0050. Use as the primary visual structure reference.
+- `output/playwright/prd0052-visual-similarity/prd0052V5-848.png` - Approved V5 screenshot evidence at 848px.
+- `output/playwright/prd0052-visual-similarity/prd0052V5-1366.png` - Approved V5 screenshot evidence at 1366px.
+- `output/playwright/prd0052-visual-similarity/prd0052V5-1586.png` - Approved V5 screenshot evidence at 1586px.
+- `output/playwright/prd0052-visual-similarity/style-extract.json` - Style extraction evidence used to avoid visual drift.
+- `output/playwright/prd0052-visual-similarity/difference-register.md` - Visual difference register. Implementation must not reintroduce these mismatches.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/concept-current-style.png` - PRD-0050 approved visual baseline for Teacher Materials.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/rendered-desktop.png` - PRD-0050 rendered desktop baseline.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/rendered-components.png` - PRD-0050 component baseline.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/teacher-lobby-materials-list-view-mockups.html` - PRD-0050 full-page mockup source.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/teacher-lobby-materials-list-view-components.html` - PRD-0050 component mockup source.
+- `documentation/tasks/0033-prd-teacher-lobby-refactor/design/teacher-lobby-materials-list-view/teacher-lobby-materials-list-view-proposal.md` - PRD-0050 design proposal and QA notes.
+- `documentation/tasks/0050-prd-teacher-lobby-materials-list-view.md` - Previous Teacher Materials list-view PRD.
+- `documentation/tasks/tasks-0050-prd-teacher-lobby-materials-list-view.md` - Previous implementation tasklist. Reuse its component boundaries and visual notes.
+- `DESIGN.md` - Root design system guidance. Read before UI work if present.
+- `documentation/architecture/ui-design-standards.md` - Mandatory teacher UI design rules, Mantine restrictions, and TeacherHeader boundary.
+- `documentation/architecture/teacher-lobby-authoring-and-navigation.md` - Teacher Lobby ownership, shell, navigation, and authoring contracts.
+- `documentation/architecture/teacher-materials-list-view-contract.md` - Compact list-row contract from PRD-0050.
+- `documentation/architecture/teacher-materials-listing-and-diagnostics.md` - Teacher Materials indexed loading and diagnostics contract.
+- `documentation/architecture/teacher-material-visual-taxonomy.md` - Existing material icon/accent taxonomy.
+- `documentation/rules/infrastructure.md` - Required before adding RTDB nodes, Firestore fields, rules, or indexes.
+- `documentation/rules/observability.md` - Required before adding user-facing buttons, forms, workflows, or page actions.
+- `documentation/rules/react-patterns.md` - Required before creating reusable React components or complex state effects.
+- `documentation/rules/codebase-hygiene.md` - Required when touching UI files with possible Mantine proximity or writing data where existing code reads.
+- `documentation/rules/mobile-portability.md` - Required if writing direct `window`, `document`, `navigator`, storage, or responsive JS logic.
+- `database.rules.json` - RTDB security rules for new Reading V2, material catalog, Test Type, Book, and preference nodes.
+- `firestore.rules` - Firestore rules for homework assignment field expansion and any new homework snapshot fields.
+- `src/pages/TeacherLobbyPage.jsx` - Main Teacher Materials surface. Owns tabs, search, active Test Type filter, list rendering, Book tab rendering, and modal entry points.
+- `src/pages/TeacherLobbyPage.css` - Teacher Materials page layout. Must preserve PRD-0050 style and prevent Test Type block wrapping.
+- `src/pages/TeacherLobbyPage.test.jsx` - Page-level tests for tabs, filters, list-only browsing, Book grid, and create button label switching.
+- `src/components/modern/ContentTabs.jsx` - Existing Materials subtab component. It must keep existing styling while supporting `Reading Passage` and `Book`.
+- `src/components/modern/ContentTabs.css` - Existing tab styling. Do not redesign it; only adjust layout if matching approved mockup.
+- `src/components/modern/ContentTabs.test.jsx` - Tests for tab labels, active state, and accessibility.
+- `src/components/modern/SearchFilterBar.jsx` - Existing search/create toolbar. Must support Book-specific create label and hide grid/list toggle for normal material browsing.
+- `src/components/modern/SearchFilterBar.css` - Toolbar layout and overflow guards.
+- `src/components/modern/SearchFilterBar.test.jsx` - Tests for toolbar search, create action, and tab-specific create label.
+- `src/components/modern/MaterialListView.jsx` - Existing list view container for normal materials and Reading Passage rows.
+- `src/components/modern/MaterialListView.css` - List view layout. Preserve compact PRD-0050 list behavior.
+- `src/components/modern/MaterialListView.test.jsx` - Tests for list rendering and empty states.
+- `src/components/modern/MaterialListRow.jsx` - Existing compact row component. Extend only through typed view models, not one-off branches.
+- `src/components/modern/MaterialListRow.css` - Row styling. Do not turn list rows into cards.
+- `src/components/modern/MaterialListRow.test.jsx` - Tests for Reading Passage row metadata and actions.
+- `src/components/modern/materialListAdapter.js` - Existing adapter from material records to row view models. Extend for Reading Passage rows and Test Type summary fields.
+- `src/components/modern/materialListAdapter.test.js` - Adapter tests for legacy tests, Reading V2 full tests, Reading Passage rows, inactive Test Types, and missing metadata.
+- `src/components/modern/TestTypeBlockModule.jsx` - New 4-block Test Type filter module. Must render exactly four pinned slots when available and remain one centered row.
+- `src/components/modern/TestTypeBlockModule.css` - New Test Type block styles based on PRD-0050 card/book-card visual language.
+- `src/components/modern/TestTypeBlockModule.test.jsx` - Tests for one-row layout classes, active/clear behavior, settings icon propagation, and fallback display.
+- `src/components/modern/TestTypePreferenceModal.jsx` - New teacher preference modal for choosing the 4 pinned Test Type blocks.
+- `src/components/modern/TestTypePreferenceModal.css` - Modal styling aligned to existing teacher modal language.
+- `src/components/modern/TestTypePreferenceModal.test.jsx` - Tests for selecting exactly 4, fallback defaults, inactive types, and save/cancel.
+- `src/components/modern/BookCardGrid.jsx` - New Book-tab grid container for Book cover/default-name cards only.
+- `src/components/modern/BookCardGrid.css` - Book cover grid styles. Must visually align with Test Type block card language.
+- `src/components/modern/BookCardGrid.test.jsx` - Tests for Book cards, empty states, visibility chips, and Test Type chips.
+- `src/components/modern/BookCard.jsx` - New individual Book cover/default-name card.
+- `src/components/modern/BookCard.css` - Individual Book card visual styles.
+- `src/components/modern/BookCard.test.jsx` - Tests for cover image, generated fallback cover, metadata, and action buttons.
+- `src/components/books/CreateBookModal.tsx` - New dedicated create/edit Book metadata modal.
+- `src/components/books/CreateBookModal.css` - Modal styling.
+- `src/components/books/CreateBookModal.test.tsx` - Tests for validation, empty draft creation, multi Test Type selection, visibility, and save.
+- `src/components/books/BookEditorPage.tsx` - New route-backed Book editor surface for metadata, nodes, and material arrangement.
+- `src/components/books/BookEditorPage.css` - Book editor layout.
+- `src/components/books/BookEditorPage.test.tsx` - Tests for opening existing Book, draft state, nodes, refs, and save.
+- `src/components/books/BookNodeTree.tsx` - New nested tree component for intro/TOC placeholders, sections, chapters, tests, and material refs.
+- `src/components/books/BookNodeTree.test.tsx` - Tests for allowed node types, max depth 5, reorder, remove, and duplicate material placements.
+- `src/components/books/BookMaterialPicker.tsx` - New picker for adding published materials into Book nodes.
+- `src/components/books/BookMaterialPicker.test.tsx` - Tests that drafts are excluded and only published/shareable materials can be selected.
+- `src/components/admin/TestTypeAdminPanel.tsx` - New super-admin panel for Test Type records.
+- `src/components/admin/TestTypeAdminPanel.test.tsx` - Tests for create, edit, deactivate, reorder, alias fields, and source-order label.
+- `src/pages/AdminSettingsPage.tsx` - Required admin entry point for Test Type configuration. Mount `TestTypeAdminPanel` as a new settings section/tab inside this page.
+- `src/pages/AdminSettingsPage.test.tsx` - Tests for rendering Test Type admin panel only for super admins.
+- `src/config/readingV2FeatureFlags.ts` - Extend feature flags for Test Type blocks, Reading Passage library, Reading Passage homework, Books, Book editor, and admin Test Type config.
+- `src/config/readingV2FeatureFlags.test.ts` - Tests for new flags and default values.
+- `src/types/readingV2.types.ts` - Extend Reading V2 IDs and packaging contracts for Reading Passage material entities and full-test passage refs.
+- `src/types/materialCatalog.types.ts` - New shared types for Test Type config, teacher pin preferences, Book metadata, Book nodes, and material refs.
+- `src/types/homework.types.ts` - Extend homework material types and fields for Reading Passage and Reading Passage set assignments.
+- `src/services/materialCatalog/materialCatalogPaths.ts` - New path helpers for material catalog RTDB nodes.
+- `src/services/materialCatalog/materialCatalogPaths.test.ts` - Tests for path helpers.
+- `src/services/materialCatalog/testTypeConfig.service.ts` - New service for admin Test Type CRUD, alias normalization, default top 4, and source-order labels.
+- `src/services/materialCatalog/testTypeConfig.service.test.ts` - Unit tests for Test Type config behavior.
+- `src/services/materialCatalog/teacherTestTypePreferences.service.ts` - New service for teacher 4-block pin preferences and fallback to admin defaults.
+- `src/services/materialCatalog/teacherTestTypePreferences.service.test.ts` - Tests for preference loading, saving, inactive fallback, and fewer-than-4 active types.
+- `src/services/materialCatalog/materialBooks.service.ts` - New service for Book CRUD, validation, indexes, and Book-tab listing.
+- `src/services/materialCatalog/materialBooks.service.test.ts` - Tests for create empty Book, update metadata, public/private scope, node validation, and index writes.
+- `src/services/materialCatalog/bookValidation.service.ts` - New pure validation helpers for Book status, max depth, refs, public leakage, and placeholder behavior.
+- `src/services/materialCatalog/bookValidation.service.test.ts` - Tests for all Book validation edge cases.
+- `src/services/materialCatalog/materialCatalogIndexes.service.ts` - New index writer/reader for material listing by owner, visibility, Test Type, material kind, and Book refs.
+- `src/services/materialCatalog/materialCatalogIndexes.service.test.ts` - Tests for index fanout and cleanup.
+- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; PRD-0052 production listing rows use `material_catalog/material_indexes`.
+- `src/services/reading-v2/readingV2StoragePaths.service.test.ts` - Tests for new paths and legacy-overlap assertions.
+- `src/services/reading-v2/readingV2MaterialMetadata.service.ts` - Extend material kinds, visibility, Test Type fields, source order display, and public/private behavior.
+- `src/services/reading-v2/readingV2MaterialMetadata.service.test.ts` - Tests for Reading Passage metadata and source-order display.
+- `src/services/reading-v2/readingV2PassageExtraction.service.ts` - New pure service that splits a full Reading V2 document into passage entities plus metadata.
+- `src/services/reading-v2/readingV2PassageExtraction.service.test.ts` - Tests for one-passage, multi-passage, missing source order, non-IELTS labels, question ranges, and answer key preservation.
+- `src/services/reading-v2/readingV2PassageLibrary.service.ts` - New service for Reading Passage listing, visibility, row summaries, version lookup, and assignment-ready snapshots.
+- `src/services/reading-v2/readingV2PassageLibrary.service.test.ts` - Tests for private/public scope, owner filtering, Test Type filtering, and snapshot binding.
+- `src/services/reading-v2/readingV2FullTestComposition.service.ts` - New service or existing full-test extension that stores ordered `passageRefs[]` instead of duplicating passage content.
+- `src/services/reading-v2/readingV2FullTestComposition.service.test.ts` - Tests for composition refs, shared passage reuse, fork rules, and newer-version warnings.
+- `src/services/reading-v2/readingV2PublishPipeline.service.ts` - Publish path must create/update Reading Passage entities and full-test composition refs.
+- `src/services/reading-v2/readingV2PublishPipeline.service.test.ts` - Tests for publish commit fanout and rollback.
+- `src/services/reading-v2/readingV2FirebasePublishAdapter.service.ts` - Firebase write adapter for new Reading Passage, composition, metadata, index, and projection paths.
+- `src/services/reading-v2/readingV2FirebasePublishAdapter.service.test.ts` - Tests for Firebase paths, safe projections, and commit writes.
+- `src/services/reading-v2/readingV2TeacherLobbyMaterials.service.ts` - Extend Teacher Materials listing with Reading Passage tab records without full canonical hydration.
+- `src/services/reading-v2/readingV2TeacherLobbyMaterials.service.test.ts` - Tests for listing summaries, no canonical draft scans, and public/private scope.
+- `src/services/reading-v2/readingV2LaunchIntegration.service.ts` - Launch integration for single Reading Passage homework and Reading Passage set homework.
+- `src/services/reading-v2/readingV2LaunchIntegration.service.test.ts` - Tests for student-safe projection binding and assignment-time versions.
+- `src/services/reading-v2/readingV2Projection.service.ts` - Ensure single-passage and combined-passage projections remain student-safe.
+- `src/services/reading-v2/readingV2Projection.service.test.ts` - Tests that answer keys, diagnostics, import evidence, and hidden provenance do not enter student projections.
+- `src/services/reading-v2/readingV2ResultAdapter.service.ts` - Result review must group combined Reading Passage homework by passage sections.
+- `src/services/reading-v2/readingV2ResultAdapter.service.test.ts` - Tests for single and combined Reading Passage homework result grouping.
+- `src/services/homeworkManager.ts` - Extend create/update logic for Reading Passage and Reading Passage set homework material types and snapshot fields.
+- `src/services/homeworkManager.test.ts` - Tests for homework creation payloads, assignment-time snapshot freezing, and set assignments.
+- `src/components/homework/HomeworkCreateModal.tsx` - Add Reading Passage assignment support and bulk-selected passage entry path without broad material scans.
+- `src/components/homework/HomeworkCreateModal.css` - Styling hook for Reading Passage assignment rows. Leave untouched only if existing styles need no change, and record that no-op in implementation notes.
+- `src/components/homework/HomeworkCreateModal.test.tsx` - Tests for single passage assignment, multi-passage assignment, preselected material, and no Book assignment.
+- `src/pages/StudentHomeworkListPage.tsx` - Student entry point must launch Reading Passage homework using existing student practice route safely.
+- `src/pages/StudentHomeworkListPage.test.tsx` - Tests for Reading Passage homework launch metadata.
+- `src/pages/StudentHomeworkDetailPage.tsx` - Detail page must show Reading Passage homework summary and launch action.
+- `src/pages/StudentHomeworkDetailPage.test.tsx` - Tests for Reading Passage and Reading Passage set detail behavior.
+- `src/pages/StudentPracticePage.tsx` - Runtime must handle single Reading Passage and Reading Passage set projections without Book organizer access.
+- `src/pages/StudentPracticePage.test.tsx` - Tests for projection loading and answer-key exclusion.
+- `src/pages/TestPageRouter.tsx` - Student routing boundary to verify and extend safely for Reading Passage projection kinds.
+- `src/pages/TestPageRouter.test.tsx` - Tests for routing Reading Passage homework to Reading V2 runtime.
+- `src/services/firebaseQueryOptimizer.js` - Avoid adding broad scans for new material families; only extend if targeted indexed queries are required.
+- `src/utils/teacherMaterialsDiagnostics.js` - Extend diagnostics labels without logging private content.
+- `src/utils/teacherMaterialsDiagnostics.test.js` - Tests for new diagnostic counters and no sensitive payloads.
+- `scripts/seedMaterialTestTypes.ts` - Seed/dry-run script for initial Test Types.
+- `scripts/seedMaterialTestTypes.test.ts` - Tests or dry-run validation for seed payload shape.
+
+### Notes
+
+- Root and target for this tasklist: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased` and `documentation/tasks/tasks-0052-prd-teacher-materials-books-and-reading-passage-library.md`.
+- This tasklist intentionally expands the implementation into many small steps. A junior developer must follow the order and must not invent alternate architecture, alternate data paths, alternate visual style, or missing product decisions.
+- If a task conflicts with current code, rules, or the PRD, stop and ask the product/tech lead. Do not guess.
+- Data storage decision for V1: use RTDB for Material Catalog, Test Types, Book records, Reading V2 passage/composition records, and listing indexes because Teacher Materials and Reading V2 publish/listing are already RTDB-centered. Keep Firestore for existing homework assignment documents. Do not create a parallel Firestore material catalog in V1.
+- New RTDB path family to use: `material_catalog/test_types`, `material_catalog/teacher_test_type_preferences`, `material_catalog/books`, `material_catalog/book_nodes`, `material_catalog/book_indexes`, and new Reading V2 paths under `reading_v2` through `readingV2StoragePaths.service.ts`.
+- Homework assignment documents remain in Firestore collection `homework_assignments`; add typed fields for Reading Passage assignments there rather than introducing a new homework collection.
+- Before any UI work, read `DESIGN.md`, `documentation/architecture/ui-design-standards.md`, and `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+- Before any RTDB, Firestore, or index work, read `documentation/rules/infrastructure.md`.
+- Before any new user-facing button, modal, tab, or workflow, read `documentation/rules/observability.md`.
+- Before any new reusable React component, read `documentation/rules/react-patterns.md`.
+- No new `@mantine/*` imports are allowed.
+- Do not move `TeacherHeader`. Do not wrap `TeacherHeader` in page padding. Do not move Materials subtabs or Test Type filters into `TeacherHeader`.
+- The approved visual base is PRD-0050 plus PRD-0052 V5. The implementation must look like the existing Teacher Materials product extended, not like a new mockup from scratch.
+- The PRD-0052 visual contract is: same Teacher page shell, same tab styling, same search/create toolbar language, PRD-0050 compact list rows, 4 centered logo Test Type blocks under the toolbar, and Book-tab-only cover cards.
+- The 4 Test Type blocks must remain one centered row at `375`, `768`, `848`, `1366`, `1586`, and `1920` viewport widths. Hide or compress secondary metadata before allowing a wrap.
+- Test Type blocks must use logo image areas. If the logo contains the Test Type name, do not repeat the title text in the card body.
+- The active Test Type is shown by selected-card styling only. Do not show helper pills such as `IELTS active - click again to clear`.
+- Clicking an active Test Type block again clears the filter. There is no `All` block.
+- The settings icon on a Test Type block is a small blurred top-right icon shown on hover and keyboard focus. It opens preferences/edit modal and must stop propagation so it does not toggle filtering.
+- Normal material tabs use list view only. Remove the user-facing grid/list toggle for normal browsing in this PRD.
+- `Book` tab is the only visual exception: it uses Book cover/default-name cards in a grid.
+- `Reading Passage` tab uses list rows, not cover cards.
+- `Book` and `Reading Passage` private/public scopes are inside their own tabs only. They are not the same as top-level `My Content` and `Public Library`.
+- Book is organizer/package only in V1. Do not build assign-whole-book, student Book runtime, Book progress tracking, section unlocks, marketplace purchase, or result aggregation.
+- Reading Passage is directly assignable as homework in V1.
+- No direct blank/manual `Create Reading Passage` workflow in V1. Reading Passage entities are created from Reading V2 full-test publish/import/extraction.
+- Book intro/TOC/note placeholders are stored as empty nodes now. Do not build rich page editing for placeholders in V1.
+- Book structural readiness requires at least one `section`, `chapter`, or `test` node. Placeholder-only Books stay draft.
+- Book material refs must point to published materials only in V1. Reject draft refs.
+- Use canonical `TOEFL` with alias `TOFEL`; use canonical `CEFR` with alias `CELF`.
+- For Windows tests in this repo, use command form like `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npx vitest run <paths> --reporter=basic"`.
+- Run targeted UTF-8 checks for every touched text file: `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run check:utf8 -- <paths>"`.
+
+### Resolved Implementation Contracts - No Guesswork
+
+- PRD coverage contract: before code work starts, create an implementation note mapping every PRD functional requirement, closed decision, acceptance criterion, forbidden pattern, and edge-case table row to a task id, test id, or explicit out-of-scope note. Do not start implementation while any PRD row is unmapped.
+- Teacher Materials tab placement: render `ContentTabs` as its own row below the page title/materials context and above the search/create toolbar. Do not place tabs inside `TeacherHeader`; do not inline them into the subtitle.
+- Tab state contract: tab switching preserves `searchTerm`; only direct user clearing changes it. Tab switching also preserves `activeTestTypeId`; the active Test Type filters whichever tab is active. Clicking the active Test Type block sets `activeTestTypeId` to `null`.
+- Drafts loading contract: `Drafts` must not start draft queries, draft hydration, or full draft loads until the `drafts` tab is active.
+- Admin Test Type UI contract: mount `TestTypeAdminPanel` inside `src/pages/AdminSettingsPage.tsx` as a `Test Types` section/tab on existing `/admin/settings`; do not create a new admin route.
+- Reading V2 full-test composition contract: a composition-backed full Reading test is required. Add a canonical `ReadingV2FullTestComposition` record with ordered `passageRefs[]`; new full-test metadata must point to this composition. Compatibility reads may keep old full tests working, but new V2 full-test publish/composition flow must not store duplicate passage payload as the only source of truth.
+- Reading Passage source-order contract: source order must support `numeric`, `label`, and `unknown` states. Store a structured kind, raw value, label snapshot, and display fallback. Never invent `Passage 1` when source order is unknown.
+- Reading Passage edit contract: opening/editing a published Reading Passage directly must create or open a draft revision. Live published snapshot/version remains unchanged until republish. Editing a referenced passage from inside a full test defaults to a test-specific fork/new version.
+- Reading Passage selection contract: multi-select in the `Reading Passage` tab is required in V1. The selection toolbar must expose `Assign selected` and `Create full test from selected`.
+- Reading Passage default scope: default `Reading Passage` tab scope is `Private`.
+- Reading Passage row actions contract: every row supports `Open` or `View`, `Assign homework`, selection checkbox, owner-only `Archive`, owner-only `Delete` only if existing shared material deletion with confirmation already exists, and revision/fork entry when the user can edit.
+- Reading Passage homework result contract: single-passage and set homework results must identify material kind, passage title, source order/source full-test metadata when available, assigned snapshot/version, attempt number, and existing retake/attempt policy.
+- Book navigation contract: `Open Book` navigates to a new teacher route `/teacher/materials/books/:bookId` mounted in `src/routes/teacherRoutes.tsx` and rendered by `BookEditorPage`. `Edit metadata` may open `CreateBookModal` in edit mode, but full node/ref editing belongs to `BookEditorPage`.
+- Book reorder contract: V1 uses accessible up/down and move-to controls for node and ref reorder. Do not add drag/drop behavior or a new drag/drop library in V1.
+- Book status contract: use PRD status values `draft-empty`, `draft-in-progress`, `ready`, and `archived`.
+- Book visibility contract: use PRD visibility values `private`, `public-library-pending-review`, `public-library-published`, and `public-library-rejected`. In V1, teacher public submissions become `public-library-pending-review`; only super-admin/admin seed/test data and super-admin guarded helpers can set `public-library-published`.
+- Book moderation contract: do not build full public-library moderation UI in this tasklist. Add blocked/pending data states plus super-admin guarded transition helpers/tests only. Do not let normal teachers publish directly to `public-library-published`.
+- Book node persistence contract: persist nodes as structured records keyed by `nodeId` with `parentNodeId`, `type`, `title`, `order`, material refs, and timestamps. Derive child lists in UI/service from parent ids; do not encode tree structure in strings.
+- Book node storage contract: Book metadata lives at `material_catalog/books/{bookId}`. Book node records live at `material_catalog/book_nodes/{bookId}/{nodeId}`. Book list/index rows must not embed full node trees.
+- Book tree integrity contract: validation must reject self-parenting, cycles, duplicate sibling order collisions, orphaned children, moves under descendants, depth `6+`, and imported malformed trees. UI must show repairable validation errors and keep previous valid state after rejected moves.
+- Book ref resilience contract: every material ref stores fallback display fields and availability state. Broken/inaccessible/archived source material renders as unavailable without deleting the ref or leaking private metadata. Source republish shows `update available` instead of silently rebinding assignment snapshots.
+- Book card action contract: Book cards show `Open Book`, `Edit metadata`, and owner-only `Archive/Delete` according to existing confirmed-delete patterns. Never show `Start Test` or whole-Book `Assign Homework` in V1.
+- Admin allowed material kinds contract: Test Type admin UI must expose `allowedMaterialKinds[]` editing and validation, not only define it in TypeScript.
+- Error-state contract: every new admin, Book, Reading Passage, homework, and launch surface must define loading, empty, permission-denied, validation-error, retryable-load-error, and inaccessible-snapshot states before implementation.
+- Current-branch reconciliation contract: `TeacherLobbyPage.jsx` already uses `contentFilter` for material tabs and already gates `useTeacherDrafts` with `enabled: contentFilter === 'drafts'`. Preserve those existing names/guards; do not introduce a parallel `activeTab` state.
+
+## Tasks
+
+- [x] 1.0 Lock scope, source references, and visual acceptance before implementation
+  - [x] 1.1 Read `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md` from top to bottom before writing code.
+  - [x] 1.2 Read `documentation/tasks/0052-visual-similarity-extraction-and-rebuild-plan.md` and copy its allowed/forbidden visual changes into the implementation checklist.
+  - [x] 1.3 Open and visually inspect `.superpowers/brainstorm/prd0052-20260601-023550/content/teacher-materials-prd0050-derived-v5.html`.
+  - [x] 1.4 Open the V5 screenshot evidence at `output/playwright/prd0052-visual-similarity/prd0052V5-848.png`, `prd0052V5-1366.png`, and `prd0052V5-1586.png`.
+  - [x] 1.5 Open the PRD-0050 visual artifacts listed in Relevant Files and confirm which measurements, spacing, tab treatment, toolbar treatment, and list-row treatment must be reused.
+  - [x] 1.6 Read `DESIGN.md` if present. If absent, record `DESIGN.md absent` in implementation notes and continue.
+  - [x] 1.7 Read `documentation/architecture/ui-design-standards.md`.
+  - [x] 1.8 Read `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+  - [x] 1.9 Read `documentation/architecture/teacher-materials-list-view-contract.md`.
+  - [x] 1.10 Read `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
+  - [x] 1.11 Read `documentation/rules/infrastructure.md` before defining any DB paths or rules.
+  - [x] 1.12 Read `documentation/rules/observability.md` before adding UI actions or modals.
+  - [x] 1.13 Read `documentation/rules/react-patterns.md` before creating new components.
+  - [x] 1.14 Inspect current `src/pages/TeacherLobbyPage.jsx`, `TeacherLobbyPage.css`, `ContentTabs`, `SearchFilterBar`, `MaterialListView`, `MaterialListRow`, and `materialListAdapter`.
+  - [x] 1.15 Create a local implementation note with the exact visual locks: PRD-0050 shell, existing tab style, existing toolbar style, PRD-0050 list rows, 4 one-row logo Test Type blocks, no helper filter pill, Book cover grid only in Book tab.
+  - [x] 1.16 Confirm no task requires moving `TeacherHeader`; if any proposed change touches `TeacherHeader`, stop and ask for lead approval.
+  - [x] 1.17 Confirm no task requires direct Book assignment, manual Reading Passage creation, student Book runtime, or marketplace/public sales. These are out of scope.
+  - [x] 1.18 Create `documentation/tasks/PRD0052/prd0052-implementation-coverage-matrix.md` before code work. Map every PRD functional requirement, acceptance criterion, forbidden pattern, and edge case to a task id and planned test. Any unmapped row blocks implementation.
+  - [x] 1.19 Reconcile current branch progress before implementation: `TeacherLobbyPage.jsx` already uses `contentFilter` for material tabs and already gates `useTeacherDrafts` with `enabled: contentFilter === 'drafts'`. Preserve these existing mechanisms and record any already-satisfied subtasks in implementation notes instead of rebuilding them.
+
+- [x] 2.0 Add feature flags, shared types, and storage path helpers
+  - [x] 2.1 In `src/config/readingV2FeatureFlags.ts`, follow the existing pattern: define `*_MODES` const objects, `normalize*` helpers, exported normalized constants that read `import.meta.env.VITE_*`, and boolean helper predicates where needed.
+  - [x] 2.2 Add flags or rollout modes for `teacherMaterialsTestTypeBlocks`, `adminConfigurableTestTypes`, `readingPassageLibrary`, `readingPassageHomework`, `materialBooks`, and `materialBookEditor`. Use explicit `VITE_` env names and document each default.
+  - [x] 2.3 Set default flag behavior so existing production behavior remains unchanged until flags are enabled.
+  - [x] 2.4 Add tests in `src/config/readingV2FeatureFlags.test.ts` for default values, enabled env values, disabled env values, invalid env values, and helper predicates.
+  - [x] 2.5 Create `src/types/materialCatalog.types.ts`.
+  - [x] 2.6 Define `MaterialTestTypeId` as a branded string or clearly typed string alias.
+  - [x] 2.7 Define `MaterialTestTypeConfig` with fields: `testTypeId`, `canonicalKey`, `label`, `shortLabel`, `aliases`, `active`, `teacherSelectable`, `displayOrder`, `defaultPinnedRank`, `readingSourceOrderLabel`, `readingSourceOrderLabelPlural`, `logoUrl`, `logoAlt`, `colorToken`, `iconToken`, `allowedMaterialKinds`, `createdAt`, `updatedAt`, `updatedBy`.
+  - [x] 2.8 Define `TeacherTestTypePreference` with fields: `teacherId`, `pinnedTestTypeIds`, `updatedAt`, `updatedBy`.
+  - [x] 2.9 Define `ReadingPassageVisibilityScope` as `private | public` and `MaterialBookVisibility` as `private | public-library-pending-review | public-library-published | public-library-rejected`.
+  - [x] 2.10 Define `MaterialBookStatus` as `draft-empty | draft-in-progress | ready | archived`.
+  - [x] 2.11 Define `MaterialBookMetadata` with fields: `bookId`, `ownerId`, `title`, `subtitle`, `authors`, `publisher`, `edition`, `series`, `isbn`, `coverUrl`, `primaryTestTypeId`, `testTypeIds`, `tags`, `description`, `visibility`, `status`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`.
+  - [x] 2.12 Define `MaterialBookNodeType` as `intro-placeholder | toc-placeholder | note-placeholder | section | chapter | test`.
+  - [x] 2.13 Define `MaterialBookNode` with fields: `nodeId`, `bookId`, `parentNodeId` (`null` for root), `type`, `title`, `order`, `materialRefs`, `createdAt`, and `updatedAt`. Derive children from `parentNodeId`; do not persist duplicate nested children arrays as the source of truth.
+  - [x] 2.14 Define `MaterialBookMaterialRef` with fields: `refId`, `materialId`, `materialKind`, `snapshotVersionId`, `titleSnapshot`, `testTypeIdsSnapshot`, `visibilitySnapshot`, `availability`, `updateState`, `order`, `addedAt`, and `addedBy`.
+  - [x] 2.15 Define `ReadingPassageListScope` as `private | public` and `BookListScope` as `private | public`.
+  - [x] 2.16 In `src/types/readingV2.types.ts`, add `ReadingV2ReadingPassageMaterialId` and branded IDs for passage compositions and passage refs.
+  - [x] 2.17 Define `ReadingV2ReadingPassageMaterial` with one stimulus/passage, task groups, interactions/questions, scoring/answer key in canonical or snapshot-safe location, metadata, structured source order (`numeric | label | unknown`), owner, visibility, state, current snapshot/version, and provenance.
+  - [x] 2.18 Define `ReadingV2PassageRef` with `refId`, `passageMaterialId`, `snapshotVersionId`, `order`, `sourcePassageNumber`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `titleSnapshot`, `questionRangeSnapshot`, `questionCountSnapshot`, `durationSnapshot`, and `testTypeIdsSnapshot`.
+  - [x] 2.19 Add required `ReadingV2FullTestComposition` with `compositionId`, `testMaterialId`, `title`, `primaryTestTypeId`, `testTypeIds`, `skill`, `passageRefs[]`, `questionCount`, `durationMinutes`, `visibility`, `ownerId`, `publishedVersionId`, `createdAt`, and `updatedAt`. New V2 full tests must reference this composition; compatibility reads only support legacy rows.
+  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows use `material_catalog/material_indexes`.
+  - [x] 2.21 Keep existing Reading V2 projection helpers for `studentSafeTests`, `sessionSafePayloads`, and `reviewProjections`; add only the new passage/composition helpers above unless tests prove a missing path class.
+  - [x] 2.22 Add storage path tests in `readingV2StoragePaths.service.test.ts`, including assertions that new paths stay under `reading_v2/` and do not overlap legacy path prefixes.
+  - [x] 2.23 Create `src/services/materialCatalog/materialCatalogPaths.ts`.
+  - [x] 2.24 Add helpers for `material_catalog/test_types/{testTypeId}`.
+  - [x] 2.25 Add helpers for `material_catalog/teacher_test_type_preferences/{teacherId}`.
+  - [x] 2.26 Add helpers for `material_catalog/books/{bookId}`.
+  - [x] 2.27 Add helpers for `material_catalog/book_nodes/{bookId}/{nodeId}`.
+  - [x] 2.28 Add helpers for `material_catalog/book_indexes/by_owner/{ownerId}/{bookId}`, `by_visibility/{visibility}/{bookId}`, and `by_test_type/{testTypeId}/{bookId}`.
+  - [x] 2.29 Add helper tests in `materialCatalogPaths.test.ts`.
+
+- [x] 3.0 Implement admin-configurable Test Types and teacher pinned preferences
+  - [x] 3.1 Create `src/services/materialCatalog/testTypeConfig.service.ts`.
+  - [x] 3.2 Implement `normalizeTestTypeLabel(value)` so aliases resolve case-insensitively and trim whitespace.
+  - [x] 3.3 Seed or return canonical Test Types for `IELTS`, `TOEIC`, `TOEFL`, `THCS`, `THPT`, and `CEFR`.
+  - [x] 3.4 Ensure `TOFEL` resolves to canonical `TOEFL`.
+  - [x] 3.5 Ensure `CELF` resolves to canonical `CEFR`.
+  - [x] 3.6 Implement read API `listActiveTestTypes()` from RTDB `material_catalog/test_types`.
+  - [x] 3.7 Implement read API `listTeacherSelectableTestTypes()` that excludes inactive or non-selectable types for new material creation.
+  - [x] 3.8 Implement read API `getTestTypeById(testTypeId)` with fallback rendering for inactive referenced Test Types.
+  - [x] 3.9 Implement super-admin-only write API `createTestType(config)`.
+  - [x] 3.10 Implement super-admin-only write API `updateTestType(testTypeId, updates)`.
+  - [x] 3.11 Implement super-admin-only write API `deactivateTestType(testTypeId)` that sets `active=false` and never deletes the record.
+  - [x] 3.12 Implement super-admin-only write API `setDefaultPinnedTestTypes(testTypeIds)` by assigning `defaultPinnedRank` values `1` through `4` to real active Test Types only.
+  - [x] 3.13 Implement validation that `canonicalKey`, `label`, `shortLabel`, `readingSourceOrderLabel`, `readingSourceOrderLabelPlural`, and `logoAlt` are non-empty.
+  - [x] 3.14 Implement validation that `logoUrl` is either empty or a URL/asset path accepted by the existing app asset policy. Do not build a file uploader unless an existing upload service is already available and approved.
+  - [x] 3.15 Implement validation that `displayOrder` is numeric and stable.
+  - [x] 3.16 Implement validation that `aliases` cannot collide with another active Test Type canonical label or alias.
+  - [x] 3.17 Create `src/services/materialCatalog/teacherTestTypePreferences.service.ts`.
+  - [x] 3.18 Implement `getPinnedTestTypesForTeacher(teacherId)` returning teacher preference if valid, otherwise admin default top 4, otherwise first active Test Types by display order.
+  - [x] 3.19 If fewer than 4 active Test Types exist, return only available real types. Do not create fake placeholder blocks.
+  - [x] 3.20 If a teacher-pinned Test Type becomes inactive, replace it with next admin default active Test Type and include a non-sensitive warning state for the preference modal.
+  - [x] 3.21 Implement `savePinnedTestTypesForTeacher(teacherId, testTypeIds)` with exactly 4 real active Test Type ids when 4 or more active Test Types exist.
+  - [x] 3.22 Add unit tests for normalization, alias resolution, deactivation behavior, default top 4, teacher preference fallback, inactive preference fallback, and fewer-than-4 active types.
+  - [x] 3.23 Update `database.rules.json` so authenticated users can read `material_catalog/test_types`.
+  - [x] 3.24 Update `database.rules.json` so only `super_admin` can write `material_catalog/test_types`.
+  - [x] 3.25 Update `database.rules.json` so a teacher can read/write only their own `material_catalog/teacher_test_type_preferences/{teacherId}` and `super_admin` can read/write all.
+  - [x] 3.26 Add `.indexOn` fields needed for Test Type active/display order queries.
+  - [x] 3.27 Add or update admin route/component tests so only `super_admin` sees Test Type management.
+
+- [x] 4.0 Extend Reading V2 material metadata and Material Catalog indexes for Reading Passage and composition-based full tests
+  - [x] 4.1 In `src/services/reading-v2/readingV2MaterialMetadata.service.ts`, extend `ReadingV2MaterialKind` to include `reading-passage` and `reading-v2-full-test-composition`.
+  - [x] 4.2 Add metadata fields `testTypeIds`, `primaryTestTypeId`, `sourceFullTestId`, `sourceSnapshotVersionId`, `sourceOrderKind`, `sourceOrderValue`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `sourceQuestionRange`, `sourceTitleSnapshot`, `durationMinutes`, and `visibility`.
+  - [x] 4.3 Keep answer keys, import evidence, author diagnostics, and hidden provenance out of list metadata.
+  - [x] 4.4 Update metadata derivation so a Reading Passage title defaults to source title plus source order display when title is missing.
+  - [x] 4.5 Use Test-Type-configured source order label. Do not hardcode `Passage` for every Test Type.
+  - [x] 4.6 Support non-IELTS source order labels such as `Part` or `Section`.
+  - [x] 4.7 Add unit tests for IELTS source order display, non-IELTS source order display, missing Test Type, inactive Test Type, and missing source order.
+  - [x] 4.8 Create `src/services/materialCatalog/materialCatalogIndexes.service.ts`.
+  - [x] 4.9 Implement index write helpers for material summaries by owner, visibility, Test Type, material kind, and source full test.
+  - [x] 4.10 Implement index cleanup helpers so old index entries are removed when visibility, Test Type, owner, or material kind changes.
+  - [x] 4.11 Use boolean fanout indexes for multi Test Type membership. Do not rely on RTDB array contains queries.
+  - [x] 4.12 Add tests for index writes with multiple Test Types.
+  - [x] 4.13 Add tests for inactive Test Type rendering without new selection.
+  - [x] 4.14 Update `database.rules.json` for new Reading V2 paths and listing indexes.
+  - [x] 4.15 Ensure `student_safe_tests` projections remain readable by students only through sanitized projection paths, not canonical Reading Passage materials.
+  - [x] 4.16 Add rule validation that canonical Reading Passage records require `ownerId`, `materialId`, `state`, and version fields.
+  - [x] 4.17 Add rule validation that student-safe projections do not contain `answerKeys`, `scoringRule`, `authorDiagnostics`, `importEvidence`, or `hiddenProvenance`.
+
+- [x] 5.0 Build Reading Passage extraction from Reading V2 full-test publish/import
+  - [x] 5.1 Create `src/services/reading-v2/readingV2PassageExtraction.service.ts` as a pure service with no Firebase writes.
+  - [x] 5.2 Input must be a Reading V2 document or publish package plus Test Type config.
+  - [x] 5.3 Detect each source passage/stimulus and the task groups/questions belonging to it.
+  - [x] 5.4 For each extracted passage, output a `ReadingV2ReadingPassageMaterial` draft/published candidate with one passage/stimulus, its task groups/questions, scoring/answer key, and source metadata.
+  - [x] 5.5 Store `sourceOrderKind` as `numeric`, `label`, or `unknown`.
+  - [x] 5.6 Store `sourceOrderValue` as number for numeric order, string for non-numeric labels such as `A`, and `null` for unknown.
+  - [x] 5.7 Store display label snapshot such as `Passage 1`, `Part 2`, `Section A`, or `Section unknown`.
+  - [x] 5.8 Store source question range such as `1-13`, `14-26`, or `27-40` when detectable.
+  - [x] 5.9 Store source full test id and source snapshot/version id.
+  - [x] 5.10 Store source title/book/test label if available.
+  - [x] 5.11 Preserve hidden provenance for teacher/admin diagnostics only. Do not expose it in student-safe projections.
+  - [x] 5.12 If a full test contains multiple passages, return multiple Reading Passage entities and one full-test composition manifest.
+  - [x] 5.13 If a full test contains one passage, return one Reading Passage entity and a composition manifest with one ref.
+  - [x] 5.14 If passage boundaries are ambiguous, block publish with a clear validation issue. Do not silently merge passages.
+  - [x] 5.15 If answer keys are missing for a passage, preserve questions but mark publish validation warning/error according to existing Reading V2 publish rules.
+  - [x] 5.16 If Test Type is missing, allow save as private draft metadata but block public/library eligibility until Test Type is set.
+  - [x] 5.17 Add tests for a 3-passage IELTS full test.
+  - [x] 5.18 Add tests for a non-IELTS test using `Part` or `Section` source labels.
+  - [x] 5.19 Add tests for non-numeric source order such as `Section A`.
+  - [x] 5.20 Add tests for unknown source order display fallback.
+  - [x] 5.21 Add tests for missing passage boundary.
+  - [x] 5.22 Add tests for missing answer key.
+  - [x] 5.23 Add tests for source question range extraction.
+  - [x] 5.24 Add tests proving extraction does not mutate the input document.
+
+- [x] 6.0 Update Reading V2 publish pipeline to write Reading Passage entities and full-test composition refs
+  - [x] 6.1 In `readingV2PublishPipeline.service.ts`, add a publish step after validation and before commit that creates/updates Reading Passage entities from the full-test document.
+  - [x] 6.2 Ensure the publish operation is atomic from the app perspective: if any Reading Passage write fails, full-test publish must roll back or not commit partial index state.
+  - [x] 6.3 In `readingV2FirebasePublishAdapter.service.ts`, write Reading Passage canonical entities under the new Reading V2 path.
+  - [x] 6.4 Write published snapshots for each Reading Passage version.
+  - [x] 6.5 Write student-safe projections for each Reading Passage.
+  - [x] 6.6 Write review projections for each Reading Passage where teacher review needs answer/scoring access.
+  - [x] 6.7 Write material metadata for each Reading Passage.
+  - [x] 6.8 Write Material Catalog material index rows for owner, visibility, Test Type, material kind, and source full test.
+  - [x] 6.9 Write a full-test composition record containing ordered `passageRefs[]`.
+  - [x] 6.10 Update the existing full-test material row so it calls passage refs rather than becoming the only storage copy of passage content.
+  - [x] 6.11 Preserve existing full-test runtime behavior for current users.
+  - [x] 6.12 For old full tests without `passageRefs[]`, support a compatibility read path until migration/backfill completes.
+  - [x] 6.13 Add publish commit logs listing every new write path.
+  - [x] 6.14 Add tests that two full tests can reference the same Reading Passage version.
+  - [x] 6.15 Add tests that editing a shared Reading Passage from inside one test defaults to fork/new version for that test only.
+  - [x] 6.16 Add tests that shared-source edit requires explicit action and updates only selected consumers.
+  - [x] 6.17 Add tests that a full test can show `newer version available` when a referenced passage has a newer version.
+  - [x] 6.18 Add tests that no student-safe projection contains answer keys, scoring rules, diagnostics, import evidence, or hidden provenance.
+  - [x] 6.19 Add standalone Reading Passage revision service behavior: opening a published Reading Passage for edit creates or resumes a draft revision and never mutates the live published version.
+  - [x] 6.20 Add tests for standalone published Reading Passage revision, republish, and live-version preservation.
+
+- [x] 7.0 Implement Reading Passage library service and Teacher Materials `Reading Passage` tab data loading
+  - [x] 7.1 Create `src/services/reading-v2/readingV2PassageLibrary.service.ts`.
+  - [x] 7.2 Implement `listTeacherReadingPassages({ teacherId, scope, searchTerm, testTypeId })`.
+  - [x] 7.3 For `scope=private`, return teacher-owned private Reading Passage records.
+  - [x] 7.4 For `scope=public`, return public/library-eligible Reading Passage records only.
+  - [x] 7.5 Keep this private/public scope inside the `Reading Passage` tab only. Do not map it to top-level `My Content` or `Public Library`.
+  - [x] 7.6 Use listing indexes and metadata summaries. Do not scan canonical snapshots or full `/tests`.
+  - [x] 7.7 Add search over summary fields only: title, tags, Test Type labels, source title, and source order display.
+  - [x] 7.8 Combine search and active Test Type filter with AND semantics.
+  - [x] 7.9 Return list view models or raw summaries suitable for `materialListAdapter`.
+  - [x] 7.10 Include row fields: title, Test Type, question count, duration/time guidance if present, updated date, visibility, source order display, source full test title if present.
+  - [x] 7.11 Include row actions: open/view, assign as homework, select checkbox, create full Reading test from selected through the selection toolbar, edit/revise/fork if permitted, archive if owner, and delete only when the existing shared material delete pattern supports owner-guarded confirmation.
+  - [x] 7.12 Exclude Reading Passage records from normal `My Content` rows.
+  - [x] 7.13 Exclude Reading Passage records from top-level `Public Library` rows in V1 unless PRD explicitly changes.
+  - [x] 7.14 Add tests for private scope listing.
+  - [x] 7.15 Add tests for public scope listing.
+  - [x] 7.16 Add tests for Test Type filter.
+  - [x] 7.17 Add tests for search AND Test Type behavior.
+  - [x] 7.18 Add tests for inactive Test Type metadata rendering.
+  - [x] 7.19 Add tests proving canonical content is not loaded for list rows.
+
+- [x] 8.0 Implement Book data service, validation, indexes, and security
+  - [x] 8.1 Create `src/services/materialCatalog/bookValidation.service.ts`.
+  - [x] 8.2 Implement validation for required Book fields: title, ownerId, PRD Book visibility value, PRD Book status value, and `testTypeIds[]`.
+  - [x] 8.3 Allow empty draft Book creation when title and at least one Test Type id are present.
+  - [x] 8.4 Allow empty draft Book to be saved and edited later.
+  - [x] 8.5 Mark Book structurally ready only when at least one `section`, `chapter`, or `test` node exists.
+  - [x] 8.6 Keep placeholder-only Books in draft status even if intro/TOC/note placeholders exist.
+  - [x] 8.7 Allow node types `intro-placeholder`, `toc-placeholder`, `note-placeholder`, `section`, `chapter`, and `test`.
+  - [x] 8.8 Enforce max tree depth 5 with root depth 1.
+  - [x] 8.9 Allow all node types to contain child nodes and material refs.
+  - [x] 8.10 Reject self-parenting, cycles, duplicate sibling order collisions, orphaned children, missing parent refs, and moves that place a node under its own descendant.
+  - [x] 8.11 Reject add/import/move/save operations that create depth 6 or deeper.
+  - [x] 8.12 Reject material refs to drafts in V1.
+  - [x] 8.13 Allow the same material to appear multiple times by requiring unique `refId` per placement.
+  - [x] 8.14 Validate that `public-library-pending-review` and `public-library-published` Books cannot include private or non-shareable material refs.
+  - [x] 8.15 Validate that only super-admin/admin seed/test paths can set `public-library-published` unless moderation UI is implemented.
+  - [x] 8.16 Validate that Book `testTypeIds[]` contains active or previously valid Test Types and handles inactive render-only types.
+  - [x] 8.17 Create `src/services/materialCatalog/materialBooks.service.ts`.
+  - [x] 8.18 Implement `createBookDraft(input)` writing Book metadata to `material_catalog/books/{bookId}` and writing any initial nodes to `material_catalog/book_nodes/{bookId}/{nodeId}`.
+  - [x] 8.19 Implement `updateBookMetadata(bookId, updates)` for title, subtitle, authors, publisher, edition, series, isbn, coverUrl, Test Types, tags, description, visibility, and status.
+  - [x] 8.20 Implement `updateBookTree(bookId, nodes)` against `material_catalog/book_nodes/{bookId}/{nodeId}` with revision token or updatedAt conflict check.
+  - [x] 8.21 Implement `listTeacherBooks({ teacherId, scope, searchTerm, testTypeId })`.
+  - [x] 8.22 For `scope=private`, return teacher-owned private Books.
+  - [x] 8.23 For `scope=public`, return `public-library-pending-review`, `public-library-published`, and `public-library-rejected` Books visible to that teacher; normal teachers should not see private metadata from other owners.
+  - [x] 8.24 Keep Book private/public scope inside the `Book` tab only. Do not mix public Books into top-level `Public Library`.
+  - [x] 8.25 Use indexes for owner, visibility, and Test Type filtering.
+  - [x] 8.26 Search Book summaries by title, subtitle, authors, publisher, series, tags, and Test Type labels.
+  - [x] 8.27 Add Book index writes for owner, visibility, and every Test Type id.
+  - [x] 8.28 Clean old Book index entries when visibility or Test Types change.
+  - [x] 8.29 Add unit tests for create empty Book.
+  - [x] 8.30 Add unit tests for multi Test Type Book filtering.
+  - [x] 8.31 Add unit tests for placeholder-only draft status.
+  - [x] 8.32 Add unit tests for structural readiness.
+  - [x] 8.33 Add unit tests for duplicate material placement with unique `refId`.
+  - [x] 8.34 Add unit tests for rejecting draft refs.
+  - [x] 8.35 Add unit tests for public Book private-ref prevention.
+  - [x] 8.36 Add unit tests for self-parenting, cycles, duplicate sibling order collisions, orphaned child nodes, descendant moves, and depth 6 rejection.
+  - [x] 8.37 Add unit tests for `public-library-pending-review`, `public-library-published`, `public-library-rejected`, and super-admin-only publish transition.
+  - [x] 8.38 Update `database.rules.json` for `material_catalog/books` so owners and super admins can read/write private Books.
+  - [x] 8.39 Update `database.rules.json` so authenticated teachers can read public Books without private ref leakage.
+  - [x] 8.40 Update `database.rules.json` so students cannot read Book organizers in V1.
+  - [x] 8.41 Update `database.rules.json` validation for `material_catalog/books`, `material_catalog/book_nodes`, required Book/node fields, PRD status/visibility values, tree integrity where rules can validate it, and index paths.
+
+- [x] 9.0 Refactor Teacher Materials listing state for tabs, list-only normal browsing, and filter semantics
+  - [x] 9.1 In `TeacherLobbyPage.jsx`, verify and preserve existing `contentFilter` tab state with canonical ids exactly `my`, `public`, `drafts`, `reading-passage`, and `book`. Do not introduce a parallel `activeTab` state.
+  - [x] 9.2 Keep visible labels exactly `My Content`, `Public Library`, `Drafts`, `Reading Passage`, and `Book`.
+  - [x] 9.3 Ensure `ContentTabs` renders the new labels using the existing tab styling from PRD-0050/current app.
+  - [x] 9.4 Render tabs as their own row below the page title/materials context and above the search/create toolbar, using existing `ContentTabs` styling.
+  - [x] 9.5 Remove the user-facing grid/list toggle from normal material browsing.
+  - [x] 9.6 Keep normal material tabs list-only below the Test Type module.
+  - [x] 9.7 Keep `Drafts` behavior compatible with current draft flow and preserve the inactive-load guard so draft queries/hydration run only when `contentFilter === 'drafts'`.
+  - [x] 9.8 Add state for `activeTestTypeId` with `null` meaning all.
+  - [x] 9.9 Implement click on Test Type block body: if inactive, set `activeTestTypeId`; if already active, set it to `null`.
+  - [x] 9.10 Do not render an `All` Test Type block.
+  - [x] 9.11 Do not render helper text or a filter pill for the active Test Type.
+  - [x] 9.12 Combine `searchTerm` and `activeTestTypeId` with AND semantics for every applicable tab.
+  - [x] 9.13 On tab change, always preserve `searchTerm` until the user clears it.
+  - [x] 9.14 On tab change, always preserve `activeTestTypeId`; the selected Test Type filters the new active tab until the teacher clicks the active block again to clear it.
+  - [x] 9.15 Ensure `Reading Passage` data does not appear in `My Content`.
+  - [x] 9.16 Ensure `Book` data does not appear in `My Content`.
+  - [x] 9.17 Ensure public Reading Passages and public Books do not appear in top-level `Public Library` in V1.
+  - [x] 9.18 Update empty states for each tab with concise existing-product language. Do not add instructional paragraphs explaining the feature.
+  - [x] 9.19 Add page-level tests for each tab's content source.
+  - [x] 9.20 Add page-level tests for active Test Type click and click-again clear.
+  - [x] 9.21 Add page-level tests that no helper filter pill is rendered.
+  - [x] 9.22 Add page-level tests that Book tab create button says `Create New Book`.
+  - [x] 9.23 Add page-level tests that non-Book tabs do not show `Create New Book`.
+
+- [x] 10.0 Implement the 4-block Test Type module with approved mockup design
+  - [x] 10.1 Create `src/components/modern/TestTypeBlockModule.jsx`.
+  - [x] 10.2 Create `src/components/modern/TestTypeBlockModule.css`.
+  - [x] 10.3 Render the module under the search/create toolbar and above the list or Book grid.
+  - [x] 10.4 Render up to 4 blocks from teacher pinned preferences.
+  - [x] 10.5 If teacher preferences are missing, render admin default top 4.
+  - [x] 10.6 If fewer than 4 active Test Types exist, render only real active Test Types and keep the row centered.
+  - [x] 10.7 Each block must have a logo/cover area above compact metadata/chips, matching the Book card visual language.
+  - [x] 10.8 Use high-resolution `logoUrl` when available.
+  - [x] 10.9 Use `logoAlt` for accessible image text.
+  - [x] 10.10 Use approved bundled fallback or compact text badge only when no logo exists.
+  - [x] 10.11 If logo already contains Test Type name, do not render repeated title text in the card body.
+  - [x] 10.12 Render compact metadata such as material count and skill chip only if available from indexed summaries.
+  - [x] 10.13 Hide or compress secondary metadata before allowing the one-row layout to wrap.
+  - [x] 10.13a Use `shortLabel` for long Test Type labels in the 4-block module.
+  - [x] 10.13b Truncate long Test Type labels with ellipsis and an accessible full-label title/tooltip where visible text can overflow.
+  - [x] 10.14 Use selected-card styling for active Test Type.
+  - [x] 10.15 Use keyboard-accessible button semantics for each block body.
+  - [x] 10.16 Add a top-right settings icon button inside each block.
+  - [x] 10.17 Settings icon must be visually subtle, blurred/frosted, and visible on hover and keyboard focus.
+  - [x] 10.18 Settings icon must have accessible name such as `Edit pinned Test Types`.
+  - [x] 10.19 Settings icon click must call `event.stopPropagation()` and must not toggle the active filter.
+  - [x] 10.20 Settings icon opens `TestTypePreferenceModal`.
+  - [x] 10.21 Do not use decorative gradient orbs, marketing hero cards, or new page background styling.
+  - [x] 10.22 Do not alter `TeacherHeader` or top navigation.
+  - [x] 10.23 Add tests that block body toggles filter.
+  - [x] 10.24 Add tests that clicking active block clears filter.
+  - [x] 10.25 Add tests that settings icon opens modal without changing filter.
+  - [x] 10.26 Add tests for fallback logo behavior.
+  - [x] 10.27 Add tests that only real Test Types render and no `All` block exists.
+  - [x] 10.28 Add tests for keyboard focus showing settings icon.
+  - [x] 10.29 Add CSS/layout tests or browser QA notes proving one-row behavior at `375`, `768`, `848`, `1366`, `1586`, and `1920`.
+
+- [x] 11.0 Implement Test Type preference modal and admin Test Type panel
+  - [x] 11.1 Create `src/components/modern/TestTypePreferenceModal.jsx`.
+  - [x] 11.2 Modal opens from any Test Type block settings icon.
+  - [x] 11.3 Modal lists active teacher-selectable Test Types only.
+  - [x] 11.4 Modal shows currently pinned 4 choices in order.
+  - [x] 11.5 Allow reorder of the 4 pinned choices with accessible controls. Drag-and-drop may be added only if keyboard controls also exist.
+  - [x] 11.6 Allow replacing a pinned Test Type with another active Test Type.
+  - [x] 11.7 Prevent saving duplicate pinned Test Types.
+  - [x] 11.8 Prevent saving fewer or more than 4 when at least 4 active Test Types exist.
+  - [x] 11.9 If fewer than 4 active Test Types exist, explain this only in modal microcopy and save all available types.
+  - [x] 11.10 Show inactive pinned Test Types as unavailable and require replacement before save when enough active alternatives exist.
+  - [x] 11.11 Save via `teacherTestTypePreferences.service.ts`.
+  - [x] 11.12 After save, close modal and refresh visible 4-block row.
+  - [x] 11.13 Create `src/components/admin/TestTypeAdminPanel.tsx`.
+  - [x] 11.14 Add admin UI entry in `src/pages/AdminSettingsPage.tsx` as a `Test Types` section under existing `/admin/settings`.
+  - [x] 11.14a Extend `activeSection` union from `'api_keys' | 'tags' | 'reporting'` to include `'test_types'`.
+  - [x] 11.14b Add a nav `Button` beside API Keys/Tags/Reporting with `variant={activeSection === 'test_types' ? 'primary' : 'glass'}`, `aria-label="Show Test Types settings section"`, and `onClick={() => setActiveSection('test_types')}`.
+  - [x] 11.14c Add conditional render branch `activeSection === 'test_types' ? <TestTypeAdminPanel /> : ...` before the API key fallback branch.
+  - [x] 11.15 Show Test Type records with canonical key, label, short label, aliases, singular/plural source-order labels, logo URL, active state, teacher-selectable state, display order, default pinned rank, color token, icon token, and allowed material kinds.
+  - [x] 11.16 Add create/edit modal or inline editor using existing admin design patterns.
+  - [x] 11.17 Super admin can create Test Type records.
+  - [x] 11.18 Super admin can edit label fields, aliases, active state, teacher-selectable state, display order, default pinned rank, singular/plural source-order labels, logo URL, logo alt, color token, icon token, and `allowedMaterialKinds[]`.
+  - [x] 11.19 Super admin can deactivate Test Types but cannot delete records in V1.
+  - [x] 11.20 Teacher admins and normal teachers cannot see mutating Test Type controls.
+  - [x] 11.21 Add observability tracking for preference modal open/save/cancel and admin Test Type create/edit/deactivate.
+  - [x] 11.22 Add tests for teacher preference modal.
+  - [x] 11.23 Add tests for super-admin-only panel rendering and write calls.
+  - [x] 11.24 Add tests for non-super-admin blocked behavior.
+  - [x] 11.25 Add tests that `allowedMaterialKinds[]` can be edited, saved, validated, and rendered back in `TestTypeAdminPanel`.
+
+- [x] 12.0 Implement Reading Passage tab UI, row actions, and homework assignment entry
+  - [x] 12.1 Extend `materialListAdapter.js` with `toReadingPassageRowModel(record, testTypeConfig)`.
+  - [x] 12.2 Reading Passage rows must show title, source order display, source full test title if present, Test Type chip, question count, duration/time guidance if present, updated date, visibility chip, and actions.
+  - [x] 12.3 Reading Passage rows must use `MaterialListView` and `MaterialListRow`; do not create card rows.
+  - [x] 12.4 Add `Private | Public` scope control visible only inside `Reading Passage` tab.
+  - [x] 12.5 Scope control must not change top-level `My Content` or `Public Library` tab.
+  - [x] 12.6 Default Reading Passage scope is `Private`.
+  - [x] 12.7 Add row action `Open` or `View` for every Reading Passage row.
+  - [x] 12.8 Add row action `Assign homework` for each Reading Passage.
+  - [x] 12.9 Add owner-only row action `Archive`.
+  - [x] 12.10 Add owner-only row action `Delete` only when existing shared material delete flow already provides confirmation and ownership guard; otherwise omit hard delete and keep archive as the destructive V1 action.
+  - [x] 12.11 Add edit/revision entry for owned published Reading Passages; it must create/open a draft revision, not mutate live published content.
+  - [x] 12.12 Add required multi-select checkboxes for Reading Passage rows.
+  - [x] 12.13 Add selection toolbar actions `Assign selected` and `Create full test from selected`.
+  - [x] 12.14 Bulk-selected Reading Passages can create one combined homework set.
+  - [x] 12.15 Bulk-selected Reading Passages can create a reusable full Reading test composition.
+  - [x] 12.16 Do not add blank/manual `Create Reading Passage` CTA.
+  - [x] 12.17 The main create button must not say `Create New Reading Passage` in V1.
+  - [x] 12.18 When no Reading Passages exist, show a concise empty state telling the teacher that passages will appear after Reading V2 full tests are published/imported. Keep it short and product-like.
+  - [x] 12.19 Add tests for row metadata.
+  - [x] 12.20 Add tests for private/public scope separation.
+  - [x] 12.21 Add tests for no manual create CTA.
+  - [x] 12.22 Add tests for open/view action.
+  - [x] 12.23 Add tests for standalone edit opening draft revision.
+  - [x] 12.24 Add tests for archive/delete action visibility by ownership.
+  - [x] 12.25 Add tests for single assign action opening HomeworkCreateModal with preselected Reading Passage.
+  - [x] 12.26 Add tests for bulk assign action with selected Reading Passages.
+  - [x] 12.27 Add tests for create full test from selected Reading Passages.
+
+- [x] 13.0 Implement Reading Passage homework creation, runtime launch, and result review
+  - [x] 13.1 Extend `src/types/homework.types.ts` material type union with `reading-passage` and `reading-passage-set`.
+  - [x] 13.2 Add optional `readingPassageSnapshot` field for single Reading Passage homework with `passageMaterialId`, `snapshotVersionId`, title snapshot, question count, Test Type ids, and source order display.
+  - [x] 13.3 Add optional `readingPassageSet` field for combined Reading Passage homework with ordered items, each frozen to assignment-time `snapshotVersionId`.
+  - [x] 13.4 In `homeworkManager.ts`, update `CreateHomeworkInput` for Reading Passage fields.
+  - [x] 13.5 For single Reading Passage homework, set `materialId` to the passage material id and `materialType` to `reading-passage`.
+  - [x] 13.6 For combined Reading Passage set homework, generate the Firestore homework doc id first, then set `materialId` to a stable assignment-only id such as `reading-passage-set:{homeworkId}` and `materialType` to `reading-passage-set`.
+  - [x] 13.7 Freeze every selected Reading Passage to a published snapshot/version at assignment creation.
+  - [x] 13.8 Reject assignment if any selected Reading Passage is unpublished, archived, inaccessible, or missing a student-safe projection.
+  - [x] 13.9 Update `HomeworkCreateModal.tsx` so a preselected Reading Passage bypasses broad material scans and loads only the selected passage summary.
+  - [x] 13.10 Update `HomeworkCreateModal.tsx` so a Reading Passage set can be passed in from the Reading Passage tab selection.
+  - [x] 13.11 Do not add Books to HomeworkCreateModal material choices in V1.
+  - [x] 13.12 Update Firestore rules to allow the new typed fields and keep teacher ownership checks.
+  - [x] 13.13 Update student homework list/detail pages to display Reading Passage and Reading Passage set summaries.
+  - [x] 13.14 Update launch integration so single Reading Passage homework loads its student-safe projection.
+  - [x] 13.15 Update launch integration so Reading Passage set homework loads ordered student-safe projections and presents one homework item with multiple passage sections.
+  - [x] 13.16 Ensure answer keys and scoring rules are not included in student launch payload.
+  - [x] 13.17 Update result adapter so a Reading Passage set result is grouped by passage section in teacher review.
+  - [x] 13.18 Route Reading Passage and Reading Passage set submissions through the existing Reading V2 trusted submission/scoring flow, binding answers to the assigned passage snapshot/version ids.
+  - [x] 13.19 Reject malformed Reading Passage responses through the trusted submission processor; do not score client-only data.
+  - [x] 13.20 Update teacher result view to label single Reading Passage homework and Reading Passage set homework distinctly.
+  - [x] 13.21 Result view must show Reading Passage title, source order display, source full-test metadata when available, assigned snapshot/version, and attempt number.
+  - [x] 13.22 Retake/attempt behavior must use existing homework settings only; do not add new Reading-Passage-specific retake policy.
+  - [x] 13.23 If the source passage has a newer version after assignment, result review still resolves the assigned snapshot/version and may show a non-blocking newer-version note to teachers only.
+  - [x] 13.24 Add tests for creating single Reading Passage homework.
+  - [x] 13.25 Add tests for creating Reading Passage set homework.
+  - [x] 13.26 Add tests for assignment-time snapshot freeze.
+  - [x] 13.27 Add tests for rejecting unpublished/inaccessible passages.
+  - [x] 13.28 Add student runtime tests for single Reading Passage.
+  - [x] 13.29 Add student runtime tests for Reading Passage set.
+  - [x] 13.30 Add submission/scoring tests for single Reading Passage and Reading Passage set.
+  - [x] 13.31 Add malformed-response rejection tests.
+  - [x] 13.32 Add result review tests for grouped passage results.
+  - [x] 13.33 Add result review tests for material kind label, source metadata, attempt number, and assigned snapshot/version.
+
+- [x] 14.0 Implement Book tab UI, create/edit modal, and Book cover grid
+  - [x] 14.1 In `TeacherLobbyPage.jsx`, when active tab is `book`, set toolbar create button label to `Create New Book`.
+  - [x] 14.2 When active tab is not `book`, keep existing create test behavior and label.
+  - [x] 14.3 Clicking `Create New Book` opens `CreateBookModal`, not `TestCreationModal`.
+  - [x] 14.4 Create `src/components/books/CreateBookModal.tsx`.
+  - [x] 14.5 Modal minimum fields: title, Test Type ids, description, tags, visibility.
+  - [x] 14.6 Modal additional metadata fields: subtitle, authors, publisher, edition, series, isbn, coverUrl.
+  - [x] 14.7 Test Type selector must use active teacher-selectable Test Types and allow multiple selection.
+  - [x] 14.8 Visibility selector values are `Private` and `Public`, shown only in Book modal/Book tab context.
+  - [x] 14.9 Allow save of empty draft Book.
+  - [x] 14.10 After save, close modal and show Book in Book tab grid.
+  - [x] 14.11 Opening an existing Book from Book card navigates to `/teacher/materials/books/:bookId` and renders `BookEditorPage`.
+  - [x] 14.12 Add `BookCardGrid` and `BookCard`.
+  - [x] 14.13 Book card shows cover image if `coverUrl` exists.
+  - [x] 14.14 Book card shows generated/default cover using Book title and primary Test Type if cover is missing.
+  - [x] 14.15 Book card shows title, authors or publisher if present, Test Type chips, visibility, and status.
+  - [x] 14.15a Long Book titles must truncate with ellipsis and expose the full title through an accessible title/tooltip.
+  - [x] 14.16 Book grid filters by active Test Type if `testTypeIds[]` includes that id.
+  - [x] 14.17 Book grid search filters by summary fields.
+  - [x] 14.18 Add `Private | Public` scope control visible only inside Book tab.
+  - [x] 14.19 Book scope control must not navigate to top-level `My Content` or `Public Library`.
+  - [x] 14.20 Book tab empty state must be concise and not an instructional feature description.
+  - [x] 14.21 Book card actions are exactly `Open Book`, `Edit metadata`, and owner-only `Archive/Delete` according to existing confirmed-delete patterns.
+  - [x] 14.22 Book card must not show `Start Test`, `Assign Homework`, or any whole-Book student action.
+  - [x] 14.23 Add tests for create button label switch.
+  - [x] 14.24 Add tests for create modal validation.
+  - [x] 14.25 Add tests for empty draft Book creation.
+  - [x] 14.26 Add tests for multiple Test Type selection.
+  - [x] 14.27 Add tests for Book private/public scope.
+  - [x] 14.28 Add tests for Book grid Test Type filtering.
+  - [x] 14.29 Add tests for fallback cover rendering.
+  - [x] 14.30 Add tests for Book card action set and absence of whole-Book assignment/start actions.
+
+- [x] 15.0 Implement Book editor for organizing existing published materials into nodes
+  - [x] 15.1 Build or route `BookEditorPage` only after Book creation/listing works.
+  - [x] 15.2 Editor must show a metadata section for title, subtitle, authors, publisher, edition, series, isbn, cover, tags, visibility, and Test Type ids.
+  - [x] 15.3 Editor must show a tree section with node types `intro-placeholder`, `toc-placeholder`, `note-placeholder`, `section`, `chapter`, and `test`.
+  - [x] 15.4 On new Book, allow adding placeholder intro/TOC/note nodes as empty nodes.
+  - [x] 15.5 Placeholder nodes are not rich editable pages in V1.
+  - [x] 15.6 Placeholder nodes can contain child nodes and material refs.
+  - [x] 15.7 Add buttons to create Section, Chapter, and Test nodes.
+  - [x] 15.8 Require every node to have stable `nodeId`, `parentNodeId`, `type`, `title`, and `order`.
+  - [x] 15.9 Enforce max depth 5 in UI before save.
+  - [x] 15.10 Prevent move operations that would exceed max depth.
+  - [x] 15.11 Use accessible up/down and move-to controls for V1 reorder. Do not add drag/drop behavior or a new drag/drop library in V1.
+  - [x] 15.12 Add `BookMaterialPicker` to attach published materials to any node.
+  - [x] 15.13 Material picker must query published material summaries only.
+  - [x] 15.14 Material picker must exclude drafts.
+  - [x] 15.15 Material picker must support normal tests, Reading V2 full tests, Reading Passages, and supported THCS/THPT materials if they are published and listing summaries exist.
+  - [x] 15.16 Material picker must respect owner/access rules and public shareability.
+  - [x] 15.17 Material picker must show Test Type and material kind so teachers do not attach the wrong item.
+  - [x] 15.18 Adding the same material multiple times must create different `refId` values.
+  - [x] 15.19 Removing a material ref removes only that placement, not the underlying material.
+  - [x] 15.20 Reordering refs updates only `order` fields.
+  - [x] 15.21 Saving a Book with only placeholders keeps status `draft-empty` or `draft-in-progress` based on whether it has any nodes, never `ready`.
+  - [x] 15.22 Saving a Book with at least one Section/Chapter/Test node can move status to `ready` if all validation passes.
+  - [x] 15.23 Do not build assign-whole-book controls.
+  - [x] 15.24 Show a concise unavailable-state message in the Book editor that whole-Book assignment is not available in V1 and that assignment actions apply only to selected referenced materials.
+  - [x] 15.25 Allow assigning individual material refs only when the referenced material kind supports the existing assignment flow.
+  - [x] 15.26 Assigning a Reading Passage from inside a Book must create a normal Reading Passage material homework assignment, not a Book assignment.
+  - [x] 15.27 Deleting a Book node that contains child nodes or material refs must require confirmation before deletion.
+  - [x] 15.28 Deleting an empty Book node may use the existing lightweight delete pattern, but must not delete referenced source materials.
+  - [x] 15.29 Add tests for node creation.
+  - [x] 15.30 Add tests for max depth.
+  - [x] 15.31 Add tests for placeholder-only draft.
+  - [x] 15.32 Add tests for published-only material picker.
+  - [x] 15.33 Add tests for duplicate placement unique `refId`.
+  - [x] 15.34 Add tests for public Book private-ref prevention.
+  - [x] 15.35 Add tests for self-parenting, cycles, duplicate sibling order, orphan repair display, move-under-descendant rejection, and depth 6 rejection from the editor UI.
+  - [x] 15.36 Add tests that non-empty node deletion requires confirmation.
+  - [x] 15.37 Add tests that assigning a Reading Passage from inside a Book creates a normal Reading Passage homework assignment and never a Book assignment.
+
+- [x] 16.0 Preserve PRD-0050 list-view contracts while adding new material families
+  - [x] 16.1 Keep `MaterialListView` fixed columns and compact scan behavior from PRD-0050.
+  - [x] 16.2 Do not replace list rows with wide cards.
+  - [x] 16.3 Do not add horizontal overflow at `1280`, `1366`, `1440`, `1536`, `1586`, `1600`, or `1920`.
+  - [x] 16.4 Keep duration/time guidance as a badge or existing compact metadata, not a new column unless PRD-0050 contract is explicitly revised.
+  - [x] 16.5 Keep action rail stable and icon-based where PRD-0050 already fixed this.
+  - [x] 16.6 Extend `materialListAdapter` with typed row models for Reading Passage rather than branching inside row JSX.
+  - [x] 16.7 Add adapter tests for normal legacy tests.
+  - [x] 16.8 Add adapter tests for Reading V2 full tests.
+  - [x] 16.9 Add adapter tests for Reading Passage rows.
+  - [x] 16.10 Add adapter tests for inactive/missing Test Type metadata.
+  - [x] 16.11 Add adapter tests for missing title fallback.
+  - [x] 16.12 Add adapter tests for hidden provenance not included in row model.
+  - [x] 16.13 Confirm normal material listing still uses indexed owner/public queries and does not scan full `/tests`.
+  - [x] 16.14 Confirm Reading Passage listing does not hydrate canonical snapshots for list rows.
+  - [x] 16.15 Confirm Book grid does not load underlying material refs until the Book editor/detail is opened.
+  - [x] 16.16 Add Book ref display model tests for missing source material, archived source material, inaccessible private source material, and newer published source version.
+  - [x] 16.17 Confirm broken/unavailable Book refs render fallback title/kind/Test Type snapshots and do not leak hidden/private metadata.
+  - [x] 16.18 Confirm update-available Book refs do not silently change assignment-time snapshot/version.
+
+- [x] 17.0 Add observability, diagnostics, and error handling
+  - [x] 17.1 Extend diagnostics with non-sensitive counters for Test Type config load success/failure.
+  - [x] 17.2 Extend diagnostics with non-sensitive counters for teacher pinned Test Type preference fallback.
+  - [x] 17.3 Extend diagnostics with non-sensitive counters for Reading Passage list counts by scope.
+  - [x] 17.4 Extend diagnostics with non-sensitive counters for Book list counts by scope.
+  - [x] 17.5 Do not log passage text, answer keys, hidden provenance, import evidence, or student answers.
+  - [x] 17.6 Track action `teacher_materials_tab_changed`.
+  - [x] 17.7 Track action `teacher_materials_test_type_filter_selected`.
+  - [x] 17.8 Track action `teacher_materials_test_type_filter_cleared`.
+  - [x] 17.9 Track action `teacher_materials_test_type_preferences_opened`.
+  - [x] 17.10 Track action `teacher_materials_test_type_preferences_saved`.
+  - [x] 17.11 Track action `teacher_materials_book_create_opened`.
+  - [x] 17.12 Track action `teacher_materials_book_created`.
+  - [x] 17.13 Track action `teacher_materials_book_updated`.
+  - [x] 17.14 Track action `teacher_materials_reading_passage_assigned`.
+  - [x] 17.15 Track action `teacher_materials_reading_passage_set_assigned`.
+  - [x] 17.16 Track action `teacher_materials_book_node_added`.
+  - [x] 17.17 Track action `teacher_materials_book_node_reordered`.
+  - [x] 17.18 Track action `teacher_materials_book_node_deleted`.
+  - [x] 17.19 Track action `teacher_materials_book_material_attached`.
+  - [x] 17.20 Track action `teacher_materials_book_material_removed`.
+  - [x] 17.21 Track action `teacher_materials_reading_passage_homework_launched`.
+  - [x] 17.22 Track action `teacher_materials_reading_passage_homework_submitted` only from safe server/client result boundary where no answers are logged.
+  - [x] 17.23 Track action `teacher_materials_reading_passage_result_viewed`.
+  - [x] 17.24 Add user-facing loading, empty, permission-denied, validation-error, retryable-load-error, and inaccessible-snapshot states for Test Type config/admin UI.
+  - [x] 17.25 Add user-facing loading, empty, permission-denied, validation-error, retryable-load-error, and stale-write-conflict states for Book list/create/editor flows.
+  - [x] 17.26 Add user-facing loading, empty, permission-denied, validation-error, retryable-load-error, missing-projection, and inaccessible-snapshot states for Reading Passage list/assignment/launch flows.
+  - [x] 17.27 Do not log passage text, questions, answer keys, hidden provenance, import evidence, student answers, or full student names in any new diagnostic/event payload.
+  - [x] 17.28 Add tests for diagnostics not containing sensitive fields.
+  - [x] 17.29 Add tests for every action tracking call where existing tracking test patterns exist.
+  - [x] 17.30 Add tests for the new loading/error/permission states.
+
+- [x] 18.0 Add migration/backfill and compatibility support
+  - [x] 18.1 Write a dry-run migration plan for existing Reading V2 full tests that lack Reading Passage entities.
+  - [x] 18.2 Migration dry run must report how many full tests can be split into passages and how many need manual review.
+  - [x] 18.3 Do not mutate production data until a lead approves migration execution.
+  - [x] 18.4 Implement compatibility reads so old full tests still appear and launch even before backfill.
+  - [x] 18.5 Add a backfill function or script that creates Reading Passage entities and composition refs from existing full tests.
+  - [x] 18.6 Backfill must be idempotent. Running it twice must not create duplicate Reading Passage entities for the same source snapshot.
+  - [x] 18.7 Backfill must record source full test id and source snapshot/version id.
+  - [x] 18.8 Backfill must not publish public Reading Passages automatically unless source material is public/shareable and PRD criteria are met.
+  - [x] 18.9 Add tests for dry-run reporting.
+  - [x] 18.10 Add tests for idempotent backfill.
+  - [x] 18.11 Add tests for compatibility read path.
+
+- [x] 19.0 Run unit, integration, security-rule, and UTF-8 verification
+  - [x] 19.1 Run targeted tests for Test Type services.
+  - [x] 19.2 Run targeted tests for teacher Test Type preferences.
+  - [x] 19.3 Run targeted tests for Reading Passage extraction.
+  - [x] 19.4 Run targeted tests for Reading V2 publish pipeline and Firebase adapter.
+  - [x] 19.5 Run targeted tests for Reading Passage library service.
+  - [x] 19.6 Run targeted tests for Book validation and Book service.
+  - [x] 19.7 Run targeted tests for TeacherLobbyPage.
+  - [x] 19.8 Run targeted tests for TestTypeBlockModule.
+  - [x] 19.9 Run targeted tests for TestTypePreferenceModal.
+  - [x] 19.10 Run targeted tests for Book card/grid/modal/editor.
+  - [x] 19.11 Run targeted tests for HomeworkCreateModal.
+  - [x] 19.12 Run targeted tests for homeworkManager.
+  - [x] 19.13 Run targeted tests for StudentHomeworkListPage, StudentHomeworkDetailPage, StudentPracticePage, and TestPageRouter.
+  - [x] 19.14 Run targeted tests for Reading V2 projection and result adapter.
+  - [x] 19.15 Run security rule tests if this repo has a rules test harness.
+  - [x] 19.16 If no rules test harness exists, document manual rules validation cases for every new RTDB/Firestore path.
+  - [x] 19.17 Security rule tests/manual cases must explicitly cover: teacher can read/write own Books.
+  - [x] 19.18 Security rule tests/manual cases must explicitly cover: teacher cannot mutate another teacher's private Book.
+  - [x] 19.19 Security rule tests/manual cases must explicitly cover: public-library Book read path does not expose private/non-shareable refs.
+  - [x] 19.20 Security rule tests/manual cases must explicitly cover: student cannot read Book organizer data in V1.
+  - [x] 19.21 Security rule tests/manual cases must explicitly cover: student can read assigned Reading Passage projection.
+  - [x] 19.22 Security rule tests/manual cases must explicitly cover: student can read assigned combined Reading Passage homework projection.
+  - [x] 19.23 Security rule tests/manual cases must explicitly cover: student can read resolved assigned full-test projection but cannot read mutable passage entities.
+  - [x] 19.24 Security rule tests/manual cases must explicitly cover: student cannot read canonical Reading Passage content or answer keys.
+  - [x] 19.25 Security rule tests/manual cases must explicitly cover: only super admins can write Test Type config.
+  - [x] 19.26 Run `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run check:utf8 -- <all touched files>"`.
+  - [x] 19.27 Run `cmd /c "cd /d C:\Users\The Lord\Desktop\luyentap-writing-import-rebased && npm run lint -- --quiet"` and record full result. If unrelated pre-existing lint errors block exit 0, record exact unrelated files and rerun any targeted lint command available for touched files.
+  - [x] 19.28 Record exact commands and results in the implementation handoff.
+
+- [x] 20.0 Run browser visual QA against the approved mockup and current app
+  - [x] 20.1 Start the app locally from `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`.
+  - [x] 20.2 Login with dev quick-login Teacher button unless task specifically needs another account.
+  - [x] 20.3 Capture Teacher Materials screenshots at `375`, `768`, `848`, `1366`, `1586`, and `1920` viewport widths.
+  - [x] 20.4 Compare screenshots against PRD-0052 V5 and PRD-0050 artifacts.
+  - [x] 20.5 Verify tabs use existing styling and include `Reading Passage` and `Book`.
+  - [x] 20.6 Verify tabs do not overlap title/subtitle/header at every required width.
+  - [x] 20.7 Verify search/create toolbar matches existing PRD-0050 style.
+  - [x] 20.8 Verify 4 Test Type blocks are centered and stay on one row at every required width.
+  - [x] 20.9 Verify Test Type blocks use logo image areas and do not repeat title text when logo contains the name.
+  - [x] 20.10 Verify active Test Type styling is visible.
+  - [x] 20.11 Verify clicking active Test Type again clears the filter.
+  - [x] 20.12 Verify no helper filter pill appears.
+  - [x] 20.13 Verify settings icon appears on hover.
+  - [x] 20.14 Verify settings icon appears on keyboard focus.
+  - [x] 20.15 Verify settings icon opens preference modal without changing active filter.
+  - [x] 20.16 Verify normal tabs show list rows below Test Type blocks.
+  - [x] 20.17 Verify Book tab shows Book cover/default-name card grid below Test Type blocks.
+  - [x] 20.18 Verify Reading Passage tab shows list rows, not cards.
+  - [x] 20.19 Verify Book tab create button says `Create New Book`.
+  - [x] 20.20 Verify non-Book tabs keep existing create test behavior.
+  - [x] 20.21 Verify Book private/public control appears only inside Book tab.
+  - [x] 20.22 Verify Reading Passage private/public control appears only inside Reading Passage tab.
+  - [x] 20.23 Verify no horizontal document overflow at all required widths.
+  - [x] 20.24 Save screenshots under `output/playwright/prd0052-implementation/`.
+  - [x] 20.25 Update a final visual difference note. Any mismatch from approved V5 must be either fixed or explicitly approved by lead.
+
+- [x] 21.0 Final handoff checklist
+  - [x] 21.1 Confirm every PRD closed decision is represented by code, tests, or an explicit out-of-scope note.
+  - [x] 21.2 Confirm no direct blank/manual Reading Passage creation exists in V1.
+  - [x] 21.3 Confirm Reading Passage is directly assignable as homework.
+  - [x] 21.4 Confirm Book is not assignable as a whole Book in V1.
+  - [x] 21.5 Confirm Books can be created empty and resumed later.
+  - [x] 21.6 Confirm Book metadata includes title, author/authors, publisher, edition/series, Test Type ids, tags, description, visibility, and cover.
+  - [x] 21.7 Confirm one Book can belong to multiple Test Types.
+  - [x] 21.8 Confirm Test Type config is admin-configurable and super-admin-only for writes.
+  - [x] 21.9 Confirm teacher can pin exactly 4 Test Type blocks when at least 4 active Test Types exist.
+  - [x] 21.10 Confirm canonical `TOEFL` and alias `TOFEL` behavior.
+  - [x] 21.11 Confirm canonical `CEFR` and alias `CELF` behavior.
+  - [x] 21.12 Confirm private/public scopes for Book and Reading Passage are tab-local and separate from main Materials subtabs.
+  - [x] 21.13 Confirm students cannot read Book organizers in V1.
+  - [x] 21.14 Confirm student-safe Reading V2 projections exclude answer keys, scoring rules, diagnostics, import evidence, and hidden provenance.
+  - [x] 21.15 Confirm all new list queries use indexes or targeted reads, not broad canonical scans.
+  - [x] 21.16 Confirm all verification commands and screenshots are recorded.
+  - [x] 21.17 Confirm tab switching preserves `searchTerm` and `activeTestTypeId`.
+  - [x] 21.18 Confirm `Drafts` does not load while inactive.
+  - [x] 21.19 Confirm Reading Passage source order supports numeric, non-numeric label, and unknown states.
+  - [x] 21.20 Confirm standalone published Reading Passage edit creates/opens draft revision and preserves live version until republish.
+  - [x] 21.21 Confirm Reading Passage row actions include open/view, assign, select, edit/revise/fork when permitted, archive, and guarded delete only if existing confirmation pattern exists.
+  - [x] 21.22 Confirm Reading Passage bulk selection supports both one combined homework set and one saved full-test composition.
+  - [x] 21.23 Confirm Reading Passage result review shows material kind, title, source metadata, assigned snapshot/version, and attempt number.
+  - [x] 21.24 Confirm Book route `/teacher/materials/books/:bookId` opens `BookEditorPage`.
+  - [x] 21.25 Confirm Book statuses use `draft-empty`, `draft-in-progress`, `ready`, and `archived`.
+  - [x] 21.26 Confirm Book visibility uses `private`, `public-library-pending-review`, `public-library-published`, and `public-library-rejected`.
+  - [x] 21.27 Confirm normal teachers cannot set `public-library-published` directly.
+  - [x] 21.28 Confirm Book validation rejects self-parenting, cycles, duplicate sibling order collisions, orphaned child nodes, descendant moves, and depth 6+.
+  - [x] 21.29 Confirm Book broken refs render fallback/unavailable states without deleting refs or leaking private metadata.
+  - [x] 21.30 Confirm Book cards show only allowed V1 actions and no whole-Book assignment/start action.
+  - [x] 21.31 Confirm Test Type admin UI exposes and validates `allowedMaterialKinds[]`.
+  - [x] 21.32 Confirm new admin, Book, Reading Passage, homework, and launch surfaces include loading, empty, permission-denied, validation-error, retryable-load-error, and inaccessible-snapshot states where applicable.
+  - [x] 21.33 Confirm coverage matrix has no unmapped PRD requirements, acceptance criteria, forbidden patterns, or edge cases.
+  - [x] 21.34 Confirm Book node storage uses `material_catalog/book_nodes/{bookId}/{nodeId}` and Book list/index rows do not embed full node trees.
+  - [x] 21.35 Confirm Reading V2 storage path helpers include exact Reading Passage and full-test composition paths from task 2.20.
+  - [x] 21.36 Confirm tab changes track `teacher_materials_tab_changed`.
+  - [x] 21.37 Confirm non-empty Book node deletion requires confirmation.
+  - [x] 21.38 Confirm Book editor clearly indicates whole-Book assignment is unavailable and referenced-material assignment is separate.
+  - [x] 21.39 Confirm Reading Passage submission/scoring uses the trusted Reading V2 submission/scoring flow.
+  - [x] 21.40 Confirm all nine PRD security-rule scenarios are tested or manually documented.
+  - [x] 21.41 Confirm long Book titles and long Test Type labels truncate safely with accessible full text.
+  - [x] 21.42 Confirm any remaining gaps are documented as explicit follow-up items, not hidden assumptions.

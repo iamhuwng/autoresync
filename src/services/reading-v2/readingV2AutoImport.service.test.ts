@@ -6,6 +6,8 @@ import {
   type ReadingV2AutoStructuredGenerator,
   type ReadingV2AutoV4Extractor,
 } from './readingV2AutoImport.service';
+import { aiService } from '../ai/router.service';
+import { geminiProvider } from '../ai/gemini.provider';
 import { normalizeReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 import { generateReadingV2StudentSafeProjection } from './readingV2Projection.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
@@ -464,6 +466,754 @@ describe('readingV2AutoImport.service', () => {
     expect(result.answerKeyText).toBe('1 TRUE\n2 FALSE');
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('uses Gemini directly instead of the shared AI router for default Auto V4 extraction', async () => {
+    const geminiPassagesSpy = vi.spyOn(geminiProvider, 'parsePassagesOnly').mockResolvedValue({
+      success: true,
+      data: {
+        passages: [{
+          id: 'passage-1',
+          title: 'Direct Gemini passage',
+          content: 'Provider passage boundary evidence.',
+          type: 'text',
+          imageUrl: null,
+          questionStart: 1,
+          questionEnd: 2,
+          wordCount: 4,
+        }],
+        confidence: 0.95,
+      },
+    });
+    const geminiQuestionsSpy = vi.spyOn(geminiProvider, 'parseQuestionsAndAnswers').mockResolvedValue({
+      success: true,
+      data: {
+        questions: [
+          {
+            questionNumber: 1,
+            questionText: '1 The first statement is supported by the passage.',
+            type: 'true-false-not-given',
+            answer: 'TRUE',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+          },
+          {
+            questionNumber: 2,
+            questionText: '2 The second statement is contradicted by the passage.',
+            type: 'true-false-not-given',
+            answer: 'FALSE',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'Do the following statements agree with the information given in Reading Passage 1?',
+          },
+        ],
+        answerKey: { 1: 'TRUE', 2: 'FALSE' },
+        confidence: 0.95,
+      },
+    });
+    const routerPassagesSpy = vi.spyOn(aiService, 'parsePassagesOnly').mockResolvedValue({
+      success: false,
+      error: 'Shared router should not be used for Auto V4 extraction.',
+    });
+    const routerQuestionsSpy = vi.spyOn(aiService, 'parseQuestionsAndAnswers').mockResolvedValue({
+      success: false,
+      error: 'Shared router should not be used for Auto V4 extraction.',
+    });
+
+    try {
+      const result = await generateReadingV2AutoImportCandidate(
+        { rawTestText: rawSourceWithAnswerKey, sourceName: 'Auto V4 direct Gemini fixture' },
+        { waitBetweenChunksMs: 0, minInputChars: 10 },
+      );
+
+      if (!result.success) {
+        throw new Error(JSON.stringify(result, null, 2));
+      }
+      expect(result.success).toBe(true);
+      expect(geminiPassagesSpy).toHaveBeenCalledTimes(1);
+      expect(geminiQuestionsSpy).toHaveBeenCalledTimes(1);
+      expect(routerPassagesSpy).not.toHaveBeenCalled();
+      expect(routerQuestionsSpy).not.toHaveBeenCalled();
+      expect(result.provider).toBe('gemini');
+      expect(result.model).toBe('gemini-2.5-flash+auto-v4-staged-adapter');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('recovers Auto V4 questions by passage chunk when the full-document question stage fails', async () => {
+    const questionsForRange = (passageNumber: number, start: number, end: number) =>
+      Array.from({ length: end - start + 1 }, (_, index) => {
+        const questionNumber = start + index;
+        return {
+          questionNumber,
+          questionText: `${questionNumber} Synthetic question ${questionNumber} ___.`,
+          type: 'sentence-completion',
+          answer: 'TRUE',
+          passageId: 'passage-1',
+          confidence: 0.9,
+          sectionInstruction: 'Complete the synthetic IELTS Reading task.',
+        };
+      });
+    const chunkResults = [
+      { passageNumber: 1, start: 1, end: 13 },
+      { passageNumber: 2, start: 14, end: 26 },
+      { passageNumber: 3, start: 27, end: 40 },
+    ];
+    let questionCall = 0;
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: chunkResults.map(({ passageNumber, start, end }) => ({
+            id: `passage-${passageNumber}`,
+            title: `Synthetic passage ${passageNumber}`,
+            content: `Synthetic passage ${passageNumber} provider content.`,
+            type: 'text',
+            imageUrl: null,
+            questionStart: start,
+            questionEnd: end,
+            wordCount: 5,
+          })),
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockImplementation(() => {
+        questionCall += 1;
+        if (questionCall === 1) {
+          return Promise.resolve({
+            success: false,
+            error: 'All AI providers failed to parse questions and answers. gemini: temporary demand 503 | groq: Questions+Answers parsing failed: No valid JSON found in AI response (truncated-json)',
+          });
+        }
+        const chunk = chunkResults[questionCall - 2]!;
+        return Promise.resolve({
+          success: true,
+          data: {
+            questions: questionsForRange(chunk.passageNumber, chunk.start, chunk.end),
+            answerKey: Object.fromEntries(
+              Array.from({ length: chunk.end - chunk.start + 1 }, (_, index) => [chunk.start + index, 'WRONG']),
+            ),
+            confidence: 0.9,
+          },
+        });
+      }),
+    };
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Auto V4 chunk recovery fixture' },
+      {
+        v4Extractor,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+        onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
+      },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.success).toBe(true);
+    expect(v4Extractor.parseQuestionsAndAnswers).toHaveBeenCalledTimes(4);
+    expect(result.questionCount).toBe(40);
+    expect(result.answerKeyText).toContain('1 TRUE');
+    expect(result.answerKeyText).not.toContain('WRONG');
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    expect(normalized.document.sectionIds.map((sectionId) =>
+      normalized.document.sections[sectionId]?.taskGroupIds.reduce((count, taskGroupId) =>
+        count + (normalized.document.taskGroups[taskGroupId]?.interactionIds.length ?? 0), 0),
+    )).toEqual([13, 13, 14]);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'auto-v4-question-chunk-recovery',
+        severity: 'warning',
+        providerResult: 'success',
+      }),
+    ]));
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'auto_v4_question_chunk_recovery_completed',
+        payload: expect.objectContaining({
+          outcome: 'success',
+          chunkCount: 3,
+          recoveredQuestionCount: 40,
+        }),
+      }),
+    ]));
+  });
+
+  it('fails closed when any Auto V4 question recovery chunk fails', async () => {
+    let questionCall = 0;
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [
+            { id: 'passage-1', title: 'Synthetic passage 1', content: 'Provider passage 1.', type: 'text', imageUrl: null, questionStart: 1, questionEnd: 13, wordCount: 3 },
+            { id: 'passage-2', title: 'Synthetic passage 2', content: 'Provider passage 2.', type: 'text', imageUrl: null, questionStart: 14, questionEnd: 26, wordCount: 3 },
+            { id: 'passage-3', title: 'Synthetic passage 3', content: 'Provider passage 3.', type: 'text', imageUrl: null, questionStart: 27, questionEnd: 40, wordCount: 3 },
+          ],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockImplementation(() => {
+        questionCall += 1;
+        if (questionCall === 2) {
+          return Promise.resolve({
+            success: true,
+            data: {
+              questions: Array.from({ length: 13 }, (_, index) => ({
+                questionNumber: index + 1,
+                questionText: `${index + 1} Synthetic question ${index + 1} ___.`,
+                type: 'sentence-completion',
+                answer: 'TRUE',
+                passageId: 'passage-1',
+                confidence: 0.9,
+                sectionInstruction: 'Complete the synthetic IELTS Reading task.',
+              })),
+              answerKey: Object.fromEntries(Array.from({ length: 13 }, (_, index) => [index + 1, 'TRUE'])),
+              confidence: 0.9,
+            },
+          });
+        }
+        return Promise.resolve({
+          success: false,
+          error: questionCall === 3
+            ? 'Passage 2 recovery provider failed'
+            : 'All AI providers failed to parse questions and answers. gemini: temporary demand 503 | groq: Questions+Answers parsing failed: No valid JSON found in AI response (truncated-json)',
+        });
+      }),
+    };
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Auto V4 chunk recovery failure fixture' },
+      {
+        v4Extractor,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+        onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
+      },
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('Passage 2');
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'gemini-request-failed',
+        severity: 'error',
+        passageNumber: 2,
+      }),
+    ]));
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: 'auto_v4_question_chunk_recovery_failed',
+        payload: expect.objectContaining({
+          outcome: 'failure',
+          passageNumber: 2,
+        }),
+      }),
+    ]));
+  });
+
+  it('uses visible passage question labels for Auto V4 chunk recovery when a source heading has the wrong range', async () => {
+    const rawWithBadPassageTwoHeading = rawThreePassageSourceWithAnswerKey.replace('Questions 14-26', 'Questions 1-8');
+    let questionCall = 0;
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [
+            { id: 'passage-1', title: 'Synthetic passage 1', content: 'Provider passage 1.', type: 'text', imageUrl: null, questionStart: 1, questionEnd: 13, wordCount: 3 },
+            { id: 'passage-2', title: 'Synthetic passage 2', content: 'Provider passage 2.', type: 'text', imageUrl: null, questionStart: 14, questionEnd: 26, wordCount: 3 },
+            { id: 'passage-3', title: 'Synthetic passage 3', content: 'Provider passage 3.', type: 'text', imageUrl: null, questionStart: 27, questionEnd: 40, wordCount: 3 },
+          ],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockImplementation(() => {
+        questionCall += 1;
+        if (questionCall === 1) {
+          return Promise.resolve({
+            success: false,
+            error: 'All AI providers failed to parse questions and answers. groq: Questions+Answers parsing failed: No valid JSON found in AI response (truncated-json)',
+          });
+        }
+        const ranges = [
+          { passageNumber: 1, start: 1, end: 13 },
+          { passageNumber: 2, start: 14, end: 26 },
+          { passageNumber: 3, start: 27, end: 40 },
+        ];
+        const range = ranges[questionCall - 2]!;
+        return Promise.resolve({
+          success: true,
+          data: {
+            questions: Array.from({ length: range.end - range.start + 1 }, (_, index) => {
+              const questionNumber = range.start + index;
+              return {
+                questionNumber,
+                questionText: `${questionNumber} Synthetic question ${questionNumber} ___.`,
+                type: 'sentence-completion',
+                answer: 'TRUE',
+                passageId: null,
+                confidence: 0.9,
+                sectionInstruction: 'Complete the synthetic IELTS Reading task.',
+              };
+            }),
+            answerKey: {},
+            confidence: 0.9,
+          },
+        });
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawWithBadPassageTwoHeading, sourceName: 'Auto V4 bad range fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.questionCount).toBe(40);
+  });
+
+  it('does not chunk-recover Auto V4 questions after a non-recoverable provider failure', async () => {
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [
+            { id: 'passage-1', title: 'Synthetic passage 1', content: 'Provider passage 1.', type: 'text', imageUrl: null, questionStart: 1, questionEnd: 13, wordCount: 3 },
+            { id: 'passage-2', title: 'Synthetic passage 2', content: 'Provider passage 2.', type: 'text', imageUrl: null, questionStart: 14, questionEnd: 26, wordCount: 3 },
+            { id: 'passage-3', title: 'Synthetic passage 3', content: 'Provider passage 3.', type: 'text', imageUrl: null, questionStart: 27, questionEnd: 40, wordCount: 3 },
+          ],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: false,
+        error: 'All AI providers failed to parse questions and answers. gemini: 403 API_KEY_HTTP_REFERRER_BLOCKED | groq: 403 invalid API key',
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: rawThreePassageSourceWithAnswerKey, sourceName: 'Auto V4 non-recoverable failure fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    expect(result.success).toBe(false);
+    expect(v4Extractor.parseQuestionsAndAnswers).toHaveBeenCalledTimes(1);
+  });
+
+  it('anchors Auto V4 table rows only to explicit blank cells when trailing columns contain context', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the table below.',
+      'Write ONE WORD ONLY from the passage for each answer.',
+      'First row | 1 _____ | trailing context',
+      'Second row | trailing context | 2 _____',
+      '',
+      'Answers',
+      '1 alpha',
+      '2 beta',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Table source',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 2,
+            wordCount: 14,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            {
+              questionNumber: 1,
+              questionText: 'First row | _____ | trailing context',
+              type: 'table-completion',
+              answer: 'alpha',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the table below. Write ONE WORD ONLY from the passage for each answer.',
+            },
+            {
+              questionNumber: 2,
+              questionText: 'Second row | trailing context | _____',
+              type: 'table-completion',
+              answer: 'beta',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the table below. Write ONE WORD ONLY from the passage for each answer.',
+            },
+          ],
+          answerKey: { 1: 'alpha', 2: 'beta' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 table trailing context fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.success).toBe(true);
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const tableStimulus = Object.values(normalized.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'table-content',
+    );
+    if (!tableStimulus || tableStimulus.content.kind !== 'table-content') {
+      throw new Error('Expected Auto V4 table-completion output to create a table stimulus.');
+    }
+
+    expect(tableStimulus.content.rows[0]?.[1]?.anchorIds).toHaveLength(1);
+    expect(tableStimulus.content.rows[0]?.[2]?.anchorIds).toBeUndefined();
+    expect(tableStimulus.content.rows[1]?.[2]?.anchorIds).toHaveLength(1);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('anchors Auto V4 table rows to one answer cell when parser repeats numeric markers in prompt and answer columns', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-1',
+      'Complete the table below.',
+      'Write ONE WORD ONLY from the passage for each answer.',
+      'Question prompt [1] | Answer [1]',
+      '',
+      'Answers',
+      '1 gamma',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Table marker source',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 1,
+            wordCount: 14,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [{
+            questionNumber: 1,
+            questionText: 'Question prompt [1] | Answer [1]',
+            type: 'table-completion',
+            answer: 'gamma',
+            passageId: 'passage-1',
+            confidence: 0.95,
+            sectionInstruction: 'TABLE_HEADERS: Prompt | Answer. Complete the table below. Write ONE WORD ONLY from the passage for each answer.',
+          }],
+          answerKey: { 1: 'gamma' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Auto V4 repeated table marker fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('duplicate-structured-layout-question');
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const tableStimulus = Object.values(normalized.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'table-content',
+    );
+    if (!tableStimulus || tableStimulus.content.kind !== 'table-content') {
+      throw new Error('Expected Auto V4 table-completion output to create a table stimulus.');
+    }
+
+    expect(tableStimulus.content.rows[0]?.[0]?.anchorIds).toBeUndefined();
+    expect(tableStimulus.content.rows[0]?.[1]?.anchorIds).toHaveLength(1);
+    expect(tableStimulus.anchorIds).toEqual(Array.from(new Set(tableStimulus.anchorIds)));
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('prefers source markdown table rows over degraded Auto V4 table row reconstruction', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the table below.',
+      'Write ONE WORD ONLY from the passage for each answer.',
+      '| Name | Feature | Notes |',
+      '| ---- | ------- | ----- |',
+      '| Surya Kund | Steps on **1** ..... produce a pattern. | Looks more like a **2** ..... than a well. |',
+      '',
+      'Answers',
+      '1 sides',
+      '2 tank',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Source table passage',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 2,
+            wordCount: 14,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            {
+              questionNumber: 1,
+              questionText: 'Surya Kund | Steps on 1 _____ produce a pattern. | Looks more like a 2 _____ than a well.',
+              type: 'table-completion',
+              answer: 'sides',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the table below. Write ONE WORD ONLY from the passage for each answer.',
+            },
+            {
+              questionNumber: 2,
+              questionText: 'Surya Kund | Steps on 1 2 produce a pattern. | Looks more like a _____ than a well.',
+              type: 'table-completion',
+              answer: 'tank',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the table below. Write ONE WORD ONLY from the passage for each answer.',
+            },
+          ],
+          answerKey: { 1: 'sides', 2: 'tank' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Source markdown table fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const tableStimulus = Object.values(normalized.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'table-content',
+    );
+    if (!tableStimulus || tableStimulus.content.kind !== 'table-content') {
+      throw new Error('Expected Auto V4 table-completion output to create a table stimulus.');
+    }
+
+    expect(tableStimulus.content.rows).toHaveLength(2);
+    expect(tableStimulus.content.rows[1]?.[1]?.text).toBe('Steps on ___ produce a pattern.');
+    expect(tableStimulus.content.rows[1]?.[1]?.anchorIds).toHaveLength(1);
+    expect(tableStimulus.content.rows[1]?.[2]?.text).toBe('Looks more like a ___ than a well.');
+    expect(tableStimulus.content.rows[1]?.[2]?.anchorIds).toHaveLength(1);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+  });
+
+  it('dedupes equivalent local and Auto V4 copied answer-key rows before publish validation', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the notes below.',
+      'Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage for each answer.',
+      '1 Frequency was _____.',
+      '2 Homes were _____.',
+      '',
+      'Answers',
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Slash answer passage',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 2,
+            wordCount: 18,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            {
+              questionNumber: 1,
+              questionText: '1 Frequency was _____.',
+              type: 'sentence-completion',
+              answer: '10/ten times',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+            {
+              questionNumber: 2,
+              questionText: '2 Homes were _____.',
+              type: 'sentence-completion',
+              answer: 'homes/housing',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+          ],
+          answerKey: { 1: '10/ten times', 2: 'homes/housing' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Slash answer Auto V4 fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.answerKeyText?.split(/\r?\n/)).toEqual([
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ]);
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    const validation = validateReadingV2Draft(normalized.document);
+    expect(validation.blockingIssues.map((issue) => issue.message)).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('appears more than once in the teacher answer key'),
+      expect.stringContaining('missing a publishable answer key'),
+    ]));
+  });
+
+  it('prefers complete raw source answer-key rows over duplicate Auto V4 copied rows', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the notes below.',
+      'Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage for each answer.',
+      '1 Frequency was _____.',
+      '2 Homes were _____.',
+      '',
+      'Answers',
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [{
+            id: 'passage-1',
+            title: 'Source answer key passage',
+            content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+            type: 'text',
+            imageUrl: null,
+            questionStart: 1,
+            questionEnd: 2,
+            wordCount: 18,
+          }],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            {
+              questionNumber: 1,
+              questionText: '1 Frequency was _____.',
+              type: 'sentence-completion',
+              answer: '10/ten times',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+            {
+              questionNumber: 2,
+              questionText: '2 Homes were _____.',
+              type: 'sentence-completion',
+              answer: 'homes/housing',
+              passageId: 'passage-1',
+              confidence: 0.95,
+              sectionInstruction: 'Complete the notes below.',
+            },
+          ],
+          answerKey: { 1: '10/ten times', '01': '10', 2: 'homes/housing', '02': 'homes' },
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Source answer key authority fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.answerKeyText?.split(/\r?\n/)).toEqual([
+      '1 10/ ten times',
+      '2 homes/ housing',
+    ]);
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
@@ -1493,6 +2243,76 @@ describe('readingV2AutoImport.service', () => {
     ]));
   });
 
+  it('extracts answer-key rows across markdown passage subheadings', async () => {
+    const raw = [
+      'READING PASSAGE 1',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 1-2',
+      'Complete the synthetic IELTS Reading task.',
+      '1 Synthetic question 1 ___.',
+      '2 Synthetic question 2 ___.',
+      '',
+      'READING PASSAGE 2',
+      'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+      'It has a second sentence to avoid being too tiny for guardrails.',
+      '',
+      'Questions 14-15',
+      'Complete the synthetic IELTS Reading task.',
+      '14 Synthetic question 14 ___.',
+      '15 Synthetic question 15 ___.',
+      '',
+      '## Answer Cam 10 Reading Test 01',
+      '##### Passage 1',
+      '1\\. TRUE',
+      '2\\. FALSE',
+      '##### Passage 2',
+      '14\\. viii',
+      '15\\. iii',
+    ].join('\n');
+    const v4Extractor: ReadingV2AutoV4Extractor = {
+      parsePassagesOnly: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          passages: [
+            { id: 'passage-1', title: 'Passage 1', content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.', type: 'text', imageUrl: null, questionStart: 1, questionEnd: 2, wordCount: 12 },
+            { id: 'passage-2', title: 'Passage 2', content: 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.', type: 'text', imageUrl: null, questionStart: 14, questionEnd: 15, wordCount: 12 },
+          ],
+          confidence: 0.95,
+        },
+      }),
+      parseQuestionsAndAnswers: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          questions: [
+            { questionNumber: 1, questionText: '1 Synthetic question 1 ___.', type: 'sentence-completion', answer: 'TRUE', passageId: 'passage-1', confidence: 0.95, sectionInstruction: 'Complete the synthetic IELTS Reading task.' },
+            { questionNumber: 2, questionText: '2 Synthetic question 2 ___.', type: 'sentence-completion', answer: 'FALSE', passageId: 'passage-1', confidence: 0.95, sectionInstruction: 'Complete the synthetic IELTS Reading task.' },
+            { questionNumber: 14, questionText: '14 Synthetic question 14 ___.', type: 'sentence-completion', answer: 'viii', passageId: 'passage-2', confidence: 0.95, sectionInstruction: 'Complete the synthetic IELTS Reading task.' },
+            { questionNumber: 15, questionText: '15 Synthetic question 15 ___.', type: 'sentence-completion', answer: 'iii', passageId: 'passage-2', confidence: 0.95, sectionInstruction: 'Complete the synthetic IELTS Reading task.' },
+          ],
+          answerKey: {},
+          confidence: 0.95,
+        },
+      }),
+    };
+
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Markdown answer-key headings fixture' },
+      { v4Extractor, waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+
+    if (!result.success) {
+      throw new Error(JSON.stringify(result, null, 2));
+    }
+    expect(result.answerKeyText?.split(/\r?\n/)).toEqual([
+      '1 TRUE',
+      '2 FALSE',
+      '14 viii',
+      '15 iii',
+    ]);
+  });
+
   it('extracts dense unheaded answer-key blocks near the end without adding heading exceptions', async () => {
     const material = autoMaterial(1, 1, 10);
     const generator = generatorFor(autoPayload({
@@ -1794,6 +2614,111 @@ describe('readingV2AutoImport.service', () => {
       expect.stringContaining('Draft validation: Interaction'),
     ]));
     expect(result.candidate.answerKeyText).toBeUndefined();
+  });
+
+  it('opens an editable Auto V4 review draft when a localized table conflict can be canonical-safe', async () => {
+    const generator = generatorFor(autoPayload({
+      sourceFile: 'cambridge-ielts-10-test-1-reading-table-1-2',
+      materials: [
+        {
+          passageNumber: 1,
+          title: 'Auto duplicate table anchor',
+          passages: [
+            {
+              title: 'Auto duplicate table anchor',
+              content: [
+                'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+                'It has a second sentence to avoid being too tiny for guardrails.',
+              ].join('\n'),
+            },
+          ],
+          sectionInstructions: [
+            {
+              id: 'p1-q1-2',
+              taskType: 'table-completion',
+              questionRange: { start: 1, end: 2 },
+              sourceInstructionEvidence: 'Complete the table below.',
+              table: {
+                rows: [
+                  [{ text: 'Feature', role: 'header' }, { text: 'Detail', role: 'header' }],
+                  [{ text: 'First row' }, { text: 'First duplicate blank _____.', questionNumber: 1 }],
+                  [{ text: 'Second row' }, { text: 'Second duplicate blank _____.', questionNumber: 1 }],
+                  [{ text: 'Third row' }, { text: 'Valid second blank _____.', questionNumber: 2 }],
+                ],
+              },
+            },
+          ],
+          questions: [
+            {
+              questionNumber: 1,
+              type: 'table-completion',
+              sectionInstructionId: 'p1-q1-2',
+              questionText: 'First duplicate blank.',
+              answer: 'alpha',
+            },
+            {
+              questionNumber: 2,
+              type: 'table-completion',
+              sectionInstructionId: 'p1-q1-2',
+              questionText: 'Valid second blank.',
+              answer: 'beta',
+            },
+          ],
+        },
+      ],
+    }));
+    const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+
+    const result = await generateReadingV2AutoImportCandidate(
+      {
+        rawTestText: [
+          'READING PASSAGE 1',
+          'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
+          'It has a second sentence to avoid being too tiny for guardrails.',
+          '',
+          'Questions 1-2',
+          'Complete the table below.',
+          '1 First duplicate blank.',
+          '2 Valid second blank.',
+          '',
+          'Answers',
+          '1 alpha',
+          '2 beta',
+        ].join('\n'),
+        sourceName: 'Duplicate structured table fixture',
+      },
+      {
+        generator,
+        waitBetweenChunksMs: 0,
+        minInputChars: 10,
+        onDiagnosticEvent: (event, payload) => events.push({ event, payload }),
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.reviewStatus).toBe('needs_review');
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'duplicate-structured-layout-question',
+        severity: 'warning',
+        questionNumber: 1,
+      }),
+    ]));
+    expect(result.candidate.publishBlockingPlaceholders).toEqual(expect.arrayContaining([
+      expect.stringMatching(/duplicate structured layout question/i),
+    ]));
+    const normalized = normalizeReadingV2ImportCandidate(result.candidate);
+    assertValidReadingV2CanonicalDocument(normalized.document);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'duplicate-structured-layout-question',
+        questionNumber: 1,
+      }),
+    ]));
+    expect(events.map((entry) => entry.event)).not.toContain('canonical_anchor_guard_failed');
+    expect(JSON.stringify(events)).not.toContain('READING PASSAGE 1');
+    expect(JSON.stringify(events)).not.toContain('alpha');
   });
 
   it('fails closed when source ledger detects missing later question ranges before Studio handoff', async () => {

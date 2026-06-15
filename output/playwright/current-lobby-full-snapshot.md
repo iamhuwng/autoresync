@@ -1,0 +1,183 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - heading "Materials" [level=1] [ref=e7]
+    - generic [ref=e9]:
+      - button "Materials" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: Materials
+      - generic [ref=e13]:
+        - button "Students" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]: Students
+        - button "Classes" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]: Classes
+        - button "Courses" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: Courses
+        - button "Homework" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: Homework
+        - button "Grading" [ref=e22] [cursor=pointer]:
+          - generic [ref=e23]: Grading
+      - button "Sessions" [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: Sessions
+      - generic [ref=e28]:
+        - button "Notifications" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+        - button "Open profile menu" [ref=e37] [cursor=pointer]:
+          - img "Teacher Test" [ref=e39]
+          - generic [ref=e40]: Teacher Test
+  - main [ref=e41]:
+    - generic [ref=e42]:
+      - generic [ref=e43]:
+        - heading "Test Dashboard" [level=1] [ref=e44]
+        - generic [ref=e45]:
+          - paragraph [ref=e46]: Manage your tests and start formal assessment sessions
+          - navigation "Material content filters" [ref=e47]:
+            - button "My Content" [ref=e48] [cursor=pointer]
+            - button "Public Library" [ref=e50] [cursor=pointer]
+            - button "Drafts" [ref=e52] [cursor=pointer]
+            - button "Reading Passage" [ref=e54] [cursor=pointer]
+            - button "Book" [ref=e56] [cursor=pointer]
+      - generic [ref=e60]:
+        - generic [ref=e63]:
+          - generic:
+            - img
+          - textbox "Search by title or keyword..." [ref=e64]
+        - button "Create New Test" [ref=e65] [cursor=pointer]:
+          - generic [ref=e66]:
+            - img [ref=e67]
+            - text: Create New Test
+      - region "Test Type filters" [ref=e69]:
+        - article [ref=e70]:
+          - button "Filter materials by IELTS" [ref=e71] [cursor=pointer]:
+            - img "IELTS logo" [ref=e73]
+          - button "Edit pinned Test Types" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+        - article [ref=e78]:
+          - button "Filter materials by TOEIC" [ref=e79] [cursor=pointer]:
+            - img "TOEIC logo" [ref=e81]
+          - button "Edit pinned Test Types" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+        - article [ref=e86]:
+          - button "Filter materials by TOEFL" [ref=e87] [cursor=pointer]:
+            - img "TOEFL logo" [ref=e89]
+          - button "Edit pinned Test Types" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+        - article [ref=e94]:
+          - button "Filter materials by THCS" [ref=e95] [cursor=pointer]:
+            - img "THCS logo" [ref=e97]
+          - button "Edit pinned Test Types" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+      - region "Materials list view" [ref=e102]:
+        - row "Material Items Updated Actions" [ref=e103]:
+          - generic [ref=e104]: Material
+          - generic [ref=e105]: Items
+          - generic [ref=e106]: Updated
+          - generic [ref=e107]: Actions
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - img [ref=e112]
+            - generic [ref=e115]
+            - generic [ref=e121]
+            - generic [ref=e126]: Jun 2, 2026
+            - generic "Codex import live check writing actions" [ref=e127]
+          - generic [ref=e141]:
+            - img [ref=e144]
+            - generic [ref=e147]
+            - generic [ref=e153]
+            - generic [ref=e158]: Mar 29, 2026
+            - generic "Inter - Task 1 - Lesson 2 actions" [ref=e159]
+          - generic [ref=e173]:
+            - img [ref=e176]
+            - generic [ref=e179]
+            - generic [ref=e186]
+            - generic [ref=e191]: Jun 3, 2026
+            - generic "Selected Reading Passages actions" [ref=e192]
+          - generic [ref=e206]:
+            - img [ref=e209]
+            - generic [ref=e212]
+            - generic [ref=e219]
+            - generic [ref=e224]: Apr 29, 2026
+            - generic "PRD0048 Live Pipeline 2026-04-29T05-06-58-043Z - Practice Cam 16 Reading Test 03 actions" [ref=e225]
+          - generic [ref=e239]:
+            - img [ref=e242]
+            - generic [ref=e245]
+            - generic [ref=e252]
+            - generic [ref=e257]: Jun 3, 2026
+            - generic "PRD0052 QA Reading V2 Full Test 2026-06-03 actions" [ref=e258]
+          - generic [ref=e272]:
+            - img [ref=e275]
+            - generic [ref=e278]
+            - generic [ref=e286]
+            - generic [ref=e291]: May 5, 2026
+            - generic "G10 - CK2 - Test 3 - Set 1 actions" [ref=e292]
+          - generic [ref=e311]:
+            - img [ref=e314]
+            - generic [ref=e317]
+            - generic [ref=e325]
+            - generic [ref=e330]: May 5, 2026
+            - generic "G10 - CK2 - Test 2 - Set 1 actions" [ref=e331]
+          - generic [ref=e350]:
+            - img [ref=e353]
+            - generic [ref=e356]
+            - generic [ref=e364]
+            - generic [ref=e369]: May 5, 2026
+            - generic "G10 - CK2 - Test 1 - Set 1 actions" [ref=e370]
+          - generic [ref=e389]:
+            - img [ref=e392]
+            - generic [ref=e395]
+            - generic [ref=e401]
+            - generic [ref=e406]: Apr 22, 2026
+            - generic "IELTS Reading Strange Table Audit - Cam 13 Test 03 actions" [ref=e407]
+          - generic [ref=e421]:
+            - img [ref=e424]
+            - generic [ref=e427]
+            - generic [ref=e433]
+            - generic [ref=e438]: Apr 22, 2026
+            - generic "IELTS Reading Table Audit - Huarango v2 actions" [ref=e439]
+          - generic [ref=e453]:
+            - img [ref=e456]
+            - generic [ref=e459]
+            - generic [ref=e465]
+            - generic [ref=e470]: Apr 22, 2026
+            - generic "IELTS Reading Table Audit - Huarango actions" [ref=e471]
+          - generic [ref=e485]:
+            - img [ref=e488]
+            - generic [ref=e491]
+            - generic [ref=e497]
+            - generic [ref=e502]: Apr 21, 2026
+            - generic "IELTS Reading Test - April 2026 actions" [ref=e503]
+          - generic [ref=e517]:
+            - img [ref=e520]
+            - generic [ref=e523]
+            - generic [ref=e529]
+            - generic [ref=e534]: Apr 21, 2026
+            - generic "IELTS Reading Test - April 2026 actions" [ref=e535]
+          - generic [ref=e549]:
+            - img [ref=e552]
+            - generic [ref=e555]
+            - generic [ref=e561]
+            - generic [ref=e566]: Apr 21, 2026
+            - generic "IELTS Cambridge 16 - Reading - Test 1 - Passage 1 actions" [ref=e567]
+          - generic [ref=e581]:
+            - img [ref=e584]
+            - generic [ref=e587]
+            - generic [ref=e593]
+            - generic [ref=e598]: Mar 29, 2026
+            - generic "Inter - Supplement - Reading - Lesson 6 actions" [ref=e599]
+          - generic [ref=e613]:
+            - img [ref=e616]
+            - generic [ref=e619]
+            - generic [ref=e627]
+            - generic [ref=e632]: Mar 6, 2026
+            - generic "TEST 4 - GK2 GLOBAL 12 actions" [ref=e633]
+          - generic [ref=e652]:
+            - img [ref=e655]
+            - generic [ref=e658]
+            - generic [ref=e666]
+            - generic [ref=e671]: Mar 6, 2026
+            - generic "TEST 1 - GK2 GLOBAL 12 actions" [ref=e672]
+          - generic [ref=e691]:
+            - img [ref=e694]
+            - generic [ref=e697]
+            - generic [ref=e705]
+            - generic [ref=e710]: Mar 6, 2026
+            - generic "TEST 3 actions" [ref=e711]
+        - generic [ref=e731]: Showing 1 to 18 of 18 tests

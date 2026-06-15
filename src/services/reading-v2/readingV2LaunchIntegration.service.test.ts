@@ -7,6 +7,7 @@ import {
   buildReadingV2LaunchReadPlan,
   createReadingV2LaunchMaterialSummary,
   createReadingV2LibraryMaterial,
+  isReadingV2LaunchSurfaceEnabled,
   resolveReadingV2LaunchDecision,
   type ReadingV2LaunchSurface,
 } from './readingV2LaunchIntegration.service';
@@ -94,12 +95,121 @@ describe('readingV2LaunchIntegration.service', () => {
         surface: 'public-library',
         metadata: readingV2Metadata,
         projection: READING_V2_PROJECTION_FIXTURES.studentSafe,
+        rolloutMode: 'off',
+        readingPassageHomeworkMode: 'disabled',
+        readingPassageLibraryMode: 'disabled',
       }),
     ).toEqual({
       status: 'blocked',
       reason: 'rollout-disabled',
       message: 'Reading V2 is not enabled for student launch yet.',
     });
+  });
+
+  it('allows teacher-assigned Reading Passage homework without opening unrelated solo launch', () => {
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'homework',
+        rolloutMode: 'off',
+        readingPassageHomeworkMode: 'enabled',
+        readingPassageLibraryMode: 'disabled',
+      }),
+    ).toBe(true);
+
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'solo-practice',
+        rolloutMode: 'off',
+        readingPassageHomeworkMode: 'enabled',
+        readingPassageLibraryMode: 'enabled',
+      }),
+    ).toBe(false);
+  });
+
+  it('routes Reading Passage homework when the PRD-0052 homework flag is enabled', () => {
+    const decision = resolveReadingV2LaunchDecision({
+      surface: 'homework',
+      metadata: readingV2Metadata,
+      projection: READING_V2_PROJECTION_FIXTURES.studentSafe,
+      rolloutMode: 'off',
+      readingPassageHomeworkMode: 'enabled',
+    });
+
+    expect(decision.status).toBe('runtime');
+  });
+
+  it('blocks current launches for removed or broken master metadata while frozen payload launch can still use projection data', () => {
+    const frozenProjection = {
+      ...READING_V2_PROJECTION_FIXTURES.studentSafe,
+      assignmentManifest: {
+        homeworkId: 'hw-reading-set',
+        compositionId: 'composition-1',
+        compositionVersionId: 'version-1',
+      },
+    };
+
+    expect(
+      resolveReadingV2LaunchDecision({
+        surface: 'homework',
+        metadata: {
+          ...readingV2Metadata,
+          state: 'removed',
+        },
+        projection: READING_V2_PROJECTION_FIXTURES.studentSafe,
+        rolloutMode: 'public',
+      }),
+    ).toEqual({
+      status: 'blocked',
+      reason: 'archived-or-removed',
+      message: 'Reading V2 master is removed or archived and cannot be launched from the current library record.',
+    });
+
+    expect(
+      resolveReadingV2LaunchDecision({
+        surface: 'homework',
+        metadata: {
+          ...readingV2Metadata,
+          hasBrokenRefs: true,
+          brokenRefCount: 1,
+        },
+        projection: READING_V2_PROJECTION_FIXTURES.studentSafe,
+        rolloutMode: 'public',
+      }),
+    ).toEqual({
+      status: 'blocked',
+      reason: 'broken-master',
+        message: 'Reading V2 master has unresolved broken Reading Passage refs.',
+      });
+
+    const removedFrozenDecision = resolveReadingV2LaunchDecision({
+      surface: 'homework',
+      metadata: {
+        ...readingV2Metadata,
+        state: 'removed',
+      },
+      projection: frozenProjection,
+      rolloutMode: 'public',
+    });
+
+    expect(removedFrozenDecision.status).toBe('runtime');
+    if (removedFrozenDecision.status === 'runtime') {
+      expect(removedFrozenDecision.projection.assignmentManifest).toEqual(expect.objectContaining({
+        homeworkId: 'hw-reading-set',
+      }));
+    }
+
+    const brokenFrozenDecision = resolveReadingV2LaunchDecision({
+      surface: 'homework',
+      metadata: {
+        ...readingV2Metadata,
+        hasBrokenRefs: true,
+        brokenRefCount: 1,
+      },
+      projection: frozenProjection,
+      rolloutMode: 'public',
+    });
+
+    expect(brokenFrozenDecision.status).toBe('runtime');
   });
 
   it('routes non-live launches only from student-safe projections when rollout is public', () => {
@@ -129,6 +239,24 @@ describe('readingV2LaunchIntegration.service', () => {
     if (decision.status === 'runtime') {
       expect(decision.projection.projectionKind).toBe('session-safe');
     }
+  });
+
+  it('routes teacher-preview live sessions without opening unrelated solo launch', () => {
+    const liveDecision = resolveReadingV2LaunchDecision({
+      surface: 'live-session',
+      metadata: readingV2Metadata,
+      projection: READING_V2_PROJECTION_FIXTURES.sessionSafe,
+      rolloutMode: 'teacher-preview',
+    });
+
+    expect(liveDecision.status).toBe('runtime');
+
+    expect(
+      isReadingV2LaunchSurfaceEnabled({
+        surface: 'solo-practice',
+        rolloutMode: 'teacher-preview',
+      }),
+    ).toBe(false);
   });
 
   it('creates launch/listing summaries from published metadata and student-safe projections', () => {

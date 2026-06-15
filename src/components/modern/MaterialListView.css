@@ -74,3 +74,28 @@
     gap: 0.75rem;
   }
 }
+
+@media (max-width: 640px) {
+  .material-list-view {
+    --material-action-button-size: 34px;
+    --material-action-gap: 0.4rem;
+    --material-action-rail-width: auto;
+    --material-list-grid: 5px 36px minmax(0, 1fr);
+  }
+
+  .material-list-view__header {
+    grid-template-columns: var(--material-list-grid);
+    gap: 0.5rem;
+  }
+
+  .material-list-view__header-material {
+    grid-column: 1 / -1;
+    padding-left: 0.7rem;
+  }
+
+  .material-list-view__header-items,
+  .material-list-view__header-updated,
+  .material-list-view__header-actions {
+    display: none;
+  }
+}

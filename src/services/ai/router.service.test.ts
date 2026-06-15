@@ -7,6 +7,8 @@ import type { AIParseResult } from './ai.service';
 vi.mock('./gemini.provider', () => ({
   geminiProvider: {
     parseChunk: vi.fn(),
+    parsePassagesOnly: vi.fn(),
+    parseQuestionsAndAnswers: vi.fn(),
     getStatus: vi.fn(() => ({ available: true, provider: 'gemini' })),
     testConnection: vi.fn(),
     reset: vi.fn(),
@@ -16,6 +18,8 @@ vi.mock('./gemini.provider', () => ({
 vi.mock('./groq.provider', () => ({
   groqProvider: {
     parseChunk: vi.fn(),
+    parsePassagesOnly: vi.fn(),
+    parseQuestionsAndAnswers: vi.fn(),
     getStatus: vi.fn(() => ({ available: true, provider: 'groq' })),
     testConnection: vi.fn(),
     reset: vi.fn(),
@@ -490,6 +494,29 @@ describe('AI Router Service', () => {
       expect(result.error).toBe('All AI providers failed');
       expect(geminiProvider.parseChunk).toHaveBeenCalledTimes(1);
       expect(groqProvider.parseChunk).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Reading split parser failures', () => {
+    it('preserves provider failure reasons when all question parsers fail', async () => {
+      const { geminiProvider } = await import('./gemini.provider');
+      const { groqProvider } = await import('./groq.provider');
+      vi.mocked(geminiProvider.parseQuestionsAndAnswers).mockResolvedValue({
+        success: false,
+        error: 'Gemini temporary demand 503',
+      });
+      vi.mocked(groqProvider.parseQuestionsAndAnswers).mockResolvedValue({
+        success: false,
+        error: 'Questions+Answers parsing failed: No valid JSON found in AI response (truncated-json)',
+      });
+
+      const result = await aiService.parseQuestionsAndAnswers('large reading source');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toContain('gemini: Gemini temporary demand 503');
+      expect(result.error).toContain('groq: Questions+Answers parsing failed');
+      expect(result.error).toContain('(truncated-json)');
     });
   });
 });

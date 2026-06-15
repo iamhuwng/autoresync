@@ -2,7 +2,7 @@
 title: Teacher Lobby Authoring Navigation Contract
 description: Current Teacher Lobby authoring, material-card, search, compact header, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-05-31T15:36:35.237Z'
+updatedAt: '2026-06-15T00:00:00.000Z'
 tags:
   - architecture
   - teacher-lobby
@@ -33,6 +33,7 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 - Teacher Lobby `Create New Test` opens `TestCreationModal`; it must not route to a separate creation page before test-family/skill selection.
 - THCS-THPT creation stays inside the shared creation modal shell; do not add a second THCS-only lobby modal.
 - Reading V2 uses the same modal entry and forwards metadata/start mode into Studio.
+- Successful non-revision Reading V2 publish returns the teacher to the Lobby/Materials context; do not leave the same Studio shell open as if live published content were still being edited there.
 - `SearchFilterBar` search input uses the shared SVG `SearchIcon`; do not use emoji-only input icons.
 - Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.
 - `TeacherHeader` owns the shared teacher header design and must render as a top-level page/shell child attached to the top edge.
@@ -49,6 +50,7 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 
 - page-first test creation from Teacher Lobby before family selection
 - THCS creation through a separate lobby-only modal
+- leaving successful non-revision Reading V2 publish inside the same Studio shell
 - emoji search icon as the input icon
 - text-glyph `Advanced Settings` triangle
 - material-card titles expanding beyond two lines

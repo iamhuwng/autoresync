@@ -5,6 +5,13 @@
 > **Source under test:** `C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md`
 > **Active repo root:** `C:\Users\The Lord\Desktop\luyentap-reading-v2-auto-v3-source-proof`
 > **Branch:** `codex/reading-v2-auto-v4-review-contract`
+> **Status:** Historical E2E evidence. Superseded by `tasks-0048-reading-v2-auto-v4-source-authoritative-group-repair.md` for current provider policy.
+
+## Current Provider Policy
+
+Auto V4 default parsing is Gemini-only staged extraction. Groq must not be used as a whole-test fallback replacement for Gemini.
+
+Groq remains allowed only as a future group-scoped repair tool after a weak group is identified by the local verifier or the teacher. That repair must use the smallest useful source slice, show a patch/diff, and require teacher accept/reject.
 
 ## Decision Contract
 
@@ -19,7 +26,7 @@ This validation is not a perfection chase. Auto V4 is acceptable when it acts as
 - It hard-blocks only unsafe or non-editable output.
 - It does not require local code to fully parse messy source formats before AI processing. Auto V4 provider output is the primary parse, and local checks are advisory guardrails that should warn/block publish only when output is unsafe or incomplete.
 - It does not treat local ledger structure or answer-key counts as product authority. If local preflight undercounts messy but human-readable question/answer areas, record that as a measurement limitation and compare the AI/app output to the gold baseline plus Studio diagnostics.
-- Groq question-area output must be measured against source topology and Studio parse completion. If completion is low, the app must feed Groq precise coverage feedback so Groq self-fixes its JSON output from the same source evidence. Local code remains auditor/router/guardrail, not a replacement AI parser.
+- Historical note: this task originally measured Groq question-area output as part of the provider path. Current Auto V4 provider policy no longer keeps Groq in the whole-test parse path.
 
 ## Data Boundary
 
@@ -103,7 +110,7 @@ Source proof:
 - Size: 26,347 bytes; 26,039 chars; 477 lines
 - Full passage text included in committed docs: no
 
-Live provider run:
+Historical live provider run:
 
 - Provider path: `gemini-groq` through `generateReadingV2AutoImportCandidate`
 - Model label: `gemini-2.5-flash+groq-structured-json`
@@ -153,7 +160,7 @@ Local ledger advisory:
 - Local-only missing rows: 2, 6, 14, 17, 18.
 - Interpretation: this is measurement limitation, not product blocker. Local preflight is not product authority for messy source. Auto V4 provider output plus Studio diagnostics owns the user-facing parse/review contract.
 
-Provider self-fix evidence:
+Historical provider self-fix evidence:
 
 - Passage package 2 returned malformed Groq JSON; app retried with stricter JSON escaping and recovered.
 - Passage package 2 then had low completion coverage: 4/13 expected questions, missing groups 14-18 and 23-26.
@@ -167,10 +174,10 @@ Chrome evidence:
 - Command: `npx playwright test e2e/reading-v2-studio-smoke.spec.ts -g "Auto V4" --project=chromium --reporter=line --workers=1`
 - Result: 2 passed.
 
-Final advice:
+Current advice:
 
 - Keep Auto V4 as safe assistant, not judge.
 - Do not add source-format exceptions just because local preflight undercounts messy human-readable source.
-- Keep the Groq completion-feedback loop: low completion must trigger AI self-repair before local audit/repair.
+- Do not use Groq as Auto V4 whole-test fallback. Reserve Groq for explicit group-scoped repair only.
 - Keep admin-site keys part of the shared provider inventory. Do not regress Reading V2/Auto V4 to `.env`-only key loading.
 - Treat Cloud Function references as deprecated/off-limits unless a future decision explicitly re-approves them.

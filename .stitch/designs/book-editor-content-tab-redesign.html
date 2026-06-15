@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Educator Workspace - Testing Book Editor</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config Injection -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#eff4ff",
+                        "on-error": "#ffffff",
+                        "inverse-primary": "#80d5cb",
+                        "error": "#ba1a1a",
+                        "secondary-fixed-dim": "#c0c1ff",
+                        "primary": "#005c55",
+                        "on-tertiary-container": "#ffe4e4",
+                        "on-secondary-fixed-variant": "#2f2ebe",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#00201d",
+                        "surface-tint": "#006a63",
+                        "outline": "#6e7977",
+                        "on-background": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#ffdada",
+                        "secondary": "#4648d4",
+                        "on-primary-container": "#a3faef",
+                        "background": "#f8f9ff",
+                        "surface-bright": "#f8f9ff",
+                        "primary-container": "#0f766e",
+                        "surface-container": "#e5eeff",
+                        "on-error-container": "#93000a",
+                        "on-surface-variant": "#3e4947",
+                        "on-tertiary-fixed": "#40000c",
+                        "surface-container-high": "#dce9ff",
+                        "on-secondary-fixed": "#07006c",
+                        "secondary-container": "#6063ee",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "secondary-fixed": "#e1e0ff",
+                        "primary-fixed-dim": "#80d5cb",
+                        "primary-fixed": "#9cf2e8",
+                        "outline-variant": "#bdc9c6",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#a6002f",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary-fixed-variant": "#00504a",
+                        "on-surface": "#0b1c30",
+                        "tertiary-container": "#d2093f",
+                        "surface-dim": "#cbdbf5",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f8f9ff",
+                        "on-tertiary-fixed-variant": "#920028",
+                        "on-secondary-container": "#fffbff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "tertiary-fixed-dim": "#ffb3b6",
+                        "inverse-surface": "#213145"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "panel-gap": "1px",
+                        "stack-sm": "8px",
+                        "container-padding": "24px",
+                        "stack-md": "16px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "title-md": ["Inter"],
+                        "display": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline": ["Inter"]
+                    },
+                    "fontSize": {
+                        "title-md": ["16px", { "lineHeight": "24px", "fontWeight": "500" }],
+                        "display": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background min-h-screen relative flex items-center justify-center overflow-hidden">
+<!-- Blurred Background Environment -->
+<div class="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-40 blur-md" data-alt="A bright, modern teacher's lobby and administrative workspace in an educational facility. The room features clean, minimalist desks, soft natural lighting from large windows, and a sophisticated color palette of cool whites and subtle greys. The atmosphere is professional, organized, and focused on academic excellence, embodying a high-end SaaS product environment." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBg1iZp6PLblZfILrbmbB1Ki_WQg6uVYIizCocD-8EWqGX6FqCbuJrtnruvGFFtvUNIq9FdwrLIJARnz2G5zbF0flQnrx-BSQ3Z5lQ2kyxoAULuHbdwoCkQIRZZRxEcsjYMtVGtUgyLIZIHpR-7-qbpQ226AbXD11tbwxJdfkoZXd1iOAgo1HRxQw0jB94PrhkuK351eAX2s1tL1Sb3avFVmjPvIk3h823-Z368MNVqfVy2fJW1RdSkl4JlPn7wW0LzrCROI_Jwn6Yd');">
+</div>
+<!-- Modal Container -->
+<div class="relative z-10 w-[1024px] h-[760px] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl flex flex-col overflow-hidden">
+<!-- Modal Header (Adapted TopAppBar) -->
+<header class="bg-surface-container-lowest border-b border-outline-variant flex flex-col pt-stack-sm px-container-padding shrink-0">
+<!-- Top Actions Row -->
+<div class="flex justify-between items-center w-full h-12">
+<!-- Left: Title & Chips -->
+<div class="flex items-center gap-stack-sm">
+<h1 class="font-headline text-headline text-on-surface">Testing Book</h1>
+<div class="flex gap-unit">
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full border border-outline-variant">draft-empty</span>
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full border border-outline-variant">private</span>
+<span class="bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm px-2 py-0.5 rounded-full">ielts</span>
+</div>
+</div>
+<!-- Right: Actions -->
+<div class="flex items-center gap-stack-sm">
+<button class="bg-surface-container-lowest border border-outline-variant text-on-surface hover:bg-surface-container transition-colors font-label-md text-label-md px-4 py-1.5 rounded-lg flex items-center justify-center">
+                        Request review
+                    </button>
+<button class="bg-primary-container text-on-primary-container hover:opacity-90 transition-opacity font-label-md text-label-md px-4 py-1.5 rounded-lg flex items-center justify-center">
+                        Save
+                    </button>
+<button aria-label="Close" class="text-on-surface-variant hover:text-on-surface ml-2 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+</div>
+<!-- Bottom Tabs Row -->
+<div class="flex gap-stack-md mt-2">
+<button class="text-on-surface-variant font-body-md pb-2 px-1 hover:text-on-surface transition-colors">
+                    Overview
+                </button>
+<button class="text-primary border-b-2 border-primary font-title-md pb-2 px-1">
+                    Content
+                </button>
+<button class="text-on-surface-variant font-body-md pb-2 px-1 hover:text-on-surface transition-colors">
+                    Settings
+                </button>
+</div>
+</header>
+<!-- Body Container -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left Panel (Book Outline) -->
+<aside class="w-[380px] bg-surface-container-lowest border-r border-outline-variant flex flex-col shrink-0">
+<!-- Panel Header -->
+<div class="px-gutter py-stack-md border-b border-outline-variant bg-surface-bright flex flex-col gap-unit">
+<div class="flex justify-between items-center">
+<h2 class="font-title-md text-title-md text-on-surface">Book outline</h2>
+<span class="font-body-sm text-body-sm text-on-surface-variant">4 parts · 3 materials</span>
+</div>
+<!-- Toolbar -->
+<div class="flex gap-unit mt-unit">
+<button class="text-on-surface-variant hover:bg-surface-container border border-outline-variant rounded px-2 py-1 font-label-sm text-label-sm flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]" data-icon="add">add</span> Section
+                        </button>
+<button class="text-on-surface-variant hover:bg-surface-container border border-outline-variant rounded px-2 py-1 font-label-sm text-label-sm flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]" data-icon="add">add</span> Chapter
+                        </button>
+<button class="text-on-surface-variant hover:bg-surface-container border border-outline-variant rounded px-2 py-1 font-label-sm text-label-sm flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]" data-icon="add">add</span> Test
+                        </button>
+</div>
+<!-- Search -->
+<div class="relative mt-stack-sm">
+<span class="material-symbols-outlined absolute left-2 top-1.5 text-on-surface-variant text-[16px]" data-icon="search">search</span>
+<input class="w-full pl-8 pr-3 py-1.5 bg-surface border border-outline-variant rounded font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary" placeholder="Search outline" type="text"/>
+</div>
+</div>
+<!-- Tree Rows -->
+<div class="flex-1 overflow-y-auto py-stack-sm flex flex-col">
+<!-- Selected Row -->
+<div class="flex items-center justify-between px-gutter py-2 bg-secondary-fixed border-l-2 border-secondary group cursor-pointer">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]" data-icon="folder_open">folder_open</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-secondary-fixed font-medium">Section 1</span>
+<div class="flex items-center gap-2">
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-[10px] px-1.5 rounded-sm">section</span>
+<span class="font-body-sm text-[11px] text-on-secondary-fixed opacity-80">2 materials · ready</span>
+</div>
+</div>
+</div>
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<!-- Indented Children -->
+<div class="flex items-center justify-between pl-10 pr-gutter py-2 hover:bg-surface-container-low group cursor-pointer">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]" data-icon="description">description</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface truncate w-[200px]">IELTS Reading Passage - Huarango</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-[10px] px-1.5 rounded-sm">reading-passage</span>
+<span class="font-body-sm text-[11px] text-outline">available</span>
+</div>
+</div>
+</div>
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex items-center justify-between pl-10 pr-gutter py-2 hover:bg-surface-container-low group cursor-pointer">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]" data-icon="quiz">quiz</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface truncate w-[200px]">Cambridge 16 Reading Test 3</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-[10px] px-1.5 rounded-sm">full-test</span>
+<span class="font-body-sm text-[11px] text-[#b45309]">newer version</span>
+</div>
+</div>
+</div>
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<!-- Other Rows -->
+<div class="flex items-center justify-between px-gutter py-2 hover:bg-surface-container-low group cursor-pointer mt-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]" data-icon="folder">folder</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface">Chapter 1</span>
+<span class="font-body-sm text-[11px] text-outline">0 materials · needs content</span>
+</div>
+</div>
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex items-center justify-between px-gutter py-2 hover:bg-surface-container-low group cursor-pointer mt-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]" data-icon="task">task</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface">Test 1</span>
+<span class="font-body-sm text-[11px] text-outline">1 material · ready</span>
+</div>
+</div>
+<button class="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Right Panel (Selected Section) -->
+<main class="flex-1 bg-surface-container-lowest overflow-y-auto">
+<div class="max-w-[600px] mx-auto p-container-padding flex flex-col gap-stack-md">
+<!-- Right Panel Header -->
+<div class="flex items-center gap-stack-sm pb-stack-sm border-b border-outline-variant">
+<h2 class="font-headline text-headline text-on-surface">Selected section</h2>
+<span class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full border border-outline-variant">ready</span>
+</div>
+<!-- Details Group -->
+<div class="flex flex-col gap-stack-sm">
+<div class="font-body-sm text-body-sm text-on-surface-variant">
+                            Root / Section 1 · Depth 1 · Order 1
+                        </div>
+<div class="grid grid-cols-2 gap-stack-md mt-2">
+<div class="flex flex-col gap-unit">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Title</label>
+<input class="w-full px-3 py-2 bg-surface-bright border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary" type="text" value="Section 1"/>
+</div>
+<div class="flex flex-col gap-unit">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Type</label>
+<div class="relative">
+<select class="w-full px-3 py-2 bg-surface-bright border border-outline-variant rounded font-body-md text-body-md text-on-surface appearance-none focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary">
+<option>Section</option>
+<option>Chapter</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2.5 text-on-surface-variant pointer-events-none text-[18px]" data-icon="arrow_drop_down">arrow_drop_down</span>
+</div>
+</div>
+</div>
+<!-- Structure Actions -->
+<div class="flex items-center gap-stack-sm mt-2">
+<button class="bg-surface-container-lowest border border-outline-variant text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm px-3 py-1.5 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="arrow_upward">arrow_upward</span> Move up
+                            </button>
+<button class="bg-surface-container-lowest border border-outline-variant text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm px-3 py-1.5 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="arrow_downward">arrow_downward</span> Move down
+                            </button>
+<div class="flex-1"></div>
+<button class="border border-error text-error hover:bg-error-container hover:text-on-error-container transition-colors font-label-sm text-label-sm px-3 py-1.5 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="delete">delete</span> Delete
+                            </button>
+</div>
+</div>
+<!-- Divider -->
+<hr class="border-outline-variant my-stack-sm"/>
+<!-- Attach Material Group -->
+<div class="flex flex-col gap-stack-sm">
+<h3 class="font-title-md text-title-md text-on-surface">Attach material</h3>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2 text-on-surface-variant text-[18px]" data-icon="search">search</span>
+<input class="w-full pl-9 pr-3 py-2 bg-surface-bright border border-outline-variant rounded font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary" placeholder="Search published materials" type="text"/>
+</div>
+<div class="border border-outline-variant rounded mt-2 overflow-hidden flex flex-col bg-surface-container-lowest">
+<!-- Attachable Row 1 -->
+<div class="flex items-center justify-between p-3 border-b border-outline-variant hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">IELTS Reading Passage - Huarango</span>
+<span class="font-body-sm text-[12px] text-outline mt-0.5">reading-passage · IELTS</span>
+</div>
+<button class="text-primary-container font-label-md text-label-md hover:underline px-2 py-1">Attach</button>
+</div>
+<!-- Attachable Row 2 -->
+<div class="flex items-center justify-between p-3 hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Cambridge 16 Reading Test 3</span>
+<span class="font-body-sm text-[12px] text-outline mt-0.5">full-test · IELTS</span>
+</div>
+<button class="text-primary-container font-label-md text-label-md hover:underline px-2 py-1">Attach</button>
+</div>
+</div>
+</div>
+<!-- Divider -->
+<hr class="border-outline-variant my-stack-sm"/>
+<!-- Currently Active Draft Item -->
+<div class="flex flex-col gap-stack-sm">
+<h3 class="font-title-md text-title-md text-on-surface">Currently Active Draft Item</h3>
+<div class="border border-outline-variant bg-surface-bright rounded-lg p-stack-md flex flex-col gap-stack-md">
+<div class="flex justify-between items-start">
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">IELTS Reading Passage - Huarango</span>
+<div class="flex gap-2 mt-1">
+<span class="text-on-surface-variant font-label-sm text-[11px] bg-surface-container px-2 py-0.5 rounded border border-outline-variant">reading-passage</span>
+<span class="text-outline font-label-sm text-[11px] px-1 py-0.5">available</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="description">description</span>
+</div>
+<div class="flex items-center gap-stack-sm pt-2">
+<button class="bg-primary-container text-on-primary-container hover:opacity-90 transition-opacity font-label-md text-label-md px-4 py-2 rounded flex items-center justify-center">
+                                    Assign selected
+                                </button>
+<button class="bg-surface-container-lowest border border-outline text-primary hover:bg-surface-container-low transition-colors font-label-md text-label-md px-4 py-2 rounded flex items-center justify-center">
+                                    Remove
+                                </button>
+</div>
+</div>
+<p class="font-body-sm text-[11px] text-on-surface-variant italic mt-1">
+                            Whole-Book assignment is not available in V1.
+                        </p>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

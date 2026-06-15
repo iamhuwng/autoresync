@@ -39,6 +39,22 @@ export const SearchIcon = ({ size = 14, style = {}, className = '' }) => (
   </svg>
 );
 
+export const LockIcon = ({ size = 14, style = {}, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
+    <rect x="5" y="10" width="14" height="11" rx="2" />
+    <path d="M8 10V7a4 4 0 0 1 8 0v3" strokeLinecap="round" />
+  </svg>
+);
+
+export const GlobeIcon = ({ size = 14, style = {}, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M2 12h20" strokeLinecap="round" />
+    <path d="M12 2a15.3 15.3 0 0 1 0 20" strokeLinecap="round" />
+    <path d="M12 2a15.3 15.3 0 0 0 0 20" strokeLinecap="round" />
+  </svg>
+);
+
 export const GridIcon = ({ size = 14, style = {}, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
     <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -97,6 +113,13 @@ export const MoreHorizontalIcon = ({ size = 14, style = {}, className = '' }) =>
     <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
     <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
     <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const SettingsIcon = ({ size = 14, style = {}, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={style}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1v.09a2 2 0 0 1-4 0V21a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H2.9a2 2 0 0 1 0-4H3a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V2.9a2 2 0 0 1 4 0V3a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.22.38.4.75.6 1 .22.28.55.33 1 .33h.1a2 2 0 0 1 0 4H21a1.65 1.65 0 0 0-1 .33c-.28.22-.4.55-.6 1z" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 

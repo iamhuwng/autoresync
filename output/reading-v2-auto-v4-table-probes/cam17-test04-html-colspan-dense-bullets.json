@@ -1,0 +1,419 @@
+{
+  "label": "cam17-test04-html-colspan-dense-bullets",
+  "path": "[redacted-windows-path]",
+  "expectedTableRange": "7-13",
+  "why": "HTML table, colspan title row, one dense Findings cell with five blanks, bullets/dashes inside cells.",
+  "startedAt": "2026-06-07T00:44:21.833Z",
+  "finishedAt": "2026-06-07T00:46:09.865Z",
+  "source": {
+    "sha256": "1f92289bd6cb1edb23449ac42c2a6ba11856fc8ddcab50035d9f46aab1f1f4f6",
+    "charLength": 25965,
+    "lineCount": 403,
+    "fullTextIncluded": false
+  },
+  "ledger": {
+    "category": "full-test-with-answer-key",
+    "passageCount": 3,
+    "questionCount": 40,
+    "answerKeyRows": 36,
+    "answerKeyRange": "1-22, 27-40",
+    "issues": [
+      {
+        "code": "source-pollution-detected",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "appResult": {
+    "success": true,
+    "reviewStatus": "needs_review",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+    "passageCount": 3,
+    "questionCount": 40,
+    "error": null,
+    "diagnostics": [
+      {
+        "code": "auto-pipeline-lane-selected",
+        "severity": "info",
+        "message": "Auto pipeline lane selected: V4 full-document staged parser."
+      },
+      {
+        "code": "auto-v4-staged-parser-used",
+        "severity": "info",
+        "message": "Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload."
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 passage stage completed with gemini.",
+        "stage": "auto-v4-passages",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 question/answer stage completed with gemini.",
+        "stage": "auto-v4-questions",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 1 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 1,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage, How Madagascar.",
+        "passageNumber": 1,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 2 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 2,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+        "passageNumber": 2,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 3 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 3,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+        "passageNumber": 3,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "answer-key-extracted",
+        "severity": "info",
+        "message": "Auto extracted answer-key rows from the raw source."
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 1-6 is weak: group-source-underrepresented.",
+        "groupRange": "1-6",
+        "questionNumber": 1,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 7-13 is weak: group-source-underrepresented.",
+        "groupRange": "7-13",
+        "questionNumber": 7,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "high-risk-token-changed",
+        "severity": "warning",
+        "message": "Group 7-13 is weak: high-risk-token-changed.",
+        "groupRange": "7-13",
+        "questionNumber": 7,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "question-text-changed",
+        "severity": "warning",
+        "message": "Group 7-13 is weak: question-text-changed.",
+        "groupRange": "7-13",
+        "questionNumber": 7,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "table-cell-missing",
+        "severity": "warning",
+        "message": "Group 7-13 is weak: table-cell-missing.",
+        "groupRange": "7-13",
+        "questionNumber": 7,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 14-18 is weak: group-source-underrepresented.",
+        "groupRange": "14-18",
+        "questionNumber": 14,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 19-22 is weak: group-source-underrepresented.",
+        "groupRange": "19-22",
+        "questionNumber": 19,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 23-24 is weak: group-source-underrepresented.",
+        "groupRange": "23-24",
+        "questionNumber": 23,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 25-26 is weak: group-source-underrepresented.",
+        "groupRange": "25-26",
+        "questionNumber": 25,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 27-32 is weak: group-source-underrepresented.",
+        "groupRange": "27-32",
+        "questionNumber": 27,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 33-36 is weak: group-source-underrepresented.",
+        "groupRange": "33-36",
+        "questionNumber": 33,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 37-40 is weak: group-source-underrepresented.",
+        "groupRange": "37-40",
+        "questionNumber": 37,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "source-ledger-warning",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "structure": {
+    "sectionCount": 3,
+    "taskGroupCount": 9,
+    "interactionCount": 40,
+    "visibleQuestionRange": "1-40",
+    "answerKeyRows": 40,
+    "answerKeyRange": "1-40",
+    "validation": {
+      "blockingIssueCount": 0,
+      "warningIssueCount": 1,
+      "blockingCodes": [],
+      "warningCodes": [
+        "unresolved-import-uncertainty"
+      ],
+      "blockingMessages": [],
+      "warningMessages": [
+        "Imported instructions for Questions 14-18 contain non-standard source wording. Studio used the standard IELTS task-type instruction; review source instruction evidence: \"Reading Passage 2 has six paragraphs, A-F. Which section contains the following information? Write the correct letter, A-F, in boxes 14-18 on your answer sheet.\""
+      ]
+    },
+    "taskGroups": [
+      {
+        "range": "1-6",
+        "taskType": "true-false-not-given",
+        "interactionCount": 6,
+        "table": null
+      },
+      {
+        "range": "7-13",
+        "taskType": "table-completion",
+        "interactionCount": 7,
+        "table": {
+          "stimulusId": "practice-cam-17-reading-test-04-table-1-2",
+          "rowCount": 7,
+          "columnCount": 2,
+          "blanks": [
+            {
+              "question": 7,
+              "row": 1,
+              "column": 2,
+              "text": "● ultrasonic recording to identify favourite feeding spots ● DNA analysis of bat ___"
+            },
+            {
+              "question": 8,
+              "row": 2,
+              "column": 2,
+              "text": "_____"
+            },
+            {
+              "question": 9,
+              "row": 3,
+              "column": 2,
+              "text": "_____"
+            },
+            {
+              "question": 10,
+              "row": 4,
+              "column": 2,
+              "text": "_____"
+            },
+            {
+              "question": 11,
+              "row": 5,
+              "column": 2,
+              "text": "_____"
+            },
+            {
+              "question": 12,
+              "row": 6,
+              "column": 2,
+              "text": "_____"
+            },
+            {
+              "question": 13,
+              "row": 7,
+              "column": 2,
+              "text": "● farmers should provide special ___ to support the bat population"
+            }
+          ]
+        }
+      },
+      {
+        "range": "14-18",
+        "taskType": "matching-information",
+        "interactionCount": 5,
+        "table": null
+      },
+      {
+        "range": "19-22",
+        "taskType": "summary-completion-text",
+        "interactionCount": 4,
+        "table": null
+      },
+      {
+        "range": "23-24",
+        "taskType": "multiple-select",
+        "interactionCount": 2,
+        "table": null
+      },
+      {
+        "range": "25-26",
+        "taskType": "multiple-select",
+        "interactionCount": 2,
+        "table": null
+      },
+      {
+        "range": "27-32",
+        "taskType": "matching-information",
+        "interactionCount": 6,
+        "table": null
+      },
+      {
+        "range": "33-36",
+        "taskType": "true-false-not-given",
+        "interactionCount": 4,
+        "table": null
+      },
+      {
+        "range": "37-40",
+        "taskType": "summary-completion-text",
+        "interactionCount": 4,
+        "table": null
+      }
+    ]
+  },
+  "tableGroup": {
+    "range": "7-13",
+    "taskType": "table-completion",
+    "interactionCount": 7,
+    "table": {
+      "stimulusId": "practice-cam-17-reading-test-04-table-1-2",
+      "rowCount": 7,
+      "columnCount": 2,
+      "blanks": [
+        {
+          "question": 7,
+          "row": 1,
+          "column": 2,
+          "text": "● ultrasonic recording to identify favourite feeding spots ● DNA analysis of bat ___"
+        },
+        {
+          "question": 8,
+          "row": 2,
+          "column": 2,
+          "text": "_____"
+        },
+        {
+          "question": 9,
+          "row": 3,
+          "column": 2,
+          "text": "_____"
+        },
+        {
+          "question": 10,
+          "row": 4,
+          "column": 2,
+          "text": "_____"
+        },
+        {
+          "question": 11,
+          "row": 5,
+          "column": 2,
+          "text": "_____"
+        },
+        {
+          "question": 12,
+          "row": 6,
+          "column": 2,
+          "text": "_____"
+        },
+        {
+          "question": 13,
+          "row": 7,
+          "column": 2,
+          "text": "● farmers should provide special ___ to support the bat population"
+        }
+      ]
+    }
+  },
+  "diagnosticEvents": [
+    {
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": false,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 25964,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 25964,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 36,
+        "sourceName": "Practice Cam 17 Reading Test 04.md"
+      }
+    }
+  ]
+}

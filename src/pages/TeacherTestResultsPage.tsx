@@ -72,7 +72,7 @@ interface TestData {
   title: string;
   type: string;
   skill: string;
-  questions: Array<{
+  questions?: Array<{
     id?: string;
     number?: number;
     points?: number;
@@ -173,6 +173,27 @@ function buildQuestionAnalytics(records: CanonicalTeacherResult[]): QuestionAnal
         .sort((left, right) => right.count - left.count)
         .slice(0, 3),
     }))
+    .sort((left, right) => left.questionNumber - right.questionNumber);
+}
+
+function buildRemarkQuestions(
+  testQuestions: TestData['questions'],
+  questionResults: QuestionResult[] | undefined,
+): { questionNumber: number; maxScore: number; text?: string }[] {
+  if (Array.isArray(testQuestions) && testQuestions.length > 0) {
+    return testQuestions.map((question) => ({
+      questionNumber: question.number || (question.id ? parseInt(question.id.replace('q', ''), 10) : 0),
+      maxScore: question.points || 1,
+      text: question.question,
+    }));
+  }
+
+  return (questionResults || [])
+    .map((questionResult) => ({
+      questionNumber: questionResult.questionNumber,
+      maxScore: questionResult.maxScore || 1,
+    }))
+    .filter((question) => Number.isFinite(question.questionNumber) && question.questionNumber > 0)
     .sort((left, right) => left.questionNumber - right.questionNumber);
 }
 
@@ -664,11 +685,7 @@ export const TeacherTestResultsPage: React.FC = () => {
             onClose={() => setRemarkModalOpen(false)}
             studentName={selectedStudentForRemark.studentName}
             results={selectedStudentForRemark.questionResults || []}
-            questions={testData.questions.map((question) => ({
-              questionNumber: question.number || (question.id ? parseInt(question.id.replace('q', ''), 10) : 0),
-              maxScore: question.points || 1,
-              text: question.question,
-            }))}
+            questions={buildRemarkQuestions(testData.questions, selectedStudentForRemark.questionResults)}
             onSave={handleRemarkSave}
           />
         )}

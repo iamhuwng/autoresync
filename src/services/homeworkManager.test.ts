@@ -406,6 +406,104 @@ describe('homeworkManager', () => {
 
             expect(storedHomework?.antiCheatConfig).toEqual(mockAntiCheatConfig);
         });
+
+        it('creates single Reading Passage homework with frozen snapshot metadata', async () => {
+            const homeworkId = await createHomework({
+                materialId: 'reading-passage-1',
+                materialTitle: 'Making Time for Science',
+                materialType: 'reading-passage',
+                materialSkill: 'reading',
+                teacherId: mockTeacherId,
+                target: mockStudentsTarget,
+                config: mockConfig,
+                dueDate: new Date(Date.now() + 86_400_000),
+                readingPassageSnapshot: {
+                    passageMaterialId: 'reading-passage-1',
+                    snapshotVersionId: 'snapshot-passage-1',
+                    titleSnapshot: 'Making Time for Science',
+                    questionCount: 13,
+                    testTypeIds: ['ielts'],
+                    sourceOrderDisplay: 'Passage 1',
+                    sourceFullTestTitle: 'British Council Practice Test 01',
+                },
+            });
+
+            const storedHomework = await getHomeworkById(homeworkId);
+
+            expect(storedHomework).toMatchObject({
+                materialId: 'reading-passage-1',
+                materialTitle: 'Making Time for Science',
+                materialType: 'reading-passage',
+                readingPassageSnapshot: {
+                    passageMaterialId: 'reading-passage-1',
+                    snapshotVersionId: 'snapshot-passage-1',
+                    titleSnapshot: 'Making Time for Science',
+                    questionCount: 13,
+                    testTypeIds: ['ielts'],
+                    sourceOrderDisplay: 'Passage 1',
+                    sourceFullTestTitle: 'British Council Practice Test 01',
+                },
+            });
+        });
+
+        it('creates Reading Passage set homework with assignment-owned material id and ordered snapshots', async () => {
+            const homeworkId = await createHomework({
+                materialId: 'ignored-before-homework-id-exists',
+                materialTitle: 'IELTS Passage Set',
+                materialType: 'reading-passage-set',
+                materialSkill: 'reading',
+                teacherId: mockTeacherId,
+                target: mockStudentsTarget,
+                config: mockConfig,
+                dueDate: new Date(Date.now() + 86_400_000),
+                readingPassageSet: {
+                    titleSnapshot: 'IELTS Passage Set',
+                    items: [
+                        {
+                            order: 1,
+                            passageMaterialId: 'reading-passage-1',
+                            snapshotVersionId: 'snapshot-passage-1',
+                            titleSnapshot: 'Passage One',
+                            questionCount: 13,
+                            testTypeIds: ['ielts'],
+                            sourceOrderDisplay: 'Passage 1',
+                        },
+                        {
+                            order: 2,
+                            passageMaterialId: 'reading-passage-2',
+                            snapshotVersionId: 'snapshot-passage-2',
+                            titleSnapshot: 'Passage Two',
+                            questionCount: 13,
+                            testTypeIds: ['ielts'],
+                            sourceOrderDisplay: 'Passage 2',
+                        },
+                    ],
+                },
+            });
+
+            const storedHomework = await getHomeworkById(homeworkId);
+
+            expect(storedHomework).toMatchObject({
+                materialId: `reading-passage-set:${homeworkId}`,
+                materialTitle: 'IELTS Passage Set',
+                materialType: 'reading-passage-set',
+                readingPassageSet: {
+                    titleSnapshot: 'IELTS Passage Set',
+                    items: [
+                        expect.objectContaining({
+                            order: 1,
+                            passageMaterialId: 'reading-passage-1',
+                            snapshotVersionId: 'snapshot-passage-1',
+                        }),
+                        expect.objectContaining({
+                            order: 2,
+                            passageMaterialId: 'reading-passage-2',
+                            snapshotVersionId: 'snapshot-passage-2',
+                        }),
+                    ],
+                },
+            });
+        });
     });
 
     describe('queries', () => {

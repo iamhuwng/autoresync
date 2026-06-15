@@ -201,6 +201,7 @@ export type ReadingV2EditorValidationCode =
   | 'duplicate-table-cell-id'
   | 'duplicate-flow-step-id'
   | 'duplicate-diagram-target-id'
+  | 'duplicate-task-group-anchor-reference'
   | 'broken-blank-link'
   | 'missing-media-source'
   | 'empty-flow-step'

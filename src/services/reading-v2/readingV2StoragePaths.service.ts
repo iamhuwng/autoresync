@@ -8,12 +8,18 @@ export type ReadingV2StoragePathClass =
   | 'passageAssetVersions'
   | 'taskGroupMaterials'
   | 'fullTests'
+  | 'readingPassageMaterials'
+  | 'readingPassageMaterialVersions'
+  | 'fullTestCompositions'
+  | 'fullTestCompositionVersions'
   | 'materialMetadata'
+  | 'listingIndexes'
   | 'relationshipIndexes'
   | 'publishedSnapshots'
   | 'previewPayloads'
   | 'studentSafeTests'
   | 'sessionSafePayloads'
+  | 'assignmentPayloads'
   | 'reviewProjections'
   | 'attempts'
   | 'results'
@@ -34,7 +40,17 @@ export const readingV2StoragePaths = {
   taskGroupMaterials: (materialId: string): string =>
     namespaced(`task_group_materials/${materialId}`),
   fullTests: (fullTestId: string): string => namespaced(`full_tests/${fullTestId}`),
+  readingPassageMaterials: (materialId: string): string =>
+    namespaced(`reading_passage_materials/${materialId}`),
+  readingPassageMaterialVersions: (materialId: string, versionId: string): string =>
+    namespaced(`reading_passage_material_versions/${materialId}/${versionId}`),
+  fullTestCompositions: (compositionId: string): string =>
+    namespaced(`full_test_compositions/${compositionId}`),
+  fullTestCompositionVersions: (compositionId: string, versionId: string): string =>
+    namespaced(`full_test_composition_versions/${compositionId}/${versionId}`),
   materialMetadata: (materialId: string): string => namespaced(`material_metadata/${materialId}`),
+  listingIndexes: (surface: string, materialId: string): string =>
+    namespaced(`listing_indexes/${surface}/${materialId}`),
   relationshipIndexes: (surface: string, materialId: string): string =>
     namespaced(`relationship_indexes/${surface}/${materialId}`),
   publishedSnapshots: (materialId: string, snapshotVersionId: string): string =>
@@ -44,6 +60,8 @@ export const readingV2StoragePaths = {
     namespaced(`projections/student_safe_tests/${materialId}:${snapshotVersionId}`),
   sessionSafePayloads: (sessionCode: string, snapshotVersionId = 'current'): string =>
     namespaced(`projections/session_test_payloads/${sessionCode}:${snapshotVersionId}`),
+  assignmentPayloads: (homeworkId: string, compositionVersionId: string): string =>
+    namespaced(`projections/assignment_payloads/${homeworkId}:${compositionVersionId}`),
   reviewProjections: (materialId: string, snapshotVersionId: string): string =>
     namespaced(`projections/review/${materialId}:${snapshotVersionId}`),
   attempts: (attemptId: string): string => namespaced(`attempts/${attemptId}`),

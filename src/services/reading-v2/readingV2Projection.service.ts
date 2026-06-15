@@ -4,6 +4,7 @@ import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import {
   READING_V2_SCHEMA_VERSION,
   type ReadingV2Anchor,
+  type ReadingV2CompositionNumbering,
   type ReadingV2Document,
   type ReadingV2Interaction,
   type ReadingV2MaterialId,
@@ -86,6 +87,7 @@ export interface ReadingV2DerivedProjection extends ReadingV2ProjectionPayload {
   readonly content: ReadingV2ProjectionContent;
   readonly localOnlyAnswerState?: boolean;
   readonly runtimeContract?: 'teacher-preview' | 'student-runtime' | 'live-session' | 'review-shell' | 'analytics';
+  readonly compositionNumbering?: ReadingV2CompositionNumbering;
   readonly analytics?: {
     readonly taskGroupCount: number;
     readonly interactionCount: number;

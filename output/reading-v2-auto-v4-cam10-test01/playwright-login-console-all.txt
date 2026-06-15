@@ -1,0 +1,183 @@
+Total messages: 16 (Errors: 0, Warnings: 0)
+Returning 180 messages for level "debug"
+
+[DEBUG] [vite] connecting... @ http://localhost:5173/@vite/client:732
+[INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=7ac753b7:20102
+[LOG] [Firebase] Initializing Firebase... @ http://localhost:5173/src/services/firebaseCore.js:30
+[LOG] [Firebase] Config check: @ http://localhost:5173/src/services/firebaseCore.js:31
+[LOG]    - apiKey: present @ http://localhost:5173/src/services/firebaseCore.js:32
+[LOG]    - authDomain: present @ http://localhost:5173/src/services/firebaseCore.js:33
+[LOG]    - databaseURL: https://temp-a1437-default-rtdb.firebaseio.com @ http://localhost:5173/src/services/firebaseCore.js:34
+[LOG]    - projectId: temp-a1437 @ http://localhost:5173/src/services/firebaseCore.js:35
+[LOG] [Firebase] App initialized: [DEFAULT] @ http://localhost:5173/src/services/firebaseCore.js:41
+[LOG] [Firebase] Database instance created @ http://localhost:5173/src/services/firebaseCore.js:66
+[LOG] [Firebase] Disconnected from Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[DEBUG] [vite] connected. @ http://localhost:5173/@vite/client:826
+[LOG] [Firebase] Connected to Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[LOG] [Firebase] Analytics initialized @ http://localhost:5173/src/services/firebase.js:24
+[LOG] [ReportingService] Authenticated reporting initialized @ http://localhost:5173/src/services/reportingService.ts:188
+[LOG] [ReportingService] Pipeline verified @ http://localhost:5173/src/services/reportingService.ts:238
+[LOG] [NAV 09:30:25] 🚀 Navigation Service Initialized {role: admin, path: /admin/dashboard} @ http://localhost:5173/src/services/navigation.service.ts:275
+[WARNING] [Security] getAllUsers() called without auth context. Migrate to getAllUsersSecure() @ http://localhost:5173/src/services/userService.ts:7
+[LOG] 🏫 [ClassManager] getClasses called @ http://localhost:5173/src/services/classManager.ts:313
+[LOG] 🏫 [ClassManager] teacherId filter: undefined @ http://localhost:5173/src/services/classManager.ts:314
+[LOG] 🏫 [ClassManager] Fetching all classes... @ http://localhost:5173/src/services/classManager.ts:326
+[LOG] 📦 [Cache] MISS quiz:all: @ http://localhost:5173/src/services/dataCache.js:70
+[LOG] 🚀 [QueryOptimizer] Fetching all quizzes from Firebase @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:176
+[LOG] 📦 [Cache] MISS test:all: @ http://localhost:5173/src/services/dataCache.js:70
+[LOG] 🚀 [QueryOptimizer] Fetching all tests from Firebase @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:211
+[LOG] [NAV 09:30:25] 🚀 Navigation Service Initialized {role: admin, path: /admin/dashboard} @ http://localhost:5173/src/services/navigation.service.ts:275
+[WARNING] [Security] getAllUsers() called without auth context. Migrate to getAllUsersSecure() @ http://localhost:5173/src/services/userService.ts:7
+[LOG] 🏫 [ClassManager] getClasses called @ http://localhost:5173/src/services/classManager.ts:313
+[LOG] 🏫 [ClassManager] teacherId filter: undefined @ http://localhost:5173/src/services/classManager.ts:314
+[LOG] 🏫 [ClassManager] Fetching all classes... @ http://localhost:5173/src/services/classManager.ts:326
+[LOG] 📦 [Cache] MISS quiz:all: @ http://localhost:5173/src/services/dataCache.js:70
+[LOG] 🚀 [QueryOptimizer] Fetching all quizzes from Firebase @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:176
+[LOG] 📦 [Cache] MISS test:all: @ http://localhost:5173/src/services/dataCache.js:70
+[LOG] 🚀 [QueryOptimizer] Fetching all tests from Firebase @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:211
+[LOG] 📦 [Cache] SET quiz:all: (TTL: 30000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] ✅ [QueryOptimizer] Fetched 0 quizzes @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:191
+[LOG] 📦 [Cache] SET test:all: (TTL: 30000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Oos95RxXQB2JcyjkoND: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Op36DS9fuD_RucV3SYA: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Op67_f_wRZsvP2B0IUi: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OpDEGCOyWZdMS8Gp3Bm: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OpQjQSoytFwZD4DYPWQ: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OqQupiSp199d4xkgPVS: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OrsYWP4Z3rTIkwCIXew: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Osnm4SFnNMN5LbjXSKo: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Ot9ZNqsFwkJe7HvJREq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OtyTw5n_HWoY_84D_Ud: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:codex-writing-import-material-1778221459436: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:composition-teacher-selected-glmhcrzmnys6aqfcb9i0nloqq6x2-studio-material-mpxjmklq-passage-1-snapshot-studio-material-mpxjmklq-mpxjnrwq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1776126315763-gszdawc: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1776126541725-kjzy1l7: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1777393300307-qoe1ffr: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1778380829221-z04bsk3: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mojlf55h: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mpxd0gg1: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mpxjmklq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1773107132297-p018jkl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1774721949650-sqed9qj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1775865856852-w61g8o1: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776306695895-zjpiuwk: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776478259268-zzcgyk5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776480241268-4etvmwy: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776531799597-ch8dlnz: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776620891941-k1oi9v2: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776761871405-943huzv: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776776496821-scowsjo: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776776918820-clxvdfp: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776801244744-rdyecgl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776802782623-tju64xn: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776804173834-vyhzxws: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772736632489-sc6e3l4: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772753589392-oznrt7q: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772754799172-ixq9wyx: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772766902274-ckaagpj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773061025147-gcc28ng: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773232013649-3z3o3c5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773261493833-2az9ndh: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773304212928-64vuydv: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773671843986-ckzioxl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773673525524-nfe8kkb: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773759014973-ua6iprw: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773818000187-oqsx1ap: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773931794895-81o0u29: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773932605456-onrw9e5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1776114089206-echoejx: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1776116478925-egtv8wq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777941846547-3atgtx5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777942175932-pr66orj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777943342701-67t2e6u: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1780165449207-n8g1qye: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] ✅ [QueryOptimizer] Fetched 53 tests @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:226
+[LOG] 📦 [Cache] SET quiz:all: (TTL: 30000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] ✅ [QueryOptimizer] Fetched 0 quizzes @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:191
+[LOG] 📦 [Cache] SET test:all: (TTL: 30000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Oos95RxXQB2JcyjkoND: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Op36DS9fuD_RucV3SYA: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Op67_f_wRZsvP2B0IUi: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OpDEGCOyWZdMS8Gp3Bm: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OpQjQSoytFwZD4DYPWQ: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OqQupiSp199d4xkgPVS: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OrsYWP4Z3rTIkwCIXew: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Osnm4SFnNMN5LbjXSKo: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-Ot9ZNqsFwkJe7HvJREq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:-OtyTw5n_HWoY_84D_Ud: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:codex-writing-import-material-1778221459436: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:composition-teacher-selected-glmhcrzmnys6aqfcb9i0nloqq6x2-studio-material-mpxjmklq-passage-1-snapshot-studio-material-mpxjmklq-mpxjnrwq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1776126315763-gszdawc: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1776126541725-kjzy1l7: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1777393300307-qoe1ffr: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:listening-1778380829221-z04bsk3: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mojlf55h: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mpxd0gg1: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:studio-material-mpxjmklq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1773107132297-p018jkl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1774721949650-sqed9qj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1775865856852-w61g8o1: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776306695895-zjpiuwk: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776478259268-zzcgyk5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776480241268-4etvmwy: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776531799597-ch8dlnz: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776620891941-k1oi9v2: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776761871405-943huzv: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776776496821-scowsjo: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776776918820-clxvdfp: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776801244744-rdyecgl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776802782623-tju64xn: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:test-1776804173834-vyhzxws: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772736632489-sc6e3l4: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772753589392-oznrt7q: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772754799172-ixq9wyx: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1772766902274-ckaagpj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773061025147-gcc28ng: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773232013649-3z3o3c5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773261493833-2az9ndh: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773304212928-64vuydv: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773671843986-ckzioxl: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773673525524-nfe8kkb: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773759014973-ua6iprw: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773818000187-oqsx1ap: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773931794895-81o0u29: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1773932605456-onrw9e5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1776114089206-echoejx: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1776116478925-egtv8wq: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777941846547-3atgtx5: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777942175932-pr66orj: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1777943342701-67t2e6u: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] 📦 [Cache] SET test:thcs-test-1780165449207-n8g1qye: (TTL: 60000ms) @ http://localhost:5173/src/services/dataCache.js:55
+[LOG] ✅ [QueryOptimizer] Fetched 53 tests @ http://localhost:5173/src/services/firebaseQueryOptimizer.js:226
+[DEBUG] [vite] connecting... @ http://localhost:5173/@vite/client:732
+[INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=7ac753b7:20102
+[LOG] [Firebase] Initializing Firebase... @ http://localhost:5173/src/services/firebaseCore.js:30
+[LOG] [Firebase] Config check: @ http://localhost:5173/src/services/firebaseCore.js:31
+[LOG]    - apiKey: present @ http://localhost:5173/src/services/firebaseCore.js:32
+[LOG]    - authDomain: present @ http://localhost:5173/src/services/firebaseCore.js:33
+[LOG]    - databaseURL: https://temp-a1437-default-rtdb.firebaseio.com @ http://localhost:5173/src/services/firebaseCore.js:34
+[LOG]    - projectId: temp-a1437 @ http://localhost:5173/src/services/firebaseCore.js:35
+[LOG] [Firebase] App initialized: [DEFAULT] @ http://localhost:5173/src/services/firebaseCore.js:41
+[LOG] [Firebase] Database instance created @ http://localhost:5173/src/services/firebaseCore.js:66
+[LOG] [Firebase] Disconnected from Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[DEBUG] [vite] connected. @ http://localhost:5173/@vite/client:826
+[LOG] [Firebase] Connected to Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[LOG] [Firebase] Analytics initialized @ http://localhost:5173/src/services/firebase.js:24
+[LOG] [ReportingService] Authenticated reporting initialized @ http://localhost:5173/src/services/reportingService.ts:188
+[LOG] [ReportingService] Pipeline verified @ http://localhost:5173/src/services/reportingService.ts:238
+[DEBUG] [vite] connecting... @ http://localhost:5173/@vite/client:732
+[INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=7ac753b7:20102
+[LOG] [Firebase] Initializing Firebase... @ http://localhost:5173/src/services/firebaseCore.js:30
+[LOG] [Firebase] Config check: @ http://localhost:5173/src/services/firebaseCore.js:31
+[LOG]    - apiKey: present @ http://localhost:5173/src/services/firebaseCore.js:32
+[LOG]    - authDomain: present @ http://localhost:5173/src/services/firebaseCore.js:33
+[LOG]    - databaseURL: https://temp-a1437-default-rtdb.firebaseio.com @ http://localhost:5173/src/services/firebaseCore.js:34
+[LOG]    - projectId: temp-a1437 @ http://localhost:5173/src/services/firebaseCore.js:35
+[LOG] [Firebase] App initialized: [DEFAULT] @ http://localhost:5173/src/services/firebaseCore.js:41
+[LOG] [Firebase] Database instance created @ http://localhost:5173/src/services/firebaseCore.js:66
+[LOG] [Firebase] Disconnected from Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[DEBUG] [vite] connected. @ http://localhost:5173/@vite/client:826
+[LOG] [Firebase] Connected to Realtime Database @ http://localhost:5173/src/services/firebaseCore.js:70
+[LOG] [Firebase] Analytics initialized @ http://localhost:5173/src/services/firebase.js:24
+[LOG] [ReportingService] Authenticated reporting initialized @ http://localhost:5173/src/services/reportingService.ts:188
+[LOG] [ReportingService] Pipeline verified @ http://localhost:5173/src/services/reportingService.ts:238

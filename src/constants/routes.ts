@@ -67,6 +67,7 @@ export const ROUTES = {
   TEACHER_READING_V2_IMPORT: '/teacher/reading-v2/import',
   TEACHER_READING_V2_DRAFT: '/teacher/reading-v2/drafts/:draftId',
   TEACHER_READING_V2_REVISE: '/teacher/reading-v2/materials/:materialId/revise',
+  TEACHER_MATERIAL_BOOK: '/teacher/materials/books/:bookId',
 
   // Teacher Routes - Test Review (PRD-0022)
   TEACHER_TEST_REVIEW: '/teacher/test/review/:draftId',
@@ -122,6 +123,7 @@ export interface RouteParams {
   draftId?: string;
   // PRD-0030: IELTS Writing
   submissionId?: string;
+  bookId?: string;
 }
 
 /**

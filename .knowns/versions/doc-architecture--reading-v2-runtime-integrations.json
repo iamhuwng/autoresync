@@ -1,0 +1,54 @@
+{
+  "docPath": "architecture/reading-v2-runtime-integrations",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/reading-v2-runtime-integrations",
+      "version": 1,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Reading V2 Runtime Integrations"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Reading V2 integration contract for anti-cheat, trusted submit, feedback, admin monitoring, and host-owned launch and return wiring."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "reading-v2",
+            "runtime",
+            "anti-cheat",
+            "homework",
+            "student-experience"
+          ]
+        },
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "Mirror: .knowns/docs/architecture/reading-v2-runtime-integrations.md"
+        }
+      ],
+      "snapshot": {
+        "title": "Reading V2 Runtime Integrations",
+        "description": "Reading V2 integration contract for anti-cheat, trusted submit, feedback, admin monitoring, and host-owned launch and return wiring.",
+        "tags": [
+          "architecture",
+          "reading-v2",
+          "runtime",
+          "anti-cheat",
+          "homework",
+          "student-experience"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/reading-v2-runtime-integrations.md"
+      }
+    }
+  ]
+}

@@ -509,12 +509,78 @@ const instructionPreviewFrom = (
   return preview ? preview.slice(0, 180) : undefined;
 };
 
+const visibleQuestionNumbersBetween = (
+  lines: readonly ReadingV2AutoSourceLine[],
+  startLineNumber: number,
+  endLineNumber: number,
+  answerHeadingLine: number | null,
+): readonly number[] => {
+  const numbers = new Set<number>();
+
+  lines
+    .filter((line) =>
+      line.lineNumber > startLineNumber
+      && line.lineNumber < endLineNumber
+      && (answerHeadingLine === null || line.lineNumber < answerHeadingLine),
+    )
+    .forEach((line) => {
+      const match = line.text.match(NUMBERED_LINE_PATTERN);
+      const number = match?.[1] ? Number(match[1]) : NaN;
+      const rest = match?.[2]?.trim() ?? '';
+
+      if (!Number.isFinite(number) || number < 1 || number > 80 || !rest || isLikelyAnswerRow(line.text)) {
+        return;
+      }
+
+      numbers.add(number);
+    });
+
+  return [...numbers].sort((left, right) => left - right);
+};
+
+const numbersAreContiguous = (numbers: readonly number[]): boolean =>
+  numbers.every((number, index) => index === 0 || number === numbers[index - 1]! + 1);
+
+const repairQuestionRangesFromVisibleLabels = (input: {
+  readonly lines: readonly ReadingV2AutoSourceLine[];
+  readonly passages: readonly ReadingV2AutoSourcePassageBoundary[];
+  readonly ranges: readonly ReadingV2AutoSourceQuestionRange[];
+  readonly answerHeadingLine: number | null;
+}): readonly ReadingV2AutoSourceQuestionRange[] =>
+  input.ranges.map((range, index) => {
+    const nextRangeLine = input.ranges[index + 1]?.lineNumber ?? Number.POSITIVE_INFINITY;
+    const nextPassageLine = input.passages.find((passage) => passage.lineNumber > range.lineNumber)?.lineNumber
+      ?? Number.POSITIVE_INFINITY;
+    const answerLine = input.answerHeadingLine ?? Number.POSITIVE_INFINITY;
+    const endLineNumber = Math.min(nextRangeLine, nextPassageLine, answerLine);
+    const visibleNumbers = visibleQuestionNumbersBetween(input.lines, range.lineNumber, endLineNumber, input.answerHeadingLine);
+    const expectedCount = range.end - range.start + 1;
+    const visibleStart = visibleNumbers[0];
+    const visibleEnd = visibleNumbers[visibleNumbers.length - 1];
+
+    if (
+      visibleNumbers.length !== expectedCount
+      || !numbersAreContiguous(visibleNumbers)
+      || visibleStart === undefined
+      || visibleEnd === undefined
+      || (visibleStart === range.start && visibleEnd === range.end)
+    ) {
+      return range;
+    }
+
+    return {
+      ...range,
+      start: visibleStart,
+      end: visibleEnd,
+    };
+  });
+
 const detectQuestionRanges = (
   lines: readonly ReadingV2AutoSourceLine[],
   passages: readonly ReadingV2AutoSourcePassageBoundary[],
   answerHeadingLine: number | null,
-): readonly ReadingV2AutoSourceQuestionRange[] =>
-  lines.flatMap((line) => {
+): readonly ReadingV2AutoSourceQuestionRange[] => {
+  const ranges = lines.flatMap((line) => {
     if (answerHeadingLine !== null && line.lineNumber >= answerHeadingLine) {
       return [];
     }
@@ -547,6 +613,9 @@ const detectQuestionRanges = (
 
     return [];
   });
+
+  return repairQuestionRangesFromVisibleLabels({ lines, passages, ranges, answerHeadingLine });
+};
 
 const detectVisibleQuestionNumbers = (
   lines: readonly ReadingV2AutoSourceLine[],

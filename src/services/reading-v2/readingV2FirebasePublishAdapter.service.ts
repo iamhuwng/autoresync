@@ -7,6 +7,7 @@ import type {
   ReadingV2PublishCommitOperation,
   ReadingV2PublishRelationshipIndexWrite,
 } from './readingV2PublishPipeline.service';
+import { resolveLegacyTestTypeLabelFromMaterialTestTypeIds } from '../materialCatalog/materialTestTypeMapping.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export interface ReadingV2FirebasePublishUpdates {
@@ -185,22 +186,33 @@ export const buildReadingV2FirebasePublishUpdates = (
       whereUsedByAsset.set(operation.write.passageAssetId, assetEntry);
       return;
     }
+
+    if (operation.kind === 'storage-write') {
+      updates[operation.path] = operation.value;
+      return;
+    }
   });
 
   whereUsedByAsset.forEach((value, passageAssetId) => {
     updates[readingV2StoragePaths.whereUsedGraph(passageAssetId)] = value;
   });
 
+  const legacyTestType = resolveLegacyTestTypeLabelFromMaterialTestTypeIds([
+    metadataOperation.metadata.primaryTestTypeId,
+    ...metadataOperation.metadata.testTypeIds,
+  ]);
+
   updates[`tests/${metadataOperation.metadata.materialId}`] = {
     id: metadataOperation.metadata.materialId,
     materialId: metadataOperation.metadata.materialId,
     ownerId,
+    compositionId: metadataOperation.metadata.compositionId,
     deliveryEngine: READING_V2_ENGINE,
     contentEngine: READING_V2_ENGINE,
     runtimeEngine: READING_V2_ENGINE,
     title: metadataOperation.metadata.title,
-    testType: 'IELTS',
-    type: 'IELTS',
+    testType: legacyTestType,
+    type: legacyTestType,
     skill: 'Reading',
     skillType: 'reading-v2',
     duration: metadataOperation.metadata.durationMinutes,
@@ -209,8 +221,11 @@ export const buildReadingV2FirebasePublishUpdates = (
     materialKind: metadataOperation.metadata.materialKind,
     productLabel: metadataOperation.metadata.productLabel,
     publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
+    primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
+    testTypeIds: metadataOperation.metadata.testTypeIds,
     updatedAt: committedAt,
     metadata: {
+      compositionId: metadataOperation.metadata.compositionId,
       title: metadataOperation.metadata.title,
       duration: metadataOperation.metadata.durationMinutes,
       difficulty: metadataOperation.metadata.difficulty,
@@ -222,6 +237,8 @@ export const buildReadingV2FirebasePublishUpdates = (
       materialKind: metadataOperation.metadata.materialKind,
       deliveryEngine: READING_V2_ENGINE,
       publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
+      primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
+      testTypeIds: metadataOperation.metadata.testTypeIds,
     },
   };
 

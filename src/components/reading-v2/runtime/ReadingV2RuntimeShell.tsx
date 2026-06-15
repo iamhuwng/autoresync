@@ -82,6 +82,7 @@ export interface ReadingV2RuntimeShellProps {
   readonly projection?: ReadingV2DerivedProjection;
   readonly state?: ReadingV2RuntimeState;
   readonly onSubmit?: ReadingV2RuntimeSubmitHandler;
+  readonly onExit?: () => void;
   readonly initialAnswers?: Readonly<Record<string, ReadingV2AnswerValue>>;
   readonly onAnswersChange?: (answers: Readonly<Record<string, ReadingV2AnswerValue>>) => void;
   readonly persistenceKey?: string;
@@ -2211,6 +2212,7 @@ export function ReadingV2RuntimeShell({
   projection,
   state = 'ready',
   onSubmit,
+  onExit,
   initialAnswers,
   onAnswersChange,
   persistenceKey,
@@ -2311,15 +2313,34 @@ export function ReadingV2RuntimeShell({
     typeof timer?.durationMinutes === 'number' && timer.durationMinutes > 0
       ? Math.round(timer.durationMinutes * 60)
       : null;
+  const formatRuntimeSeconds = (seconds: number): string =>
+    `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
   const formattedTimeRemaining = timeRemaining === null
     ? null
-    : `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60).toString().padStart(2, '0')}`;
+    : formatRuntimeSeconds(timeRemaining);
+  const configuredTimerLabel = timerDurationSeconds === null
+    ? 'Untimed'
+    : formatRuntimeSeconds(timerDurationSeconds);
   const headerTimerLabel = lifecycleStatus === 'paused'
     ? 'Paused'
     : submitPhase === 'success'
       ? 'Done'
-      : formattedTimeRemaining ?? '60:00';
+      : formattedTimeRemaining ?? configuredTimerLabel;
   const isTimerLow = timeRemaining !== null && timeRemaining > 0 && timeRemaining <= 300;
+  const exitButton = onExit ? (
+    <button
+      className="reading-v2-runtime__exit-button"
+      type="button"
+      aria-label="Exit Reading test"
+      title="Exit Reading test"
+      onClick={onExit}
+    >
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M5 5l10 10" />
+        <path d="M15 5L5 15" />
+      </svg>
+    </button>
+  ) : null;
 
   answersRef.current = answers;
   initialAnswersRef.current = initialAnswers;
@@ -2902,6 +2923,7 @@ export function ReadingV2RuntimeShell({
               <circle cx="10" cy="16" r="1.5" />
             </svg>
           </button>
+          {exitButton}
           {isMobileOverflowOpen ? (
             <div className="reading-v2-runtime__mobile-menu" role="menu">
               <p>{answeredCount} of {allInteractions.length} answered</p>
@@ -2947,6 +2969,7 @@ export function ReadingV2RuntimeShell({
             {!canSubmit ? (
               <p className="reading-v2-runtime__status" role="status">Submission is not available for this Reading V2 launch yet.</p>
             ) : null}
+            {exitButton}
           </div>
         </header>
       )}

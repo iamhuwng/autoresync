@@ -379,10 +379,11 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    expect(within(screen.getByLabelText('Validation messages')).getByText('Questions 1-2')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Validation messages')).getByText(/Provider omitted this question group/)).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText('Questions 1-2')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Review guidance for Questions 1-2')).getByText(/Local repair rebuilt it from source/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /validation item/ }));
+    const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(reviewIssues).getByRole('button', { name: 'Questions 1-2: Review Required' })).toBeInTheDocument();
+    expect(within(reviewIssues).queryByText(/Provider omitted this question group/)).not.toBeInTheDocument();
+    expect(within(reviewIssues).queryByText(/Local repair rebuilt it from source/)).not.toBeInTheDocument();
   });
 
   it('keeps imported review details collapsed by default and accepts import from the developer action row', () => {
@@ -498,6 +499,84 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove Passage 2' }));
     expect(screen.queryByRole('button', { name: 'Passage 2' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Passage 1 editor')).toBeInTheDocument();
+  });
+
+  it('hides passage collection controls when revising an individual Reading Passage', () => {
+    render(
+      <ReadingV2StudioShell
+        mode="revise-published"
+        metadata={{
+          title: 'Single Passage Revision',
+          materialKind: 'reading-passage',
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Passage 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+  });
+
+  it('hides passage collection controls outside manual and import creation modes', () => {
+    const { rerender } = render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        metadata={{ title: 'Resumed Full Test', materialKind: 'full-test' }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+
+    rerender(
+      <ReadingV2StudioShell
+        mode="revise-published"
+        metadata={{ title: 'Revised Full Test', materialKind: 'full-test' }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Add Passage available for imported and Auto V4 studio outcomes', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
+        '',
+        '#### Questions 1-2',
+        'Do the following statements agree with the information? TRUE, FALSE, NOT GIVEN',
+        '**1** Imported statement one',
+        '**2** Imported statement two',
+      ].join('\n'),
+      answerKeyText: ['1 TRUE', '2 FALSE'].join('\n'),
+      fileName: 'import-with-passage-controls.md',
+    });
+    const normalized = normalizeReadingV2ImportCandidate(candidate);
+
+    const { rerender } = render(
+      <ReadingV2StudioShell
+        mode="create-from-import"
+        document={normalized.document}
+        importCandidate={candidate}
+        metadata={{ title: 'Imported full test' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
+
+    rerender(
+      <ReadingV2StudioShell
+        mode="create-from-auto"
+        document={normalized.document}
+        importCandidate={candidate}
+        metadata={{ title: 'Auto V4 full test' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
   });
 
   it('keeps Passage 3 editable when selected directly from a blank test', () => {
@@ -639,8 +718,11 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    expect(screen.getByText(/items? need attention\./)).toBeInTheDocument();
-    expect(screen.getByText('Passage 1 needs a title.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /validation items/ }));
+    const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(reviewIssues).getByText('5 review items')).toBeInTheDocument();
+    expect(within(reviewIssues).getAllByRole('button', { name: 'Review item: Review Required' })).toHaveLength(5);
+    expect(within(reviewIssues).queryByText('Passage 1 needs a title')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
 
@@ -798,6 +880,38 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       draftId: 'preview-draft',
       document: expect.objectContaining({ documentId: document.documentId }),
     }));
+  });
+
+  it('preserves hidden test-type metadata when publishing from Studio', async () => {
+    const document = createPublishableThreePassageDocument();
+    const onPublish = vi.fn(async () => ({
+      snapshotVersionId: 'snapshot-hidden-metadata',
+      firebaseCommitStatus: 'committed' as const,
+      firebaseCommitPath: 'reading_v2/publish_commits/hidden-metadata:snapshot-hidden-metadata',
+      firebaseOperationCount: 1,
+    }));
+
+    render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        draftId="hidden-metadata-draft"
+        document={document}
+        metadata={{
+          title: 'Hidden metadata full test',
+          primaryTestTypeId: 'ielts',
+          testTypeIds: ['ielts'],
+        }}
+        onPublish={onPublish}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(onPublish).toHaveBeenCalledOnce());
+    expect(onPublish.mock.calls[0]?.[0].metadata).toMatchObject({
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+    });
   });
 
   it('uses an exit confirmation before leaving the workspace', () => {

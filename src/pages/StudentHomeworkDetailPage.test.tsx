@@ -223,25 +223,37 @@ describe('StudentHomeworkDetailPage', () => {
     expect(navigateMock).not.toHaveBeenCalledWith('/student/academic-record', expect.anything());
   });
 
-  it('hydrates Reading V2 homework headers from published metadata and student-safe projections before legacy test storage', async () => {
-    firebaseGetMock.mockImplementation(async (path: string) => {
-      const valueByPath: Record<string, unknown> = {
-        'reading_v2/material_metadata/material-1': {
-          materialId: 'material-1',
-          ownerId: 'teacher-1',
+  it('hydrates Reading V2 homework headers from the student-readable bridge and projection', async () => {
+    getTestFromFirebaseMock.mockResolvedValue({
+      success: true,
+      data: {
+        id: 'material-1',
+        materialId: 'material-1',
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: 'V2 Homework Material',
+        materialKind: 'full-test',
+        duration: 35,
+        metadata: {
           deliveryEngine: 'reading-v2',
           productLabel: 'Reading V2',
           title: 'V2 Homework Material',
           materialKind: 'full-test',
-          durationMinutes: 35,
+          duration: 35,
           difficulty: 'intermediate',
           description: '',
           tags: [],
-          visibility: 'assigned-only',
+          visibility: 'private',
           publishedSnapshotVersionId: 'snapshot-1',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          relationshipSurfaces: ['homework-assignment'],
         },
+        publishedSnapshotVersionId: 'snapshot-1',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        questionCount: 0,
+        questions: [],
+      },
+    });
+    firebaseGetMock.mockImplementation(async (path: string) => {
+      const valueByPath: Record<string, unknown> = {
         'reading_v2/projections/student_safe_tests/material-1:snapshot-1': {
           deliveryEngine: 'reading-v2',
           plane: 'projection',
@@ -268,7 +280,79 @@ describe('StudentHomeworkDetailPage', () => {
     renderPage();
 
     expect(await screen.findByText('1 questions')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(firebaseRefMock).not.toHaveBeenCalledWith({}, 'reading_v2/material_metadata/material-1');
+    });
+    expect(getTestFromFirebaseMock).toHaveBeenCalledWith('material-1');
+  });
+
+  it('shows Reading Passage set summary without legacy material lookup', async () => {
+    useHomeworkSubmissionMock.mockReturnValue({
+      homework: {
+        id: 'hw-1',
+        title: 'Selected Reading Passages',
+        materialId: 'reading-passage-set:hw-1',
+        materialTitle: 'Selected Reading Passages',
+        materialSkill: 'reading',
+        materialType: 'reading-passage-set',
+        description: 'Read the assigned passages.',
+        scheduling: {
+          dueDate: Date.now() + 60_000,
+        },
+        config: {
+          maxAttempts: 2,
+          timerMinutes: 40,
+          feedbackTiming: 'after_completion',
+          lateSubmissionAllowed: false,
+        },
+        readingPassageSet: {
+          titleSnapshot: 'Selected Reading Passages',
+          items: [
+            {
+              order: 2,
+              passageMaterialId: 'passage-b',
+              snapshotVersionId: 'snap-b',
+              titleSnapshot: 'Passage B',
+              questionCount: 10,
+              sourceOrderDisplay: 'Passage 2',
+              sourceFullTestTitle: 'Mock Test 2',
+              testTypeIds: ['ielts'],
+            },
+            {
+              order: 1,
+              passageMaterialId: 'passage-a',
+              snapshotVersionId: 'snap-a',
+              titleSnapshot: 'Passage A',
+              questionCount: 8,
+              sourceOrderDisplay: 'Passage 1',
+              sourceFullTestTitle: 'Mock Test 1',
+              testTypeIds: ['ielts'],
+            },
+          ],
+        },
+      },
+      currentSubmission: null,
+      allSubmissions: [],
+      bestSubmission: null,
+      maxAttempts: 2,
+      attemptsUsed: 0,
+      attemptsRemaining: 2,
+      isLoading: false,
+      error: null,
+      isOverdue: false,
+      isAvailable: true,
+      canStartAttempt: true,
+      hasInProgressAttempt: false,
+      startAttempt: startAttemptMock,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Reading Passage Set')).toBeInTheDocument();
+    expect(screen.getByText('2 passages, 18 questions')).toBeInTheDocument();
+    expect(screen.getByText('Passage A, Passage B')).toBeInTheDocument();
     expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
+    expect(firebaseGetMock).not.toHaveBeenCalled();
   });
 
   it('opens the start modal with mobile full-width actions and starts the attempt', async () => {

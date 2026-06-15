@@ -1058,6 +1058,8 @@ interface StructuredDiagramPayload {
 }
 
 interface StructuredDiagramTarget {
+  readonly id?: string;
+  readonly targetId?: string;
   readonly label?: string;
   readonly questionNumber?: number;
   readonly questionNumbers?: readonly number[];
@@ -2078,12 +2080,14 @@ interface StructuredTableContext {
   readonly stimulus: ReadingV2StimulusNode;
   readonly anchorIds: readonly ReadingV2AnchorId[];
   readonly anchorIdsByQuestionNumber: ReadonlyMap<number, ReadingV2AnchorId>;
+  readonly issues: readonly ReadingV2ValidationIssue[];
 }
 
 interface StructuredFlowchartContext {
   readonly stimulus: ReadingV2StimulusNode;
   readonly anchorIds: readonly ReadingV2AnchorId[];
   readonly anchorIdsByQuestionNumber: ReadonlyMap<number, ReadingV2AnchorId>;
+  readonly issues: readonly ReadingV2ValidationIssue[];
 }
 
 interface StructuredDiagramContext {
@@ -2091,7 +2095,103 @@ interface StructuredDiagramContext {
   readonly extraStimuli: readonly ReadingV2StimulusNode[];
   readonly anchorIds: readonly ReadingV2AnchorId[];
   readonly anchorIdsByQuestionNumber: ReadonlyMap<number, ReadingV2AnchorId>;
+  readonly issues: readonly ReadingV2ValidationIssue[];
 }
+
+type StructuredLayoutKind = 'table' | 'flowchart' | 'diagram';
+
+interface StructuredLayoutAnchorRegistry {
+  readonly anchorIds: ReadingV2AnchorId[];
+  readonly anchorIdsByQuestionNumber: Map<number, ReadingV2AnchorId>;
+  readonly sourceLocationsByQuestionNumber: Map<number, string>;
+  readonly issues: ReadingV2ValidationIssue[];
+}
+
+const createStructuredLayoutAnchorRegistry = (): StructuredLayoutAnchorRegistry => ({
+  anchorIds: [],
+  anchorIdsByQuestionNumber: new Map<number, ReadingV2AnchorId>(),
+  sourceLocationsByQuestionNumber: new Map<number, string>(),
+  issues: [],
+});
+
+const structuredInstructionRangeLabel = (
+  instruction: StructuredSectionInstruction,
+  instructionIndex: number,
+): string =>
+  instruction.questionRange?.start && instruction.questionRange.end
+    ? `Questions ${instruction.questionRange.start}-${instruction.questionRange.end}`
+    : `instruction ${instructionIndex + 1}`;
+
+// Structured layout anchor registry is cardinality authority: one visible question
+// number can own one primary table/flow/diagram position in a stimulus.
+const registerStructuredLayoutAnchor = ({
+  anchors,
+  registry,
+  layoutKind,
+  passageNumber,
+  instructionIndex,
+  instructionRangeLabel,
+  taskGroupId,
+  questionNumber,
+  sourceLocation,
+  anchorId,
+  stimulusId,
+  anchorKind,
+  anchorLabel,
+}: {
+  readonly anchors: Record<string, ReadingV2Anchor>;
+  readonly registry: StructuredLayoutAnchorRegistry;
+  readonly layoutKind: StructuredLayoutKind;
+  readonly passageNumber: number;
+  readonly instructionIndex: number;
+  readonly instructionRangeLabel: string;
+  readonly taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>;
+  readonly questionNumber: number;
+  readonly sourceLocation: string;
+  readonly anchorId: ReadingV2AnchorId;
+  readonly stimulusId: ReturnType<typeof readingV2Ids.stimulusId>;
+  readonly anchorKind: ReadingV2Anchor['kind'];
+  readonly anchorLabel: string;
+}): ReadingV2AnchorId | null => {
+  const existingAnchorId = registry.anchorIdsByQuestionNumber.get(questionNumber);
+  const existingSourceLocation = registry.sourceLocationsByQuestionNumber.get(questionNumber);
+
+  if (existingAnchorId) {
+    if (existingSourceLocation === sourceLocation) {
+      return existingAnchorId;
+    }
+
+    registry.issues.push({
+      code: 'duplicate-structured-layout-question',
+      severity: 'error',
+      message: [
+        'Duplicate structured layout question:',
+        `Imported ${layoutKind} layout in Passage ${passageNumber}, ${instructionRangeLabel}`,
+        `assigns question ${questionNumber} to multiple positions`,
+        `(${existingSourceLocation ?? 'unknown source position'}; ${sourceLocation}).`,
+        'Review or repair the structured layout before publish.',
+      ].join(' '),
+      objectId: taskGroupId,
+      passageNumber,
+      instructionIndex,
+      layoutKind,
+      questionNumber,
+      stimulusId,
+    });
+    return null;
+  }
+
+  anchors[anchorId] = {
+    anchorId,
+    stimulusId,
+    kind: anchorKind,
+    label: anchorLabel,
+  };
+  registry.anchorIds.push(anchorId);
+  registry.anchorIdsByQuestionNumber.set(questionNumber, anchorId);
+  registry.sourceLocationsByQuestionNumber.set(questionNumber, sourceLocation);
+  return anchorId;
+};
 
 const createStructuredTableContext = ({
   anchors,
@@ -2117,8 +2217,8 @@ const createStructuredTableContext = ({
   }
 
   const tableStimulusId = readingV2Ids.stimulusId(`${idStem}-table-${passageNumber}-${instructionIndex + 1}`);
-  const anchorIds: ReadingV2AnchorId[] = [];
-  const anchorIdsByQuestionNumber = new Map<number, ReadingV2AnchorId>();
+  const registry = createStructuredLayoutAnchorRegistry();
+  const instructionRangeLabel = structuredInstructionRangeLabel(instruction, instructionIndex);
   const questionNumbers = groupQuestions
     .map(structuredQuestionNumber)
     .filter((value) => Number.isInteger(value) && value > 0);
@@ -2129,7 +2229,7 @@ const createStructuredTableContext = ({
 
     while (taken.length < count && unassignedQuestionNumbers.length > 0) {
       const candidate = unassignedQuestionNumbers.shift();
-      if (candidate && !anchorIdsByQuestionNumber.has(candidate)) {
+      if (candidate && !registry.anchorIdsByQuestionNumber.has(candidate)) {
         taken.push(candidate);
       }
     }
@@ -2165,20 +2265,27 @@ const createStructuredTableContext = ({
       const text = structuredTableCellText(cell);
       const questionNumbersForCell = useQuestionNumbers(cell, text)
         .filter((questionNumber, index, values) => values.indexOf(questionNumber) === index);
-      const cellAnchorIds = questionNumbersForCell.map((questionNumber) => {
+      const cellAnchorIds = questionNumbersForCell.flatMap((questionNumber) => {
         const anchorId = readingV2Ids.anchorId(
           `${idStem}-table-p${passageNumber}-q${questionNumber}`,
         );
-
-        anchors[anchorId] = {
+        const registeredAnchorId = registerStructuredLayoutAnchor({
+          anchors,
+          registry,
+          layoutKind: 'table',
+          passageNumber,
+          instructionIndex,
+          instructionRangeLabel,
+          taskGroupId,
+          questionNumber,
+          sourceLocation: `row ${rowIndex + 1}, column ${cellIndex + 1}`,
           anchorId,
           stimulusId: tableStimulusId,
-          kind: 'table-cell',
-          label: `Question ${questionNumber} table blank`,
-        };
-        anchorIds.push(anchorId);
-        anchorIdsByQuestionNumber.set(questionNumber, anchorId);
-        return anchorId;
+          anchorKind: 'table-cell',
+          anchorLabel: `Question ${questionNumber} table blank`,
+        });
+
+        return registeredAnchorId ? [registeredAnchorId] : [];
       });
       const cellText = tableTextWithBlankMarkers(text, cellAnchorIds.length);
 
@@ -2198,7 +2305,7 @@ const createStructuredTableContext = ({
   return {
     stimulus: {
       stimulusId: tableStimulusId,
-      kind: 'table-shell',
+        kind: 'table-shell',
       title: instruction.questionRange?.start && instruction.questionRange.end
         ? `Questions ${instruction.questionRange.start}-${instruction.questionRange.end} table`
         : 'Imported table',
@@ -2206,10 +2313,11 @@ const createStructuredTableContext = ({
         kind: 'table-content',
         rows,
       },
-      anchorIds,
+      anchorIds: registry.anchorIds,
     },
-    anchorIds,
-    anchorIdsByQuestionNumber,
+    anchorIds: registry.anchorIds,
+    anchorIdsByQuestionNumber: registry.anchorIdsByQuestionNumber,
+    issues: registry.issues,
   };
 };
 
@@ -2254,6 +2362,7 @@ const createStructuredFlowchartContext = ({
   instruction,
   instructionIndex,
   passageNumber,
+  taskGroupId,
 }: {
   readonly anchors: Record<string, ReadingV2Anchor>;
   readonly groupQuestions: readonly StructuredReadingQuestion[];
@@ -2261,6 +2370,7 @@ const createStructuredFlowchartContext = ({
   readonly instruction: StructuredSectionInstruction;
   readonly instructionIndex: number;
   readonly passageNumber: number;
+  readonly taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>;
 }): StructuredFlowchartContext | null => {
   const sourceSteps = instruction.flowchart?.steps;
 
@@ -2269,8 +2379,8 @@ const createStructuredFlowchartContext = ({
   }
 
   const flowchartStimulusId = readingV2Ids.stimulusId(`${idStem}-flowchart-${passageNumber}-${instructionIndex + 1}`);
-  const anchorIds: ReadingV2AnchorId[] = [];
-  const anchorIdsByQuestionNumber = new Map<number, ReadingV2AnchorId>();
+  const registry = createStructuredLayoutAnchorRegistry();
+  const instructionRangeLabel = structuredInstructionRangeLabel(instruction, instructionIndex);
   const questionNumbers = groupQuestions
     .map(structuredQuestionNumber)
     .filter((value) => Number.isInteger(value) && value > 0);
@@ -2281,7 +2391,7 @@ const createStructuredFlowchartContext = ({
 
     while (taken.length < count && unassignedQuestionNumbers.length > 0) {
       const candidate = unassignedQuestionNumbers.shift();
-      if (candidate && !anchorIdsByQuestionNumber.has(candidate)) {
+      if (candidate && !registry.anchorIdsByQuestionNumber.has(candidate)) {
         taken.push(candidate);
       }
     }
@@ -2329,25 +2439,43 @@ const createStructuredFlowchartContext = ({
       }];
     }
 
-    return questionNumbersForStep.map((questionNumber) => {
+    const anchoredSteps = questionNumbersForStep.flatMap((questionNumber) => {
       const anchorId = readingV2Ids.anchorId(`${idStem}-flow-p${passageNumber}-q${questionNumber}`);
-
-      anchors[anchorId] = {
+      const registeredAnchorId = registerStructuredLayoutAnchor({
+        anchors,
+        registry,
+        layoutKind: 'flowchart',
+        passageNumber,
+        instructionIndex,
+        instructionRangeLabel,
+        taskGroupId,
+        questionNumber,
+        sourceLocation: `step ${baseStepId || stepIndex + 1}`,
         anchorId,
         stimulusId: flowchartStimulusId,
-        kind: 'flow-step',
-        label: `Question ${questionNumber} flowchart blank`,
-      };
-      anchorIds.push(anchorId);
-      anchorIdsByQuestionNumber.set(questionNumber, anchorId);
+        anchorKind: 'flow-step',
+        anchorLabel: `Question ${questionNumber} flowchart blank`,
+      });
 
-      return {
-        anchorId,
+      if (!registeredAnchorId) {
+        return [];
+      }
+
+      return [{
+        anchorId: registeredAnchorId,
         stepId: questionNumbersForStep.length > 1 ? `${baseStepId}-q${questionNumber}` : baseStepId,
         text: tableTextWithBlankMarkers(text, 1) || TABLE_BLANK_MARKER,
         nextStepIds,
-      };
+      }];
     });
+
+    return anchoredSteps.length > 0
+      ? anchoredSteps
+      : [{
+          stepId: baseStepId,
+          text,
+          nextStepIds,
+        }];
   });
 
   return {
@@ -2361,10 +2489,11 @@ const createStructuredFlowchartContext = ({
         kind: 'flowchart-content',
         steps,
       },
-      anchorIds,
+      anchorIds: registry.anchorIds,
     },
-    anchorIds,
-    anchorIdsByQuestionNumber,
+    anchorIds: registry.anchorIds,
+    anchorIdsByQuestionNumber: registry.anchorIdsByQuestionNumber,
+    issues: registry.issues,
   };
 };
 
@@ -2402,6 +2531,7 @@ const createStructuredDiagramContext = ({
   instruction,
   instructionIndex,
   passageNumber,
+  taskGroupId,
 }: {
   readonly anchors: Record<string, ReadingV2Anchor>;
   readonly groupQuestions: readonly StructuredReadingQuestion[];
@@ -2409,42 +2539,54 @@ const createStructuredDiagramContext = ({
   readonly instruction: StructuredSectionInstruction;
   readonly instructionIndex: number;
   readonly passageNumber: number;
+  readonly taskGroupId: ReturnType<typeof readingV2Ids.taskGroupId>;
 }): StructuredDiagramContext | null => {
   if (!instruction.diagram) {
     return null;
   }
 
   const diagramStimulusId = readingV2Ids.stimulusId(`${idStem}-diagram-${passageNumber}-${instructionIndex + 1}`);
+  const registry = createStructuredLayoutAnchorRegistry();
+  const instructionRangeLabel = structuredInstructionRangeLabel(instruction, instructionIndex);
   const questionNumbers = groupQuestions
     .map(structuredQuestionNumber)
     .filter((value) => Number.isInteger(value) && value > 0);
   const sourceTargets: readonly StructuredDiagramTarget[] = instruction.diagram.targets?.length
     ? instruction.diagram.targets
     : questionNumbers.map((questionNumber): StructuredDiagramTarget => ({ questionNumber }));
-  const anchorIds: ReadingV2AnchorId[] = [];
-  const anchorIdsByQuestionNumber = new Map<number, ReadingV2AnchorId>();
   const hotspots = sourceTargets.flatMap((target, targetIndex) =>
     structuredDiagramTargetQuestionNumbers(target)
       .filter((questionNumber) => questionNumbers.includes(questionNumber))
-      .map((questionNumber, questionIndex) => {
+      .flatMap((questionNumber, questionIndex) => {
         const anchorId = readingV2Ids.anchorId(`${idStem}-diagram-p${passageNumber}-q${questionNumber}`);
         const label = cleanMarkdown(target.label ?? `Question ${questionNumber}`);
-
-        anchors[anchorId] = {
+        const targetId = cleanMarkdown(target.targetId ?? target.id ?? label);
+        const registeredAnchorId = registerStructuredLayoutAnchor({
+          anchors,
+          registry,
+          layoutKind: 'diagram',
+          passageNumber,
+          instructionIndex,
+          instructionRangeLabel,
+          taskGroupId,
+          questionNumber,
+          sourceLocation: `target ${targetId || targetIndex + 1}`,
           anchorId,
           stimulusId: diagramStimulusId,
-          kind: 'diagram-hotspot',
-          label,
-        };
-        anchorIds.push(anchorId);
-        anchorIdsByQuestionNumber.set(questionNumber, anchorId);
+          anchorKind: 'diagram-hotspot',
+          anchorLabel: label,
+        });
 
-        return {
-          anchorId,
+        if (!registeredAnchorId) {
+          return [];
+        }
+
+        return [{
+          anchorId: registeredAnchorId,
           label,
           xPercent: Number.isFinite(target.xPercent) ? Number(target.xPercent) : defaultDiagramCoordinate(targetIndex + questionIndex, 'x'),
           yPercent: Number.isFinite(target.yPercent) ? Number(target.yPercent) : defaultDiagramCoordinate(targetIndex + questionIndex, 'y'),
-        };
+        }];
       }),
   );
 
@@ -2459,7 +2601,7 @@ const createStructuredDiagramContext = ({
     .map((imageUrl) => cleanMarkdown(imageUrl ?? ''))
     .filter(Boolean)
     .filter((imageUrl, index, all) => all.indexOf(imageUrl) === index);
-  const primaryImageUrl = imageUrls[0] ?? instruction.diagram.imageUrl;
+  const primaryImageUrl = imageUrls[0] ?? instruction.diagram?.imageUrl;
   const extraStimuli = imageUrls.slice(1).map((imageUrl, imageIndex): ReadingV2StimulusNode => ({
     stimulusId: readingV2Ids.stimulusId(`${idStem}-diagram-${passageNumber}-${instructionIndex + 1}-${imageIndex + 2}`),
     kind: 'media',
@@ -2469,7 +2611,7 @@ const createStructuredDiagramContext = ({
     content: {
       kind: 'media-content',
       mediaUrl: imageUrl,
-      alt: cleanMarkdown(instruction.diagram.imageAlt ?? 'Imported diagram source image'),
+      alt: cleanMarkdown(instruction.diagram?.imageAlt ?? 'Imported diagram source image'),
     },
     anchorIds: [],
   }));
@@ -2487,11 +2629,12 @@ const createStructuredDiagramContext = ({
         imageUrl: primaryImageUrl,
         hotspots,
       },
-      anchorIds,
+      anchorIds: registry.anchorIds,
     },
     extraStimuli,
-    anchorIds,
-    anchorIdsByQuestionNumber,
+    anchorIds: registry.anchorIds,
+    anchorIdsByQuestionNumber: registry.anchorIdsByQuestionNumber,
+    issues: registry.issues,
   };
 };
 
@@ -2926,6 +3069,7 @@ const normalizeStructuredReadingPayload = (
             instruction,
             instructionIndex,
             passageNumber,
+            taskGroupId,
           })
         : null;
       const diagramContext = taskType === 'diagram-labeling'
@@ -2936,6 +3080,7 @@ const normalizeStructuredReadingPayload = (
             instruction,
             instructionIndex,
             passageNumber,
+            taskGroupId,
           })
         : null;
 
@@ -3038,6 +3183,11 @@ const normalizeStructuredReadingPayload = (
         instructionSemantics,
         instruction.customInstructionEvidence ? 'error' : 'warning',
       );
+      const structuredLayoutIssues = [
+        ...(tableContext?.issues ?? []),
+        ...(flowchartContext?.issues ?? []),
+        ...(diagramContext?.issues ?? []),
+      ];
 
       taskGroups[taskGroupId] = {
         taskGroupId,
@@ -3086,7 +3236,12 @@ const normalizeStructuredReadingPayload = (
         optionSetRefs,
         interactionIds,
         layoutHint: summaryCompletionLayoutHint(taskType, instruction, groupQuestions) ?? noteContext?.layoutHint,
-        validationState: { issues: instructionIssue ? [instructionIssue] : [] },
+        validationState: {
+          issues: [
+            ...(instructionIssue ? [instructionIssue] : []),
+            ...structuredLayoutIssues,
+          ],
+        },
       };
 
       if (readingV2TaskNeedsOptionSet(taskType)) {

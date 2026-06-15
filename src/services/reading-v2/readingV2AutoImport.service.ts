@@ -5,7 +5,6 @@ import type {
   AIQuestionsAndAnswersResult,
   AIStructuredGenerationOptions,
 } from '../ai/ai.service';
-import { aiService } from '../ai/router.service';
 import { geminiProvider } from '../ai/gemini.provider';
 import type { Result } from '../../types/result.types';
 import {
@@ -28,6 +27,9 @@ import {
   normalizeReadingV2TaskType,
   type ReadingV2CanonicalTaskType,
 } from '../../types/readingV2Taxonomy';
+import {
+  type ReadingV2ValidationIssue,
+} from '../../types/readingV2.types';
 import {
   buildReadingV2ImportSourceArtifact,
   buildReadingV2AutoLedgerPromptSummary,
@@ -61,9 +63,9 @@ const DEFAULT_CHUNK_WAIT_MS = 6_500;
 const DEFAULT_MAX_REPAIR_ATTEMPTS = 1;
 const GEMINI_MAX_OUTPUT_TOKENS = 65_536;
 const READING_V2_AUTO_IMPORT_DIAG_PREFIX = '[Diag][ReadingV2AutoImport]';
-const ANSWER_KEY_HEADING_PATTERN = /^\s*(?:answers?|answer\s+key|key|solutions?)(?:\s+(?:reading\s+)?test\s+\d+)?\s*:?\s*$/i;
+const ANSWER_KEY_HEADING_PATTERN = /^\s*(?:#{1,6}\s*)?(?:answers?|answer\s+key|key|solutions?)(?:\s+(?:(?:cam(?:bridge)?(?:\s+ielts)?\s+\d+\s+)?(?:reading\s+)?test\s+\d+))?\s*:?\s*$/i;
 const ANSWER_KEY_HEADING_SIGNAL_PATTERN = /\b(?:answers?|answer\s+key|key|solutions?)\b/i;
-const ANSWER_KEY_SECTION_MARKER_PATTERN = /^\s*(?:(?:reading\s+)?passage|section|reading\s+test)\s+\d+\s*:?\s*$/i;
+const ANSWER_KEY_SECTION_MARKER_PATTERN = /^\s*(?:#{1,6}\s*)?(?:(?:reading\s+)?passage|section|reading\s+test)\s+\d+\s*:?\s*$/i;
 const ANSWER_KEY_ROW_PATTERN = /^\d{1,3}(?:\\?[\).])?\s+.+/;
 const ANSWER_KEY_ROW_PREFIX_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+/;
 const ANSWER_KEY_ROW_CAPTURE_PATTERN = /^(\d{1,3})(?:\\?[\).])?\s+(.+)$/;
@@ -86,6 +88,80 @@ const emitReadingV2AutoImportDiag = (
 ): void => {
   options.onDiagnosticEvent?.(event, payload);
   logReadingV2AutoImportDiag(event, payload);
+};
+
+const compactDiagnosticPayload = (payload: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
+
+const sourceTitleSlugFor = (request: ReadingV2AutoImportRequest): string | undefined =>
+  request.sourceName
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || undefined;
+
+const canonicalDiagnosticEventPayload = (
+  request: ReadingV2AutoImportRequest,
+  diagnostic: ReadingV2AutoImportDiagnostic,
+  sourceArtifact?: ReadingV2ImportSourceArtifact,
+): Record<string, unknown> => {
+  const metadata = diagnostic as ReadingV2AutoImportDiagnostic & {
+    readonly layoutKind?: string;
+    readonly instructionIndex?: number;
+    readonly stimulusId?: string;
+  };
+
+  return compactDiagnosticPayload({
+    outcome: 'blocked',
+    issueCode: diagnostic.code,
+    importAttemptId: sourceArtifact?.artifactId,
+    sourceTitleSlug: sourceTitleSlugFor(request),
+    passageNumber: diagnostic.passageNumber,
+    instructionIndex: metadata.instructionIndex,
+    layoutKind: metadata.layoutKind,
+    questionNumber: diagnostic.questionNumber,
+    stimulusId: metadata.stimulusId,
+  });
+};
+
+const emitCanonicalAnchorDiagnosticEvents = (
+  options: Pick<ReadingV2AutoImportOptions, 'onDiagnosticEvent'>,
+  request: ReadingV2AutoImportRequest,
+  diagnostics: readonly ReadingV2AutoImportDiagnostic[],
+  sourceArtifact?: ReadingV2ImportSourceArtifact,
+): void => {
+  diagnostics.forEach((diagnostic) => {
+    if (diagnostic.severity !== 'error') {
+      return;
+    }
+
+    const payload = canonicalDiagnosticEventPayload(request, diagnostic, sourceArtifact);
+
+    if (diagnostic.code === 'duplicate-structured-layout-question') {
+      emitReadingV2AutoImportDiag(options, 'duplicate_structured_layout_question', payload);
+      emitReadingV2AutoImportDiag(options, 'canonical_anchor_guard_failed', payload);
+      return;
+    }
+
+    if (
+      diagnostic.code === 'duplicate-stimulus-anchor' ||
+      diagnostic.code === 'guardrail-normalization-failed'
+    ) {
+      emitReadingV2AutoImportDiag(options, 'canonical_anchor_guard_failed', payload);
+      return;
+    }
+
+    if (
+      diagnostic.code === 'orphan-anchor-reference' &&
+      /structured|table|flowchart|diagram|blank/i.test(diagnostic.message)
+    ) {
+      emitReadingV2AutoImportDiag(options, 'structured_layout_anchor_cardinality_mismatch', payload);
+      emitReadingV2AutoImportDiag(options, 'canonical_anchor_guard_failed', payload);
+    }
+  });
 };
 
 export type ReadingV2AutoImportDiagnosticSeverity = 'info' | 'warning' | 'error';
@@ -129,6 +205,9 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'source-instruction-reuse-mismatch'
   | 'source-passage-trim-risk'
   | 'canonical-validation-blocked'
+  | 'orphan-anchor-reference'
+  | 'duplicate-structured-layout-question'
+  | 'duplicate-stimulus-anchor'
   | 'source-repair-attempted'
   | 'source-repair-failed'
   | 'source-repair-succeeded'
@@ -136,6 +215,7 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'topology-marker-failed'
   | 'auto-pipeline-lane-selected'
   | 'auto-v4-provider-stage'
+  | 'auto-v4-question-chunk-recovery'
   | 'auto-v4-staged-parser-used'
   | 'auto-v4-source-authoritative-passage'
   | 'auto-v4-source-passage-drift'
@@ -163,6 +243,9 @@ export interface ReadingV2AutoImportDiagnostic {
   readonly message: string;
   readonly passageNumber?: number;
   readonly questionNumber?: number;
+  readonly instructionIndex?: number;
+  readonly layoutKind?: 'table' | 'flowchart' | 'diagram';
+  readonly stimulusId?: string;
   readonly stage?: 'auto-v4-passages' | 'auto-v4-questions';
   readonly groupRange?: string;
   readonly attempt?: number;
@@ -667,6 +750,37 @@ const extractAnswerKeyTextFromRaw = (rawText: string): string | undefined => {
   return parsed.rows.length > 0 ? parsed.rawText : undefined;
 };
 
+const visibleQuestionNumbersFromChunkText = (text: string): readonly number[] => {
+  const numbers = new Set<number>();
+  const lines = text.split(/\r?\n/);
+
+  for (const line of lines) {
+    if (
+      ANSWER_KEY_HEADING_PATTERN.test(line)
+      || /\banswer\b.+\breading\s+test\b/i.test(line)
+    ) {
+      break;
+    }
+
+    for (const match of line.matchAll(/\*\*(\d{1,2})\*\*/g)) {
+      const questionNumber = Number(match[1]);
+      if (questionNumber > 0 && questionNumber <= 40) {
+        numbers.add(questionNumber);
+      }
+    }
+
+    const lineStartMatch = line.match(/^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,2})(?:\*\*)?(?:\\?[.)])?\s+\S/);
+    if (lineStartMatch) {
+      const questionNumber = Number(lineStartMatch[1]);
+      if (questionNumber > 0 && questionNumber <= 40) {
+        numbers.add(questionNumber);
+      }
+    }
+  }
+
+  return [...numbers].sort((left, right) => left - right);
+};
+
 const splitSourceIntoChunks = (
   rawText: string,
   sourceLedger?: ReadingV2AutoSourceLedger,
@@ -675,7 +789,7 @@ const splitSourceIntoChunks = (
     return sourceLedger.passages.map((passage, index) => {
       const nextPassage = sourceLedger.passages[index + 1];
       const text = sourceLedger.normalizedText.slice(passage.charStart, nextPassage?.charStart ?? sourceLedger.normalizedText.length);
-      const expectedQuestionNumbers = sourceLedger.questionRanges
+      const rangeExpectedQuestionNumbers = sourceLedger.questionRanges
         .filter((range) => range.passageNumber === passage.passageNumber)
         .flatMap((range) => {
           const numbers: number[] = [];
@@ -684,11 +798,14 @@ const splitSourceIntoChunks = (
           }
           return numbers;
         });
+      const visibleQuestionNumbers = visibleQuestionNumbersFromChunkText(text);
 
       return {
         passageNumber: passage.passageNumber,
         text: text.trim(),
-        expectedQuestionNumbers,
+        expectedQuestionNumbers: visibleQuestionNumbers.length > 0
+          ? visibleQuestionNumbers
+          : rangeExpectedQuestionNumbers,
       };
     });
   }
@@ -763,6 +880,20 @@ const answerKeyValuesForQuestion = (answer: AutoQuestion['answer']): readonly st
     : [];
 };
 
+const canonicalAnswerKeyRowMergeKey = (row: string): string => {
+  const normalized = normalizedAnswerKeyRow(row) ?? row;
+  const match = normalized.match(ANSWER_KEY_ROW_CAPTURE_PATTERN);
+  if (!match?.[1]) {
+    return compactWhitespace(normalized).toLowerCase();
+  }
+
+  const answerText = compactWhitespace(match[2] ?? '')
+    .replace(/\s*\/\s*/g, '/')
+    .toLowerCase();
+
+  return `${Number(match[1])}:${answerText}`;
+};
+
 const mergedAnswerKeyTextFromPayloads = (
   extractedAnswerKeyText: string | undefined,
   chunkPayloads: readonly ChunkPayload[],
@@ -777,7 +908,7 @@ const mergedAnswerKeyTextFromPayloads = (
     }
 
     const row = normalizedAnswerKeyRow(line) ?? line;
-    const key = compactWhitespace(row).toLowerCase();
+    const key = canonicalAnswerKeyRowMergeKey(row);
     if (!seen.has(key)) {
       seen.add(key);
       rows.push(row);
@@ -1551,6 +1682,18 @@ interface AutoV4SummaryLayout {
   readonly questionTextByQuestionNumber: ReadonlyMap<number, string>;
 }
 
+interface AutoV4TableCell {
+  readonly text: string;
+  readonly role?: 'header' | 'body';
+  readonly questionNumber?: number;
+  readonly questionNumbers?: readonly number[];
+  readonly isBlank?: boolean;
+}
+
+interface AutoV4TableLayout {
+  readonly rows: readonly (readonly (AutoV4TableCell | string)[])[];
+}
+
 const normalizedQuestionText = (value: string): string =>
   value
     .replace(/^\s*(?:\*\*)?\d{1,3}(?:\*\*)?\s*(?:[.)\-:]\s*)?/, '')
@@ -1713,6 +1856,18 @@ const answerValuesByQuestionNumber = (
       .map((row) => [row.questionNumber, row.parsedAnswerValues]),
   );
 
+const answerKeyTextCoversQuestionNumbers = (
+  answerKeyText: string | undefined,
+  questionNumbers: readonly number[],
+): boolean => {
+  if (!answerKeyText || questionNumbers.length === 0) {
+    return false;
+  }
+
+  const valuesByQuestionNumber = answerValuesByQuestionNumber(answerKeyText);
+  return questionNumbers.every((questionNumber) => valuesByQuestionNumber.has(questionNumber));
+};
+
 const providerNameFromStageResult = (data: unknown): string =>
   typeof data === 'object'
     && data !== null
@@ -1720,6 +1875,172 @@ const providerNameFromStageResult = (data: unknown): string =>
     && typeof (data as { readonly provider?: unknown }).provider === 'string'
     ? (data as { readonly provider: string }).provider
     : 'custom-extractor';
+
+type AutoV4QuestionStageResult =
+  | {
+      readonly success: true;
+      readonly data: AIQuestionsAndAnswersResult;
+      readonly diagnostics: readonly ReadingV2AutoImportDiagnostic[];
+      readonly usedChunkRecovery: boolean;
+    }
+  | {
+      readonly success: false;
+      readonly error: string;
+      readonly passageNumber?: number;
+    };
+
+const autoV4QuestionFailureCanRecover = (error: string | undefined): boolean => {
+  const text = String(error ?? '').toLowerCase();
+  if (
+    /\b(?:401|403)\b/.test(text)
+    || text.includes('api_key_http_referrer_blocked')
+    || text.includes('invalid api key')
+    || text.includes('permission denied')
+  ) {
+    return false;
+  }
+
+  if (text.includes('truncated-json')) {
+    return true;
+  }
+
+  return (
+    text.includes('413')
+    && (text.includes('request too large') || text.includes('reduce your message size'))
+    && !/\b(?:tpm|tpd|429|quota|rate limit|tokens per minute|tokens per day)\b/.test(text)
+  );
+};
+
+const autoV4ChunksHaveDisjointQuestionOwnership = (chunks: readonly SourceChunk[]): boolean => {
+  if (chunks.length <= 1 || chunks.some((chunk) => !chunk.expectedQuestionNumbers?.length)) {
+    return false;
+  }
+
+  const expectedQuestionNumbers = chunks.flatMap((chunk) => chunk.expectedQuestionNumbers ?? []);
+  return new Set(expectedQuestionNumbers).size === expectedQuestionNumbers.length;
+};
+
+const autoV4QuestionsWithChunkRecovery = async (input: {
+  readonly extractor: ReadingV2AutoV4Extractor;
+  readonly fullText: string;
+  readonly chunks: readonly SourceChunk[];
+  readonly options: Pick<ReadingV2AutoImportOptions, 'onDiagnosticEvent' | 'waitBetweenChunksMs'>;
+}): Promise<AutoV4QuestionStageResult> => {
+  const fullDocumentResult = await input.extractor.parseQuestionsAndAnswers(input.fullText);
+  if (fullDocumentResult.success) {
+    return {
+      success: true,
+      data: fullDocumentResult.data,
+      diagnostics: [],
+      usedChunkRecovery: false,
+    };
+  }
+
+  if (
+    !autoV4QuestionFailureCanRecover(fullDocumentResult.error)
+    || !autoV4ChunksHaveDisjointQuestionOwnership(input.chunks)
+  ) {
+    return {
+      success: false,
+      error: fullDocumentResult.error ?? 'Auto V4 question parser failed.',
+    };
+  }
+
+  emitReadingV2AutoImportDiag(input.options, 'auto_v4_question_chunk_recovery_started', {
+    outcome: 'attempted',
+    chunkCount: input.chunks.length,
+  });
+
+  const recoveredResults: AIQuestionsAndAnswersResult[] = [];
+  for (let chunkIndex = 0; chunkIndex < input.chunks.length; chunkIndex += 1) {
+    const chunk = input.chunks[chunkIndex]!;
+    await wait(input.options.waitBetweenChunksMs ?? DEFAULT_CHUNK_WAIT_MS);
+    const chunkResult = await input.extractor.parseQuestionsAndAnswers(chunk.text);
+    if (!chunkResult.success) {
+      const passageNumber = chunk.passageNumber ?? chunkIndex + 1;
+      const error = `Auto V4 question recovery failed for Passage ${passageNumber}: ${chunkResult.error ?? 'question parser failed.'}`;
+      emitReadingV2AutoImportDiag(input.options, 'auto_v4_question_chunk_recovery_failed', {
+        outcome: 'failure',
+        chunkCount: input.chunks.length,
+        chunkIndex: chunkIndex + 1,
+        passageNumber,
+      });
+      return {
+        success: false,
+        error,
+        passageNumber,
+      };
+    }
+
+    const passageNumber = chunk.passageNumber ?? chunkIndex + 1;
+    const expectedQuestionNumbers = new Set(chunk.expectedQuestionNumbers ?? []);
+    const recoveredQuestionNumbers = chunkResult.data.questions.map((question) =>
+      normalizeNumber(question.questionNumber));
+    const invalidQuestionNumbers = recoveredQuestionNumbers.filter((questionNumber) =>
+      !expectedQuestionNumbers.has(questionNumber));
+    const missingQuestionNumbers = [...expectedQuestionNumbers].filter((questionNumber) =>
+      !recoveredQuestionNumbers.includes(questionNumber));
+    const duplicateQuestionNumbers = recoveredQuestionNumbers.filter((questionNumber, index, numbers) =>
+      numbers.indexOf(questionNumber) !== index);
+
+    if (
+      invalidQuestionNumbers.length > 0
+      || missingQuestionNumbers.length > 0
+      || duplicateQuestionNumbers.length > 0
+    ) {
+      const error = `Auto V4 question recovery failed for Passage ${passageNumber}: recovered question ownership did not match the source ledger.`;
+      emitReadingV2AutoImportDiag(input.options, 'auto_v4_question_chunk_recovery_failed', {
+        outcome: 'failure',
+        chunkCount: input.chunks.length,
+        chunkIndex: chunkIndex + 1,
+        passageNumber,
+        invalidQuestionCount: invalidQuestionNumbers.length,
+        missingQuestionCount: missingQuestionNumbers.length,
+        duplicateQuestionCount: duplicateQuestionNumbers.length,
+      });
+      return {
+        success: false,
+        error,
+        passageNumber,
+      };
+    }
+
+    recoveredResults.push({
+      ...chunkResult.data,
+      questions: chunkResult.data.questions.map((question) => ({
+        ...question,
+        passageId: null,
+      })),
+    });
+  }
+
+  const providers = [...new Set(recoveredResults.map(providerNameFromStageResult))];
+  const data = {
+    questions: recoveredResults.flatMap((result) => result.questions),
+    answerKey: {},
+    confidence: Math.min(...recoveredResults.map((result) => result.confidence)),
+    provider: providers.join('+'),
+  } satisfies AIQuestionsAndAnswersResult & { readonly provider: string };
+
+  emitReadingV2AutoImportDiag(input.options, 'auto_v4_question_chunk_recovery_completed', {
+    outcome: 'success',
+    chunkCount: input.chunks.length,
+    recoveredQuestionCount: data.questions.length,
+  });
+
+  return {
+    success: true,
+    data,
+    diagnostics: [{
+      code: 'auto-v4-question-chunk-recovery',
+      severity: 'warning',
+      message: `Auto V4 full-document question stage failed, then recovered all ${input.chunks.length} passage chunks.`,
+      stage: 'auto-v4-questions',
+      providerResult: 'success',
+    }],
+    usedChunkRecovery: true,
+  };
+};
 
 const questionNumberFromAutoV4Question = (question: AIQuestion): number =>
   normalizeNumber(question.questionNumber);
@@ -2193,23 +2514,116 @@ const autoV4PromptTextForTask = (
     : text;
 };
 
+const autoV4TableContextCellText = (value: string, questionNumber: number): string =>
+  compactWhitespace(replaceReadingV2AutoCompletionBlanks(value, ` ${questionNumber} `));
+
+const tableSourceBlankPatternSource = String.raw`(?:\\_){3,}|_{3,}|(?:\\\.){3,}|\.{3,}|(?:\u2026)+(?:\.)*|(?:\u00e2\u20ac\u00a6)+(?:\.)*|\[\s*(?:blank|\d+)\s*\]|\{\{\s*(?:blank|\d+)\s*\}\}`;
+
+const sourceTableQuestionBlankPatternFor = (questionNumber: number): RegExp =>
+  new RegExp(String.raw`(?:\*\*|__)?${questionNumber}(?:\*\*|__)?\s*(?:${tableSourceBlankPatternSource})`, 'gi');
+
+const markdownTableCellsFromLine = (line: string): readonly string[] | undefined => {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+    return undefined;
+  }
+
+  const cells = trimmed
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => compactWhitespace(cell));
+
+  return cells.length >= 2 ? cells : undefined;
+};
+
+const isMarkdownTableSeparatorRow = (cells: readonly string[]): boolean =>
+  cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, '')));
+
+const autoV4TableFromSourceGroup = (
+  group: AutoV4QuestionGroup,
+  sourceLedger: ReadingV2AutoSourceLedger,
+): AutoV4TableLayout | undefined => {
+  const questionNumbers = group.questions.map((question) => question.questionNumber);
+  const expectedQuestionNumbers = new Set(questionNumbers);
+  const assignedQuestionNumbers = new Set<number>();
+  const sourceRows = autoV4SourceWindowForGroup(group, sourceLedger)
+    .map(markdownTableCellsFromLine)
+    .filter((cells): cells is readonly string[] => Boolean(cells))
+    .filter((cells) => !isMarkdownTableSeparatorRow(cells));
+
+  if (sourceRows.length === 0) {
+    return undefined;
+  }
+
+  const rows = sourceRows.map((row, rowIndex) =>
+    row.map((cell): AutoV4TableCell | string => {
+      let text = cell;
+      const cellQuestionNumbers: number[] = [];
+
+      questionNumbers.forEach((questionNumber) => {
+        const pattern = sourceTableQuestionBlankPatternFor(questionNumber);
+        if (!pattern.test(text)) {
+          return;
+        }
+        pattern.lastIndex = 0;
+        text = text.replace(pattern, '___');
+        cellQuestionNumbers.push(questionNumber);
+      });
+
+      if (cellQuestionNumbers.length === 0) {
+        return text;
+      }
+
+      cellQuestionNumbers.forEach((questionNumber) => assignedQuestionNumbers.add(questionNumber));
+      return {
+        text,
+        role: rowIndex === 0 ? 'header' : 'body',
+        questionNumbers: cellQuestionNumbers,
+        isBlank: true,
+      };
+    }),
+  );
+
+  const hasEveryQuestionExactlyOnce = [...expectedQuestionNumbers].every((questionNumber) =>
+    assignedQuestionNumbers.has(questionNumber),
+  ) && assignedQuestionNumbers.size === expectedQuestionNumbers.size;
+
+  return hasEveryQuestionExactlyOnce ? { rows } : undefined;
+};
+
 const autoV4TableFromGroup = (
   group: AutoV4QuestionGroup,
-): { readonly rows: readonly (readonly ({ readonly text: string; readonly questionNumber?: number; readonly isBlank?: boolean } | string)[])[] } | undefined => {
+  sourceLedger: ReadingV2AutoSourceLedger,
+): AutoV4TableLayout | undefined => {
   if (group.taskType !== 'table-completion') {
     return undefined;
   }
 
+  const sourceTable = autoV4TableFromSourceGroup(group, sourceLedger);
+  if (sourceTable) {
+    return sourceTable;
+  }
+
   const rows = group.questions.map((question) => {
-    const promptText = autoV4PromptTextForTask(group.taskType, question.source.questionText);
-    const cells = promptText.includes('|')
-      ? promptText.split('|').map((cell) => compactWhitespace(cell))
-      : [promptText];
+    const rawPromptText = normalizedQuestionText(question.source.questionText);
+    const rawCells = rawPromptText.includes('|')
+      ? rawPromptText.split('|').map((cell) => compactWhitespace(cell))
+      : [rawPromptText];
+    const cells = rawCells.map((cell) =>
+      compactWhitespace(replaceReadingV2AutoCompletionBlanks(cell, ' ___ ')),
+    );
+    const explicitBlankCellIndexes = cells.flatMap((cell, cellIndex) =>
+      cell.includes('___') ? [cellIndex] : [],
+    );
+    const targetBlankCellIndex = explicitBlankCellIndexes[explicitBlankCellIndexes.length - 1] ?? cells.length - 1;
 
     return cells.map((cell, cellIndex) => {
       const hasBlank = cell.includes('___');
-      if (!hasBlank && cellIndex !== cells.length - 1) {
-        return cell;
+      if (cellIndex !== targetBlankCellIndex) {
+        return hasBlank
+          ? autoV4TableContextCellText(rawCells[cellIndex] ?? cell, question.questionNumber)
+          : cell;
       }
 
       return {
@@ -2360,7 +2774,7 @@ const buildAutoPayloadFromAutoV4Results = (input: {
           const start = group.questions[0]?.questionNumber ?? 0;
           const end = group.questions[group.questions.length - 1]?.questionNumber ?? start;
           const summaryLayout = autoV4SummaryLayoutFromSource(group, input.sourceLedger);
-          const table = autoV4TableFromGroup(group);
+          const table = autoV4TableFromGroup(group, input.sourceLedger);
           const flowchart = autoV4FlowchartFromGroup(group);
           const diagram = autoV4DiagramFromGroup(group, input.sourceLedger);
           return {
@@ -2737,6 +3151,52 @@ const normalizeGuardrailDiagnostic = (
     ? { ...diagnostic, severity: 'warning' as const }
     : diagnostic;
 
+const nonEditableCanonicalValidationIssueCodes = new Set([
+  'duplicate-stimulus-anchor',
+]);
+
+const reviewableCanonicalValidationIssueCodes = new Set([
+  'duplicate-structured-layout-question',
+]);
+
+const questionNumberFromCanonicalValidationIssue = (
+  issue: ReadingV2ValidationIssue,
+): number | undefined => {
+  const match = issue.message.match(/\bquestion\s+(\d+)\b/i);
+  const questionNumber = match?.[1] ? Number(match[1]) : NaN;
+  return Number.isFinite(questionNumber) ? questionNumber : undefined;
+};
+
+const canonicalValidationDiagnosticForIssue = (
+  issue: ReadingV2ValidationIssue,
+): ReadingV2AutoImportDiagnostic => {
+  const nonEditable = nonEditableCanonicalValidationIssueCodes.has(issue.code);
+  const reviewableCanonicalIssue = reviewableCanonicalValidationIssueCodes.has(issue.code);
+
+  return {
+    code: nonEditable || reviewableCanonicalIssue
+      ? (issue.code as ReadingV2AutoImportDiagnosticCode)
+      : 'canonical-validation-blocked',
+    severity: nonEditable ? 'error' : 'warning',
+    message: nonEditable
+      ? `Auto import cannot open in Studio (${issue.code.replace(/-/g, ' ')}): ${issue.message}`
+      : `Draft validation remains publish-blocking in Studio: ${issue.message}`,
+    questionNumber: issue.questionNumber ?? questionNumberFromCanonicalValidationIssue(issue),
+    passageNumber: issue.passageNumber,
+    instructionIndex: issue.instructionIndex,
+    layoutKind: issue.layoutKind,
+    stimulusId: issue.stimulusId,
+  };
+};
+
+const nonEditableCanonicalValidationDiagnostics = (
+  diagnostics: readonly ReadingV2AutoImportDiagnostic[],
+): readonly ReadingV2AutoImportDiagnostic[] =>
+  diagnostics.filter((diagnostic) =>
+    diagnostic.severity === 'error' &&
+    nonEditableCanonicalValidationIssueCodes.has(diagnostic.code),
+  );
+
 const generatedDraftEvidence = (payload: AutoPayload): readonly string[] => {
   const materialCount = payload.materials?.length ?? 0;
   const taskGroupCount = (payload.materials ?? []).reduce(
@@ -2763,6 +3223,7 @@ const finalizeAutoImportPayload = (input: {
   readonly provider?: ReadingV2AutoImportResult['provider'];
   readonly model?: string;
   readonly extraEvidence?: readonly string[];
+  readonly onDiagnosticEvent?: ReadingV2AutoImportOptions['onDiagnosticEvent'];
 }): ReadingV2AutoImportResult => {
   const provider = input.provider ?? 'gemini';
   const model = input.model ?? GEMINI_MODEL_NAME;
@@ -2791,6 +3252,12 @@ const finalizeAutoImportPayload = (input: {
   });
 
   if (blocking) {
+    emitCanonicalAnchorDiagnosticEvents(
+      { onDiagnosticEvent: input.onDiagnosticEvent },
+      input.request,
+      diagnostics,
+      input.sourceArtifact,
+    );
     return {
       success: false,
       reviewStatus: 'blocked',
@@ -2864,11 +3331,7 @@ const finalizeAutoImportPayload = (input: {
           ...canonicalBlockers,
         ].filter((message, index, messages) => messages.indexOf(message) === index),
       };
-      canonicalValidationDiagnostics.push(...validation.blockingIssues.map((issue) => ({
-        code: 'canonical-validation-blocked' as const,
-        severity: 'warning' as const,
-        message: `Draft validation remains publish-blocking in Studio: ${issue.message}`,
-      })));
+      canonicalValidationDiagnostics.push(...validation.blockingIssues.map(canonicalValidationDiagnosticForIssue));
       candidateForStudio = {
         ...candidateForStudio,
         autoImportDiagnostics: [
@@ -2882,6 +3345,17 @@ const finalizeAutoImportPayload = (input: {
       console.error('[ReadingV2AutoImport] Guardrail normalization failed:', error);
     }
 
+    emitReadingV2AutoImportDiag(
+      { onDiagnosticEvent: input.onDiagnosticEvent },
+      'canonical_anchor_guard_failed',
+      compactDiagnosticPayload({
+        outcome: 'failure',
+        issueCode: 'guardrail-normalization-failed',
+        importAttemptId: input.sourceArtifact?.artifactId,
+        sourceTitleSlug: sourceTitleSlugFor(input.request),
+      }),
+    );
+
     return {
       success: false,
       reviewStatus: 'blocked',
@@ -2894,6 +3368,28 @@ const finalizeAutoImportPayload = (input: {
           message: 'Auto import output could not normalize into the Reading V2 draft model.',
         },
       ],
+      provider,
+      model,
+    };
+  }
+  const hardCanonicalValidationDiagnostics = nonEditableCanonicalValidationDiagnostics(canonicalValidationDiagnostics);
+  if (hardCanonicalValidationDiagnostics.length > 0) {
+    emitCanonicalAnchorDiagnosticEvents(
+      { onDiagnosticEvent: input.onDiagnosticEvent },
+      input.request,
+      hardCanonicalValidationDiagnostics,
+      input.sourceArtifact,
+    );
+    return {
+      success: false,
+      reviewStatus: 'blocked',
+      error: hardCanonicalValidationDiagnostics[0]?.message ?? 'Auto import failed canonical validation before Studio handoff.',
+      diagnostics: [
+        ...diagnostics,
+        ...canonicalValidationDiagnostics,
+      ],
+      sourceArtifact: input.sourceArtifact,
+      groupQualityRecords,
       provider,
       model,
     };
@@ -3170,7 +3666,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
   readonly extractor: ReadingV2AutoV4Extractor;
   readonly sourceLedger: ReadingV2AutoSourceLedger;
   readonly sourceArtifact: ReadingV2ImportSourceArtifact;
-  readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent'>;
+  readonly options: Pick<ReadingV2AutoImportOptions, 'captureRawProviderDebug' | 'onDiagnosticEvent' | 'waitBetweenChunksMs'>;
 }): Promise<ReadingV2AutoImportResult> => {
   const extractedAnswerKeyText = extractAnswerKeyTextFromRaw(input.sourceLedger.normalizedText);
   const chunks = splitSourceIntoChunks(input.sourceLedger.normalizedText, input.sourceLedger);
@@ -3216,7 +3712,12 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
     };
   }
 
-  const questionsResult = await input.extractor.parseQuestionsAndAnswers(input.sourceLedger.normalizedText);
+  const questionsResult = await autoV4QuestionsWithChunkRecovery({
+    extractor: input.extractor,
+    fullText: input.sourceLedger.normalizedText,
+    chunks,
+    options: input.options,
+  });
   if (!questionsResult.success) {
     const error = questionsResult.error ?? 'Auto V4 question parser failed.';
     emitReadingV2AutoRawDebug(input.options, 'auto_v4_questions_debug_capture', {
@@ -3233,6 +3734,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
           code: 'gemini-request-failed',
           severity: 'error',
           message: error,
+          passageNumber: questionsResult.passageNumber,
           providerResult: 'failure',
         },
       ],
@@ -3242,10 +3744,19 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
     };
   }
 
-  const copiedV4AnswerKeyText = hasVisibleAnswerKeyHeading
+  const expectedAnswerKeyQuestionNumbers = input.sourceLedger.questionNumbers.length > 0
+    ? input.sourceLedger.questionNumbers
+    : questionsResult.data.questions.map(questionNumberFromAutoV4Question);
+  const extractedAnswerKeyIsComplete = answerKeyTextCoversQuestionNumbers(
+    extractedAnswerKeyText,
+    expectedAnswerKeyQuestionNumbers,
+  );
+  const copiedV4AnswerKeyText = hasVisibleAnswerKeyHeading && !questionsResult.usedChunkRecovery && !extractedAnswerKeyIsComplete
     ? autoV4AnswerKeyText(questionsResult.data.answerKey)
     : undefined;
-  const answerKeyText = copiedV4AnswerKeyText ?? extractedAnswerKeyText;
+  const answerKeyText = extractedAnswerKeyIsComplete
+    ? extractedAnswerKeyText
+    : (copiedV4AnswerKeyText ?? extractedAnswerKeyText);
   const payload = buildAutoPayloadFromAutoV4Results({
     request: input.request,
     sourceLedger: input.sourceLedger,
@@ -3287,6 +3798,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
       stage: 'auto-v4-questions',
       providerResult: 'success',
     },
+    ...questionsResult.diagnostics,
     ...sourcePassageDiagnostics,
     ...(payloadState.answerKeyText
       ? [{
@@ -3314,6 +3826,7 @@ const generateReadingV2AutoImportCandidateV4 = async (input: {
     verifierIssues: payloadState.verifierIssues,
     provider: 'gemini',
     model: AUTO_V4_MODEL_LABEL,
+    onDiagnosticEvent: input.options.onDiagnosticEvent,
   });
 };
 
@@ -3395,7 +3908,7 @@ export const generateReadingV2AutoImportCandidate = async (
   if (pipelineLane === 'v4-full-doc') {
     return generateReadingV2AutoImportCandidateV4({
       request,
-      extractor: options.v4Extractor ?? aiService,
+      extractor: options.v4Extractor ?? geminiProvider,
       sourceLedger,
       sourceArtifact,
       options,
@@ -3545,11 +4058,7 @@ export const generateReadingV2AutoImportCandidate = async (
           ...canonicalBlockers,
         ].filter((message, index, messages) => messages.indexOf(message) === index),
       };
-      canonicalValidationDiagnostics.push(...validation.blockingIssues.map((issue) => ({
-        code: 'canonical-validation-blocked' as const,
-        severity: 'warning' as const,
-        message: `Draft validation remains publish-blocking in Studio: ${issue.message}`,
-      })));
+      canonicalValidationDiagnostics.push(...validation.blockingIssues.map(canonicalValidationDiagnosticForIssue));
       candidateForStudio = {
         ...candidateForStudio,
         autoImportDiagnostics: [
@@ -3559,6 +4068,17 @@ export const generateReadingV2AutoImportCandidate = async (
       };
     }
   } catch (error) {
+    emitReadingV2AutoImportDiag(
+      options,
+      'canonical_anchor_guard_failed',
+      compactDiagnosticPayload({
+        outcome: 'failure',
+        issueCode: 'guardrail-normalization-failed',
+        importAttemptId: sourceArtifact.artifactId,
+        sourceTitleSlug: sourceTitleSlugFor(request),
+      }),
+    );
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Auto import could not normalize into Reading V2.',
@@ -3569,6 +4089,26 @@ export const generateReadingV2AutoImportCandidate = async (
           severity: 'error',
           message: 'Gemini output could not normalize into the Reading V2 draft model.',
         },
+      ],
+      provider: 'gemini',
+      model: GEMINI_MODEL_NAME,
+    };
+  }
+  const hardCanonicalValidationDiagnostics = nonEditableCanonicalValidationDiagnostics(canonicalValidationDiagnostics);
+  if (hardCanonicalValidationDiagnostics.length > 0) {
+    emitCanonicalAnchorDiagnosticEvents(
+      options,
+      request,
+      hardCanonicalValidationDiagnostics,
+      sourceArtifact,
+    );
+    return {
+      success: false,
+      reviewStatus: 'blocked',
+      error: hardCanonicalValidationDiagnostics[0]?.message ?? 'Auto import failed canonical validation before Studio handoff.',
+      diagnostics: [
+        ...diagnostics,
+        ...canonicalValidationDiagnostics,
       ],
       provider: 'gemini',
       model: GEMINI_MODEL_NAME,

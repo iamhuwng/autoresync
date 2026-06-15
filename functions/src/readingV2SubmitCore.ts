@@ -14,6 +14,7 @@ export interface ReadingV2TrustedSubmissionRequest {
   sourceSnapshotVersionId: string;
   materialId?: string;
   answers: readonly ReadingV2TrustedSubmissionAnswer[];
+  integrityReport?: Record<string, unknown> | null;
   context?: {
     surface?: ReadingV2SubmitSurface;
     sessionCode?: string;
@@ -69,6 +70,13 @@ export interface ReadingV2SubmitPlan {
   };
 }
 
+export interface ReadingPassageSetTrustedPassageRecord {
+  item: Record<string, any>;
+  snapshot: Record<string, any>;
+  reviewProjection: Record<string, any>;
+  metadata?: Record<string, any> | null;
+}
+
 const storagePaths = {
   attempts: (attemptId: string): string => `reading_v2/attempts/${attemptId}`,
   results: (resultId: string): string => `reading_v2/results/${resultId}`,
@@ -91,6 +99,18 @@ const optionalString = (value: unknown): string | undefined =>
 
 const optionalNullableString = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+
+const optionalIntegrityReport = (value: unknown): Record<string, unknown> | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (!isRecord(value)) {
+    throw new Error('Reading V2 integrityReport must be an object when provided.');
+  }
+
+  return sanitizeRtdbValue(value);
+};
 
 export const sanitizeRtdbValue = <T>(value: T): T => {
   if (value === undefined) {
@@ -137,6 +157,7 @@ export const parseReadingV2TrustedSubmissionRequest = (
     sourceSnapshotVersionId: requiredString(body.sourceSnapshotVersionId, 'sourceSnapshotVersionId'),
     materialId: optionalString(body.materialId),
     answers: body.answers.map((answer, index) => parseAnswer(answer, index)),
+    integrityReport: optionalIntegrityReport(body.integrityReport),
     context: isRecord(body.context) ? {
       surface: parseSurface(body.context.surface),
       sessionCode: optionalString(body.context.sessionCode),
@@ -267,6 +288,91 @@ const answerMapFromRuntime = (
 const projectedGroups = (projection: Record<string, any>): Record<string, any>[] =>
   Array.isArray(projection.content?.taskGroups) ? projection.content.taskGroups : [];
 
+const prefixId = (prefix: string, value: unknown): string | undefined =>
+  typeof value === 'string' && value.length > 0 ? `${prefix}:${value}` : undefined;
+
+const prefixIds = (prefix: string, values: unknown): string[] =>
+  Array.isArray(values)
+    ? values.map((value) => prefixId(prefix, value)).filter((value): value is string => typeof value === 'string')
+    : [];
+
+const prefixedStimulusContent = (prefix: string, content: unknown): unknown => {
+  if (!isRecord(content)) {
+    return content;
+  }
+
+  if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
+    return {
+      ...content,
+      paragraphs: content.paragraphs.map((paragraph: unknown) =>
+        isRecord(paragraph)
+          ? { ...paragraph, anchorId: prefixId(prefix, paragraph.anchorId) ?? paragraph.anchorId }
+          : paragraph,
+      ),
+    };
+  }
+
+  if (content.kind === 'table-content' && Array.isArray(content.rows)) {
+    return {
+      ...content,
+      rows: content.rows.map((row: unknown) =>
+        Array.isArray(row)
+          ? row.map((cell: unknown) => {
+              if (!isRecord(cell)) {
+                return cell;
+              }
+
+              const splitSourceCells = Array.isArray(cell.splitSourceCells)
+                ? cell.splitSourceCells.map((sourceCell: unknown) =>
+                    isRecord(sourceCell)
+                      ? {
+                          ...sourceCell,
+                          anchorId: prefixId(prefix, sourceCell.anchorId) ?? sourceCell.anchorId,
+                          anchorIds: Array.isArray(sourceCell.anchorIds)
+                            ? prefixIds(prefix, sourceCell.anchorIds)
+                            : sourceCell.anchorIds,
+                        }
+                      : sourceCell,
+                  )
+                : cell.splitSourceCells;
+
+              return {
+                ...cell,
+                anchorId: prefixId(prefix, cell.anchorId) ?? cell.anchorId,
+                anchorIds: Array.isArray(cell.anchorIds) ? prefixIds(prefix, cell.anchorIds) : cell.anchorIds,
+                splitSourceCells,
+              };
+            })
+          : row,
+      ),
+    };
+  }
+
+  if (content.kind === 'flowchart-content' && Array.isArray(content.steps)) {
+    return {
+      ...content,
+      steps: content.steps.map((step: unknown) =>
+        isRecord(step)
+          ? { ...step, anchorId: prefixId(prefix, step.anchorId) ?? step.anchorId }
+          : step,
+      ),
+    };
+  }
+
+  if (content.kind === 'diagram-content' && Array.isArray(content.hotspots)) {
+    return {
+      ...content,
+      hotspots: content.hotspots.map((hotspot: unknown) =>
+        isRecord(hotspot)
+          ? { ...hotspot, anchorId: prefixId(prefix, hotspot.anchorId) ?? hotspot.anchorId }
+          : hotspot,
+      ),
+    };
+  }
+
+  return content;
+};
+
 const findProjectedTaskGroup = (
   projection: Record<string, any>,
   interactionId: string,
@@ -286,6 +392,336 @@ const findProjectedInteraction = (
   return Array.isArray(group?.interactions)
     ? group.interactions.find((interaction: Record<string, any>) => interaction.interactionId === interactionId)
     : undefined;
+};
+
+const sortReadingPassageSetItems = (homework: Record<string, any>): Record<string, any>[] =>
+  Array.isArray(homework.readingPassageSet?.items)
+    ? [...homework.readingPassageSet.items].sort((left, right) => Number(left.order) - Number(right.order))
+    : [];
+
+const sortCompositionPassageRefs = (composition: Record<string, any>): Record<string, any>[] =>
+  Array.isArray(composition.passageRefs)
+    ? [...composition.passageRefs].sort((left, right) => Number(left.order) - Number(right.order))
+    : [];
+
+const passageItemTitle = (item: Record<string, any>): string =>
+  optionalString(item.titleSnapshot)
+    ?? optionalString(item.title)
+    ?? optionalString(item.materialTitle)
+    ?? `Passage ${Number(item.order) || 1}`;
+
+const passageItemSourceOrderDisplay = (item: Record<string, any>): string | null =>
+  optionalNullableString(item.sourceOrderDisplay)
+    ?? optionalNullableString(item.sourceOrderDisplaySnapshot)
+    ?? optionalNullableString(item.source?.sourceOrderDisplay);
+
+const passageItemSourceFullTestTitle = (item: Record<string, any>): string | null =>
+  optionalNullableString(item.sourceFullTestTitle)
+    ?? optionalNullableString(item.source?.sourceFullTestTitle);
+
+const prefixedCanonicalInteractions = (
+  prefix: string,
+  snapshot: Record<string, any>,
+): Record<string, any> =>
+  Object.fromEntries(
+    Object.values(snapshot.document?.interactions ?? {}).map((interaction: any) => {
+      const prefixed = {
+        ...interaction,
+        interactionId: requiredString(prefixId(prefix, interaction.interactionId), 'prefixed interactionId'),
+        taskGroupId: requiredString(prefixId(prefix, interaction.taskGroupId), 'prefixed taskGroupId'),
+        primaryAnchorId: prefixId(prefix, interaction.primaryAnchorId),
+      };
+
+      return [prefixed.interactionId, prefixed];
+    }),
+  );
+
+const prefixedCanonicalTaskGroups = (
+  prefix: string,
+  snapshot: Record<string, any>,
+): Record<string, any> =>
+  Object.fromEntries(
+    Object.entries(snapshot.document?.taskGroups ?? {}).map(([taskGroupId, taskGroup]: [string, any]) => {
+      const prefixedTaskGroupId = requiredString(
+        prefixId(prefix, taskGroup.taskGroupId ?? taskGroupId),
+        'prefixed taskGroupId',
+      );
+      return [prefixedTaskGroupId, {
+        ...taskGroup,
+        taskGroupId: prefixedTaskGroupId,
+      }];
+    }),
+  );
+
+const prefixedReviewContent = (input: {
+  prefix: string;
+  item: Record<string, any>;
+  projection: Record<string, any>;
+  interactionDisplayNumbers: Readonly<Record<string, number>>;
+}): Record<string, any> => {
+  const content = input.projection.content ?? {};
+  const title = passageItemTitle(input.item);
+  const passageSection = {
+    order: input.item.order,
+    title,
+    passageMaterialId: input.item.passageMaterialId,
+    snapshotVersionId: input.item.snapshotVersionId,
+    sourceOrderDisplay: passageItemSourceOrderDisplay(input.item),
+    sourceFullTestTitle: passageItemSourceFullTestTitle(input.item),
+  };
+
+  return {
+    sections: Array.isArray(content.sections)
+      ? content.sections.map((section: Record<string, any>) => ({
+        ...section,
+        sectionId: requiredString(prefixId(input.prefix, section.sectionId), 'prefixed sectionId'),
+        title: `Passage ${input.item.order}: ${title}`,
+        stimulusIds: prefixIds(input.prefix, section.stimulusIds),
+        taskGroupIds: prefixIds(input.prefix, section.taskGroupIds),
+      }))
+      : [],
+    stimuli: Array.isArray(content.stimuli)
+      ? content.stimuli.map((stimulus: Record<string, any>) => ({
+        ...stimulus,
+        stimulusId: requiredString(prefixId(input.prefix, stimulus.stimulusId), 'prefixed stimulusId'),
+        anchorIds: prefixIds(input.prefix, stimulus.anchorIds),
+        content: prefixedStimulusContent(input.prefix, stimulus.content),
+      }))
+      : [],
+    anchors: Array.isArray(content.anchors)
+      ? content.anchors.map((anchor: Record<string, any>) => ({
+        ...anchor,
+        anchorId: requiredString(prefixId(input.prefix, anchor.anchorId), 'prefixed anchorId'),
+        stimulusId: requiredString(prefixId(input.prefix, anchor.stimulusId), 'prefixed anchor stimulusId'),
+      }))
+      : [],
+    taskGroups: projectedGroups(input.projection).map((taskGroup) => ({
+      ...taskGroup,
+      taskGroupId: requiredString(prefixId(input.prefix, taskGroup.taskGroupId), 'prefixed taskGroupId'),
+      passageSection,
+      instructionBlocks: Array.isArray(taskGroup.instructionBlocks)
+        ? taskGroup.instructionBlocks.map((block: Record<string, any>) => ({
+          ...block,
+          id: prefixId(input.prefix, block.id),
+        }))
+        : [],
+      stimulusRefs: Array.isArray(taskGroup.stimulusRefs)
+        ? taskGroup.stimulusRefs.map((ref: Record<string, any>) => ({
+          ...ref,
+          stimulusId: requiredString(prefixId(input.prefix, ref.stimulusId), 'prefixed stimulus ref'),
+          anchorIds: prefixIds(input.prefix, ref.anchorIds),
+        }))
+        : [],
+      interactions: Array.isArray(taskGroup.interactions)
+        ? taskGroup.interactions.map((interaction: Record<string, any>) => {
+          const prefixedInteractionId = requiredString(
+            prefixId(input.prefix, interaction.interactionId),
+            'prefixed interactionId',
+          );
+
+          return {
+            ...interaction,
+            interactionId: prefixedInteractionId,
+            taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'),
+            displayNumber: input.interactionDisplayNumbers[prefixedInteractionId] ?? Number(interaction.displayNumber ?? 0),
+            primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId),
+            contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds),
+          };
+        })
+        : [],
+    })),
+    optionSets: Array.isArray(content.optionSets)
+      ? content.optionSets.map((optionSet: Record<string, any>) => ({
+        ...optionSet,
+        optionSetId: requiredString(prefixId(input.prefix, optionSet.optionSetId), 'prefixed optionSetId'),
+        taskGroupId: requiredString(prefixId(input.prefix, optionSet.taskGroupId), 'prefixed optionSet taskGroupId'),
+      }))
+      : [],
+  };
+};
+
+const buildInteractionDisplayNumbers = (input: {
+  items: readonly Record<string, any>[];
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+}): Record<string, number> => {
+  const interactionDisplayNumbers: Record<string, number> = {};
+  let nextDisplayNumber = 1;
+
+  input.items.forEach((item, index) => {
+    const passageRecord = input.passageRecords[index];
+    const prefix = `passage-${item.order}`;
+    projectedGroups(passageRecord?.reviewProjection ?? {}).forEach((taskGroup) => {
+      if (!Array.isArray(taskGroup.interactions)) {
+        return;
+      }
+
+      taskGroup.interactions.forEach((interaction: Record<string, any>) => {
+        const prefixedInteractionId = prefixId(prefix, interaction.interactionId);
+        if (prefixedInteractionId) {
+          interactionDisplayNumbers[prefixedInteractionId] = nextDisplayNumber;
+          nextDisplayNumber += 1;
+        }
+      });
+    });
+  });
+
+  return interactionDisplayNumbers;
+};
+
+const composeTrustedPassageRecords = (input: {
+  materialId: string;
+  snapshotVersionId: string;
+  title: string;
+  ownerId?: string;
+  publishedBy?: string;
+  durationMinutes?: number;
+  materialKind: string;
+  items: readonly Record<string, any>[];
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+  generatedAt?: string;
+}): ReadingV2SubmitLoadedRecords => {
+  if (input.items.length === 0 || input.items.length !== input.passageRecords.length) {
+    throw new Error('Reading V2 trusted passage composition requires one passage record per assigned passage.');
+  }
+
+  const interactionDisplayNumbers = buildInteractionDisplayNumbers({
+    items: input.items,
+    passageRecords: input.passageRecords,
+  });
+  const canonicalInteractions: Record<string, any> = {};
+  const canonicalTaskGroups: Record<string, any> = {};
+  const reviewContents: Record<string, any>[] = [];
+
+  input.items.forEach((item, index) => {
+    const passageRecord = input.passageRecords[index];
+    if (!passageRecord) {
+      throw new Error('Reading V2 trusted passage composition is missing a passage record.');
+    }
+
+    const prefix = `passage-${item.order}`;
+    if (
+      passageRecord.snapshot.materialId !== item.passageMaterialId ||
+      passageRecord.snapshot.snapshotVersionId !== item.snapshotVersionId ||
+      passageRecord.reviewProjection.sourceSnapshotVersionId !== item.snapshotVersionId
+    ) {
+      throw new Error('Reading V2 trusted passage composition record does not match the assigned snapshot.');
+    }
+
+    Object.assign(canonicalInteractions, prefixedCanonicalInteractions(prefix, passageRecord.snapshot));
+    Object.assign(canonicalTaskGroups, prefixedCanonicalTaskGroups(prefix, passageRecord.snapshot));
+    reviewContents.push(prefixedReviewContent({
+      prefix,
+      item,
+      projection: passageRecord.reviewProjection,
+      interactionDisplayNumbers,
+    }));
+  });
+
+  const firstRecord = input.passageRecords[0];
+  if (!firstRecord) {
+    throw new Error('Reading V2 trusted passage composition requires at least one passage record.');
+  }
+
+  return {
+    snapshot: {
+      snapshotVersionId: input.snapshotVersionId,
+      materialId: input.materialId,
+      ownerId: input.ownerId ?? firstRecord.snapshot.ownerId,
+      publishedAt: input.generatedAt ?? firstRecord.snapshot.publishedAt,
+      publishedBy: input.publishedBy ?? input.ownerId ?? firstRecord.snapshot.publishedBy,
+      document: {
+        title: input.title,
+        interactions: canonicalInteractions,
+        taskGroups: canonicalTaskGroups,
+      },
+    },
+    reviewProjection: {
+      deliveryEngine: READING_V2_ENGINE,
+      projectionKind: 'review',
+      sourceSnapshotVersionId: input.snapshotVersionId,
+      generatedAt: input.generatedAt ?? firstRecord.reviewProjection.generatedAt,
+      content: {
+        title: input.title,
+        sections: reviewContents.flatMap((content) => content.sections),
+        stimuli: reviewContents.flatMap((content) => content.stimuli),
+        anchors: reviewContents.flatMap((content) => content.anchors),
+        taskGroups: reviewContents.flatMap((content) => content.taskGroups),
+        optionSets: reviewContents.flatMap((content) => content.optionSets),
+      },
+    },
+    metadata: {
+      materialId: input.materialId,
+      title: input.title,
+      materialKind: input.materialKind,
+      durationMinutes: input.durationMinutes ?? 0,
+    },
+  };
+};
+
+export const composeReadingPassageSetTrustedRecords = (input: {
+  homework: Record<string, any>;
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+  generatedAt?: string;
+}): ReadingV2SubmitLoadedRecords => {
+  if (
+    input.homework.materialType !== 'reading-passage-set' ||
+    typeof input.homework.materialId !== 'string' ||
+    !input.homework.materialId.startsWith('reading-passage-set:')
+  ) {
+    throw new Error('Reading Passage set trusted submission requires reading-passage-set homework.');
+  }
+
+  const items = sortReadingPassageSetItems(input.homework);
+  if (items.length === 0 || items.length !== input.passageRecords.length) {
+    throw new Error('Reading Passage set trusted submission requires one passage record per assigned passage.');
+  }
+
+  const snapshotVersionId = `homework-set:${input.homework.id ?? input.homework.materialId.replace(/^reading-passage-set:/, '')}`;
+  const title = input.homework.readingPassageSet?.titleSnapshot ?? input.homework.title ?? input.homework.materialTitle ?? 'Reading Passage Set';
+
+  return composeTrustedPassageRecords({
+    materialId: input.homework.materialId,
+    snapshotVersionId,
+    title,
+    ownerId: input.homework.createdBy,
+    publishedBy: input.homework.createdBy,
+    durationMinutes: input.homework.config?.timerMinutes,
+    materialKind: 'reading-passage-set',
+    items,
+    passageRecords: input.passageRecords,
+    generatedAt: input.generatedAt,
+  });
+};
+
+export const composeReadingV2CompositionTrustedRecords = (input: {
+  composition: Record<string, any>;
+  materialId: string;
+  snapshotVersionId: string;
+  metadata?: Record<string, any> | null;
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+  generatedAt?: string;
+}): ReadingV2SubmitLoadedRecords => {
+  const items = sortCompositionPassageRefs(input.composition);
+  if (items.length === 0 || items.length !== input.passageRecords.length) {
+    throw new Error('Reading V2 composition trusted submission requires one passage record per composition passage.');
+  }
+
+  const title = optionalString(input.metadata?.title)
+    ?? optionalString(input.composition.title)
+    ?? 'Reading V2 Full Test';
+
+  return composeTrustedPassageRecords({
+    materialId: input.materialId,
+    snapshotVersionId: input.snapshotVersionId,
+    title,
+    ownerId: optionalString(input.composition.ownerId),
+    publishedBy: optionalString(input.composition.ownerId),
+    durationMinutes: Number(input.metadata?.durationMinutes ?? 0),
+    materialKind: optionalString(input.metadata?.materialKind) ?? 'reading-v2-full-test-composition',
+    items,
+    passageRecords: input.passageRecords,
+    generatedAt: input.generatedAt,
+  });
 };
 
 const orderedCanonicalInteractions = (snapshot: Record<string, any>): Record<string, any>[] => {
@@ -308,6 +744,20 @@ const stimulusExcerpt = (
 ): string => {
   const content = stimulus.content ?? {};
   const selectedAnchorIds = new Set(anchorIds);
+  const tableCellMatchesSelectedAnchors = (cell: Record<string, any>): boolean => {
+    if (selectedAnchorIds.size === 0) {
+      return true;
+    }
+
+    const cellAnchorIds = Array.isArray(cell.anchorIds) && cell.anchorIds.length > 0
+      ? cell.anchorIds
+      : typeof cell.anchorId === 'string'
+        ? [cell.anchorId]
+        : [];
+    return cellAnchorIds.some((anchorId: unknown) =>
+      typeof anchorId === 'string' && selectedAnchorIds.has(anchorId),
+    );
+  };
 
   if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
     const paragraphs = selectedAnchorIds.size > 0
@@ -321,9 +771,7 @@ const stimulusExcerpt = (
   if (content.kind === 'table-content' && Array.isArray(content.rows)) {
     const cells = content.rows
       .flat()
-      .filter((cell: Record<string, any>) =>
-        selectedAnchorIds.size === 0 || (cell.anchorId && selectedAnchorIds.has(cell.anchorId)),
-      )
+      .filter(tableCellMatchesSelectedAnchors)
       .map((cell: Record<string, any>) => cell.text)
       .filter(Boolean);
     return truncateContext(cells.join(' | '));
@@ -501,53 +949,88 @@ const getStudentName = (
   ?? optionalNullableString(auth.email)
   ?? 'Student';
 
+const materialLabelForKind = (kind: string | undefined): string | undefined => {
+  if (kind === 'reading-passage') return 'Reading Passage';
+  if (kind === 'reading-passage-set') return 'Reading Passage Set';
+  if (kind === 'reading-v2-full-test-composition') return 'Reading V2 Full Test';
+  return undefined;
+};
+
+const buildSinglePassageSection = (
+  metadata: Record<string, any> | null | undefined,
+  materialId: string,
+  snapshotVersionId: string,
+): Record<string, unknown> | null => {
+  if (metadata?.materialKind !== 'reading-passage') {
+    return null;
+  }
+
+  return {
+    title: optionalString(metadata.title),
+    passageMaterialId: materialId,
+    snapshotVersionId,
+    sourceOrderDisplay: optionalNullableString(metadata.sourceOrderDisplay ?? metadata.sourceOrderLabelSnapshot),
+    sourceFullTestTitle: optionalNullableString(metadata.sourceFullTestTitle),
+  };
+};
+
 const buildReviewPayload = (
   result: Record<string, any>,
   projection: Record<string, any>,
   materialId: string,
-): Record<string, unknown> => ({
-  deliveryEngine: READING_V2_ENGINE,
-  schemaVersion: READING_V2_SCHEMA_VERSION,
-  resultId: result.resultId,
-  sourceSnapshotVersionId: result.publishedSnapshotVersion,
-  materialId,
-  title: projection.content?.title ?? 'Reading V2',
-  taskGroups: projectedGroups(projection).map((taskGroup) => ({
-    taskGroupId: taskGroup.taskGroupId,
-    title: taskGroup.groupTitle,
-    officialTaskType: taskGroup.officialTaskType,
-    engineeringFamily: taskGroup.engineeringFamily,
-    instructionText: Array.isArray(taskGroup.instructionBlocks)
-      ? taskGroup.instructionBlocks.map((block: Record<string, any>) => block.text).join('\n')
-      : '',
-    stimulusContext: stimulusContextForTaskGroup(projection, taskGroup),
-    interactions: Array.isArray(taskGroup.interactions)
-      ? taskGroup.interactions.map((interaction: Record<string, any>) => {
-        const resultInteraction = result.interactions.find(
-          (candidate: Record<string, any>) => candidate.interactionId === interaction.interactionId,
-        );
+  metadata?: Record<string, any> | null,
+): Record<string, unknown> => {
+  const materialKind = optionalString(metadata?.materialKind);
+  const materialLabel = materialLabelForKind(materialKind);
+  const singlePassageSection = buildSinglePassageSection(metadata, materialId, result.publishedSnapshotVersion);
 
-        if (!resultInteraction) {
-          throw new Error(`Reading V2 result is missing interaction ${interaction.interactionId}.`);
-        }
+  return {
+    deliveryEngine: READING_V2_ENGINE,
+    schemaVersion: READING_V2_SCHEMA_VERSION,
+    resultId: result.resultId,
+    sourceSnapshotVersionId: result.publishedSnapshotVersion,
+    materialId,
+    ...(materialKind !== undefined && { materialKind }),
+    ...(materialLabel !== undefined && { materialLabel }),
+    title: projection.content?.title ?? 'Reading V2',
+    taskGroups: projectedGroups(projection).map((taskGroup) => ({
+      taskGroupId: taskGroup.taskGroupId,
+      title: taskGroup.groupTitle,
+      passageSection: taskGroup.passageSection ?? singlePassageSection,
+      officialTaskType: taskGroup.officialTaskType,
+      engineeringFamily: taskGroup.engineeringFamily,
+      instructionText: Array.isArray(taskGroup.instructionBlocks)
+        ? taskGroup.instructionBlocks.map((block: Record<string, any>) => block.text).join('\n')
+        : '',
+      stimulusContext: stimulusContextForTaskGroup(projection, taskGroup),
+      interactions: Array.isArray(taskGroup.interactions)
+        ? taskGroup.interactions.map((interaction: Record<string, any>) => {
+          const resultInteraction = result.interactions.find(
+            (candidate: Record<string, any>) => candidate.interactionId === interaction.interactionId,
+          );
 
-        return {
-          interactionId: resultInteraction.interactionId,
-          taskGroupId: resultInteraction.taskGroupId,
-          displayNumber: resultInteraction.displayNumber,
-          taskFamily: resultInteraction.taskFamily,
-          officialTaskType: resultInteraction.officialTaskType,
-          studentAnswer: resultInteraction.studentAnswer,
-          correctAnswer: resultInteraction.scoredAnswer,
-          score: resultInteraction.score,
-          maxScore: resultInteraction.maxScore,
-          reviewState: resultInteraction.reviewState,
-          anchorRef: resultInteraction.anchorRef,
-        };
-      })
-      : [],
-  })),
-});
+          if (!resultInteraction) {
+            throw new Error(`Reading V2 result is missing interaction ${interaction.interactionId}.`);
+          }
+
+          return {
+            interactionId: resultInteraction.interactionId,
+            taskGroupId: resultInteraction.taskGroupId,
+            displayNumber: resultInteraction.displayNumber,
+            taskFamily: resultInteraction.taskFamily,
+            officialTaskType: resultInteraction.officialTaskType,
+            studentAnswer: resultInteraction.studentAnswer,
+            correctAnswer: resultInteraction.scoredAnswer,
+            score: resultInteraction.score,
+            maxScore: resultInteraction.maxScore,
+            reviewState: resultInteraction.reviewState,
+            anchorRef: resultInteraction.anchorRef,
+          };
+        })
+        : [],
+    })),
+  };
+};
 
 const buildStudentIndexRow = (
   result: Record<string, any>,
@@ -643,6 +1126,27 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     throw new Error('Reading V2 review projection binding does not match the submitted snapshot.');
   }
 
+  const canonicalInteractions = orderedCanonicalInteractions(snapshot);
+  const canonicalInteractionMap = new Map(
+    canonicalInteractions.map((interaction) => [interaction.interactionId, interaction]),
+  );
+  input.request.answers.forEach((answer) => {
+    const canonicalInteraction = canonicalInteractionMap.get(answer.interactionId);
+    const projectedInteraction = findProjectedInteraction(reviewProjection, answer.interactionId);
+
+    if (!canonicalInteraction || !projectedInteraction) {
+      throw new Error('Reading V2 answer is not bound to the assigned snapshot.');
+    }
+
+    if (canonicalInteraction.taskGroupId !== answer.taskGroupId) {
+      throw new Error('Reading V2 answer task group binding does not match the assigned snapshot.');
+    }
+
+    if (Number(projectedInteraction.displayNumber) !== answer.displayNumber) {
+      throw new Error('Reading V2 answer display number binding does not match the assigned snapshot.');
+    }
+  });
+
   const runtimeAnswers = answerMapFromRuntime(input.request.answers);
   const attemptContext = {
     mode,
@@ -659,6 +1163,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     studentId: input.auth.uid,
     sourceSnapshotVersionId: snapshotVersionId,
     context: attemptContext,
+    integrityReport: input.request.integrityReport ?? null,
     answers: Object.fromEntries(input.request.answers.map((answer) => [
       answer.interactionId,
       {
@@ -668,7 +1173,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
       },
     ])),
   };
-  const resultInteractions = orderedCanonicalInteractions(snapshot).map((interaction) => {
+  const resultInteractions = canonicalInteractions.map((interaction) => {
     const taskGroup = snapshot.document?.taskGroups?.[interaction.taskGroupId];
     if (!taskGroup) {
       throw new Error(`Reading V2 result cannot score missing task group ${interaction.taskGroupId}.`);
@@ -704,7 +1209,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     submittedAt: input.identity.submittedAtIso,
     interactions: resultInteractions,
   };
-  const reviewPayload = buildReviewPayload(result, reviewProjection, materialId);
+  const reviewPayload = buildReviewPayload(result, reviewProjection, materialId, input.records.metadata);
   const maxScore = resultInteractions.reduce((total, interaction) => total + interaction.maxScore, 0);
   const totalScore = resultInteractions.reduce((total, interaction) => total + interaction.score, 0);
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
@@ -755,6 +1260,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     moduleId: context.moduleId ?? input.records.session?.moduleId ?? null,
     visibility,
     context: buildResultContext(mode, context, materialId, testTitle),
+    integrityReport: input.request.integrityReport ?? null,
     deliveryEngine: READING_V2_ENGINE,
     readingV2: {
       result,

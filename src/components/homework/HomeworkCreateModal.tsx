@@ -7,7 +7,19 @@ import { AntiCheatConfigSection } from './AntiCheatConfigSection';
 import { useHomeworkTags } from '../../hooks/useHomeworkTags';
 import { createHomework } from '../../services/homeworkManager';
 import { createTemplate, getTemplatesByTeacher } from '../../services/homeworkTemplateService';
-import type { HomeworkConfig, HomeworkTarget } from '../../types/homework.types';
+import {
+    createReadingPassageHomeworkSnapshot,
+    createReadingPassageSetHomework,
+    type ReadingPassageHomeworkCandidate,
+} from '../../services/reading-v2/readingV2PassageHomework.service';
+import type {
+    HomeworkConfig,
+    HomeworkMaterialSkill,
+    HomeworkMaterialType,
+    HomeworkTarget,
+    ReadingPassageHomeworkSet,
+    ReadingPassageHomeworkSnapshot,
+} from '../../types/homework.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
@@ -23,8 +35,13 @@ interface HomeworkCreateModalProps {
     onClose: () => void;
     onSuccess: () => void;
     preselectedMaterialId?: string;
-    preselectedMaterialFilter?: 'all' | 'quiz' | 'test' | 'thcs-test';
+    preselectedMaterialFilter?: 'all' | 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     preselectedTarget?: HomeworkTarget;
+    preselectedReadingPassage?: ReadingPassageHomeworkCandidate;
+    preselectedReadingPassageSet?: {
+        title: string;
+        passages: readonly ReadingPassageHomeworkCandidate[];
+    };
 }
 
 type Step = 'material' | 'target' | 'config' | 'review';
@@ -32,8 +49,8 @@ type Step = 'material' | 'target' | 'config' | 'review';
 interface Material {
     id: string;
     title: string;
-    type: 'quiz' | 'test' | 'thcs-test';
-    skill: 'reading' | 'listening' | 'writing' | 'speaking';
+    type: HomeworkMaterialType;
+    skill: HomeworkMaterialSkill;
     questionCount?: number;
     duration?: number;
     soloConfig?: {
@@ -46,6 +63,8 @@ interface Material {
     testType?: string;
     gradeLevel?: number;
     isPublicLibrary?: boolean;
+    readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
+    readingPassageSet?: ReadingPassageHomeworkSet;
 }
 
 interface Class {
@@ -88,6 +107,37 @@ const mapMaterialRecord = (material: any, isPublicLibrary: boolean): Material =>
     isPublicLibrary,
 });
 
+const READING_PASSAGE_SET_PRESELECTED_ID = 'reading-passage-set:selected';
+
+const mapReadingPassageCandidate = (candidate: ReadingPassageHomeworkCandidate): Material => {
+    const snapshot = createReadingPassageHomeworkSnapshot(candidate);
+
+    return {
+        id: snapshot.passageMaterialId,
+        title: snapshot.titleSnapshot,
+        type: 'reading-passage',
+        skill: 'reading',
+        questionCount: snapshot.questionCount,
+        readingPassageSnapshot: snapshot,
+    };
+};
+
+const mapReadingPassageSet = (input: {
+    title: string;
+    passages: readonly ReadingPassageHomeworkCandidate[];
+}): Material => {
+    const readingPassageSet = createReadingPassageSetHomework(input.passages, input.title);
+
+    return {
+        id: READING_PASSAGE_SET_PRESELECTED_ID,
+        title: readingPassageSet.titleSnapshot,
+        type: 'reading-passage-set',
+        skill: 'reading',
+        questionCount: readingPassageSet.items.reduce((sum, item) => sum + item.questionCount, 0),
+        readingPassageSet,
+    };
+};
+
 export function HomeworkCreateModal({
     isOpen,
     onClose,
@@ -95,6 +145,8 @@ export function HomeworkCreateModal({
     preselectedMaterialId,
     preselectedMaterialFilter,
     preselectedTarget,
+    preselectedReadingPassage,
+    preselectedReadingPassageSet,
 }: HomeworkCreateModalProps) {
     const { user } = useAuth();
     const { tags: availableTags } = useHomeworkTags();
@@ -106,7 +158,7 @@ export function HomeworkCreateModal({
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [materials, setMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
-    const [materialFilter, setMaterialFilter] = useState<'all' | 'quiz' | 'test' | 'thcs-test'>('all');
+    const [materialFilter, setMaterialFilter] = useState<'all' | 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set'>('all');
 
     // Phase 3: THCS homework dialog state
     const [showThcsDialog, setShowThcsDialog] = useState(false);
@@ -164,16 +216,22 @@ export function HomeworkCreateModal({
         }
     }, [isOpen]);
 
+    const effectivePreselectedMaterialId = preselectedReadingPassage
+        ? preselectedReadingPassage.materialId
+        : preselectedReadingPassageSet
+            ? READING_PASSAGE_SET_PRESELECTED_ID
+            : preselectedMaterialId;
+
     // Handle preselected material
     useEffect(() => {
-        if (preselectedMaterialId && materials.length > 0) {
-            const material = materials.find(m => m.id === preselectedMaterialId);
+        if (effectivePreselectedMaterialId && materials.length > 0) {
+            const material = materials.find(m => m.id === effectivePreselectedMaterialId);
             if (material) {
                 setSelectedMaterial(material);
                 setCurrentStep('target');
             }
         }
-    }, [preselectedMaterialId, materials]);
+    }, [effectivePreselectedMaterialId, materials]);
 
     // Handle preselected target
     useEffect(() => {
@@ -232,6 +290,16 @@ export function HomeworkCreateModal({
     const loadMaterials = async () => {
         setLoading(true);
         try {
+            if (preselectedReadingPassage) {
+                setMaterials([mapReadingPassageCandidate(preselectedReadingPassage)]);
+                return;
+            }
+
+            if (preselectedReadingPassageSet) {
+                setMaterials([mapReadingPassageSet(preselectedReadingPassageSet)]);
+                return;
+            }
+
             const [tests, quizzes] = await Promise.all([
                 queryOptimizer.getAllTests(),
                 queryOptimizer.getAllQuizzes(),
@@ -252,7 +320,7 @@ export function HomeworkCreateModal({
             setMaterials(visibleMaterials);
         } catch (err) {
             console.error('Error loading materials:', err);
-            setError('Failed to load materials');
+            setError(err instanceof Error ? err.message : 'Failed to load materials');
         } finally {
             setLoading(false);
         }
@@ -360,6 +428,8 @@ export function HomeworkCreateModal({
             await createHomework({
                 materialId: selectedMaterial.id,
                 materialTitle: selectedMaterial.title,
+                materialType: selectedMaterial.type,
+                materialSkill: selectedMaterial.skill,
                 teacherId: user!.uid,
                 target,
                 config,
@@ -368,6 +438,8 @@ export function HomeworkCreateModal({
                 instructions,
                 tags: selectedTags,
                 antiCheatConfig,
+                readingPassageSnapshot: selectedMaterial.readingPassageSnapshot,
+                readingPassageSet: selectedMaterial.readingPassageSet,
             });
 
             onSuccess();
@@ -682,6 +754,7 @@ export function HomeworkCreateModal({
                                 <div className="field-group">
                                     <label className="field-label">📅 Available From</label>
                                     <input
+                                        aria-label="Available From"
                                         type="datetime-local"
                                         className="config-input"
                                         value={availableFrom}
@@ -692,6 +765,7 @@ export function HomeworkCreateModal({
                                 <div className="field-group">
                                     <label className="field-label">⏰ Due Date *</label>
                                     <input
+                                        aria-label="Due Date"
                                         type="datetime-local"
                                         className="config-input"
                                         value={dueDate}

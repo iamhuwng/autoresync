@@ -281,7 +281,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
       )}
 
       {/* ── Empty State: No question results at all ── */}
-      {!result.questionResults?.length && !sections.writingPlaceholder && (
+      {!isReadingV2Result && !result.questionResults?.length && !sections.writingPlaceholder && (
         <div
           style={{
             textAlign: 'center',

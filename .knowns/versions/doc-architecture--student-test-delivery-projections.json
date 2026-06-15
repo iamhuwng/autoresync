@@ -1,0 +1,82 @@
+{
+  "docPath": "architecture/student-test-delivery-projections",
+  "currentVersion": 2,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/student-test-delivery-projections",
+      "version": 1,
+      "timestamp": "2026-06-03T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Student Test Delivery Projections"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections and homework completion linkage."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "student-runtime",
+            "projections",
+            "reading-v2",
+            "homework"
+          ]
+        },
+        {
+          "field": "content",
+          "oldValue": null,
+          "newValue": "\n# Student Test Delivery Projections\n\n## Purpose\n\nCanonical teacher/admin data can contain answer keys, scoring rules, import evidence, repair history, and editor metadata. Student runtime must load answer-free projections.\n\nRepo architecture mirror: `documentation/architecture/student-test-delivery-projections.md`.\n\n## Legacy Reading/Listening\n\nLegacy IELTS Reading/Listening uses:\n\n- canonical: `tests/{testId}`\n- student safe: `student_safe_tests/{testId}`\n- live session: `session_test_payloads/{sessionCode}`\n\nNormal save/update paths must keep canonical and student-safe data in the same write unit. Repair/backfill is incident-only, not the normal operating model.\n\n## Reading V2\n\nReading V2 uses namespaced paths:\n\n- canonical published snapshot: `reading_v2/published_snapshots/{materialId}/{snapshotVersionId}`\n- student-safe projection: `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`\n- live-session projection: `reading_v2/projections/session_test_payloads/{sessionCode}:{snapshotVersionId}`\n- review projection: `reading_v2/projections/review/{materialId}:{snapshotVersionId}`\n\nGenerated Reading Passage materials from full-test publish are not launchable with metadata/index rows alone. They also need canonical published snapshots and student-safe projections.\n\n## Homework Rule\n\nTrusted Reading V2 submit writes the Reading V2 result. In homework mode, the linked Firestore `homework_submissions/{submissionId}` row must also be completed through `submitHomework(...)`.\n\nStudent-safe/list paths must not contain answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.\n\nRelated doc: @doc/architecture/reading-v2-material-publish-and-passage-library.\n"
+        }
+      ],
+      "snapshot": {
+        "content": "\n# Student Test Delivery Projections\n\n## Purpose\n\nCanonical teacher/admin data can contain answer keys, scoring rules, import evidence, repair history, and editor metadata. Student runtime must load answer-free projections.\n\nRepo architecture mirror: `documentation/architecture/student-test-delivery-projections.md`.\n\n## Legacy Reading/Listening\n\nLegacy IELTS Reading/Listening uses:\n\n- canonical: `tests/{testId}`\n- student safe: `student_safe_tests/{testId}`\n- live session: `session_test_payloads/{sessionCode}`\n\nNormal save/update paths must keep canonical and student-safe data in the same write unit. Repair/backfill is incident-only, not the normal operating model.\n\n## Reading V2\n\nReading V2 uses namespaced paths:\n\n- canonical published snapshot: `reading_v2/published_snapshots/{materialId}/{snapshotVersionId}`\n- student-safe projection: `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`\n- live-session projection: `reading_v2/projections/session_test_payloads/{sessionCode}:{snapshotVersionId}`\n- review projection: `reading_v2/projections/review/{materialId}:{snapshotVersionId}`\n\nGenerated Reading Passage materials from full-test publish are not launchable with metadata/index rows alone. They also need canonical published snapshots and student-safe projections.\n\n## Homework Rule\n\nTrusted Reading V2 submit writes the Reading V2 result. In homework mode, the linked Firestore `homework_submissions/{submissionId}` row must also be completed through `submitHomework(...)`.\n\nStudent-safe/list paths must not contain answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.\n\nRelated doc: @doc/architecture/reading-v2-material-publish-and-passage-library.\n",
+        "description": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections and homework completion linkage.",
+        "tags": [
+          "architecture",
+          "student-runtime",
+          "projections",
+          "reading-v2",
+          "homework"
+        ],
+        "title": "Student Test Delivery Projections"
+      }
+    },
+    {
+      "id": "v2",
+      "docPath": "architecture/student-test-delivery-projections",
+      "version": 2,
+      "timestamp": "2026-06-15T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "content",
+          "oldValue": "See v1 snapshot.content",
+          "newValue": "Added composition-first master projection requirement and student homework bridge rule for non-live Reading V2 full-test detail and launch."
+        },
+        {
+          "field": "description",
+          "oldValue": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections and homework completion linkage.",
+          "newValue": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections, homework completion linkage, and student-readable bridge rules."
+        }
+      ],
+      "snapshot": {
+        "title": "Student Test Delivery Projections",
+        "description": "Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections, homework completion linkage, and student-readable bridge rules.",
+        "tags": [
+          "architecture",
+          "student-runtime",
+          "projections",
+          "reading-v2",
+          "homework"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/student-test-delivery-projections.md"
+      }
+    }
+  ]
+}

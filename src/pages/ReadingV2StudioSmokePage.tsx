@@ -16,8 +16,11 @@ import {
   READING_V2_STRUCTURED_MATERIALS_END,
   READING_V2_STRUCTURED_MATERIALS_START,
 } from '../services/reading-v2/readingV2ExternalAiPrompt.service';
-import { generateReadingV2PreviewOnly } from '../services/reading-v2/readingV2PublishPipeline.service';
-import type { ReadingV2Document, ReadingV2TaskGroupId } from '../types/readingV2.types';
+import {
+  generateReadingV2PreviewOnly,
+  type ReadingV2AutoSplitDuplicateWarning,
+} from '../services/reading-v2/readingV2PublishPipeline.service';
+import { readingV2Ids, type ReadingV2Document, type ReadingV2TaskGroupId } from '../types/readingV2.types';
 import type { ReadingV2CanonicalTaskType } from '../types/readingV2Taxonomy';
 
 const DIAG_PREFIX = '[Diag][ReadingV2PasteImportGate]';
@@ -139,6 +142,78 @@ const AUTO_V4_MALFORMED_KEY_SMOKE_FIXTURE = {
   name: 'auto-v4-malformed-key',
 } as const;
 
+const CAM16_TEST4_DIAGNOSTIC_SMOKE_FIXTURE = {
+  name: 'cam16-test4-diagnostics',
+  rawText: [
+    READING_V2_STRUCTURED_MATERIALS_START,
+    '```json',
+    JSON.stringify({
+      sourceFile: 'IELTS Reading-v2 Test - June 2026',
+      materials: [
+        {
+          passageNumber: 2,
+          title: 'Changes in reading habits',
+          passages: [
+            {
+              title: 'Changes in reading habits',
+              content: [
+                'The possibility that critical analysis, empathy and other deep reading processes could become the unintended collateral damage of our digital culture is not a straightforward binary issue about print versus digital reading.',
+                '',
+                'It is about how we all have begun to read on various mediums and how that changes not only what we read, but also the purposes for which we read.',
+                '',
+                'There is an old rule in neuroscience that does not alter with age: use it or lose it. We possess both the science and the technology to identify and redress the changes in how we read before they become entrenched.',
+              ].join('\n'),
+            },
+          ],
+          sectionInstructions: [
+            {
+              id: 'p2-q23-26-true-false-not-given',
+              taskType: 'true-false-not-given',
+              questionRange: { start: 23, end: 26 },
+              sourceInstructionEvidence: [
+                'Do the following statements agree with the views of the writer in Reading Passage 2?',
+                'In boxes 23-26 on your answer sheet, write TRUE if the statement agrees with the views of the writer, FALSE if the statement contradicts the views of the writer, NOT GIVEN if it is impossible to say what the writer thinks about this',
+              ].join(' '),
+              vocabulary: 'TFNG',
+            },
+          ],
+          questions: [
+            {
+              questionNumber: 23,
+              type: 'true-false-not-given',
+              sectionInstructionId: 'p2-q23-26-true-false-not-given',
+              questionText: 'The medium we use to read can affect our choice of reading content.',
+            },
+            {
+              questionNumber: 24,
+              type: 'true-false-not-given',
+              sectionInstructionId: 'p2-q23-26-true-false-not-given',
+              questionText: 'Some age groups are more likely to lose their complex reading skills than others.',
+            },
+            {
+              questionNumber: 25,
+              type: 'true-false-not-given',
+              sectionInstructionId: 'p2-q23-26-true-false-not-given',
+              questionText: 'False information has become more widespread in today\'s digital era.',
+            },
+            {
+              questionNumber: 26,
+              type: 'true-false-not-given',
+              sectionInstructionId: 'p2-q23-26-true-false-not-given',
+              questionText: 'We still have opportunities to rectify the problems that technology is presenting.',
+            },
+          ],
+        },
+      ],
+    }),
+    '```',
+    READING_V2_STRUCTURED_MATERIALS_END,
+  ].join('\n'),
+  answerKeyText: ['23 YES', '24 NO', '25 NOT GIVEN', '26 YES'].join('\n'),
+  expectedTaskTypes: ['true-false-not-given'],
+  expectedQuestionCount: 4,
+} as const;
+
 const smokeFixtureFor = (fixtureName: string | null) => {
   switch (fixtureName) {
     case 'auto-v4-malformed-key':
@@ -153,6 +228,8 @@ const smokeFixtureFor = (fixtureName: string | null) => {
       return READING_V2_PASTE_IMPORT_FIXTURES_BY_TASK_TYPE['table-completion'];
     case 'cam10-test1':
       return STEPWELLS_TFNG_SMOKE_FIXTURE;
+    case 'cam16-test4-diagnostics':
+      return CAM16_TEST4_DIAGNOSTIC_SMOKE_FIXTURE;
     case 'task-true-false-not-given':
       return READING_V2_PASTE_IMPORT_FIXTURES_BY_TASK_TYPE['true-false-not-given'];
     case 'task-short-answer':
@@ -301,14 +378,264 @@ const createStructuredRepairSmokeDocument = (): ReadingV2Document => {
   };
 };
 
+const createCam16Test4DiagnosticSmokeDocument = (): ReadingV2Document => {
+  const base = structuredClone(createReadingV2CanonicalFixture('true-false-not-given')) as ReadingV2Document;
+  const sectionId = base.sectionIds[0]!;
+  const section = base.sections[sectionId]!;
+  const stimulusId = section.stimulusIds[0]!;
+  const fillerTaskGroupId = readingV2Ids.taskGroupId('ielts-reading-v2-test-june-2026-task-group-1-22');
+  const targetTaskGroupId = readingV2Ids.taskGroupId('ielts-reading-v2-test-june-2026-task-group-23-26');
+  const fillerInteractionIds = Array.from({ length: 22 }, (_, index) =>
+    readingV2Ids.interactionId(`ielts-reading-v2-test-june-2026-q${index + 1}`));
+  const targetInteractionIds = [23, 24, 25, 26].map((questionNumber) =>
+    readingV2Ids.interactionId(`ielts-reading-v2-test-june-2026-q${questionNumber}`));
+  const fillerAnchorIds = Array.from({ length: 22 }, (_, index) =>
+    readingV2Ids.anchorId(`ielts-reading-v2-test-june-2026-anchor-q${index + 1}`));
+  const targetAnchorIds = [23, 24, 25, 26].map((questionNumber) =>
+    readingV2Ids.anchorId(`ielts-reading-v2-test-june-2026-anchor-q${questionNumber}`));
+  const anchorIds = [...fillerAnchorIds, ...targetAnchorIds];
+  const promptTextByQuestion = new Map<number, string>([
+    [23, 'The medium we use to read can affect our choice of reading content.'],
+    [24, 'Some age groups are more likely to lose their complex reading skills than others.'],
+    [25, 'False information has become more widespread in today\'s digital era.'],
+    [26, 'We still have opportunities to rectify the problems that technology is presenting.'],
+  ]);
+  const answerByQuestion = new Map<number, string>([
+    [23, 'YES'],
+    [24, 'NO'],
+    [25, 'NOT GIVEN'],
+    [26, 'YES'],
+  ]);
+
+  const fillerInteractions = Object.fromEntries(
+    fillerInteractionIds.map((interactionId, index) => [
+      interactionId,
+      {
+        interactionId,
+        taskGroupId: fillerTaskGroupId,
+        responseShape: { kind: 'free-text', wordLimit: 3 },
+        scoringRule: {
+          maxScore: 1,
+          acceptableAnswers: [`answer ${index + 1}`],
+        },
+        reviewLabel: { displayNumber: index + 1 },
+        promptText: `Smoke filler question ${index + 1}.`,
+        primaryAnchorId: fillerAnchorIds[index],
+      },
+    ]),
+  ) as ReadingV2Document['interactions'];
+
+  const targetInteractions = Object.fromEntries(
+    [23, 24, 25, 26].map((questionNumber, index) => {
+      const interactionId = targetInteractionIds[index]!;
+      const anchorId = targetAnchorIds[index]!;
+
+      return [
+        interactionId,
+        {
+          interactionId,
+          taskGroupId: targetTaskGroupId,
+          responseShape: { kind: 'binary-judgement', vocabulary: 'TFNG' },
+          scoringRule: {
+            maxScore: 1,
+            acceptableAnswers: [answerByQuestion.get(questionNumber)!],
+          },
+          reviewLabel: { displayNumber: questionNumber },
+          promptText: promptTextByQuestion.get(questionNumber),
+          primaryAnchorId: anchorId,
+        },
+      ];
+    }),
+  ) as ReadingV2Document['interactions'];
+
+  const fillerAnchors = Object.fromEntries(
+    fillerAnchorIds.map((anchorId, index) => [
+      anchorId,
+      {
+        anchorId,
+        stimulusId,
+        kind: 'annotation',
+        label: `Question ${index + 1}`,
+      },
+    ]),
+  ) as ReadingV2Document['anchors'];
+
+  const targetAnchors = Object.fromEntries(
+    [23, 24, 25, 26].map((questionNumber, index) => {
+      const anchorId = targetAnchorIds[index]!;
+
+      return [
+        anchorId,
+        {
+          anchorId,
+          stimulusId,
+          kind: 'annotation',
+          label: `Question ${questionNumber}`,
+        },
+      ];
+    }),
+  ) as ReadingV2Document['anchors'];
+
+  return {
+    ...base,
+    documentId: 'ielts-reading-v2-test-june-2026-document' as ReadingV2Document['documentId'],
+    title: 'IELTS Reading-v2 Test - June 2026',
+    sections: {
+      [sectionId]: {
+        ...section,
+        title: 'Changes in reading habits',
+        taskGroupIds: [fillerTaskGroupId, targetTaskGroupId],
+      },
+    },
+    stimuli: {
+      [stimulusId]: {
+        ...base.stimuli[stimulusId]!,
+        title: 'Changes in reading habits',
+        content: {
+          kind: 'passage-content',
+          paragraphs: [
+            {
+              text: 'The possibility that critical analysis, empathy and other deep reading processes could become the unintended collateral damage of our digital culture is not a straightforward binary issue about print versus digital reading.',
+            },
+            {
+              text: 'There is an old rule in neuroscience that does not alter with age: use it or lose it. We possess both the science and the technology to identify and redress the changes in how we read before they become entrenched.',
+            },
+          ],
+        },
+        anchorIds,
+      },
+    },
+    anchors: {
+      ...fillerAnchors,
+      ...targetAnchors,
+    },
+    taskGroups: {
+      [fillerTaskGroupId]: {
+        taskGroupId: fillerTaskGroupId,
+        sectionId,
+        officialTaskType: 'short-answer',
+        engineeringFamily: 'completion',
+        groupTitle: 'Questions 1-22',
+        instructionBlocks: [
+          {
+            id: 'p1-p2-q1-22-smoke-filler',
+            text: 'Smoke filler questions keep imported numbering aligned with the pasted diagnostic log.',
+          },
+        ],
+        answerRule: {
+          responseShape: { kind: 'free-text', wordLimit: 3 },
+          wordLimit: 3,
+          casing: 'ignored',
+          punctuation: 'ignored',
+        },
+        stimulusRefs: [{ stimulusId, anchorIds: fillerAnchorIds }],
+        optionSetRefs: [],
+        interactionIds: fillerInteractionIds,
+        validationState: { issues: [] },
+      },
+      [targetTaskGroupId]: {
+        taskGroupId: targetTaskGroupId,
+        sectionId,
+        officialTaskType: 'true-false-not-given',
+        engineeringFamily: 'binary-judgement',
+        groupTitle: 'Questions 23-26',
+        instructionBlocks: [
+          {
+            id: 'p2-q23-26-true-false-not-given',
+            text: 'Do the following statements agree with the views of the writer in Reading Passage 2? Write TRUE, FALSE or NOT GIVEN.',
+          },
+        ],
+        answerRule: {
+          responseShape: { kind: 'binary-judgement', vocabulary: 'TFNG' },
+          casing: 'ignored',
+          punctuation: 'ignored',
+        },
+        stimulusRefs: [{ stimulusId, anchorIds: targetAnchorIds }],
+        optionSetRefs: [],
+        interactionIds: targetInteractionIds,
+        validationState: { issues: [] },
+      },
+    },
+    interactions: {
+      ...fillerInteractions,
+      ...targetInteractions,
+    },
+    optionSets: {},
+    validationState: { issues: [] },
+  };
+};
+
+const createSmokeDuplicateWarnings = (mode: string | null): readonly ReadingV2AutoSplitDuplicateWarning[] => {
+  if (!mode) {
+    return [];
+  }
+
+  const activeMatch = {
+    materialId: 'smoke-duplicate-active',
+    title: 'Existing active passage',
+    source: { sourceFullTestId: 'smoke-full-test', sourceOrderDisplay: 'Passage 1' },
+    ownerId: 'smoke-teacher',
+    visibility: 'private' as const,
+    state: 'published' as const,
+    currentVersionId: 'smoke-active-v1',
+    bodySimilarityPercent: 96,
+    questionSimilarityPercent: 92,
+    combinedSimilarityPercent: 94,
+    shouldWarn: true,
+    actions: ['use-existing', 'create-new-anyway'] as const,
+  };
+
+  const archivedMatch = {
+    materialId: 'smoke-duplicate-archived',
+    title: 'Archived matching passage',
+    source: { sourceFullTestId: 'smoke-full-test', sourceOrderDisplay: 'Passage 2' },
+    ownerId: 'smoke-teacher',
+    visibility: 'private' as const,
+    state: 'archived' as const,
+    currentVersionId: 'smoke-archived-v1',
+    bodySimilarityPercent: 93,
+    questionSimilarityPercent: 89,
+    combinedSimilarityPercent: 91,
+    shouldWarn: true,
+    actions: ['restore-and-use', 'create-new-anyway'] as const,
+  };
+
+  const matches = mode === 'archived'
+    ? [archivedMatch]
+    : mode === 'both'
+      ? [activeMatch, archivedMatch]
+      : [activeMatch];
+
+  return [{
+    passageMaterialId: 'smoke-new-passage-1',
+    result: {
+      shouldWarn: true,
+      blockPublish: false,
+      matches,
+    },
+  }];
+};
+
 export default function ReadingV2StudioSmokePage() {
   const [searchParams] = useSearchParams();
   const fixtureName = searchParams.get('fixture');
+  const duplicateWarningMode = searchParams.get('duplicateWarning');
   const isAutoV4Fixture = fixtureName === 'auto-v4-valid-full-test'
-    || fixtureName === 'auto-v4-malformed-key';
+    || fixtureName === 'auto-v4-malformed-key'
+    || fixtureName === 'cam16-test4-diagnostics';
   const smokeFixture = smokeFixtureFor(fixtureName);
   const structuredRepairDocument = useMemo(
-    () => fixtureName === 'structured-repair' ? createStructuredRepairSmokeDocument() : undefined,
+    () => {
+      if (fixtureName === 'structured-repair') {
+        return createStructuredRepairSmokeDocument();
+      }
+
+      if (fixtureName === 'cam16-test4-diagnostics') {
+        return createCam16Test4DiagnosticSmokeDocument();
+      }
+
+      return undefined;
+    },
     [fixtureName],
   );
   const importContext = useMemo(
@@ -339,6 +666,10 @@ export default function ReadingV2StudioSmokePage() {
     [isAutoV4Fixture, smokeFixture, structuredRepairDocument],
   );
   const fixtureLabel = smokeFixture?.name ?? (structuredRepairDocument ? 'structured-repair' : 'blank');
+  const duplicateWarnings = useMemo(
+    () => createSmokeDuplicateWarnings(duplicateWarningMode),
+    [duplicateWarningMode],
+  );
 
   return (
     <ReadingV2StudioShell
@@ -371,6 +702,7 @@ export default function ReadingV2StudioSmokePage() {
         firebaseCommitStatus: 'committed',
         firebaseCommitPath: '/readingV2/publishCommits/smoke/smoke-snapshot-1',
         firebaseOperationCount: 12,
+        duplicateWarnings,
       })}
     />
   );

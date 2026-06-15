@@ -121,6 +121,43 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toEqual(['1-7', '8-13']);
   });
 
+  it('repairs malformed question range headings when visible question labels prove the actual range', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(2),
+        '#### Questions 1-8',
+        'Reading Passage 2 has nine paragraphs, **A-I**.',
+        'Choose the correct heading for paragraphs **A-E** and **G-I** from the list of headings below.',
+        '*Write the correct number, **i-xi**, in boxes **14-21** on your answer sheet.*',
+        '**List of Headings**',
+        '**i** A fresh and important long-term goal',
+        '**ii** Charging for roads and improving other transport methods',
+        '**14** Paragraph **A**',
+        '**15** Paragraph **B**',
+        '**16** Paragraph **C**',
+        '**17** Paragraph **D**',
+        '**18** Paragraph **E**',
+        'Paragraph **F** **vii**',
+        '**19** Paragraph **G**',
+        '**20** Paragraph **H**',
+        '**21** Paragraph **I**',
+        '#### Questions 22-26',
+        'Do the following statements agree with the information given in Reading Passage 2?',
+        '**22** Synthetic statement.',
+        '**23** Synthetic statement.',
+        '**24** Synthetic statement.',
+        '**25** Synthetic statement.',
+        '**26** Synthetic statement.',
+        'Answers',
+        answerRows(14, 26),
+      ].join('\n\n'),
+      sourceName: 'malformed-range-visible-labels.md',
+    });
+
+    expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toEqual(['14-21', '22-26']);
+    expect(ledger.questionNumbers).toEqual(Array.from({ length: 13 }, (_, index) => 14 + index));
+  });
+
   it('treats paired question headings as a range for multiple-select topology', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: [

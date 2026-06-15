@@ -1,0 +1,603 @@
+<style>
+  :root {
+    --lt-purple: #8b5cf6;
+    --lt-purple-dark: #7c3aed;
+    --lt-ink: #1e293b;
+    --lt-muted: #64748b;
+    --lt-border: rgba(203, 213, 225, 0.35);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(139, 92, 246, 0.08), transparent 28%),
+      radial-gradient(circle at 70% 8%, rgba(20, 184, 166, 0.10), transparent 32%),
+      linear-gradient(135deg, #f6f4ff 0%, #eefbff 52%, #fbfaf2 100%);
+  }
+
+  .lt-page {
+    margin: -28px -32px 0;
+    color: var(--lt-ink);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+
+  .lt-header {
+    height: 56px;
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  }
+
+  .lt-brand {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .lt-nav {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .lt-nav-tab,
+  .lt-profile {
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 6px;
+    height: 36px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--lt-ink);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-nav-tab.active {
+    background: var(--lt-purple);
+    color: #ffffff;
+    border-color: rgba(139, 92, 246, 0.9);
+  }
+
+  .lt-profile {
+    gap: 8px;
+    border-radius: 20px;
+  }
+
+  .lt-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f97316, #f8e2bb);
+  }
+
+  .lt-main {
+    max-width: 1368px;
+    margin: 0 auto;
+    padding: 42px 16px 64px;
+  }
+
+  .lt-title {
+    margin: 0 0 14px;
+    font-size: 40px;
+    line-height: 1.1;
+    font-weight: 850;
+    letter-spacing: 0;
+  }
+
+  .lt-subtitle {
+    margin: 0 0 40px;
+    color: #64748b;
+    font-size: 16px;
+  }
+
+  .lt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 40px;
+  }
+
+  .lt-tab {
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 7px;
+    height: 36px;
+    padding: 0 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--lt-ink);
+    font-size: 14px;
+    font-weight: 750;
+    box-shadow: 0 3px 9px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-tab.active {
+    background: var(--lt-purple);
+    color: white;
+    border-color: var(--lt-purple);
+    box-shadow: 0 8px 22px rgba(139, 92, 246, 0.34);
+  }
+
+  .lt-toolbar {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 32px;
+  }
+
+  .lt-search {
+    height: 48px;
+    border: 1px solid rgba(203, 213, 225, 0.45);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.86);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #94a3b8;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+
+  .lt-search-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #e9efff;
+    display: grid;
+    place-items: center;
+    color: #334155;
+    font-weight: 800;
+  }
+
+  .lt-cta {
+    height: 48px;
+    border: 0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+    padding: 0 22px;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.30);
+    white-space: nowrap;
+  }
+
+  .lt-type-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .lt-type-card {
+    position: relative;
+    min-height: 156px;
+    border-radius: 8px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(16px) saturate(200%);
+    box-shadow: 0 10px 40px -10px rgba(139, 92, 246, 0.34);
+  }
+
+  .lt-type-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 50px -10px rgba(139, 92, 246, 0.45);
+  }
+
+  .lt-type-card.lavender {
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.22) 0%, rgba(196, 181, 253, 0.16) 100%);
+  }
+
+  .lt-type-card.sky {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.22) 0%, rgba(125, 211, 252, 0.16) 100%);
+    border-color: rgba(14, 165, 233, 0.3);
+    box-shadow: 0 10px 40px -10px rgba(14, 165, 233, 0.36);
+  }
+
+  .lt-type-card.mint {
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.22) 0%, rgba(94, 234, 212, 0.16) 100%);
+    border-color: rgba(20, 184, 166, 0.3);
+    box-shadow: 0 10px 40px -10px rgba(20, 184, 166, 0.34);
+  }
+
+  .lt-type-card.rose {
+    background: linear-gradient(135deg, rgba(251, 113, 133, 0.22) 0%, rgba(253, 164, 175, 0.16) 100%);
+    border-color: rgba(244, 63, 94, 0.3);
+    box-shadow: 0 10px 40px -10px rgba(244, 63, 94, 0.34);
+  }
+
+  .lt-type-heading {
+    font-size: 22px;
+    font-weight: 850;
+    line-height: 1.25;
+    margin: 0;
+    color: var(--lt-ink);
+  }
+
+  .lt-type-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .lt-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .lt-badge.gray {
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  .lt-badge.purple {
+    color: #7c3aed;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+
+  .lt-badge.green {
+    color: #16a34a;
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  .lt-type-settings {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    border: 1px solid rgba(203, 213, 225, 0.55);
+    background: rgba(255, 255, 255, 0.54);
+    color: #334155;
+    display: grid;
+    place-items: center;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+    opacity: 0.18;
+  }
+
+  .lt-type-card:hover .lt-type-settings,
+  .lt-type-card:focus-within .lt-type-settings {
+    opacity: 1;
+  }
+
+  .lt-filter-state {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .lt-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.13);
+    border: 1px solid rgba(139, 92, 246, 0.26);
+    color: #7c3aed;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .lt-list {
+    border: 1px solid rgba(203, 213, 225, 0.35);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.13);
+  }
+
+  .lt-row {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) 160px 130px 160px;
+    align-items: center;
+    gap: 16px;
+    min-height: 72px;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+  }
+
+  .lt-row:last-child {
+    border-bottom: 0;
+  }
+
+  .lt-material {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .lt-material-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    background: rgba(139, 92, 246, 0.13);
+    color: #7c3aed;
+    font-size: 15px;
+    font-weight: 850;
+  }
+
+  .lt-material-title {
+    font-size: 15px;
+    font-weight: 750;
+    color: var(--lt-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lt-material-meta {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .lt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .lt-action {
+    height: 36px;
+    min-width: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.48);
+    background: rgba(255, 255, 255, 0.88);
+    display: grid;
+    place-items: center;
+    color: #334155;
+    font-weight: 800;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .lt-book-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+  }
+
+  .lt-book-card {
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(203, 213, 225, 0.35);
+    box-shadow: 0 10px 40px -10px rgba(139, 92, 246, 0.25);
+  }
+
+  .lt-book-cover {
+    height: 168px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 10px;
+    color: #ffffff;
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.20), rgba(30, 41, 59, 0.05)),
+      linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+  }
+
+  .lt-book-cover.rose {
+    background:
+      linear-gradient(135deg, rgba(30, 41, 59, 0.20), rgba(30, 41, 59, 0.05)),
+      linear-gradient(135deg, #f43f5e 0%, #f97316 100%);
+  }
+
+  .lt-book-name {
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 850;
+  }
+
+  .lt-book-body {
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .lt-section-label {
+    margin: 26px 0 14px;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  @media (max-width: 1100px) {
+    .lt-type-grid,
+    .lt-book-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lt-row {
+      grid-template-columns: minmax(240px, 1fr) 130px 120px;
+    }
+
+    .lt-row .lt-actions {
+      display: none;
+    }
+  }
+</style>
+
+<div class="lt-page">
+  <div class="lt-header">
+    <div class="lt-brand">Materials</div>
+    <div class="lt-nav">
+      <div class="lt-nav-tab active">Materials</div>
+      <div class="lt-nav-tab">Students</div>
+      <div class="lt-nav-tab">Classes</div>
+      <div class="lt-nav-tab">Courses</div>
+      <div class="lt-nav-tab">Homework</div>
+      <div class="lt-profile"><div class="lt-avatar"></div>Teacher Test</div>
+    </div>
+  </div>
+
+  <main class="lt-main">
+    <h1 class="lt-title">Test Dashboard</h1>
+    <p class="lt-subtitle">Manage your tests and start formal assessment sessions</p>
+
+    <div class="lt-tabs">
+      <div class="lt-tab active">My Content</div>
+      <div class="lt-tab">Public Library</div>
+      <div class="lt-tab">Drafts</div>
+      <div class="lt-tab">Reading Passage</div>
+      <div class="lt-tab">Book</div>
+    </div>
+
+    <div class="lt-toolbar">
+      <div class="lt-search">
+        <div class="lt-search-icon">⌕</div>
+        Search by title or keyword...
+      </div>
+      <button class="lt-cta">+ Create New Test</button>
+    </div>
+
+    <div class="lt-type-grid">
+      <div class="lt-type-card lavender" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit IELTS block">⚙</button>
+        <h3 class="lt-type-heading">IELTS</h3>
+        <div class="lt-type-badges">
+          <span class="lt-badge gray">31 materials</span>
+          <span class="lt-badge purple">Reading</span>
+          <span class="lt-badge green">Pinned</span>
+        </div>
+      </div>
+
+      <div class="lt-type-card sky" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit TOEIC block">⚙</button>
+        <h3 class="lt-type-heading">TOEIC</h3>
+        <div class="lt-type-badges">
+          <span class="lt-badge gray">8 materials</span>
+          <span class="lt-badge purple">Listening</span>
+        </div>
+      </div>
+
+      <div class="lt-type-card mint" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit TOEFL block">⚙</button>
+        <h3 class="lt-type-heading">TOEFL</h3>
+        <div class="lt-type-badges">
+          <span class="lt-badge gray">5 materials</span>
+          <span class="lt-badge purple">Mixed</span>
+        </div>
+      </div>
+
+      <div class="lt-type-card rose" tabindex="0">
+        <button class="lt-type-settings" aria-label="Edit THCS block">⚙</button>
+        <h3 class="lt-type-heading">THCS</h3>
+        <div class="lt-type-badges">
+          <span class="lt-badge gray">17 materials</span>
+          <span class="lt-badge purple">Grade 9</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="lt-filter-state">
+      <div class="lt-filter-pill">IELTS active · click IELTS again or × to clear</div>
+    </div>
+
+    <div class="lt-list">
+      <div class="lt-row">
+        <div class="lt-material">
+          <div class="lt-material-icon">R</div>
+          <div>
+            <div class="lt-material-title">Cambridge 18 Test 2 - Reading Passage 1</div>
+            <div class="lt-material-meta">Reading Passage · Source Passage 1 · 13 questions</div>
+          </div>
+        </div>
+        <div><span class="lt-badge purple">IELTS</span></div>
+        <div class="lt-material-meta">May 29</div>
+        <div class="lt-actions">
+          <div class="lt-action">✎</div>
+          <div class="lt-action">☑</div>
+          <div class="lt-action">⋯</div>
+        </div>
+      </div>
+
+      <div class="lt-row">
+        <div class="lt-material">
+          <div class="lt-material-icon">T</div>
+          <div>
+            <div class="lt-material-title">IELTS Reading Test - April 2026</div>
+            <div class="lt-material-meta">Full test · 3 passages · 47 questions</div>
+          </div>
+        </div>
+        <div><span class="lt-badge purple">IELTS</span></div>
+        <div class="lt-material-meta">May 24</div>
+        <div class="lt-actions">
+          <div class="lt-action">✎</div>
+          <div class="lt-action">▶</div>
+          <div class="lt-action">⋯</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lt-section-label">Book tab visual exception</div>
+
+    <div class="lt-toolbar">
+      <div class="lt-search">
+        <div class="lt-search-icon">⌕</div>
+        Search books...
+      </div>
+      <button class="lt-cta">+ Create New Book</button>
+    </div>
+
+    <div class="lt-book-grid">
+      <div class="lt-book-card">
+        <div class="lt-book-cover">
+          <span class="lt-badge gray">IELTS</span>
+          <div class="lt-book-name">Cambridge 18 Reading</div>
+        </div>
+        <div class="lt-book-body">
+          <div class="lt-material-title">Cambridge 18 Reading</div>
+          <div class="lt-material-meta">4 tests · 12 passages · intro + TOC placeholders</div>
+        </div>
+      </div>
+
+      <div class="lt-book-card">
+        <div class="lt-book-cover rose">
+          <span class="lt-badge gray">IELTS</span>
+          <div class="lt-book-name">Academic Reading Pack</div>
+        </div>
+        <div class="lt-book-body">
+          <div class="lt-material-title">Academic Reading Pack</div>
+          <div class="lt-material-meta">3 chapters · 9 passages · 2 tests</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>

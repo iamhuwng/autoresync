@@ -20,6 +20,7 @@ export interface ReadingV2TeacherLobbyTestCardRecord {
   readonly id: string;
   readonly materialId: string;
   readonly ownerId: string;
+  readonly compositionId?: string;
   readonly deliveryEngine: typeof READING_V2_ENGINE;
   readonly title: string;
   readonly testType: 'IELTS';
@@ -34,6 +35,7 @@ export interface ReadingV2TeacherLobbyTestCardRecord {
   readonly publishedSnapshotVersionId?: string;
   readonly metadata: {
     readonly title: string;
+    readonly compositionId?: string;
     readonly duration: number;
     readonly difficulty?: string;
     readonly targetBand?: string;
@@ -74,6 +76,7 @@ const createTeacherLobbyCardRecord = (
   id: metadata.materialId,
   materialId: metadata.materialId,
   ownerId: metadata.ownerId,
+  compositionId: metadata.compositionId,
   deliveryEngine: READING_V2_ENGINE,
   title: summary.title,
   testType: 'IELTS',
@@ -88,6 +91,7 @@ const createTeacherLobbyCardRecord = (
   publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
   metadata: {
     title: summary.title,
+    compositionId: metadata.compositionId,
     duration: summary.durationMinutes,
     difficulty: metadata.difficulty,
     targetBand: metadata.targetBand,

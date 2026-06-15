@@ -3,13 +3,14 @@ import { getMaterialVisuals } from './materialVisualTaxonomy';
 const EMPTY_LABEL = '--';
 
 const ACTION_SLOT_BY_KEY = {
+  open: 1,
   edit: 1,
   view: 1,
   'use-as-is': 1,
   delete: 2,
+  'assign-homework': 4,
   start: 3,
   clone: 3,
-  'assign-homework': 4,
 };
 
 function isWritingMaterial(item) {
@@ -323,6 +324,237 @@ export function buildTestMaterialListRow(item, options = {}) {
     actions: isPublicLibrary
       ? buildPublicActions(item, handlers)
       : buildOwnedActions(item, { canEdit, handlers }),
+  };
+}
+
+function titleCaseScope(value) {
+  const scope = String(value || '').trim().toLowerCase();
+  if (scope === 'public') {
+    return 'Public';
+  }
+  if (scope === 'private') {
+    return 'Private';
+  }
+  return scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : 'Private';
+}
+
+function firstReadableTestTypeLabel(record, testTypeConfig) {
+  if (Array.isArray(record?.testTypes) && record.testTypes.length > 0) {
+    return record.testTypes
+      .map((testType) => testType?.shortLabel || testType?.label || testType?.testTypeId)
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (testTypeConfig) {
+    return testTypeConfig.shortLabel || testTypeConfig.label || testTypeConfig.testTypeId;
+  }
+
+  const firstId = Array.isArray(record?.testTypeIds) ? record.testTypeIds[0] : record?.primaryTestTypeId;
+  return firstId ? String(firstId).toUpperCase() : null;
+}
+
+function buildReadingPassageBadges(record, testTypeConfig) {
+  const badges = [];
+
+  if (compactValue(record?.sourceOrderDisplay)) {
+    badges.push({ key: 'source-order', label: compactValue(record.sourceOrderDisplay), tone: 'rose' });
+  }
+
+  if (compactValue(record?.sourceFullTestTitle)) {
+    badges.push({ key: 'source-full-test', label: compactValue(record.sourceFullTestTitle), tone: 'neutral' });
+  }
+
+  const testTypeLabel = firstReadableTestTypeLabel(record, testTypeConfig);
+  if (testTypeLabel) {
+    badges.push({ key: 'test-type', label: testTypeLabel, tone: 'purple' });
+  }
+
+  badges.push({
+    key: 'visibility',
+    label: record?.scope === 'archived' ? 'Archive' : titleCaseScope(record?.visibility || record?.scope),
+    tone: record?.visibility === 'public' || record?.scope === 'public' ? 'green' : 'neutral',
+  });
+
+  if (record?.archived === true || record?.scope === 'archived') {
+    badges.push({ key: 'archived', label: 'Archived', tone: 'warning' });
+  }
+
+  if (compactValue(record?.sourceQuestionRange)) {
+    badges.push({ key: 'source-question-range', label: compactValue(record.sourceQuestionRange), tone: 'neutral' });
+  }
+
+  const duration = getDurationLabel(record);
+  if (duration !== EMPTY_LABEL) {
+    badges.push({ key: 'duration', label: duration, tone: 'green' });
+  }
+
+  return badges;
+}
+
+function readingPassageActionIconKind(key) {
+  if (key === 'assign-homework') {
+    return 'assign-homework';
+  }
+  if (key === 'revise') {
+    return 'edit';
+  }
+  if (key === 'archive') {
+    return 'archive';
+  }
+  if (key === 'restore') {
+    return 'restore';
+  }
+  if (key === 'open' || key === 'view') {
+    return 'view';
+  }
+  return key;
+}
+
+function defaultReadingPassageActions(record) {
+  return record?.isOwner
+    ? [
+        { key: 'open', label: 'Open' },
+        { key: 'assign-homework', label: 'Assign homework' },
+        { key: 'revise', label: 'Revise', ownerOnly: true },
+        { key: 'archive', label: 'Remove from library', ownerOnly: true },
+      ]
+    : [
+        { key: 'view', label: 'View' },
+        { key: 'assign-homework', label: 'Assign homework' },
+    ];
+}
+
+const READING_PASSAGE_ROW_SOURCE_KEYS = [
+  'id',
+  'materialId',
+  'ownerId',
+  'title',
+  'questionCount',
+  'durationMinutes',
+  'updatedAt',
+  'visibility',
+  'scope',
+  'isOwner',
+  'selectable',
+  'primaryTestTypeId',
+  'primaryTestTypeState',
+  'testTypeIds',
+  'testTypes',
+  'sourceOrderDisplay',
+  'sourceQuestionRange',
+  'sourceFullTestId',
+  'sourceFullTestTitle',
+  'publishedSnapshotVersionId',
+  'currentVersionId',
+  'hasStudentSafeProjection',
+  'accessible',
+  'archived',
+  'archivedAt',
+  'masterRefCount',
+  'bookRefCount',
+  'activeHomeworkCount',
+];
+
+function sanitizeReadingPassageSource(record) {
+  const source = {};
+
+  READING_PASSAGE_ROW_SOURCE_KEYS.forEach((key) => {
+    if (record?.[key] !== undefined) {
+      source[key] = record[key];
+    }
+  });
+
+  return source;
+}
+
+function readingPassageActionHandler(key, source, handlers = {}) {
+  if (key === 'open' || key === 'view') {
+    return () => handlers.onOpenReadingPassage?.(source);
+  }
+  if (key === 'assign-homework') {
+    return () => handlers.onAssignReadingPassage?.(source);
+  }
+  if (key === 'revise') {
+    return () => handlers.onReviseReadingPassage?.(source);
+  }
+  if (key === 'archive') {
+    return () => handlers.onArchiveReadingPassage?.(source);
+  }
+  if (key === 'restore') {
+    return () => handlers.onRestoreReadingPassage?.(source);
+  }
+  return () => {};
+}
+
+function getReadingPassageAssignmentBlocker(record) {
+  if (record?.archived === true) {
+    return 'Archived Reading Passages cannot be assigned.';
+  }
+
+  if (!record?.publishedSnapshotVersionId || record?.hasStudentSafeProjection === false) {
+    return 'Publish this passage with a student-safe projection before assignment.';
+  }
+
+  if (record?.accessible === false) {
+    return 'This Reading Passage is not available for assignment.';
+  }
+
+  return undefined;
+}
+
+const READING_PASSAGE_ACTION_SLOT_BY_KEY = {
+  open: 1,
+  view: 1,
+  'assign-homework': 2,
+  revise: 3,
+  archive: 4,
+  restore: 4,
+};
+
+export function toReadingPassageRowModel(record, options = {}) {
+  const {
+    testTypeConfig,
+    selected = false,
+    handlers = {},
+  } = options;
+  const title = record?.title || record?.metadata?.title || 'Untitled Reading Passage';
+  const rowSource = sanitizeReadingPassageSource(record);
+  const assignmentBlocker = getReadingPassageAssignmentBlocker(record);
+  const actions = (record?.actions?.length ? record.actions : defaultReadingPassageActions(record))
+    .filter((entry) => !entry.ownerOnly || record?.isOwner)
+    .filter((entry) => entry.key !== 'delete')
+    .map((entry) => action({
+      key: entry.key,
+      label: entry.key === 'archive' ? 'Remove from library' : entry.label,
+      variant: entry.key === 'archive' ? 'danger' : entry.key === 'restore' ? 'primary' : entry.key === 'assign-homework' ? 'primary' : 'secondary',
+      iconKind: readingPassageActionIconKind(entry.key),
+      onSelect: readingPassageActionHandler(entry.key, rowSource, handlers),
+      disabled: entry.key === 'assign-homework' && Boolean(assignmentBlocker),
+      disabledReason: entry.key === 'assign-homework' ? assignmentBlocker : undefined,
+      slot: READING_PASSAGE_ACTION_SLOT_BY_KEY[entry.key],
+    }));
+
+  return {
+    id: String(record?.materialId || record?.id || 'reading-passage'),
+    source: rowSource,
+    title,
+    titleTooltip: title,
+    iconKind: 'reading',
+    accentKind: 'rose',
+    badges: buildReadingPassageBadges(record, testTypeConfig),
+    itemLabel: getItemLabel(record),
+    durationLabel: getDurationLabel(record),
+    updatedLabel: getUpdatedLabel(record),
+    statusKind: 'reading-passage',
+    isOwner: Boolean(record?.isOwner),
+    selection: record?.archived === true || record?.scope === 'archived' || record?.selectable === false ? undefined : {
+      checked: selected,
+      label: `Select ${title}`,
+      disabled: Boolean(assignmentBlocker),
+      onChange: () => handlers.onToggleReadingPassageSelection?.(rowSource),
+    },
+    actions,
   };
 }
 

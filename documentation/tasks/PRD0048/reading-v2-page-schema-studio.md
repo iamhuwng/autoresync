@@ -52,10 +52,13 @@ The same page shell must support these modes:
 
 - create blank
 - create from import
+- create from Auto
 - resume draft
 - published edit revision
 - duplicate material
 - extract task-group material
+
+Mode support does not mean every authoring affordance is enabled in every mode. Passage-collection controls follow the cardinality boundary in `documentation/architecture/reading-v2-material-publish-and-passage-library.md`.
 
 There must not be:
 
@@ -107,6 +110,20 @@ None of those author-only artifacts may leak into student-safe delivery payloads
 +----------------------------------------------------------------------------------+
 ```
 
+Warning/review schema update:
+
+```text
+Warning pill
+  -> click-stable Review issues panel
+  -> short issue rows, e.g. Q12: Missing answer
+  -> row click navigates to the affected task group/question
+  -> affected question/group card highlights and shows inline issue chips
+```
+
+The warning pill must not depend on hover for critical information. Hover/title text may be used only as a short hint.
+
+Canonical warning/review contract: `documentation/architecture/reading-v2-studio-review-issues-contract.md`.
+
 ---
 
 ## 5. Layout Contract
@@ -131,6 +148,26 @@ Tab law:
 
 The layout must remain visually stable across modes so teachers are not forced to learn a different interface for import, review, and published revision.
 
+### 5.1 Passage Collection Controls
+
+`Add Passage` and passage removal controls are collection-level affordances, not universal Studio affordances.
+
+Allowed:
+
+- `create-blank`: manual new-test creation from scratch
+- `create-from-import`: paste/import output shown in Studio
+- `create-from-auto`: Auto V4 output shown in Studio
+
+Not allowed:
+
+- `reading-passage` material revision or manual remake
+- published full-test revision
+- draft resume
+- duplicate material
+- extracted task-group material
+
+Individual `reading-passage` Studio is one-passage editing. It may edit the existing passage content and questions, but it must not expose a control that creates Passage 2 inside the same entity.
+
 ---
 
 ## 6. Test-Making Pipeline Placement
@@ -145,7 +182,7 @@ Pipeline placement rules:
 4. Answer keys and scoring rules live inside `Questions` near the task groups/interactions they govern.
 5. Material-level settings live inside `Settings`.
 6. Validate and Preview run from Studio and use canonical draft/projection contracts.
-7. Publish delegates to the V2 publish pipeline and then returns to the caller context.
+7. Publish delegates to the V2 publish pipeline; successful non-revision publish exits Studio to the Teacher Lobby/Materials context, while bounded published-revision follow-up may stay in Studio on a draft revision only.
 
 Metadata is material/package information. It must not become canonical task semantics.
 
@@ -182,6 +219,7 @@ Studio must expose these authoring mechanics explicitly:
 
 - structure outline for sections, stimuli, task groups, and interactions
 - main editing surface for the selected stimulus or task group
+- passage collection changes only in the allowed new-test/import/Auto creation modes
 - contextual properties for the selected canonical object
 - reorder controls for top-level task groups and linked stimuli
 - direct editing for grouped instructions
@@ -329,6 +367,8 @@ Studio must support:
 - create or inspect extraction
 - inspect provenance
 - inspect import evidence
+- open review issues
+- navigate from a review issue to the affected question or task group
 - leave and return without losing stable draft identity
 
 Published-edit behavior is locked:
@@ -336,6 +376,15 @@ Published-edit behavior is locked:
 - opening a published item must create or resume a draft revision
 - the currently published version stays live until republish
 - no direct hot-edit path exists for live published Reading V2 content
+
+Post-publish navigation is locked:
+
+- successful non-revision publish exits Studio to the existing Teacher Lobby/Materials shell
+- the returned shell becomes the place where the just-published test is re-entered through normal material-card/list actions
+- further edits after publish require explicit revision plus republish
+- published-revision follow-up may stay in Studio only for bounded draft-revision actions
+
+Obsolete interpretation retired 2026-06-15: "publish returns to the caller context" when that caller is still the same active Studio shell for create/import-style flows. That behavior is stale because it hides the boundary between draft editing and already-split published entities.
 
 Preview behavior is locked:
 

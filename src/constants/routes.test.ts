@@ -19,6 +19,7 @@ describe('Route Constants', () => {
       expect(ROUTES.TEACHER_READING_V2_IMPORT).toBe('/teacher/reading-v2/import');
       expect(ROUTES.TEACHER_READING_V2_DRAFT).toBe('/teacher/reading-v2/drafts/:draftId');
       expect(ROUTES.TEACHER_READING_V2_REVISE).toBe('/teacher/reading-v2/materials/:materialId/revise');
+      expect(ROUTES.TEACHER_MATERIAL_BOOK).toBe('/teacher/materials/books/:bookId');
     });
 
     it('should have consistent naming convention', () => {
@@ -105,6 +106,11 @@ describe('Route Constants', () => {
         expect(path).toBe('/teacher/reading-v2/materials/material-123/revise');
       });
 
+      it('should handle Book editor parameters', () => {
+        const path = buildRoute('TEACHER_MATERIAL_BOOK', { bookId: 'book-123' });
+        expect(path).toBe('/teacher/materials/books/book-123');
+      });
+
       it('should ignore undefined parameter values', () => {
         const path = buildRoute('STUDENT_TEST', { sessionCode: undefined });
         expect(path).toBe('/student-test/:sessionCode');
@@ -158,6 +164,7 @@ describe('Route Constants', () => {
           'TEACHER_READING_V2_IMPORT',
           'TEACHER_READING_V2_DRAFT',
           'TEACHER_READING_V2_REVISE',
+          'TEACHER_MATERIAL_BOOK',
         ];
 
         routes.forEach(route => {

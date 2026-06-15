@@ -1,8 +1,22 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReadingV2ReviewContentAdapter } from './ReadingV2ReviewContentAdapter';
 
+const mocks = vi.hoisted(() => ({
+  trackAction: vi.fn(),
+}));
+
+vi.mock('../../services/reportingService', () => ({
+  reportingService: {
+    trackAction: (...args: unknown[]) => mocks.trackAction(...args),
+  },
+}));
+
 describe('ReadingV2ReviewContentAdapter', () => {
+  beforeEach(() => {
+    mocks.trackAction.mockClear();
+  });
+
   const reviewPayload = {
     deliveryEngine: 'reading-v2',
     schemaVersion: 1,
@@ -89,6 +103,71 @@ describe('ReadingV2ReviewContentAdapter', () => {
       'Correct answer is hidden until release.',
     );
     expect(screen.queryByText(/answer one/)).not.toBeInTheDocument();
+  });
+
+  it('labels Reading Passage set review groups with assigned passage source metadata', () => {
+    render(
+      <ReadingV2ReviewContentAdapter
+        resultId="result-v2"
+        variant="teacher"
+        reviewPayload={{
+          ...reviewPayload,
+          materialKind: 'reading-passage-set',
+          materialLabel: 'Reading Passage Set',
+          title: 'Selected Reading Passages',
+          sourceSnapshotVersionId: 'homework-set:hw-1',
+          taskGroups: [
+            {
+              ...reviewPayload.taskGroups[0],
+              taskGroupId: 'passage-1:task-group-1',
+              title: 'Questions 1-8',
+              passageSection: {
+                order: 1,
+                title: 'Passage A',
+                passageMaterialId: 'passage-a',
+                snapshotVersionId: 'snapshot-a',
+                sourceOrderDisplay: 'Passage 1',
+                sourceFullTestTitle: 'Mock Test A',
+              },
+            },
+            {
+              ...reviewPayload.taskGroups[0],
+              taskGroupId: 'passage-2:task-group-1',
+              title: 'Questions 9-18',
+              passageSection: {
+                order: 2,
+                title: 'Passage B',
+                passageMaterialId: 'passage-b',
+                snapshotVersionId: 'snapshot-b',
+                sourceOrderDisplay: 'Passage 2',
+                sourceFullTestTitle: 'Mock Test B',
+              },
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Reading Passage Set Review')).toBeInTheDocument();
+    expect(screen.getByTestId('reading-v2-review-passage-section-passage-1:task-group-1')).toHaveTextContent(
+      'Passage A',
+    );
+    expect(screen.getByTestId('reading-v2-review-passage-section-passage-1:task-group-1')).toHaveTextContent(
+      'Passage 1, Mock Test A, Snapshot snapshot-a',
+    );
+    expect(screen.getByTestId('reading-v2-review-passage-section-passage-2:task-group-1')).toHaveTextContent(
+      'Passage B',
+    );
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'results',
+      'teacher_materials_reading_passage_result_viewed',
+      {
+        resultId: 'result-v2',
+        variant: 'teacher',
+        materialKind: 'reading-passage-set',
+        taskGroupCount: 2,
+      },
+    );
   });
 
   it('shows an adapter-owned empty state for invalid payloads', () => {

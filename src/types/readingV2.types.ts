@@ -5,6 +5,10 @@ import type {
   ReadingV2CanonicalTaskType,
   ReadingV2EngineeringFamily,
 } from './readingV2Taxonomy';
+import type {
+  MaterialTestTypeId,
+  ReadingPassageVisibilityScope,
+} from './materialCatalog.types';
 
 export const READING_V2_SCHEMA_VERSION = 1;
 
@@ -27,6 +31,9 @@ export type ReadingV2ImportEvidenceId = ReadingV2Id<'importEvidenceId'>;
 export type ReadingV2PassageAssetId = ReadingV2Id<'passageAssetId'>;
 export type ReadingV2MaterialId = ReadingV2Id<'materialId'>;
 export type ReadingV2FullTestId = ReadingV2Id<'fullTestId'>;
+export type ReadingV2ReadingPassageMaterialId = ReadingV2Id<'readingPassageMaterialId'>;
+export type ReadingV2FullTestCompositionId = ReadingV2Id<'fullTestCompositionId'>;
+export type ReadingV2PassageRefId = ReadingV2Id<'passageRefId'>;
 export type ReadingV2SnapshotVersionId = ReadingV2Id<'snapshotVersionId'>;
 export type ReadingV2ResultId = ReadingV2Id<'resultId'>;
 export type ReadingV2AttemptId = ReadingV2Id<'attemptId'>;
@@ -56,6 +63,9 @@ export const readingV2Ids = {
   passageAssetId: asReadingV2Id<'passageAssetId'>(),
   materialId: asReadingV2Id<'materialId'>(),
   fullTestId: asReadingV2Id<'fullTestId'>(),
+  readingPassageMaterialId: asReadingV2Id<'readingPassageMaterialId'>(),
+  fullTestCompositionId: asReadingV2Id<'fullTestCompositionId'>(),
+  passageRefId: asReadingV2Id<'passageRefId'>(),
   snapshotVersionId: asReadingV2Id<'snapshotVersionId'>(),
   resultId: asReadingV2Id<'resultId'>(),
   attemptId: asReadingV2Id<'attemptId'>(),
@@ -89,6 +99,11 @@ export interface ReadingV2ValidationIssue {
   readonly severity: ReadingV2ValidationSeverity;
   readonly message: string;
   readonly objectId?: string;
+  readonly passageNumber?: number;
+  readonly instructionIndex?: number;
+  readonly layoutKind?: 'table' | 'flowchart' | 'diagram';
+  readonly questionNumber?: number;
+  readonly stimulusId?: string;
 }
 
 export interface ReadingV2ValidationState {
@@ -344,6 +359,46 @@ export type ReadingV2GovernanceState = 'draft' | 'published' | 'archived' | 'ret
 
 export type ReadingV2ReuseAdvisory = 'reusable' | 'reuse-with-caution' | 'do-not-reuse';
 
+export type ReadingV2SourceOrderKind = 'numeric' | 'label' | 'unknown';
+
+export interface ReadingV2SourceOrderSnapshot {
+  readonly kind: ReadingV2SourceOrderKind;
+  readonly value: number | string | null;
+  readonly labelSnapshot: string;
+  readonly displaySnapshot: string;
+}
+
+export type ReadingV2SensitiveRuleLocation =
+  | 'canonical'
+  | 'published-snapshot'
+  | 'review-projection';
+
+export interface ReadingV2ReadingPassageMaterial
+  extends ReadingV2PlaneMarker<'canonical'> {
+  readonly passageMaterialId: ReadingV2ReadingPassageMaterialId;
+  readonly ownerId: string;
+  readonly visibility: ReadingPassageVisibilityScope;
+  readonly state: ReadingV2GovernanceState;
+  readonly currentSnapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly title: string;
+  readonly primaryTestTypeId?: MaterialTestTypeId;
+  readonly testTypeIds: readonly MaterialTestTypeId[];
+  readonly stimulusId: ReadingV2StimulusId;
+  readonly taskGroupIds: readonly ReadingV2TaskGroupId[];
+  readonly interactionIds: readonly ReadingV2InteractionId[];
+  readonly answerKeyLocation: ReadingV2SensitiveRuleLocation;
+  readonly scoringRuleLocation: ReadingV2SensitiveRuleLocation;
+  readonly sourceFullTestId?: ReadingV2FullTestId;
+  readonly sourceSnapshotVersionId?: ReadingV2SnapshotVersionId;
+  readonly sourceOrder: ReadingV2SourceOrderSnapshot;
+  readonly sourceQuestionRange?: string;
+  readonly sourceTitleSnapshot?: string;
+  readonly durationMinutes?: number;
+  readonly provenance?: ReadingV2ProvenanceRecord;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export interface ReadingV2PassageAsset {
   readonly passageAssetId: ReadingV2PassageAssetId;
   readonly ownerId: string;
@@ -387,6 +442,71 @@ export interface ReadingV2FullTest extends ReadingV2PlaneMarker<'packaging'> {
   readonly ownerId: string;
   readonly state: ReadingV2GovernanceState;
   readonly materialIds: readonly ReadingV2MaterialId[];
+}
+
+export interface ReadingV2PassageRef {
+  readonly refId: ReadingV2PassageRefId;
+  readonly passageMaterialId: ReadingV2ReadingPassageMaterialId;
+  readonly materialId: ReadingV2ReadingPassageMaterialId;
+  readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly order: number;
+  readonly sourcePassageNumber?: number | null;
+  readonly sourceOrderLabelSnapshot: string;
+  readonly sourceOrderDisplaySnapshot: string;
+  readonly titleSnapshot: string;
+  readonly title: string;
+  readonly source: {
+    readonly sourceOrderDisplay?: string;
+    readonly sourceOrderLabel?: string;
+    readonly sourceFullTestId?: string;
+    readonly sourceFullTestTitle?: string;
+  };
+  readonly questionRangeSnapshot?: string;
+  readonly questionCountSnapshot: number;
+  readonly questionCount: number;
+  readonly durationSnapshot?: number;
+  readonly ownerId: string;
+  readonly visibility: ReadingPassageVisibilityScope;
+  readonly currentVersionId?: ReadingV2SnapshotVersionId;
+  readonly testType: {
+    readonly primaryTestTypeId?: MaterialTestTypeId;
+    readonly testTypeIds: readonly MaterialTestTypeId[];
+  };
+  readonly testTypeIdsSnapshot: readonly MaterialTestTypeId[];
+}
+
+export interface ReadingV2CompositionNumberingPassageRange {
+  readonly order: number;
+  readonly passageMaterialId: string;
+  readonly snapshotVersionId: string;
+  readonly firstDisplayNumber: number | null;
+  readonly lastDisplayNumber: number | null;
+  readonly questionCount: number;
+}
+
+export interface ReadingV2CompositionNumbering {
+  readonly interactionDisplayNumbers: Readonly<Record<string, number>>;
+  readonly passageRanges: readonly ReadingV2CompositionNumberingPassageRange[];
+  readonly totalQuestionCount: number;
+}
+
+export interface ReadingV2FullTestComposition
+  extends ReadingV2PlaneMarker<'packaging'> {
+  readonly compositionId: ReadingV2FullTestCompositionId;
+  readonly testMaterialId: ReadingV2MaterialId;
+  readonly title: string;
+  readonly primaryTestTypeId?: MaterialTestTypeId;
+  readonly testTypeIds: readonly MaterialTestTypeId[];
+  readonly skill: string;
+  readonly passageRefs: readonly ReadingV2PassageRef[];
+  readonly questionCount: number;
+  readonly numbering: ReadingV2CompositionNumbering;
+  readonly durationMinutes?: number;
+  readonly visibility: ReadingPassageVisibilityScope;
+  readonly ownerId: string;
+  readonly publishedVersionId: ReadingV2SnapshotVersionId;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface ReadingV2PublishedSnapshot {

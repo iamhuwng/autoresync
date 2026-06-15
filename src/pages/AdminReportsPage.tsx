@@ -110,6 +110,18 @@ interface UnresolvedDiagnosticsRow extends UnresolvedResultVisibilityReportEntry
   id?: string;
 }
 
+interface ReadingV2AuditMonitorRow {
+  id?: string;
+  action?: string;
+  actorRole?: string;
+  actorId?: string;
+  entityType?: string;
+  entityId?: string;
+  sourceRoute?: string;
+  createdAt?: number;
+  timestamp?: number;
+}
+
 const TAB_DEFINITIONS: TabDefinition[] = [
   {
     id: 'health',
@@ -185,6 +197,14 @@ function formatRelativeTime(timestamp: number | null): string {
   }
 
   return `${Math.floor(elapsed / DAY_MS)}d ago`;
+}
+
+function getReadingV2AuditTimestamp(row: ReadingV2AuditMonitorRow): number {
+  return typeof row.createdAt === 'number'
+    ? row.createdAt
+    : typeof row.timestamp === 'number'
+      ? row.timestamp
+      : 0;
 }
 
 function buildFeatureHealthRows(
@@ -511,6 +531,9 @@ const AdminReportsPage: React.FC = () => {
   const [unresolvedDiagnosticsError, setUnresolvedDiagnosticsError] = useState<
     string | null
   >(null);
+  const [readingV2AuditRows, setReadingV2AuditRows] = useState<ReadingV2AuditMonitorRow[]>([]);
+  const [readingV2AuditLoaded, setReadingV2AuditLoaded] = useState(false);
+  const [readingV2AuditError, setReadingV2AuditError] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState('');
   const [sortMode, setSortMode] = useState<ErrorSortOption>('newest');
   const [dateStartFilter, setDateStartFilter] = useState(getReportDateKey(2));
@@ -687,6 +710,39 @@ const AdminReportsPage: React.FC = () => {
             : 'Failed to load unresolved result diagnostics.'
         );
         setUnresolvedDiagnosticsLoaded(true);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const auditQuery = query(
+      ref(database, 'reading_v2/audit_events'),
+      limitToLast(25)
+    );
+    const unsubscribe = onValue(
+      auditQuery,
+      (snapshot) => {
+        const rows = snapshotToRecords<ReadingV2AuditMonitorRow>(snapshot.val())
+          .sort((left, right) => getReadingV2AuditTimestamp(right) - getReadingV2AuditTimestamp(left));
+
+        setReadingV2AuditRows(rows);
+        setReadingV2AuditError(null);
+        setReadingV2AuditLoaded(true);
+      },
+      (error) => {
+        setReadingV2AuditRows([]);
+        setReadingV2AuditError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to load Reading V2 audit events.'
+        );
+        setReadingV2AuditLoaded(true);
       }
     );
 
@@ -1548,6 +1604,113 @@ const AdminReportsPage: React.FC = () => {
                     </Card>
                   ))}
                 </div>
+
+                <Card
+                  variant="glass"
+                  className="admin-reports-section-card"
+                  data-testid="reading-v2-audit-monitor"
+                  style={{ padding: '1.5rem' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '1rem',
+                      flexWrap: 'wrap',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ marginTop: 0, marginBottom: '0.5rem', color: '#0f172a' }}>
+                        Reading V2 Audit Monitor
+                      </h3>
+                      <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
+                        Last 25 audit events from the dedicated Reading V2 audit trail.
+                      </p>
+                    </div>
+                    <div
+                      className="admin-reports-status-badge status-blue"
+                      style={{
+                        padding: '0.55rem 0.85rem',
+                        borderRadius: '999px',
+                        background: 'rgba(37, 99, 235, 0.08)',
+                        color: '#1d4ed8',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {readingV2AuditRows.length} recent events
+                    </div>
+                  </div>
+
+                  {!readingV2AuditLoaded ? (
+                    <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
+                      Loading Reading V2 audit events.
+                    </p>
+                  ) : readingV2AuditError ? (
+                    <p style={{ margin: 0, color: '#b91c1c', lineHeight: 1.6 }}>
+                      {readingV2AuditError}
+                    </p>
+                  ) : readingV2AuditRows.length === 0 ? (
+                    <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
+                      No Reading V2 audit events are currently visible.
+                    </p>
+                  ) : (
+                    <div className="admin-reports-scroll-container" style={{ overflowX: 'auto' }}>
+                      <table
+                        className="admin-reports-health-table"
+                        style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}
+                      >
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.25)' }}>
+                            {['Action', 'Entity', 'Actor', 'Source', 'Time'].map((header) => (
+                              <th
+                                key={header}
+                                style={{
+                                  textAlign: 'left',
+                                  padding: '0.85rem 0.75rem',
+                                  fontSize: '0.8rem',
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                  color: '#64748b',
+                                }}
+                              >
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {readingV2AuditRows.map((row) => {
+                            const timestamp = getReadingV2AuditTimestamp(row);
+                            return (
+                              <tr
+                                key={row.id || `${row.action || 'event'}:${timestamp}`}
+                                style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.7)' }}
+                              >
+                                <td style={{ padding: '1rem 0.75rem', fontWeight: 700, color: '#0f172a' }}>
+                                  {row.action || 'unknown_action'}
+                                </td>
+                                <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                                  {row.entityType || 'entity'}:{row.entityId || row.id || 'unknown'}
+                                </td>
+                                <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                                  {row.actorRole || 'actor'}:{row.actorId || 'unknown'}
+                                </td>
+                                <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                                  {row.sourceRoute || 'not recorded'}
+                                </td>
+                                <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>
+                                  {timestamp ? new Date(timestamp).toLocaleString() : 'No timestamp'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
 
                 <Card variant="glass" className="admin-reports-section-card" style={{ padding: '1.5rem' }}>
                   <div

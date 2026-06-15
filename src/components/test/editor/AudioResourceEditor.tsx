@@ -87,7 +87,7 @@ export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
 
         try {
             // 1. Upload file
-            const result = await r2StorageService.uploadAudio(file, 'audio', (percent: number) => {
+            const result = await r2StorageService.uploadAudioReplacement(file, resource.audioUrl, 'audio', (percent: number) => {
                 setUploadProgress(percent);
             });
 

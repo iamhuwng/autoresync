@@ -20,6 +20,7 @@ import {
     createReadingV2LaunchMaterialSummary,
     isReadingV2LaunchCandidate,
 } from '../services/reading-v2/readingV2LaunchIntegration.service';
+import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 import type { ReadingV2DerivedProjection } from '../services/reading-v2/readingV2Projection.service';
 import type { ReadingV2MaterialMetadata } from '../services/reading-v2/readingV2MaterialMetadata.service';
 import { Card, CardBody, Button } from '../components/modern';
@@ -80,6 +81,76 @@ const getFeedbackTimingDescription = (timing: string): string => {
     }
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+
+const firstString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) {
+            return value;
+        }
+    }
+
+    return undefined;
+};
+
+const firstNumber = (...values: unknown[]): number | undefined => {
+    for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+    }
+
+    return undefined;
+};
+
+const stringArray = (value: unknown): readonly string[] =>
+    Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
+        : [];
+
+const buildReadingV2MetadataFromStudentBridge = (testData: TestData): ReadingV2MaterialMetadata => {
+    const bridge = asRecord(testData);
+    const bridgeMetadata = asRecord(bridge.metadata);
+    const materialId = firstString(bridge.materialId, bridge.id) ?? '';
+    const title = firstString(bridgeMetadata.title, bridge.title) ?? 'Reading V2 material';
+    const materialKind = firstString(bridgeMetadata.materialKind, bridge.materialKind) ?? 'full-test';
+
+    return {
+        materialId: materialId as ReadingV2MaterialMetadata['materialId'],
+        ownerId: firstString(bridge.ownerId, bridgeMetadata.ownerId) ?? '',
+        compositionId: firstString(bridgeMetadata.compositionId, bridge.compositionId) as ReadingV2MaterialMetadata['compositionId'],
+        state: firstString(bridgeMetadata.state, bridge.state) as ReadingV2MaterialMetadata['state'],
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title,
+        materialKind: materialKind as ReadingV2MaterialMetadata['materialKind'],
+        durationMinutes: firstNumber(
+            bridgeMetadata.durationMinutes,
+            bridgeMetadata.duration,
+            bridge.durationMinutes,
+            bridge.duration,
+        ) ?? 0,
+        difficulty: firstString(bridgeMetadata.difficulty, bridge.difficulty) ?? 'intermediate',
+        targetBand: firstString(bridgeMetadata.targetBand, bridge.targetBand),
+        description: firstString(bridgeMetadata.description, bridge.description) ?? '',
+        tags: stringArray(bridgeMetadata.tags),
+        visibility: (firstString(bridgeMetadata.visibility, bridge.visibility) ?? 'private') as ReadingV2MaterialMetadata['visibility'],
+        primaryTestTypeId: firstString(bridgeMetadata.primaryTestTypeId, bridge.primaryTestTypeId) as ReadingV2MaterialMetadata['primaryTestTypeId'],
+        testTypeIds: stringArray(bridgeMetadata.testTypeIds).length > 0
+            ? stringArray(bridgeMetadata.testTypeIds) as ReadingV2MaterialMetadata['testTypeIds']
+            : stringArray(bridge.testTypeIds) as ReadingV2MaterialMetadata['testTypeIds'],
+        publishedSnapshotVersionId: firstString(
+            bridgeMetadata.publishedSnapshotVersionId,
+            bridge.publishedSnapshotVersionId,
+        ),
+        updatedAt: firstString(bridgeMetadata.updatedAt, bridge.updatedAt) ?? new Date(0).toISOString(),
+        relationshipSurfaces: ['homework-assignment'],
+    };
+};
+
 const formatTimeAgo = (timestamp: number): string => {
     const diff = Date.now() - timestamp;
     const minutes = Math.floor(diff / (1000 * 60));
@@ -129,8 +200,17 @@ const TEXT_SIZE_MAP: Record<string, string> = {
     xl: '1.25rem',
 };
 
-const COLOR_MAP: Record<string, { lightBg: string; lightText: string; filledBg: string; filledText: string }> = {
-    blue: { lightBg: 'rgba(77, 68, 227, 0.12)', lightText: studentTokens.accent, filledBg: studentTokens.accent, filledText: '#faf6ff' },
+type ColorTone = { lightBg: string; lightText: string; filledBg: string; filledText: string };
+
+const DEFAULT_COLOR_TONE: ColorTone = {
+    lightBg: 'rgba(77, 68, 227, 0.12)',
+    lightText: studentTokens.accent,
+    filledBg: studentTokens.accent,
+    filledText: '#faf6ff',
+};
+
+const COLOR_MAP: Record<string, ColorTone> = {
+    blue: DEFAULT_COLOR_TONE,
     gray: { lightBg: studentTokens.bgShell, lightText: studentTokens.textBody, filledBg: studentTokens.textBody, filledText: '#faf6ff' },
     red: { lightBg: 'rgba(158, 63, 78, 0.12)', lightText: '#9e3f4e', filledBg: '#9e3f4e', filledText: '#faf6ff' },
     orange: { lightBg: 'rgba(243, 144, 63, 0.12)', lightText: '#b66a0a', filledBg: '#f3903f', filledText: '#faf6ff' },
@@ -161,7 +241,23 @@ const resolveTextSize = (value?: string): string | undefined => {
     return TEXT_SIZE_MAP[value] || value;
 };
 
-const resolveTone = (color = 'blue') => COLOR_MAP[color] || COLOR_MAP.blue;
+const resolveTone = (color = 'blue'): ColorTone => COLOR_MAP[color] ?? DEFAULT_COLOR_TONE;
+
+const resolveTextColor = (color: unknown): string | undefined => {
+    if (typeof color !== 'string') {
+        return undefined;
+    }
+
+    if (color.startsWith('#')) {
+        return color;
+    }
+
+    if (color === 'dimmed') {
+        return studentTokens.textMuted;
+    }
+
+    return resolveTone(color).lightText;
+};
 
 const iconBaseStyle = {
     flexShrink: 0,
@@ -249,7 +345,7 @@ const IconInfoCircle = ({ size = 16, color = 'currentColor' }: { size?: number; 
 );
 
 const IconPlayerPlay = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={iconBaseStyle}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={iconBaseStyle}>
         <path d="M8 5.14v13.72c0 .8.87 1.29 1.55.87l9.55-5.86a1 1 0 0 0 0-1.7L9.55 4.27A1 1 0 0 0 8 5.14Z" />
     </svg>
 );
@@ -345,7 +441,7 @@ const Text = ({ children, size, fw, c, style, mt, mb }: any) => (
         style={{
             fontSize: resolveTextSize(size),
             fontWeight: fw,
-            color: c?.startsWith?.('#') ? c : c === 'dimmed' ? studentTokens.textMuted : c ? resolveTone(c).lightText : undefined,
+            color: resolveTextColor(c),
             marginTop: resolveSpace(mt),
             marginBottom: resolveSpace(mb),
             ...style,
@@ -597,19 +693,41 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
             try {
                 setMaterialLoading(true);
-                const metadataPlan = buildReadingV2LaunchReadPlan({
-                    surface: 'homework',
-                    materialId: homework.materialId,
-                });
-                const metadataSnapshot = await get(ref(database, metadataPlan.metadataPath));
-                const metadata = metadataSnapshot.exists()
-                    ? metadataSnapshot.val() as ReadingV2MaterialMetadata
-                    : null;
+                const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
 
-                if (metadata && isReadingV2LaunchCandidate(metadata)) {
+                if (readingPassageSummary) {
+                    setMaterial({
+                        id: homework.materialId,
+                        title: readingPassageSummary.title,
+                        duration: homework.config?.timerMinutes ?? 0,
+                        updatedAt: undefined,
+                        questionCount: readingPassageSummary.questionCount,
+                        questions: Array.from({ length: readingPassageSummary.questionCount }, (_value, index) => ({
+                            id: `reading-passage-question-${index + 1}`,
+                        })),
+                        skillType: 'reading',
+                        testType: 'ReadingV2',
+                        metadata: {
+                            deliveryEngine: 'reading-v2',
+                            productLabel: readingPassageSummary.label,
+                            materialKind: homework.materialType,
+                            tags: [],
+                        },
+                    } as unknown as TestData);
+                    return;
+                }
+
+                const result = await getTestFromFirebase(homework.materialId);
+                if (result.success && result.data) {
+                    if (!isReadingV2LaunchCandidate(result.data)) {
+                        setMaterial(result.data);
+                        return;
+                    }
+
+                    const metadata = buildReadingV2MetadataFromStudentBridge(result.data);
                     const projectionPlan = buildReadingV2LaunchReadPlan({
                         surface: 'homework',
-                        materialId: homework.materialId,
+                        materialId: metadata.materialId,
                         snapshotVersionId: metadata.publishedSnapshotVersionId,
                     });
                     const projectionSnapshot = await get(ref(database, projectionPlan.projectionPath));
@@ -633,11 +751,6 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                     } as unknown as TestData);
                     return;
                 }
-
-                const result = await getTestFromFirebase(homework.materialId);
-                if (result.success && result.data) {
-                    setMaterial(result.data);
-                }
             } catch (err) {
                 console.error('Error loading material:', err);
             } finally {
@@ -646,7 +759,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         };
 
         loadMaterial();
-    }, [homework?.materialId]);
+    }, [homework]);
 
     const navigateToTest = (submission?: any) => {
         if (!homework?.materialId || !homeworkId) return;
@@ -704,6 +817,50 @@ export const StudentHomeworkDetailPage: React.FC = () => {
         navigateTo('LOGIN', {}, { reason: 'student_logout', replace: true });
     };
 
+    const tokenizedBackButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        background: studentTokens.bgSurface,
+        color: studentTokens.textBody,
+        boxShadow: 'none',
+    };
+    const quietSurfaceStyle: React.CSSProperties = {
+        background: studentTokens.bgSurface,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+        borderRadius: studentTokens.radiusPanel,
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    };
+    const quietInsetStyle: React.CSSProperties = {
+        padding: '1rem',
+        background: studentTokens.bgShell,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderWhisper}`,
+    };
+    const secondaryButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.borderSoft}`,
+        background: studentTokens.bgSurface,
+        color: studentTokens.textBody,
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    };
+    const primaryActionButtonStyle: React.CSSProperties = {
+        minHeight: 44,
+        borderRadius: studentTokens.radiusSoft,
+        border: `1px solid ${studentTokens.accent}`,
+        background: studentTokens.accent,
+        color: '#ffffff',
+        boxShadow: 'none',
+    };
+    const mobileFullWidthButtonStyle: React.CSSProperties = isMobile ? { ...mobileStyles.fullWidthButton } : {};
+    const mobileHeaderTitleStyle: React.CSSProperties = isMobile ? { fontSize: '1.5rem' } : {};
+    const mobileSubtitleStyle: React.CSSProperties = isMobile ? mobileStyles.feedSubtitleHidden : {};
+
     // Loading state
     if (isLoading || materialLoading) {
         return (
@@ -756,50 +913,8 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     }
 
     const timeInfo = getTimeRemaining(homework.scheduling.dueDate);
+    const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
     const completedSubmissions = allSubmissions.filter(s => s.status === 'submitted' || s.status === 'graded');
-    const tokenizedBackButtonStyle: React.CSSProperties = {
-        minHeight: 44,
-        borderRadius: studentTokens.radiusSoft,
-        border: `1px solid ${studentTokens.borderSoft}`,
-        background: studentTokens.bgSurface,
-        color: studentTokens.textBody,
-        boxShadow: 'none',
-    };
-    const quietSurfaceStyle: React.CSSProperties = {
-        background: studentTokens.bgSurface,
-        border: `1px solid ${studentTokens.borderWhisper}`,
-        borderRadius: studentTokens.radiusPanel,
-        boxShadow: 'none',
-        backdropFilter: 'none',
-        WebkitBackdropFilter: 'none',
-    };
-    const quietInsetStyle: React.CSSProperties = {
-        padding: '1rem',
-        background: studentTokens.bgShell,
-        borderRadius: studentTokens.radiusSoft,
-        border: `1px solid ${studentTokens.borderWhisper}`,
-    };
-    const secondaryButtonStyle: React.CSSProperties = {
-        minHeight: 44,
-        borderRadius: studentTokens.radiusSoft,
-        border: `1px solid ${studentTokens.borderSoft}`,
-        background: studentTokens.bgSurface,
-        color: studentTokens.textBody,
-        boxShadow: 'none',
-        backdropFilter: 'none',
-        WebkitBackdropFilter: 'none',
-    };
-    const primaryActionButtonStyle: React.CSSProperties = {
-        minHeight: 44,
-        borderRadius: studentTokens.radiusSoft,
-        border: `1px solid ${studentTokens.accent}`,
-        background: studentTokens.accent,
-        color: '#ffffff',
-        boxShadow: 'none',
-    };
-    const mobileFullWidthButtonStyle: React.CSSProperties = isMobile ? { ...mobileStyles.fullWidthButton } : {};
-    const mobileHeaderTitleStyle: React.CSSProperties = isMobile ? { fontSize: '1.5rem' } : {};
-    const mobileSubtitleStyle: React.CSSProperties = isMobile ? mobileStyles.feedSubtitleHidden : {};
 
     return (
         <StudentLayout
@@ -919,7 +1034,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     {homework.materialSkill}
                                                 </Badge>
                                                 <Badge color="gray" variant="light" size="lg">
-                                                    {homework.materialType}
+                                                    {readingPassageSummary?.label ?? homework.materialType}
                                                 </Badge>
                                                 {isOverdue && (
                                                     <Badge color="red" variant="filled" size="lg">
@@ -932,6 +1047,20 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                     </Badge>
                                                 )}
                                             </Group>
+                                            {readingPassageSummary && (
+                                                <Stack gap="xs" style={{ marginTop: '0.75rem' }}>
+                                                    {readingPassageSummary.meta.length > 0 && (
+                                                        <Text size="sm" c="dimmed" style={{ lineHeight: 1.5 }}>
+                                                            {readingPassageSummary.meta.join(', ')}
+                                                        </Text>
+                                                    )}
+                                                    {readingPassageSummary.kind === 'set' && readingPassageSummary.passageTitles.length > 0 && (
+                                                        <Text size="sm" c={studentTokens.textBody} style={{ lineHeight: 1.5 }}>
+                                                            {readingPassageSummary.passageTitles.join(', ')}
+                                                        </Text>
+                                                    )}
+                                                </Stack>
+                                            )}
                                         </div>
                                     </Group>
 

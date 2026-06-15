@@ -1,0 +1,2499 @@
+{
+  "generatedAt": "2026-06-06T23:09:12.767Z",
+  "verdict": "editable-needs-review",
+  "source": {
+    "path": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 10 Reading Test 01.md",
+    "byteLength": 26872,
+    "charLength": 26656,
+    "lineCount": 473,
+    "sha256": "c3065bd4a754630fabbb1105602a7e166df96a459fb147de394feb70cf12c81b",
+    "fullTextIncluded": false
+  },
+  "method": {
+    "goldParse": [
+      "Read source frontmatter and passage/question headings.",
+      "Used source line coordinates for passage and group boundaries.",
+      "Classified task groups by explicit instruction text and option banks.",
+      "Copied answer-key values from visible answer section only.",
+      "Compared app output by coverage, task group shape, answer-key binding, diagnostics, and publish safety."
+    ],
+    "appParse": "Live Auto V4 provider path via generateReadingV2AutoImportCandidate."
+  },
+  "gold": {
+    "sourceName": "Practice Cam 10 Reading Test 01",
+    "sourcePath": "C:\\Users\\The Lord\\Desktop\\luyentap\\Clippings\\Practice Cam 10 Reading Test 01.md",
+    "passages": [
+      {
+        "passage": 1,
+        "title": "Stepwells",
+        "sourceLines": "53-136",
+        "questionRange": "1-13"
+      },
+      {
+        "passage": 2,
+        "title": "EUROPEAN TRANSPORT SYSTEMS 1990-2010",
+        "sourceLines": "137-256",
+        "questionRange": "14-26"
+      },
+      {
+        "passage": 3,
+        "title": "The psychology of innovation",
+        "sourceLines": "257-384",
+        "questionRange": "27-40"
+      }
+    ],
+    "groups": [
+      {
+        "passage": 1,
+        "range": "1-5",
+        "start": 1,
+        "end": 5,
+        "taskType": "true-false-not-given",
+        "sourceLines": "85-105"
+      },
+      {
+        "passage": 1,
+        "range": "6-8",
+        "start": 6,
+        "end": 8,
+        "taskType": "short-answer",
+        "answerRule": "ONE WORD ONLY",
+        "sourceLines": "107-119"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "start": 9,
+        "end": 13,
+        "taskType": "table-completion",
+        "answerRule": "ONE WORD AND/OR A NUMBER",
+        "sourceLines": "121-135"
+      },
+      {
+        "passage": 2,
+        "range": "14-21",
+        "start": 14,
+        "end": 21,
+        "taskType": "matching-headings",
+        "answerRule": "i-xi headings list",
+        "sourceLines": "181-231"
+      },
+      {
+        "passage": 2,
+        "range": "22-26",
+        "start": 22,
+        "end": 26,
+        "taskType": "true-false-not-given",
+        "sourceLines": "233-253"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "start": 27,
+        "end": 30,
+        "taskType": "multiple-choice",
+        "answerRule": "A-D per question",
+        "sourceLines": "287-331"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "start": 31,
+        "end": 35,
+        "taskType": "matching-sentence-endings",
+        "answerRule": "A-G endings list",
+        "sourceLines": "333-361"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "start": 36,
+        "end": 40,
+        "taskType": "yes-no-not-given",
+        "sourceLines": "363-383"
+      }
+    ],
+    "answers": [
+      {
+        "question": 1,
+        "answer": "FALSE"
+      },
+      {
+        "question": 2,
+        "answer": "TRUE"
+      },
+      {
+        "question": 3,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 4,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 5,
+        "answer": "TRUE"
+      },
+      {
+        "question": 6,
+        "answer": "pavilions"
+      },
+      {
+        "question": 7,
+        "answer": "drought"
+      },
+      {
+        "question": 8,
+        "answer": "tourists"
+      },
+      {
+        "question": 9,
+        "answer": "Earthquake"
+      },
+      {
+        "question": 10,
+        "answer": "Four sides/ 4 sides"
+      },
+      {
+        "question": 11,
+        "answer": "Tank"
+      },
+      {
+        "question": 12,
+        "answer": "verandas/ verandahs"
+      },
+      {
+        "question": 13,
+        "answer": "underwater"
+      },
+      {
+        "question": 14,
+        "answer": "viii"
+      },
+      {
+        "question": 15,
+        "answer": "iii"
+      },
+      {
+        "question": 16,
+        "answer": "xi"
+      },
+      {
+        "question": 17,
+        "answer": "i"
+      },
+      {
+        "question": 18,
+        "answer": "v"
+      },
+      {
+        "question": 19,
+        "answer": "x"
+      },
+      {
+        "question": 20,
+        "answer": "ii"
+      },
+      {
+        "question": 21,
+        "answer": "iv"
+      },
+      {
+        "question": 22,
+        "answer": "TRUE"
+      },
+      {
+        "question": 23,
+        "answer": "FALSE"
+      },
+      {
+        "question": 24,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 25,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 26,
+        "answer": "FALSE"
+      },
+      {
+        "question": 27,
+        "answer": "C"
+      },
+      {
+        "question": 28,
+        "answer": "A"
+      },
+      {
+        "question": 29,
+        "answer": "D"
+      },
+      {
+        "question": 30,
+        "answer": "B"
+      },
+      {
+        "question": 31,
+        "answer": "G"
+      },
+      {
+        "question": 32,
+        "answer": "E"
+      },
+      {
+        "question": 33,
+        "answer": "A"
+      },
+      {
+        "question": 34,
+        "answer": "F"
+      },
+      {
+        "question": 35,
+        "answer": "B"
+      },
+      {
+        "question": 36,
+        "answer": "NO"
+      },
+      {
+        "question": 37,
+        "answer": "YES"
+      },
+      {
+        "question": 38,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 39,
+        "answer": "NOT GIVEN"
+      },
+      {
+        "question": 40,
+        "answer": "NO"
+      }
+    ]
+  },
+  "ledger": {
+    "category": "full-test-with-answer-key",
+    "expectedFullTest": true,
+    "passageCount": 3,
+    "passageNumbers": [
+      1,
+      2,
+      3
+    ],
+    "questionCount": 40,
+    "questionRange": "1-40",
+    "questionRanges": [
+      {
+        "passageNumber": 1,
+        "range": "1-5",
+        "lineNumber": 85
+      },
+      {
+        "passageNumber": 1,
+        "range": "6-8",
+        "lineNumber": 107
+      },
+      {
+        "passageNumber": 1,
+        "range": "9-13",
+        "lineNumber": 121
+      },
+      {
+        "passageNumber": 2,
+        "range": "1-8",
+        "lineNumber": 181
+      },
+      {
+        "passageNumber": 2,
+        "range": "22-26",
+        "lineNumber": 233
+      },
+      {
+        "passageNumber": 3,
+        "range": "27-30",
+        "lineNumber": 287
+      },
+      {
+        "passageNumber": 3,
+        "range": "31-35",
+        "lineNumber": 333
+      },
+      {
+        "passageNumber": 3,
+        "range": "36-40",
+        "lineNumber": 363
+      }
+    ],
+    "answerKeyRowCount": 38,
+    "answerKeyQuestionRange": "1-9, 11, 13-40",
+    "referenceBankCount": 0,
+    "pollutionMarkerCount": 2,
+    "issues": [
+      {
+        "code": "source-pollution-detected",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      }
+    ]
+  },
+  "ledgerAdvisory": {
+    "localPreflightCoverageIsAdvisory": true,
+    "expectedGoldAnswerRows": 40,
+    "detectedLedgerAnswerRows": 38,
+    "missingByLocalLedgerOnly": [
+      10,
+      12
+    ],
+    "interpretation": "Local preflight did not classify every visible source answer row. This is a measurement limitation, not a product blocker. The same philosophy applies to messy question areas, task groups, reference banks, passage boundaries, and clipped source clutter: Auto V4 provider output and Studio diagnostics remain the authoritative user-facing parse contract."
+  },
+  "appResult": {
+    "success": true,
+    "reviewStatus": "needs_review",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash+auto-v4-staged-adapter",
+    "passageCount": 3,
+    "questionCount": 40,
+    "error": null,
+    "diagnostics": [
+      {
+        "code": "auto-pipeline-lane-selected",
+        "severity": "info",
+        "message": "Auto pipeline lane selected: V4 full-document staged parser."
+      },
+      {
+        "code": "auto-v4-staged-parser-used",
+        "severity": "info",
+        "message": "Auto V4 used staged Reading parser outputs, then adapted them locally into Reading V2 structured payload."
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 passage stage completed with gemini.",
+        "stage": "auto-v4-passages",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-provider-stage",
+        "severity": "info",
+        "message": "Auto V4 question/answer stage completed with gemini.",
+        "stage": "auto-v4-questions",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-question-chunk-recovery",
+        "severity": "warning",
+        "message": "Auto V4 full-document question stage failed, then recovered all 3 passage chunks.",
+        "stage": "auto-v4-questions",
+        "providerResult": "success"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 1 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 1,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage.",
+        "passageNumber": 1,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 2 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 2,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+        "passageNumber": 2,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "auto-v4-source-authoritative-passage",
+        "severity": "info",
+        "message": "Passage 3 Studio text was copied from raw source ledger lines instead of provider passage prose.",
+        "passageNumber": 3,
+        "verifierResult": "passed"
+      },
+      {
+        "code": "auto-v4-source-passage-drift",
+        "severity": "warning",
+        "message": "Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+        "passageNumber": 3,
+        "verifierResult": "failed"
+      },
+      {
+        "code": "answer-key-extracted",
+        "severity": "info",
+        "message": "Auto extracted answer-key rows from the raw source."
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 1-5 is weak: group-source-underrepresented.",
+        "questionNumber": 1,
+        "groupRange": "1-5",
+        "sourceRange": "line-0085-line-0106",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 6-8 is weak: group-source-underrepresented.",
+        "questionNumber": 6,
+        "groupRange": "6-8",
+        "sourceRange": "line-0107-line-0120",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: group-source-underrepresented.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0121-line-0136",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "high-risk-token-changed",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: high-risk-token-changed.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0121-line-0136",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "question-text-changed",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: question-text-changed.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0121-line-0136",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "table-cell-missing",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: table-cell-missing.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0121-line-0136",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "table-column-missing",
+        "severity": "warning",
+        "message": "Group 9-13 is weak: table-column-missing.",
+        "questionNumber": 9,
+        "groupRange": "9-13",
+        "sourceRange": "line-0121-line-0136",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "source-question-range-missing",
+        "severity": "warning",
+        "message": "Group 14-21 is teacher-review: source-question-range-missing.",
+        "questionNumber": 14,
+        "groupRange": "14-21",
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 22-26 is weak: group-source-underrepresented.",
+        "questionNumber": 22,
+        "groupRange": "22-26",
+        "sourceRange": "line-0233-line-0256",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 27-30 is weak: group-source-underrepresented.",
+        "questionNumber": 27,
+        "groupRange": "27-30",
+        "sourceRange": "line-0287-line-0332",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 31-35 is weak: group-source-underrepresented.",
+        "questionNumber": 31,
+        "groupRange": "31-35",
+        "sourceRange": "line-0333-line-0362",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "group-source-underrepresented",
+        "severity": "warning",
+        "message": "Group 36-40 is weak: group-source-underrepresented.",
+        "questionNumber": 36,
+        "groupRange": "36-40",
+        "sourceRange": "line-0363-line-0390",
+        "repairScopes": [
+          "task-group"
+        ],
+        "verifierResult": "failed"
+      },
+      {
+        "code": "source-ledger-warning",
+        "severity": "warning",
+        "message": "Potential clipped web pollution was detected and will be ignored by topology checks."
+      },
+      {
+        "code": "source-instruction-task-type-mismatch",
+        "severity": "warning",
+        "message": "Source instruction for Questions 1-8 looks like matching-headings, but Gemini output returned true-false-not-given.",
+        "passageNumber": 2,
+        "questionNumber": 1
+      },
+      {
+        "code": "source-answer-row-unbound",
+        "severity": "warning",
+        "message": "Source answer-key rows cannot bind to generated questions: 14-40.",
+        "questionNumber": 14
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q14 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q14 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q15 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q15 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q16 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q16 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q17 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q17 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q18 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q18 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q19 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q19 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q20 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q20 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q21 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q21 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q22 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q22 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q23 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q23 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q24 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q24 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q25 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q25 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q26 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q26 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q27 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q27 needs exactly one correct answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q28 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q28 needs exactly one correct answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q29 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q29 needs exactly one correct answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q30 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q30 needs exactly one correct answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q31 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q31 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q32 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q32 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q33 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q33 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q34 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q34 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q35 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q35 needs exactly one matching answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q36 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q36 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q37 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q37 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q38 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q38 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q39 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q39 needs exactly one judgement answer."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q40 is missing a publishable answer key or scoring rule."
+      },
+      {
+        "code": "canonical-validation-blocked",
+        "severity": "warning",
+        "message": "Draft validation remains publish-blocking in Studio: Interaction practice-cam-10-reading-test-01-q40 needs exactly one judgement answer."
+      }
+    ],
+    "publishBlockingPlaceholders": [
+      "Teacher answer key is missing rows for imported question numbers: 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40",
+      "Imported questions are incomplete until answer keys are confirmed",
+      "Auto import needs teacher review before publish: Group 14-21 is teacher-review: source-question-range-missing.",
+      "Auto import needs teacher review before publish: Source instruction for Questions 1-8 looks like matching-headings, but Gemini output returned true-false-not-given.",
+      "Auto import needs teacher review before publish: Source answer-key rows cannot bind to generated questions: 14-40.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q14 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q14 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q15 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q15 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q16 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q16 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q17 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q17 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q18 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q18 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q19 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q19 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q20 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q20 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q21 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q21 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q22 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q22 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q23 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q23 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q24 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q24 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q25 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q25 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q26 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q26 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q27 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q27 needs exactly one correct answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q28 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q28 needs exactly one correct answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q29 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q29 needs exactly one correct answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q30 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q30 needs exactly one correct answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q31 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q31 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q32 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q32 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q33 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q33 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q34 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q34 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q35 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q35 needs exactly one matching answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q36 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q36 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q37 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q37 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q38 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q38 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q39 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q39 needs exactly one judgement answer.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q40 is missing a publishable answer key or scoring rule.",
+      "Draft validation: Interaction practice-cam-10-reading-test-01-q40 needs exactly one judgement answer."
+    ],
+    "uncertaintyMarkers": [
+      "Structured JSON payload detected",
+      "Teacher answer key requires binding review",
+      "Question links require teacher review before publish",
+      "Source ledger: Potential clipped web pollution was detected and will be ignored by topology checks.",
+      "Auto import review: Auto V4 full-document question stage failed, then recovered all 3 passage chunks.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 1-13, Reading Passage.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 14-26, Reading Passage.",
+      "Auto import review: Auto V4 provider passage text differed from raw source high-risk token(s): 27-40, Reading Passage.",
+      "Auto import review: Group 1-5 is weak: group-source-underrepresented.",
+      "Auto import review: Group 6-8 is weak: group-source-underrepresented.",
+      "Auto import review: Group 9-13 is weak: group-source-underrepresented.",
+      "Auto import review: Group 9-13 is weak: high-risk-token-changed.",
+      "Auto import review: Group 9-13 is weak: question-text-changed.",
+      "Auto import review: Group 9-13 is weak: table-cell-missing.",
+      "Auto import review: Group 9-13 is weak: table-column-missing.",
+      "Auto import review: Group 14-21 is teacher-review: source-question-range-missing.",
+      "Auto import review: Group 22-26 is weak: group-source-underrepresented.",
+      "Auto import review: Group 27-30 is weak: group-source-underrepresented.",
+      "Auto import review: Group 31-35 is weak: group-source-underrepresented.",
+      "Auto import review: Group 36-40 is weak: group-source-underrepresented.",
+      "Auto import review: Potential clipped web pollution was detected and will be ignored by topology checks.",
+      "Auto import review: Source instruction for Questions 1-8 looks like matching-headings, but Gemini output returned true-false-not-given.",
+      "Auto import review: Source answer-key rows cannot bind to generated questions: 14-40."
+    ]
+  },
+  "appStructure": {
+    "sectionCount": 3,
+    "taskGroupCount": 8,
+    "interactionCount": 40,
+    "visibleQuestionRange": "1-40",
+    "taskGroups": [
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-1-1",
+        "officialTaskType": "true-false-not-given",
+        "range": "1-5",
+        "interactionCount": 5,
+        "fieldContent": {
+          "sourceRange": "line-0085-line-0106",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-1-1-instruction-1",
+              "excerpt": "Do the following statements agree with the information given in Reading Passage 1? In boxes 1-5 on your answer sheet, write TRUE if the statement agrees with the information FALSE ",
+              "normalizedHash": "594db819902b34268ce879136e70b85ce2180df3b99b1f869736f4f30a961410",
+              "coveredByRawSpan": false
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [],
+          "interactions": [
+            {
+              "question": 1,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "Examples of ancient stepwells can be found all over the world.",
+              "promptNormalizedHash": "78dbb98128e1281c13eb5843fa1aba8b0e62534393233c27586474fff4c72b06",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "False"
+              ]
+            },
+            {
+              "question": 2,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "Stepwells had a range of functions, in addition to those related to water collection.",
+              "promptNormalizedHash": "5d87e98a747dadff7df1abe1b6578939402f6d81015cef60737365a38d893097",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "True"
+              ]
+            },
+            {
+              "question": 3,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "The few existing stepwells in Delhi are more attractive than those found elsewhere.",
+              "promptNormalizedHash": "b5dd057ac8aabf76673b682badccbd34f90c3ea56b5201fe510a47be65bc7be3",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "Not Given"
+              ]
+            },
+            {
+              "question": 4,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "It took workers many years to build the stone steps characteristic of stepwells.",
+              "promptNormalizedHash": "fb678462f96ef64b540d5215323689c4b5a98cfc8b3086a093cefc4100d70d15",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "Not Given"
+              ]
+            },
+            {
+              "question": 5,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "The number of steps above the water level in a stepwell altered during the course of a year.",
+              "promptNormalizedHash": "e9b1741023fb68c67127fec7eae4b4adb40e0b17be42959191dcdbf675b305e2",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "True"
+              ]
+            }
+          ],
+          "uncoveredInstructionCount": 1,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-1-2",
+        "officialTaskType": "short-answer",
+        "range": "6-8",
+        "interactionCount": 3,
+        "fieldContent": {
+          "sourceRange": "line-0107-line-0120",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-1-2-instruction-1",
+              "excerpt": "Answer the questions below. Choose ONE WORD ONLY from the passage for each answer. Write your answers in boxes 6-8 on your answer sheet.",
+              "normalizedHash": "efcce7fceb7dd0bbe37f09a4693e5f5828ebd969a6f2c3e0cd881969f7bf1ba1",
+              "coveredByRawSpan": false
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [],
+          "interactions": [
+            {
+              "question": 6,
+              "responseKind": "free-text",
+              "promptExcerpt": "Which part of some stepwells provided shade for people?",
+              "promptNormalizedHash": "c0468299ff60a1bcccaa8ce8d46814e995727c4b4631ff9ed725d1fca4648c8c",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "pavilions"
+              ]
+            },
+            {
+              "question": 7,
+              "responseKind": "free-text",
+              "promptExcerpt": "What type of serious climatic event, which took place in southern Rajasthan, is mentioned in the article?",
+              "promptNormalizedHash": "bd7b5222e660993f9e4c2ad29879c48b2ed6a1916a9a8c8c2365d6107dd7acef",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "drought"
+              ]
+            },
+            {
+              "question": 8,
+              "responseKind": "free-text",
+              "promptExcerpt": "Who are frequent visitors to stepwells nowadays?",
+              "promptNormalizedHash": "b3e236aa9b359d67d85b2449cc940d5fd77226402ca7480ac0b9c5528aefee2f",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "tourists"
+              ]
+            }
+          ],
+          "uncoveredInstructionCount": 1,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-1-3",
+        "officialTaskType": "table-completion",
+        "range": "9-13",
+        "interactionCount": 5,
+        "fieldContent": {
+          "sourceRange": "line-0121-line-0136",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-1-3-instruction-1",
+              "excerpt": "Complete the table below. Choose ONE WORD AND/OR A NUMBER from the passage for each answer. Write your answers in boxes 9-13 on your answer sheet.",
+              "normalizedHash": "66f9b0c6ceea3b9700fdbe0a40429da348130c6ba0d630ab377d5eb67e391217",
+              "coveredByRawSpan": false
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [],
+          "interactions": [
+            {
+              "question": 9,
+              "responseKind": "structured-entry",
+              "promptExcerpt": "Rani Ki Vav | Late 11th century | As many as 500 sculptures decorate the monument | Restored in the 1990s Excellent condition, despite the ___ of 2001.",
+              "promptNormalizedHash": "00f1e8eb22ac5cef7483551701d71a08913be6a4905ea5e7cd71e4760b4b0592",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "Earthquake"
+              ]
+            },
+            {
+              "question": 10,
+              "responseKind": "structured-entry",
+              "promptExcerpt": "Surya Kund | 1026 | Steps on the ___ produce a geometric pattern Carved shrines. | Looks more like a **11** ___ than a well.",
+              "promptNormalizedHash": "d661a8a6c88d0414a8a877506c72bc76553db942e8a13d637e4b4a37d81c1303",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "Four sides",
+                "4 sides"
+              ]
+            },
+            {
+              "question": 11,
+              "responseKind": "structured-entry",
+              "promptExcerpt": "Surya Kund | 1026 | Steps on the **10** ___ produce a geometric pattern Carved shrines. | Looks more like a ___ than a well.",
+              "promptNormalizedHash": "d661a8a6c88d0414a8a877506c72bc76553db942e8a13d637e4b4a37d81c1303",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "Tank"
+              ]
+            },
+            {
+              "question": 12,
+              "responseKind": "structured-entry",
+              "promptExcerpt": "Chand Baori | 850 AD | Steps take you down 11 storeys to the bottom | Old, deep and very dramatic Has ___ which provide a view to the steps.",
+              "promptNormalizedHash": "22644f744c979d4900a1013f4aef8569c096fae4da01e4f9104ee1525a375a15",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "verandas",
+                "verandahs"
+              ]
+            },
+            {
+              "question": 13,
+              "responseKind": "structured-entry",
+              "promptExcerpt": "Neemrana Ki Baori | 1700 | Has two ___ levels. | Used by public today",
+              "promptNormalizedHash": "9c0992a616cb31d7b4f1ca243446264518f0075f2a970384c349071a617acfcc",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": [
+                "underwater"
+              ]
+            }
+          ],
+          "uncoveredInstructionCount": 1,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-2-1",
+        "officialTaskType": "matching-headings",
+        "range": "14-21",
+        "interactionCount": 8,
+        "fieldContent": {
+          "sourceRange": null,
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-2-1-instruction-1",
+              "excerpt": "Choose the correct heading for each section from the list of headings below. Write the correct number, i-xi, in boxes 14-21 on your answer sheet.",
+              "normalizedHash": "4a3a43f0219f977e52cc54cbda261e99715ad8bb999585374ad0fd9c9800ee4f",
+              "coveredByRawSpan": false
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-2-1",
+              "optionCount": 11,
+              "labels": [
+                "i",
+                "ii",
+                "iii",
+                "iv",
+                "v",
+                "vi",
+                "vii",
+                "viii",
+                "ix",
+                "x",
+                "xi"
+              ],
+              "options": [
+                {
+                  "label": "i",
+                  "excerpt": "A fresh and important long-term goal",
+                  "normalizedHash": "84a23738f2cfd147a314a716c4c6bd843f755e140830f17ff1e2fdeb05906754",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "ii",
+                  "excerpt": "Charging for roads and improving other transport methods",
+                  "normalizedHash": "88866e288c2645e132f8b9757bd657275a8774d0bf6d13840f1c91e2a2e2cff0",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "iii",
+                  "excerpt": "Changes affecting the distances goods may be transported",
+                  "normalizedHash": "35743063a7668aaeb05ef71acf7c36e9a8c2d78a3b87da157a3d6e4b0c42821d",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "iv",
+                  "excerpt": "Taking all the steps necessary to change transport patterns",
+                  "normalizedHash": "6ef2291b01a8ec115ad780bc0ddbc769537d9f02db51d6c0309aeda431a29ae2",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "v",
+                  "excerpt": "The environmental costs of road transport",
+                  "normalizedHash": "f766f068781c408b14daefaa5af72fb9a17eb88b4570d5bbb56f07bf39bf5256",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "vi",
+                  "excerpt": "The escalating cost of rail transport",
+                  "normalizedHash": "a1e8bbdc8a4ec8abed0229422267353b5b98ec3753d6a83800a74a2363fda2c4",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "vii",
+                  "excerpt": "The need to achieve transport rebalance",
+                  "normalizedHash": "0483e1b549136ecb74c392e10a0f4e22abaa5e59f60be926d309aec1153bc59e",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "viii",
+                  "excerpt": "The rapid growth of private transport",
+                  "normalizedHash": "da1f9340579dca54208452b781acdb13fd12fa8f867767d6905f984bade23ff6",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "ix",
+                  "excerpt": "Plans to develop major road networks",
+                  "normalizedHash": "5b9fa479db31ef8c3e4572e0a1f745739dd83c8857a4569814f8a2096ba32ac7",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "x",
+                  "excerpt": "Restricting road use through charging policies alone",
+                  "normalizedHash": "1264c7114b77c448eb6b642433340e41dd7e490a51264b3c37edbdd8e8d59fbf",
+                  "coveredByRawSpan": false
+                },
+                {
+                  "label": "xi",
+                  "excerpt": "Transport trends in countries awaiting EU admission",
+                  "normalizedHash": "6d4deda7087d3cb6f861fc832fbf67ba60371ea99111607c9626271834e39402",
+                  "coveredByRawSpan": false
+                }
+              ]
+            }
+          ],
+          "interactions": [
+            {
+              "question": 14,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph A",
+              "promptNormalizedHash": "fcb67b300b24b1bf80acbff8423990af5f81b355e0199c2506363e78169e49dc",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 15,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph B",
+              "promptNormalizedHash": "9d77bc4142bb9264df2e6699e2d107e05bca07733df39aa1dca6d0ab8a97fca1",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 16,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph C",
+              "promptNormalizedHash": "4aecba55a8ee57cfb15474d76b08c38630922ff28f0949ce7d29b3d8f82e5ce9",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 17,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph D",
+              "promptNormalizedHash": "f2b348ef6bd47007a2d58c309f151306ebe1f8f45cee865c636a292a551dcd68",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 18,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph E",
+              "promptNormalizedHash": "cde2c66f9314679a26ecb896f3e716e0b3166ced0666305a835fe0ce07270d55",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 19,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph G",
+              "promptNormalizedHash": "023e9a2bada0ea46ab8b2459383335cbccca5be9475c27d9e6b979c501ac140c",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 20,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph H",
+              "promptNormalizedHash": "4c1ef88ed67755b6045801c6cfbf1ec9abbe5b67714194fd47c1f18aa7dbffda",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 21,
+              "responseKind": "matching",
+              "promptExcerpt": "Paragraph I",
+              "promptNormalizedHash": "17cc45796c1cd3c02b547c12c1fb975e13ab7cf77628c1fe7fcb5ebfa6a2508f",
+              "promptCoveredByRawSpan": false,
+              "acceptableAnswers": []
+            }
+          ],
+          "uncoveredInstructionCount": 1,
+          "uncoveredOptionCount": 11,
+          "uncoveredPromptCount": 8
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-2-2",
+        "officialTaskType": "true-false-not-given",
+        "range": "22-26",
+        "interactionCount": 5,
+        "fieldContent": {
+          "sourceRange": "line-0233-line-0256",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-2-2-instruction-1",
+              "excerpt": "Do the following statements agree with the information given in Reading Passage 2? In boxes 22-26 on your answer sheet, write TRUE if the statement agrees with the information FALS",
+              "normalizedHash": "d5dd8b0f5d956b15783842d7cdf3cde44a0757c7bebf13accd6e7b3580f3c408",
+              "coveredByRawSpan": true
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [],
+          "interactions": [
+            {
+              "question": 22,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "The need for transport is growing, despite technological developments.",
+              "promptNormalizedHash": "ee12109e1889eb736d5e1cef6eaa7d5bdc30c96c8fd7abd13a4de5e4ab9c3f85",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 23,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "To reduce production costs, some industries have been moved closer to their relevant consumers.",
+              "promptNormalizedHash": "7d7e4b388e76b057d298af4f67969c15f33aa020074f0dc9d078642d22c5102a",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 24,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "Cars are prohibitively expensive in some EU candidate countries.",
+              "promptNormalizedHash": "c706dd93d41dde71de49b8609f3abfc2a7572a9c9c1adf78c8b2d1eb38cf8260",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 25,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "The Gothenburg European Council was set up 30 years ago.",
+              "promptNormalizedHash": "df30e5fa943d2cc4f7ff1d7dacdbb0e4da6bc72e986ebeba24bb56112324839b",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 26,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "By the end of this decade, CO2 emissions from transport are predicted to reach 739 billion tonnes.",
+              "promptNormalizedHash": "6bba3c14a6ec2eacf3818799509792f09983522c74d6f753a6de4284263dea0c",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            }
+          ],
+          "uncoveredInstructionCount": 0,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-3-1",
+        "officialTaskType": "multiple-choice",
+        "range": "27-30",
+        "interactionCount": 4,
+        "fieldContent": {
+          "sourceRange": "line-0287-line-0332",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-3-1-instruction-1",
+              "excerpt": "Choose the correct letter, A-D. Write the correct letter, A-D, in boxes 27-30 on your answer sheet.",
+              "normalizedHash": "080d3dfcd3d6e558ab12a2f492761415ffb2ac4b3da2e13fa9a97c4ff8e30e80",
+              "coveredByRawSpan": false
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-3-1-q27",
+              "optionCount": 4,
+              "labels": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "options": [
+                {
+                  "label": "A",
+                  "excerpt": "recognising talent.",
+                  "normalizedHash": "31aa33ee4a513fbcce1f89a896246e48d2f01e4f3497c03429990d140d359637",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "B",
+                  "excerpt": "working as a team.",
+                  "normalizedHash": "b9bd89bec48849346c8fb4c10ca1fcf618ff9c2c6e51b8aa896447d029dfcfd3",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "C",
+                  "excerpt": "having a shared objective.",
+                  "normalizedHash": "1a3641272ea671c92d9d123094cbbb7c72b3fd2bd438ad69038763a95dd1d663",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "D",
+                  "excerpt": "being an effective leader.",
+                  "normalizedHash": "4527ca2542d043f95ed5d46efe6970b488a66986da4d406b0171bf5caffb148c",
+                  "coveredByRawSpan": true
+                }
+              ]
+            },
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-3-1-q28",
+              "optionCount": 4,
+              "labels": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "options": [
+                {
+                  "label": "A",
+                  "excerpt": "were conscious of their own limitations.",
+                  "normalizedHash": "ec286827736b7d7e62d24491d2077d6d1abe4b5f560b65edd39ab1d1f339e755",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "B",
+                  "excerpt": "brought complementary skills to their partnership.",
+                  "normalizedHash": "b6d5a882601ab95f15c93fe31445b8b50b48be9b1532735705e14adedefe275f",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "C",
+                  "excerpt": "were determined to outperform their brighter rivals.",
+                  "normalizedHash": "4708d731aa6a08c1a2bbccb461e2387f42d08c38505ffd4d50d6771113a316a5",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "D",
+                  "excerpt": "encouraged each other to realise their joint ambition.",
+                  "normalizedHash": "83c290aef1ff92ddfb5a6364fc3563adc44cd304c92ffe49761cc9543ff90e4b",
+                  "coveredByRawSpan": true
+                }
+              ]
+            },
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-3-1-q29",
+              "optionCount": 4,
+              "labels": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "options": [
+                {
+                  "label": "A",
+                  "excerpt": "inspire creative thinking.",
+                  "normalizedHash": "569552d1a8c1c8ced5aac7cdce2dba54ee06f1377fdcc17c37410ed30d8ed89b",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "B",
+                  "excerpt": "generate concise writing.",
+                  "normalizedHash": "eb38916876b91cd7c91ea537e7e861327b6adbd60555a1d3e20b620294522f12",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "C",
+                  "excerpt": "promote loyalty to a group.",
+                  "normalizedHash": "49659d1e42122a7f03666f55355481476335fb6b1f8acf3b0f0874a4046621a5",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "D",
+                  "excerpt": "strengthen commitment to an idea.",
+                  "normalizedHash": "f0e481eec28bd1330f29c8282cca39dd4bcaab0c6b62606c066bb76e8afc4a92",
+                  "coveredByRawSpan": true
+                }
+              ]
+            },
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-3-1-q30",
+              "optionCount": 4,
+              "labels": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "options": [
+                {
+                  "label": "A",
+                  "excerpt": "be aware of their company’s goals.",
+                  "normalizedHash": "f2a747349dfbeea1491f2aa1cb54ae20052f2c311d04e1be2880cb829a8cea39",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "B",
+                  "excerpt": "feel that their contributions are valued.",
+                  "normalizedHash": "322882bf327efa1716cf82563cc7fb8616b16ed0b3de399218a3b9926225d042",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "C",
+                  "excerpt": "have respect for their co-workers‟ achievements.",
+                  "normalizedHash": "d0c0e2dc9265509b80dc99fac6f55aeb162448ef12ffca5c51b49fa75f3c4ede",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "D",
+                  "excerpt": "understand why certain management decisions are made.",
+                  "normalizedHash": "5b491e8a2476d3fa0c1b0a20e1a9a36310d6f05bb155150ef42929212dc882dc",
+                  "coveredByRawSpan": true
+                }
+              ]
+            }
+          ],
+          "interactions": [
+            {
+              "question": 27,
+              "responseKind": "single-choice",
+              "promptExcerpt": "The example of the ‘million-dollar quartet’ underlines the writer’s point about",
+              "promptNormalizedHash": "4e85a95cd13d6aa2a8bed18e7d778505e65c5ed8e3541d490ad8ca694d8486da",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 28,
+              "responseKind": "single-choice",
+              "promptExcerpt": "James Watson suggests that he and Francis Crick won the race to discover the DNA code because they",
+              "promptNormalizedHash": "0429cdbd52b859e76def4aaa8d22f3e47f75c9d4527438c6044f0b5497b31919",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 29,
+              "responseKind": "single-choice",
+              "promptExcerpt": "The writer mentions competitions on breakfast cereal packets as an example of how to",
+              "promptNormalizedHash": "ba7510c336b5ce734bd2d4e337dc3fb34e09a6a18bd33f8b71162483bd7d4aa5",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 30,
+              "responseKind": "single-choice",
+              "promptExcerpt": "In the last paragraph, the writer suggests that it is important for employees to",
+              "promptNormalizedHash": "058b24e9ba82ef3502b9823f6680a372985ca3a7a77d575844f28e39d54dac00",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            }
+          ],
+          "uncoveredInstructionCount": 1,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-3-2",
+        "officialTaskType": "matching-sentence-endings",
+        "range": "31-35",
+        "interactionCount": 5,
+        "fieldContent": {
+          "sourceRange": "line-0333-line-0362",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-3-2-instruction-1",
+              "excerpt": "Complete each sentence with the correct ending, A-G, below. Write the correct letter, A-G, in boxes 31-35 on your answer sheet.",
+              "normalizedHash": "2a9aabc7d8b72d01523f4d2b6a8302c2064e923da1630f12859b1db0798a4d31",
+              "coveredByRawSpan": true
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [
+            {
+              "optionSetId": "practice-cam-10-reading-test-01-option-set-3-2",
+              "optionCount": 7,
+              "labels": [
+                "A",
+                "B",
+                "C",
+                "D",
+                "E",
+                "F",
+                "G"
+              ],
+              "options": [
+                {
+                  "label": "A",
+                  "excerpt": "take chances.",
+                  "normalizedHash": "44a191ee87223d894aa50fa3a40b7321d3453997a40d8b691eca21f89667493d",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "B",
+                  "excerpt": "share their ideas.",
+                  "normalizedHash": "632ee8d206ce79131708b04fea7c931ea067a732797177a759982a4d6a3aec75",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "C",
+                  "excerpt": "become competitive.",
+                  "normalizedHash": "331b140787ead7fad66aecb1404ab56e569226267a73edcd9a659a012a809850",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "D",
+                  "excerpt": "get promotion.",
+                  "normalizedHash": "20b4c37e69e7c758a5c14448400a9cc38654167efb5eab886f2f344a7463ae7c",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "E",
+                  "excerpt": "avoid risk.",
+                  "normalizedHash": "a03bc9cc2e69e013b7fdd7e91cfb3c98fb611ccbac3bda1097d20153e264ca63",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "F",
+                  "excerpt": "ignore their duties.",
+                  "normalizedHash": "cab596afff19889d8edd8021e9e971382b3f77113eb6379e35ae57a19be05d15",
+                  "coveredByRawSpan": true
+                },
+                {
+                  "label": "G",
+                  "excerpt": "remain in their jobs.",
+                  "normalizedHash": "1a542a51624fba293009dd8f82233e80f680d052413c9bec731907b2ae1e1210",
+                  "coveredByRawSpan": true
+                }
+              ]
+            }
+          ],
+          "interactions": [
+            {
+              "question": 31,
+              "responseKind": "matching",
+              "promptExcerpt": "Employees whose values match those of their employers are more likely to",
+              "promptNormalizedHash": "67435ccb3b8381bb8d6c6af2a903f74e1a16a47d8716bf774f0ee6255f4b09d4",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 32,
+              "responseKind": "matching",
+              "promptExcerpt": "At times of change, people tend to",
+              "promptNormalizedHash": "bcc4ae9eb18e30c7838138fa29c9a97627be3d4ae7ddf26e80d1abb3210a594e",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 33,
+              "responseKind": "matching",
+              "promptExcerpt": "If people are aware of what they might lose, they will often",
+              "promptNormalizedHash": "9b380ba9295c439d09dd5810a725c85791d6a54ec522af1e2e3ea151e33a97ff",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 34,
+              "responseKind": "matching",
+              "promptExcerpt": "People working under a dominant boss are liable to",
+              "promptNormalizedHash": "c1042d045f64e05b21e5a3599999201ee0b6c7eea3de9cdab6ac35cca0deb5ab",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 35,
+              "responseKind": "matching",
+              "promptExcerpt": "Employees working in organisations with few rules are more likely to",
+              "promptNormalizedHash": "dd35c2b2d0ee603c43a1c580e759aa57ca073452fc59a1992541ff4bd3d7542b",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            }
+          ],
+          "uncoveredInstructionCount": 0,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      },
+      {
+        "taskGroupId": "practice-cam-10-reading-test-01-task-group-3-3",
+        "officialTaskType": "yes-no-not-given",
+        "range": "36-40",
+        "interactionCount": 5,
+        "fieldContent": {
+          "sourceRange": "line-0363-line-0390",
+          "instructionBlocks": [
+            {
+              "id": "practice-cam-10-reading-test-01-task-group-3-3-instruction-1",
+              "excerpt": "Do the following statements agree with the claims of the writer in Reading Passage 3? In boxes 36-40 on your answer sheet, write YES if the statement agrees with the claims of the ",
+              "normalizedHash": "582d8cc72b160f5c7010af60312388b1d47a02e881c9b65fdba20cd23611b6ce",
+              "coveredByRawSpan": true
+            }
+          ],
+          "layoutHint": {
+            "present": false,
+            "excerpt": null,
+            "normalizedHash": null,
+            "parsed": null
+          },
+          "optionSets": [],
+          "interactions": [
+            {
+              "question": 36,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "The physical surroundings in which a person works play a key role in determining their creativity.",
+              "promptNormalizedHash": "22e2d1f0b504fb5a0aa497690ea7a627a8a64a6bb9d36e28b895862a4dc75108",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 37,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "Most people have the potential to be creative.",
+              "promptNormalizedHash": "73f18486ffaf945f1f00cd433e5c2d5d985afd6e2b1f49da934dc659444e0ce8",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 38,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "Teams work best when their members are of equally matched intelligence.",
+              "promptNormalizedHash": "fc12ab7f1fb45c03896573e442b7d80542a4c0aff99df5c020aca44526ebdeae",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 39,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "It is easier for smaller companies to be innovative.",
+              "promptNormalizedHash": "7b489c2e22f4890a13bb82c421a5aec53b5506bfb9d50a8bcbe3fdf0c035e10e",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            },
+            {
+              "question": 40,
+              "responseKind": "binary-judgement",
+              "promptExcerpt": "A manager’s approval of an idea is more persuasive than that of a colleague.",
+              "promptNormalizedHash": "6dfa6370e349ad5f274cc1db27f8fb8d014e9ae6f40abddb4d36f93d5e39e907",
+              "promptCoveredByRawSpan": true,
+              "acceptableAnswers": []
+            }
+          ],
+          "uncoveredInstructionCount": 0,
+          "uncoveredOptionCount": 0,
+          "uncoveredPromptCount": 0
+        }
+      }
+    ],
+    "answerKey": {
+      "rowCount": 13,
+      "questionRange": "1-13",
+      "unparsedLineCount": 0,
+      "duplicateQuestionNumbers": [],
+      "answers": [
+        {
+          "question": 1,
+          "answer": "FALSE",
+          "parsedAnswerValues": [
+            "FALSE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 2,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 3,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 4,
+          "answer": "NOT GIVEN",
+          "parsedAnswerValues": [
+            "NOT GIVEN"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 5,
+          "answer": "TRUE",
+          "parsedAnswerValues": [
+            "TRUE"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 6,
+          "answer": "pavilions",
+          "parsedAnswerValues": [
+            "pavilions"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 7,
+          "answer": "drought",
+          "parsedAnswerValues": [
+            "drought"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 8,
+          "answer": "tourists",
+          "parsedAnswerValues": [
+            "tourists"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 9,
+          "answer": "Earthquake",
+          "parsedAnswerValues": [
+            "Earthquake"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 10,
+          "answer": "Four sides/ 4 sides",
+          "parsedAnswerValues": [
+            "Four sides",
+            "4 sides"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 11,
+          "answer": "Tank",
+          "parsedAnswerValues": [
+            "Tank"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 12,
+          "answer": "verandas/ verandahs",
+          "parsedAnswerValues": [
+            "verandas",
+            "verandahs"
+          ],
+          "bindingStatus": "unbound"
+        },
+        {
+          "question": 13,
+          "answer": "underwater",
+          "parsedAnswerValues": [
+            "underwater"
+          ],
+          "bindingStatus": "unbound"
+        }
+      ]
+    },
+    "validation": {
+      "blockingIssueCount": 54,
+      "warningIssueCount": 0,
+      "blockingMessages": [
+        "Interaction practice-cam-10-reading-test-01-q14 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q14 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q15 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q15 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q16 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q16 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q17 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q17 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q18 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q18 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q19 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q19 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q20 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q20 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q21 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q21 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q22 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q22 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q23 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q23 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q24 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q24 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q25 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q25 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q26 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q26 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q27 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q27 needs exactly one correct answer.",
+        "Interaction practice-cam-10-reading-test-01-q28 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q28 needs exactly one correct answer.",
+        "Interaction practice-cam-10-reading-test-01-q29 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q29 needs exactly one correct answer.",
+        "Interaction practice-cam-10-reading-test-01-q30 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q30 needs exactly one correct answer.",
+        "Interaction practice-cam-10-reading-test-01-q31 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q31 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q32 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q32 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q33 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q33 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q34 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q34 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q35 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q35 needs exactly one matching answer.",
+        "Interaction practice-cam-10-reading-test-01-q36 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q36 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q37 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q37 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q38 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q38 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q39 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q39 needs exactly one judgement answer.",
+        "Interaction practice-cam-10-reading-test-01-q40 is missing a publishable answer key or scoring rule.",
+        "Interaction practice-cam-10-reading-test-01-q40 needs exactly one judgement answer."
+      ],
+      "warningMessages": []
+    }
+  },
+  "diagnosticEvents": [
+    {
+      "event": "auto_pipeline_lane_selected",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "forceV4Pipeline": false,
+        "hasStructuredGenerator": false,
+        "hasV4Extractor": false,
+        "sourceLength": 26656,
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40
+      }
+    },
+    {
+      "event": "auto_v4_preflight_complete",
+      "payload": {
+        "pipelineLane": "v4-full-doc",
+        "stageShape": "full-document",
+        "sourceLength": 26656,
+        "chunkCount": 3,
+        "answerKeyDetected": true,
+        "answerKeyHeadingDetected": true,
+        "sourceLedgerCategory": "full-test-with-answer-key",
+        "sourceLedgerPassageCount": 3,
+        "sourceLedgerQuestionCount": 40,
+        "sourceLedgerAnswerKeyRowCount": 38,
+        "sourceName": "Practice Cam 10 Reading Test 01.md"
+      }
+    },
+    {
+      "event": "auto_v4_question_chunk_recovery_started",
+      "payload": {
+        "outcome": "attempted",
+        "chunkCount": 3
+      }
+    },
+    {
+      "event": "auto_v4_question_chunk_recovery_completed",
+      "payload": {
+        "outcome": "success",
+        "chunkCount": 3,
+        "recoveredQuestionCount": 40
+      }
+    }
+  ],
+  "comparison": {
+    "expectedPassageCount": 3,
+    "appPassageCount": 3,
+    "expectedQuestionCount": 40,
+    "appQuestionCount": 40,
+    "expectedAnswerCount": 40,
+    "appAnswerCount": 13,
+    "missingQuestions": [],
+    "extraQuestions": [],
+    "missingAnswerValues": [
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ],
+    "mismatchedAnswerValues": [],
+    "missingTaskGroups": [],
+    "extraTaskGroups": [],
+    "hasTaskGroupShapeMismatch": false,
+    "fieldContentCoverageIssues": [
+      {
+        "range": "1-5",
+        "taskType": "true-false-not-given",
+        "uncoveredInstructions": 1,
+        "uncoveredOptions": 0,
+        "uncoveredPrompts": 0,
+        "total": 1
+      },
+      {
+        "range": "6-8",
+        "taskType": "short-answer",
+        "uncoveredInstructions": 1,
+        "uncoveredOptions": 0,
+        "uncoveredPrompts": 0,
+        "total": 1
+      },
+      {
+        "range": "9-13",
+        "taskType": "table-completion",
+        "uncoveredInstructions": 1,
+        "uncoveredOptions": 0,
+        "uncoveredPrompts": 0,
+        "total": 1
+      },
+      {
+        "range": "14-21",
+        "taskType": "matching-headings",
+        "uncoveredInstructions": 1,
+        "uncoveredOptions": 11,
+        "uncoveredPrompts": 8,
+        "total": 20
+      },
+      {
+        "range": "27-30",
+        "taskType": "multiple-choice",
+        "uncoveredInstructions": 1,
+        "uncoveredOptions": 0,
+        "uncoveredPrompts": 0,
+        "total": 1
+      }
+    ],
+    "hasReviewableDiagnostics": true,
+    "expectedTaskGroups": [
+      {
+        "passage": 1,
+        "range": "1-5",
+        "taskType": "true-false-not-given"
+      },
+      {
+        "passage": 1,
+        "range": "6-8",
+        "taskType": "short-answer"
+      },
+      {
+        "passage": 1,
+        "range": "9-13",
+        "taskType": "table-completion"
+      },
+      {
+        "passage": 2,
+        "range": "14-21",
+        "taskType": "matching-headings"
+      },
+      {
+        "passage": 2,
+        "range": "22-26",
+        "taskType": "true-false-not-given"
+      },
+      {
+        "passage": 3,
+        "range": "27-30",
+        "taskType": "multiple-choice"
+      },
+      {
+        "passage": 3,
+        "range": "31-35",
+        "taskType": "matching-sentence-endings"
+      },
+      {
+        "passage": 3,
+        "range": "36-40",
+        "taskType": "yes-no-not-given"
+      }
+    ],
+    "appTaskGroups": [
+      {
+        "range": "1-5",
+        "taskType": "true-false-not-given",
+        "interactionCount": 5
+      },
+      {
+        "range": "6-8",
+        "taskType": "short-answer",
+        "interactionCount": 3
+      },
+      {
+        "range": "9-13",
+        "taskType": "table-completion",
+        "interactionCount": 5
+      },
+      {
+        "range": "14-21",
+        "taskType": "matching-headings",
+        "interactionCount": 8
+      },
+      {
+        "range": "22-26",
+        "taskType": "true-false-not-given",
+        "interactionCount": 5
+      },
+      {
+        "range": "27-30",
+        "taskType": "multiple-choice",
+        "interactionCount": 4
+      },
+      {
+        "range": "31-35",
+        "taskType": "matching-sentence-endings",
+        "interactionCount": 5
+      },
+      {
+        "range": "36-40",
+        "taskType": "yes-no-not-given",
+        "interactionCount": 5
+      }
+    ],
+    "fieldScan": [
+      {
+        "groupId": "p1-q1-5-true-false-not-given",
+        "questionRange": {
+          "start": 1,
+          "end": 5
+        },
+        "taskType": "true-false-not-given",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0085-line-0106",
+        "rawLineCount": 16,
+        "representedLineCount": 10,
+        "missingFieldIds": [
+          "question:line-0085",
+          "answer-key:line-0391",
+          "answer-key:line-0393",
+          "answer-key:line-0395",
+          "answer-key:line-0397",
+          "answer-key:line-0399"
+        ],
+        "missingLineIds": [
+          "line-0085",
+          "line-0391",
+          "line-0393",
+          "line-0395",
+          "line-0397",
+          "line-0399"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      },
+      {
+        "groupId": "p1-q6-8-short-answer",
+        "questionRange": {
+          "start": 6,
+          "end": 8
+        },
+        "taskType": "short-answer",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0107-line-0120",
+        "rawLineCount": 9,
+        "representedLineCount": 5,
+        "missingFieldIds": [
+          "question:line-0107",
+          "answer-key:line-0401",
+          "answer-key:line-0403",
+          "answer-key:line-0405"
+        ],
+        "missingLineIds": [
+          "line-0107",
+          "line-0401",
+          "line-0403",
+          "line-0405"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      },
+      {
+        "groupId": "p1-q9-13-table-completion",
+        "questionRange": {
+          "start": 9,
+          "end": 13
+        },
+        "taskType": "table-completion",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0121-line-0136",
+        "rawLineCount": 14,
+        "representedLineCount": 3,
+        "missingFieldIds": [
+          "question:line-0121",
+          "question:line-0129",
+          "question:line-0130",
+          "layout:line-0131",
+          "layout:line-0132",
+          "question:line-0133",
+          "layout:line-0134",
+          "layout:line-0135",
+          "answer-key:line-0407",
+          "answer-key:line-0411",
+          "answer-key:line-0415"
+        ],
+        "missingLineIds": [
+          "line-0121",
+          "line-0129",
+          "line-0130",
+          "line-0131",
+          "line-0132",
+          "line-0133",
+          "line-0134",
+          "line-0135",
+          "line-0407",
+          "line-0411",
+          "line-0415"
+        ],
+        "highRiskTokenChanges": [
+          {
+            "tokenKind": "date",
+            "rawValue": "1699",
+            "lineId": "line-0133"
+          }
+        ],
+        "reasonCodes": [
+          "group-source-underrepresented",
+          "high-risk-token-changed",
+          "question-text-changed",
+          "table-cell-missing",
+          "table-column-missing"
+        ],
+        "recommendedAction": "teacher-review"
+      },
+      {
+        "groupId": "p2-q14-21-matching-headings",
+        "questionRange": {
+          "start": 14,
+          "end": 21
+        },
+        "taskType": "matching-headings",
+        "status": "teacher-review",
+        "sourceSpanConfidence": "low",
+        "sourceRange": null,
+        "rawLineCount": 0,
+        "representedLineCount": 0,
+        "missingFieldIds": [],
+        "missingLineIds": [],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "source-question-range-missing"
+        ],
+        "recommendedAction": "teacher-review"
+      },
+      {
+        "groupId": "p2-q22-26-true-false-not-given",
+        "questionRange": {
+          "start": 22,
+          "end": 26
+        },
+        "taskType": "true-false-not-given",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0233-line-0256",
+        "rawLineCount": 16,
+        "representedLineCount": 10,
+        "missingFieldIds": [
+          "question:line-0233",
+          "answer-key:line-0435",
+          "answer-key:line-0437",
+          "answer-key:line-0439",
+          "answer-key:line-0441",
+          "answer-key:line-0443"
+        ],
+        "missingLineIds": [
+          "line-0233",
+          "line-0435",
+          "line-0437",
+          "line-0439",
+          "line-0441",
+          "line-0443"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      },
+      {
+        "groupId": "p3-q27-30-multiple-choice",
+        "questionRange": {
+          "start": 27,
+          "end": 30
+        },
+        "taskType": "multiple-choice",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0287-line-0332",
+        "rawLineCount": 27,
+        "representedLineCount": 22,
+        "missingFieldIds": [
+          "question:line-0287",
+          "answer-key:line-0447",
+          "answer-key:line-0449",
+          "answer-key:line-0451",
+          "answer-key:line-0453"
+        ],
+        "missingLineIds": [
+          "line-0287",
+          "line-0447",
+          "line-0449",
+          "line-0451",
+          "line-0453"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      },
+      {
+        "groupId": "p3-q31-35-matching-sentence-endings",
+        "questionRange": {
+          "start": 31,
+          "end": 35
+        },
+        "taskType": "matching-sentence-endings",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0333-line-0362",
+        "rawLineCount": 20,
+        "representedLineCount": 14,
+        "missingFieldIds": [
+          "question:line-0333",
+          "answer-key:line-0455",
+          "answer-key:line-0457",
+          "answer-key:line-0459",
+          "answer-key:line-0461",
+          "answer-key:line-0463"
+        ],
+        "missingLineIds": [
+          "line-0333",
+          "line-0455",
+          "line-0457",
+          "line-0459",
+          "line-0461",
+          "line-0463"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      },
+      {
+        "groupId": "p3-q36-40-yes-no-not-given",
+        "questionRange": {
+          "start": 36,
+          "end": 40
+        },
+        "taskType": "yes-no-not-given",
+        "status": "weak",
+        "sourceSpanConfidence": "high",
+        "sourceRange": "line-0363-line-0390",
+        "rawLineCount": 19,
+        "representedLineCount": 10,
+        "missingFieldIds": [
+          "question:line-0363",
+          "question:line-0385",
+          "question:line-0387",
+          "question:line-0389",
+          "answer-key:line-0465",
+          "answer-key:line-0467",
+          "answer-key:line-0469",
+          "answer-key:line-0471",
+          "answer-key:line-0473"
+        ],
+        "missingLineIds": [
+          "line-0363",
+          "line-0385",
+          "line-0387",
+          "line-0389",
+          "line-0465",
+          "line-0467",
+          "line-0469",
+          "line-0471",
+          "line-0473"
+        ],
+        "highRiskTokenChanges": [],
+        "reasonCodes": [
+          "group-source-underrepresented"
+        ],
+        "recommendedAction": "deterministic-rehydrate"
+      }
+    ],
+    "hasPublishBlockers": true,
+    "hasSilentQuestionLoss": false,
+    "verdict": "editable-needs-review"
+  },
+  "advice": [
+    "Keep Auto V4 as assistant, not judge: open editable drafts when safe, but block publish until repair items are handled.",
+    "Do not turn local preflight into a second brittle source parser; it is an advisory guardrail before the provider-owned parse across passage structure, question areas, task groups, option/reference banks, and answer keys.",
+    "Treat missing answer-key bindings, question coverage, task-group coverage, and ambiguous source areas as review diagnostics unless normalization cannot build an editable draft.",
+    "Improve provider prompts only after report proves which task group or answer range is consistently lost.",
+    "Never accept silent coverage loss: missing questions require diagnostics and publish blockers."
+  ]
+}

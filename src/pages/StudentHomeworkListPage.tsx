@@ -11,6 +11,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
 
 const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -575,6 +576,8 @@ export const StudentHomeworkListPage: React.FC = () => {
                             const resultDisplay = getHomeworkResultDisplay(latestSubmission, canViewFeedback);
                             const statusVisual = getStatusVisual(status);
                             const skillColor = getSkillColor(homework.materialSkill);
+                            const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
+                            const materialTypeLabel = readingPassageSummary?.label ?? homework.materialType;
 
                             return (
                                 <article
@@ -596,9 +599,21 @@ export const StudentHomeworkListPage: React.FC = () => {
                                                     {homework.materialSkill}
                                                 </span>
                                                 <span style={{ ...localStyles.pill, background: '#f3f4f6', color: '#374151' }}>
-                                                    {homework.materialType}
+                                                    {materialTypeLabel}
                                                 </span>
                                             </div>
+                                            {readingPassageSummary ? (
+                                                <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+                                                    <span style={{ color: studentTokens.textMuted, fontSize: '0.82rem', fontWeight: 600 }}>
+                                                        {readingPassageSummary.meta.join(', ')}
+                                                    </span>
+                                                    {readingPassageSummary.kind === 'set' ? (
+                                                        <span style={{ color: studentTokens.textDim, fontSize: '0.78rem' }}>
+                                                            {readingPassageSummary.passageTitles.join(', ')}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
                                         </div>
 
                                         <span style={{ ...localStyles.pill, background: statusVisual.bg, color: statusVisual.text, ...(isMobile ? { alignSelf: 'flex-start' } : {}) }}>

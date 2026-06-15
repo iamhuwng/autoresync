@@ -4,6 +4,9 @@
 > **Branch:** `codex/reading-v2-ielts-task-contracts`
 > **Scope:** Retire the whole-test V3 Gemini/Groq pipeline, keep V4 as the main Auto parser, make raw teacher input the source of truth, and use Groq only for small teacher-triggered or verifier-triggered question-group repair.
 > **Parent Evidence:** Superseded A/B scratch task removed from active workspace; this task owns the V4 decision path.
+> **Canonical Contract:** `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`
+
+Interpretation rule: `blocked` in this tasklist means blocked for the specific unsafe action being discussed. A group can block Ready, Accept into Draft, publish, extraction, launch, or backfill while the import still opens Studio as `editable-needs-review`. Use `blocked-before-studio` only when no canonical-safe editable candidate can be built.
 
 ## Context
 
@@ -269,7 +272,7 @@ type ReadingV2GroupRepairPatch = {
 - `ready`: source span confidence is high, high-risk tokens match, required structure is represented, answer-key rows bind, and no publish blocker exists.
 - `weak`: group is likely repairable, but source representation is incomplete or suspicious.
 - `teacher-review`: app cannot prove correctness or safe repair; teacher must inspect.
-- `blocked`: source fidelity, answer binding, task type, or projection safety failure prevents accepting into draft/publish.
+- `blocked`: source fidelity, answer binding, task type, or projection safety failure prevents the unsafe action being discussed. It does not automatically mean pre-Studio failure.
 
 ## Repair Decision Matrix
 
@@ -425,6 +428,7 @@ type ReadingV2GroupRepairPatch = {
   - [ ] 8.3 Show repair reason and patch summary after Groq returns.
   - [ ] 8.4 Keep `Accept into Draft` disabled when hard source-fidelity blockers exist.
   - [x] 8.5 Ensure `Copy parsing diagnostics` includes group status, reason codes, provider metrics, and redacted source references.
+  - [x] 8.6 Route validation/import-review warnings into the PRD0048 Review Issues panel instead of relying on hover tooltip text.
 
 - [ ] 9.0 Verification and E2E coverage.
   - [x] 9.1 Add unit tests for source ledger retention and source-diff classification.
@@ -449,6 +453,8 @@ type ReadingV2GroupRepairPatch = {
 - [x] Every question group compares Studio content against the mapped raw question-range span.
 - [ ] Note/table/flowchart/diagram/completion groups cannot be marked ready when raw structural content is missing from Studio.
 - [ ] Deterministic source rehydration is used only for unambiguous missing-content cases; ambiguous cases alert the teacher or route to group repair.
+- [ ] Localized structured-layout conflicts open Studio as `editable-needs-review` when a canonical-safe degraded group can be built.
+- [ ] Structured-layout conflicts fail before Studio only when the candidate cannot be canonical-safe or the failure is global/non-localizable.
 - [ ] Groq receives only group-scoped repair requests, not full IELTS tests.
 - [ ] Teacher can trigger repair for one bad group without rerunning the whole import.
 - [ ] Groq repair output is verified before teacher can accept it.
@@ -491,3 +497,9 @@ type ReadingV2GroupRepairPatch = {
 - Service E2E verdict: `editable-needs-review`. Auto V4 returned 3 passages, 40 questions, 40 answer-key rows, 0 missing questions, 0 answer mismatches, and all 8 expected groups: `1-8`, `9-13`, `14-16`, `17-20`, `21-26`, `27-30`, `31-35`, `36-40`.
 - Repair assessment from the same run: coverage and answers are sound enough for editable Studio draft, but 19 publish blockers remain. The blockers are useful safety gates, not silent failures: 3 passage source-drift warnings plus `group-source-underrepresented` and `instruction-shortened` on every group. Next repair focus is reducing false-positive/noisy weakness by task family while keeping hard blockers for true source loss.
 - Chrome raw-input E2E used the actual raw Clippings file pasted into the teacher `Create New Test -> IELTS -> Reading V2 -> Auto` flow. Studio reached `http://localhost:5173/teacher/reading-v2/import`, showed 3 passage tabs, 19 validation items pending, `Publish` disabled, and visible answer bindings matching the gold samples checked in Passage 1, 2, and 3. Evidence artifacts: `output/reading-v2-auto-v4-random-clippings-e2e/chrome-evidence-cam16-test02.json` and `output/reading-v2-auto-v4-random-clippings-e2e/chrome-studio-cam16-test02.png`.
+
+### 2026-06-08
+
+- Added cross-reference to `documentation/tasks/PRD0048/tasks-0048-reading-v2-studio-review-issues-ux.md`.
+- Source-truth warnings and publish blockers now route into a normalized teacher-facing Review Issues panel in the active Studio Build Workspace.
+- Hover/title warning details are deprecated for critical review content; the pill is now a click trigger and issue rows can navigate to affected questions/task groups.

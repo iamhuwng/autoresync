@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" role="img" aria-labelledby="title desc">
+  <title id="title">THPT logo</title>
+  <desc id="desc">Compact THPT exam-family logo for Teacher Materials test type cards.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fdf2f8"/>
+      <stop offset="1" stop-color="#fff1f2"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="18" y="18" width="264" height="84" rx="22" fill="#ffffff" opacity="0.88"/>
+  <circle cx="58" cy="60" r="24" fill="#e11d48" opacity="0.12"/>
+  <path d="M45 51h26M45 60h20M45 69h26" fill="none" stroke="#be123c" stroke-width="6" stroke-linecap="round"/>
+  <text x="95" y="71" fill="#881337" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="800" letter-spacing="0">THPT</text>
+</svg>

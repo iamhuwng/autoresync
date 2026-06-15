@@ -159,7 +159,7 @@ const QuestionEditorPanel = ({
     setUploadError(null);
 
     try {
-      const imageData = await r2StorageService.uploadImage(file);
+      const imageData = await r2StorageService.uploadImageReplacement(file, localQuestion.imageUrl);
       console.log('✅ Image uploaded to R2:', imageData.url);
 
       // Add image URL to question's imageUrl field

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildTestMaterialListRow } from './materialListAdapter';
+import { buildTestMaterialListRow, toReadingPassageRowModel } from './materialListAdapter';
 
 describe('materialListAdapter', () => {
   it('maps regular IELTS tests into compact list rows', () => {
@@ -77,6 +77,27 @@ describe('materialListAdapter', () => {
     expect(row.durationLabel).toBe('60 min');
   });
 
+  it('maps Reading V2 full-test materials as compact test rows without new columns', () => {
+    const row = buildTestMaterialListRow({
+      id: 'full-test-1',
+      materialId: 'full-test-1',
+      deliveryEngine: 'reading-v2',
+      materialKind: 'full-test',
+      title: 'IELTS Full Test',
+      testType: 'IELTS',
+      skill: 'Reading',
+      questionCount: 40,
+      durationMinutes: 60,
+      hiddenProvenance: { importEvidence: 'secret' },
+    });
+
+    expect(row.title).toBe('IELTS Full Test');
+    expect(row.badges.map((badge) => badge.label)).toContain('Reading V2');
+    expect(row.itemLabel).toBe('40 questions');
+    expect(row.durationLabel).toBe('60 min');
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
+  });
+
   it('maps incomplete items to recovery actions without Start Test', () => {
     const row = buildTestMaterialListRow({
       id: 'incomplete-1',
@@ -129,6 +150,27 @@ describe('materialListAdapter', () => {
     expect(row.updatedLabel).toBe('--');
   });
 
+  it('uses Reading Passage title and Test Type fallbacks without crashing on inactive or missing metadata', () => {
+    const inactive = toReadingPassageRowModel({
+      materialId: 'inactive-type-passage',
+      questionCount: 0,
+      visibility: 'private',
+      isOwner: true,
+      testTypes: [{ testTypeId: 'archived-test-type', label: 'Archived Test Type', shortLabel: '', active: false }],
+    });
+    const missing = toReadingPassageRowModel({
+      materialId: 'missing-type-passage',
+      questionCount: 0,
+      visibility: 'private',
+      isOwner: true,
+    });
+
+    expect(inactive.title).toBe('Untitled Reading Passage');
+    expect(inactive.badges.map((badge) => badge.label)).toContain('Archived Test Type');
+    expect(missing.title).toBe('Untitled Reading Passage');
+    expect(missing.badges.map((badge) => badge.key)).not.toContain('test-type');
+  });
+
   it('uses semantic accents instead of row-position colors', () => {
     const material = {
       id: 'listening-1',
@@ -143,5 +185,183 @@ describe('materialListAdapter', () => {
     expect(firstRow.iconKind).toBe('test');
     expect(firstRow.accentKind).toBe('indigo');
     expect(laterRow.accentKind).toBe(firstRow.accentKind);
+  });
+
+  it('maps Reading Passage records into list rows with source metadata and owner actions', () => {
+    const handlers = {
+      onOpenReadingPassage: vi.fn(),
+      onAssignReadingPassage: vi.fn(),
+      onReviseReadingPassage: vi.fn(),
+      onArchiveReadingPassage: vi.fn(),
+      onToggleReadingPassageSelection: vi.fn(),
+    };
+    const row = toReadingPassageRowModel({
+      id: 'passage-1',
+      materialId: 'passage-1',
+      title: 'The History of Silk',
+      questionCount: 13,
+      durationMinutes: 20,
+      updatedAt: '2026-05-18T09:30:00Z',
+      visibility: 'private',
+      isOwner: true,
+      selectable: true,
+      testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+      sourceOrderDisplay: 'Passage 2',
+      sourceQuestionRange: 'Questions 14-26',
+      sourceFullTestTitle: 'Cambridge IELTS 18 Test 1',
+      actions: [
+        { key: 'open', label: 'Open' },
+        { key: 'assign-homework', label: 'Assign homework' },
+        { key: 'revise', label: 'Revise', ownerOnly: true },
+        { key: 'archive', label: 'Archive', ownerOnly: true },
+      ],
+    }, {
+      selected: true,
+      handlers,
+    });
+
+    expect(row).toMatchObject({
+      id: 'passage-1',
+      title: 'The History of Silk',
+      iconKind: 'reading',
+      accentKind: 'rose',
+      itemLabel: '13 questions',
+      durationLabel: '20 min',
+      updatedLabel: 'May 18, 2026',
+      statusKind: 'reading-passage',
+      selection: {
+        checked: true,
+        label: 'Select The History of Silk',
+      },
+    });
+    expect(row.badges.map((badge) => badge.label)).toEqual([
+      'Passage 2',
+      'Cambridge IELTS 18 Test 1',
+      'IELTS',
+      'Private',
+      'Questions 14-26',
+      '20 min',
+    ]);
+    expect(row.actions.map((item) => item.label)).toEqual(['Open', 'Assign homework', 'Revise', 'Remove from library']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
+
+    row.selection.onChange();
+    row.actions.forEach((item) => item.onSelect());
+
+    expect(handlers.onToggleReadingPassageSelection).toHaveBeenCalledWith(row.source);
+    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onReviseReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onArchiveReadingPassage).toHaveBeenCalledWith(row.source);
+  });
+
+  it('maps archived Reading Passage rows to restore-only non-destructive actions', () => {
+    const handlers = {
+      onOpenReadingPassage: vi.fn(),
+      onRestoreReadingPassage: vi.fn(),
+    };
+    const row = toReadingPassageRowModel({
+      id: 'archived-passage',
+      materialId: 'archived-passage',
+      title: 'Archived Passage',
+      questionCount: 11,
+      visibility: 'private',
+      scope: 'archived',
+      archived: true,
+      isOwner: true,
+      selectable: false,
+      currentVersionId: 'snapshot-archived',
+      publishedSnapshotVersionId: 'snapshot-archived',
+      actions: [
+        { key: 'view', label: 'View read-only' },
+        { key: 'restore', label: 'Restore', ownerOnly: true },
+      ],
+    }, {
+      handlers,
+    });
+
+    expect(row.selection).toBeUndefined();
+    expect(row.badges.map((badge) => badge.label)).toContain('Archive');
+    expect(row.badges.map((badge) => badge.label)).toContain('Archived');
+    expect(row.actions.map((item) => item.label)).toEqual(['View read-only', 'Restore']);
+
+    row.actions.forEach((item) => item.onSelect());
+
+    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onRestoreReadingPassage).toHaveBeenCalledWith(row.source);
+  });
+
+  it('omits owner-only Reading Passage archive/revise actions for public rows', () => {
+    const row = toReadingPassageRowModel({
+      id: 'public-passage',
+      materialId: 'public-passage',
+      title: 'Public Passage',
+      questionCount: 8,
+      visibility: 'public',
+      isOwner: false,
+      testTypes: [{ testTypeId: 'toeic', label: 'TOEIC', shortLabel: 'TOEIC', active: true }],
+      sourceOrderDisplay: 'Part 4',
+      actions: [
+        { key: 'view', label: 'View' },
+        { key: 'assign-homework', label: 'Assign homework' },
+      ],
+    });
+
+    expect(row.badges.map((badge) => badge.label)).toContain('Public');
+    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Assign homework']);
+    expect(row.actions.map((item) => item.label)).not.toContain('Archive');
+    expect(row.actions.map((item) => item.label)).not.toContain('Delete');
+  });
+
+  it('disables Reading Passage assignment when a safe projection or published version is missing', () => {
+    const row = toReadingPassageRowModel({
+      id: 'unsafe-passage',
+      materialId: 'unsafe-passage',
+      title: 'Unsafe Passage',
+      questionCount: 8,
+      visibility: 'private',
+      isOwner: true,
+      publishedSnapshotVersionId: '',
+      hasStudentSafeProjection: false,
+      actions: [
+        { key: 'assign-homework', label: 'Assign homework' },
+        { key: 'revise', label: 'Revise', ownerOnly: true },
+      ],
+    });
+
+    const assign = row.actions.find((item) => item.key === 'assign-homework');
+
+    expect(assign).toMatchObject({
+      disabled: true,
+      disabledReason: 'Publish this passage with a student-safe projection before assignment.',
+    });
+  });
+
+  it('omits hidden Reading Passage provenance and payload fields from row source', () => {
+    const row = toReadingPassageRowModel({
+      id: 'passage-safe',
+      materialId: 'passage-safe',
+      title: 'Safe Passage Row',
+      questionCount: 4,
+      testTypeIds: ['ielts'],
+      publishedSnapshotVersionId: 'snapshot-safe',
+      hasStudentSafeProjection: true,
+      hiddenProvenance: { importedBy: 'secret' },
+      importEvidence: 'raw document text',
+      passageText: 'full passage body',
+      answerKey: ['A'],
+      questions: [{ id: 'q1', answer: 'A' }],
+    });
+
+    expect(row.source).toMatchObject({
+      materialId: 'passage-safe',
+      title: 'Safe Passage Row',
+      publishedSnapshotVersionId: 'snapshot-safe',
+      hasStudentSafeProjection: true,
+    });
+    expect(JSON.stringify(row.source)).not.toContain('secret');
+    expect(JSON.stringify(row.source)).not.toContain('raw document text');
+    expect(JSON.stringify(row.source)).not.toContain('full passage body');
+    expect(JSON.stringify(row.source)).not.toContain('answer');
   });
 });

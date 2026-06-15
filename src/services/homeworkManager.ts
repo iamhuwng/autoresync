@@ -18,6 +18,10 @@ import { getClass, getStudentClasses } from './classManager';
 import type {
     HomeworkAssignment,
     HomeworkConfig,
+    HomeworkMaterialSkill,
+    HomeworkMaterialType,
+    ReadingPassageHomeworkSet,
+    ReadingPassageHomeworkSnapshot,
     HomeworkTarget,
     HomeworkStatus,
     HomeworkVisibility,
@@ -35,8 +39,8 @@ const HOMEWORK_COLLECTION = 'homework_assignments';
 interface CreateHomeworkInput {
     materialId: string;
     materialTitle: string;
-    materialType?: 'quiz' | 'test' | 'thcs-test';
-    materialSkill?: 'reading' | 'listening' | 'writing' | 'speaking';
+    materialType?: HomeworkMaterialType;
+    materialSkill?: HomeworkMaterialSkill;
     teacherId: string;
     target: HomeworkTarget;
     config: HomeworkConfig;
@@ -60,6 +64,10 @@ interface CreateHomeworkInput {
 
     // PRD-0036: Anti-cheat configuration
     antiCheatConfig?: AntiCheatConfig;
+
+    // PRD-0052: Reading Passage homework snapshot contracts
+    readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
+    readingPassageSet?: ReadingPassageHomeworkSet;
 }
 
 /**
@@ -138,6 +146,10 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
         const now = Date.now();
         const availableFrom = data.availableFrom?.getTime() || now;
         const dueDate = data.dueDate.getTime();
+        const materialType = data.materialType || 'quiz';
+        const materialId = materialType === 'reading-passage-set'
+            ? `reading-passage-set:${homeworkRef.id}`
+            : data.materialId;
 
         // Calculate initial assigned count based on target
         const totalAssigned = await resolveAssignedCount(data.target);
@@ -147,9 +159,9 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
             createdBy: data.teacherId,
             createdAt: now,
             updatedAt: now,
-            materialId: data.materialId,
+            materialId,
             materialTitle: data.materialTitle,
-            materialType: data.materialType || 'quiz',
+            materialType,
             materialSkill: data.materialSkill || 'reading',
             target: data.target,
             scheduling: {
@@ -177,6 +189,12 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
                 : {}),
             // PRD-0036: Anti-cheat configuration (Task 5.5)
             ...(data.antiCheatConfig ? { antiCheatConfig: data.antiCheatConfig } : {}),
+            ...(materialType === 'reading-passage' && data.readingPassageSnapshot
+                ? { readingPassageSnapshot: data.readingPassageSnapshot }
+                : {}),
+            ...(materialType === 'reading-passage-set' && data.readingPassageSet
+                ? { readingPassageSet: data.readingPassageSet }
+                : {}),
         };
 
         await setDoc(homeworkRef, stripUndefinedFields(homework));
@@ -524,6 +542,12 @@ export async function duplicateHomework(
             antiCheatConfig: original.antiCheatConfig,
             // Phase 3: Preserve THCS config when duplicating
             ...(original.thcsConfig ? { thcsConfig: original.thcsConfig } : {}),
+            ...(original.readingPassageSnapshot
+                ? { readingPassageSnapshot: original.readingPassageSnapshot }
+                : {}),
+            ...(original.readingPassageSet
+                ? { readingPassageSet: original.readingPassageSet }
+                : {}),
         };
 
         return await createHomework(newHomework);

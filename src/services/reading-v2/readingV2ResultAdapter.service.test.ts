@@ -3,6 +3,8 @@ import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { readingV2Ids, type ReadingV2PublishedSnapshot, type ReadingV2Result } from '../../types/readingV2.types';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import { READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE } from './fixtures/readingV2ProjectionFixtures';
+import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
+import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
 import {
   buildReadingV2GroupedReviewPayload,
   buildReadingV2RegradePersistencePlan,
@@ -107,6 +109,72 @@ describe('readingV2ResultAdapter.service', () => {
     expect(result.interactions).toHaveLength(2);
     expect(result.interactions.every((interaction) => interaction.score === 1)).toBe(true);
     expect(result.interactions.map((interaction) => interaction.displayNumber)).toEqual([1, 2]);
+  });
+
+  it('builds review from frozen result numbering instead of recomputing projection numbers', () => {
+    const projection = structuredClone(
+      READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['sentence-completion'].review,
+    ) as ReadingV2DerivedProjection;
+    const firstGroup = projection.content.taskGroups[0]!;
+    const interactions = firstGroup.interactions;
+    const numbering = composeReadingV2CompositionNumbering({
+      passages: [{
+        order: 1,
+        passageMaterialId: 'passage-a',
+        snapshotVersionId: projection.sourceSnapshotVersionId,
+        interactions: interactions.map((interaction) => ({ interactionId: interaction.interactionId })),
+      }],
+      previousInteractionDisplayNumbers: {
+        [interactions[0]!.interactionId]: 31,
+        [interactions[1]!.interactionId]: 32,
+      },
+      preserveBeforeOrder: 2,
+    });
+    const frozenResult = {
+      resultId: readingV2Ids.resultId('result-frozen-numbering'),
+      testId: 'material-sentence-completion',
+      studentId: 'student-1',
+      ownerId: 'teacher-1',
+      publishedSnapshotVersion: projection.sourceSnapshotVersionId,
+      attemptId: readingV2Ids.attemptId('attempt-frozen-numbering'),
+      attemptContext: { mode: 'homework' as const },
+      interactions: interactions.map((interaction) => ({
+        interactionId: interaction.interactionId,
+        taskGroupId: interaction.taskGroupId,
+        displayNumber: numbering.interactionDisplayNumbers[interaction.interactionId]!,
+        taskFamily: firstGroup.engineeringFamily,
+        officialTaskType: firstGroup.officialTaskType,
+        studentAnswer: 'answer',
+        scoredAnswer: 'answer',
+        score: 1,
+        maxScore: 1,
+        reviewState: 'released' as const,
+      })),
+      totalScore: 2,
+      maxScore: 2,
+      submittedAt: '2026-06-01T00:00:00.000Z',
+    } satisfies ReadingV2Result;
+    const liveProjection = {
+      ...projection,
+      content: {
+        ...projection.content,
+        taskGroups: projection.content.taskGroups.map((taskGroup) => ({
+          ...taskGroup,
+          interactions: taskGroup.interactions.map((interaction) => ({
+            ...interaction,
+            displayNumber: 1,
+          })),
+        })),
+      },
+    };
+
+    const reviewPayload = buildReadingV2GroupedReviewPayload({
+      result: frozenResult,
+      projection: liveProjection,
+    });
+
+    expect(reviewPayload.taskGroups[0]!.interactions.map((interaction) => interaction.displayNumber))
+      .toEqual([31, 32]);
   });
 
   it('scores binary judgement aliases without accepting misspellings', () => {
@@ -581,6 +649,105 @@ describe('readingV2ResultAdapter.service', () => {
       excerpt: expect.stringContaining('Fixture passage paragraph A'),
     });
     expect(savedResult.questionResults.map((question) => question.questionNumber)).toEqual([1, 2]);
+  });
+
+  it('includes table cells selected through secondary cell.anchorIds in review excerpts', () => {
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['table-completion'].review;
+    const sourceSnapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-multi-anchor-review');
+    const taskGroupId = readingV2Ids.taskGroupId('task-group-multi-anchor-review');
+    const interactionId = readingV2Ids.interactionId('interaction-multi-anchor-review-2');
+    const firstAnchorId = readingV2Ids.anchorId('anchor-multi-table-1');
+    const secondAnchorId = readingV2Ids.anchorId('anchor-multi-table-2');
+    const projection: ReadingV2DerivedProjection = {
+      ...baseProjection,
+      projectionId: 'review:multi-anchor-table',
+      sourceSnapshotVersionId,
+      content: {
+        ...baseProjection.content,
+        title: 'Multi-anchor review table',
+        sections: [],
+        stimuli: [
+          {
+            stimulusId: 'stimulus-multi-anchor-table',
+            kind: 'table',
+            title: 'Multi-anchor table',
+            anchorIds: [firstAnchorId, secondAnchorId],
+            content: {
+              kind: 'table-content',
+              rows: [
+                [
+                  { text: 'Feature', role: 'header' },
+                  { text: 'Detail', role: 'header' },
+                ],
+                [
+                  { text: 'Shared label' },
+                  {
+                    text: 'Shared table cell for questions 1 and 2',
+                    isBlank: true,
+                    anchorId: firstAnchorId,
+                    anchorIds: [firstAnchorId, secondAnchorId],
+                  },
+                ],
+              ],
+            },
+          },
+        ],
+        anchors: [
+          { anchorId: firstAnchorId, stimulusId: 'stimulus-multi-anchor-table', kind: 'table-cell', label: 'Question 1 table blank' },
+          { anchorId: secondAnchorId, stimulusId: 'stimulus-multi-anchor-table', kind: 'table-cell', label: 'Question 2 table blank' },
+        ],
+        taskGroups: [
+          {
+            taskGroupId,
+            officialTaskType: 'table-completion',
+            engineeringFamily: 'structured-layout',
+            instructionBlocks: [{ id: 'instruction-1', text: 'Complete the table.' }],
+            stimulusRefs: [{ stimulusId: 'stimulus-multi-anchor-table', anchorIds: [secondAnchorId] }],
+            interactions: [
+              {
+                interactionId,
+                taskGroupId,
+                displayNumber: 2,
+                responseShape: { kind: 'structured-entry', structure: 'table' },
+                primaryAnchorId: secondAnchorId,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const result: ReadingV2Result = {
+      resultId: readingV2Ids.resultId('result-multi-anchor-review'),
+      testId: 'material-multi-anchor-review',
+      studentId: 'student-1',
+      ownerId: 'teacher-1',
+      deliveryEngine: READING_V2_ENGINE,
+      publishedSnapshotVersion: sourceSnapshotVersionId,
+      attemptContext: { mode: 'solo-practice' },
+      submittedAt: '2026-06-06T00:00:00.000Z',
+      interactions: [
+        {
+          interactionId,
+          taskGroupId,
+          displayNumber: 2,
+          taskFamily: 'structured-layout',
+          officialTaskType: 'table-completion',
+          studentAnswer: 'student answer',
+          scoredAnswer: 'expected answer',
+          score: 1,
+          maxScore: 1,
+          reviewState: 'pending',
+          anchorRef: secondAnchorId,
+        },
+      ],
+    };
+
+    const reviewPayload = buildReadingV2GroupedReviewPayload({ result, projection });
+
+    expect(reviewPayload.taskGroups[0]?.stimulusContext[0]).toEqual(expect.objectContaining({
+      anchorLabels: ['Question 2 table blank'],
+      excerpt: expect.stringContaining('Shared table cell for questions 1 and 2'),
+    }));
   });
 
   it('builds a producer-consumer persistence plan for V2 and existing result readers', () => {

@@ -23,8 +23,13 @@ import {
 import {
   type ReadingV2CanonicalTaskType,
 } from '../../../types/readingV2Taxonomy';
+import {
+  mapReadingV2BuildValidationMessagesToReviewIssues,
+  type ReadingV2ReviewIssue,
+} from '../../../services/reading-v2/readingV2ReviewIssueMapping.service';
 import type { ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
 import { ReadingV2PassageEditor } from './ReadingV2PassageEditor';
+import { ReadingV2ReviewIssuesPanel } from './ReadingV2ReviewIssuesPanel';
 import { ReadingV2TableCompletionBuilder } from './ReadingV2TableCompletionBuilder';
 
 export interface ReadingV2BuildPassageSlot {
@@ -99,6 +104,7 @@ export interface ReadingV2BuildWorkspaceProps {
   readonly onTableCompletionAction?: (outcome: string, metadata?: Record<string, string | number | boolean | undefined>) => void;
   readonly onQuestionLinkNavigation?: (target: ReadingV2QuestionLinkTarget) => void;
   readonly onQuestionLinkRepair?: (outcome: string, metadata?: Record<string, string | number | boolean | undefined>) => void;
+  readonly onReviewIssuesAction?: (action: string, metadata?: Record<string, string | number | boolean | undefined>) => void;
   readonly onAddQuestion: (taskGroup: ReadingV2TaskGroup) => void;
   readonly onDuplicateQuestionGroup: (taskGroup: ReadingV2TaskGroup) => void;
   readonly onDeleteQuestionGroup: (taskGroup: ReadingV2TaskGroup) => void;
@@ -4276,6 +4282,9 @@ const renderTableCompletionTaskEditor = ({
   selectedQuestionLink,
   onDocumentChange,
   onTableCompletionAction,
+  reviewIssues,
+  focusedIssueQuestion,
+  onReviewIssueActivate,
   onQuestionLinkNavigation,
   onQuestionLinkRepair,
 }: ReadingV2TaskEditorRendererProps): ReactNode => (
@@ -4590,6 +4599,9 @@ export function ReadingV2QuestionGroupCard({
   onOptionSetChange,
   onDocumentChange,
   onTableCompletionAction,
+  reviewIssues,
+  focusedIssueQuestion,
+  onReviewIssueActivate,
   onQuestionLinkNavigation,
   onQuestionLinkRepair,
   onAddQuestion,
@@ -4614,6 +4626,9 @@ export function ReadingV2QuestionGroupCard({
   readonly onOptionSetChange: (optionSet: ReadingV2OptionSet) => void;
   readonly onDocumentChange: (document: ReadingV2Document) => void;
   readonly onTableCompletionAction?: (outcome: string, metadata?: Record<string, string | number | boolean | undefined>) => void;
+  readonly reviewIssues: readonly ReadingV2ReviewIssue[];
+  readonly focusedIssueQuestion: number | null;
+  readonly onReviewIssueActivate: (issue: ReadingV2ReviewIssue) => void;
   readonly onQuestionLinkNavigation?: (target: ReadingV2QuestionLinkTarget) => void;
   readonly onQuestionLinkRepair?: (outcome: string, metadata?: Record<string, string | number | boolean | undefined>) => void;
   readonly onAddQuestion: (taskGroup: ReadingV2TaskGroup) => void;
@@ -4638,6 +4653,23 @@ export function ReadingV2QuestionGroupCard({
     });
   };
   const [deletePending, setDeletePending] = useState(false);
+  const issueChips = reviewIssues.map((issue) => (
+    <button
+      className="reading-v2-build-card__issue-chip"
+      type="button"
+      key={issue.id}
+      onClick={() => onReviewIssueActivate(issue)}
+    >
+      {issue.detail}
+    </button>
+  ));
+  const focusedInCard = focusedIssueQuestion !== null
+    && interactions.some((interaction) => numberByInteractionId.get(interaction.interactionId) === focusedIssueQuestion);
+  const reviewGuidanceLabel = focusedInCard && focusedIssueQuestion !== null
+    ? `Review guidance for Question ${focusedIssueQuestion}`
+    : reviewIssues.length === 1 && reviewIssues[0]?.target.questionRange?.start
+    ? `Review guidance for Question ${reviewIssues[0].target.questionRange.start}`
+    : `Review guidance for ${visibleRange}`;
   const wordLimitControl = (
     <label className="reading-v2-build-card__instruction-word-limit">
       Word limit
@@ -4692,12 +4724,24 @@ export function ReadingV2QuestionGroupCard({
         </div>
       </header>
 
-      {reviewMessages.length > 0 ? (
-        <section className="reading-v2-build-card__review-guidance" role="note" aria-label={`Review guidance for ${visibleRange}`}>
+      {reviewMessages.length > 0 || issueChips.length > 0 ? (
+        <section
+          className={focusedInCard
+            ? 'reading-v2-build-card__review-guidance reading-v2-build-card__review-guidance--focused'
+            : 'reading-v2-build-card__review-guidance'}
+          role="note"
+          aria-label={reviewGuidanceLabel}
+          data-review-focus={focusedInCard ? 'true' : undefined}
+        >
           <div className="reading-v2-build-card__review-heading">
             <IconAlertTriangle aria-hidden="true" size={17} stroke={1.9} />
             <strong>Review imported content</strong>
           </div>
+          {issueChips.length > 0 ? (
+            <div className="reading-v2-build-card__issue-chips" aria-label={`Issue chips for ${visibleRange}`}>
+              {issueChips}
+            </div>
+          ) : null}
           <ul>
             {reviewMessages.map((item) => (
               <li key={item.key}>
@@ -4843,6 +4887,7 @@ export function ReadingV2BuildWorkspace({
   onTableCompletionAction,
   onQuestionLinkNavigation,
   onQuestionLinkRepair,
+  onReviewIssuesAction,
   onAddQuestion,
   onDuplicateQuestionGroup,
   onDeleteQuestionGroup,
@@ -4852,12 +4897,37 @@ export function ReadingV2BuildWorkspace({
   const [addGroupModalOpen, setAddGroupModalOpen] = useState(false);
   const [exitPending, setExitPending] = useState(false);
   const [passageFocusRequest, setPassageFocusRequest] = useState(0);
+  const [reviewIssuesOpen, setReviewIssuesOpen] = useState(false);
+  const [focusedIssueQuestion, setFocusedIssueQuestion] = useState<number | null>(null);
   const selectedPassage = passageSlots.find((passage) => passage.passageNumber === selectedPassageNumber)
     ?? passageSlots[0];
   const numberByInteractionId = useMemo(
     () => new Map(authoringNumbers.map((item) => [item.interactionId, item.displayNumber])),
     [authoringNumbers],
   );
+  const reviewIssues = useMemo(
+    () => mapReadingV2BuildValidationMessagesToReviewIssues(validationMessages),
+    [validationMessages],
+  );
+  useEffect(() => {
+    if (focusedIssueQuestion === null) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setFocusedIssueQuestion(null), 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [focusedIssueQuestion]);
+  useEffect(() => {
+    if (focusedIssueQuestion === null) {
+      return undefined;
+    }
+
+    const timeoutIds = [0, 100, 300].map((delay) =>
+      window.setTimeout(() => scrollQuestionIntoView(focusedIssueQuestion), delay),
+    );
+
+    return () => timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  }, [focusedIssueQuestion]);
   const title = metadata.title.trim() || 'Untitled IELTS Reading Test';
   const statusLabel =
     publishState === 'success'
@@ -4900,6 +4970,139 @@ export function ReadingV2BuildWorkspace({
     );
   };
 
+  const getReviewIssuesForGroup = (
+    interactionsForGroup: readonly ReadingV2Interaction[],
+  ): readonly ReadingV2ReviewIssue[] => {
+    const numbers = interactionsForGroup
+      .map((interaction) => numberByInteractionId.get(interaction.interactionId))
+      .filter((number): number is number => number !== undefined)
+      .sort((left, right) => left - right);
+
+    if (numbers.length === 0) {
+      return [];
+    }
+
+    const groupRange = { start: numbers[0]!, end: numbers[numbers.length - 1]! };
+    return reviewIssues.filter((issue) =>
+      issue.target.questionRange ? questionRangesOverlap(issue.target.questionRange, groupRange) : false,
+    );
+  };
+
+  const findIssueTarget = (issue: ReadingV2ReviewIssue): ReadingV2QuestionLinkTarget | null => {
+    if (issue.target.interactionId || issue.target.taskGroupId || issue.target.anchorId) {
+      return {
+        anchorId: issue.target.anchorId,
+        interactionId: issue.target.interactionId,
+        taskGroupId: issue.target.taskGroupId,
+        source: 'diagnostic',
+      };
+    }
+
+    const targetQuestion = issue.target.questionRange?.start;
+    if (targetQuestion === undefined) {
+      return null;
+    }
+
+    for (const taskGroup of allTaskGroups) {
+      for (const interactionId of taskGroup.interactionIds) {
+        if (numberByInteractionId.get(interactionId) === targetQuestion) {
+          return {
+            interactionId,
+            taskGroupId: taskGroup.taskGroupId,
+            source: 'diagnostic',
+          };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const getPassageNumberForTaskGroup = (taskGroupId: string | undefined): number | undefined => {
+    if (!taskGroupId) {
+      return undefined;
+    }
+
+    const sectionIndex = document.sectionIds.findIndex((sectionId) =>
+      document.sections[sectionId]?.taskGroupIds.includes(readingV2Ids.taskGroupId(taskGroupId)),
+    );
+
+    return sectionIndex >= 0 ? sectionIndex + 1 : undefined;
+  };
+
+  const handleReviewIssueActivate = (issue: ReadingV2ReviewIssue) => {
+    const target = findIssueTarget(issue);
+    if (!target) {
+      return;
+    }
+
+    const targetPassageNumber = getPassageNumberForTaskGroup(target.taskGroupId);
+    if (targetPassageNumber && targetPassageNumber !== selectedPassageNumber) {
+      onSelectPassage(targetPassageNumber);
+    }
+    if (target.taskGroupId) {
+      onSelectTaskGroup(target.taskGroupId);
+    }
+
+    onQuestionLinkNavigation?.(target);
+    if (issue.target.questionRange?.start !== undefined) {
+      const questionNumber = issue.target.questionRange.start;
+
+      setFocusedIssueQuestion(questionNumber);
+      scrollQuestionIntoView(questionNumber);
+      window.setTimeout(() => scrollQuestionIntoView(questionNumber), 50);
+      window.setTimeout(() => scrollQuestionIntoView(questionNumber), 250);
+    }
+    setReviewIssuesOpen(false);
+    onReviewIssuesAction?.('reviewIssueNavigate', {
+      issueId: issue.id,
+      issueType: issue.type,
+      questionStart: issue.target.questionRange?.start,
+      questionEnd: issue.target.questionRange?.end,
+    });
+  };
+
+  const handleReviewIssuesOpenChange = (open: boolean) => {
+    setReviewIssuesOpen(open);
+    onReviewIssuesAction?.(open ? 'reviewIssuesOpen' : 'reviewIssuesClose', {
+      issueCount: reviewIssues.length,
+    });
+  };
+
+  function scrollQuestionIntoView(questionNumber: number) {
+    if (typeof window === 'undefined' || !window.document) {
+      return;
+    }
+
+    const candidates = Array.from(window.document.querySelectorAll<HTMLElement>('[aria-label]'));
+    const questionTarget = candidates.find((element) => {
+      const label = element.getAttribute('aria-label') ?? '';
+      return label === `Statement ${questionNumber} text`;
+    }) ?? candidates.find((element) => {
+      const label = element.getAttribute('aria-label') ?? '';
+      return label.startsWith(`Question ${questionNumber} `);
+    }) ?? candidates.find((element) =>
+      element.getAttribute('aria-label') === `Review guidance for Question ${questionNumber}`,
+    );
+
+    if (questionTarget) {
+      const questionPanel = questionTarget.closest<HTMLElement>('.reading-v2-build__question-panel');
+      if (questionPanel) {
+        const targetRect = questionTarget.getBoundingClientRect();
+        const panelRect = questionPanel.getBoundingClientRect();
+        const targetOffset = targetRect.top - panelRect.top - (panelRect.height / 3);
+        questionPanel.scrollTop += targetOffset;
+      } else {
+        questionTarget.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      }
+    }
+    try {
+      questionTarget?.focus?.({ preventScroll: true });
+    } catch {
+      questionTarget?.focus?.();
+    }
+  }
+
   const openAddGroupModal = () => {
     setAddGroupModalOpen(true);
     onOpenQuestionGroupModal();
@@ -4909,16 +5112,6 @@ export function ReadingV2BuildWorkspace({
     setAddGroupModalOpen(false);
     onCloseQuestionGroupModal();
   };
-
-  const validationTooltipText = validationMessages.length > 0
-    ? [
-        `${validationMessages.length} item${validationMessages.length === 1 ? '' : 's'} need attention.`,
-        ...validationMessages.map((item) =>
-          item.reviewLabel
-            ? `${item.reviewLabel}: ${item.reviewDetail ?? item.message}`
-            : item.message),
-      ].join('\n')
-    : undefined;
 
   const continueAddGroup = (taskType: ReadingV2CanonicalTaskType) => {
     onAddQuestionGroup(taskType);
@@ -5131,8 +5324,8 @@ export function ReadingV2BuildWorkspace({
         </div>
         <div className="reading-v2-build__state-row" aria-label="Build status">
           <p className="reading-v2-studio__sr-only" role="status" aria-live="polite">
-            {validationMessages.length > 0
-              ? `Validation status: ${validationMessages.length} item${validationMessages.length === 1 ? '' : 's'} pending.`
+            {reviewIssues.length > 0
+              ? `Validation status: ${reviewIssues.length} item${reviewIssues.length === 1 ? '' : 's'} pending.`
               : workflowMessage === 'No required issues found.'
                 ? 'Validation status: clear.'
                 : workflowMessage ?? 'Validation status: idle.'}
@@ -5141,37 +5334,30 @@ export function ReadingV2BuildWorkspace({
             {statusLabel}
           </span>
           <span className="reading-v2-build__mode">{modeLabel}</span>
-          {validationMessages.length > 0 ? (
+          {reviewIssues.length > 0 ? (
             <div className="reading-v2-build__warning-menu">
               <button
                 className="reading-v2-build__warning-pill"
                 type="button"
-                aria-label={`${validationMessages.length} validation item${validationMessages.length === 1 ? '' : 's'}`}
-                title={validationTooltipText}
+                aria-label={`${reviewIssues.length} validation item${reviewIssues.length === 1 ? '' : 's'}`}
+                title="Click to review issues"
+                aria-expanded={reviewIssuesOpen}
+                onClick={() => handleReviewIssuesOpenChange(!reviewIssuesOpen)}
               >
                 <IconAlertTriangle aria-hidden="true" size={18} stroke={1.9} />
-                <span>{validationMessages.length} item{validationMessages.length === 1 ? '' : 's'}</span>
+                <span>{reviewIssues.length} item{reviewIssues.length === 1 ? '' : 's'}</span>
               </button>
-              <section className="reading-v2-build__warning-popover" role="tooltip" aria-label="Validation messages">
-                <strong>{validationMessages.length} item{validationMessages.length === 1 ? '' : 's'} need attention.</strong>
-                <ul>
-                  {validationMessages.map((item) => (
-                    <li key={item.key}>
-                      {item.reviewLabel ? (
-                        <>
-                          <span className="reading-v2-build__warning-target">{item.reviewLabel}</span>
-                          <span>{item.reviewDetail ?? item.message}</span>
-                        </>
-                      ) : item.message}
-                    </li>
-                  ))}
-                </ul>
-                {operationalActionLabel && onOperationalAction ? (
-                  <button className="reading-v2-studio__button" type="button" onClick={onOperationalAction}>
-                    {operationalActionLabel}
-                  </button>
-                ) : null}
-              </section>
+              <ReadingV2ReviewIssuesPanel
+                issues={reviewIssues}
+                open={reviewIssuesOpen}
+                onOpenChange={handleReviewIssuesOpenChange}
+                onIssueActivate={handleReviewIssueActivate}
+              />
+              {operationalActionLabel && onOperationalAction && reviewIssuesOpen ? (
+                <button className="reading-v2-studio__button reading-v2-review-issues__operational-action" type="button" onClick={onOperationalAction}>
+                  {operationalActionLabel}
+                </button>
+              ) : null}
             </div>
           ) : workflowMessage ? (
             <span className="reading-v2-build__workflow-pill" role="status" aria-live="polite">{workflowMessage}</span>
@@ -5421,6 +5607,7 @@ export function ReadingV2BuildWorkspace({
                   .map((optionSetId) => optionSets[optionSetId])
                   .find((candidate): candidate is ReadingV2OptionSet => Boolean(candidate));
                 const reviewMessages = getReviewMessagesForGroup(groupInteractions);
+                const groupReviewIssues = getReviewIssuesForGroup(groupInteractions);
 
                 return (
                   <ReadingV2QuestionGroupCard
@@ -5432,6 +5619,9 @@ export function ReadingV2BuildWorkspace({
                     optionSets={optionSets}
                     visibleRange={getGroupRange(taskGroup)}
                     reviewMessages={reviewMessages}
+                    reviewIssues={groupReviewIssues}
+                    focusedIssueQuestion={focusedIssueQuestion}
+                    onReviewIssueActivate={handleReviewIssueActivate}
                     numberByInteractionId={numberByInteractionId}
                     selected={taskGroup.taskGroupId === selectedTaskGroupId}
                     authoringNumbers={authoringNumbers}

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.types';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import { deriveReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
 
@@ -34,6 +36,18 @@ describe('readingV2MaterialMetadata.service', () => {
     );
   });
 
+  it('preserves full-test composition identity in published metadata', () => {
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('material-composition-metadata'),
+      ownerId: 'teacher-1',
+      document: fixtureDocument(),
+      compositionId: readingV2Ids.fullTestCompositionId('composition-material-composition-metadata-snapshot-1'),
+      materialKind: 'full-test',
+    });
+
+    expect(metadata.compositionId).toBe('composition-material-composition-metadata-snapshot-1');
+  });
+
   it('requires a metadata title before publish output is produced', () => {
     const document = { ...fixtureDocument(), title: '   ' };
 
@@ -44,5 +58,106 @@ describe('readingV2MaterialMetadata.service', () => {
         document,
       }),
     ).toThrow(/requires a title/);
+  });
+
+  it('derives Reading Passage metadata with IELTS source-order display and safe list fields', () => {
+    const document = { ...fixtureDocument(), title: 'Making Time for Science' };
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-material-2'),
+      ownerId: 'teacher-1',
+      document,
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      sourceFullTestId: readingV2Ids.materialId('full-test-1'),
+      sourceSnapshotVersionId: 'snapshot-1',
+      sourceOrderKind: 'numeric',
+      sourceOrderValue: 2,
+      sourceQuestionRange: '14-26',
+      sourceTitleSnapshot: 'Academic Reading Test 1',
+      visibility: 'private',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    });
+
+    expect(metadata.materialKind).toBe('reading-passage');
+    expect(metadata.title).toBe('Making Time for Science');
+    expect(metadata.sourceOrderLabelSnapshot).toBe('Passage');
+    expect(metadata.sourceOrderDisplaySnapshot).toBe('Passage 2');
+    expect(metadata.sourceQuestionRange).toBe('14-26');
+    expect(metadata.sourceFullTestId).toBe('full-test-1');
+    expect(metadata.testTypeIds).toEqual(['ielts']);
+    expect(JSON.stringify(metadata)).not.toMatch(/answerKeys|authorDiagnostics|importEvidence|hiddenProvenance/);
+  });
+
+  it('uses Test-Type configured non-IELTS source labels', () => {
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-toeic-part'),
+      ownerId: 'teacher-1',
+      document: { ...fixtureDocument(), title: 'TOEIC Part 5 Reading' },
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('toeic'),
+      testTypeIds: [materialCatalogIds.testTypeId('toeic')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      sourceOrderKind: 'numeric',
+      sourceOrderValue: 5,
+      sourceTitleSnapshot: 'TOEIC Practice',
+    });
+
+    expect(metadata.sourceOrderLabelSnapshot).toBe('Part');
+    expect(metadata.sourceOrderDisplaySnapshot).toBe('Part 5');
+    expect(metadata.title).toBe('TOEIC Part 5 Reading');
+  });
+
+  it('falls back to source metadata for Reading Passage title when the passage has no own title', () => {
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-source-fallback'),
+      ownerId: 'teacher-1',
+      document: { ...fixtureDocument(), title: '   ' },
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      sourceOrderKind: 'numeric',
+      sourceOrderValue: 3,
+      sourceTitleSnapshot: 'IELTS Cambridge 10 - Test 02: Reading',
+    });
+
+    expect(metadata.title).toBe('IELTS Cambridge 10 - Test 02: Reading: Passage 3');
+  });
+
+  it('supports inactive or missing Test Type display without inventing numeric source order', () => {
+    const inactiveThcs = DEFAULT_MATERIAL_TEST_TYPES.map((config) =>
+      config.canonicalKey === 'THCS' ? { ...config, active: false } : config,
+    );
+    const inactiveMetadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-thcs-unknown'),
+      ownerId: 'teacher-1',
+      document: fixtureDocument(),
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('thcs'),
+      testTypeIds: [materialCatalogIds.testTypeId('thcs')],
+      testTypeConfigs: inactiveThcs,
+      sourceOrderKind: 'unknown',
+      sourceOrderValue: null,
+      sourceTitleSnapshot: 'THCS Reading',
+    });
+    const missingMetadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-missing-type'),
+      ownerId: 'teacher-1',
+      document: fixtureDocument(),
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('missing'),
+      testTypeIds: [materialCatalogIds.testTypeId('missing')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      sourceOrderKind: 'unknown',
+      sourceOrderValue: null,
+      sourceTitleSnapshot: 'Unknown Source',
+    });
+
+    expect(inactiveMetadata.sourceOrderDisplaySnapshot).toBe('Section unknown');
+    expect(inactiveMetadata.primaryTestTypeState).toBe('inactive');
+    expect(missingMetadata.sourceOrderDisplaySnapshot).toBe('Source unknown');
+    expect(missingMetadata.primaryTestTypeState).toBe('missing');
   });
 });

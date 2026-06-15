@@ -1,0 +1,26 @@
+{
+  "dryRun": true,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-06-04T13:45:12.777Z",
+  "totals": {
+    "operations": 0,
+    "operationDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "readFailures": 0,
+    "byKind": {}
+  },
+  "operations": [],
+  "readFailures": [],
+  "mutation": {
+    "status": "not-run",
+    "plannedWriteCount": 0
+  },
+  "storagePaths": {
+    "materialMetadata": "reading_v2/material_metadata",
+    "materialIndexes": "material_catalog/material_indexes",
+    "books": "material_catalog/books",
+    "bookIndexes": "material_catalog/book_indexes",
+    "bookNodes": "material_catalog/book_nodes",
+    "fullTestCompositions": "reading_v2/full_test_compositions",
+    "fullTestCompositionVersions": "reading_v2/full_test_composition_versions"
+  }
+}

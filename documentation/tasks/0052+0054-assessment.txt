@@ -1,0 +1,379 @@
+Update Note (2026-06-09): This assessment predates the later 09:16-09:34 revision of PRD-0052 Part 2, PRD-0054, and their tasklists. Treat it as historical input, not current truth. Re-check the current PRDs/tasklists before treating any H/C item below as open.
+
+PRD Reassessment Report
+
+  Executive Summary
+
+  Verdict: NEEDS POLISH (close to ready for Part 2; PRD-0054 needs more reconciliation).
+
+  The three PRDs are coherent in intent and the two tasklists are unusually disciplined (explicit anchors, ambiguity
+  flags, stop-and-record gates). The core architecture decision — composition-first ref-only masters with single-passage
+  Studio editing — is sound and matches the Codex planning sessions. However, there are real, verified conflicts and
+  gaps that a junior would implement inconsistently:
+
+  1. The central premise is verified true: the publish pipeline still embeds the full ReadingV2Document (TeacherLobby
+  routes all Reading V2 masters to full-test Studio), so Part 2 is genuinely needed — but Part 1's tasklist already
+  marks extraction/composition publish as done ([x]), creating a "is it built or not?" contradiction that must be
+  resolved before coding.
+  2. Several cross-PRD rule conflicts (mixed Test Types allowed at creation vs. same-Test-Type forced at repair;
+  auto-update-master-ref on remake vs. Update-References-modal on edit; duplicate guard scope).
+  3. Underspecified mechanics that block safe implementation: cross-passage numbering derivation, the authoritative
+  "student started" signal, where the frozen composed projection is stored and how it stays consistent across
+  RTDB/Firestore, and audit-inside-atomic-publish vs. the existing fire-and-forget auditService.
+
+  None are fatal. All are fixable with PRD edits before implementation.
+
+  ---
+  Foundation Context
+
+  How Part 1 + Reading V2 + Auto V4 constrain Part 2 and PRD-0054:
+
+  - Reading V2 (PRD-0048) defines a frozen three-plane model — Canonical (reading_v2/drafts, task_group_materials),
+  Packaging (reading_passage_materials, full_test_compositions), Projection (student_safe_tests, session_test_payloads,
+  review). Projections are regenerated, never edited. Identity law: taskGroupId stable across reorder; interactionId +
+  displayNumber both stored in results; numbering is section-scoped + assembly-derived for full tests. Part 2's
+  composition runtime must re-derive displayNumber across passages — this is a hard constraint Part 2 barely addresses
+  (see High-Severity #5).
+  - Auto V4 is Gemini-only, draft-only until publish, with a hardened anchor-safety invariant
+  (registerStructuredLayoutAnchor, duplicate-structured-layout-question) and a three-state Studio handoff (ready /
+  editable-needs-review / blocked-before-studio). Part 2's "first publish splits the Auto-V4 doc into passages" must
+  preserve per-passage anchor integrity — not mentioned anywhere in Part 2.
+  - PRD-0052 Part 1 is largely already implemented (reading_passage_materials, full_test_compositions,
+  readingV2PassageExtraction.service, publish-pipeline composition writes, Book editor, Archive-aware
+  MaterialRefAvailability). Critically, Part 1 tasklist tasks 5.0 and 6.0 are marked [x] — extraction + "publish writes
+  Reading Passage entities and composition refs" + rollback tests. Yet Part 2 §1.4/§3.6 says masters "may still contain
+  embedded passage payloads." Verified: readingV2PublishPipeline.service.ts still threads document: ReadingV2Document
+  into material writes (lines 352/364/410/560/640/666/680), so the embedded payload is real. The contradiction is
+  between Part 1's "done" checkboxes and the actual code — Part 2 must own the reconciliation explicitly.
+  - Storage decision (Part 1 tasklist note, line 144): Material Catalog, Books, Reading V2 passage/composition, and
+  indexes are RTDB; homework assignments stay Firestore. This split governs every atomicity claim in Part 2 and
+  PRD-0054.
+
+  ---
+  High-Severity Issues
+
+  H1. "Already built" vs. "not built" contradiction on composition publish
+
+  - Issue: Part 1 tasklist marks 5.0/6.0 (extraction + composition-first publish + rollback) [x] done; Part 2 treats it
+  as not-yet-built.
+  - Evidence: tasks-0052…library.md lines 304–351 all [x]. readingV2PublishPipeline.service.ts still carries document:
+  through writes (verified). handleEditTest (TeacherLobbyPage.jsx:891–907) routes every Reading V2 material to
+  TEACHER_READING_V2_REVISE with no published/draft branch.
+  - Why it matters: A junior reading Part 1 will assume publish is composition-first and skip Phase 2; a junior reading
+  Part 2 will rebuild it. Both are wrong without inspecting code.
+  - Affected: Part 1 tasklist 5.0/6.0; Part 2 §1.4, §3.3–3.6, Phase 0/2.
+  - Correction: Add a Part 2 §1.4 statement: "Part 1 added additive extraction/composition writes but did NOT remove
+  embedded document payload and did NOT split Edit routing; Part 2 supersedes by making master writes ref-only and
+  branching Edit by publish state." Keep the Phase 0 verification gate but state the expected current truth.
+
+  H2. Edit routing has no published-vs-unpublished branch (core behavior change)
+
+  - Issue: Part 2 requires Edit Test on a published master → Edit Test Modal, but unpublished drafts still use full-test
+  Studio. Current code has a single unconditional branch to Studio.
+  - Evidence: TeacherLobbyPage.jsx:893–906 — if (readingV2MaterialId) { navigateTo('TEACHER_READING_V2_REVISE') }. No
+  publish-state check.
+  - Why it matters: The entire Part 2 / PRD-0054 repair model hinges on this branch. The PRD never states how publish
+  state is determined for a Lobby row (is there a published flag, a publishedVersionId, a state field on the listing
+  row?). A junior will guess.
+  - Affected: Part 2 §3.7, FR-MASTER-EDIT-1/2; tasklist Phase 3.
+  - Correction: Add an FR defining the exact field the Lobby row uses to decide published vs. draft (e.g.,
+  publishedVersionId != null or state === 'published'), and define behavior for a master that has both a published
+  version and an open draft revision.
+
+  H3. Cross-PRD conflict: mixed Test Types allowed at creation, forbidden at repair
+
+  - Issue: Part 2 FR-EXISTING-19 (and decision 41) allows mixed Test Types with warning. PRD-0054 FR-STUDIO-ADD-2 says
+  the add-existing picker "must require the same Test Type."
+  - Evidence: Part 2 line 423 vs. PRD-0054 lines 384, 394. The Codex review session (2026-06-09, rollout-…08-06-29)
+  explicitly flagged this as unresolved ("strict same-type only, or compatible mismatch with confirmation?") and the
+  decision was compatible mismatch with confirmation.
+  - Why it matters: Same composition object, two contradictory validation rules depending on entry path. A repaired
+  master could be forced stricter than a created one.
+  - Affected: PRD-0054 §7.7 FR-STUDIO-ADD-2/7; Part 2 §7.7.
+  - Correction: Align both to the recorded decision: allow Test Type mismatch with explicit teacher confirmation +
+  warning, not a hard block. Edit FR-STUDIO-ADD-2 to "should default to same Test Type; mismatch requires confirmation."
+
+  H4. Conflict: remake auto-updates master ref vs. passage-edit shows Update-References modal
+
+  - Issue: Two different "passage published → ref update" semantics. PRD-0054 §2.7 + decision 34 + FR-STUDIO-REMAKE-7:
+  single-passage Studio publish atomically updates the originating master ref. Part 2 FR-PASSAGE-STUDIO-6/8 +
+  FR-UPDATE-REFS: publishing a passage version must not mutate masters; show Update references? (default unchecked).
+  - Evidence: PRD-0054 line 138, 424 vs. Part 2 lines 315–325, 154 (decision 14).
+  - Why it matters: When a teacher remakes a broken passage from a master, does the master ref auto-update (0054) or
+  wait for the Update-References modal (Part 2)? Junior will implement one and break the other flow. Also "atomic across
+  the new passage publish + master ref update" spans two materials — needs transaction definition.
+  - Affected: PRD-0054 §2.7, §7.9 FR-STUDIO-REMAKE-7; Part 2 §7.4/§7.5.
+  - Correction: Carve the two cases explicitly: (a) broken-ref remake → the originating master ref auto-updates
+  atomically (no Update-References modal, because the old ref is already dead); (b) normal edit of a healthy passage →
+  new version + Update-References modal, no auto-mutation. State that remake does NOT trigger the Update-References
+  modal.
+
+  H5. Cross-passage numbering derivation is unspecified (collides with Reading V2 contract)
+
+  - Issue: Reading V2 contract: "numbering is section-scoped + assembly-derived for full tests" and results store
+  displayNumber. A ref-only composition has no embedded document, so displayNumber for each interaction must be computed
+  at composition/assignment time from ordered passage refs. Neither Part 2 nor PRD-0054 says who computes it, when, or
+  how it's frozen into the projection/result.
+  - Evidence: Part 2 §9.1 lists "numbering metadata" with no algorithm; §9.3 frozen projection lists "passage refs" but
+  not a resolved numbering map. PRD-0054 §7.10 numbering review ("auto-renumber from this passage forward") implies a
+  renumber engine that is never specified.
+  - Why it matters: Result review and student runtime both depend on stable per-interaction display numbers.
+  Reorder/remove/replace changes them. Without a defined assembly-numbering service, juniors will compute numbers
+  inconsistently across runtime, result review, and the numbering-review modal.
+  - Affected: Part 2 §9.1/§9.3, Phase 6; PRD-0054 §7.10.
+  - Correction: Add a "Composition Numbering" data/algorithm section: define the assembly numbering function (input:
+  ordered passage refs + per-passage question counts; output: interactionId → displayNumber map), state it is frozen
+  into the assignment projection and copied into results, and define exactly what "auto-renumber from this passage
+  forward" recomputes.
+
+  H6. "Publish commit audit" inside all-or-nothing publish conflicts with existing audit design
+
+  - Issue: Part 2 FR-PUBLISH-5/6 make the publish commit audit part of the atomic all-or-nothing write set. The existing
+  auditService.logAuditEvent is fire-and-forget (logAuditEventAsync(...).catch(...), separate audit_logs ref).
+  - Evidence: auditService.ts:69–90 (async, swallowed errors); Part 2 FR-PUBLISH-5 lists "publish commit audit"
+  alongside the atomic write set.
+  - Why it matters: A junior will either (a) bolt audit into the RTDB multi-location update (changing audit
+  semantics/rules), or (b) leave audit fire-and-forget and silently violate "all-or-nothing." PRD-0054 §9.4 also demands
+  append-only audit, which the current swallow-errors writer doesn't guarantee.
+  - Affected: Part 2 FR-PUBLISH-5/6; PRD-0054 §7.14, §9.4.
+  - Correction: State whether audit is inside or outside the atomic boundary. Recommended: audit is best-effort outside
+  the atomic publish (publish success does not depend on audit write), and FR-PUBLISH-5 should not list audit as part of
+  the atomic set. Separately require audit_logs rules to be append-only (no update/delete).
+
+  H7. Frozen composed projection storage + RTDB/Firestore consistency is undefined
+
+  - Issue: Part 2 §9.3 says a "composed student-safe projection" is saved at assignment time, but never says where
+  (which RTDB path), nor how it stays consistent with the Firestore homework_assignments doc that points to it.
+  - Evidence: Part 1 tasklist line 144/146 (catalog+projections in RTDB, homework in Firestore). Part 2 §9.3 lists
+  projection contents but no path. The Part 2 tasklist rollback note (line 386) correctly warns "RTDB multi-location
+  update does not make Firestore writes atomic" — but the PRD itself provides no resolution.
+  - Why it matters: Assignment creation now spans two stores (Firestore assignment + RTDB frozen projection). If the
+  projection write fails after the assignment doc commits, students launch into a missing projection — exactly the
+  FR-ASSIGN-10 "block launch" case, but silently created. Junior needs the ordering/recovery rule.
+  - Affected: Part 2 §7.8, §9.3, Phase 6.
+  - Correction: Define the frozen-projection RTDB path (e.g.,
+  reading_v2/projections/assignment_payloads/{assignmentId}:{compositionVersionId}), define write ordering (projection
+  first, then assignment doc references it), and define the launch-time fail-closed behavior when the projection is
+  absent.
+
+  H8. Auto V4 anchor-safety not carried into the split-on-publish
+
+  - Issue: Part 2 first-publish splits an Auto-V4 full doc into N passage materials. Auto V4's hardened invariant
+  forbids duplicate anchorIds and degrades structured layouts. Splitting must preserve per-passage anchor/interaction
+  integrity; not mentioned.
+  - Evidence: Auto V4 contract (reading-v2-auto-v4-provider-review-contract.md, anchor-foundation tasklist) defines
+  registerStructuredLayoutAnchor / duplicate-structured-layout-question. Part 2 §7.2 publish requirements list outputs
+  but no anchor-integrity validation per split passage.
+  - Why it matters: A multi-passage Auto-V4 import that passes whole-doc validation could produce an
+  individually-invalid passage material after split (e.g., anchors referencing a stimulus now in a different passage),
+  crashing single-passage Studio later.
+  - Affected: Part 2 §7.1/§7.2; references PRD-0048 anchor foundation.
+  - Correction: Add FR-PUBLISH requiring each extracted passage to independently pass canonical anchor/interaction
+  validation before publish commits; block split with a typed issue if any passage is individually invalid.
+
+  ---
+  Missing Or Underspecified Areas
+
+  Questions that must be answered before implementation:
+
+  1. Publish-state field for Edit routing (H2): which exact field/value on the Lobby listing row marks "published
+  master"? Behavior when a published master also has an open draft revision?
+  2. Archived-master surface: PRD-0054 adds an Archive subtab to the Reading Passage tab only. Master delete uses soft
+  archive (tasklist Phase 2). Where do archived masters appear? Is there a master Archive view, or are archived masters
+  simply gone from My Content? Restore path for masters is undefined.
+  3. Split-passage visibility: what visibility do auto-created passages get on first publish? Remade replacement
+  inherits master visibility (FR-STUDIO-REMAKE-8); cloned passage defaults private (FR-CLONE-9); split passage = ?
+  4. Public master referencing a now-private passage: FR-EXISTING-21 blocks publishing public with private refs, but a
+  teacher can later change a passage to private. Does the public master become broken, hidden, or leak? Undefined
+  (security-relevant).
+  5. Broken-status recompute on restore/archive: who recomputes cached hasBrokenRefs on master/Book index rows when a
+  passage is archived or restored? PRD-0054 §9.2 stores the flag but no invalidation owner (tasklist allows "modal-only
+  detection" as deferral — but then card badges go stale).
+  6. "Student started" authoritative signal (FR-ASSIGN-6): tasklist flags this (line 385) but the PRD asserts the
+  capability without naming the source (submission doc? attempt doc? session state?). Must be defined, not approximated
+  from UI.
+  7. Duplicate similarity formula (PRD-0054 FR-DUP, threshold 80%): tasklist correctly flags formula is unspecified.
+  Also: what is the "searchable text summary" index that avoids full-canonical scans during typing? No such index exists
+  today.
+  8. New-tab cross-tab refresh: single-passage Studio opens "in another browser tab." How does the Edit Test Modal /
+  parent learn the passage published so it can refresh ref status? No cross-tab signal defined (and "new tab" is hostile
+  on tablet/phone — see Rule Conflicts).
+  9. Numbering engine (H5): the assembly-numbering function and its freeze points.
+  10. Duplicate guard on auto-split (the original bug): the Codex session that spawned Part 2 was about passages
+  auto-appearing on import of "Cambridge 20 Test 1," and the original decision was "a new reading passage will be made
+  if not duplicated (compare dup % then confirm)." Part 2 FR-PUBLISH-1 creates one passage per passage with no dedupe.
+  Re-importing the same Cambridge test creates duplicate passages silently. This is a missing requirement that traces
+  directly to the founding use case.
+
+  ---
+  Drifts From Prior Discussion
+
+  Evidence from C:\Users\The Lord\.codex\sessions\2026\06\…:
+
+  - Repair location (RESOLVED in text, verify code): Decision = published-master repair in Edit Test Modal, not Studio
+  (rollout-2026-06-08T21-53-36…, decision "31/57"; rollout-2026-06-09T08-06-29… patch). PRD-0054 decisions 50/51 and
+  §1.5 now reflect this. ✅ But current code (handleEditTest) still routes to Studio — drift is code-vs-PRD, not
+  PRD-vs-discussion.
+  - Same-Test-Type at repair (DRIFT, H3): Discussion settled on compatible mismatch with confirmation; PRD-0054
+  FR-STUDIO-ADD-2 still says "must require the same Test Type." Committed text is stricter than the decision.
+  - Duplicate = soft warning + confirm (PARTIAL): Discussion: "compare dup % with other reading passage, then confirm"
+  at passage creation. PRDs implement the 80% warning only for manual remake, not for the auto-split publish that
+  triggered the whole effort (drift / missing case #10 above).
+  - Ownership gate on delete (FAITHFUL): "you can only delete… if you are owner of passage; if owner of master but not
+  passage, only delete/archive master" → PRD-0054 decisions 5/14/15. ✅
+  - Archive-while-used + checkbox (FAITHFUL): "allow archive with checkbox; other master shows broken ref" →
+  FR-RP-ARCH-9, edge cases §10. ✅
+  - Three repair options identical in Studio and Book (FAITHFUL): "book editor should also show 3 options like studio,
+  but manual opens studio instead" → FR-BOOK-BROKEN-5/8. ✅
+  - archivedAt soft-delete + frozen-snapshot result review were already established pre-0054 (rollout-2026-06-01…:
+  archivedAt: null, snapshot-archived, history badges). PRD-0054 §9.1 is consistent. ✅
+  - Manual-only repair, auto deferred (FAITHFUL): "Only manual for now, auto will be left for future" →
+  FR-STUDIO-REMAKE-9, Non-Goal. ✅
+
+  ---
+  Conflicts Across PRDs
+
+  #: C1
+  Conflict: Mixed Test Types allowed (create) vs. same Test Type forced (repair)
+  Sources: Part 2 FR-EXISTING-19 ↔ 0054 FR-STUDIO-ADD-2
+  Resolution owner: Decision rule (H3)
+  ────────────────────────────────────────
+  #: C2
+  Conflict: Passage publish auto-updates master ref (remake) ↔ never mutates, modal-only (edit)
+  Sources: 0054 FR-STUDIO-REMAKE-7 ↔ Part 2 FR-UPDATE-REFS-1/FR-PASSAGE-STUDIO-8
+  Resolution owner: Split by case (H4)
+  ────────────────────────────────────────
+  #: C3
+  Conflict: Part 1 "composition publish done [x]" ↔ Part 2 "embedded payload remains"
+  Sources: tasks-0052 5.0/6.0 ↔ Part 2 §1.4
+  Resolution owner: Part 2 supersedes (H1)
+  ────────────────────────────────────────
+  #: C4
+  Conflict: Audit in atomic publish ↔ fire-and-forget auditService
+  Sources: Part 2 FR-PUBLISH-5/6 ↔ auditService.ts
+  Resolution owner: Audit outside atomic (H6)
+  ────────────────────────────────────────
+  #: C5
+  Conflict: Duplicate guard only on remake ↔ founding use case wanted it on auto-split
+  Sources: Part 2 §7.2 ↔ Codex session + 0054 §7.11
+  Resolution owner: Add split-dedupe FR (#10)
+  ────────────────────────────────────────
+  #: C6
+  Conflict: "Edit Test Modal" naming: Part 2 invents ReadingV2MasterEditModal; existing EditTestFrame.tsx /
+    modals.openEditTest is the current edit-test surface for legacy tests
+  Sources: Part 2 tasklist line 71 ↔ TeacherLobbyPage.jsx:951, EditTestFrame.tsx
+  Resolution owner: Confirm whether to extend EditTestFrame or add new component (tasklist already flags as Ambiguity)
+
+  Sequencing is otherwise well-handled: both tasklists gate PRD-0054 master-repair UI on Part 2's
+  ReadingV2MasterEditModal (Part 2 tasklist Execution Contract; 0054 Phase 0/Phase 3 gates).
+
+  ---
+  Architecture And Rule Conflicts
+
+  - @mantine/* ban (AGENTS.md / codebase-hygiene): TestCreationModal.tsx (which Part 2 Phase 4 must edit) imports
+  @mantine/core (Modal, Text) and useNavigate directly (verified, lines 16–17). Part 2 tasklist already flags this
+  (Ambiguity line 392), but the PRD itself doesn't acknowledge that the primary Phase-4 surface is non-compliant.
+  Touching it triggers the cleanup rule.
+  - Navigation / mobile-portability rules: "Open single-passage Studio in another browser tab" (Part 2 decisions 10/50,
+  FR-PASSAGE-STUDIO-3; PRD-0054 FR-STUDIO-REMAKE / FR-BOOK-BROKEN-8) requires window.open/target=_blank, which the
+  mobile-portability and navigation rules constrain (no direct window.*, use navigation abstraction). New tabs are also
+  hostile on tablet/phone teacher use. No FR addresses the mobile/tablet case or the cross-tab refresh handshake.
+  - Student View Design Standard / student-mobile-design: Both PRDs declare "no student runtime layout changes" (good),
+  but Part 2 changes the student launch payload (frozen composed projection). The tasklists include student-mobile proof
+  gates — keep, since runtime data path changes even if layout doesn't.
+  - Observability of "view" events: PRD-0054 FR-AUDIT-1 audits "broken ref viewed" and FR-OBS-5/7 emit *_viewed.
+  Auditing every broken-ref view to audit_logs (RTDB) is write-heavy and unusual; reconcile with observability rule
+  (feature-registry tracking vs. persistent audit). Recommend view events go to observability tracking, not the
+  append-only audit log.
+  - Security rules / projections: Student-safe projection rule coverage (no
+  answerKeys/scoringRule/importEvidence/hiddenProvenance) exists from Part 1 (tasks 4.15–4.17). The new composed
+  assignment projection path (H7) needs its own rule + test; both tasklists cover it generically but the path is
+  undefined.
+  - Knowns / .md editing rule (global CLAUDE.md): "Never edit .md directly." Both tasklists instruct editing
+  architecture .md docs (0054 Phase 8) and PRD/findings files directly. Flag for process compliance — confirm whether
+  Knowns MCP governs these documentation/ files or only Knowns-tracked tasks.
+
+  ---
+  Implementation Risk Areas
+
+  - Auto V4 import → split: anchor integrity per passage (H8); structured-layout (table/flow/diagram) anchors that span
+  the whole doc.
+  - Reading V2 publish pipeline: removing embedded document from master writes while keeping legacy compatibility reads
+  (Part 2 FR-PUBLISH-8); verified document still threaded through writes — this is the load-bearing change.
+  - Composition-first masters: numbering derivation (H5); visibility of split passages (#3).
+  - Archive/restore: stale hasBrokenRefs recompute (#5); archived-master surface (#2); restore "same id/version"
+  un-breaking refs requires index rebuild from canonical metadata (tasklist rollback note line 448).
+  - Broken-ref repair: the auto-update-vs-modal conflict (H4); atomic "new passage publish + originating ref update"
+  across two materials.
+  - Book repair: Book refs may point to materials by id without version (verify materialBooks.service ref shape before
+  assuming version-pinned broken detection works); 3-tab modal contract must be preserved (0054 tasklist Phase 4).
+  - Duplicate detection: no similarity engine and no searchable-text index exist; threshold 80% with "body and question
+  text equally" needs a concrete formula + a non-scanning data source.
+  - Audit trail: existing auditService enum lacks archive/restore/repair actions and is fire-and-forget (H6);
+  append-only rule unverified on audit_logs.
+  - Assignment freeze: RTDB/Firestore split (H7); authoritative "started" signal (#6).
+  - Result review: depends on frozen numbering map + frozen passage snapshots; must survive source archive (covered) and
+  master deletion (covered).
+  - Security rules: new composed-projection path; public-master-with-private-ref drift (#4).
+  - Browser proof: new-tab flow on responsive widths (rule conflict); both tasklists include 375/320px gates — keep.
+  - Rollback: both tasklists have strong rollback/guard notes; the "stop if embedded payload remains after Phase 2" gate
+  (Part 2 tasklist line 383) is the right circuit-breaker.
+
+  ---
+  Recommended PRD Edits
+
+  PRD-0052 Part 2:
+  - Add to §1.4: explicit statement that Part 1 left additive composition writes plus embedded document; Part 2 makes
+  master writes ref-only and removes embedded payload. Reference the verified pipeline fact.
+  - Add FR-MASTER-EDIT-0: define the exact listing-row field that decides published-vs-draft Edit routing, and the
+  both-published-and-draft case (H2).
+  - Add FR-PUBLISH-1a: extracted passages are deduplicated against the teacher's existing passages (or at minimum
+  surface the duplicate warning) on auto-split, per the founding decision (#10).
+  - Add FR-PUBLISH-9: each extracted passage must independently pass canonical anchor/interaction validation before
+  commit; block with typed issue otherwise (H8).
+  - Add a "Composition Numbering" section defining the assembly-numbering function, freeze points (assignment projection
+  + result), and renumber semantics (H5).
+  - Amend FR-PUBLISH-5: move "publish commit audit" out of the atomic write set; audit is best-effort post-commit (H6).
+  - Add §9.3a: define the frozen composed-projection RTDB path and projection-before-assignment write ordering +
+  fail-closed launch (H7).
+  - Add FR for split-passage default visibility (#3) and for public-master-with-later-private-ref handling (#4).
+  - Clarify FR-PASSAGE-STUDIO-3: define the new-tab mechanism via the navigation abstraction and the cross-tab refresh
+  handshake; add tablet/phone fallback.
+
+  PRD-0054:
+  - Amend FR-STUDIO-ADD-2: same Test Type is the default; mismatch allowed with explicit confirmation + warning (H3,
+  align to Codex decision).
+  - Carve FR-STUDIO-REMAKE-7 vs. Part 2 Update-References: remake of a broken ref auto-updates the originating ref
+  atomically and does not open the Update-References modal; healthy-passage edits do (H4).
+  - Add a "Master archive/restore surface" subsection (#2): where archived masters live and how they restore.
+  - Add a broken-status invalidation owner: who recomputes hasBrokenRefs on archive/restore (#5).
+  - Specify the duplicate similarity formula and the searchable-text data source; state it must not scan canonical
+  content (FR-DUP / tasklist Phase 5 flag).
+  - Reclassify *_viewed events: route to observability tracking, not the append-only audit log; reserve audit_logs for
+  state-changing actions and require append-only rules.
+  - Acknowledge existing auditService enum and require new typed actions + append-only audit_logs rule (H6).
+
+  Both tasklists: add a Phase 0 line asserting the expected current state ("embedded document still written; Edit routes
+  unconditionally to Studio") so verification confirms rather than discovers.
+
+  ---
+  Open Questions (blocking)
+
+  1. Published-state field: exactly which field/value marks a Lobby master row as "published" for Edit routing, and what
+  happens when a published master has an open draft revision? (H2)
+  2. Remake vs. Update-References: when remaking a broken passage from a master/Book, does the originating ref
+  auto-update (PRD-0054) or wait for the Update-References modal (Part 2)? Pick one. (H4/C2)
+  3. Test Type at repair: strict same-type, or compatible mismatch with confirmation (the recorded decision)? (H3/C1)
+  4. Auto-split dedupe: should re-importing the same source skip/merge/warn on duplicate passages, or silently create
+  duplicates? (#10/C5)
+  5. Frozen composed projection: what RTDB path stores it, and what is the write ordering/recovery across the RTDB
+  projection + Firestore assignment doc? (H7)
+  6. Numbering: what is the assembly-numbering algorithm and where is it frozen? (H5)
+  7. "Student started" authority: which datastore/field is the authoritative signal that disables assignment refresh?
+  (#6)
+  8. Audit boundary + append-only: is audit inside or outside the atomic publish, and are audit_logs rules append-only?
+  (H6)
+
+  Everything else is implementation detail the tasklists already gate with stop-and-record flags. Resolve the eight
+  questions above and the conflicts in §Recommended PRD Edits, and Part 2 is ready to start; PRD-0054 can proceed behind
+  it once C1/C2 and the archived-master surface are settled.

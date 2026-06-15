@@ -198,8 +198,12 @@ Interpretation:
 40. The studio must support these explicit modes in the same shell:
    1. create blank
    2. create from import
-   3. resume draft
-   4. published edit through draft revision
+   3. create from Auto
+   4. resume draft
+   5. published edit through draft revision
+   6. duplicate material
+   7. extract task-group material
+40a. Shared shell support does not make every control universal. `Add Passage` and passage removal controls are enabled only for manual blank creation, paste/import Studio outcomes, and Auto V4 Studio outcomes; individual Reading Passage, resume, revision, duplicate, and extraction modes hide passage-collection controls.
 41. Reading V2 must not use separate long-lived V2 review pages or a published-edit modal with its own editor model.
 42. Small modals may be used for bounded actions such as publish confirmation, discard confirmation, lightweight import picking, or the existing Teacher Lobby edit-modal host when it delegates to the Studio contract.
 43. The studio must preserve a stable two-column visual structure.
@@ -228,17 +232,19 @@ Interpretation:
    - The studio must support reordering top-level task groups and linked stimuli without changing stable object identity.
    - The studio must allow direct editing of grouped instructions and answer rules inside the canonical draft.
 56. Published editing must always open or create a draft revision while the currently published version remains live until republish.
+57. Successful non-revision publish must exit the teacher from Studio back to the existing Teacher Lobby/Materials context so the newly published test is re-entered through normal material workflows.
+58. Any further change after publish must happen through explicit revision and republish rather than continued same-window editing.
 
 ### 4.6 Authoring Model and Task Ownership
 
-54. Reading V2 authoring must use a schema-aware structured editing model for most Reading content.
-55. The system must own layout decisions; teachers author meaning, grouping, answer rules, and linkage.
-56. The editor may use specialized embedded tools for dense layout tasks, but those tools must still write into the canonical model.
-57. A freeform canvas must not be the primary source of truth.
-58. One interaction must belong to exactly one task group.
-59. One passage asset may support multiple task groups.
-60. The system must preserve IELTS numbering and grouped question ranges automatically.
-61. Draft-only placeholders may exist during authoring, but they must remain unnumbered and publish-blocking.
+59. Reading V2 authoring must use a schema-aware structured editing model for most Reading content.
+60. The system must own layout decisions; teachers author meaning, grouping, answer rules, and linkage.
+61. The editor may use specialized embedded tools for dense layout tasks, but those tools must still write into the canonical model.
+62. A freeform canvas must not be the primary source of truth.
+63. One interaction must belong to exactly one task group.
+64. One passage asset may support multiple task groups.
+65. The system must preserve IELTS numbering and grouped question ranges automatically.
+66. Draft-only placeholders may exist during authoring, but they must remain unnumbered and publish-blocking.
 
 ### 4.7 Student Runtime
 

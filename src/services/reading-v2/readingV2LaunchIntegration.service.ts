@@ -2,10 +2,16 @@
 // metadata/projections here and never inspect canonical drafts or legacy Reading payloads.
 import {
   READING_V2_ENGINE,
+  READING_V2_ROLLOUT_MODES,
   READING_V2_ROLLOUT_MODE,
+  READING_PASSAGE_HOMEWORK_MODE,
+  READING_PASSAGE_LIBRARY_MODE,
   type ReadingV2RolloutMode,
+  type Prd0052FeatureFlagMode,
   isReadingV2Payload,
   isReadingV2PublicRollout,
+  isReadingPassageHomeworkEnabled,
+  isReadingPassageLibraryEnabled,
 } from '../../config/readingV2FeatureFlags';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
@@ -31,7 +37,9 @@ export type ReadingV2LaunchDecision =
         | 'rollout-disabled'
         | 'missing-projection'
         | 'invalid-projection-kind'
-        | 'canonical-draft-not-allowed';
+        | 'canonical-draft-not-allowed'
+        | 'archived-or-removed'
+        | 'broken-master';
       readonly message: string;
     }
   | {
@@ -123,8 +131,88 @@ export interface ReadingV2LaunchMaterialSummary {
 const BLOCKED_PUBLIC_MESSAGE =
   'Reading V2 is not enabled for student launch yet.';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isFrozenAssignmentProjection = (projection: unknown): boolean =>
+  isRecord(projection) && isRecord(projection.assignmentManifest);
+
+const isBrokenOrRemovedCurrentMaster = (metadata: unknown): ReadingV2LaunchDecision | null => {
+  if (!isRecord(metadata)) {
+    return null;
+  }
+
+  const materialKind = String(metadata.materialKind ?? '').trim();
+  const isMaster = materialKind === 'full-test' || materialKind === 'reading-v2-full-test-composition';
+  if (!isMaster) {
+    return null;
+  }
+
+  const state = String(metadata.state ?? 'published').trim().toLowerCase();
+  if (state === 'archived' || state === 'removed') {
+    return {
+      status: 'blocked',
+      reason: 'archived-or-removed',
+      message: 'Reading V2 master is removed or archived and cannot be launched from the current library record.',
+    };
+  }
+
+  if (metadata.hasBrokenRefs === true || Number(metadata.brokenRefCount ?? 0) > 0) {
+    return {
+      status: 'blocked',
+      reason: 'broken-master',
+      message: 'Reading V2 master has unresolved broken Reading Passage refs.',
+    };
+  }
+
+  return null;
+};
+
 export const isReadingV2LaunchCandidate = (metadata: unknown): boolean =>
   isReadingV2Payload(metadata);
+
+export const isReadingV2LaunchSurfaceEnabled = (input: {
+  readonly surface: ReadingV2LaunchSurface;
+  readonly rolloutMode?: ReadingV2RolloutMode;
+  readonly readingPassageHomeworkMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
+}): boolean => {
+  if (isReadingV2PublicRollout(input.rolloutMode ?? READING_V2_ROLLOUT_MODE)) {
+    return true;
+  }
+
+  if (
+    input.surface === 'live-session' &&
+    (input.rolloutMode ?? READING_V2_ROLLOUT_MODE) === READING_V2_ROLLOUT_MODES.teacherPreview
+  ) {
+    return true;
+  }
+
+  if (input.surface === 'homework') {
+    return isReadingPassageHomeworkEnabled(
+      input.readingPassageHomeworkMode ?? READING_PASSAGE_HOMEWORK_MODE,
+    );
+  }
+
+  if (input.surface === 'course-material') {
+    return (
+      isReadingPassageHomeworkEnabled(
+        input.readingPassageHomeworkMode ?? READING_PASSAGE_HOMEWORK_MODE,
+      ) ||
+      isReadingPassageLibraryEnabled(
+        input.readingPassageLibraryMode ?? READING_PASSAGE_LIBRARY_MODE,
+      )
+    );
+  }
+
+  if (input.surface === 'public-library') {
+    return isReadingPassageLibraryEnabled(
+      input.readingPassageLibraryMode ?? READING_PASSAGE_LIBRARY_MODE,
+    );
+  }
+
+  return false;
+};
 
 const normalizeReadingV2Difficulty = (
   difficulty: string | undefined,
@@ -255,17 +343,26 @@ export const resolveReadingV2LaunchDecision = (input: {
   readonly metadata?: unknown;
   readonly projection?: unknown;
   readonly rolloutMode?: ReadingV2RolloutMode;
+  readonly readingPassageHomeworkMode?: Prd0052FeatureFlagMode;
+  readonly readingPassageLibraryMode?: Prd0052FeatureFlagMode;
 }): ReadingV2LaunchDecision => {
   if (!isReadingV2LaunchCandidate(input.metadata)) {
     return { status: 'legacy', reason: 'not-reading-v2' };
   }
 
-  if (!isReadingV2PublicRollout(input.rolloutMode ?? READING_V2_ROLLOUT_MODE)) {
+  if (!isReadingV2LaunchSurfaceEnabled(input)) {
     return {
       status: 'blocked',
       reason: 'rollout-disabled',
       message: BLOCKED_PUBLIC_MESSAGE,
     };
+  }
+
+  if (!isFrozenAssignmentProjection(input.projection)) {
+    const brokenOrRemoved = isBrokenOrRemovedCurrentMaster(input.metadata);
+    if (brokenOrRemoved) {
+      return brokenOrRemoved;
+    }
   }
 
   if (!input.projection || typeof input.projection !== 'object') {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Button, NativeSelect } from './index';
-import { PlusIcon, SearchIcon } from './icons.jsx';
+import { FileIcon, GlobeIcon, LockIcon, PlusIcon, SearchIcon } from './icons.jsx';
 import MaterialViewModeToggle from './MaterialViewModeToggle';
 import './SearchFilterBar.css';
 
@@ -15,10 +15,26 @@ const SearchFilterBar = ({
   thcsExamTypeFilter,
   onThcsExamTypeFilterChange,
   onCreateNew,
+  createLabel = 'Create New Test',
+  showCreateButton = true,
   viewMode,
   onViewModeChange,
+  visibilityScope,
+  onVisibilityScopeChange,
+  visibilityLabel,
+  visibilityScopeOptions,
 }) => {
-  const showViewModeToggle = viewMode && typeof onViewModeChange === 'function';
+  const showViewModeToggle = Boolean(viewMode && typeof onViewModeChange === 'function');
+  const showVisibilityScope = Boolean(visibilityScope && typeof onVisibilityScopeChange === 'function');
+  const scopeOptions = visibilityScopeOptions || [
+    { value: 'private', label: 'Private', icon: LockIcon },
+    { value: 'public', label: 'Public', icon: GlobeIcon },
+  ];
+  const scopeIconByValue = {
+    private: LockIcon,
+    public: GlobeIcon,
+    archived: FileIcon,
+  };
 
   return (
     <div className="search-filter-bar">
@@ -93,17 +109,46 @@ const SearchFilterBar = ({
         </div>
       )}
 
-      <Button
-        variant="primary"
-        onClick={onCreateNew}
-        style={{
-          background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-          flexShrink: 0,
-        }}
-      >
-        <PlusIcon size={16} style={{ marginRight: '0.5rem' }} />
-        Create New Test
-      </Button>
+      {showVisibilityScope && (
+        <div
+          className="search-filter-bar__visibility"
+          role="group"
+          aria-label={visibilityLabel || 'Visibility'}
+        >
+          {scopeOptions.map(({ value, label, icon }) => {
+            const Icon = icon || scopeIconByValue[value] || FileIcon;
+            const isActive = visibilityScope === value;
+
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`search-filter-bar__visibility-button${isActive ? ' search-filter-bar__visibility-button--active' : ''}`}
+                aria-label={label}
+                aria-pressed={isActive}
+                title={label}
+                onClick={() => onVisibilityScopeChange(value)}
+              >
+                <Icon size={15} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreateButton && (
+        <Button
+          variant="primary"
+          onClick={onCreateNew}
+          style={{
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+            flexShrink: 0,
+          }}
+        >
+          <PlusIcon size={16} style={{ marginRight: '0.5rem' }} />
+          {createLabel}
+        </Button>
+      )}
     </div>
   );
 };

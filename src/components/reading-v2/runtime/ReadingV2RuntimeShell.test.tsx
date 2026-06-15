@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE } from '../../../services/reading-v2/fixtures/readingV2PasteImportFixtures';
 import { READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE } from '../../../services/reading-v2/fixtures/readingV2ProjectionFixtures';
@@ -239,6 +240,21 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Grouped instructions')).toHaveTextContent('Choose NO MORE THAN TWO WORDS from the passage for each answer.');
     expect(screen.getByLabelText('Question 1')).toHaveTextContent('Complete the fixture sentence with the first missing word.');
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeInTheDocument();
+  });
+
+  it('renders a top-right exit button when a return handler is provided', async () => {
+    setViewport(1366, 900);
+    const onExit = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} onExit={onExit} />);
+
+    const exitButton = screen.getByRole('button', { name: 'Exit Reading test' });
+    expect(exitButton).toHaveClass('reading-v2-runtime__exit-button');
+
+    await user.click(exitButton);
+
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 
   it('does not synthesize visible passage paragraph labels when projection paragraphs are unlabeled', () => {
@@ -603,6 +619,51 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('paused by the teacher');
+  });
+
+  it('auto-submits when a live force-submit token arrives', async () => {
+    setViewport(1024, 768);
+    const onSubmit = vi.fn();
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onSubmit={onSubmit}
+        lifecycle={{
+          status: 'in-progress',
+          forceSubmitToken: 7890,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+        projectionId: READING_V2_PROJECTION_FIXTURES.studentSafe.projectionId,
+        sourceSnapshotVersionId: READING_V2_PROJECTION_FIXTURES.studentSafe.sourceSnapshotVersionId,
+        materialId: READING_V2_PROJECTION_FIXTURES.studentSafe.materialId,
+      }));
+    });
+  });
+
+  it('labels untimed launches without showing a frozen default countdown', () => {
+    setViewport(1024, 768);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onSubmit={vi.fn()}
+        timer={{
+          durationMinutes: null,
+          startedAt: null,
+          running: true,
+          autoSubmitOnExpiry: true,
+        }}
+      />,
+    );
+
+    const header = screen.getByLabelText('Student Reading runtime header');
+    expect(header).toHaveTextContent('Untimed');
+    expect(header).not.toHaveTextContent('60:00');
   });
 
   it('does not auto-submit when the configured timer is already expired on first load', async () => {

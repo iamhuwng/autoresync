@@ -1014,7 +1014,18 @@ const validateTaskGroupReferences = (
         return;
       }
 
-      (stimulusRef.anchorIds ?? Array.from(stimulusAnchors)).forEach((anchorId) => {
+      const stimulusRefAnchorIds = stimulusRef.anchorIds ?? Array.from(stimulusAnchors);
+      const seenStimulusRefAnchorIds = new Set<string>();
+
+      stimulusRefAnchorIds.forEach((anchorId) => {
+        addDuplicateIssue(
+          seenStimulusRefAnchorIds,
+          anchorId,
+          issues,
+          'duplicate-task-group-anchor-reference',
+          'task group anchor reference',
+        );
+
         if (!stimulusAnchors.has(anchorId)) {
           issues.push(issue(
             'orphan-anchor-reference',

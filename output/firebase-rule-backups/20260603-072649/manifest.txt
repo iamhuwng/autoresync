@@ -1,0 +1,9 @@
+﻿created_at=2026-06-03T07:26:56.3408360+07:00
+project=temp-a1437
+operation=predeploy-backup-before-reading-v2-rule-field-alignment
+local_path=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-072649\predeploy-local-database.rules.json
+remote_path=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-072649\predeploy-remote-deployed-database.rules.json
+local_sha256=9675CDEE921B83F6E04B87E7B7C9B29EA260FCC0F2CF84AFF882B2E65B546153
+remote_sha256=298E6EDB8091F1B4367004AC0286939B7A04EBBD88CD6C63E2564FD6826CD3FB
+postdeploy_remote_path=C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\firebase-rule-backups\20260603-072649\postdeploy-remote-deployed-database.rules.json
+postdeploy_remote_sha256=3B286B1FC9CBCEF1302D4A8868EC91474AE4C8511BD0DF398F98E5F3E3D72A29

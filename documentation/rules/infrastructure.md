@@ -99,6 +99,16 @@ Complete ALL of the following before the commit is considered done:
 
 **Self-check:** *"Did I add security rules for this new collection?"*
 
+### Reading V2 Audit Node
+
+For Reading V2 PRD-0054 audit work, use the dedicated RTDB path defined in `documentation/architecture/reading-v2-audit-trail.md`:
+
+```text
+reading_v2/audit_events/{eventId}
+```
+
+This node is append-only. Do not reuse legacy `audit_logs` for PRD-0054 Reading V2 archive, restore, repair, or duplicate-decision audit events. Rule tests must prove create is allowed only for valid authenticated state-changing events, update/delete are denied, reads are super-admin only, and unsafe payload fields are denied.
+
 ---
 
 ## Rule 13 — Client-Driven Multi-Step for Heavy Serverless Workloads

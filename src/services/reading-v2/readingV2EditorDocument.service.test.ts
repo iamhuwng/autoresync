@@ -427,6 +427,103 @@ describe('readingV2EditorDocument.service', () => {
     expect(() => serializeReadingV2EditorDocumentToCanonical(brokenDocument)).toThrow(/Cannot serialize invalid/);
   });
 
+  it('reports duplicate editor anchors across blocks and task-group stimulus references', () => {
+    const editorDocument = editorDocumentWithBlocks();
+    const firstSection = editorDocument.sections[0]!;
+    const tableBlock = firstSection.blocks.find((block) => block.kind === 'table');
+    const paragraphBlock = firstSection.blocks.find((block) => block.kind === 'paragraph');
+    const flowchartBlock = firstSection.blocks.find((block) => block.kind === 'flowchart');
+    const diagramBlock = firstSection.blocks.find((block) => block.kind === 'diagram');
+
+    if (
+      !tableBlock
+      || tableBlock.kind !== 'table'
+      || !paragraphBlock
+      || paragraphBlock.kind !== 'paragraph'
+      || !flowchartBlock
+      || flowchartBlock.kind !== 'flowchart'
+      || !diagramBlock
+      || diagramBlock.kind !== 'diagram'
+    ) {
+      throw new Error('Expected editor duplicate-anchor fixture blocks.');
+    }
+
+    const tableAnchorId = tableBlock.rows[1]?.cells[0]?.anchorId;
+    const taskGroupId = readingV2Ids.taskGroupId('editor-duplicate-anchor-ref-group');
+
+    if (!tableAnchorId) {
+      throw new Error('Expected table anchor fixture.');
+    }
+
+    const brokenDocument: ReadingV2EditorDocument = {
+      ...editorDocument,
+      sections: [
+        {
+          ...firstSection,
+          taskGroupIds: [taskGroupId],
+          blocks: firstSection.blocks.map((block) => {
+            if (block.kind === 'paragraph') {
+              return { ...block, anchorId: tableAnchorId };
+            }
+
+            if (block.kind === 'flowchart') {
+              return {
+                ...block,
+                steps: block.steps.map((step, index) =>
+                  index === 0 ? { ...step, anchorId: tableAnchorId } : step,
+                ),
+              };
+            }
+
+            if (block.kind === 'diagram') {
+              const firstTarget = block.targets[0]!;
+              return {
+                ...block,
+                targets: [
+                  firstTarget,
+                  {
+                    ...firstTarget,
+                    targetId: readingV2EditorIds.targetId('target', ['duplicate-ref-anchor']),
+                  },
+                ],
+              };
+            }
+
+            return block;
+          }),
+        },
+      ],
+      taskGroups: {
+        [taskGroupId]: {
+          taskGroupId,
+          sectionId: firstSection.sectionId,
+          officialTaskType: 'table-completion',
+          engineeringFamily: 'structured-layout',
+          instructionBlocks: [{ id: 'instruction-1', text: 'Complete the table.' }],
+          answerRule: {
+            responseShape: { kind: 'structured-entry', structure: 'table' },
+          },
+          stimulusRefs: [{
+            stimulusId: tableBlock.stimulusId,
+            anchorIds: [tableAnchorId, tableAnchorId],
+          }],
+          optionSetRefs: [],
+          interactionIds: [],
+          validationState: { issues: [] },
+        },
+      },
+    };
+    const issues = validateReadingV2EditorDocument(brokenDocument);
+    const codes = issues.map((candidate) => candidate.code);
+
+    expect(codes).toEqual(expect.arrayContaining([
+      'duplicate-anchor-id',
+      'duplicate-diagram-target-anchor',
+      'duplicate-task-group-anchor-reference',
+    ]));
+    expect(issues.filter((candidate) => candidate.code === 'duplicate-anchor-id').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps teacher answer rules in canonical output while student-safe projections strip answers and editor internals', () => {
     const editorDocument = deserializeReadingV2CanonicalToEditorDocument(fixtureDocumentFor('diagram-labeling'));
     const canonical = serializeReadingV2EditorDocumentToCanonical(editorDocument);

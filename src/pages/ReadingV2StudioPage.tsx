@@ -9,6 +9,8 @@ import {
   type ReadingV2ReturnContext,
   type ReadingV2StudioMode,
 } from '../components/reading-v2/studio/ReadingV2StudioShell';
+import { ReadingV2UpdateReferencesModal } from '../components/reading-v2/master/ReadingV2UpdateReferencesModal';
+import { resolveMaterialTestTypeIdsFromLegacyTestType } from '../services/materialCatalog/materialTestTypeMapping.service';
 import type { ReadingV2ImportCandidate } from '../services/reading-v2/readingV2ImportNormalization.service';
 import {
   previewReadingV2StudioDraft,
@@ -25,6 +27,8 @@ import {
   loadReadingV2PublishedRevisionSource,
   type ReadingV2PublishedRevisionSource,
 } from '../services/reading-v2/readingV2StudioFirebaseHydration.service';
+import { createFirebaseReadingV2ReferenceUpdateRepository } from '../services/reading-v2/readingV2ReferenceUpdateFirebaseRepository.service';
+import type { ReadingV2ReferenceUpdateSummary } from '../services/reading-v2/readingV2ReferenceUpdate.service';
 
 type RevisionHydrationState = {
   readonly key?: string;
@@ -38,6 +42,13 @@ type ReadingV2StudioRouteState = {
   readonly initialMetadata?: Partial<ReadingV2StudioWorkflowMetadata>;
   readonly initialImportCandidate?: ReadingV2ImportCandidate;
   readonly startMode?: ReadingV2StudioMode;
+  readonly testType?: string;
+};
+
+type ReferenceUpdateModalState = {
+  readonly status: 'closed' | 'open' | 'updating';
+  readonly passageTitle: string;
+  readonly summary: ReadingV2ReferenceUpdateSummary;
 };
 
 const compactActionMetadata = (
@@ -61,11 +72,31 @@ const resolveStudioMode = (pathname: string): ReadingV2StudioMode => {
   return 'create-blank';
 };
 
+const mergeRouteTestTypeMetadata = (
+  metadata: Partial<ReadingV2StudioWorkflowMetadata> | undefined,
+  testType: string | undefined,
+): Partial<ReadingV2StudioWorkflowMetadata> | undefined => {
+  const routeTestTypeIds = resolveMaterialTestTypeIdsFromLegacyTestType(testType);
+
+  if (routeTestTypeIds.length === 0) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    primaryTestTypeId: metadata?.primaryTestTypeId ?? routeTestTypeIds[0],
+    testTypeIds: metadata?.testTypeIds && metadata.testTypeIds.length > 0
+      ? metadata.testTypeIds
+      : routeTestTypeIds,
+  };
+};
+
 export default function ReadingV2StudioPage() {
   const location = useLocation();
   const params = useParams();
   const { navigateTo } = useNavigation('teacher');
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const referenceUpdateRepository = useMemo(() => createFirebaseReadingV2ReferenceUpdateRepository(), []);
   const routeState = useMemo<ReadingV2StudioRouteState>(
     () => (location.state && typeof location.state === 'object'
       ? location.state as ReadingV2StudioRouteState
@@ -75,9 +106,14 @@ export default function ReadingV2StudioPage() {
   const pathMode = resolveStudioMode(location.pathname);
   const mode = routeState.startMode === 'create-from-auto' ? 'create-from-auto' : pathMode;
   const revisionMaterialId = mode === 'revise-published' ? params.materialId : undefined;
+  const routeInitialMetadata = useMemo(
+    () => mergeRouteTestTypeMetadata(routeState.initialMetadata, routeState.testType),
+    [routeState.initialMetadata, routeState.testType],
+  );
   const [revisionHydration, setRevisionHydration] = useState<RevisionHydrationState>({
     status: 'idle',
   });
+  const [referenceUpdateModal, setReferenceUpdateModal] = useState<ReferenceUpdateModalState | null>(null);
 
   useEffect(() => {
     if (!revisionMaterialId) {
@@ -136,8 +172,8 @@ export default function ReadingV2StudioPage() {
         mode,
         draftId: params.draftId,
         materialId: params.materialId,
-        ownerId: routeState.initialMetadata?.ownerId,
-        initialMetadata: routeState.initialMetadata,
+        ownerId: routeInitialMetadata?.ownerId,
+        initialMetadata: routeInitialMetadata,
         initialImportCandidate: routeState.initialImportCandidate,
         sourceSnapshot: revisionSource?.snapshot,
         sourceMetadata: revisionSource?.metadata,
@@ -148,10 +184,10 @@ export default function ReadingV2StudioPage() {
       mode,
       params.draftId,
       params.materialId,
+      routeInitialMetadata,
       revisionSource?.metadata,
       revisionSource?.snapshot,
       routeState.initialImportCandidate,
-      routeState.initialMetadata,
     ],
   );
   const [autosaveRevisionToken, setAutosaveRevisionToken] = useState(studioContext.revisionToken);
@@ -231,6 +267,30 @@ export default function ReadingV2StudioPage() {
     trackAction,
   ]);
 
+  useEffect(() => {
+    if (isRevisionHydrating || revisionHydrationError || studioContext.status !== 'invalid') {
+      return;
+    }
+
+    trackAction('studioImportCandidateRejected', compactActionMetadata({
+      mode,
+      draftId: params.draftId,
+      materialId: params.materialId,
+      entryPoint: routeState.entryPoint,
+      outcome: 'blocked',
+      issueCode: 'invalid-import-candidate',
+    }));
+  }, [
+    isRevisionHydrating,
+    mode,
+    params.draftId,
+    params.materialId,
+    revisionHydrationError,
+    routeState.entryPoint,
+    studioContext.status,
+    trackAction,
+  ]);
+
   if (isRevisionHydrating) {
     return (
       <main aria-busy="true" style={{ padding: '2rem' }}>
@@ -250,8 +310,19 @@ export default function ReadingV2StudioPage() {
     );
   }
 
+  if (studioContext.status === 'invalid') {
+    return (
+      <main role="alert" style={{ padding: '2rem' }}>
+        <h1>READING-V2</h1>
+        <p>Unable to open this Reading V2 Studio draft.</p>
+        <p>{studioContext.message ?? 'Auto import needs review before Studio can open.'}</p>
+      </main>
+    );
+  }
+
   return (
-    <ReadingV2StudioShell
+    <>
+      <ReadingV2StudioShell
       mode={mode}
         returnContext={returnContext}
         operationalState={studioContext.status === 'missing' ? 'error' : 'ready'}
@@ -299,16 +370,95 @@ export default function ReadingV2StudioPage() {
       onPreview={previewReadingV2StudioDraft}
       onPublish={async (snapshot) => {
         const result = await publishReadingV2StudioDraft(snapshot);
+        const isSinglePassageRevision =
+          mode === 'revise-published' &&
+          revisionSource?.metadata?.materialKind === 'reading-passage' &&
+          Boolean(revisionSource.snapshot) &&
+          revisionSource.snapshot?.snapshotVersionId !== result.snapshotVersionId;
+
+        if (isSinglePassageRevision && revisionSource.snapshot) {
+          const summary = await referenceUpdateRepository.discoverTargets({
+            ownerId: snapshot.metadata.ownerId,
+            passageMaterialId: result.materialId,
+            previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+            nextSnapshotVersionId: result.snapshotVersionId,
+          });
+
+          trackAction('reading_v2_single_passage_version_published', {
+            materialId: result.materialId,
+            previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+            nextSnapshotVersionId: result.snapshotVersionId,
+            updateTargetCount: summary.targets.length,
+          });
+
+          if (summary.targets.length > 0) {
+            setReferenceUpdateModal({
+              status: 'open',
+              passageTitle: snapshot.document.title,
+              summary,
+            });
+            trackAction('reading_v2_update_references_opened', {
+              materialId: result.materialId,
+              updateTargetCount: summary.targets.length,
+            });
+          }
+        }
+
         return {
           snapshotVersionId: result.snapshotVersionId,
           firebaseCommitStatus: result.firebaseCommitStatus,
           firebaseCommitPath: result.firebaseCommitPath,
           firebaseOperationCount: result.firebaseOperationCount,
+          duplicateWarnings: result.duplicateWarnings,
         };
+      }}
+      onPublishSuccess={mode === 'revise-published' ? undefined : (snapshot, result) => {
+        trackAction('exitStudio', compactActionMetadata({
+          mode,
+          draftId: snapshot.draftId,
+          materialId: snapshot.materialId,
+          snapshotVersionId: result.snapshotVersionId,
+          reason: 'reading_v2_studio_publish_success',
+        }));
+        navigateTo('LOBBY', undefined, {
+          reason: 'reading_v2_studio_publish_success',
+          replace: true,
+        });
       }}
       onExit={() => {
         navigateTo('LOBBY', undefined, { reason: 'reading_v2_studio_exit' });
       }}
     />
+      {referenceUpdateModal ? (
+        <ReadingV2UpdateReferencesModal
+          open={referenceUpdateModal.status !== 'closed'}
+          passageTitle={referenceUpdateModal.passageTitle}
+          summary={referenceUpdateModal.summary}
+          onClose={() => setReferenceUpdateModal(null)}
+          onSkipAll={() => {
+            trackAction('reading_v2_update_references_skipped', {
+              materialId: referenceUpdateModal.summary.passageMaterialId,
+              updateTargetCount: referenceUpdateModal.summary.targets.length,
+            });
+            setReferenceUpdateModal(null);
+          }}
+          onUpdateSelected={async (selectedTargetIds) => {
+            setReferenceUpdateModal((current) => current ? { ...current, status: 'updating' } : current);
+            const result = await referenceUpdateRepository.applySelected({
+              summary: referenceUpdateModal.summary,
+              selectedTargetIds,
+            });
+            trackAction('reading_v2_update_references_submitted', {
+              materialId: referenceUpdateModal.summary.passageMaterialId,
+              selectedTargetCount: selectedTargetIds.length,
+              updatedMasterCount: result.updatedMasters.length,
+              updatedBookCount: result.updatedBooks.length,
+              skippedTargetCount: result.skippedTargetIds.length,
+            });
+            setReferenceUpdateModal(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

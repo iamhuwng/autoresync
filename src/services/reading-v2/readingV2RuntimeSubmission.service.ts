@@ -3,6 +3,7 @@
 import { auth } from '../firebase';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import type { ReadingV2LaunchSurface } from './readingV2LaunchIntegration.service';
+import type { IntegrityReport } from '../../types/integrity.types';
 
 export type ReadingV2ClientAnswerValue = string | readonly string[];
 
@@ -18,6 +19,7 @@ export interface ReadingV2RuntimeSubmissionPayload {
   readonly sourceSnapshotVersionId: string;
   readonly materialId?: string;
   readonly answers: readonly ReadingV2RuntimeSubmissionAnswer[];
+  readonly integrityReport?: IntegrityReport | null;
 }
 
 export interface ReadingV2RuntimeSubmissionContext {
@@ -42,12 +44,16 @@ export interface ReadingV2TrustedSubmissionRequest {
     readonly displayNumber: number;
     readonly value: ReadingV2ClientAnswerValue;
   }[];
+  readonly integrityReport?: IntegrityReport | null;
   readonly context: ReadingV2RuntimeSubmissionContext;
 }
 
 export interface ReadingV2RuntimeSubmissionResult {
   readonly resultId: string;
   readonly attemptId?: string;
+  readonly totalScore?: number;
+  readonly maxScore?: number;
+  readonly percentage?: number;
 }
 
 export class ReadingV2TrustedSubmissionUnavailableError extends Error {
@@ -109,6 +115,7 @@ export const buildReadingV2TrustedSubmissionRequest = (input: {
     displayNumber: answer.visibleNumber,
     value: answer.value,
   })),
+  integrityReport: input.payload.integrityReport ?? null,
   context: input.context,
 });
 
@@ -128,7 +135,13 @@ const readResponseBody = async (response: Response): Promise<unknown> => {
 
 const parseSubmissionResponse = (body: unknown): ReadingV2RuntimeSubmissionResult => {
   const record = body && typeof body === 'object'
-    ? body as { resultId?: unknown; attemptId?: unknown }
+    ? body as {
+      resultId?: unknown;
+      attemptId?: unknown;
+      totalScore?: unknown;
+      maxScore?: unknown;
+      percentage?: unknown;
+    }
     : {};
 
   if (typeof record.resultId !== 'string' || record.resultId.trim().length === 0) {
@@ -138,6 +151,9 @@ const parseSubmissionResponse = (body: unknown): ReadingV2RuntimeSubmissionResul
   return {
     resultId: record.resultId,
     attemptId: typeof record.attemptId === 'string' ? record.attemptId : undefined,
+    totalScore: typeof record.totalScore === 'number' ? record.totalScore : undefined,
+    maxScore: typeof record.maxScore === 'number' ? record.maxScore : undefined,
+    percentage: typeof record.percentage === 'number' ? record.percentage : undefined,
   };
 };
 

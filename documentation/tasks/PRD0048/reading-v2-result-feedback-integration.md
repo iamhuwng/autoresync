@@ -10,6 +10,7 @@ Authoritative companion docs:
 - `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 - `documentation/tasks/PRD0048/reading-v2-student-runtime-v1-parity-contract.md`
 - `documentation/tasks/PRD0048/reading-v2-taskgroup-object.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 
 This file replaces the earlier separate teacher/student result-review page schemas. PRD-0048 does not require standalone Reading V2 result review pages.
 
@@ -86,6 +87,13 @@ The adapter may render grouped Reading context, visible IELTS question numbers, 
 
 The adapter must not create new result truth. It renders from saved result snapshots and derived review payloads only.
 
+Current AI feedback payload rule:
+
+- Reading V2 saved results build prompt sections from `result.readingV2.reviewPayload`.
+- Reading V2 feedback must not reconstruct V2 source context from legacy V1 `tests/{testId}` rows.
+- Legacy V1, THCS, IELTS, and generic results keep their existing source loaders, including `getTestFromFirebase(...)` and `getThcsTestFromFirebase(...)` where applicable.
+- This rule is V2-only. It does not retire V1 feedback behavior.
+
 ---
 
 ## 5. Teacher Behavior
@@ -124,6 +132,8 @@ Result integration tests must prove:
 - Teacher review content is task-group-first inside the existing shell.
 - Student review content is release-policy sanitized inside the existing shell.
 - Feedback generation/display keeps using existing feedback services and tabs.
+- Reading V2 feedback payload generation uses the saved V2 review payload and does not load V1 storage for V2 context.
+- Legacy V1/generic/THCS feedback payload generation remains unchanged.
 - Regrade or re-mark behavior appends a new result/regrade artifact and does not mutate historical result truth.
 - Student surfaces cannot see unreleased answers, answer keys, author diagnostics, provenance, or import evidence.
 
@@ -137,6 +147,7 @@ Do not:
 - create `/student/reading-v2/results/*` as a standalone result-review product
 - duplicate `SharedSavedResultCore`, `ReviewTab`, or `FeedbackTab` under `src/components/reading-v2/review/`
 - create separate Reading V2 feedback storage when existing feedback services can represent the needed data
+- use legacy V1 test storage as the source of truth for Reading V2 feedback prompt context
 - bypass existing result release-policy gates
 - edit canonical Reading V2 content from a result/feedback surface
 - expose author-only Studio diagnostics, import evidence, or provenance in student result views

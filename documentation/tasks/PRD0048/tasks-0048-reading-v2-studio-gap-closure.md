@@ -68,7 +68,7 @@ Every parent task below is done only when:
 
 ## Task 1.0 Wire Studio Data Loading And Mode Context
 
-**Acceptance Criteria:** Create, import, draft resume, published revision, duplicate, and extraction entries load the correct editable canonical draft context before the Studio shell renders authoring controls. Fixture fallback is allowed only for explicit test/demo harnesses, not production routes.
+**Acceptance Criteria:** Create, import, draft resume, published revision, duplicate, and extraction entries load the correct editable canonical draft context before the Studio shell renders authoring controls. Fixture fallback is allowed only for explicit test/demo harnesses, not production routes. Entry resolution is separate from passage-collection affordances: `Add Passage` is enabled only for manual blank creation, paste/import Studio outcomes, and Auto V4 Studio outcomes.
 
 - [x] 1.1 Read `documentation/rules/navigation.md`, `documentation/rules/observability.md`, `documentation/rules/codebase-hygiene.md`, and `documentation/rules/mobile-portability.md` before changing route, page, navigation, or workflow code.
 - [x] 1.2 Implement a Studio data-loading boundary for `ReadingV2StudioPage` that resolves `create-blank`, `create-from-import`, `resume-draft`, and `revise-published` into a typed loading result.
@@ -80,6 +80,7 @@ Every parent task below is done only when:
 - [x] 1.8 Preserve return context from Teacher Lobby, Material Profile, or direct Studio route through save, discard, preview close, and publish completion.
 - [x] 1.9 Add tests proving each Studio mode loads distinct draft context and does not silently fall back to the default sentence-completion fixture.
 - [x] 1.10 Add tests proving unauthorized, missing, deleted, malformed, and unsupported-schema drafts fail closed.
+- [x] 1.11 Add tests proving individual Reading Passage Studio and non-creation modes hide passage-collection controls while manual blank, paste/import, and Auto V4 creation outcomes keep `Add Passage`.
 
 ## Task 2.0 Wire Draft Save, Autosave, Discard, And Conflict Recovery
 

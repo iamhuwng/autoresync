@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/book-editor-authoring-modal-architecture",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/book-editor-authoring-modal-architecture",
+      "version": 1,
+      "timestamp": "2026-06-06T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Book Editor Authoring Modal Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "Canonical PRD-0052 Book editor shell, Content layout, floating tree menu, save, visual, and accessibility contract."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "teacher-lobby",
+            "book-editor",
+            "prd0052",
+            "authoring-modal"
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Book Editor Authoring Modal Architecture",
+        "description": "Canonical PRD-0052 Book editor shell, Content layout, floating tree menu, save, visual, and accessibility contract.",
+        "tags": [
+          "architecture",
+          "teacher-lobby",
+          "book-editor",
+          "prd0052",
+          "authoring-modal"
+        ],
+        "content": "Canonical repo source: documentation/architecture/book-editor-authoring-modal-architecture.md. Current contract: normal Open Book stays on /lobby and opens BookEditorModal; tabs are exactly Overview, Content, Settings; Content uses a left outline navigator and right selected-item workspace; row actions use a real document.body-portaled menu; compact right-panel actions use SVG icon buttons; active-tab save flushes dirty cross-tab edits; neutral/violet modal chrome and restrained typography replace legacy teal/green and over-bold styling. Targeted verification: 6 files / 62 tests passing on 2026-06-06."
+      }
+    }
+  ]
+}

@@ -25,6 +25,7 @@ export interface ReadingV2OperationalMatrixEntry {
 export const READING_V2_FORBIDDEN_STUDENT_FIELDS = [
   'answerKeys',
   'acceptableAnswers',
+  'scoringRule',
   'authorDiagnostics',
   'importEvidence',
   'hiddenProvenance',
@@ -198,6 +199,21 @@ export const READING_V2_OPERATIONAL_MATRIX = [
     atomicityDecision: 'batch-required',
   },
   {
+    pathClass: 'assignmentPayloads',
+    samplePath: readingV2StoragePaths.assignmentPayloads('homework-1', 'composition-version-1'),
+    owningService: 'readingV2PassageHomework.service',
+    consumingSurface: 'student homework runtime and result review',
+    allowedRoles: ['student', 'teacher-owner', 'admin', 'system'],
+    readWriteMode: 'read',
+    queryPattern: 'homeworkId plus frozen composition version',
+    indexRequirement: 'assignment payload key lookup',
+    frequencyClass: 'high',
+    retentionDeletionBehavior: 'frozen assignment payload retained with homework/result history',
+    projectionSafetyRule: 'derived from student-safe passage projections and never refreshed after a real submission starts',
+    forbiddenFields: READING_V2_FORBIDDEN_STUDENT_FIELDS,
+    atomicityDecision: 'batch-required',
+  },
+  {
     pathClass: 'reviewProjections',
     samplePath: readingV2StoragePaths.reviewProjections('material-1', 'snapshot-1'),
     owningService: 'readingV2Projection.service',
@@ -224,7 +240,7 @@ export const READING_V2_OPERATIONAL_MATRIX = [
     frequencyClass: 'high',
     retentionDeletionBehavior: 'append-only attempt history retained with result',
     projectionSafetyRule: 'stores answers by stable interaction IDs and snapshot/session version',
-    forbiddenFields: ['authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
+    forbiddenFields: ['scoringRule', 'authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
     atomicityDecision: 'transaction-required',
   },
   {
@@ -239,7 +255,7 @@ export const READING_V2_OPERATIONAL_MATRIX = [
     frequencyClass: 'high',
     retentionDeletionBehavior: 'historical truth retained; regrade appends artifacts',
     projectionSafetyRule: 'student views are sanitized by release policy',
-    forbiddenFields: ['authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
+    forbiddenFields: ['scoringRule', 'authorDiagnostics', 'importEvidence', 'hiddenProvenance'],
     atomicityDecision: 'transaction-required',
   },
   {

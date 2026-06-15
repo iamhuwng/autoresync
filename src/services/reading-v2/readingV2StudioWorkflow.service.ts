@@ -14,21 +14,34 @@ import {
   type ReadingV2PublishedSnapshot,
   type ReadingV2TaskGroupId,
 } from '../../types/readingV2.types';
+import type {
+  MaterialTestTypeConfig,
+  MaterialTestTypeId,
+  ReadingPassageVisibilityScope,
+} from '../../types/materialCatalog.types';
 import {
   createReadingV2DefaultImportCandidate,
   normalizeReadingV2ImportCandidate,
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
+import { validateReadingV2Draft } from './readingV2Validation.service';
 import {
   commitReadingV2PublishPlanToFirebase,
   type ReadingV2FirebasePublishCommitResult,
 } from './readingV2FirebasePublishAdapter.service';
 import { extractReadingV2TaskGroupMaterialDraft } from './readingV2PassageAssetWorkflow.service';
-import { generateReadingV2PreviewOnly, publishReadingV2Material } from './readingV2PublishPipeline.service';
+import {
+  generateReadingV2PreviewOnly,
+  publishReadingV2Material,
+  type ReadingV2AutoSplitDuplicateWarning,
+} from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
-import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
+import type {
+  ReadingV2MaterialKind,
+  ReadingV2MaterialMetadata,
+} from './readingV2MaterialMetadata.service';
 
 export type ReadingV2StudioWorkflowMode =
   | 'create-blank'
@@ -42,7 +55,7 @@ export type ReadingV2StudioWorkflowMode =
 export interface ReadingV2StudioWorkflowMetadata {
   readonly title: string;
   readonly productMarker: string;
-  readonly materialKind: 'full-test' | 'task-group-material' | 'extracted-task-group-material';
+  readonly materialKind: ReadingV2MaterialKind;
   readonly durationMinutes: number;
   readonly difficulty: string;
   readonly targetBand: string;
@@ -51,6 +64,9 @@ export interface ReadingV2StudioWorkflowMetadata {
   readonly visibility: 'private' | 'library-eligible' | 'assigned-only';
   readonly ownerId: string;
   readonly provenanceSummary: string;
+  readonly primaryTestTypeId?: MaterialTestTypeId;
+  readonly testTypeIds?: readonly MaterialTestTypeId[];
+  readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
 }
 
 export interface ReadingV2StudioWorkflowContext {
@@ -109,6 +125,7 @@ export interface ReadingV2StudioPublishResult {
   readonly firebaseCommitStatus: ReadingV2FirebasePublishCommitResult['status'];
   readonly firebaseCommitPath: string;
   readonly firebaseOperationCount: number;
+  readonly duplicateWarnings: readonly ReadingV2AutoSplitDuplicateWarning[];
 }
 
 export type ReadingV2StudioPublishCommitAdapter = (
@@ -133,6 +150,9 @@ export const createReadingV2StudioDefaultMetadata = (
   visibility: overrides.visibility ?? 'private',
   ownerId: overrides.ownerId ?? 'current-teacher',
   provenanceSummary: overrides.provenanceSummary ?? 'Original Reading V2 draft',
+  primaryTestTypeId: overrides.primaryTestTypeId,
+  testTypeIds: overrides.testTypeIds,
+  testTypeConfigs: overrides.testTypeConfigs,
 });
 
 const toStudioMetadataRecord = (
@@ -140,7 +160,29 @@ const toStudioMetadataRecord = (
 ): Readonly<Record<string, unknown>> => ({
   ...metadata,
   tags: [...metadata.tags],
+  testTypeIds: metadata.testTypeIds ? [...metadata.testTypeIds] : undefined,
+  testTypeConfigs: metadata.testTypeConfigs ? [...metadata.testTypeConfigs] : undefined,
 });
+
+const toReadingV2StudioMaterialKind = (
+  materialKind: ReadingV2MaterialMetadata['materialKind'] | undefined,
+): ReadingV2StudioWorkflowMetadata['materialKind'] | undefined => {
+  if (materialKind) {
+    return materialKind;
+  }
+
+  return undefined;
+};
+
+const shouldExtractReadingPassagesOnPublish = (
+  metadata: ReadingV2StudioWorkflowMetadata,
+): boolean =>
+  metadata.materialKind === 'full-test';
+
+const toReadingPassageExtractionVisibility = (
+  visibility: ReadingV2StudioWorkflowMetadata['visibility'],
+): ReadingPassageVisibilityScope =>
+  visibility === 'library-eligible' ? 'public' : 'private';
 
 const createDocument = (title?: string): ReadingV2Document => {
   const documentId = readingV2Ids.documentId(`draft-${nowId()}`);
@@ -236,6 +278,33 @@ const createInvalidContext = (input: {
 const isImportCreateMode = (mode: ReadingV2StudioWorkflowMode): boolean =>
   mode === 'create-from-import' || mode === 'create-from-auto';
 
+const NON_EDITABLE_IMPORT_ISSUE_CODES = new Set([
+  'duplicate-stimulus-anchor',
+]);
+
+const createInvalidImportCandidateContext = (input: {
+  readonly mode: ReadingV2StudioWorkflowMode;
+  readonly draftId: ReadingV2DraftId;
+  readonly materialId: ReadingV2MaterialId;
+  readonly ownerId: string;
+  readonly title?: string;
+  readonly issueMessages: readonly string[];
+}): ReadingV2StudioWorkflowContext =>
+  createInvalidContext({
+    mode: input.mode,
+    draftId: input.draftId,
+    materialId: input.materialId,
+    ownerId: input.ownerId,
+    title: input.title && input.title.trim().length > 0
+      ? input.title
+      : 'Auto import needs review',
+    message: [
+      'Auto import needs review before Studio can open.',
+      ...input.issueMessages,
+    ].join(' '),
+    provenanceSummary: 'Auto import candidate rejected before Studio draft hydration because canonical anchor validation failed',
+  });
+
 const createDraftContext = (input: {
   readonly mode: ReadingV2StudioWorkflowMode;
   readonly draftId: ReadingV2DraftId;
@@ -259,6 +328,27 @@ const createDraftContext = (input: {
       : createImportPendingDocument(input.initialMetadata?.title)
     : createDocument(input.initialMetadata?.title ?? input.title);
   const existing = readingV2StudioRepository.loadDraft(input.draftId);
+
+  if (!existing && importCreateMode && input.initialImportCandidate) {
+    const validation = validateReadingV2Draft(document);
+    const nonEditableImportIssues = validation.blockingIssues.filter((issue) =>
+      NON_EDITABLE_IMPORT_ISSUE_CODES.has(issue.code),
+    );
+
+    if (nonEditableImportIssues.length > 0) {
+      return createInvalidImportCandidateContext({
+        mode: input.mode,
+        draftId: input.draftId,
+        materialId: input.materialId,
+        ownerId: input.ownerId,
+        title: input.initialMetadata?.title ?? document.title,
+        issueMessages: nonEditableImportIssues.map((issue) =>
+          `${issue.code.replace(/-/g, ' ')}: ${issue.message}`,
+        ),
+      });
+    }
+  }
+
   const draft = existing ?? readingV2StudioRepository.createDraft({
     draftId: input.draftId,
     ownerId: input.ownerId,
@@ -408,13 +498,15 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
         studioMetadata: toStudioMetadataRecord(createReadingV2StudioDefaultMetadata({
           title: input.sourceMetadata?.title ?? latestSnapshot.document.title,
           ownerId,
-          materialKind: input.sourceMetadata?.materialKind,
+          materialKind: toReadingV2StudioMaterialKind(input.sourceMetadata?.materialKind),
           durationMinutes: input.sourceMetadata?.durationMinutes,
           difficulty: input.sourceMetadata?.difficulty,
           targetBand: input.sourceMetadata?.targetBand,
           description: input.sourceMetadata?.description,
           tags: input.sourceMetadata?.tags,
           visibility: input.sourceMetadata?.visibility,
+          primaryTestTypeId: input.sourceMetadata?.primaryTestTypeId,
+          testTypeIds: input.sourceMetadata?.testTypeIds,
           provenanceSummary: `Revision draft from published snapshot ${latestSnapshot.snapshotVersionId}; live snapshot remains immutable`,
         })),
       });
@@ -606,7 +698,19 @@ export const publishReadingV2StudioDraft = async (
       targetBand: snapshot.metadata.targetBand,
       description: snapshot.metadata.description,
       tags: snapshot.metadata.tags,
+      primaryTestTypeId: snapshot.metadata.primaryTestTypeId,
+      testTypeIds: snapshot.metadata.testTypeIds,
+      testTypeConfigs: snapshot.metadata.testTypeConfigs,
     },
+    readingPassageExtraction: shouldExtractReadingPassagesOnPublish(snapshot.metadata)
+      ? {
+          primaryTestTypeId: snapshot.metadata.primaryTestTypeId,
+          testTypeIds: snapshot.metadata.testTypeIds,
+          testTypeConfigs: snapshot.metadata.testTypeConfigs,
+          visibility: toReadingPassageExtractionVisibility(snapshot.metadata.visibility),
+          durationMinutes: snapshot.metadata.durationMinutes,
+        }
+      : undefined,
     returnContext: snapshot.returnContext ?? 'studio',
   });
   const firebaseCommit = await commitAdapter(result.commitPlan);
@@ -619,5 +723,6 @@ export const publishReadingV2StudioDraft = async (
     firebaseCommitStatus: firebaseCommit.status,
     firebaseCommitPath: firebaseCommit.commitPath,
     firebaseOperationCount: firebaseCommit.operationKeys.length,
+    duplicateWarnings: result.duplicateWarnings,
   };
 };

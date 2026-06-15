@@ -1,0 +1,75 @@
+{
+  "dryRun": false,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-06-04T13:49:54.207Z",
+  "totals": {
+    "operations": 1,
+    "operationDigest": "bfaa30605a356843dac041d6754dc6a9028399bc3e49170983d850c3736c9521",
+    "readFailures": 0,
+    "byKind": {
+      "composition-version-write": 1
+    }
+  },
+  "operations": [
+    {
+      "kind": "composition-version-write",
+      "path": "reading_v2/full_test_composition_versions/composition-prd0052-repair-proof-20260604/snapshot-prd0052-repair-proof-20260604",
+      "value": {
+        "compositionId": "composition-prd0052-repair-proof-20260604",
+        "createdAt": "2026-06-04T13:45:00.000Z",
+        "deliveryEngine": "reading-v2",
+        "durationMinutes": 1,
+        "ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "passageRefs": [
+          {
+            "durationSnapshot": 1,
+            "order": 1,
+            "passageMaterialId": "passage-prd0052-repair-proof-1",
+            "questionCountSnapshot": 1,
+            "questionRangeSnapshot": "1",
+            "refId": "ref-prd0052-repair-proof-1",
+            "snapshotVersionId": "snapshot-prd0052-repair-proof-passage-1",
+            "sourceOrderDisplaySnapshot": "Passage 1",
+            "sourceOrderLabelSnapshot": "Passage 1",
+            "sourcePassageNumber": 1,
+            "testTypeIdsSnapshot": [
+              "ielts"
+            ],
+            "titleSnapshot": "PRD-0052 Repair Proof Passage"
+          }
+        ],
+        "plane": "packaging",
+        "primaryTestTypeId": "ielts",
+        "publishedVersionId": "snapshot-prd0052-repair-proof-20260604",
+        "questionCount": 1,
+        "schemaVersion": 1,
+        "skill": "reading",
+        "testMaterialId": "material-prd0052-repair-proof-20260604",
+        "testTypeIds": [
+          "ielts"
+        ],
+        "title": "PRD-0052 Composition Version Repair Proof",
+        "updatedAt": "2026-06-04T13:45:00.000Z",
+        "visibility": "private",
+        "publishedAt": "2026-06-04T13:45:00.000Z",
+        "publishedBy": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+      },
+      "reason": "composition-without-version"
+    }
+  ],
+  "readFailures": [],
+  "mutation": {
+    "status": "committed",
+    "approvedBy": "user-approved-all-remaining-20260604",
+    "plannedWriteCount": 1
+  },
+  "storagePaths": {
+    "materialMetadata": "reading_v2/material_metadata",
+    "materialIndexes": "material_catalog/material_indexes",
+    "books": "material_catalog/books",
+    "bookIndexes": "material_catalog/book_indexes",
+    "bookNodes": "material_catalog/book_nodes",
+    "fullTestCompositions": "reading_v2/full_test_compositions",
+    "fullTestCompositionVersions": "reading_v2/full_test_composition_versions"
+  }
+}

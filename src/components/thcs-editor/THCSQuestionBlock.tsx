@@ -134,7 +134,7 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
         setUploadError(null);
         setUploading(true);
         try {
-            const result = await r2StorageService.uploadImage(file, 'images');
+            const result = await r2StorageService.uploadImageReplacement(file, question.imageUrl, 'images');
             onUpdate({ ...question, imageUrl: result.url, _imageKey: result.key } as any);
         } catch (err) {
             console.error('R2 image upload failed:', err);

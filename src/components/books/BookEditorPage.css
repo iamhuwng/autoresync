@@ -1,0 +1,422 @@
+.book-editor-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.book-editor-page__main {
+  width: min(1240px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 1.5rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.book-editor-page__section,
+.book-editor-page__inspector,
+.book-editor-page__status-strip {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.book-editor-page__hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0 0.75rem;
+}
+
+.book-editor-page__hero-copy {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.book-editor-page__breadcrumb {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.book-editor-page__title {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.55rem, 2.8vw, 2.15rem);
+  line-height: 1.08;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.book-editor-page__copy {
+  margin: 0;
+  color: #be123c;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.book-editor-page__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.book-editor-page__chips span,
+.book-editor-page__status-strip span,
+.book-editor-page__metric-card span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.book-editor-page__chips span:first-child {
+  background: #ecfdf5;
+  color: #0f766e;
+}
+
+.book-editor-page__hero-actions,
+.book-editor-page__next-actions,
+.book-editor-page__inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.book-editor-page button {
+  border: 0;
+  border-radius: 6px;
+  padding: 0.58rem 0.8rem;
+  background: #0f766e;
+  color: #fff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.book-editor-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-editor-page__secondary-button,
+.book-editor-page .book-editor-page__secondary-button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
+
+.book-editor-page__tabs {
+  display: inline-flex;
+  width: 100%;
+  max-width: 100%;
+  gap: 0.25rem;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 0;
+  background: transparent;
+}
+
+.book-editor-page__tabs button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  min-width: 96px;
+  padding: 0.9rem 1rem;
+}
+
+.book-editor-page__tabs button.is-active {
+  box-shadow: inset 0 -3px 0 #0f766e;
+  color: #0f172a;
+}
+
+.book-editor-page__status,
+.book-editor-page__error {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #ecfeff;
+  color: #155e75;
+  font-weight: 800;
+}
+
+.book-editor-page__error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.book-editor-page__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.book-editor-page__section,
+.book-editor-page__inspector {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.book-editor-page__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.book-editor-page__section-heading h2,
+.book-editor-page__inspector h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.book-editor-page__section-heading p,
+.book-editor-page__inspector-header span,
+.book-editor-page__empty-state {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.book-editor-page__inspector {
+  position: sticky;
+  top: 0.8rem;
+}
+
+.book-editor-page__inspector-header {
+  display: grid;
+  gap: 0.2rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.75rem;
+}
+
+.book-editor-page__inspector-fields {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.book-editor-page__inspector-fields div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.book-editor-page__inspector-fields dt {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.book-editor-page__inspector-fields dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.book-editor-page__constraint-note {
+  margin: 0;
+  border-radius: 6px;
+  padding: 0.7rem;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.book-editor-page__overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.book-editor-page__metric-card {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.book-editor-page__metric-card strong {
+  color: #0f172a;
+  font-size: 1.25rem;
+}
+
+.book-editor-page__form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.book-editor-page__form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.book-editor-page__form-grid input,
+.book-editor-page__form-grid select,
+.book-editor-page__form-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  color: #0f172a;
+  background: #fff;
+  font: inherit;
+}
+
+.book-editor-page__form-grid input:focus,
+.book-editor-page__form-grid select:focus,
+.book-editor-page__form-grid textarea:focus {
+  border-color: #6366f1;
+  outline: 3px solid rgba(99, 102, 241, 0.12);
+}
+
+.book-editor-page__form-grid textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.book-editor-page__wide-field {
+  grid-column: 1 / -1;
+}
+
+.book-editor-page__assign-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-editor-page__assign-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: #f8fafc;
+}
+
+.book-editor-page__assign-list div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.book-editor-page__assign-list strong {
+  color: #0f172a;
+}
+
+.book-editor-page__assign-list span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.book-editor-page__status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.book-editor-page__status-strip span:last-child {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.book-editor-page__public-outline {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-editor-page__public-node {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+  color: #0f172a;
+}
+
+.book-editor-page__public-node:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.book-editor-page__public-node ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #475569;
+}
+
+@media (max-width: 900px) {
+  .book-editor-page__hero,
+  .book-editor-page__section-heading {
+    flex-direction: column;
+  }
+
+  .book-editor-page__hero-actions,
+  .book-editor-page__next-actions,
+  .book-editor-page__inspector-actions {
+    justify-content: flex-start;
+  }
+
+  .book-editor-page__workspace,
+  .book-editor-page__overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .book-editor-page__inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .book-editor-page__main {
+    width: min(100% - 1rem, 1240px);
+    padding: 1rem 0;
+  }
+
+  .book-editor-page__tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .book-editor-page__tabs button {
+    min-width: 88px;
+  }
+
+  .book-editor-page__assign-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

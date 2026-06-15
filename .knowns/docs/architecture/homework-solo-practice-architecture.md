@@ -1,8 +1,8 @@
 ---
 title: Homework Solo Practice Architecture
-description: 'Solo practice and homework system: data flows, status machine, result context, access control.'
+description: 'Solo practice and homework system: data flows, status machine, result context, access control, and Reading V2 return-path rules.'
 createdAt: '2026-02-27T16:20:59.562Z'
-updatedAt: '2026-04-08T17:36:17.507Z'
+updatedAt: '2026-06-15T00:00:00.000Z'
 tags:
   - architecture
   - homework
@@ -211,3 +211,46 @@ Why this matters:
 
 Reference:
 - @doc/architecture/mobile-ielts-reading-test-taking
+
+## 2026-06-03 Amendment - Reading V2 Homework Completion Contract
+
+Reading V2 homework has a two-store completion contract:
+
+- trusted Reading V2 submit writes/scored the namespaced Reading V2 result
+- the student practice page completes the linked Firestore `homework_submissions/{submissionId}` row through `submitHomework(...)`
+
+Both are required. The Reading V2 result alone is not enough for Student Homework rows, Teacher Homework Detail counts, completion-rate summaries, or homework result review entry points.
+
+Rules:
+
+- Reading Passage homework launch uses assignment-pinned `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}` payloads.
+- Reading Passage set homework composes only assignment-pinned passage snapshots.
+- submit payloads stay projection-bound and carry no browser answer keys.
+- `submitHomework(...)` receives the trusted result id plus score fields from Reading V2 submit.
+- idempotent already-submitted retry can be soft success.
+
+Detailed reference: @doc/architecture/reading-v2-material-publish-and-passage-library.
+
+## 2026-06-15 Amendment - Reading V2 Return Path Contract
+
+Reading V2 solo-practice and homework launches now require an explicit in-runtime exit path instead of relying on browser history.
+
+Required rules:
+- `StudentPracticePage.tsx` remains the owner of launch-context-to-destination mapping for non-live Reading V2 exits.
+- the rendered `ReadingV2RuntimeShell` must expose a visible top-right `X` control through host wiring
+- homework exits return to `STUDENT_HOMEWORK`
+- course-material exits return to `STUDENT_COURSE_DETAIL` for the active `courseId`
+- solo-practice, public-library, and private-material library exits return to `STUDENT_LIBRARY`
+- exit routing must preserve the existing student shell entry semantics instead of inventing a standalone Reading V2 landing page
+
+Scope boundary:
+- this amendment covers non-live Reading V2 launches from homework and student practice entry points
+- it does not change live-session Reading V2 routing in `TestPageRouter.tsx`
+- it does not change Writing, Listening, or legacy Reading V1 exit behavior in the same pass
+
+Obsolete as of 2026-06-15:
+- expecting students to use browser back because Reading V2 runtime has no explicit return affordance
+- treating public/private solo practice as context-free launches that can safely strand the student inside the runtime shell
+
+Detailed reference:
+- @doc/architecture/reading-v2-runtime-integrations

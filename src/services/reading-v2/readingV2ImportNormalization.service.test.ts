@@ -2331,6 +2331,191 @@ describe('readingV2ImportNormalization.service', () => {
     expect(validation.blockingIssues).toEqual([]);
   });
 
+  it('reports duplicate structured table question numbers before Studio receives invalid anchor registries', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'cambridge-ielts-10-test-1-reading-table-1-3',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Duplicate table anchors',
+            passages: [
+              {
+                title: 'Duplicate table anchors',
+                content: 'This passage has enough source text for a structured table duplicate anchor regression.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q9-10',
+                text: 'Complete the table below.',
+                questionRange: { start: 9, end: 10 },
+                table: {
+                  rows: [
+                    [{ text: 'Feature', role: 'header' }, { text: 'Detail', role: 'header' }],
+                    [{ text: 'First row' }, { text: 'First duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Second row' }, { text: 'Second duplicate blank _____.', questionNumber: 9 }],
+                    [{ text: 'Third row' }, { text: 'Valid second blank _____.', questionNumber: 10 }],
+                  ],
+                },
+              },
+            ],
+            questions: [
+              { questionNumber: 9, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'First duplicate blank.' },
+              { questionNumber: 10, type: 'table-completion', sectionInstructionId: 'p1-q9-10', questionText: 'Valid second blank.' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: ['9 alpha', '10 beta'].join('\n'),
+    }));
+    const tableStimulus = Object.values(result.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'table-content',
+    );
+    const validation = validateReadingV2Draft(result.document);
+
+    assertValidReadingV2CanonicalDocument(result.document);
+    expect(tableStimulus?.anchorIds).toEqual(Array.from(new Set(tableStimulus?.anchorIds ?? [])));
+    expect(validation.canPublish).toBe(false);
+    expect(validation.blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'duplicate-structured-layout-question',
+        message: expect.stringContaining('table'),
+      }),
+    ]));
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('Passage 1');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('Questions 9-10');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('question 9');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('row 2, column 2');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('row 3, column 2');
+  });
+
+  it('reports duplicate structured flowchart question numbers before Studio draft creation', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'duplicate-flowchart-anchors.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Duplicate flowchart anchors',
+            passages: [
+              {
+                title: 'Duplicate flowchart anchors',
+                content: 'This passage has enough source text for a structured flowchart duplicate anchor regression.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q4-5',
+                text: 'Complete the flowchart below.',
+                questionRange: { start: 4, end: 5 },
+                flowchart: {
+                  steps: [
+                    { stepId: 'collect', text: 'Collect first item _____.', questionNumber: 4 },
+                    { stepId: 'review', text: 'Review second item _____.', questionNumber: 4 },
+                    { stepId: 'publish', text: 'Publish third item _____.', questionNumber: 5 },
+                  ],
+                },
+              },
+            ],
+            questions: [
+              { questionNumber: 4, type: 'flowchart-completion', sectionInstructionId: 'p1-q4-5', questionText: 'First flow blank.' },
+              { questionNumber: 5, type: 'flowchart-completion', sectionInstructionId: 'p1-q4-5', questionText: 'Second flow blank.' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: ['4 alpha', '5 beta'].join('\n'),
+    }));
+    const flowchartStimulus = Object.values(result.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'flowchart-content',
+    );
+    const validation = validateReadingV2Draft(result.document);
+
+    assertValidReadingV2CanonicalDocument(result.document);
+    expect(flowchartStimulus?.anchorIds).toEqual(Array.from(new Set(flowchartStimulus?.anchorIds ?? [])));
+    expect(validation.canPublish).toBe(false);
+    expect(validation.blockingIssues.map((issue) => issue.code)).toContain('duplicate-structured-layout-question');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('flowchart');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('question 4');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('step collect');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('step review');
+  });
+
+  it('reports duplicate structured diagram question numbers before Studio draft creation', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        sourceFile: 'duplicate-diagram-anchors.txt',
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'Duplicate diagram anchors',
+            passages: [
+              {
+                title: 'Duplicate diagram anchors',
+                content: 'This passage has enough source text for a structured diagram duplicate anchor regression.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q6-7',
+                text: 'Label the diagram below.',
+                questionRange: { start: 6, end: 7 },
+                diagram: {
+                  imageAlt: 'Diagram with duplicate printed labels.',
+                  targets: [
+                    { targetId: 'left-label', label: '6', questionNumber: 6 },
+                    { targetId: 'right-label', label: '6 duplicate', questionNumber: 6 },
+                    { targetId: 'bottom-label', label: '7', questionNumber: 7 },
+                  ],
+                },
+              },
+            ],
+            questions: [
+              { questionNumber: 6, type: 'diagram-labeling', sectionInstructionId: 'p1-q6-7', questionText: 'First diagram label.' },
+              { questionNumber: 7, type: 'diagram-labeling', sectionInstructionId: 'p1-q6-7', questionText: 'Second diagram label.' },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      answerKeyText: ['6 alpha', '7 beta'].join('\n'),
+    }));
+    const diagramStimulus = Object.values(result.document.stimuli).find(
+      (stimulus) => stimulus.content.kind === 'diagram-content',
+    );
+    const validation = validateReadingV2Draft(result.document);
+
+    assertValidReadingV2CanonicalDocument(result.document);
+    expect(diagramStimulus?.anchorIds).toEqual(Array.from(new Set(diagramStimulus?.anchorIds ?? [])));
+    expect(validation.canPublish).toBe(false);
+    expect(validation.blockingIssues.map((issue) => issue.code)).toContain('duplicate-structured-layout-question');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('diagram');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('question 6');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('target left-label');
+    expect(validation.blockingIssues.map((issue) => issue.message).join(' ')).toContain('target right-label');
+  });
+
   it.each(Object.entries(READING_V2_PASTE_IMPORT_FIXTURES_BY_TASK_TYPE))(
     'normalizes valid all-16 paste fixture for %s',
     (taskType, fixture) => {
