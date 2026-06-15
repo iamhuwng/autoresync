@@ -235,7 +235,7 @@ const toIndexRow = (book: MaterialBookMetadata): MaterialBooksIndexRow => {
     testTypeIds,
     testTypeMembership: Object.fromEntries(testTypeIds.map((testTypeId) => [testTypeId, true])),
     tags: book.tags,
-    hasBrokenRefs,
+    hasBrokenRefs: hasBrokenRefs ? true : undefined,
     brokenRefCount: hasBrokenRefs ? book.brokenRefCount ?? 0 : undefined,
     brokenRefReasons: hasBrokenRefs ? book.brokenRefReasons ?? [] : undefined,
     updatedAt: book.updatedAt,
