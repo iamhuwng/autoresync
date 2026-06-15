@@ -25,6 +25,11 @@ export type MaterialBookValidationIssueCode =
   | 'orphan-node'
   | 'depth-exceeded'
   | 'draft-ref-not-allowed'
+  | 'broken-ref-archived'
+  | 'broken-ref-deleted'
+  | 'broken-ref-inaccessible'
+  | 'broken-ref-missing-version'
+  | 'broken-ref-missing-projection'
   | 'duplicate-ref-id'
   | 'public-book-private-ref'
   | 'super-admin-required';
@@ -84,6 +89,57 @@ const isBookStatus = (value: unknown): value is MaterialBookStatus =>
 const isNodeType = (value: unknown): value is MaterialBookNode['type'] =>
   typeof value === 'string' && MATERIAL_BOOK_NODE_TYPES.includes(value as MaterialBookNode['type']);
 
+const brokenRefIssueFor = (
+  ref: MaterialBookNode['materialRefs'][number],
+): { readonly code: MaterialBookValidationIssueCode; readonly message: string } | null => {
+  if (ref.materialKind === 'draft') {
+    return {
+      code: 'draft-ref-not-allowed',
+      message: 'Book refs must point to published material snapshots.',
+    };
+  }
+
+  if (!ref.snapshotVersionId || ref.availability === 'missing-version') {
+    return {
+      code: 'broken-ref-missing-version',
+      message: 'Book ref is missing its published snapshot version.',
+    };
+  }
+
+  if (ref.availability === 'archived') {
+    return {
+      code: 'broken-ref-archived',
+      message: 'Book ref points to an archived material.',
+    };
+  }
+
+  if (ref.availability === 'missing') {
+    return {
+      code: 'broken-ref-deleted',
+      message: 'Book ref points to a deleted or missing material.',
+    };
+  }
+
+  if (ref.availability === 'inaccessible') {
+    return {
+      code: 'broken-ref-inaccessible',
+      message: 'Book ref points to a material the owner cannot access.',
+    };
+  }
+
+  if (ref.availability === 'missing-projection') {
+    return {
+      code: 'broken-ref-missing-projection',
+      message: 'Book ref is missing its student-safe projection.',
+    };
+  }
+
+  return null;
+};
+
+const hasBrokenMaterialRef = (nodes: readonly MaterialBookNode[]): boolean =>
+  nodes.some((node) => node.materialRefs.some((ref) => brokenRefIssueFor(ref) !== null));
+
 export const deriveMaterialBookStatus = (
   nodes: readonly MaterialBookNode[],
   archived = false,
@@ -94,6 +150,10 @@ export const deriveMaterialBookStatus = (
 
   if (nodes.length === 0) {
     return 'draft-empty';
+  }
+
+  if (hasBrokenMaterialRef(nodes)) {
+    return 'needs-repair';
   }
 
   return nodes.some((node) => STRUCTURAL_NODE_TYPES.has(node.type))
@@ -195,8 +255,10 @@ export const validateMaterialBookNodes = (
       }
       refIds.add(ref.refId);
 
-      if (ref.materialKind === 'draft' || !ref.snapshotVersionId) {
-        errors.push(error('draft-ref-not-allowed', 'Book refs must point to published material snapshots.', { nodeId: entry.nodeId, refId: ref.refId }));
+      const brokenRefIssue = brokenRefIssueFor(ref);
+
+      if (brokenRefIssue) {
+        errors.push(error(brokenRefIssue.code, brokenRefIssue.message, { nodeId: entry.nodeId, refId: ref.refId }));
       }
 
       if (

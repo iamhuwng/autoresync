@@ -14,7 +14,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Modal, Text } from '@mantine/core';
 import { Button } from '../modern';
 import MetadataStep from './MetadataStep';
 import { TestUploadWizard } from './TestUploadWizard';
@@ -63,6 +62,157 @@ import { THCSTestEditorSurface } from '../../pages/THCSTestEditorPage';
 import type { WizardStep } from '../thcs-editor/THCSWizardStepper';
 import { isReadingV2TeacherRouteExposureAllowed } from '../../config/readingV2FeatureFlags';
 
+type LocalTextProps = React.HTMLAttributes<HTMLParagraphElement> & {
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+    fw?: React.CSSProperties['fontWeight'];
+    c?: 'dimmed' | string;
+    mt?: number | string;
+};
+
+const TEXT_SIZE_PX: Record<NonNullable<LocalTextProps['size']>, string> = {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    md: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+};
+
+const Text: React.FC<LocalTextProps> = ({
+    children,
+    c,
+    fw,
+    mt,
+    size = 'md',
+    style,
+    ...props
+}) => (
+    <p
+        {...props}
+        style={{
+            margin: 0,
+            color: c === 'dimmed' ? '#64748b' : c,
+            fontSize: TEXT_SIZE_PX[size],
+            fontWeight: fw,
+            marginTop: mt,
+            ...style,
+        }}
+    >
+        {children}
+    </p>
+);
+
+interface LocalModalProps {
+    opened: boolean;
+    onClose: () => void;
+    title?: React.ReactNode;
+    withCloseButton?: boolean;
+    closeOnClickOutside?: boolean;
+    closeOnEscape?: boolean;
+    padding?: number | string;
+    size?: number | string;
+    styles?: {
+        body?: React.CSSProperties;
+        content?: React.CSSProperties;
+    };
+    children: React.ReactNode;
+}
+
+const Modal: React.FC<LocalModalProps> = ({
+    opened,
+    onClose,
+    title,
+    withCloseButton = true,
+    closeOnClickOutside = true,
+    closeOnEscape = true,
+    padding = 0,
+    size = 'lg',
+    styles,
+    children,
+}) => {
+    useEffect(() => {
+        if (!opened || !closeOnEscape) {
+            return undefined;
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [closeOnEscape, onClose, opened]);
+
+    if (!opened) {
+        return null;
+    }
+
+    const width = typeof size === 'number'
+        ? `${size}px`
+        : size === 'lg'
+            ? '640px'
+            : size;
+
+    return (
+        <div
+            aria-label={typeof title === 'string' ? title : 'Test creation'}
+            aria-modal="true"
+            role="dialog"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 1100,
+                display: 'grid',
+                placeItems: 'center',
+                padding: '1rem',
+            }}
+        >
+            <button
+                aria-label="Close overlay"
+                type="button"
+                onClick={() => {
+                    if (closeOnClickOutside) {
+                        onClose();
+                    }
+                }}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: 0,
+                    padding: 0,
+                    background: 'rgba(15, 23, 42, 0.48)',
+                    cursor: closeOnClickOutside ? 'pointer' : 'default',
+                }}
+            />
+            <section
+                style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    width: '100%',
+                    maxWidth: width,
+                    maxHeight: 'calc(100vh - 2rem)',
+                    overflow: 'hidden',
+                    padding,
+                    ...styles?.content,
+                }}
+            >
+                {(title || withCloseButton) && (
+                    <header>
+                        {title}
+                        {withCloseButton && (
+                            <button type="button" onClick={onClose} aria-label="Close">
+                                Close
+                            </button>
+                        )}
+                    </header>
+                )}
+                <div style={styles?.body}>{children}</div>
+            </section>
+        </div>
+    );
+};
+
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
@@ -82,8 +232,23 @@ export interface TestCreationModalProps {
     initialWritingDraftId?: string;
     /** Optional feature/action tracking bridge from the host page */
     onAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
+    /** Starts the Reading V2 draft-master flow from existing published Reading Passages. */
+    onCreateReadingV2FromExistingPassages?: (metadata: ReadingV2ExistingPassagesInitialMetadata) => void;
     /** Dev/test override. Auto V4 is the only active Auto lane. */
     readingV2AutoPipelineLane?: Extract<ReadingV2AutoPipelineLane, 'v4-full-doc'>;
+}
+
+export interface ReadingV2ExistingPassagesInitialMetadata {
+    readonly title: string;
+    readonly durationMinutes: number;
+    readonly difficulty?: string;
+    readonly targetBand?: string;
+    readonly description: string;
+    readonly tags: readonly string[];
+    readonly ownerId?: string;
+    readonly provenanceSummary: string;
+    readonly primaryTestTypeId?: string;
+    readonly testTypeIds: readonly string[];
 }
 
 const TABLE_PRESENTATION_DIAG_PREFIX = '[Diag][TablePresentationAudit]';
@@ -385,6 +550,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     initialData,
     initialWritingDraftId,
     onAction,
+    onCreateReadingV2FromExistingPassages,
     readingV2AutoPipelineLane = READING_V2_AUTO_ACTIVE_PIPELINE_LANE,
 }) => {
     const navigate = useNavigate();
@@ -683,8 +849,20 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         writeClipboardText,
     ]);
 
-    const handleReadingV2Start = useCallback((mode: 'create-blank' | 'create-from-import' | 'create-from-auto') => {
+    const handleReadingV2Start = useCallback((mode: 'create-blank' | 'create-from-import' | 'create-from-auto' | 'create-from-existing-passages') => {
         const initialMetadata = createReadingV2InitialMetadata();
+
+        if (mode === 'create-from-existing-passages') {
+            onAction?.('startReadingV2ExistingPassages', {
+                source: 'test_creation_modal',
+                testType: stepData.testType,
+                titleLength: initialMetadata.title.length,
+                durationMinutes: initialMetadata.durationMinutes,
+            });
+            onClose();
+            onCreateReadingV2FromExistingPassages?.(initialMetadata);
+            return;
+        }
 
         if (mode === 'create-from-import') {
             onAction?.('startReadingV2Import', {
@@ -739,7 +917,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                 initialMetadata,
             },
         });
-    }, [createReadingV2InitialMetadata, navigate, onAction, onClose, stepData.testType]);
+    }, [createReadingV2InitialMetadata, navigate, onAction, onClose, onCreateReadingV2FromExistingPassages, stepData.testType]);
 
     const handleCopyReadingV2ImportPrompt = useCallback(async () => {
         const copied = await writeClipboardText(READING_V2_EXTERNAL_AI_PROMPT);
@@ -1626,6 +1804,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                             onStartBlank={() => handleReadingV2Start('create-blank')}
                             onStartImport={() => handleReadingV2Start('create-from-import')}
                             onStartAuto={() => handleReadingV2Start('create-from-auto')}
+                            onStartExistingPassages={() => handleReadingV2Start('create-from-existing-passages')}
                         />
                     </div>
                 );
@@ -2332,6 +2511,7 @@ interface ReadingV2StartStepProps {
     onStartBlank: () => void;
     onStartImport: () => void;
     onStartAuto: () => void;
+    onStartExistingPassages: () => void;
 }
 
 const READING_V2_START_OPTIONS = [
@@ -2356,6 +2536,13 @@ const READING_V2_START_OPTIONS = [
         actionLabel: 'Create New Test',
         icon: 'NEW',
     },
+    {
+        id: 'existing-passages',
+        title: 'Existing Reading Passages',
+        description: 'Create an unpublished draft master from selected published Reading Passages.',
+        actionLabel: 'Use existing Reading Passages',
+        icon: 'REF',
+    },
 ] as const;
 
 const ReadingV2StartStep: React.FC<ReadingV2StartStepProps> = ({
@@ -2363,6 +2550,7 @@ const ReadingV2StartStep: React.FC<ReadingV2StartStepProps> = ({
     onStartBlank,
     onStartImport,
     onStartAuto,
+    onStartExistingPassages,
 }) => {
     const summaryItems = [
         metadata.title || 'Untitled Reading V2 test',
@@ -2380,12 +2568,12 @@ const ReadingV2StartStep: React.FC<ReadingV2StartStepProps> = ({
                     background: 'rgba(20, 184, 166, 0.08)',
                 }}
             >
-                <Text fw={700} size="md" style={{ color: '#0f766e' }}>
+                <strong style={{ color: '#0f766e', fontSize: '1rem' }}>
                     Reading V2 setup ready
-                </Text>
-                <Text size="sm" c="dimmed">
+                </strong>
+                <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
                     {summaryItems.join(' - ')}
-                </Text>
+                </p>
             </div>
 
             <div
@@ -2400,7 +2588,9 @@ const ReadingV2StartStep: React.FC<ReadingV2StartStepProps> = ({
                         ? onStartImport
                         : option.id === 'auto'
                             ? onStartAuto
-                            : onStartBlank;
+                            : option.id === 'existing-passages'
+                                ? onStartExistingPassages
+                                : onStartBlank;
 
                     return (
                         <button
@@ -2449,12 +2639,12 @@ const ReadingV2StartStep: React.FC<ReadingV2StartStepProps> = ({
                                 {option.icon}
                             </span>
                             <span>
-                                <Text fw={700} size="lg" style={{ color: '#134e4a' }}>
+                                <strong style={{ color: '#134e4a', display: 'block', fontSize: '1.125rem' }}>
                                     {option.title}
-                                </Text>
-                                <Text size="sm" c="dimmed">
+                                </strong>
+                                <span style={{ color: '#64748b', display: 'block', fontSize: '0.875rem' }}>
                                     {option.description}
-                                </Text>
+                                </span>
                             </span>
                             <span style={{ color: '#0f766e', fontWeight: 700 }}>
                                 {option.actionLabel} {'->'}

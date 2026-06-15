@@ -784,14 +784,47 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(context.mode).toBe('create-from-auto');
     expect(commitAdapter).toHaveBeenCalledOnce();
     expect(passageIds.map((passageId) => byPath[readingV2StoragePaths.readingPassageMaterials(passageId)])).toEqual([
-      expect.objectContaining({ passageMaterialId: passageIds[0], sourceFullTestId: context.materialId, state: 'published' }),
-      expect.objectContaining({ passageMaterialId: passageIds[1], sourceFullTestId: context.materialId, state: 'published' }),
-      expect.objectContaining({ passageMaterialId: passageIds[2], sourceFullTestId: context.materialId, state: 'published' }),
+      expect.objectContaining({
+        passageMaterialId: passageIds[0],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 1',
+        sourceTitleSnapshot: 'IELTS Cambridge 20 - Test 1: Reading',
+        sourceFullTestId: context.materialId,
+        state: 'published',
+      }),
+      expect.objectContaining({
+        passageMaterialId: passageIds[1],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 2',
+        sourceTitleSnapshot: 'IELTS Cambridge 20 - Test 1: Reading',
+        sourceFullTestId: context.materialId,
+        state: 'published',
+      }),
+      expect.objectContaining({
+        passageMaterialId: passageIds[2],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 3',
+        sourceTitleSnapshot: 'IELTS Cambridge 20 - Test 1: Reading',
+        sourceFullTestId: context.materialId,
+        state: 'published',
+      }),
     ]);
     expect(passageIds.map((passageId) => byPath[`material_catalog/material_indexes/by_owner/teacher-auto-v4/${passageId}`])).toEqual([
-      expect.objectContaining({ materialId: passageIds[0], materialKind: 'reading-passage', visibility: 'private' }),
-      expect.objectContaining({ materialId: passageIds[1], materialKind: 'reading-passage', visibility: 'private' }),
-      expect.objectContaining({ materialId: passageIds[2], materialKind: 'reading-passage', visibility: 'private' }),
+      expect.objectContaining({
+        materialId: passageIds[0],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 1',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+      }),
+      expect.objectContaining({
+        materialId: passageIds[1],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 2',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+      }),
+      expect.objectContaining({
+        materialId: passageIds[2],
+        title: 'IELTS Cambridge 20 - Test 1: Reading: Passage 3',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+      }),
     ]);
     expect(byPath[compositionPath!]).toMatchObject({
       testMaterialId: context.materialId,

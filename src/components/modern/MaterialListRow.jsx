@@ -21,6 +21,7 @@ const ICONS = {
   view: ViewIcon,
   clone: CloneIcon,
   'use-as-is': UseAsIsIcon,
+  restore: UseAsIsIcon,
 };
 
 const ROW_ICONS = {

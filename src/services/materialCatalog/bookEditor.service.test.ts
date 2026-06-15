@@ -7,6 +7,8 @@ import {
   getBookNodeDepth,
   moveBookNode,
   reorderBookNode,
+  replaceMaterialRefInNode,
+  removeMaterialRefFromNode,
 } from './bookEditor.service';
 
 const NOW = '2026-06-01T00:00:00.000Z';
@@ -101,5 +103,72 @@ describe('bookEditor.service', () => {
 
     expect(second.materialRefs.map((ref) => ref.refId)).toEqual(['ref-1', 'ref-2']);
     expect(second.materialRefs.every((ref) => ref.materialId === 'passage-1')).toBe(true);
+  });
+
+  it('replaces broken Reading Passage refs and removes refs while preserving sibling order', () => {
+    const nodeWithRefs = makeNode({
+      materialRefs: [
+        {
+          refId: materialCatalogIds.refId('broken-ref'),
+          materialId: 'archived-passage',
+          materialKind: 'reading-passage',
+          snapshotVersionId: 'old-snapshot',
+          titleSnapshot: 'Archived Passage',
+          testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+          visibilitySnapshot: 'private',
+          availability: 'archived',
+          updateState: 'unknown',
+          order: 1,
+          addedAt: NOW,
+          addedBy: 'teacher-1',
+        },
+        {
+          refId: materialCatalogIds.refId('valid-ref'),
+          materialId: 'valid-passage',
+          materialKind: 'reading-passage',
+          snapshotVersionId: 'valid-snapshot',
+          titleSnapshot: 'Valid Passage',
+          testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+          visibilitySnapshot: 'private',
+          availability: 'available',
+          updateState: 'current',
+          order: 2,
+          addedAt: NOW,
+          addedBy: 'teacher-1',
+        },
+      ],
+    });
+
+    const replaced = replaceMaterialRefInNode(
+      nodeWithRefs,
+      'broken-ref',
+      {
+        materialId: 'replacement-passage',
+        title: 'Replacement Passage',
+        materialKind: 'reading-passage',
+        publishedSnapshotVersionId: 'replacement-snapshot',
+        testTypeIds: ['ielts'],
+        visibility: 'private',
+      },
+      { actorId: 'teacher-1', now: () => NOW },
+    );
+
+    expect(replaced.materialRefs.map((ref) => ref.materialId)).toEqual(['replacement-passage', 'valid-passage']);
+    expect(replaced.materialRefs[0]).toMatchObject({
+      refId: 'broken-ref',
+      snapshotVersionId: 'replacement-snapshot',
+      titleSnapshot: 'Replacement Passage',
+      availability: 'available',
+      updateState: 'current',
+      order: 1,
+    });
+
+    const removed = removeMaterialRefFromNode(replaced, 'broken-ref');
+    expect(removed.materialRefs).toEqual([
+      expect.objectContaining({
+        refId: 'valid-ref',
+        order: 1,
+      }),
+    ]);
   });
 });

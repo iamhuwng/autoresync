@@ -16,7 +16,10 @@ import {
   READING_V2_STRUCTURED_MATERIALS_END,
   READING_V2_STRUCTURED_MATERIALS_START,
 } from '../services/reading-v2/readingV2ExternalAiPrompt.service';
-import { generateReadingV2PreviewOnly } from '../services/reading-v2/readingV2PublishPipeline.service';
+import {
+  generateReadingV2PreviewOnly,
+  type ReadingV2AutoSplitDuplicateWarning,
+} from '../services/reading-v2/readingV2PublishPipeline.service';
 import { readingV2Ids, type ReadingV2Document, type ReadingV2TaskGroupId } from '../types/readingV2.types';
 import type { ReadingV2CanonicalTaskType } from '../types/readingV2Taxonomy';
 
@@ -562,9 +565,61 @@ const createCam16Test4DiagnosticSmokeDocument = (): ReadingV2Document => {
   };
 };
 
+const createSmokeDuplicateWarnings = (mode: string | null): readonly ReadingV2AutoSplitDuplicateWarning[] => {
+  if (!mode) {
+    return [];
+  }
+
+  const activeMatch = {
+    materialId: 'smoke-duplicate-active',
+    title: 'Existing active passage',
+    source: { sourceFullTestId: 'smoke-full-test', sourceOrderDisplay: 'Passage 1' },
+    ownerId: 'smoke-teacher',
+    visibility: 'private' as const,
+    state: 'published' as const,
+    currentVersionId: 'smoke-active-v1',
+    bodySimilarityPercent: 96,
+    questionSimilarityPercent: 92,
+    combinedSimilarityPercent: 94,
+    shouldWarn: true,
+    actions: ['use-existing', 'create-new-anyway'] as const,
+  };
+
+  const archivedMatch = {
+    materialId: 'smoke-duplicate-archived',
+    title: 'Archived matching passage',
+    source: { sourceFullTestId: 'smoke-full-test', sourceOrderDisplay: 'Passage 2' },
+    ownerId: 'smoke-teacher',
+    visibility: 'private' as const,
+    state: 'archived' as const,
+    currentVersionId: 'smoke-archived-v1',
+    bodySimilarityPercent: 93,
+    questionSimilarityPercent: 89,
+    combinedSimilarityPercent: 91,
+    shouldWarn: true,
+    actions: ['restore-and-use', 'create-new-anyway'] as const,
+  };
+
+  const matches = mode === 'archived'
+    ? [archivedMatch]
+    : mode === 'both'
+      ? [activeMatch, archivedMatch]
+      : [activeMatch];
+
+  return [{
+    passageMaterialId: 'smoke-new-passage-1',
+    result: {
+      shouldWarn: true,
+      blockPublish: false,
+      matches,
+    },
+  }];
+};
+
 export default function ReadingV2StudioSmokePage() {
   const [searchParams] = useSearchParams();
   const fixtureName = searchParams.get('fixture');
+  const duplicateWarningMode = searchParams.get('duplicateWarning');
   const isAutoV4Fixture = fixtureName === 'auto-v4-valid-full-test'
     || fixtureName === 'auto-v4-malformed-key'
     || fixtureName === 'cam16-test4-diagnostics';
@@ -611,6 +666,10 @@ export default function ReadingV2StudioSmokePage() {
     [isAutoV4Fixture, smokeFixture, structuredRepairDocument],
   );
   const fixtureLabel = smokeFixture?.name ?? (structuredRepairDocument ? 'structured-repair' : 'blank');
+  const duplicateWarnings = useMemo(
+    () => createSmokeDuplicateWarnings(duplicateWarningMode),
+    [duplicateWarningMode],
+  );
 
   return (
     <ReadingV2StudioShell
@@ -643,6 +702,7 @@ export default function ReadingV2StudioSmokePage() {
         firebaseCommitStatus: 'committed',
         firebaseCommitPath: '/readingV2/publishCommits/smoke/smoke-snapshot-1',
         firebaseOperationCount: 12,
+        duplicateWarnings,
       })}
     />
   );

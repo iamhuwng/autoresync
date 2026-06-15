@@ -30,6 +30,11 @@ import {
 import { getReadingV2InstructionText } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
 import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
 import type { ReadingV2DerivedProjection } from '../../../services/reading-v2/readingV2Projection.service';
+import type {
+  ReadingV2AutoSplitDuplicateWarning,
+} from '../../../services/reading-v2/readingV2PublishPipeline.service';
+import type { ReadingV2DuplicateMatch } from '../../../services/reading-v2/readingV2PassageDuplicateGuard.service';
+import { writeReadingV2AuditEvent } from '../../../services/reading-v2/readingV2AuditTrail.service';
 import {
   deserializeReadingV2CanonicalToEditorDocument,
   serializeReadingV2EditorDocumentToCanonical,
@@ -58,6 +63,7 @@ import { ReadingV2PreviewOverlay } from './ReadingV2PreviewOverlay';
 import { ReadingV2SettingsPanel } from './ReadingV2SettingsPanel';
 import { ReadingV2StimulusEditor } from './ReadingV2StimulusEditor';
 import { ReadingV2TaskGroupEditor } from './ReadingV2TaskGroupEditor';
+import { ReadingV2DuplicateWarningPanel } from './ReadingV2DuplicateWarningPanel';
 import {
   type ReadingV2TeacherPassageBlockKind,
   type ReadingV2TeacherStudioStep,
@@ -150,6 +156,7 @@ export interface ReadingV2StudioPublishResult {
   readonly firebaseCommitPath?: string;
   readonly firebaseOperationCount?: number;
   readonly publishOutcome?: 'success' | 'partial-failure';
+  readonly duplicateWarnings?: readonly ReadingV2AutoSplitDuplicateWarning[];
 }
 
 const getInitialStudioStep = (mode: ReadingV2StudioMode): ReadingV2TeacherStudioStep =>
@@ -194,6 +201,10 @@ export interface ReadingV2StudioShellProps {
   readonly onCompareDiff?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioConflictDiffResult | Promise<ReadingV2StudioConflictDiffResult>;
   readonly onPreview?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2DerivedProjection | Promise<ReadingV2DerivedProjection>;
   readonly onPublish?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioPublishResult | Promise<ReadingV2StudioPublishResult>;
+  readonly onPublishSuccess?: (
+    snapshot: ReadingV2StudioWorkflowSnapshot,
+    result: ReadingV2StudioPublishResult,
+  ) => void;
   readonly onDiscard?: (snapshot: ReadingV2StudioWorkflowSnapshot) => void | Promise<void>;
   readonly onExtract?: (
     snapshot: ReadingV2StudioWorkflowSnapshot,
@@ -2015,6 +2026,7 @@ export function ReadingV2StudioShell({
   onCompareDiff,
   onPreview,
   onPublish,
+  onPublishSuccess,
   onExtract,
   onExit,
 }: ReadingV2StudioShellProps) {
@@ -2040,6 +2052,7 @@ export function ReadingV2StudioShell({
     'idle' | 'pending' | 'success' | 'failure' | 'partial-failure' | 'permission-denied' | 'retry'
   >('idle');
   const [lastPublishCommitPath, setLastPublishCommitPath] = useState<string | null>(null);
+  const [duplicateWarnings, setDuplicateWarnings] = useState<readonly ReadingV2AutoSplitDuplicateWarning[]>([]);
   const [showDeveloperDetails, setShowDeveloperDetails] = useState(false);
   const [showImportReviewDetails, setShowImportReviewDetails] = useState(false);
   const [diagnosticCopyState, setDiagnosticCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -2119,6 +2132,9 @@ export function ReadingV2StudioShell({
   const selectedPassageTaskGroups = selectedPassageSectionId
     ? orderedTaskGroups.filter((taskGroup) => taskGroup.sectionId === selectedPassageSectionId)
     : [];
+  const canEditPassageCollection =
+    metadata.materialKind !== 'reading-passage' &&
+    (mode === 'create-blank' || mode === 'create-from-import' || mode === 'create-from-auto');
   const selectedExtractionTaskGroupIds =
     extractionTaskGroupIds.length > 0
       ? extractionTaskGroupIds
@@ -2356,6 +2372,68 @@ export function ReadingV2StudioShell({
     returnContext: returnContext.surface,
   });
 
+  const emitDuplicateWarningAction = (
+    actionName: string,
+    match: ReadingV2DuplicateMatch,
+    warning: ReadingV2AutoSplitDuplicateWarning,
+  ) => {
+    emitAction(actionName, {
+      passageMaterialId: warning.passageMaterialId,
+      materialId: match.materialId,
+      duplicateMaterialId: match.materialId,
+      duplicateState: match.state,
+      similarity: match.combinedSimilarityPercent,
+      combinedSimilarityPercent: match.combinedSimilarityPercent,
+      source: 'studio_publish_duplicate_warning',
+    });
+
+    const auditActionByFeatureAction = {
+      reading_passage_duplicate_use_existing: 'reading_duplicate_warning_existing_used',
+      reading_passage_duplicate_restore_and_use: 'reading_duplicate_warning_restore_used',
+      reading_passage_duplicate_create_new_anyway: 'reading_duplicate_warning_bypassed',
+    } as const;
+    const auditAction = auditActionByFeatureAction[actionName as keyof typeof auditActionByFeatureAction];
+
+    if (!auditAction) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const actorUserId = String(metadata.ownerId || 'current-teacher');
+    const eventId = `${currentDraftId}:${auditAction}:${warning.passageMaterialId}:${match.materialId}:${Date.now()}`;
+
+    void writeReadingV2AuditEvent({
+      eventId,
+      createdAt,
+      actorUserId,
+      actorRole: 'teacher',
+      action: auditAction,
+      entityType: 'duplicate-warning',
+      entityId: `${warning.passageMaterialId}:${match.materialId}`,
+      ownerId: actorUserId,
+      materialId: warning.passageMaterialId,
+      titleSnapshot: match.title,
+      before: {
+        duplicateMaterialId: match.materialId,
+        duplicateState: match.state,
+        similarity: match.combinedSimilarityPercent,
+      },
+      after: {
+        decision: actionName,
+      },
+      correlationId: eventId,
+      sourceFeatureId: 'readingV2Studio',
+      sourceRoute: `reading-v2-studio:${returnContext.surface}`,
+    }).catch((error) => {
+      emitAction('reading_passage_duplicate_audit_failed', {
+        passageMaterialId: warning.passageMaterialId,
+        duplicateMaterialId: match.materialId,
+        message: error instanceof Error ? error.message : 'unknown',
+        source: 'studio_publish_duplicate_warning',
+      });
+    });
+  };
+
   const handleCopyParsingDiagnostics = async () => {
     const diagnostics = buildReadingV2StudioParsingDiagnostics({
       document: draftDocument,
@@ -2522,8 +2600,16 @@ export function ReadingV2StudioShell({
     setWorkflowMessage('Publishing. Preparing the test for students.');
 
     try {
-      const result = await onPublish(workflowSnapshot());
+      const snapshot = workflowSnapshot();
+      const result = await onPublish(snapshot);
+      const nextDuplicateWarnings = result.duplicateWarnings ?? [];
       setLastPublishCommitPath(result.firebaseCommitPath ?? null);
+      setDuplicateWarnings(nextDuplicateWarnings);
+      nextDuplicateWarnings.forEach((warning) => {
+        warning.result.matches.forEach((match) => {
+          emitDuplicateWarningAction('reading_passage_duplicate_warning_shown', match, warning);
+        });
+      });
 
       if (result.publishOutcome === 'partial-failure') {
         setPublishState('partial-failure');
@@ -2535,6 +2621,7 @@ export function ReadingV2StudioShell({
       setPublishState('success');
       setWorkflowMessage('Published successfully.');
       emitAction('publish', { outcome: 'success' });
+      onPublishSuccess?.(snapshot, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       const permissionDenied = /permission|denied/i.test(message);
@@ -3074,8 +3161,8 @@ export function ReadingV2StudioShell({
         onOperationalAction={handleOperationalStateAction}
         onToolbarMoreToggle={(outcome) => emitAction('toolbarMoreMenu', { outcome })}
         onSelectPassage={handleSelectPassage}
-        onAddPassage={handleAddPassage}
-        onRemovePassage={handleRemovePassage}
+        onAddPassage={canEditPassageCollection ? handleAddPassage : undefined}
+        onRemovePassage={canEditPassageCollection ? handleRemovePassage : undefined}
         onPassageTitleChange={handlePassageTitleChange}
         onPassageTextChange={handlePassageTextChange}
         onAddQuestionGroup={handleAddTaskGroup}
@@ -3106,6 +3193,19 @@ export function ReadingV2StudioShell({
         onDeleteQuestionGroup={handleDeleteQuestionGroup}
         onOpenQuestionGroupModal={handleOpenQuestionGroupModal}
         onCloseQuestionGroupModal={handleCloseQuestionGroupModal}
+      />
+
+      <ReadingV2DuplicateWarningPanel
+        warnings={duplicateWarnings}
+        onUseExisting={(match, warning) =>
+          emitDuplicateWarningAction('reading_passage_duplicate_use_existing', match, warning)
+        }
+        onRestoreAndUse={(match, warning) =>
+          emitDuplicateWarningAction('reading_passage_duplicate_restore_and_use', match, warning)
+        }
+        onCreateNewAnyway={(match, warning) =>
+          emitDuplicateWarningAction('reading_passage_duplicate_create_new_anyway', match, warning)
+        }
       />
 
       {mode === 'revise-published' ? (

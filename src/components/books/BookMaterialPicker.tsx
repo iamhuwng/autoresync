@@ -8,6 +8,7 @@ import './BookMaterialPicker.css';
 interface BookMaterialPickerProps {
   readonly materials: readonly BookMaterialSummary[];
   readonly onAttach: (material: BookMaterialSummary) => void;
+  readonly repairMode?: boolean;
 }
 
 const searchableText = (material: BookMaterialSummary): string =>
@@ -19,15 +20,16 @@ const searchableText = (material: BookMaterialSummary): string =>
     .join(' ')
     .toLowerCase();
 
-const BookMaterialPicker = ({ materials, onAttach }: BookMaterialPickerProps) => {
+const BookMaterialPicker = ({ materials, onAttach, repairMode = false }: BookMaterialPickerProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const query = searchTerm.trim().toLowerCase();
   const publishedMaterials = useMemo(
     () =>
       filterPublishedMaterialSummaries(materials)
+        .filter((material) => repairMode || !material.archived)
         .filter((material) => !query || searchableText(material).includes(query))
         .sort((left, right) => left.title.localeCompare(right.title)),
-    [materials, query],
+    [materials, query, repairMode],
   );
 
   return (
@@ -51,6 +53,7 @@ const BookMaterialPicker = ({ materials, onAttach }: BookMaterialPickerProps) =>
               <div className="book-material-picker__summary">
                 <strong>{material.title}</strong>
                 <span>{material.materialKind}</span>
+                {material.archived && <span>Archived</span>}
                 {Boolean(material.testTypeIds?.length) && (
                   <span>{material.testTypeIds?.join(', ')}</span>
                 )}

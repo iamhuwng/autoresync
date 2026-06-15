@@ -25,6 +25,7 @@ import {
   BOOK_NODE_MAX_DEPTH,
   type BookMaterialSummary,
   removeMaterialRefFromNode,
+  replaceMaterialRefInNode,
 } from '../../services/materialCatalog/bookEditor.service';
 import {
   materialCatalogIds,
@@ -36,6 +37,7 @@ import {
   type MaterialBookVisibility,
 } from '../../types/materialCatalog.types';
 import type { ReadingPassageHomeworkCandidate } from '../../services/reading-v2/readingV2PassageHomework.service';
+import { writeReadingV2AuditEvent } from '../../services/reading-v2/readingV2AuditTrail.service';
 import { HomeworkCreateModal } from '../homework/HomeworkCreateModal';
 import BookMaterialPicker from './BookMaterialPicker';
 import BookNodeTree from './BookNodeTree';
@@ -366,6 +368,34 @@ const collectMaterialRefPlacements = (bookNodes: readonly MaterialBookNode[]): M
         .map((ref) => ({ node, ref })),
     );
 
+const brokenRefLabel = (availability: string): string => {
+  if (availability === 'archived') {
+    return 'Removed';
+  }
+
+  if (availability === 'missing') {
+    return 'Missing';
+  }
+
+  if (availability === 'inaccessible') {
+    return 'No access';
+  }
+
+  if (availability === 'missing-version') {
+    return 'Missing version';
+  }
+
+  if (availability === 'missing-projection') {
+    return 'Missing projection';
+  }
+
+  return availability;
+};
+
+const isBrokenBookRef = (ref: MaterialBookMaterialRef): boolean =>
+  ref.materialKind === 'reading-passage' &&
+  (ref.availability !== 'available' || !ref.snapshotVersionId);
+
 const sortedBookChildren = (
   bookNodes: readonly MaterialBookNode[],
   parentNodeId: string | null,
@@ -457,6 +487,8 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const effectiveActiveTab = activeTab ?? internalActiveTab;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const [repairSelections, setRepairSelections] = useState<Record<string, string>>({});
+  const [repairInteractionComplete, setRepairInteractionComplete] = useState(false);
   const [deleteNodeRequest, setDeleteNodeRequest] = useState<DeleteNodeRequest | null>(null);
   const errorState = classifyBookEditorError(error, Boolean(book));
   const isModalPresentation = presentation === 'modal';
@@ -659,6 +691,21 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const pickerMaterials = materialCandidates ?? loadedCandidates;
   const displayStatus = deriveMaterialBookStatus(nodes, book?.status === 'archived');
   const materialRefPlacements = useMemo(() => collectMaterialRefPlacements(nodes), [nodes]);
+  const brokenRefPlacements = useMemo(
+    () => materialRefPlacements.filter((placement) => isBrokenBookRef(placement.ref)),
+    [materialRefPlacements],
+  );
+  const repairCandidates = useMemo(
+    () => filterPublishedMaterialSummaries(pickerMaterials)
+      .filter((material) => material.materialKind === 'reading-passage' && !material.archived)
+      .sort((left, right) => left.title.localeCompare(right.title)),
+    [pickerMaterials],
+  );
+  const attachablePickerMaterials = useMemo(() => {
+    const attachedMaterialIds = new Set(materialRefPlacements.map((placement) => placement.ref.materialId));
+
+    return pickerMaterials.filter((material) => !attachedMaterialIds.has(material.materialId));
+  }, [materialRefPlacements, pickerMaterials]);
   const selectedPlacement = useMemo(
     () =>
       materialRefPlacements.find((placement) => placement.ref.refId === selectedRefId) ??
@@ -1071,6 +1118,109 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
     });
   };
 
+  const writeBookBrokenRefAudit = async (
+    sourceFeatureId: string,
+    placement: MaterialRefPlacement,
+    after: Record<string, unknown>,
+  ) => {
+    if (!book || !user?.uid) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const eventId = `${book.bookId}:reading_book_broken_ref_repaired:${placement.ref.refId}:${Date.now()}`;
+
+    await writeReadingV2AuditEvent({
+      eventId,
+      createdAt,
+      actorUserId: user.uid,
+      actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
+      action: 'reading_book_broken_ref_repaired',
+      entityType: 'reading-book',
+      entityId: book.bookId,
+      ownerId: book.ownerId,
+      materialId: placement.ref.materialId,
+      titleSnapshot: placement.ref.titleSnapshot,
+      before: {
+        nodeId: placement.node.nodeId,
+        refId: placement.ref.refId,
+        materialId: placement.ref.materialId,
+        availability: placement.ref.availability,
+      },
+      after,
+      correlationId: eventId,
+      sourceFeatureId,
+      sourceRoute: presentation === 'modal' ? '/lobby' : '/teacher/materials/books/:bookId',
+    });
+  };
+
+  const handleReplaceBrokenRef = (placement: MaterialRefPlacement, replacementMaterialId: string | undefined) => {
+    if (!replacementMaterialId) {
+      return;
+    }
+
+    const replacement = repairCandidates.find((material) => material.materialId === replacementMaterialId);
+
+    if (!replacement) {
+      return;
+    }
+
+    const nextNode = replaceMaterialRefInNode(placement.node, placement.ref.refId, replacement, {
+      actorId: user?.uid ?? 'unknown',
+    });
+
+    handleNodesChange(nodes.map((node) => (node.nodeId === nextNode.nodeId ? nextNode : node)));
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(placement.ref.refId);
+    setRepairInteractionComplete(true);
+    trackAction('teacher_materials_book_ref_repaired_existing', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      replacementMaterialId: replacement.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_repaired_existing', placement, {
+      repairAction: 'replace-existing',
+      replacementMaterialId: replacement.materialId,
+    }).catch(() => undefined);
+  };
+
+  const handleRemoveBrokenRef = (placement: MaterialRefPlacement) => {
+    const nextNode = removeMaterialRefFromNode(placement.node, placement.ref.refId);
+
+    handleNodesChange(nodes.map((node) => (node.nodeId === nextNode.nodeId ? nextNode : node)));
+    setSelectedNodeId(nextNode.nodeId);
+    setSelectedRefId(nextNode.materialRefs[0]?.refId ?? null);
+    setRepairInteractionComplete(true);
+    trackAction('teacher_materials_book_ref_removed', {
+      bookId: book?.bookId,
+      nodeId: nextNode.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_removed', placement, {
+      repairAction: 'remove-ref',
+    }).catch(() => undefined);
+  };
+
+  const handleRestoreBrokenRef = (placement: MaterialRefPlacement) => {
+    setSelectedNodeId(placement.node.nodeId);
+    setSelectedRefId(placement.ref.refId);
+    trackAction('teacher_materials_book_ref_restore_started', {
+      bookId: book?.bookId,
+      nodeId: placement.node.nodeId,
+      refId: placement.ref.refId,
+      materialId: placement.ref.materialId,
+      source: 'book_editor_broken_refs',
+    });
+    void writeBookBrokenRefAudit('teacher_materials_book_ref_restore_started', placement, {
+      repairAction: 'restore-source-started',
+    }).catch(() => undefined);
+  };
+
   const handleUpdateSelectedNode = (updates: Partial<Pick<MaterialBookNode, 'title' | 'type'>>) => {
     if (!selectedNode) {
       return;
@@ -1346,9 +1496,80 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   const renderAttachMaterialGroup = () => (
     <section className="book-editor-page__attach-flow" aria-labelledby="book-editor-attach-material">
       <h3 id="book-editor-attach-material">Attach material</h3>
-      <BookMaterialPicker materials={pickerMaterials} onAttach={handleAttachMaterialToSelectedNode} />
+      <BookMaterialPicker materials={attachablePickerMaterials} onAttach={handleAttachMaterialToSelectedNode} />
     </section>
   );
+
+  const renderBrokenRefsGroup = () => {
+    if (!book) {
+      return null;
+    }
+
+    return (
+      <section className="book-editor-page__repair-panel" role="region" aria-label="Book broken refs">
+        <div className="book-editor-page__inspector-group-heading">
+          <h3>Book broken refs</h3>
+        </div>
+        {brokenRefPlacements.length === 0 ? (
+          <p>All Book refs are usable.</p>
+        ) : (
+          <ul className="book-editor-page__repair-list">
+            {brokenRefPlacements.map((placement) => {
+              const selection = repairSelections[placement.ref.refId] ?? repairCandidates[0]?.materialId ?? '';
+              const isOwnedArchived =
+                placement.ref.availability === 'archived' &&
+                Boolean(user?.uid) &&
+                (placement.ref.ownerIdSnapshot ?? placement.ref.addedBy) === user?.uid;
+
+              return (
+                <li key={placement.ref.refId} className="book-editor-page__repair-item">
+                  <div className="book-editor-page__repair-summary">
+                    <strong>{placement.ref.titleSnapshot}</strong>
+                    <span>{placement.node.title}</span>
+                    <span>{brokenRefLabel(placement.ref.availability)}</span>
+                  </div>
+                  <label>
+                    <span>{`Replacement for ${placement.ref.titleSnapshot}`}</span>
+                    <select
+                      value={selection}
+                      aria-label={`Replacement for ${placement.ref.titleSnapshot}`}
+                      onChange={(event) => setRepairSelections((current) => ({
+                        ...current,
+                        [placement.ref.refId]: event.target.value,
+                      }))}
+                    >
+                      {repairCandidates.map((candidate) => (
+                        <option key={candidate.materialId} value={candidate.materialId}>
+                          {candidate.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="book-editor-page__repair-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleReplaceBrokenRef(placement, selection)}
+                      disabled={!selection}
+                    >
+                      Replace broken ref
+                    </button>
+                    <button type="button" className="book-editor-page__secondary-button" onClick={() => handleRemoveBrokenRef(placement)}>
+                      Remove broken ref
+                    </button>
+                    {isOwnedArchived && (
+                      <button type="button" className="book-editor-page__secondary-button" onClick={() => handleRestoreBrokenRef(placement)}>
+                        Restore source
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    );
+  };
 
   const renderSelectedMaterialGroup = () => {
     if (!selectedPlacement) {
@@ -1360,7 +1581,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
         <h3 id="book-editor-selected-material">Selected material</h3>
         <div className="book-editor-page__selected-material-card">
           <div>
-            <strong>{selectedPlacement.ref.titleSnapshot}</strong>
+            <strong>{repairInteractionComplete ? `Selected: ${selectedPlacement.ref.titleSnapshot}` : selectedPlacement.ref.titleSnapshot}</strong>
             <div className="book-editor-page__selected-material-meta">
               <span>{selectedPlacement.ref.materialKind}</span>
               <span>{selectedPlacement.ref.testTypeIdsSnapshot.join(', ') || 'No Test Type'}</span>
@@ -1436,6 +1657,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
       ) : (
         <p className="book-editor-page__empty-state">Add or select a Book part in Content to inspect, attach, or assign materials.</p>
       )}
+      {renderBrokenRefsGroup()}
     </aside>
   );
 

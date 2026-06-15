@@ -34,6 +34,9 @@ export interface MaterialBooksIndexRow {
   readonly testTypeIds: readonly MaterialTestTypeId[];
   readonly testTypeMembership: Readonly<Record<string, true>>;
   readonly tags: readonly string[];
+  readonly hasBrokenRefs?: boolean;
+  readonly brokenRefCount?: number;
+  readonly brokenRefReasons?: readonly string[];
   readonly updatedAt: string;
 }
 
@@ -81,6 +84,9 @@ export interface MaterialBookListRow {
     readonly active: boolean;
   }[];
   readonly tags: readonly string[];
+  readonly hasBrokenRefs?: boolean;
+  readonly brokenRefCount?: number;
+  readonly brokenRefReasons?: readonly string[];
   readonly updatedAt: string;
   readonly isOwner: boolean;
 }
@@ -213,6 +219,7 @@ const isPublicBookProjection = (value: unknown): value is MaterialBookPublicProj
 
 const toIndexRow = (book: MaterialBookMetadata): MaterialBooksIndexRow => {
   const testTypeIds = unique(book.testTypeIds);
+  const hasBrokenRefs = book.hasBrokenRefs === true || book.status === 'needs-repair' || (book.brokenRefCount ?? 0) > 0;
 
   return {
     bookId: book.bookId,
@@ -228,6 +235,9 @@ const toIndexRow = (book: MaterialBookMetadata): MaterialBooksIndexRow => {
     testTypeIds,
     testTypeMembership: Object.fromEntries(testTypeIds.map((testTypeId) => [testTypeId, true])),
     tags: book.tags,
+    hasBrokenRefs,
+    brokenRefCount: hasBrokenRefs ? book.brokenRefCount ?? 0 : undefined,
+    brokenRefReasons: hasBrokenRefs ? book.brokenRefReasons ?? [] : undefined,
     updatedAt: book.updatedAt,
   };
 };
@@ -750,6 +760,9 @@ export const listTeacherBooks = async (input: {
         testTypeIds: book.testTypeIds,
         testTypes,
         tags: book.tags,
+        hasBrokenRefs: book.hasBrokenRefs,
+        brokenRefCount: book.brokenRefCount,
+        brokenRefReasons: book.brokenRefReasons,
         updatedAt: book.updatedAt,
         isOwner: book.ownerId === input.teacherId,
       };
@@ -793,6 +806,9 @@ export const listPublicBookReviewQueue = async (input: {
         testTypeIds: book.testTypeIds,
         testTypes,
         tags: book.tags,
+        hasBrokenRefs: book.hasBrokenRefs,
+        brokenRefCount: book.brokenRefCount,
+        brokenRefReasons: book.brokenRefReasons,
         updatedAt: book.updatedAt,
         isOwner: false,
       };

@@ -17,6 +17,17 @@ const getAuthorLine = (book) => {
   return book?.publisher || book?.series || 'Draft organizer';
 };
 
+const brokenRefReasonLabel = (reason) => {
+  if (reason === 'archived') return 'Removed';
+  if (reason === 'missing-version') return 'Missing version';
+  if (reason === 'missing-projection') return 'Missing projection';
+  if (reason === 'missing' || reason === 'deleted') return 'Missing';
+  if (reason === 'inaccessible') return 'No access';
+  return String(reason || 'Needs repair');
+};
+
+const hasBrokenRefs = (book) => Boolean(book?.hasBrokenRefs || Number(book?.brokenRefCount || 0) > 0 || book?.status === 'needs-repair');
+
 const BookCover = ({ book }) => {
   if (book.coverUrl) {
     return (
@@ -42,47 +53,77 @@ const BookCard = ({
   canOpenBookEditor = true,
   onOpenBook,
   onArchiveBook,
-}) => (
-  <article className="book-card" data-testid={`book-card-${book.bookId || book.id}`}>
-    <div className="book-card__cover">
-      <BookCover book={book} />
-    </div>
+}) => {
+  const broken = hasBrokenRefs(book);
+  const brokenRefCount = Number(book.brokenRefCount || 0);
+  const brokenRefReasons = Array.isArray(book.brokenRefReasons) ? book.brokenRefReasons : [];
 
-    <div className="book-card__body">
-      <div className="book-card__title" title={book.title}>{book.title}</div>
-      <div className="book-card__meta" title={getAuthorLine(book)}>{getAuthorLine(book)}</div>
-      <div className="book-card__chips" aria-label={`${book.title} metadata`}>
-        {(book.testTypes || []).map((testType) => (
-          <span key={testType.testTypeId} className="book-card__chip">
-            {testType.shortLabel || testType.label}
-          </span>
-        ))}
-        <span className="book-card__chip book-card__chip--neutral">{visibilityLabel(book.visibility)}</span>
-        <span className="book-card__chip book-card__chip--status">{book.status}</span>
+  return (
+    <article className="book-card" data-testid={`book-card-${book.bookId || book.id}`}>
+      <div className="book-card__cover">
+        <BookCover book={book} />
       </div>
-    </div>
 
-    <div className="book-card__actions" aria-label={`${book.title} actions`}>
-      <button
-        type="button"
-        className="book-card__action book-card__action--primary"
-        disabled={!canOpenBookEditor}
-        title={canOpenBookEditor ? 'Edit Book' : 'Book editor is not available'}
-        onClick={(event) => onOpenBook?.(book, event.currentTarget)}
-      >
-        Edit
-      </button>
-      {book.isOwner && (
+      <div className="book-card__body">
+        <div className="book-card__title" title={book.title}>{book.title}</div>
+        <div className="book-card__meta" title={getAuthorLine(book)}>{getAuthorLine(book)}</div>
+        <div className="book-card__chips" aria-label={`${book.title} metadata`}>
+          {(book.testTypes || []).map((testType) => (
+            <span key={testType.testTypeId} className="book-card__chip">
+              {testType.shortLabel || testType.label}
+            </span>
+          ))}
+          <span className="book-card__chip book-card__chip--neutral">{visibilityLabel(book.visibility)}</span>
+          <span className="book-card__chip book-card__chip--status">{book.status}</span>
+        </div>
+        {broken && (
+          <div className="book-card__repair" role="status" aria-label={`${book.title} Book needs repair`}>
+            <strong>{brokenRefCount === 1 ? '1 ref needs repair' : `${brokenRefCount || 1} refs need repair`}</strong>
+            {brokenRefReasons.length > 0 && (
+              <div className="book-card__repair-reasons" aria-label={`${book.title} broken ref reasons`}>
+                {brokenRefReasons.map((reason) => (
+                  <span key={reason} className="book-card__chip book-card__chip--warning">
+                    {brokenRefReasonLabel(reason)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="book-card__actions" aria-label={`${book.title} actions`}>
         <button
           type="button"
-          className="book-card__action book-card__action--danger"
-          onClick={() => onArchiveBook?.(book)}
+          className="book-card__action book-card__action--primary"
+          disabled={!canOpenBookEditor}
+          title={canOpenBookEditor ? 'Edit Book' : 'Book editor is not available'}
+          onClick={(event) => onOpenBook?.(book, event.currentTarget)}
         >
-          Archive
+          Edit
         </button>
-      )}
-    </div>
-  </article>
-);
+        {broken && (
+          <button
+            type="button"
+            className="book-card__action book-card__action--warning"
+            disabled={!canOpenBookEditor}
+            onClick={(event) => onOpenBook?.(book, event.currentTarget, { focus: 'broken-refs' })}
+          >
+            Fix broken refs
+          </button>
+        )}
+        {book.isOwner && (
+          <button
+            type="button"
+            className="book-card__action book-card__action--danger"
+            onClick={() => onArchiveBook?.(book)}
+          >
+            Archive
+          </button>
+        )}
+      </div>
+    </article>
+  );
+};
 
 export default BookCard;

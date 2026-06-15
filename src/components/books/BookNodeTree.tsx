@@ -52,6 +52,30 @@ const NODE_LABELS: Record<MaterialBookNodeType, string> = {
 
 const isPlaceholderNode = (type: MaterialBookNodeType): boolean => type.endsWith('-placeholder');
 
+const brokenRefLabel = (availability: string): string => {
+  if (availability === 'archived') {
+    return 'Removed';
+  }
+
+  if (availability === 'missing') {
+    return 'Missing';
+  }
+
+  if (availability === 'inaccessible') {
+    return 'No access';
+  }
+
+  if (availability === 'missing-version') {
+    return 'Missing version';
+  }
+
+  if (availability === 'missing-projection') {
+    return 'Missing projection';
+  }
+
+  return availability;
+};
+
 const MoreVertIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
     <circle cx="12" cy="5" r="1.8" />
@@ -423,6 +447,7 @@ const BookNodeTree = ({
           <li
             className={`book-node-tree__ref ${selectedRefId === ref.refId ? 'book-node-tree__ref--selected' : ''}`}
             key={ref.refId}
+            data-testid={`book-ref-${ref.refId}`}
             aria-selected={selectedRefId === ref.refId}
             role="treeitem"
             tabIndex={0}
@@ -442,7 +467,11 @@ const BookNodeTree = ({
               <span className="book-node-tree__chip">{ref.materialKind}</span>
               <span>{ref.testTypeIdsSnapshot.join(', ') || 'No Test Type'}</span>
               {ref.availability !== 'available' && (
-                <span className="book-node-tree__unavailable">Unavailable: {ref.availability}</span>
+                <>
+                  <span className="book-node-tree__unavailable">Unavailable: {ref.availability}</span>
+                  <span className="book-node-tree__unavailable">{brokenRefLabel(ref.availability)}</span>
+                  <span className="book-node-tree__update-state">Needs repair</span>
+                </>
               )}
               {ref.availability === 'available' && (
                 <span>available</span>

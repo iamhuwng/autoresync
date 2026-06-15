@@ -242,7 +242,7 @@ describe('materialListAdapter', () => {
       'Questions 14-26',
       '20 min',
     ]);
-    expect(row.actions.map((item) => item.label)).toEqual(['Open', 'Assign homework', 'Revise', 'Archive']);
+    expect(row.actions.map((item) => item.label)).toEqual(['Open', 'Assign homework', 'Revise', 'Remove from library']);
     expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
 
     row.selection.onChange();
@@ -253,6 +253,42 @@ describe('materialListAdapter', () => {
     expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
     expect(handlers.onReviseReadingPassage).toHaveBeenCalledWith(row.source);
     expect(handlers.onArchiveReadingPassage).toHaveBeenCalledWith(row.source);
+  });
+
+  it('maps archived Reading Passage rows to restore-only non-destructive actions', () => {
+    const handlers = {
+      onOpenReadingPassage: vi.fn(),
+      onRestoreReadingPassage: vi.fn(),
+    };
+    const row = toReadingPassageRowModel({
+      id: 'archived-passage',
+      materialId: 'archived-passage',
+      title: 'Archived Passage',
+      questionCount: 11,
+      visibility: 'private',
+      scope: 'archived',
+      archived: true,
+      isOwner: true,
+      selectable: false,
+      currentVersionId: 'snapshot-archived',
+      publishedSnapshotVersionId: 'snapshot-archived',
+      actions: [
+        { key: 'view', label: 'View read-only' },
+        { key: 'restore', label: 'Restore', ownerOnly: true },
+      ],
+    }, {
+      handlers,
+    });
+
+    expect(row.selection).toBeUndefined();
+    expect(row.badges.map((badge) => badge.label)).toContain('Archive');
+    expect(row.badges.map((badge) => badge.label)).toContain('Archived');
+    expect(row.actions.map((item) => item.label)).toEqual(['View read-only', 'Restore']);
+
+    row.actions.forEach((item) => item.onSelect());
+
+    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onRestoreReadingPassage).toHaveBeenCalledWith(row.source);
   });
 
   it('omits owner-only Reading Passage archive/revise actions for public rows', () => {

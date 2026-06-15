@@ -741,6 +741,46 @@
   color: #475569;
 }
 
+.book-editor-page__repair-panel,
+.book-editor-page__repair-list,
+.book-editor-page__repair-item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.book-editor-page__repair-panel {
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #fff7ed;
+}
+
+.book-editor-page__repair-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-editor-page__repair-item {
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.book-editor-page__repair-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.book-editor-page__repair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 @media (max-width: 900px) {
   .book-editor-page__hero,
   .book-editor-page__section-heading {

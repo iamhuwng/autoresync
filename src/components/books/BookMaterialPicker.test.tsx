@@ -56,4 +56,36 @@ describe('BookMaterialPicker', () => {
     expect(screen.getByText('Huarango Passage')).toBeInTheDocument();
     expect(screen.queryByText('Cambridge Reading Test')).not.toBeInTheDocument();
   });
+
+  it('hides archived candidates from normal attach flow but can show repair-only restore candidates safely', async () => {
+    const user = userEvent.setup();
+    const onAttach = vi.fn();
+
+    render(
+      <BookMaterialPicker
+        materials={[
+          {
+            materialId: 'archived-1',
+            title: 'Archived Duplicate',
+            materialKind: 'reading-passage',
+            publishedSnapshotVersionId: 'snapshot-archived',
+            testTypeIds: ['ielts'],
+            archived: true,
+            answerKey: 'A',
+            canonicalPayload: { hidden: true },
+          } as any,
+        ]}
+        onAttach={onAttach}
+        repairMode
+      />,
+    );
+
+    expect(screen.getByText('Archived Duplicate')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+    expect(screen.queryByText('answerKey')).not.toBeInTheDocument();
+    expect(screen.queryByText('canonicalPayload')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Attach Archived Duplicate' }));
+    expect(onAttach).toHaveBeenCalledWith(expect.objectContaining({ materialId: 'archived-1' }));
+  });
 });

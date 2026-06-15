@@ -378,13 +378,27 @@ describe('materialBooks.service', () => {
   });
 
   it('builds and cleans Book indexes by owner, visibility, and each Test Type', () => {
-    expect(buildMaterialBookIndexWrites(metadata({ testTypeIds: [materialCatalogIds.testTypeId('ielts'), materialCatalogIds.testTypeId('toeic')] })).map((write) => write.path))
+    const writes = buildMaterialBookIndexWrites(metadata({
+      testTypeIds: [materialCatalogIds.testTypeId('ielts'), materialCatalogIds.testTypeId('toeic')],
+      hasBrokenRefs: true,
+      brokenRefCount: 1,
+      brokenRefReasons: ['archived'],
+      canonicalPayload: { answerKey: 'A' },
+    } as any));
+
+    expect(writes.map((write) => write.path))
       .toEqual(expect.arrayContaining([
         'material_catalog/book_indexes/by_owner/teacher-1/book-1',
         'material_catalog/book_indexes/by_visibility/private/book-1',
         'material_catalog/book_indexes/by_test_type/ielts/book-1',
         'material_catalog/book_indexes/by_test_type/toeic/book-1',
       ]));
+    expect(writes[0].value).toMatchObject({
+      hasBrokenRefs: true,
+      brokenRefCount: 1,
+      brokenRefReasons: ['archived'],
+    });
+    expect(JSON.stringify(writes[0].value)).not.toContain('answerKey');
 
     expect(buildMaterialBookIndexCleanup(
       metadata({ visibility: 'private', testTypeIds: [materialCatalogIds.testTypeId('ielts')] }),

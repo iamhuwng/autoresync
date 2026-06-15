@@ -352,7 +352,47 @@ describe('TestCreationModal', () => {
                 expect(screen.getByRole('button', { name: /Paste Text/i })).toBeInTheDocument();
                 expect(screen.getByRole('button', { name: /Auto/i })).toBeInTheDocument();
                 expect(screen.getByRole('button', { name: /Create New Test/i })).toBeInTheDocument();
+                expect(screen.getByRole('button', { name: /Use existing Reading Passages/i })).toBeInTheDocument();
             });
+        });
+
+        it('opens the existing Reading Passages draft-master flow only for Reading V2', async () => {
+            const onClose = vi.fn();
+            const onAction = vi.fn();
+            const onCreateReadingV2FromExistingPassages = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose, onAction, onCreateReadingV2FromExistingPassages });
+
+            await user.click(screen.getByText('IELTS'));
+            await waitFor(() => {
+                expect(screen.getByText('Reading V2')).toBeInTheDocument();
+            });
+            await user.click(screen.getByText('Reading V2'));
+
+            const titleInput = await screen.findByDisplayValue(/IELTS Reading-v2 Test/i);
+            await user.clear(titleInput);
+            await user.type(titleInput, 'Existing Passages Master');
+            await user.click(screen.getByRole('button', { name: /continue/i }));
+
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /Use existing Reading Passages/i })).toBeInTheDocument();
+            });
+            await user.click(screen.getByRole('button', { name: /Use existing Reading Passages/i }));
+
+            expect(mockNavigate).not.toHaveBeenCalled();
+            expect(onClose).toHaveBeenCalled();
+            expect(onCreateReadingV2FromExistingPassages).toHaveBeenCalledWith(expect.objectContaining({
+                title: 'Existing Passages Master',
+                durationMinutes: 60,
+                ownerId: 'user-1',
+                primaryTestTypeId: 'ielts',
+                testTypeIds: ['ielts'],
+            }));
+            expect(onAction).toHaveBeenCalledWith('startReadingV2ExistingPassages', expect.objectContaining({
+                source: 'test_creation_modal',
+                testType: 'IELTS',
+                titleLength: 'Existing Passages Master'.length,
+            }));
         });
 
         it('opens Reading V2 paste setup before routing parsed import content into Studio', async () => {

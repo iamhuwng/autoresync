@@ -80,24 +80,28 @@ describe('readingV2FeatureFlags', () => {
     expect(isReadingV2TeacherRouteExposureAllowed('off')).toBe(false);
   });
 
-  it('defaults all PRD-0052 material catalog flags to disabled', () => {
-    expect(PRD0052_FEATURE_FLAG_MODES).toEqual({
+  it('defaults all PRD-0052 material catalog flags to disabled when env flags are absent', async () => {
+    prd0052EnvNames.forEach((name) => vi.stubEnv(name, ''));
+
+    const flags = await importFreshFlags();
+
+    expect(flags.PRD0052_FEATURE_FLAG_MODES).toEqual({
       disabled: 'disabled',
       enabled: 'enabled',
     });
-    expect(TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE).toBe('disabled');
-    expect(ADMIN_CONFIGURABLE_TEST_TYPES_MODE).toBe('disabled');
-    expect(READING_PASSAGE_LIBRARY_MODE).toBe('disabled');
-    expect(READING_PASSAGE_HOMEWORK_MODE).toBe('disabled');
-    expect(MATERIAL_BOOKS_MODE).toBe('disabled');
-    expect(MATERIAL_BOOK_EDITOR_MODE).toBe('disabled');
-    expect(isTeacherMaterialsTestTypeBlocksEnabled()).toBe(false);
-    expect(isAdminConfigurableTestTypesEnabled()).toBe(false);
-    expect(isReadingPassageLibraryEnabled()).toBe(false);
-    expect(isReadingPassageHomeworkEnabled()).toBe(false);
-    expect(isMaterialBooksEnabled()).toBe(false);
-    expect(isMaterialBookEditorEnabled()).toBe(false);
-    expect(getTeacherMaterialsCapabilities()).toEqual({
+    expect(flags.TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE).toBe('disabled');
+    expect(flags.ADMIN_CONFIGURABLE_TEST_TYPES_MODE).toBe('disabled');
+    expect(flags.READING_PASSAGE_LIBRARY_MODE).toBe('disabled');
+    expect(flags.READING_PASSAGE_HOMEWORK_MODE).toBe('disabled');
+    expect(flags.MATERIAL_BOOKS_MODE).toBe('disabled');
+    expect(flags.MATERIAL_BOOK_EDITOR_MODE).toBe('disabled');
+    expect(flags.isTeacherMaterialsTestTypeBlocksEnabled()).toBe(false);
+    expect(flags.isAdminConfigurableTestTypesEnabled()).toBe(false);
+    expect(flags.isReadingPassageLibraryEnabled()).toBe(false);
+    expect(flags.isReadingPassageHomeworkEnabled()).toBe(false);
+    expect(flags.isMaterialBooksEnabled()).toBe(false);
+    expect(flags.isMaterialBookEditorEnabled()).toBe(false);
+    expect(flags.getTeacherMaterialsCapabilities()).toEqual({
       canUseTestTypeBlocks: false,
       canManageAdminTestTypes: false,
       canUseReadingPassageLibrary: false,

@@ -127,6 +127,28 @@
   color: #047857;
 }
 
+.book-card__chip--warning {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.book-card__repair {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 0.5rem;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.78rem;
+}
+
+.book-card__repair-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
 .book-card__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -165,4 +187,9 @@
 .book-card__action--danger {
   border-color: rgba(248, 113, 113, 0.5);
   color: #b91c1c;
+}
+
+.book-card__action--warning {
+  border-color: #fed7aa;
+  color: #9a3412;
 }

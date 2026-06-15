@@ -54,6 +54,7 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
         'reading_v2/material_metadata/material-v2': {
           materialId: 'material-v2',
           ownerId: 'teacher-1',
+          compositionId: 'composition-material-v2-snapshot-v2',
           deliveryEngine: READING_V2_ENGINE,
           productLabel: 'Reading V2',
           title: 'Published Reading V2',
@@ -92,6 +93,7 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
       duration: 55,
       questionCount: 2,
       materialKind: 'full-test',
+      compositionId: 'composition-material-v2-snapshot-v2',
     });
     expect(ref).toHaveBeenCalledWith({}, 'reading_v2/relationship_indexes/teacher-lobby/');
     expect(orderByChild).toHaveBeenCalledWith('ownerId');

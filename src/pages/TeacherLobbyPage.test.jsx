@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   locationState: null,
   dbReads: {},
   dbWrites: [],
+  masterModalProps: [],
   capabilities: {
     canUseTestTypeBlocks: true,
     canManageAdminTestTypes: true,
@@ -260,6 +261,7 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
     visibilityScope,
     onVisibilityScopeChange,
     visibilityLabel = 'Visibility',
+    visibilityScopeOptions,
   }) => (
     <div data-testid="search-filter-bar">
       <label htmlFor="materials-search">Search</label>
@@ -272,18 +274,18 @@ vi.mock('../components/modern/SearchFilterBar', () => ({
       <button type="button" onClick={() => onTestTypeFilterChange?.('all')}>Clear Test Type</button>
       {visibilityScope && (
         <div role="group" aria-label={visibilityLabel}>
-          <button
-            type="button"
-            aria-label="Private"
-            aria-pressed={visibilityScope === 'private'}
-            onClick={() => onVisibilityScopeChange?.('private')}
-          />
-          <button
-            type="button"
-            aria-label="Public"
-            aria-pressed={visibilityScope === 'public'}
-            onClick={() => onVisibilityScopeChange?.('public')}
-          />
+          {(visibilityScopeOptions || [
+            { value: 'private', label: 'Private' },
+            { value: 'public', label: 'Public' },
+          ]).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-label={option.label}
+              aria-pressed={visibilityScope === option.value}
+              onClick={() => onVisibilityScopeChange?.(option.value)}
+            />
+          ))}
         </div>
       )}
       {showCreateButton && (
@@ -367,6 +369,19 @@ vi.mock('../components/homework/HomeworkCreateModal', () => ({
   },
 }));
 
+vi.mock('../components/reading-v2/master/ReadingV2MasterEditModal', () => ({
+  ReadingV2MasterEditModal: (props) => {
+    mocks.masterModalProps.push(props);
+    return props.open ? (
+      <div role="dialog" aria-label="Edit Reading V2 master">
+        <h2>{props.mode === 'draft' ? 'Unpublished draft' : 'Published master'}</h2>
+        <p>{props.master?.title || props.master?.metadata?.title || 'Untitled master'}</p>
+        <button type="button" onClick={props.onClose}>Close master modal</button>
+      </div>
+    ) : null;
+  },
+}));
+
 const readingPassageSnapshotFor = (materialId, snapshotVersionId) => ({
   snapshotVersionId,
   materialId,
@@ -394,6 +409,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       canUseMaterialBookEditor: true,
     };
     mocks.homeworkModalProps = [];
+    mocks.masterModalProps = [];
     mocks.listReadingPassages.mockResolvedValue([]);
     mocks.listTeacherBooks.mockResolvedValue([]);
     mocks.listBookNodes.mockResolvedValue([]);
@@ -448,7 +464,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Book editing is disabled for this rollout.');
   });
 
-  it('shows published Reading V2 cards as normal Materials cards without Studio modal controls', async () => {
+  it('opens published Reading V2 master rows in the master edit modal, not full-test Studio', async () => {
     const user = userEvent.setup();
     mocks.tests = [
       {
@@ -457,7 +473,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         deliveryEngine: 'reading-v2',
         ownerId: 'teacher-1',
         title: 'Published Reading V2',
-        materialKind: 'full-test',
+        materialKind: 'reading-v2-full-test-composition',
+        state: 'published',
+        compositionId: 'composition-v2',
+        publishedVersionId: 'composition-version-v2',
       },
     ];
 
@@ -471,17 +490,26 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
 
     expect(mocks.openEditTest).not.toHaveBeenCalled();
-    expect(mocks.navigateTo).toHaveBeenCalledWith(
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
       'TEACHER_READING_V2_REVISE',
-      { materialId: 'material-v2' },
-      { reason: 'teacher_lobby_edit_reading_v2_material' }
+      expect.anything(),
+      expect.anything()
     );
+    expect(screen.getByRole('dialog', { name: /edit reading v2 master/i })).toBeInTheDocument();
+    expect(mocks.masterModalProps.at(-1)).toEqual(expect.objectContaining({
+      open: true,
+      mode: 'published',
+      master: expect.objectContaining({
+        materialId: 'material-v2',
+        compositionId: 'composition-v2',
+        publishedVersionId: 'composition-version-v2',
+      }),
+    }));
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
-      'editTest',
+      'reading_v2_master_edit_opened',
       expect.objectContaining({
         source: 'teacher_lobby_test_card',
-        skill: 'reading-v2',
         testId: 'material-v2',
       })
     );
@@ -489,6 +517,112 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Start Test' }));
 
     expect(mocks.startSession).toHaveBeenCalledWith('material-v2', 'test');
+  });
+
+  it('hydrates published Reading V2 master references from canonical composition before opening the edit modal', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'material-v2',
+        materialId: 'material-v2',
+        deliveryEngine: 'reading-v2',
+        ownerId: 'teacher-1',
+        title: 'Published Reading V2',
+        materialKind: 'reading-v2-full-test-composition',
+        state: 'published',
+        compositionId: 'composition-v2',
+        publishedVersionId: 'composition-version-v2',
+        questionCount: 27,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-v2')] = {
+      compositionId: 'composition-v2',
+      testMaterialId: 'material-v2',
+      title: 'Published Reading V2',
+      ownerId: 'teacher-1',
+      visibility: 'private',
+      publishedVersionId: 'composition-version-v2',
+      passageRefs: [
+        {
+          refId: 'ref-a',
+          passageMaterialId: 'passage-a',
+          snapshotVersionId: 'snapshot-a',
+          titleSnapshot: 'Passage A',
+          questionCountSnapshot: 13,
+          order: 1,
+        },
+        {
+          refId: 'ref-b',
+          passageMaterialId: 'passage-b',
+          snapshotVersionId: 'snapshot-b',
+          titleSnapshot: 'Passage B',
+          questionCountSnapshot: 14,
+          order: 2,
+        },
+      ],
+    };
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(2);
+    });
+    expect(mocks.masterModalProps.at(-1).master).toEqual(expect.objectContaining({
+      compositionId: 'composition-v2',
+      testMaterialId: 'material-v2',
+      passageRefs: [
+        expect.objectContaining({ passageMaterialId: 'passage-a', titleSnapshot: 'Passage A' }),
+        expect.objectContaining({ passageMaterialId: 'passage-b', titleSnapshot: 'Passage B' }),
+      ],
+    }));
+  });
+
+  it('derives legacy auto-split composition identity before hydrating published master references', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'material-v2',
+        materialId: 'material-v2',
+        deliveryEngine: 'reading-v2',
+        ownerId: 'teacher-1',
+        title: 'Published Reading V2',
+        materialKind: 'full-test',
+        publishedSnapshotVersionId: 'snapshot-v2',
+        questionCount: 27,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-material-v2-snapshot-v2')] = {
+      compositionId: 'composition-material-v2-snapshot-v2',
+      testMaterialId: 'material-v2',
+      title: 'Published Reading V2',
+      ownerId: 'teacher-1',
+      visibility: 'private',
+      publishedVersionId: 'snapshot-v2',
+      passageRefs: [
+        {
+          refId: 'ref-a',
+          passageMaterialId: 'passage-a',
+          snapshotVersionId: 'snapshot-a',
+          titleSnapshot: 'Passage A',
+          questionCountSnapshot: 27,
+          order: 1,
+        },
+      ],
+    };
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(1);
+    });
+    expect(mocks.masterModalProps.at(-1).master).toEqual(expect.objectContaining({
+      compositionId: 'composition-material-v2-snapshot-v2',
+      compositionLoadState: 'ready',
+    }));
   });
 
   it('keeps legacy Reading cards on the existing edit-modal path', async () => {
@@ -1230,7 +1364,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   }, 10000);
 
-  it('wires Reading Passage open, revise, archive, and single assign actions', async () => {
+  it('wires Reading Passage open, revise, remove-from-library confirmation, restore, and single assign actions', async () => {
     const user = userEvent.setup();
     mocks.listReadingPassages.mockImplementation(async ({ scope }) => (scope === 'private' ? [
       {
@@ -1245,6 +1379,9 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         publishedSnapshotVersionId: 'snapshot-owner',
         sourceFullTestId: 'full-test-owner',
         testTypeIds: ['ielts'],
+        masterRefCount: 1,
+        bookRefCount: 1,
+        activeHomeworkCount: 2,
         hasStudentSafeProjection: true,
         isOwner: true,
         selectable: true,
@@ -1253,11 +1390,50 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
           { key: 'open', label: 'Open' },
           { key: 'assign-homework', label: 'Assign homework' },
           { key: 'revise', label: 'Revise', ownerOnly: true },
-          { key: 'archive', label: 'Archive', ownerOnly: true },
+          { key: 'archive', label: 'Remove from library', ownerOnly: true },
+        ],
+      },
+    ] : scope === 'archived' ? [
+      {
+        id: 'passage-owner',
+        materialId: 'passage-owner',
+        ownerId: 'teacher-1',
+        title: 'Owner Passage',
+        materialKind: 'reading-passage',
+        questionCount: 12,
+        updatedAt: '2026-05-12T00:00:00Z',
+        visibility: 'private',
+        scope: 'archived',
+        archived: true,
+        currentVersionId: 'snapshot-owner',
+        publishedSnapshotVersionId: 'snapshot-owner',
+        sourceFullTestId: 'full-test-owner',
+        testTypeIds: ['ielts'],
+        isOwner: true,
+        selectable: false,
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        actions: [
+          { key: 'view', label: 'View read-only' },
+          { key: 'restore', label: 'Restore', ownerOnly: true },
         ],
       },
     ] : []));
-
+    mocks.dbReads[readingV2StoragePaths.readingPassageMaterialVersions('passage-owner', 'snapshot-owner')] = {
+      materialId: 'passage-owner',
+    };
+    mocks.dbReads[readingV2StoragePaths.studentSafeTests('passage-owner', 'snapshot-owner')] = {
+      content: {},
+    };
+    mocks.dbReads[readingV2StoragePaths.materialMetadata('passage-owner')] = {
+      materialId: 'passage-owner',
+      ownerId: 'teacher-1',
+      state: 'published',
+    };
+    mocks.dbReads[readingV2StoragePaths.readingPassageMaterials('passage-owner')] = {
+      passageMaterialId: 'passage-owner',
+      ownerId: 'teacher-1',
+      state: 'published',
+    };
     render(<TeacherLobbyPage />);
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
@@ -1291,7 +1467,17 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect.objectContaining({ materialId: 'passage-owner' }),
     );
 
-    await user.click(within(row).getByRole('button', { name: 'Archive' }));
+    await user.click(within(row).getByRole('button', { name: 'Remove from library' }));
+    const archiveDialog = screen.getByRole('dialog', { name: 'Archive Reading Passage?' });
+    expect(archiveDialog).toHaveTextContent('1 affected master');
+    expect(archiveDialog).toHaveTextContent('1 affected Book');
+    expect(archiveDialog).toHaveTextContent('2 active assignment blockers');
+    expect(archiveDialog).toHaveTextContent('Existing assigned work and saved results stay available from frozen snapshots.');
+    expect(within(archiveDialog).getByRole('button', { name: 'Remove from library' })).toBeDisabled();
+
+    await user.click(within(archiveDialog).getByRole('checkbox', { name: /I understand/i }));
+    await user.click(within(archiveDialog).getByRole('button', { name: 'Remove from library' }));
+
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
@@ -1310,13 +1496,42 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
-      'archiveReadingPassage',
+      'reading_passage_removed_from_library',
       expect.objectContaining({ materialId: 'passage-owner' }),
     );
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'teacher_materials_reading_passage_archived',
       expect.objectContaining({ materialId: 'passage-owner' }),
+    );
+    mocks.dbReads['material_catalog/material_archive_indexes/by_owner/teacher-1/reading-passage/passage-owner'] = {
+      materialId: 'passage-owner',
+      ownerId: 'teacher-1',
+    };
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+
+    expect(await screen.findByTestId('material-list-row-passage-owner')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    const restoreDialog = screen.getByRole('dialog', { name: 'Restore Reading Passage' });
+    await user.click(within(restoreDialog).getByRole('button', { name: 'Restore as Private' }));
+
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: 'reading_v2/material_metadata/passage-owner/state',
+          value: 'published',
+        },
+        {
+          path: 'material_catalog/material_archive_indexes/by_owner/teacher-1/reading-passage/passage-owner',
+          value: null,
+        },
+      ]));
+    });
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'reading_passage_restored',
+      expect.objectContaining({ materialId: 'passage-owner', restoreVisibility: 'private' }),
     );
   }, 10000);
 
@@ -1394,24 +1609,18 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
 
     await waitFor(() => {
-      expect(mocks.dbWrites.some((write) => write.path.startsWith('tests/'))).toBe(true);
+      expect(mocks.dbWrites.some((write) => write.path.startsWith('reading_v2/full_test_compositions/'))).toBe(true);
     });
 
     const compositionWrite = mocks.dbWrites.find((write) =>
       write.path.startsWith('reading_v2/full_test_compositions/'));
-    const versionWrite = mocks.dbWrites.find((write) =>
-      write.path.startsWith('reading_v2/full_test_composition_versions/'));
-    const testWrite = mocks.dbWrites.find((write) => write.path.startsWith('tests/'));
-    const metadataWrite = mocks.dbWrites.find((write) =>
-      write.path.startsWith('reading_v2/material_metadata/'));
     const studentSafeWrite = mocks.dbWrites.find((write) =>
       write.path.startsWith('reading_v2/projections/student_safe_tests/'));
-    const catalogIndexWrite = mocks.dbWrites.find((write) =>
-      write.path.startsWith('material_catalog/material_indexes/by_owner/teacher-1/'));
 
     expect(compositionWrite?.value).toMatchObject({
       title: 'Selected Reading Passages',
       ownerId: 'teacher-1',
+      mode: 'draft',
       questionCount: 21,
       testTypeIds: ['ielts'],
       passageRefs: [
@@ -1431,38 +1640,23 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         }),
       ],
     });
-    expect(versionWrite?.value).toMatchObject({
-      compositionId: compositionWrite.value.compositionId,
-      publishedBy: 'teacher-1',
-    });
-    expect(testWrite?.value).toMatchObject({
-      materialId: compositionWrite.value.testMaterialId,
-      deliveryEngine: 'reading-v2',
-      materialKind: 'full-test',
-      title: 'Selected Reading Passages',
-      questionCount: 4,
-      publishedSnapshotVersionId: compositionWrite.value.publishedVersionId,
-    });
-    expect(metadataWrite?.value).toMatchObject({
-      materialId: compositionWrite.value.testMaterialId,
-      ownerId: 'teacher-1',
-      materialKind: 'full-test',
-      publishedSnapshotVersionId: compositionWrite.value.publishedVersionId,
-    });
-    expect(studentSafeWrite?.value).toMatchObject({
-      materialId: compositionWrite.value.testMaterialId,
-      projectionKind: 'student-safe',
-    });
-    expect(catalogIndexWrite?.value).toMatchObject({
-      materialId: compositionWrite.value.testMaterialId,
-      ownerId: 'teacher-1',
-      materialKind: 'full-test',
-    });
-    expect(mocks.navigateTo).toHaveBeenCalledWith(
+    expect(mocks.dbWrites.some((write) => write.path.startsWith('tests/'))).toBe(false);
+    expect(studentSafeWrite).toBeUndefined();
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
       'TEACHER_READING_V2_REVISE',
-      { materialId: compositionWrite.value.testMaterialId },
-      { reason: 'teacher_materials_reading_passage_full_test_created' },
+      expect.anything(),
+      expect.anything(),
     );
+    expect(screen.getByRole('dialog', { name: /edit reading v2 master/i })).toBeInTheDocument();
+    expect(mocks.masterModalProps.at(-1)).toEqual(expect.objectContaining({
+      open: true,
+      mode: 'draft',
+      master: expect.objectContaining({
+        title: 'Selected Reading Passages',
+        mode: 'draft',
+        testMaterialId: compositionWrite.value.testMaterialId,
+      }),
+    }));
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'createReadingFullTestFromSelectedPassages',
@@ -1487,7 +1681,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         questionCount: 10,
         updatedAt: '2026-05-12T00:00:00Z',
         visibility: 'private',
-        publishedSnapshotVersionId: 'snapshot-a',
+        publishedSnapshotVersionId: null,
         sourceOrderDisplay: 'Passage 1',
         sourceQuestionRange: '1-10',
         isOwner: true,
@@ -1506,7 +1700,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
     await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
 
-    expect(await screen.findByText('Selected Reading Passage passage-a published snapshot was not found.'))
+    expect(await screen.findByText('Selected Reading Passage is missing a published snapshot version.'))
       .toBeInTheDocument();
     expect(screen.getByText('1 selected')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry create full test' })).toBeEnabled();

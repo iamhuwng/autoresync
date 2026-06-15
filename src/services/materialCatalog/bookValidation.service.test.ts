@@ -199,6 +199,38 @@ describe('bookValidation.service', () => {
     );
   });
 
+  it('reports broken Reading Passage refs with PRD-0054 reason codes while preserving structure', () => {
+    const result = validateMaterialBookNodes(
+      metadata(),
+      [
+        node({
+          materialRefs: [
+            materialRef({ refId: materialCatalogIds.refId('archived-ref'), availability: 'archived' }),
+            materialRef({ refId: materialCatalogIds.refId('missing-ref'), availability: 'missing', order: 2 }),
+            materialRef({ refId: materialCatalogIds.refId('inaccessible-ref'), availability: 'inaccessible', order: 3 }),
+            materialRef({ refId: materialCatalogIds.refId('missing-version-ref'), snapshotVersionId: undefined, availability: 'available', order: 4 }),
+          ],
+        }),
+      ],
+      context(),
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'broken-ref-archived', refId: 'archived-ref' }),
+      expect.objectContaining({ code: 'broken-ref-deleted', refId: 'missing-ref' }),
+      expect.objectContaining({ code: 'broken-ref-inaccessible', refId: 'inaccessible-ref' }),
+      expect.objectContaining({ code: 'broken-ref-missing-version', refId: 'missing-version-ref' }),
+    ]));
+    expect(deriveMaterialBookStatus([
+      node({
+        materialRefs: [
+          materialRef({ availability: 'archived' }),
+        ],
+      }),
+    ])).toBe('needs-repair');
+  });
+
   it('warns but preserves inactive configured Test Types for render-only history', () => {
     const inactiveConfigs = DEFAULT_MATERIAL_TEST_TYPES.map((configItem) =>
       configItem.testTypeId === 'ielts' ? { ...configItem, active: false } : configItem,

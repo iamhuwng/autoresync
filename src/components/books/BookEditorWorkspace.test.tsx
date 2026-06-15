@@ -266,6 +266,143 @@ describe('BookEditorWorkspace', () => {
     expect(screen.getByRole('dialog', { name: 'Create Homework Assignment' })).toHaveTextContent('Passage One');
   });
 
+  it('lists and repairs broken Reading Passage refs inside the existing Content tab', async () => {
+    const user = userEvent.setup();
+    const onDirtyChange = vi.fn();
+    const nodes = [
+      makeNode({
+        materialRefs: [
+          {
+            refId: materialCatalogIds.refId('broken-ref'),
+            materialId: 'archived-passage',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'old-snapshot',
+            titleSnapshot: 'Archived Passage',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'archived',
+            updateState: 'unknown',
+            order: 1,
+            addedAt: NOW,
+            addedBy: 'teacher-1',
+            ownerIdSnapshot: 'teacher-1',
+          } as any,
+          {
+            refId: materialCatalogIds.refId('valid-ref'),
+            materialId: 'valid-passage',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'valid-snapshot',
+            titleSnapshot: 'Valid Passage',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'available',
+            updateState: 'current',
+            order: 2,
+            addedAt: NOW,
+            addedBy: 'teacher-1',
+          },
+        ],
+      }),
+    ];
+
+    render(
+      <BookEditorWorkspace
+        bookId="book-123"
+        initialBook={makeBook({ status: 'needs-repair' as any })}
+        initialNodes={nodes}
+        materialCandidates={[
+          {
+            materialId: 'replacement-passage',
+            title: 'Replacement Passage',
+            materialKind: 'reading-passage',
+            publishedSnapshotVersionId: 'replacement-snapshot',
+            testTypeIds: ['ielts'],
+            visibility: 'private',
+          },
+        ]}
+        presentation="modal"
+        activeTab={'content' as any}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+
+    expect(screen.queryByRole('tablist', { name: 'Book editor tabs' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /book broken refs/i })).toHaveTextContent('Archived Passage');
+    expect(screen.getByRole('region', { name: /book broken refs/i })).toHaveTextContent('Removed');
+    expect(screen.getByRole('button', { name: /restore source/i })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Replacement for Archived Passage'), 'replacement-passage');
+    await user.click(screen.getByRole('button', { name: /replace broken ref/i }));
+
+    expect(screen.getByRole('region', { name: /book broken refs/i })).toHaveTextContent('All Book refs are usable.');
+    expect(screen.getByText('Replacement Passage')).toBeInTheDocument();
+    expect(screen.getByText('Valid Passage')).toBeInTheDocument();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_ref_repaired_existing', expect.objectContaining({
+      materialId: 'archived-passage',
+      replacementMaterialId: 'replacement-passage',
+    }));
+  });
+
+  it('removes broken Book refs while preserving valid sibling order and hides restore for non-owned archived refs', async () => {
+    const user = userEvent.setup();
+    const nodes = [
+      makeNode({
+        materialRefs: [
+          {
+            refId: materialCatalogIds.refId('broken-ref'),
+            materialId: 'archived-passage',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'old-snapshot',
+            titleSnapshot: 'Archived Passage',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'archived',
+            updateState: 'unknown',
+            order: 1,
+            addedAt: NOW,
+            addedBy: 'teacher-2',
+            ownerIdSnapshot: 'teacher-2',
+          } as any,
+          {
+            refId: materialCatalogIds.refId('valid-ref'),
+            materialId: 'valid-passage',
+            materialKind: 'reading-passage',
+            snapshotVersionId: 'valid-snapshot',
+            titleSnapshot: 'Valid Passage',
+            testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+            visibilitySnapshot: 'private',
+            availability: 'available',
+            updateState: 'current',
+            order: 2,
+            addedAt: NOW,
+            addedBy: 'teacher-1',
+          },
+        ],
+      }),
+    ];
+
+    render(
+      <BookEditorWorkspace
+        bookId="book-123"
+        initialBook={makeBook({ status: 'needs-repair' as any })}
+        initialNodes={nodes}
+        materialCandidates={[]}
+        presentation="modal"
+        activeTab={'content' as any}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /restore source/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /remove broken ref/i }));
+
+    expect(screen.queryByText('Archived Passage')).not.toBeInTheDocument();
+    expect(screen.getByText('Valid Passage')).toBeInTheDocument();
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_ref_removed', expect.objectContaining({
+      materialId: 'archived-passage',
+    }));
+  });
+
   it('keeps node editing and structure actions in the Content right panel', async () => {
     const nodes = [makeNode({ materialRefs: [] })];
 

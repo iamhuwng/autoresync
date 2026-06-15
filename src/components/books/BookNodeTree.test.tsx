@@ -365,4 +365,37 @@ describe('BookNodeTree', () => {
     expect(screen.getByText('Newer version available')).toBeInTheDocument();
     expect(screen.queryByText('private')).not.toBeInTheDocument();
   });
+
+  it('shows exact broken Reading Passage reason labels in the tree', () => {
+    render(
+      <BookNodeTree
+        bookId="book-1"
+        nodes={[
+          makeNode({
+            materialRefs: [
+              {
+                refId: materialCatalogIds.refId('archived-ref'),
+                materialId: 'archived-material',
+                materialKind: 'reading-passage',
+                snapshotVersionId: 'snapshot-archived',
+                titleSnapshot: 'Archived Passage',
+                testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+                visibilitySnapshot: 'private',
+                availability: 'archived',
+                updateState: 'unknown',
+                order: 1,
+                addedAt: NOW,
+                addedBy: 'teacher-1',
+              } as any,
+            ],
+          }),
+        ]}
+        onNodesChange={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByTestId('book-ref-archived-ref');
+    expect(row).toHaveTextContent('Removed');
+    expect(row).toHaveTextContent('Needs repair');
+  });
 });

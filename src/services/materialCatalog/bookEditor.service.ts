@@ -12,6 +12,7 @@ export const BOOK_NODE_MAX_DEPTH = 5;
 
 export interface BookMaterialSummary {
   readonly materialId: string;
+  readonly ownerId?: string;
   readonly title: string;
   readonly materialKind: MaterialCatalogMaterialKind;
   readonly status?: string;
@@ -321,6 +322,7 @@ export const attachMaterialRefToNode = (
     testTypeIdsSnapshot: normalizeTestTypeIds(summary.testTypeIds),
     visibilitySnapshot: summary.visibility,
     availability: summary.archived ? 'archived' : summary.accessible === false ? 'inaccessible' : 'available',
+    ownerIdSnapshot: summary.ownerId,
     updateState: 'current',
     order: node.materialRefs.length + 1,
     addedAt: timestamp,
@@ -330,6 +332,49 @@ export const attachMaterialRefToNode = (
   return {
     ...cloneNode(node),
     materialRefs: [...node.materialRefs.map((entry) => ({ ...entry })), ref],
+    updatedAt: timestamp,
+  };
+};
+
+export const replaceMaterialRefInNode = (
+  node: MaterialBookNode,
+  refId: string,
+  summary: BookMaterialSummary,
+  input: AttachMaterialRefInput,
+): MaterialBookNode => {
+  if (!filterPublishedMaterialSummaries([summary]).length) {
+    throw new Error('Book material refs can only point to published materials.');
+  }
+
+  if (!node.materialRefs.some((ref) => ref.refId === refId)) {
+    throw new Error(`Book material ref not found: ${refId}.`);
+  }
+
+  const timestamp = nowIso(input.now);
+
+  return {
+    ...cloneNode(node),
+    materialRefs: node.materialRefs
+      .map((ref) => (
+        ref.refId === refId
+          ? {
+              ...ref,
+              materialId: summary.materialId,
+              materialKind: summary.materialKind,
+              snapshotVersionId: snapshotVersionIdFor(summary),
+              titleSnapshot: summary.title,
+              testTypeIdsSnapshot: normalizeTestTypeIds(summary.testTypeIds),
+              visibilitySnapshot: summary.visibility,
+              availability: summary.archived ? 'archived' : summary.accessible === false ? 'inaccessible' : 'available',
+              ownerIdSnapshot: summary.ownerId,
+              updateState: 'current',
+              addedAt: timestamp,
+              addedBy: input.actorId,
+            }
+          : { ...ref }
+      ))
+      .sort((left, right) => left.order - right.order)
+      .map((ref, index) => ({ ...ref, order: index + 1 })),
     updatedAt: timestamp,
   };
 };

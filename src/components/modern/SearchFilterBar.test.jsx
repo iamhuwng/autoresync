@@ -91,4 +91,30 @@ describe('SearchFilterBar', () => {
 
     expect(onVisibilityScopeChange).toHaveBeenCalledWith('public');
   });
+
+  it('supports a Reading Passage Archive scope option without changing default scopes', async () => {
+    const user = userEvent.setup();
+    const onVisibilityScopeChange = vi.fn();
+
+    render(
+      <SearchFilterBar
+        {...defaultProps}
+        visibilityScope="archived"
+        onVisibilityScopeChange={onVisibilityScopeChange}
+        visibilityLabel="Reading Passage visibility"
+        visibilityScopeOptions={[
+          { value: 'private', label: 'Private' },
+          { value: 'public', label: 'Public' },
+          { value: 'archived', label: 'Archive' },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Reading Passage visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Private' }));
+
+    expect(onVisibilityScopeChange).toHaveBeenCalledWith('private');
+  });
 });

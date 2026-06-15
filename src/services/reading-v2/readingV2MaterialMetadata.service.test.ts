@@ -36,6 +36,18 @@ describe('readingV2MaterialMetadata.service', () => {
     );
   });
 
+  it('preserves full-test composition identity in published metadata', () => {
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('material-composition-metadata'),
+      ownerId: 'teacher-1',
+      document: fixtureDocument(),
+      compositionId: readingV2Ids.fullTestCompositionId('composition-material-composition-metadata-snapshot-1'),
+      materialKind: 'full-test',
+    });
+
+    expect(metadata.compositionId).toBe('composition-material-composition-metadata-snapshot-1');
+  });
+
   it('requires a metadata title before publish output is produced', () => {
     const document = { ...fixtureDocument(), title: '   ' };
 
@@ -49,10 +61,11 @@ describe('readingV2MaterialMetadata.service', () => {
   });
 
   it('derives Reading Passage metadata with IELTS source-order display and safe list fields', () => {
+    const document = { ...fixtureDocument(), title: 'Making Time for Science' };
     const metadata = deriveReadingV2MaterialMetadata({
       materialId: readingV2Ids.materialId('passage-material-2'),
       ownerId: 'teacher-1',
-      document: fixtureDocument(),
+      document,
       materialKind: 'reading-passage',
       primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
       testTypeIds: [materialCatalogIds.testTypeId('ielts')],
@@ -68,7 +81,7 @@ describe('readingV2MaterialMetadata.service', () => {
     });
 
     expect(metadata.materialKind).toBe('reading-passage');
-    expect(metadata.title).toBe('Academic Reading Test 1 - Passage 2');
+    expect(metadata.title).toBe('Making Time for Science');
     expect(metadata.sourceOrderLabelSnapshot).toBe('Passage');
     expect(metadata.sourceOrderDisplaySnapshot).toBe('Passage 2');
     expect(metadata.sourceQuestionRange).toBe('14-26');
@@ -81,7 +94,7 @@ describe('readingV2MaterialMetadata.service', () => {
     const metadata = deriveReadingV2MaterialMetadata({
       materialId: readingV2Ids.materialId('passage-toeic-part'),
       ownerId: 'teacher-1',
-      document: fixtureDocument(),
+      document: { ...fixtureDocument(), title: 'TOEIC Part 5 Reading' },
       materialKind: 'reading-passage',
       primaryTestTypeId: materialCatalogIds.testTypeId('toeic'),
       testTypeIds: [materialCatalogIds.testTypeId('toeic')],
@@ -93,7 +106,24 @@ describe('readingV2MaterialMetadata.service', () => {
 
     expect(metadata.sourceOrderLabelSnapshot).toBe('Part');
     expect(metadata.sourceOrderDisplaySnapshot).toBe('Part 5');
-    expect(metadata.title).toBe('TOEIC Practice - Part 5');
+    expect(metadata.title).toBe('TOEIC Part 5 Reading');
+  });
+
+  it('falls back to source metadata for Reading Passage title when the passage has no own title', () => {
+    const metadata = deriveReadingV2MaterialMetadata({
+      materialId: readingV2Ids.materialId('passage-source-fallback'),
+      ownerId: 'teacher-1',
+      document: { ...fixtureDocument(), title: '   ' },
+      materialKind: 'reading-passage',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      sourceOrderKind: 'numeric',
+      sourceOrderValue: 3,
+      sourceTitleSnapshot: 'IELTS Cambridge 10 - Test 02: Reading',
+    });
+
+    expect(metadata.title).toBe('IELTS Cambridge 10 - Test 02: Reading: Passage 3');
   });
 
   it('supports inactive or missing Test Type display without inventing numeric source order', () => {

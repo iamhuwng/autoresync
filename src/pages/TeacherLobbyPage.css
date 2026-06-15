@@ -153,6 +153,103 @@
   line-height: 1.35;
 }
 
+.teacher-materials-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2300;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.teacher-materials-confirm-modal__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.teacher-materials-confirm-modal__panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  width: min(520px, 100%);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  padding: 22px;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.teacher-materials-confirm-modal__panel h2,
+.teacher-materials-confirm-modal__panel p {
+  margin: 0;
+}
+
+.teacher-materials-confirm-modal__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.teacher-materials-confirm-modal__summary span {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+}
+
+.teacher-materials-confirm-modal__check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
+.teacher-materials-confirm-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.teacher-materials-confirm-modal__actions button {
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-weight: 700;
+}
+
+.teacher-materials-confirm-modal__actions button:last-child {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.teacher-materials-confirm-modal__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+  .teacher-materials-confirm-modal {
+    padding: 12px;
+  }
+
+  .teacher-materials-confirm-modal__summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 .reading-passage-library-tools {
   display: flex;
   align-items: center;

@@ -45,6 +45,7 @@ const BookCardGrid = ({
   canOpenBookEditor = true,
   onOpenBook,
   onArchiveBook,
+  loadCanonicalPayload: _loadCanonicalPayload,
 }) => {
   if (books.length === 0) {
     return (

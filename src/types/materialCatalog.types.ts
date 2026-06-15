@@ -92,6 +92,7 @@ export const MATERIAL_BOOK_STATUSES = [
   'draft-empty',
   'draft-in-progress',
   'ready',
+  'needs-repair',
   'archived',
 ] as const;
 
@@ -134,6 +135,9 @@ export interface MaterialBookMetadata {
   readonly createdBy: string;
   readonly updatedBy: string;
   readonly publicReview?: MaterialBookPublicReviewState;
+  readonly hasBrokenRefs?: boolean;
+  readonly brokenRefCount?: number;
+  readonly brokenRefReasons?: readonly string[];
 }
 
 export const MATERIAL_BOOK_NODE_TYPES = [
@@ -152,6 +156,8 @@ export const MATERIAL_REF_AVAILABILITIES = [
   'archived',
   'missing',
   'inaccessible',
+  'missing-version',
+  'missing-projection',
 ] as const;
 
 export type MaterialRefAvailability = (typeof MATERIAL_REF_AVAILABILITIES)[number];
@@ -174,6 +180,7 @@ export interface MaterialBookMaterialRef {
   readonly visibilitySnapshot?: string;
   readonly availability: MaterialRefAvailability;
   readonly updateState: MaterialRefUpdateState;
+  readonly ownerIdSnapshot?: string;
   readonly order: number;
   readonly addedAt: string;
   readonly addedBy: string;
@@ -191,7 +198,7 @@ export interface MaterialBookNode {
   readonly updatedAt: string;
 }
 
-export type ReadingPassageListScope = 'private' | 'public';
+export type ReadingPassageListScope = 'private' | 'public' | 'archived';
 
 export type BookListScope = 'private' | 'public' | 'public-review-pending';
 

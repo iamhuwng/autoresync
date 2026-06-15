@@ -31,10 +31,17 @@ import {
   type ReadingV2FirebasePublishCommitResult,
 } from './readingV2FirebasePublishAdapter.service';
 import { extractReadingV2TaskGroupMaterialDraft } from './readingV2PassageAssetWorkflow.service';
-import { generateReadingV2PreviewOnly, publishReadingV2Material } from './readingV2PublishPipeline.service';
+import {
+  generateReadingV2PreviewOnly,
+  publishReadingV2Material,
+  type ReadingV2AutoSplitDuplicateWarning,
+} from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
-import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
+import type {
+  ReadingV2MaterialKind,
+  ReadingV2MaterialMetadata,
+} from './readingV2MaterialMetadata.service';
 
 export type ReadingV2StudioWorkflowMode =
   | 'create-blank'
@@ -48,7 +55,7 @@ export type ReadingV2StudioWorkflowMode =
 export interface ReadingV2StudioWorkflowMetadata {
   readonly title: string;
   readonly productMarker: string;
-  readonly materialKind: 'full-test' | 'task-group-material' | 'extracted-task-group-material';
+  readonly materialKind: ReadingV2MaterialKind;
   readonly durationMinutes: number;
   readonly difficulty: string;
   readonly targetBand: string;
@@ -118,6 +125,7 @@ export interface ReadingV2StudioPublishResult {
   readonly firebaseCommitStatus: ReadingV2FirebasePublishCommitResult['status'];
   readonly firebaseCommitPath: string;
   readonly firebaseOperationCount: number;
+  readonly duplicateWarnings: readonly ReadingV2AutoSplitDuplicateWarning[];
 }
 
 export type ReadingV2StudioPublishCommitAdapter = (
@@ -159,11 +167,7 @@ const toStudioMetadataRecord = (
 const toReadingV2StudioMaterialKind = (
   materialKind: ReadingV2MaterialMetadata['materialKind'] | undefined,
 ): ReadingV2StudioWorkflowMetadata['materialKind'] | undefined => {
-  if (
-    materialKind === 'full-test' ||
-    materialKind === 'task-group-material' ||
-    materialKind === 'extracted-task-group-material'
-  ) {
+  if (materialKind) {
     return materialKind;
   }
 
@@ -719,5 +723,6 @@ export const publishReadingV2StudioDraft = async (
     firebaseCommitStatus: firebaseCommit.status,
     firebaseCommitPath: firebaseCommit.commitPath,
     firebaseOperationCount: firebaseCommit.operationKeys.length,
+    duplicateWarnings: result.duplicateWarnings,
   };
 };

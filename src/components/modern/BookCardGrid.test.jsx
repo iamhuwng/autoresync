@@ -98,6 +98,41 @@ describe('BookCardGrid', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
   });
 
+  it('shows broken-ref badge from safe Book index metadata and opens existing editor for repair', async () => {
+    const user = userEvent.setup();
+    const onOpenBook = vi.fn();
+    const loadCanonicalPayload = vi.fn();
+    const book = makeBook({
+      hasBrokenRefs: true,
+      brokenRefCount: 2,
+      brokenRefReasons: ['archived', 'missing-version'],
+      canonicalPayload: {
+        answerKey: 'A',
+        hiddenProvenance: 'unsafe',
+      },
+    });
+
+    render(
+      <BookCardGrid
+        books={[book]}
+        onOpenBook={onOpenBook}
+        loadCanonicalPayload={loadCanonicalPayload}
+      />,
+    );
+
+    const card = screen.getByTestId('book-card-book-1');
+    expect(within(card).getByRole('status', { name: /book needs repair/i })).toHaveTextContent('2 refs need repair');
+    expect(within(card).getByText('Removed')).toBeInTheDocument();
+    expect(within(card).getByText('Missing version')).toBeInTheDocument();
+    expect(within(card).queryByText('answerKey')).not.toBeInTheDocument();
+    expect(within(card).queryByText('hiddenProvenance')).not.toBeInTheDocument();
+    expect(loadCanonicalPayload).not.toHaveBeenCalled();
+
+    await user.click(within(card).getByRole('button', { name: /fix broken refs/i }));
+
+    expect(onOpenBook).toHaveBeenCalledWith(book, expect.any(HTMLButtonElement), { focus: 'broken-refs' });
+  });
+
   it('filters Book rows by Test Type and summary fields', () => {
     const rows = [
       makeBook({ bookId: 'ielts-alpha', id: 'ielts-alpha', title: 'Alpha IELTS', testTypeIds: ['ielts'] }),

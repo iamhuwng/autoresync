@@ -6,6 +6,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { buildRoute } from '../constants/routes';
 import {
   getTeacherMaterialsCapabilities,
   isReadingV2Payload,
@@ -38,8 +39,13 @@ import {
   archiveReadingV2PassageMaterial,
   listTeacherReadingPassages,
 } from '../services/reading-v2/readingV2PassageLibrary.service';
+import { restoreReadingV2PassageMaterial } from '../services/reading-v2/readingV2PassageArchive.service';
+import { writeReadingV2AuditEvent } from '../services/reading-v2/readingV2AuditTrail.service';
 import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
-import { createReadingV2TeacherSelectedPassageComposition } from '../services/reading-v2/readingV2TeacherComposition.service';
+import { createReadingV2TeacherSelectedPassageDraft } from '../services/reading-v2/readingV2TeacherComposition.service';
+import { buildReadingV2ExtractedFullTestCompositionId } from '../services/reading-v2/readingV2PassageExtraction.service';
+import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
+import { ReadingV2MasterEditModal } from '../components/reading-v2/master/ReadingV2MasterEditModal';
 import {
   isTeacherMaterialsVisualFixturesEnabled,
   listTeacherMaterialsFixtureBooks,
@@ -117,6 +123,88 @@ const collectMaterialTestTypeTokens = (material) => {
   appendTestTypeTokens(tokens, material?.metadata?.testTypeIds);
   appendTestTypeTokens(tokens, material?.metadata?.testType);
   return tokens;
+};
+
+const isReadingV2MasterMaterial = (material) => {
+  if (!isReadingV2Payload(material)) {
+    return false;
+  }
+
+  const materialKind = String(material?.materialKind || material?.metadata?.materialKind || '').toLowerCase();
+  const hasCompositionIdentity = Boolean(material?.compositionId || material?.fullTestCompositionId);
+  const isPassageKind = materialKind.includes('passage') && !materialKind.includes('full-test');
+
+  return !isPassageKind && (hasCompositionIdentity || materialKind.includes('full-test'));
+};
+
+const isPublishedReadingV2MasterMaterial = (material) => (
+  isReadingV2MasterMaterial(material)
+  && (
+    material?.state === 'published'
+    || material?.status === 'published'
+    || Boolean(material?.publishedVersionId || material?.publishedSnapshotVersionId)
+  )
+);
+
+const toReadingV2MasterModalRecord = (material) => ({
+  ...material,
+  materialId: material?.materialId || material?.id || material?.testMaterialId,
+  testMaterialId: material?.testMaterialId || material?.materialId || material?.id,
+  compositionId:
+    material?.compositionId
+    || material?.fullTestCompositionId
+    || (
+      (material?.materialId || material?.id || material?.testMaterialId)
+      && (material?.publishedVersionId || material?.publishedSnapshotVersionId)
+        ? buildReadingV2ExtractedFullTestCompositionId(
+            material?.materialId || material?.id || material?.testMaterialId,
+            material?.publishedVersionId || material?.publishedSnapshotVersionId,
+          )
+        : undefined
+    ),
+  publishedVersionId: material?.publishedVersionId || material?.publishedSnapshotVersionId,
+});
+
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const resolveReadingV2MasterModalRecord = async (material, repository) => {
+  const base = toReadingV2MasterModalRecord(material);
+  const compositionId = base.compositionId;
+  const existingRefs = Array.isArray(base.passageRefs) ? base.passageRefs : base.passages;
+
+  if (!compositionId || (Array.isArray(existingRefs) && existingRefs.length > 0) || !repository?.read) {
+    return {
+      ...base,
+      compositionLoadState: Array.isArray(existingRefs) && existingRefs.length > 0 ? 'ready' : 'not-required',
+    };
+  }
+
+  try {
+    const composition = await repository.read(readingV2StoragePaths.fullTestCompositions(compositionId));
+    if (!isRecord(composition) || !Array.isArray(composition.passageRefs)) {
+      return {
+        ...base,
+        compositionLoadState: 'missing-composition',
+      };
+    }
+
+    return {
+      ...base,
+      ...composition,
+      materialId: base.materialId,
+      testMaterialId: composition.testMaterialId || base.testMaterialId,
+      compositionId,
+      publishedVersionId: composition.publishedVersionId || base.publishedVersionId,
+      passageRefs: composition.passageRefs,
+      compositionLoadState: 'ready',
+    };
+  } catch (error) {
+    return {
+      ...base,
+      compositionLoadState: 'load-failed',
+      compositionLoadError: error instanceof Error ? error.message : String(error),
+    };
+  }
 };
 
 const getConfigTokensForTestType = (activeTestTypeId, testTypeConfigs = DEFAULT_MATERIAL_TEST_TYPES) => {
@@ -249,11 +337,20 @@ const TeacherLobbyPage = () => {
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
   const [readingPassageError, setReadingPassageError] = useState(null);
   const [selectedReadingPassageIds, setSelectedReadingPassageIds] = useState([]);
+  const [readingV2MasterModalState, setReadingV2MasterModalState] = useState({
+    open: false,
+    mode: 'published',
+    master: null,
+  });
+  const [readingV2ExistingPassageDraftMetadata, setReadingV2ExistingPassageDraftMetadata] = useState(null);
   const [readingPassageFullTestCreateState, setReadingPassageFullTestCreateState] = useState({
     status: 'idle',
     message: null,
   });
   const [readingPassageHomeworkRequest, setReadingPassageHomeworkRequest] = useState(null);
+  const [readingPassageArchiveRequest, setReadingPassageArchiveRequest] = useState(null);
+  const [readingPassageArchiveAcknowledged, setReadingPassageArchiveAcknowledged] = useState(false);
+  const [readingPassageRestoreRequest, setReadingPassageRestoreRequest] = useState(null);
   const [bookScope, setBookScope] = useState('private');
   const [bookRows, setBookRows] = useState([]);
   const [bookLoading, setBookLoading] = useState(false);
@@ -367,13 +464,54 @@ const TeacherLobbyPage = () => {
     },
   }), []);
   const readingV2PassageArchiveRepository = useMemo(() => ({
+    read: async (path) => {
+      const snapshot = await get(ref(database, path));
+      return snapshot.val();
+    },
     write: async (path, value) => {
       await set(ref(database, path), value);
     },
     remove: async (path) => {
       await remove(ref(database, path));
     },
+    update: async (updates) => {
+      await updateDb(ref(database), updates);
+    },
   }), []);
+  const writeReadingV2MasterRepairAudit = useCallback((sourceFeatureId, brokenRef, after) => {
+    const master = readingV2MasterModalState.master;
+    if (!master || !user?.uid) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const compositionId = master.compositionId || master.id || master.materialId || master.testMaterialId || 'unknown-master';
+    const eventId = `${compositionId}:reading_master_broken_ref_repaired:${brokenRef.refId || brokenRef.passageMaterialId || brokenRef.materialId || 'ref'}:${Date.now()}`;
+
+    void writeReadingV2AuditEvent({
+      eventId,
+      createdAt,
+      actorUserId: user.uid,
+      actorRole: profile?.role === 'super_admin' ? 'super_admin' : 'teacher',
+      action: 'reading_master_broken_ref_repaired',
+      entityType: 'reading-master',
+      entityId: compositionId,
+      ownerId: master.ownerId || user.uid,
+      materialId: master.testMaterialId || master.materialId,
+      versionId: master.publishedVersionId,
+      titleSnapshot: master.title || master.metadata?.title,
+      before: {
+        refId: brokenRef.refId,
+        materialId: brokenRef.passageMaterialId || brokenRef.materialId,
+        snapshotVersionId: brokenRef.snapshotVersionId,
+        reason: brokenRef.reason,
+      },
+      after,
+      correlationId: eventId,
+      sourceFeatureId,
+      sourceRoute: '/lobby',
+    }).catch(() => undefined);
+  }, [profile?.role, readingV2MasterModalState.master, user?.uid]);
 
   useEffect(() => {
     testTypeConfigsRef.current = testTypeConfigs;
@@ -841,6 +979,29 @@ const TeacherLobbyPage = () => {
     modals.closeTestCreation();
   }, [modals.closeTestCreation]);
 
+  const handleStartReadingV2ExistingPassages = useCallback((metadata) => {
+    setReadingV2ExistingPassageDraftMetadata(metadata);
+    setContentFilter('reading-passage');
+  }, []);
+
+  const handleCloseReadingV2MasterModal = useCallback(() => {
+    setReadingV2MasterModalState({
+      open: false,
+      mode: 'published',
+      master: null,
+    });
+  }, []);
+
+  const handleOpenReadingV2PassageStudio = useCallback((request) => {
+    const routePath = buildRoute(request.routeName, request.params);
+    if (request.target === 'new-tab' && typeof window !== 'undefined' && window.open) {
+      window.open(routePath, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    navigateTo(request.routeName, request.params, { reason: 'reading_v2_master_open_passage_studio' });
+  }, [navigateTo]);
+
   const handleCloseCreateBookModal = useCallback(() => {
     setCreateBookModalOpen(false);
   }, []);
@@ -893,6 +1054,51 @@ const TeacherLobbyPage = () => {
     const readingV2MaterialId = isReadingV2Payload(test) ? test?.materialId || test?.id : null;
 
     if (readingV2MaterialId) {
+      if (isPublishedReadingV2MasterMaterial(test)) {
+        const master = {
+          ...toReadingV2MasterModalRecord(test),
+          compositionLoadState: 'loading',
+        };
+        trackAction('reading_v2_master_edit_opened', {
+          source: 'teacher_lobby_test_card',
+          skill: 'reading-v2',
+          testId: master.materialId,
+          materialId: master.materialId,
+          compositionId: master.compositionId || null,
+          publishedVersionId: master.publishedVersionId || null,
+        });
+        if (master.hasBrokenRefs || master.brokenRefSummary?.hasBrokenRefs) {
+          trackAction('reading_v2_master_broken_refs_viewed', {
+            source: 'teacher_lobby_test_card',
+            materialId: master.materialId,
+            brokenRefCount: master.brokenRefCount || master.brokenRefSummary?.brokenRefCount || 0,
+          });
+        }
+        setReadingV2MasterModalState({
+          open: true,
+          mode: 'published',
+          master,
+        });
+        void resolveReadingV2MasterModalRecord(test, readingV2CompositionRepository)
+          .then((resolvedMaster) => {
+            setReadingV2MasterModalState((current) => (
+              current.open && current.master?.materialId === master.materialId
+                ? {
+                    ...current,
+                    master: resolvedMaster,
+                  }
+                : current
+            ));
+            logTeacherMaterialsDiagnostic('reading_v2_master_composition_resolved', {
+              materialId: resolvedMaster.materialId,
+              compositionId: resolvedMaster.compositionId || null,
+              passageRefCount: Array.isArray(resolvedMaster.passageRefs) ? resolvedMaster.passageRefs.length : 0,
+              compositionLoadState: resolvedMaster.compositionLoadState,
+            });
+          });
+        return;
+      }
+
       trackAction('editTest', {
         source: 'teacher_lobby_test_card',
         skill: 'reading-v2',
@@ -949,7 +1155,7 @@ const TeacherLobbyPage = () => {
       testId: test.id,
     });
     modals.openEditTest(test);
-  }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, trackAction, user?.uid]);
+  }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, readingV2CompositionRepository, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test) => {
     const isThcs = test.testType === 'THCS-THPT';
@@ -1051,12 +1257,39 @@ const TeacherLobbyPage = () => {
       return;
     }
 
-    if (!window.confirm(`Archive "${passage?.title || 'this Reading Passage'}"?`)) {
+    setReadingPassageArchiveRequest(passage);
+    setReadingPassageArchiveAcknowledged(false);
+    trackAction('reading_passage_removed_from_library_requested', {
+      materialId,
+      source: 'teacher_materials_reading_passage_row',
+    });
+  }, [getReadingPassageId, trackAction, user?.uid]);
+
+  const handleCancelArchiveReadingPassage = useCallback(() => {
+    setReadingPassageArchiveRequest(null);
+    setReadingPassageArchiveAcknowledged(false);
+  }, []);
+
+  const getReadingPassageUsageCounts = useCallback((passage) => ({
+    masterRefCount: Number(passage?.masterRefCount ?? passage?.usageSummary?.masterRefCount ?? 0),
+    bookRefCount: Number(passage?.bookRefCount ?? passage?.usageSummary?.bookRefCount ?? 0),
+    activeHomeworkCount: Number(passage?.activeHomeworkCount ?? passage?.usageSummary?.activeHomeworkCount ?? 0),
+  }), []);
+
+  const handleConfirmArchiveReadingPassage = useCallback(async () => {
+    const passage = readingPassageArchiveRequest;
+    const materialId = getReadingPassageId(passage);
+    if (!materialId || !user?.uid) {
       return;
     }
 
-    trackAction('archiveReadingPassage', { materialId, source: 'teacher_materials_reading_passage_row' });
+    const usageCounts = getReadingPassageUsageCounts(passage);
+    const usedElsewhere = usageCounts.masterRefCount > 0 || usageCounts.bookRefCount > 0 || usageCounts.activeHomeworkCount > 0;
+    if (usedElsewhere && !readingPassageArchiveAcknowledged) {
+      return;
+    }
 
+    trackAction('reading_passage_removed_from_library', { materialId, source: 'teacher_materials_reading_passage_row' });
     try {
       await archiveReadingV2PassageMaterial({
         teacherId: user.uid,
@@ -1069,12 +1302,23 @@ const TeacherLobbyPage = () => {
           testTypeIds: passage.testTypeIds || passage.testTypes?.map((testType) => testType.testTypeId).filter(Boolean) || [],
           sourceFullTestId: passage.sourceFullTestId,
           updatedAt: passage.updatedAt || new Date().toISOString(),
-          publishedSnapshotVersionId: passage.publishedSnapshotVersionId,
+          publishedSnapshotVersionId: passage.publishedSnapshotVersionId || passage.currentVersionId,
+          questionCount: passage.questionCount,
         },
         repository: readingV2PassageArchiveRepository,
+        usageSummary: {
+          usedElsewhere,
+          usageCategories: [
+            usageCounts.masterRefCount ? 'master' : null,
+            usageCounts.bookRefCount ? 'book' : null,
+            usageCounts.activeHomeworkCount ? 'homework' : null,
+          ].filter(Boolean),
+        },
       });
       setReadingPassageRows((currentRows) => currentRows.filter((row) => getReadingPassageId(row) !== materialId));
       setSelectedReadingPassageIds((currentIds) => currentIds.filter((id) => id !== materialId));
+      setReadingPassageArchiveRequest(null);
+      setReadingPassageArchiveAcknowledged(false);
       trackAction('teacher_materials_reading_passage_archived', {
         materialId,
         source: 'teacher_materials_reading_passage_row',
@@ -1091,7 +1335,84 @@ const TeacherLobbyPage = () => {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [getReadingPassageId, readingV2PassageArchiveRepository, trackAction, user?.uid]);
+  }, [
+    getReadingPassageId,
+    getReadingPassageUsageCounts,
+    readingPassageArchiveAcknowledged,
+    readingPassageArchiveRequest,
+    readingV2PassageArchiveRepository,
+    trackAction,
+    user?.uid,
+  ]);
+
+  const handleRestoreReadingPassage = useCallback((passage) => {
+    const materialId = getReadingPassageId(passage);
+    if (!materialId || !user?.uid) {
+      return;
+    }
+    setReadingPassageRestoreRequest(passage);
+    trackAction('reading_passage_restore_requested', {
+      materialId,
+      source: 'teacher_materials_reading_passage_archive_row',
+    });
+  }, [getReadingPassageId, trackAction, user?.uid]);
+
+  const handleCancelRestoreReadingPassage = useCallback(() => {
+    setReadingPassageRestoreRequest(null);
+  }, []);
+
+  const handleConfirmRestoreReadingPassage = useCallback(async (restoreVisibility) => {
+    const passage = readingPassageRestoreRequest;
+    const materialId = getReadingPassageId(passage);
+    if (!materialId || !user?.uid) {
+      return;
+    }
+
+    try {
+      await restoreReadingV2PassageMaterial({
+        actorUserId: user.uid,
+        actorRole: 'teacher',
+        passage: {
+          materialId,
+          ownerId: passage.ownerId,
+          title: passage.title || 'Untitled Reading Passage',
+          visibility: passage.visibility || 'private',
+          materialKind: 'reading-passage',
+          testTypeIds: passage.testTypeIds || passage.testTypes?.map((testType) => testType.testTypeId).filter(Boolean) || [],
+          sourceFullTestId: passage.sourceFullTestId,
+          updatedAt: passage.updatedAt || new Date().toISOString(),
+          currentVersionId: passage.currentVersionId || passage.publishedSnapshotVersionId,
+          publishedSnapshotVersionId: passage.publishedSnapshotVersionId || passage.currentVersionId,
+          questionCount: passage.questionCount,
+        },
+        repository: readingV2PassageArchiveRepository,
+        restoreVisibility,
+        correlationId: `${user.uid}:${materialId}:${restoreVisibility}:restore`,
+        sourceFeatureId: 'teacher_materials_reading_passage_restore',
+        sourceRoute: '/lobby',
+      });
+      setReadingPassageRows((currentRows) => currentRows.filter((row) => getReadingPassageId(row) !== materialId));
+      setReadingPassageRestoreRequest(null);
+      setReadingPassageScope(restoreVisibility);
+      trackAction('reading_passage_restored', {
+        materialId,
+        restoreVisibility,
+        source: 'teacher_materials_reading_passage_archive_row',
+      });
+      logTeacherMaterialsDiagnostic('reading_passage_restored', {
+        materialId,
+        restoreVisibility,
+        source: 'teacher_materials_reading_passage_archive_row',
+      });
+    } catch (error) {
+      console.error('Failed to restore Reading Passage:', error);
+      setReadingPassageError('Failed to restore Reading Passage.');
+      logTeacherMaterialsDiagnostic('reading_passage_restore_failed', {
+        materialId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [getReadingPassageId, readingPassageRestoreRequest, readingV2PassageArchiveRepository, trackAction, user?.uid]);
 
   const handleReadingPassageScopeChange = useCallback((scope) => {
     setReadingPassageScope(scope);
@@ -1233,31 +1554,41 @@ const TeacherLobbyPage = () => {
     });
 
     try {
-      const result = await createReadingV2TeacherSelectedPassageComposition({
+      const result = await createReadingV2TeacherSelectedPassageDraft({
         teacherId: user.uid,
         passages: selectedReadingPassages,
         repository: readingV2CompositionRepository,
+        metadata: readingV2ExistingPassageDraftMetadata
+          ? {
+            title: readingV2ExistingPassageDraftMetadata.title || undefined,
+            durationMinutes: readingV2ExistingPassageDraftMetadata.durationMinutes,
+            visibility: 'private',
+          }
+          : undefined,
       });
 
       trackAction('teacher_materials_reading_full_test_composition_created', {
-        compositionId: result.composition.compositionId,
-        materialId: result.composition.testMaterialId,
+        compositionId: result.draft.compositionId,
+        materialId: result.draft.testMaterialId,
         passageCount: selectedReadingPassages.length,
         source: 'teacher_materials_reading_passage_selection_toolbar',
+        mode: 'draft',
       });
       logTeacherMaterialsDiagnostic('reading_passage_full_test_composition_created', {
-        compositionId: result.composition.compositionId,
-        materialId: result.composition.testMaterialId,
+        compositionId: result.draft.compositionId,
+        materialId: result.draft.testMaterialId,
         passageCount: selectedReadingPassages.length,
-        questionCount: result.composition.questionCount,
+        questionCount: result.draft.questionCount,
+        mode: 'draft',
       });
       setReadingPassageFullTestCreateState({ status: 'idle', message: null });
       setSelectedReadingPassageIds([]);
-      navigateTo(
-        'TEACHER_READING_V2_REVISE',
-        { materialId: result.composition.testMaterialId },
-        { reason: 'teacher_materials_reading_passage_full_test_created' },
-      );
+      setReadingV2ExistingPassageDraftMetadata(null);
+      setReadingV2MasterModalState({
+        open: true,
+        mode: 'draft',
+        master: result.draft,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create Reading full test.';
       console.error('Failed to create Reading full-test composition:', error);
@@ -1273,8 +1604,8 @@ const TeacherLobbyPage = () => {
   }, [
     getReadingPassageId,
     isCreatingReadingPassageFullTest,
-    navigateTo,
     readingV2CompositionRepository,
+    readingV2ExistingPassageDraftMetadata,
     selectedReadingPassages,
     trackAction,
     user?.uid,
@@ -1348,6 +1679,7 @@ const TeacherLobbyPage = () => {
       onAssignReadingPassage: handleAssignReadingPassage,
       onReviseReadingPassage: handleReviseReadingPassage,
       onArchiveReadingPassage: handleArchiveReadingPassage,
+      onRestoreReadingPassage: handleRestoreReadingPassage,
       onToggleReadingPassageSelection: handleToggleReadingPassageSelection,
     },
   }));
@@ -1574,6 +1906,15 @@ const TeacherLobbyPage = () => {
                               ? 'Book visibility'
                               : undefined
                         }
+                        visibilityScopeOptions={
+                          contentFilter === 'reading-passage'
+                            ? [
+                                { value: 'private', label: 'Private' },
+                                { value: 'public', label: 'Public' },
+                                { value: 'archived', label: 'Archive' },
+                              ]
+                            : undefined
+                        }
                       />
                     </CardBody>
                   </Card>
@@ -1769,9 +2110,177 @@ const TeacherLobbyPage = () => {
                 navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
               }}
               onAction={(actionName, metadata) => trackAction(actionName, metadata)}
+              onCreateReadingV2FromExistingPassages={handleStartReadingV2ExistingPassages}
               readingV2AutoPipelineLane={readingV2AutoPipelineLane}
             />
           </Suspense>
+        )}
+
+        <ReadingV2MasterEditModal
+          open={readingV2MasterModalState.open}
+          mode={readingV2MasterModalState.mode}
+          master={readingV2MasterModalState.master}
+          currentTeacherId={user?.uid || ''}
+          brokenRefSummary={readingV2MasterModalState.master?.brokenRefSummary || (
+            readingV2MasterModalState.master?.hasBrokenRefs
+              ? {
+                  hasBrokenRefs: true,
+                  brokenRefCount: readingV2MasterModalState.master?.brokenRefCount || 0,
+                  brokenRefReasons: readingV2MasterModalState.master?.brokenRefReasons || [],
+                  brokenRefs: readingV2MasterModalState.master?.brokenRefs || [],
+                }
+              : null
+          )}
+          replacementPassages={readingPassageRows}
+          onClose={handleCloseReadingV2MasterModal}
+          onOpenPassageStudio={handleOpenReadingV2PassageStudio}
+          onRepairWithExisting={({ brokenRef, replacement }) => {
+            trackAction('reading_v2_master_ref_repaired_existing', {
+              source: 'teacher_lobby_master_modal',
+              brokenMaterialId: brokenRef.passageMaterialId || brokenRef.materialId,
+              replacementMaterialId: replacement.materialId || replacement.id,
+            });
+            writeReadingV2MasterRepairAudit('reading_v2_master_ref_repaired_existing', brokenRef, {
+              repairAction: 'replace-existing',
+              replacementMaterialId: replacement.materialId || replacement.id,
+            });
+          }}
+          onRemoveBrokenRef={(brokenRef) => {
+            trackAction('reading_v2_master_ref_removed', {
+              source: 'teacher_lobby_master_modal',
+              materialId: brokenRef.passageMaterialId || brokenRef.materialId,
+            });
+            writeReadingV2MasterRepairAudit('reading_v2_master_ref_removed', brokenRef, {
+              repairAction: 'remove-ref',
+            });
+          }}
+          onRemakeBrokenRef={(brokenRef) => {
+            trackAction('reading_v2_master_ref_remake_started', {
+              source: 'teacher_lobby_master_modal',
+              materialId: brokenRef.passageMaterialId || brokenRef.materialId,
+            });
+          }}
+          onRestoreBrokenSource={(brokenRef) => {
+            trackAction('reading_v2_master_ref_repair_started', {
+              source: 'teacher_lobby_master_modal',
+              action: 'restore',
+              materialId: brokenRef.passageMaterialId || brokenRef.materialId,
+            });
+            writeReadingV2MasterRepairAudit('reading_v2_master_ref_repair_started', brokenRef, {
+              repairAction: 'restore-source-started',
+            });
+            setReadingPassageRestoreRequest({
+              materialId: brokenRef.passageMaterialId || brokenRef.materialId,
+              ownerId: brokenRef.ownerId || user?.uid,
+              title: brokenRef.titleSnapshot || brokenRef.title || 'Untitled Reading Passage',
+              visibility: 'private',
+              currentVersionId: brokenRef.snapshotVersionId || brokenRef.currentVersionId,
+              publishedSnapshotVersionId: brokenRef.snapshotVersionId || brokenRef.currentVersionId,
+              testTypeIds: brokenRef.testTypeIdsSnapshot || brokenRef.testTypeIds || [],
+              materialKind: 'reading-passage',
+            });
+          }}
+          onSaveDraft={(payload) => {
+            trackAction('reading_v2_master_metadata_saved', {
+              source: 'teacher_lobby_master_modal',
+              mode: payload.mode,
+              titleLength: payload.title.length,
+              passageCount: payload.passageRefs.length,
+            });
+          }}
+          onPublish={(payload) => {
+            trackAction(
+              readingV2MasterModalState.master?.hasBrokenRefs
+                ? 'reading_v2_master_repair_publish_submitted'
+                : 'reading_v2_master_publish_submitted',
+              {
+              source: 'teacher_lobby_master_modal',
+              mode: payload.mode,
+              passageCount: payload.passageRefs.length,
+              },
+            );
+          }}
+        />
+
+        {readingPassageArchiveRequest && (
+          <div className="teacher-materials-confirm-modal" role="presentation">
+            <div className="teacher-materials-confirm-modal__scrim" onClick={handleCancelArchiveReadingPassage} />
+            <section
+              aria-label="Archive Reading Passage?"
+              aria-modal="true"
+              className="teacher-materials-confirm-modal__panel"
+              role="dialog"
+            >
+              <h2>Archive Reading Passage?</h2>
+              <p>
+                {`"${readingPassageArchiveRequest.title || 'This Reading Passage'}" will leave active library surfaces and normal add-existing pickers.`}
+              </p>
+              {(() => {
+                const usageCounts = getReadingPassageUsageCounts(readingPassageArchiveRequest);
+                const usedElsewhere = usageCounts.masterRefCount > 0 || usageCounts.bookRefCount > 0 || usageCounts.activeHomeworkCount > 0;
+                return (
+                  <>
+                    <div className="teacher-materials-confirm-modal__summary">
+                      <span>{`${usageCounts.masterRefCount} affected ${usageCounts.masterRefCount === 1 ? 'master' : 'masters'}`}</span>
+                      <span>{`${usageCounts.bookRefCount} affected ${usageCounts.bookRefCount === 1 ? 'Book' : 'Books'}`}</span>
+                      <span>{`${usageCounts.activeHomeworkCount} active assignment ${usageCounts.activeHomeworkCount === 1 ? 'blocker' : 'blockers'}`}</span>
+                    </div>
+                    <p>Existing assigned work and saved results stay available from frozen snapshots.</p>
+                    {usedElsewhere && (
+                      <label className="teacher-materials-confirm-modal__check">
+                        <input
+                          type="checkbox"
+                          checked={readingPassageArchiveAcknowledged}
+                          onChange={(event) => setReadingPassageArchiveAcknowledged(event.target.checked)}
+                        />
+                        <span>I understand this passage is used elsewhere and those materials may need repair.</span>
+                      </label>
+                    )}
+                    <div className="teacher-materials-confirm-modal__actions">
+                      <button type="button" onClick={handleCancelArchiveReadingPassage}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={usedElsewhere && !readingPassageArchiveAcknowledged}
+                        onClick={handleConfirmArchiveReadingPassage}
+                      >
+                        Remove from library
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </section>
+          </div>
+        )}
+
+        {readingPassageRestoreRequest && (
+          <div className="teacher-materials-confirm-modal" role="presentation">
+            <div className="teacher-materials-confirm-modal__scrim" onClick={handleCancelRestoreReadingPassage} />
+            <section
+              aria-label="Restore Reading Passage"
+              aria-modal="true"
+              className="teacher-materials-confirm-modal__panel"
+              role="dialog"
+            >
+              <h2>Restore Reading Passage</h2>
+              <p>
+                {`"${readingPassageRestoreRequest.title || 'This Reading Passage'}" will return to active library surfaces with the same passage id and version.`}
+              </p>
+              <div className="teacher-materials-confirm-modal__actions">
+                <button type="button" onClick={handleCancelRestoreReadingPassage}>
+                  Cancel
+                </button>
+                <button type="button" onClick={() => handleConfirmRestoreReadingPassage('private')}>
+                  Restore as Private
+                </button>
+                <button type="button" onClick={() => handleConfirmRestoreReadingPassage('public')}>
+                  Restore as Public
+                </button>
+              </div>
+            </section>
+          </div>
         )}
 
         {readingPassageHomeworkModalProps && (

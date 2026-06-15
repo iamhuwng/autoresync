@@ -2,9 +2,7 @@ import { get, ref, type Database } from 'firebase/database';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { database as defaultDatabase } from '../firebase';
 import {
-  listMaterialCatalogIndexPaths,
   type MaterialCatalogIndexRow,
-  type MaterialCatalogIndexSummary,
 } from '../materialCatalog/materialCatalogIndexes.service';
 import type {
   MaterialTestTypeConfig,
@@ -16,6 +14,12 @@ import {
 } from './readingV2LaunchIntegration.service';
 import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
+import {
+  archiveReadingV2PassageMaterial as archiveReadingV2PassageMaterialLifecycle,
+  isArchiveIndexRow,
+  type ReadingV2PassageArchiveUsageSummary,
+  type ReadingV2PassageArchiveRepository as ReadingV2PassageArchiveLifecycleRepository,
+} from './readingV2PassageArchive.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export interface ReadingV2PassageLibraryIndexQuery {
@@ -36,7 +40,7 @@ export interface ReadingV2PassageLibraryReader {
 }
 
 export interface ReadingV2PassageLibraryAction {
-  readonly key: 'open' | 'view' | 'assign-homework' | 'revise' | 'archive';
+  readonly key: 'open' | 'view' | 'assign-homework' | 'revise' | 'archive' | 'restore';
   readonly label: string;
   readonly ownerOnly?: boolean;
 }
@@ -103,8 +107,10 @@ export interface ListTeacherReadingPassagesInput {
 }
 
 export interface ReadingV2PassageArchiveRepository {
-  readonly write: (path: string, value: unknown) => Promise<void>;
-  readonly remove: (path: string) => Promise<void>;
+  readonly read: (path: string) => Promise<unknown>;
+  readonly update: (updates: Record<string, unknown | null>) => Promise<void>;
+  readonly write?: (path: string, value: unknown) => Promise<void>;
+  readonly remove?: (path: string) => Promise<void>;
 }
 
 export interface ReadingV2PassageArchiveInput {
@@ -123,6 +129,7 @@ export interface ReadingV2PassageArchiveInput {
   >;
   readonly repository: ReadingV2PassageArchiveRepository;
   readonly now?: string;
+  readonly usageSummary?: ReadingV2PassageArchiveUsageSummary;
 }
 
 const materialIndexPath = (
@@ -148,16 +155,38 @@ const isReadingPassageMetadata = (value: unknown): value is ReadingV2MaterialMet
 const listRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexRow[] =>
   Object.values(value ?? {}).filter(isIndexRow);
 
+const listArchiveRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexRow[] =>
+  Object.values(value ?? {})
+    .filter(isArchiveIndexRow)
+    .map((row) => ({
+      materialId: row.materialId,
+      ownerId: row.ownerId,
+      title: row.title,
+      visibility: row.visibility,
+      materialKind: 'reading-passage',
+      testTypeIds: [],
+      testTypeMembership: {},
+      updatedAt: row.archivedAt,
+    }));
+
 export const createReadingV2PassageLibraryFirebaseReader = (
   database: Database = defaultDatabase,
 ): ReadingV2PassageLibraryReader => ({
   async listIndexRows(queryInput) {
-    const path = queryInput.scope === 'private'
+    const path = queryInput.scope === 'archived'
+      ? `material_catalog/material_archive_indexes/by_owner/${queryInput.teacherId}/reading-passage`
+      : queryInput.scope === 'private'
       ? materialIndexPath('by_owner', queryInput.teacherId)
       : materialIndexPath('by_visibility', 'public');
     const snapshot = await get(ref(database, path));
 
-    return snapshot.exists() ? listRowsFromSnapshotValue(snapshot.val()) : [];
+    if (!snapshot.exists()) {
+      return [];
+    }
+
+    return queryInput.scope === 'archived'
+      ? listArchiveRowsFromSnapshotValue(snapshot.val())
+      : listRowsFromSnapshotValue(snapshot.val());
   },
   async readMetadata(materialId) {
     const snapshot = await get(ref(database, readingV2StoragePaths.materialMetadata(materialId)));
@@ -214,6 +243,17 @@ const rowMatchesScope = (
   input: ListTeacherReadingPassagesInput,
 ): boolean => {
   const metadataScope = metadataListVisibility(metadata);
+  const archived = metadata.state === 'archived';
+
+  if (input.scope === 'archived') {
+    return row.ownerId === input.teacherId &&
+      metadata.ownerId === input.teacherId &&
+      archived;
+  }
+
+  if (archived) {
+    return false;
+  }
 
   if (input.scope === 'private') {
     return row.ownerId === input.teacherId &&
@@ -262,13 +302,20 @@ const rowMatchesSearch = (
 
 const buildActions = (
   isOwner: boolean,
+  scope: ReadingPassageListScope,
 ): readonly ReadingV2PassageLibraryAction[] =>
+  scope === 'archived' && isOwner
+    ? [
+        { key: 'view', label: 'View read-only' },
+        { key: 'restore', label: 'Restore', ownerOnly: true },
+      ]
+    :
   isOwner
     ? [
         { key: 'open', label: 'Open' },
         { key: 'assign-homework', label: 'Assign homework' },
         { key: 'revise', label: 'Revise', ownerOnly: true },
-        { key: 'archive', label: 'Archive', ownerOnly: true },
+        { key: 'archive', label: 'Remove from library', ownerOnly: true },
       ]
     : [
         { key: 'view', label: 'View' },
@@ -324,7 +371,7 @@ const createRow = (input: {
     hasStudentSafeProjection: Boolean(input.projection),
     accessible,
     archived,
-    actions: buildActions(isOwner),
+    actions: buildActions(isOwner, input.scope),
     metadata: {
       title: input.metadata.title,
       description: input.metadata.description,
@@ -341,63 +388,23 @@ const createRow = (input: {
   };
 };
 
-const archiveSummaryFromPassage = (
-  passage: ReadingV2PassageArchiveInput['passage'],
-): MaterialCatalogIndexSummary => ({
-  materialId: passage.materialId,
-  ownerId: passage.ownerId,
-  title: passage.title,
-  visibility: passage.visibility === 'public' ? 'public' : 'private',
-  materialKind: passage.materialKind,
-  testTypeIds: passage.testTypeIds,
-  sourceFullTestId: passage.sourceFullTestId,
-  updatedAt: passage.updatedAt,
-});
-
 export const archiveReadingV2PassageMaterial = async (
   input: ReadingV2PassageArchiveInput,
 ): Promise<void> => {
-  const materialId = input.passage.materialId?.trim();
-
-  if (!materialId) {
-    throw new Error('Reading Passage archive requires a material id.');
-  }
-
-  if (input.passage.ownerId !== input.teacherId) {
-    throw new Error('Only the owner teacher can archive this Reading Passage.');
-  }
-
-  const archivedAt = input.now ?? new Date().toISOString();
-  const metadataBasePath = readingV2StoragePaths.materialMetadata(materialId);
-  const materialBasePath = readingV2StoragePaths.readingPassageMaterials(materialId);
-  const writes = [
-    { path: `${metadataBasePath}/state`, value: 'archived' },
-    { path: `${metadataBasePath}/archivedAt`, value: archivedAt },
-    { path: `${metadataBasePath}/archivedBy`, value: input.teacherId },
-    { path: `${metadataBasePath}/updatedAt`, value: archivedAt },
-    { path: `${materialBasePath}/state`, value: 'archived' },
-    { path: `${materialBasePath}/archivedAt`, value: archivedAt },
-    { path: `${materialBasePath}/archivedBy`, value: input.teacherId },
-    { path: `${materialBasePath}/updatedAt`, value: archivedAt },
-  ];
-
-  if (input.passage.publishedSnapshotVersionId) {
-    const versionBasePath = readingV2StoragePaths.readingPassageMaterialVersions(
-      materialId,
-      input.passage.publishedSnapshotVersionId,
-    );
-    writes.push(
-      { path: `${versionBasePath}/state`, value: 'archived' },
-      { path: `${versionBasePath}/archivedAt`, value: archivedAt },
-      { path: `${versionBasePath}/archivedBy`, value: input.teacherId },
-    );
-  }
-
-  await Promise.all(writes.map((write) => input.repository.write(write.path, write.value)));
-  await Promise.all(
-    listMaterialCatalogIndexPaths(archiveSummaryFromPassage(input.passage))
-      .map((path) => input.repository.remove(path)),
-  );
+  await archiveReadingV2PassageMaterialLifecycle({
+    actorUserId: input.teacherId,
+    actorRole: 'teacher',
+    passage: {
+      ...input.passage,
+      currentVersionId: input.passage.publishedSnapshotVersionId,
+    },
+    repository: input.repository as ReadingV2PassageArchiveLifecycleRepository,
+    now: input.now,
+    correlationId: `${input.teacherId}:${input.passage.materialId}:${input.now ?? 'archive'}`,
+    sourceFeatureId: 'teacher_materials_reading_passage_archive',
+    sourceRoute: '/lobby',
+    usageSummary: input.usageSummary,
+  });
 };
 
 export const listTeacherReadingPassages = async (

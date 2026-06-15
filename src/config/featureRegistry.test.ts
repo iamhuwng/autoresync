@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  FEATURE_IDS,
   FEATURE_REGISTRY,
   resolveFeatureFromRoute,
   validateFeatureId,
@@ -43,6 +44,32 @@ describe('featureRegistry', () => {
     });
   });
 
+  it('registers Reading V2 master modal workflow actions', () => {
+    const readingV2Studio = FEATURE_REGISTRY.find((feature) => feature.id === FEATURE_IDS.readingV2Studio);
+
+    expect(readingV2Studio?.actions).toEqual(expect.arrayContaining([
+      'reading_v2_master_edit_opened',
+      'reading_v2_master_metadata_saved',
+      'reading_v2_master_passage_reordered',
+      'reading_v2_master_passage_added',
+      'reading_v2_master_passage_removed',
+      'reading_v2_master_clone_requested',
+      'reading_v2_master_publish_submitted',
+      'reading_v2_master_broken_refs_viewed',
+      'reading_v2_master_ref_repair_started',
+      'reading_v2_master_ref_repaired_existing',
+      'reading_v2_master_ref_removed',
+      'reading_v2_master_ref_remake_started',
+      'reading_v2_master_repair_publish_submitted',
+      'reading_v2_single_passage_version_published',
+      'reading_v2_update_references_opened',
+      'reading_v2_update_references_skipped',
+      'reading_v2_update_references_submitted',
+      'reading_v2_update_references_partial_failed',
+      'startReadingV2ExistingPassages',
+    ]));
+  });
+
   describe('validateFeatureId', () => {
     it('returns true for a known feature id', () => {
       expect(validateFeatureId('testTaking')).toBe(true);
@@ -78,6 +105,12 @@ describe('featureRegistry', () => {
       const adminPanel = FEATURE_REGISTRY.find((feature) => feature.id === 'adminPanel');
 
       expect(homework?.actions).toContain('viewIntegrityDetails');
+      expect(homework?.actions).toEqual(expect.arrayContaining([
+        'reading_v2_master_homework_assigned',
+        'reading_v2_assignment_refresh_opened',
+        'reading_v2_assignment_refresh_submitted',
+        'reading_v2_assignment_refresh_blocked_started',
+      ]));
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
       expect(readingV2Studio?.actions).toEqual(
@@ -132,12 +165,15 @@ describe('featureRegistry', () => {
           'submitReadingV2Attempt',
           'teacher_materials_reading_passage_homework_launched',
           'teacher_materials_reading_passage_homework_submitted',
+          'reading_v2_assignment_payload_missing',
+          'reading_v2_frozen_runtime_launched',
         ]),
       );
       expect(results?.actions).toEqual(
         expect.arrayContaining([
           'openReadingV2Review',
           'teacher_materials_reading_passage_result_viewed',
+          'reading_v2_frozen_result_review_opened',
           'submitReadingV2Feedback',
           'createReadingV2Regrade',
           'readingV2OperationalError',

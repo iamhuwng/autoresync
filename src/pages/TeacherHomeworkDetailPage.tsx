@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { get, ref, remove, set as setRealtimeValue } from 'firebase/database';
 import { Button, Card, CardBody, CardHeader, VanillaLoader } from '../components/modern';
 import { toast } from '../components/modern/ToastNotification';
 import HomeworkBreadcrumb from '../components/homework/HomeworkBreadcrumb';
@@ -17,10 +18,13 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { TeacherHeader } from '../components/navigation';
 import { resetStudentHomework } from '../services/homeworkSubmissionService';
-import { updateStudentOverride } from '../services/homeworkManager';
+import { updateHomework, updateStudentOverride } from '../services/homeworkManager';
 import { sendHomeworkReminderNotification } from '../services/notificationService';
 import { reportingService } from '../services/reportingService';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
+import { database } from '../services/firebase';
+import { refreshReadingV2MasterAssignmentFromLatest } from '../services/reading-v2/readingV2AssignmentRefreshRepository.service';
+import { assertReadingV2AssignmentCanRefresh } from '../services/reading-v2/readingV2PassageHomework.service';
 import './TeacherHomeworkDetailPage.css';
 import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel'; // PRD-0036
 import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
@@ -114,6 +118,7 @@ function TeacherHomeworkDetailPage() {
     const [resetMessage, setResetMessage] = useState<string | null>(null);
     const [isResetting, setIsResetting] = useState(false);
     const [showThcsConfig, setShowThcsConfig] = useState(false);
+    const [isRefreshingReadingV2Assignment, setIsRefreshingReadingV2Assignment] = useState(false);
 
     // PRD-0034 Task 11.0: Per-student action modal state
     const [extendTarget, setExtendTarget] = useState<HomeworkSubmissionTableRow | null>(null);
@@ -373,6 +378,90 @@ function TeacherHomeworkDetailPage() {
             setIsResetting(false);
         }
     }, [homework, homeworkId, refetch, resetTarget]);
+
+    const canShowReadingV2AssignmentRefresh =
+        homework?.materialType === 'reading-passage-set' &&
+        Boolean(homework.readingPassageSet?.compositionId);
+
+    const readingV2AssignmentRefreshBlockMessage = useMemo(() => {
+        if (!canShowReadingV2AssignmentRefresh) {
+            return null;
+        }
+
+        try {
+            assertReadingV2AssignmentCanRefresh(submissions);
+            return null;
+        } catch (refreshError) {
+            return refreshError instanceof Error
+                ? refreshError.message
+                : 'Reading V2 assignment cannot refresh after students have started.';
+        }
+    }, [canShowReadingV2AssignmentRefresh, submissions]);
+
+    const handleRefreshReadingV2Assignment = useCallback(async () => {
+        if (!homework || !homeworkId || !canShowReadingV2AssignmentRefresh) {
+            return;
+        }
+
+        if (readingV2AssignmentRefreshBlockMessage) {
+            reportingService.trackAction('homework', 'reading_v2_assignment_refresh_blocked_started', {
+                homeworkId,
+            });
+            toast.error(readingV2AssignmentRefreshBlockMessage);
+            return;
+        }
+
+        setIsRefreshingReadingV2Assignment(true);
+
+        try {
+            const result = await refreshReadingV2MasterAssignmentFromLatest({
+                homework,
+                submissions,
+                adapter: {
+                    readRtdb: async (path) => {
+                        const snapshot = await get(ref(database, path));
+                        return snapshot.exists() ? snapshot.val() : null;
+                    },
+                    writeRtdb: async (path, value) => {
+                        await setRealtimeValue(ref(database, path), value);
+                    },
+                    deleteRtdb: async (path) => {
+                        await remove(ref(database, path));
+                    },
+                    updateHomeworkAssignment: async (targetHomeworkId, patch) => {
+                        await updateHomework(targetHomeworkId, {
+                            readingPassageSet: patch.readingPassageSet,
+                            readingV2AssignmentPayloadPath: patch.readingV2AssignmentPayloadPath,
+                            updatedAt: patch.updatedAt,
+                        });
+                    },
+                },
+            });
+
+            reportingService.trackAction('homework', 'reading_v2_assignment_refresh_submitted', {
+                homeworkId,
+                passageCount: result.passageCount,
+            });
+            toast.success(`Reading V2 assignment refreshed (${result.passageCount} passages).`);
+            await refetch();
+        } catch (refreshError) {
+            console.error('[ReadingV2AssignmentRefresh] Failed:', refreshError);
+            reportingService.trackAction('homework', 'reading_v2_assignment_refresh_failed', {
+                homeworkId,
+                message: refreshError instanceof Error ? refreshError.message : 'unknown',
+            });
+            toast.error(refreshError instanceof Error ? refreshError.message : 'Failed to refresh Reading V2 assignment');
+        } finally {
+            setIsRefreshingReadingV2Assignment(false);
+        }
+    }, [
+        canShowReadingV2AssignmentRefresh,
+        homework,
+        homeworkId,
+        readingV2AssignmentRefreshBlockMessage,
+        refetch,
+        submissions,
+    ]);
 
     // PRD-0034 Task 11.2: Extend deadline handler
     const handleExtendDeadlineConfirm = useCallback(async (newDeadline: number) => {
@@ -753,6 +842,43 @@ function TeacherHomeworkDetailPage() {
                             </div>
                         </div>
                     </div>
+
+                    {canShowReadingV2AssignmentRefresh ? (
+                        <div
+                            role="region"
+                            aria-label="Reading V2 assignment refresh"
+                            style={{
+                                marginTop: '1rem',
+                                padding: '0.9rem 1rem',
+                                border: '1px solid rgba(20,184,166,0.24)',
+                                borderRadius: '0.75rem',
+                                background: 'rgba(240,253,250,0.72)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                flexWrap: 'wrap',
+                            }}
+                        >
+                            <div style={{ display: 'grid', gap: '0.3rem', color: '#0f172a' }}>
+                                <strong>Reading V2 master assignment</strong>
+                                <span style={{ color: '#475569', fontSize: '0.9rem' }}>
+                                    {readingV2AssignmentRefreshBlockMessage
+                                        ? readingV2AssignmentRefreshBlockMessage
+                                        : `Current frozen set: ${homework.readingPassageSet?.compositionVersionId ?? 'unknown version'}`}
+                                </span>
+                            </div>
+                            <Button
+                                variant="secondary"
+                                disabled={isRefreshingReadingV2Assignment || Boolean(readingV2AssignmentRefreshBlockMessage)}
+                                onClick={handleRefreshReadingV2Assignment}
+                            >
+                                {isRefreshingReadingV2Assignment
+                                    ? 'Refreshing...'
+                                    : 'Refresh to latest passage versions'}
+                            </Button>
+                        </div>
+                    ) : null}
 
                     {(homework.tags ?? []).length > 0 ? (
                         <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

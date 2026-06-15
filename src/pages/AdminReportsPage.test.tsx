@@ -221,6 +221,37 @@ describe('AdminReportsPage', () => {
     expect(screen.getByText(new Date(secondUpdatedAt).toLocaleString())).toBeInTheDocument();
   });
 
+  it('renders a read-only Reading V2 audit monitor from dedicated audit events', async () => {
+    const createdAt = 1_710_000_000_000;
+    listenerState.values.set('reading_v2/audit_events', {
+      value: {
+        'audit-1': {
+          action: 'reading_passage_archived',
+          actorRole: 'teacher',
+          actorId: 'teacher-1',
+          entityType: 'reading_passage',
+          entityId: 'passage-1',
+          sourceRoute: '/teacher/materials',
+          createdAt,
+          before: { sensitive: 'not-rendered' },
+        },
+      },
+    });
+
+    render(<AdminReportsPage />);
+
+    const monitor = await screen.findByTestId('reading-v2-audit-monitor');
+
+    expect(within(monitor).getByText('Reading V2 Audit Monitor')).toBeInTheDocument();
+    expect(within(monitor).getByText('reading_passage_archived')).toBeInTheDocument();
+    expect(within(monitor).getByText('reading_passage:passage-1')).toBeInTheDocument();
+    expect(within(monitor).getByText('teacher:teacher-1')).toBeInTheDocument();
+    expect(within(monitor).getByText('/teacher/materials')).toBeInTheDocument();
+    expect(within(monitor).queryByText('not-rendered')).not.toBeInTheDocument();
+    expect(refMock).toHaveBeenCalledWith({}, 'reading_v2/audit_events');
+    expect(limitToLastMock).toHaveBeenCalledWith(25);
+  });
+
   it('renders the unresolved diagnostics section as read-only', async () => {
     listenerState.values.set('/reports/result_visibility/unresolved', {
       value: {

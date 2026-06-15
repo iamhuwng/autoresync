@@ -1,6 +1,7 @@
 import { READING_V2_ENGINE, READING_V2_PRODUCT_LABEL } from '../../config/readingV2FeatureFlags';
 import {
   type ReadingV2Document,
+  type ReadingV2FullTestCompositionId,
   type ReadingV2MaterialId,
   type ReadingV2PublishedSnapshot,
   type ReadingV2SourceOrderKind,
@@ -35,6 +36,7 @@ export interface ReadingV2MaterialMetadataInput {
   readonly materialId: ReadingV2MaterialId;
   readonly ownerId: string;
   readonly document: ReadingV2Document;
+  readonly compositionId?: ReadingV2FullTestCompositionId;
   readonly materialKind?: ReadingV2MaterialKind;
   readonly title?: string;
   readonly durationMinutes?: number;
@@ -61,7 +63,8 @@ export interface ReadingV2MaterialMetadataInput {
 export interface ReadingV2MaterialMetadata {
   readonly materialId: ReadingV2MaterialId;
   readonly ownerId: string;
-  readonly state?: 'draft' | 'published' | 'archived';
+  readonly compositionId?: ReadingV2FullTestCompositionId;
+  readonly state?: 'draft' | 'published' | 'archived' | 'removed';
   readonly deliveryEngine: typeof READING_V2_ENGINE;
   readonly productLabel: typeof READING_V2_PRODUCT_LABEL;
   readonly title: string;
@@ -173,8 +176,13 @@ const deriveMetadataTitle = (
 
   const sourceTitle = input.sourceTitleSnapshot?.trim();
 
+  if (input.materialKind === 'reading-passage' && input.document.title.trim()) {
+    return input.document.title.trim();
+  }
+
   if (input.materialKind === 'reading-passage' && sourceTitle) {
-    return sourceOrderDisplay ? `${sourceTitle} - ${sourceOrderDisplay}` : sourceTitle;
+    const baseTitle = sourceTitle.replace(/:\s*$/, '');
+    return sourceOrderDisplay ? `${baseTitle}: ${sourceOrderDisplay}` : sourceTitle;
   }
 
   return input.document.title.trim();
@@ -200,6 +208,7 @@ export const deriveReadingV2MaterialMetadata = (
   return {
     materialId: input.materialId,
     ownerId: input.ownerId,
+    compositionId: input.compositionId,
     deliveryEngine: READING_V2_ENGINE,
     productLabel: READING_V2_PRODUCT_LABEL,
     title,

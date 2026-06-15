@@ -1,14 +1,19 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReadingV2StudioPage from './ReadingV2StudioPage';
 import { createTeacherRoutes } from '../routes/teacherRoutes';
+import { readingV2Ids } from '../types/readingV2.types';
+import { createReadingV2CanonicalFixture } from '../services/reading-v2/fixtures/readingV2CanonicalFixtures';
+import { readingV2StudioRepository } from '../services/reading-v2/readingV2StudioWorkflow.service';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
   READING_V2_STRUCTURED_MATERIALS_START,
 } from '../services/reading-v2/readingV2ExternalAiPrompt.service';
 
 const trackActionMock = vi.fn();
+const navigateToMock = vi.fn();
 
 vi.mock('../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({
@@ -18,7 +23,7 @@ vi.mock('../hooks/useFeatureTracking', () => ({
 
 vi.mock('../hooks/useNavigation', () => ({
   useNavigation: () => ({
-    navigateTo: vi.fn(),
+    navigateTo: navigateToMock,
     handleSessionChange: vi.fn(),
     handleTestChange: vi.fn(),
     currentPath: '/',
@@ -26,6 +31,14 @@ vi.mock('../hooks/useNavigation', () => ({
     navigationHistory: [],
     context: {},
   }),
+}));
+
+vi.mock('../services/reading-v2/readingV2FirebasePublishAdapter.service', () => ({
+  commitReadingV2PublishPlanToFirebase: vi.fn(async () => ({
+    status: 'committed',
+    commitPath: 'reading_v2/publish_commits/test-commit',
+    operationKeys: ['test-operation'],
+  })),
 }));
 
 vi.mock('../services/reading-v2/readingV2StudioFirebaseHydration.service', async () => {
@@ -85,6 +98,14 @@ const renderRoute = (path: string | { pathname: string; state?: unknown }, patte
 describe('ReadingV2StudioPage', () => {
   beforeEach(() => {
     trackActionMock.mockClear();
+    navigateToMock.mockClear();
+    readingV2StudioRepository.store.drafts.clear();
+    readingV2StudioRepository.store.publishedSnapshots.clear();
+    readingV2StudioRepository.store.passageAssets.clear();
+    readingV2StudioRepository.store.passageAssetVersions.clear();
+    readingV2StudioRepository.store.whereUsed.clear();
+    readingV2StudioRepository.store.taskGroupMaterials.clear();
+    readingV2StudioRepository.store.fullTests.clear();
   });
 
   it('resolves create route into the shared Studio shell', async () => {
@@ -203,6 +224,50 @@ describe('ReadingV2StudioPage', () => {
       mode: 'create-from-auto',
       entryPoint: 'test-creation-modal',
     })));
+  });
+
+  it('returns teachers to the lobby after a successful publish', async () => {
+    const user = userEvent.setup();
+    const draft = readingV2StudioRepository.createDraft({
+      draftId: readingV2Ids.draftId('publish-ready-draft'),
+      ownerId: 'teacher-modal',
+      materialId: readingV2Ids.materialId('publish-ready-material'),
+      document: createReadingV2CanonicalFixture('sentence-completion'),
+      studioMetadata: {
+        title: 'Auto Publish Ready',
+        ownerId: 'teacher-modal',
+        visibility: 'private',
+        provenanceSummary: 'Generated from Auto V4 import in Test Creation Modal',
+      },
+    });
+
+    renderRoute({
+      pathname: '/teacher/reading-v2/drafts/publish-ready-draft',
+      state: {
+        entryPoint: 'test-creation-modal',
+        initialMetadata: {
+          ownerId: 'teacher-modal',
+        },
+      },
+    }, '/teacher/reading-v2/drafts/:draftId');
+
+    await screen.findByRole('main');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish' })).not.toBeDisabled());
+    await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(navigateToMock).toHaveBeenCalledWith(
+      'LOBBY',
+      undefined,
+      expect.objectContaining({
+        reason: 'reading_v2_studio_publish_success',
+        replace: true,
+      }),
+    ));
+    expect(trackActionMock).toHaveBeenCalledWith('exitStudio', expect.objectContaining({
+      mode: 'resume-draft',
+      draftId: draft.draftId,
+      reason: 'reading_v2_studio_publish_success',
+    }));
   });
 
   it('opens Studio for localized duplicate structured-layout questions when the draft is canonical-safe', async () => {

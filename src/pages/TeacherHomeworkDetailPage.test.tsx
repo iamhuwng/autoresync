@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherHomeworkDetailPage from './TeacherHomeworkDetailPage';
@@ -10,7 +10,9 @@ const {
   useNavigationMock,
   resetStudentHomeworkMock,
   updateStudentOverrideMock,
+  updateHomeworkMock,
   sendHomeworkReminderNotificationMock,
+  refreshReadingV2MasterAssignmentFromLatestMock,
   trackActionMock,
 } = vi.hoisted(() => ({
   useHomeworkDetailMock: vi.fn(),
@@ -19,7 +21,9 @@ const {
   useNavigationMock: vi.fn(),
   resetStudentHomeworkMock: vi.fn(),
   updateStudentOverrideMock: vi.fn(),
+  updateHomeworkMock: vi.fn(),
   sendHomeworkReminderNotificationMock: vi.fn(),
+  refreshReadingV2MasterAssignmentFromLatestMock: vi.fn(),
   trackActionMock: vi.fn(),
 }));
 
@@ -110,7 +114,23 @@ vi.mock('../services/homeworkSubmissionService', () => ({
 }));
 
 vi.mock('../services/homeworkManager', () => ({
+  updateHomework: updateHomeworkMock,
   updateStudentOverride: updateStudentOverrideMock,
+}));
+
+vi.mock('../services/reading-v2/readingV2AssignmentRefreshRepository.service', () => ({
+  refreshReadingV2MasterAssignmentFromLatest: refreshReadingV2MasterAssignmentFromLatestMock,
+}));
+
+vi.mock('../services/firebase', () => ({
+  database: {},
+}));
+
+vi.mock('firebase/database', () => ({
+  get: vi.fn(),
+  ref: vi.fn((_database, path) => ({ path })),
+  remove: vi.fn(),
+  set: vi.fn(),
 }));
 
 vi.mock('../services/notificationService', () => ({
@@ -244,6 +264,11 @@ describe('TeacherHomeworkDetailPage', () => {
     });
 
     updateStudentOverrideMock.mockResolvedValue(undefined);
+    updateHomeworkMock.mockResolvedValue(undefined);
+    refreshReadingV2MasterAssignmentFromLatestMock.mockResolvedValue({
+      payload: {},
+      passageCount: 2,
+    });
     sendHomeworkReminderNotificationMock.mockResolvedValue(undefined);
   });
 
@@ -297,5 +322,86 @@ describe('TeacherHomeworkDetailPage', () => {
     expect(screen.getByText('Passage 1 - British Council Practice Test 01')).toBeInTheDocument();
     expect(screen.getByText('Test Type')).toBeInTheDocument();
     expect(screen.getByText('IELTS')).toBeInTheDocument();
+  });
+
+  it('refreshes a composition-backed Reading V2 assignment before any raw submission starts', async () => {
+    const refetch = vi.fn();
+    const unstartedSubmission = {
+      id: 'submission-1',
+      homeworkId: 'hw-reading-set',
+      studentId: 'student-1',
+      studentName: 'Student One',
+      status: 'not_started',
+    };
+    const readingSetHomework = {
+      ...homeworkAssignment,
+      id: 'hw-1',
+      title: 'Full Test Set',
+      materialTitle: 'Full Test Set',
+      materialType: 'reading-passage-set',
+      readingPassageSet: {
+        compositionId: 'composition-1',
+        compositionVersionId: 'composition-version-old',
+        frozenAt: '2026-06-10T00:00:00.000Z',
+        assignmentPayloadPath: 'reading_v2/projections/assignment_payloads/hw-1:composition-version-old',
+        items: [],
+      },
+    };
+
+    useHomeworkDetailMock.mockReturnValue({
+      homework: readingSetHomework,
+      submissions: [unstartedSubmission],
+      loading: false,
+      error: null,
+      refetch,
+    });
+
+    renderPage();
+
+    const refreshButton = await screen.findByRole('button', { name: /refresh to latest passage versions/i });
+    expect(refreshButton).toBeEnabled();
+
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => expect(refreshReadingV2MasterAssignmentFromLatestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        homework: readingSetHomework,
+        submissions: [unstartedSubmission],
+      }),
+    ));
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+    expect(trackActionMock).toHaveBeenCalledWith('homework', 'reading_v2_assignment_refresh_submitted', {
+      homeworkId: 'hw-1',
+      passageCount: 2,
+    });
+  });
+
+  it('blocks Reading V2 assignment refresh from raw submission status, not UI summary rows', async () => {
+    useHomeworkDetailMock.mockReturnValue({
+      homework: {
+        ...homeworkAssignment,
+        id: 'hw-reading-set',
+        title: 'Full Test Set',
+        materialTitle: 'Full Test Set',
+        materialType: 'reading-passage-set',
+        readingPassageSet: {
+          compositionId: 'composition-1',
+          compositionVersionId: 'composition-version-old',
+          frozenAt: '2026-06-10T00:00:00.000Z',
+          assignmentPayloadPath: 'reading_v2/projections/assignment_payloads/hw-reading-set:composition-version-old',
+          items: [],
+        },
+      },
+      submissions: [{ id: 'submission-1', studentId: 'student-1', status: 'assigned' }],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/submission submission-1 already started/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refresh to latest passage versions/i })).toBeDisabled();
+    expect(refreshReadingV2MasterAssignmentFromLatestMock).not.toHaveBeenCalled();
   });
 });

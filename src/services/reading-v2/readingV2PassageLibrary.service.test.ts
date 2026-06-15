@@ -294,6 +294,64 @@ describe('readingV2PassageLibrary.service', () => {
     });
   });
 
+  it('excludes archived Reading Passages from active private and public lists', async () => {
+    const testReader = reader({
+      readMetadata: vi.fn(async () =>
+        metadata({
+          state: 'archived',
+          archivedAt: '2026-06-02T00:00:00.000Z',
+        }) as any,
+      ),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it('returns archived owner rows only from the explicit Archive scope', async () => {
+    const testReader = reader({
+      listIndexRows: vi.fn(async () => [
+        indexRow({ materialId: 'passage-archived', visibility: 'private' }) as any,
+      ]),
+      readMetadata: vi.fn(async () =>
+        metadata({
+          materialId: 'passage-archived',
+          state: 'archived',
+          archivedAt: '2026-06-02T00:00:00.000Z',
+        }) as any,
+      ),
+      readStudentSafeProjection: vi.fn(async () => projection(13) as any),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'archived',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(testReader.listIndexRows).toHaveBeenCalledWith({
+      scope: 'archived',
+      teacherId: 'teacher-1',
+    });
+    expect(rows).toEqual([
+      expect.objectContaining({
+        materialId: 'passage-archived',
+        scope: 'archived',
+        archived: true,
+        accessible: false,
+        selectable: false,
+      }),
+    ]);
+    expect(rows[0]?.actions.map((action) => action.key)).toEqual(['view', 'restore']);
+  });
+
   it('excludes full tests and non-Reading-Passage metadata from the dedicated Reading Passage list', async () => {
     const testReader = reader({
       listIndexRows: vi.fn(async () => [
@@ -361,6 +419,35 @@ describe('readingV2PassageLibrary.service', () => {
   it('archives a Reading Passage and removes all canonical material index rows', async () => {
     const writes: Array<{ path: string; value: unknown }> = [];
     const removes: string[] = [];
+    const updates: Record<string, unknown | null>[] = [];
+    const existingIndexRow = {
+      materialId: 'passage-1',
+      ownerId: 'teacher-1',
+      title: 'Academic Reading Test 1 - Passage 2',
+      visibility: 'private',
+      materialKind: 'reading-passage',
+      testTypeIds: ['ielts'],
+      testTypeMembership: { ielts: true },
+      sourceFullTestId: 'full-test-1',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    };
+    const existingByPath: Record<string, unknown> = {
+      [readingV2StoragePaths.materialMetadata('passage-1')]: {
+        materialId: 'passage-1',
+        ownerId: 'teacher-1',
+        state: 'published',
+      },
+      [readingV2StoragePaths.readingPassageMaterials('passage-1')]: {
+        passageMaterialId: 'passage-1',
+        ownerId: 'teacher-1',
+        state: 'published',
+      },
+      'material_catalog/material_indexes/by_owner/teacher-1/passage-1': existingIndexRow,
+      'material_catalog/material_indexes/by_visibility/private/passage-1': existingIndexRow,
+      'material_catalog/material_indexes/by_material_kind/reading-passage/passage-1': existingIndexRow,
+      'material_catalog/material_indexes/by_test_type/ielts/passage-1': existingIndexRow,
+      'material_catalog/material_indexes/by_source_full_test/full-test-1/passage-1': existingIndexRow,
+    };
 
     await archiveReadingV2PassageMaterial({
       teacherId: 'teacher-1',
@@ -376,6 +463,10 @@ describe('readingV2PassageLibrary.service', () => {
         publishedSnapshotVersionId: 'snapshot-1',
       },
       repository: {
+        read: async (path) => existingByPath[path] ?? null,
+        update: async (payload) => {
+          updates.push(payload);
+        },
         write: async (path, value) => {
           writes.push({ path, value });
         },
@@ -386,30 +477,25 @@ describe('readingV2PassageLibrary.service', () => {
       now: '2026-06-02T00:00:00.000Z',
     });
 
-    expect(writes).toEqual(expect.arrayContaining([
-      {
-        path: `${readingV2StoragePaths.materialMetadata('passage-1')}/state`,
-        value: 'archived',
-      },
-      {
-        path: `${readingV2StoragePaths.materialMetadata('passage-1')}/archivedAt`,
-        value: '2026-06-02T00:00:00.000Z',
-      },
-      {
-        path: `${readingV2StoragePaths.readingPassageMaterials('passage-1')}/state`,
-        value: 'archived',
-      },
-      {
-        path: `${readingV2StoragePaths.readingPassageMaterialVersions('passage-1', 'snapshot-1')}/state`,
-        value: 'archived',
-      },
-    ]));
-    expect(removes).toEqual(expect.arrayContaining([
-      'material_catalog/material_indexes/by_owner/teacher-1/passage-1',
-      'material_catalog/material_indexes/by_visibility/private/passage-1',
-      'material_catalog/material_indexes/by_material_kind/reading-passage/passage-1',
-      'material_catalog/material_indexes/by_test_type/ielts/passage-1',
-      'material_catalog/material_indexes/by_source_full_test/full-test-1/passage-1',
-    ]));
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual(expect.objectContaining({
+      [`${readingV2StoragePaths.materialMetadata('passage-1')}/state`]: 'archived',
+      [`${readingV2StoragePaths.materialMetadata('passage-1')}/archivedAt`]: '2026-06-02T00:00:00.000Z',
+      [`${readingV2StoragePaths.readingPassageMaterials('passage-1')}/state`]: 'archived',
+      'material_catalog/material_archive_indexes/by_owner/teacher-1/reading-passage/passage-1': expect.objectContaining({
+        materialId: 'passage-1',
+        currentVersionId: 'snapshot-1',
+      }),
+      'material_catalog/material_indexes/by_owner/teacher-1/passage-1': null,
+      'material_catalog/material_indexes/by_visibility/private/passage-1': null,
+      'material_catalog/material_indexes/by_material_kind/reading-passage/passage-1': null,
+      'material_catalog/material_indexes/by_test_type/ielts/passage-1': null,
+      'material_catalog/material_indexes/by_source_full_test/full-test-1/passage-1': null,
+    }));
+    expect(Object.keys(updates[0] ?? {}).some((path) =>
+      path.includes('/reading_passage_material_versions/') || path.includes('/published_snapshots/'),
+    )).toBe(false);
+    expect(writes).toEqual([]);
+    expect(removes).toEqual([]);
   });
 });

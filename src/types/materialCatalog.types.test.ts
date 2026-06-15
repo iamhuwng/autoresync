@@ -12,6 +12,7 @@ import {
   type MaterialBookMetadata,
   type MaterialBookNode,
   type MaterialTestTypeConfig,
+  type ReadingPassageListScope,
   type TeacherTestTypePreference,
 } from './materialCatalog.types';
 
@@ -28,6 +29,11 @@ describe('materialCatalog.types', () => {
     expect(MATERIAL_CATALOG_MATERIAL_KINDS).toContain('reading-passage');
     expect(MATERIAL_CATALOG_MATERIAL_KINDS).toContain('book');
     expect(READING_PASSAGE_VISIBILITY_SCOPES).toEqual(['private', 'public']);
+    expect((['private', 'public', 'archived'] satisfies ReadingPassageListScope[])).toEqual([
+      'private',
+      'public',
+      'archived',
+    ]);
     expect(MATERIAL_BOOK_VISIBILITIES).toEqual([
       'private',
       'public-library-pending-review',
@@ -38,6 +44,7 @@ describe('materialCatalog.types', () => {
       'draft-empty',
       'draft-in-progress',
       'ready',
+      'needs-repair',
       'archived',
     ]);
     expect(MATERIAL_BOOK_NODE_TYPES).toEqual([
@@ -53,6 +60,8 @@ describe('materialCatalog.types', () => {
       'archived',
       'missing',
       'inaccessible',
+      'missing-version',
+      'missing-projection',
     ]);
     expect(MATERIAL_REF_UPDATE_STATES).toEqual([
       'current',

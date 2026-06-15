@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Button, NativeSelect } from './index';
-import { GlobeIcon, LockIcon, PlusIcon, SearchIcon } from './icons.jsx';
+import { FileIcon, GlobeIcon, LockIcon, PlusIcon, SearchIcon } from './icons.jsx';
 import MaterialViewModeToggle from './MaterialViewModeToggle';
 import './SearchFilterBar.css';
 
@@ -22,9 +22,19 @@ const SearchFilterBar = ({
   visibilityScope,
   onVisibilityScopeChange,
   visibilityLabel,
+  visibilityScopeOptions,
 }) => {
   const showViewModeToggle = Boolean(viewMode && typeof onViewModeChange === 'function');
   const showVisibilityScope = Boolean(visibilityScope && typeof onVisibilityScopeChange === 'function');
+  const scopeOptions = visibilityScopeOptions || [
+    { value: 'private', label: 'Private', icon: LockIcon },
+    { value: 'public', label: 'Public', icon: GlobeIcon },
+  ];
+  const scopeIconByValue = {
+    private: LockIcon,
+    public: GlobeIcon,
+    archived: FileIcon,
+  };
 
   return (
     <div className="search-filter-bar">
@@ -105,10 +115,8 @@ const SearchFilterBar = ({
           role="group"
           aria-label={visibilityLabel || 'Visibility'}
         >
-          {[
-            { value: 'private', label: 'Private', icon: LockIcon },
-            { value: 'public', label: 'Public', icon: GlobeIcon },
-          ].map(({ value, label, icon: Icon }) => {
+          {scopeOptions.map(({ value, label, icon }) => {
+            const Icon = icon || scopeIconByValue[value] || FileIcon;
             const isActive = visibilityScope === value;
 
             return (

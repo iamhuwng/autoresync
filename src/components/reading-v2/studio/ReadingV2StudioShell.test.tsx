@@ -501,6 +501,84 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.getByLabelText('Passage 1 editor')).toBeInTheDocument();
   });
 
+  it('hides passage collection controls when revising an individual Reading Passage', () => {
+    render(
+      <ReadingV2StudioShell
+        mode="revise-published"
+        metadata={{
+          title: 'Single Passage Revision',
+          materialKind: 'reading-passage',
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Passage 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+  });
+
+  it('hides passage collection controls outside manual and import creation modes', () => {
+    const { rerender } = render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        metadata={{ title: 'Resumed Full Test', materialKind: 'full-test' }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+
+    rerender(
+      <ReadingV2StudioShell
+        mode="revise-published"
+        metadata={{ title: 'Revised Full Test', materialKind: 'full-test' }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Add Passage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Passage 1' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Add Passage available for imported and Auto V4 studio outcomes', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Imported Reading passage',
+        '',
+        'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
+        '',
+        '#### Questions 1-2',
+        'Do the following statements agree with the information? TRUE, FALSE, NOT GIVEN',
+        '**1** Imported statement one',
+        '**2** Imported statement two',
+      ].join('\n'),
+      answerKeyText: ['1 TRUE', '2 FALSE'].join('\n'),
+      fileName: 'import-with-passage-controls.md',
+    });
+    const normalized = normalizeReadingV2ImportCandidate(candidate);
+
+    const { rerender } = render(
+      <ReadingV2StudioShell
+        mode="create-from-import"
+        document={normalized.document}
+        importCandidate={candidate}
+        metadata={{ title: 'Imported full test' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
+
+    rerender(
+      <ReadingV2StudioShell
+        mode="create-from-auto"
+        document={normalized.document}
+        importCandidate={candidate}
+        metadata={{ title: 'Auto V4 full test' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
+  });
+
   it('keeps Passage 3 editable when selected directly from a blank test', () => {
     render(<ReadingV2StudioShell mode="create-blank" metadata={{ title: 'Direct passage 3 test' }} />);
 

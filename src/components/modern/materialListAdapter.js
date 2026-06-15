@@ -372,9 +372,13 @@ function buildReadingPassageBadges(record, testTypeConfig) {
 
   badges.push({
     key: 'visibility',
-    label: titleCaseScope(record?.visibility || record?.scope),
+    label: record?.scope === 'archived' ? 'Archive' : titleCaseScope(record?.visibility || record?.scope),
     tone: record?.visibility === 'public' || record?.scope === 'public' ? 'green' : 'neutral',
   });
+
+  if (record?.archived === true || record?.scope === 'archived') {
+    badges.push({ key: 'archived', label: 'Archived', tone: 'warning' });
+  }
 
   if (compactValue(record?.sourceQuestionRange)) {
     badges.push({ key: 'source-question-range', label: compactValue(record.sourceQuestionRange), tone: 'neutral' });
@@ -398,6 +402,9 @@ function readingPassageActionIconKind(key) {
   if (key === 'archive') {
     return 'archive';
   }
+  if (key === 'restore') {
+    return 'restore';
+  }
   if (key === 'open' || key === 'view') {
     return 'view';
   }
@@ -410,7 +417,7 @@ function defaultReadingPassageActions(record) {
         { key: 'open', label: 'Open' },
         { key: 'assign-homework', label: 'Assign homework' },
         { key: 'revise', label: 'Revise', ownerOnly: true },
-        { key: 'archive', label: 'Archive', ownerOnly: true },
+        { key: 'archive', label: 'Remove from library', ownerOnly: true },
       ]
     : [
         { key: 'view', label: 'View' },
@@ -439,9 +446,14 @@ const READING_PASSAGE_ROW_SOURCE_KEYS = [
   'sourceFullTestId',
   'sourceFullTestTitle',
   'publishedSnapshotVersionId',
+  'currentVersionId',
   'hasStudentSafeProjection',
   'accessible',
   'archived',
+  'archivedAt',
+  'masterRefCount',
+  'bookRefCount',
+  'activeHomeworkCount',
 ];
 
 function sanitizeReadingPassageSource(record) {
@@ -469,6 +481,9 @@ function readingPassageActionHandler(key, source, handlers = {}) {
   if (key === 'archive') {
     return () => handlers.onArchiveReadingPassage?.(source);
   }
+  if (key === 'restore') {
+    return () => handlers.onRestoreReadingPassage?.(source);
+  }
   return () => {};
 }
 
@@ -494,6 +509,7 @@ const READING_PASSAGE_ACTION_SLOT_BY_KEY = {
   'assign-homework': 2,
   revise: 3,
   archive: 4,
+  restore: 4,
 };
 
 export function toReadingPassageRowModel(record, options = {}) {
@@ -510,8 +526,8 @@ export function toReadingPassageRowModel(record, options = {}) {
     .filter((entry) => entry.key !== 'delete')
     .map((entry) => action({
       key: entry.key,
-      label: entry.label,
-      variant: entry.key === 'archive' ? 'danger' : entry.key === 'assign-homework' ? 'primary' : 'secondary',
+      label: entry.key === 'archive' ? 'Remove from library' : entry.label,
+      variant: entry.key === 'archive' ? 'danger' : entry.key === 'restore' ? 'primary' : entry.key === 'assign-homework' ? 'primary' : 'secondary',
       iconKind: readingPassageActionIconKind(entry.key),
       onSelect: readingPassageActionHandler(entry.key, rowSource, handlers),
       disabled: entry.key === 'assign-homework' && Boolean(assignmentBlocker),
@@ -532,7 +548,7 @@ export function toReadingPassageRowModel(record, options = {}) {
     updatedLabel: getUpdatedLabel(record),
     statusKind: 'reading-passage',
     isOwner: Boolean(record?.isOwner),
-    selection: record?.selectable === false ? undefined : {
+    selection: record?.archived === true || record?.scope === 'archived' || record?.selectable === false ? undefined : {
       checked: selected,
       label: `Select ${title}`,
       disabled: Boolean(assignmentBlocker),
