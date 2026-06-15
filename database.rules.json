@@ -343,6 +343,20 @@
                     }
                 }
             },
+            "material_archive_indexes": {
+                "by_owner": {
+                    "$ownerId": {
+                        "reading-passage": {
+                            ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            "$materialId": {
+                                ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                                ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid && ((newData.exists() && newData.child('ownerId').val() === $ownerId) || (!newData.exists() && data.child('ownerId').val() === $ownerId))) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                                ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'title', 'visibility', 'archivedAt', 'archivedBy', 'currentVersionId', 'questionCount']) && newData.child('materialId').val() === $materialId && newData.child('ownerId').val() === $ownerId && newData.child('title').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && newData.child('archivedAt').isString() && newData.child('archivedBy').isString() && newData.child('currentVersionId').isString() && newData.child('questionCount').isNumber() && !newData.child('passageBody').exists() && !newData.child('bodyText').exists() && !newData.child('questionText').exists() && !newData.child('reviewPayload').exists() && !newData.child('canonicalPayload').exists() && !newData.child('document').exists() && !newData.child('sections').exists() && !newData.child('stimuli').exists() && !newData.child('taskGroups').exists() && !newData.child('interactions').exists() && !newData.child('optionSets').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('aiReviewEvidence').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('hiddenProvenance').exists() && !newData.child('importEvidence').exists())"
+                            }
+                        }
+                    }
+                }
+            },
             "books": {
                 "$bookId": {
                     ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('ownerId').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
@@ -660,11 +674,11 @@
         },
         "reading_v2": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-            ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".write": "false",
             "drafts": {
                 "$draftId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".validate": "!newData.exists() || (newData.hasChildren(['draftId', 'ownerId', 'document', 'revisionToken', 'state', 'updatedAt']) && newData.child('draftId').val() === $draftId)",
                     ".indexOn": [
                         "ownerId",
@@ -676,7 +690,7 @@
             "passage_assets": {
                 "$assetId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".validate": "!newData.exists() || (newData.hasChildren(['passageAssetId', 'ownerId']) && newData.child('passageAssetId').val() === $assetId)",
                     ".indexOn": [
                         "ownerId",
@@ -720,7 +734,7 @@
             "reading_passage_materials": {
                 "$materialId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".validate": "!newData.exists() || (newData.hasChildren(['passageMaterialId', 'ownerId', 'state', 'currentSnapshotVersionId']) && newData.child('passageMaterialId').val() === $materialId)",
                     ".indexOn": [
                         "ownerId",
@@ -743,8 +757,8 @@
             "full_test_compositions": {
                 "$compositionId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'ownerId', 'testMaterialId', 'passageRefs', 'publishedVersionId']) && newData.child('compositionId').val() === $compositionId)",
+                    ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'ownerId', 'testMaterialId', 'passageRefs', 'publishedVersionId']) && newData.child('compositionId').val() === $compositionId && (!newData.child('state').exists() || newData.child('state').val() === 'draft' || newData.child('state').val() === 'published' || newData.child('state').val() === 'removed') && !newData.child('document').exists() && !newData.child('sections').exists() && !newData.child('stimuli').exists() && !newData.child('taskGroups').exists() && !newData.child('interactions').exists() && !newData.child('optionSets').exists() && !newData.child('answerKey').exists() && !newData.child('correctAnswers').exists())",
                     ".indexOn": [
                         "ownerId",
                         "testMaterialId",
@@ -757,15 +771,15 @@
                     "$versionId": {
                         ".read": "auth != null && (root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('reading_v2').child('full_test_compositions').child($compositionId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                        ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'publishedVersionId', 'ownerId']) && newData.child('compositionId').val() === $compositionId && newData.child('publishedVersionId').val() === $versionId)"
+                        ".validate": "!newData.exists() || (newData.hasChildren(['compositionId', 'publishedVersionId', 'ownerId']) && newData.child('compositionId').val() === $compositionId && newData.child('publishedVersionId').val() === $versionId && !newData.child('document').exists() && !newData.child('sections').exists() && !newData.child('stimuli').exists() && !newData.child('taskGroups').exists() && !newData.child('interactions').exists() && !newData.child('optionSets').exists() && !newData.child('answerKey').exists() && !newData.child('correctAnswers').exists())"
                     }
                 }
             },
             "material_metadata": {
                 "$materialId": {
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'deliveryEngine', 'title', 'publishedSnapshotVersionId']) && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
+                    ".write": "auth != null && newData.exists() && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['materialId', 'ownerId', 'deliveryEngine', 'title', 'publishedSnapshotVersionId']) && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2' && (!newData.child('state').exists() || newData.child('state').val() === 'draft' || newData.child('state').val() === 'published' || newData.child('state').val() === 'archived' || newData.child('state').val() === 'removed'))",
                     ".indexOn": [
                         "ownerId",
                         "visibility",
@@ -802,6 +816,18 @@
                     }
                 }
             },
+            "duplicate_indexes": {
+                "passages_by_owner": {
+                    "$ownerId": {
+                        ".read": "auth != null && ($ownerId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        "$passageMaterialId": {
+                            ".read": "auth != null && ($ownerId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && (($ownerId === auth.uid && newData.child('ownerId').val() === $ownerId) || ($ownerId === auth.uid && !newData.exists() && data.child('ownerId').val() === $ownerId) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'ownerId', 'passageMaterialId', 'currentVersionId', 'title', 'state', 'visibility', 'source', 'testType', 'questionCount', 'updatedAt', 'bodyShingleSize', 'questionShingleSize', 'bodyShingleHashes', 'questionShingleHashes']) && newData.child('schemaVersion').val() === 1 && newData.child('ownerId').val() === $ownerId && newData.child('passageMaterialId').val() === $passageMaterialId && newData.child('bodyShingleSize').val() === 5 && newData.child('questionShingleSize').val() === 3 && !newData.child('passageBody').exists() && !newData.child('bodyText').exists() && !newData.child('questionText').exists() && !newData.child('canonicalPayload').exists() && !newData.child('document').exists() && !newData.child('sections').exists() && !newData.child('stimuli').exists() && !newData.child('taskGroups').exists() && !newData.child('interactions').exists() && !newData.child('optionSets').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('aiReviewEvidence').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('hiddenProvenance').exists() && !newData.child('importEvidence').exists())"
+                        }
+                    }
+                }
+            },
             "published_snapshots": {
                 "$materialId": {
                     "$snapshotVersionId": {
@@ -831,6 +857,13 @@
                         ".read": "auth != null",
                         ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                         ".validate": "!newData.exists() || (newData.hasChildren(['ownerId']) && !newData.child('answerKeys').exists() && !newData.child('scoringRule').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
+                    }
+                },
+                "assignment_payloads": {
+                    "$assignmentPayloadId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['ownerId', 'projectionKind', 'sourceSnapshotVersionId', 'assignmentManifest']) && newData.child('projectionKind').val() === 'student-safe' && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('reviewPayload').exists() && !newData.child('document').exists() && !newData.child('liveMutableRefs').exists() && !newData.child('scoringRule').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())"
                     }
                 },
                 "review": {
@@ -907,6 +940,13 @@
                     ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".write": "auth != null && (!data.exists()) && (newData.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                     ".validate": "!newData.exists() || (newData.hasChildren(['commitKey', 'materialId', 'snapshotVersionId', 'ownerId', 'deliveryEngine', 'operationKeys', 'writePaths', 'committedAt']) && newData.child('deliveryEngine').val() === 'reading-v2')"
+                }
+            },
+            "audit_events": {
+                "$eventId": {
+                    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".write": "auth != null && !data.exists() && newData.exists() && (newData.child('actorUserId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'eventId', 'createdAt', 'actorUserId', 'actorRole', 'action', 'entityType', 'entityId', 'correlationId', 'sourceFeatureId', 'sourceRoute']) && newData.child('schemaVersion').val() === 1 && newData.child('eventId').val() === $eventId && (newData.child('actorRole').val() === 'teacher' || newData.child('actorRole').val() === 'super_admin' || newData.child('actorRole').val() === 'system') && (newData.child('action').val() === 'reading_passage_archived' || newData.child('action').val() === 'reading_passage_restored' || newData.child('action').val() === 'reading_master_removed' || newData.child('action').val() === 'reading_master_broken_ref_repaired' || newData.child('action').val() === 'reading_book_broken_ref_repaired' || newData.child('action').val() === 'reading_duplicate_warning_existing_used' || newData.child('action').val() === 'reading_duplicate_warning_restore_used' || newData.child('action').val() === 'reading_duplicate_warning_bypassed' || newData.child('action').val() === 'reading_super_admin_passage_archived') && (newData.child('entityType').val() === 'reading-passage' || newData.child('entityType').val() === 'reading-master' || newData.child('entityType').val() === 'reading-book' || newData.child('entityType').val() === 'duplicate-warning') && !newData.child('passageBody').exists() && !newData.child('bodyText').exists() && !newData.child('questionText').exists() && !newData.child('canonicalPayload').exists() && !newData.child('document').exists() && !newData.child('sections').exists() && !newData.child('stimuli').exists() && !newData.child('taskGroups').exists() && !newData.child('interactions').exists() && !newData.child('optionSets').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('studentAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('aiReviewEvidence').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('hiddenProvenance').exists() && !newData.child('importEvidence').exists())"
                 }
             }
         },

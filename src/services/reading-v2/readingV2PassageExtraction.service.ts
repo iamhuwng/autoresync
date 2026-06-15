@@ -4,6 +4,7 @@ import {
   type ReadingV2Anchor,
   type ReadingV2Document,
   type ReadingV2FullTestComposition,
+  type ReadingV2FullTestCompositionId,
   type ReadingV2FullTestId,
   type ReadingV2Interaction,
   type ReadingV2MaterialId,
@@ -25,6 +26,7 @@ import {
   assertReadingV2PublishGate,
   ReadingV2PublishGateError,
 } from './readingV2Validation.service';
+import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
 
 export type ReadingV2PassageExtractionIssueCode =
   | 'missing-source-input'
@@ -115,6 +117,14 @@ const sanitizeIdPart = (value: string): string =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'reading-v2';
+
+export const buildReadingV2ExtractedFullTestCompositionId = (
+  testMaterialId: string,
+  sourceSnapshotVersionId: string,
+): ReadingV2FullTestCompositionId =>
+  readingV2Ids.fullTestCompositionId(
+    `composition-${sanitizeIdPart(testMaterialId)}-${sanitizeIdPart(sourceSnapshotVersionId)}`,
+  );
 
 const cloneRecord = <T>(value: T): T =>
   typeof structuredClone === 'function'
@@ -357,10 +367,53 @@ const deriveQuestionRange = (
   return min === max ? String(min) : `${min}-${max}`;
 };
 
+const normalizeTitleForComparison = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const isGenericPassageTitle = (
+  title: string | undefined,
+  sourceOrder: ReadingV2SourceOrderSnapshot,
+): boolean => {
+  const normalized = normalizeTitleForComparison(title ?? '');
+
+  if (!normalized) {
+    return true;
+  }
+
+  return (
+    normalized === normalizeTitleForComparison(sourceOrder.displaySnapshot) ||
+    normalized === 'source unknown' ||
+    normalized === 'section unknown' ||
+    /^reading passage [a-z0-9]+$/.test(normalized) ||
+    /^passage [a-z0-9]+$/.test(normalized) ||
+    /^fixture stimulus for /.test(normalized) ||
+    normalized.startsWith('you should spend about ')
+  );
+};
+
+const fallbackPassageTitle = (sourceTitle: string, passageIndex: number): string => {
+  const baseTitle = (sourceTitle.trim() || 'Untitled Reading V2 source').replace(/:\s*$/, '');
+
+  return `${baseTitle}: Passage ${passageIndex + 1}`;
+};
+
 const buildPassageTitle = (
+  stimulus: ReadingV2StimulusNode,
   sourceTitle: string,
   sourceOrder: ReadingV2SourceOrderSnapshot,
-): string => `${sourceTitle} - ${sourceOrder.displaySnapshot}`;
+  passageIndex: number,
+): string => {
+  const ownTitle = stimulus.title?.trim();
+
+  return !isGenericPassageTitle(ownTitle, sourceOrder)
+    ? ownTitle!
+    : fallbackPassageTitle(sourceTitle, passageIndex);
+};
 
 const buildSinglePassageDocument = (
   sourceDocument: ReadingV2Document,
@@ -500,8 +553,9 @@ export const extractReadingV2PassageMaterials = (
         deliveryEngine: READING_V2_ENGINE,
         plane: 'packaging',
         schemaVersion: 1,
-        compositionId: readingV2Ids.fullTestCompositionId(
-          `composition-${sanitizeIdPart(source.testMaterialId)}-${sanitizeIdPart(source.sourceSnapshotVersionId)}`,
+        compositionId: buildReadingV2ExtractedFullTestCompositionId(
+          source.testMaterialId,
+          source.sourceSnapshotVersionId,
         ),
         testMaterialId: source.testMaterialId,
         title: source.sourceTitleSnapshot,
@@ -510,6 +564,7 @@ export const extractReadingV2PassageMaterials = (
         skill: 'reading',
         passageRefs: [],
         questionCount: 0,
+        numbering: composeReadingV2CompositionNumbering({ passages: [] }),
         durationMinutes: input.durationMinutes,
         visibility: materialVisibility,
         ownerId: source.ownerId,
@@ -555,7 +610,12 @@ export const extractReadingV2PassageMaterials = (
     const interactionIds = interactions.map((interaction) => interaction.interactionId);
     const taskGroupIds = taskGroups.map((taskGroup) => taskGroup.taskGroupId);
     const sourceQuestionRange = deriveQuestionRange(interactions);
-    const title = buildPassageTitle(source.sourceTitleSnapshot, sourceOrder);
+    const title = buildPassageTitle(
+      sectionRow.stimulus,
+      source.sourceTitleSnapshot,
+      sourceOrder,
+      index,
+    );
     const singlePassageDocument = buildSinglePassageDocument(
       source.document,
       sectionRow.sectionId,
@@ -636,6 +696,7 @@ export const extractReadingV2PassageMaterials = (
       `${sanitizeIdPart(source.testMaterialId)}-passage-ref-${index + 1}`,
     ),
     passageMaterialId: candidate.material.passageMaterialId,
+    materialId: candidate.material.passageMaterialId,
     snapshotVersionId: candidate.material.currentSnapshotVersionId,
     order: index + 1,
     sourcePassageNumber:
@@ -646,11 +707,34 @@ export const extractReadingV2PassageMaterials = (
     sourceOrderLabelSnapshot: candidate.material.sourceOrder.labelSnapshot,
     sourceOrderDisplaySnapshot: candidate.material.sourceOrder.displaySnapshot,
     titleSnapshot: candidate.material.title,
+    title: candidate.material.title,
+    source: {
+      sourceOrderLabel: candidate.material.sourceOrder.labelSnapshot,
+      sourceOrderDisplay: candidate.material.sourceOrder.displaySnapshot,
+      sourceFullTestId: candidate.material.sourceFullTestId,
+      sourceFullTestTitle: candidate.material.sourceTitleSnapshot,
+    },
     questionRangeSnapshot: candidate.material.sourceQuestionRange,
     questionCountSnapshot: candidate.material.interactionIds.length,
+    questionCount: candidate.material.interactionIds.length,
     durationSnapshot: candidate.material.durationMinutes,
+    ownerId: source.ownerId,
+    visibility: materialVisibility,
+    currentVersionId: candidate.material.currentSnapshotVersionId,
+    testType: {
+      ...(candidate.material.primaryTestTypeId ? { primaryTestTypeId: candidate.material.primaryTestTypeId } : {}),
+      testTypeIds: candidate.material.testTypeIds,
+    },
     testTypeIdsSnapshot: candidate.material.testTypeIds,
   }));
+  const numbering = composeReadingV2CompositionNumbering({
+    passages: candidates.map((candidate, index) => ({
+      order: index + 1,
+      passageMaterialId: candidate.material.passageMaterialId,
+      snapshotVersionId: candidate.material.currentSnapshotVersionId,
+      interactions: candidate.material.interactionIds.map((interactionId) => ({ interactionId })),
+    })),
+  });
 
   return {
     passages: candidates,
@@ -658,8 +742,9 @@ export const extractReadingV2PassageMaterials = (
       deliveryEngine: READING_V2_ENGINE,
       plane: 'packaging',
       schemaVersion: 1,
-      compositionId: readingV2Ids.fullTestCompositionId(
-        `composition-${sanitizeIdPart(source.testMaterialId)}-${sanitizeIdPart(source.sourceSnapshotVersionId)}`,
+      compositionId: buildReadingV2ExtractedFullTestCompositionId(
+        source.testMaterialId,
+        source.sourceSnapshotVersionId,
       ),
       testMaterialId: source.testMaterialId,
       title: source.sourceTitleSnapshot,
@@ -667,10 +752,8 @@ export const extractReadingV2PassageMaterials = (
       testTypeIds,
       skill: 'reading',
       passageRefs,
-      questionCount: candidates.reduce(
-        (count, candidate) => count + candidate.material.interactionIds.length,
-        0,
-      ),
+      questionCount: numbering.totalQuestionCount,
+      numbering,
       durationMinutes: input.durationMinutes,
       visibility: materialVisibility,
       ownerId: source.ownerId,

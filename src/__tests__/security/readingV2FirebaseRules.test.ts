@@ -102,6 +102,8 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(readingV2Rules?.provenance).toBeDefined();
     expect(readingV2Rules?.where_used).toBeDefined();
     expect(readingV2Rules?.publish_commits).toBeDefined();
+    expect(readingV2Rules?.audit_events).toBeDefined();
+    expect(readingV2Rules?.duplicate_indexes).toBeDefined();
   });
 
   it('requires canonical drafts and published snapshots to exclude student read roles', () => {
@@ -121,7 +123,14 @@ describe('Reading V2 Firebase rule contract', () => {
     ).map((entry) => entry.pathClass);
 
     expect(studentReadable.sort()).toEqual(
-      ['relationshipIndexes', 'studentSafeTests', 'sessionSafePayloads', 'attempts', 'results'].sort(),
+      [
+        'relationshipIndexes',
+        'studentSafeTests',
+        'sessionSafePayloads',
+        'assignmentPayloads',
+        'attempts',
+        'results',
+      ].sort(),
     );
   });
 
@@ -153,12 +162,14 @@ describe('Reading V2 Firebase rule contract', () => {
       '"published_snapshots"',
       '"student_safe_tests"',
       '"session_test_payloads"',
+      '"assignment_payloads"',
       '"results"',
       '"review_indexes"',
       '"analytics_outputs"',
       '"provenance"',
       '"where_used"',
       '"publish_commits"',
+      '"duplicate_indexes"',
     ];
 
     expect(readingV2Start).toBeGreaterThan(-1);
@@ -208,11 +219,150 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(validation).toContain("newData.child('publishedVersionId').val() === $versionId");
   });
 
+  it('rejects embedded master payload fields on ref-only composition records', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const compositionValidation = readingV2Rules.full_test_compositions.$compositionId['.validate'];
+    const versionValidation = readingV2Rules.full_test_composition_versions.$compositionId.$versionId['.validate'];
+    const prohibitedFields = [
+      'document',
+      'sections',
+      'stimuli',
+      'taskGroups',
+      'interactions',
+      'optionSets',
+      'answerKey',
+      'correctAnswers',
+    ];
+
+    prohibitedFields.forEach((field) => {
+      expect(compositionValidation).toContain(`!newData.child('${field}').exists()`);
+      expect(versionValidation).toContain(`!newData.child('${field}').exists()`);
+    });
+  });
+
   it('blocks scoringRule from student-safe Reading V2 projections', () => {
     const readingV2Start = DATABASE_RULES.indexOf('"reading_v2"');
     const rulesText = DATABASE_RULES.slice(readingV2Start);
 
     expect(rulesText).toContain("!newData.child('scoringRule').exists()");
+  });
+
+  it('defines assignment payload projection rules as sanitized frozen runtime payloads', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const assignmentPayloadRules =
+      readingV2Rules.projections.assignment_payloads.$assignmentPayloadId as Record<string, string>;
+    const validation = assignmentPayloadRules['.validate'];
+
+    expect(assignmentPayloadRules['.read']).toContain('auth != null');
+    expect(validation).toContain('assignmentManifest');
+    expect(validation).toContain("newData.child('projectionKind').val() === 'student-safe'");
+    [
+      'answerKey',
+      'answerKeys',
+      'correctAnswers',
+      'reviewPayload',
+      'document',
+      'liveMutableRefs',
+    ].forEach((field) => {
+      expect(validation).toContain(`!newData.child('${field}').exists()`);
+    });
+  });
+
+  it('requires Reading V2 audit events to be append-only, super-admin readable, and unsafe-field denied', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const auditRules = readingV2Rules.audit_events.$eventId as Record<string, string>;
+    const validation = auditRules['.validate'];
+
+    expect(auditRules['.read']).toContain("role').val() === 'super_admin'");
+    expect(auditRules['.write']).toContain('!data.exists()');
+    expect(auditRules['.write']).toContain('newData.exists()');
+    expect(validation).toContain("newData.child('eventId').val() === $eventId");
+    [
+      'reading_passage_archived',
+      'reading_passage_restored',
+      'reading_master_removed',
+      'reading_master_broken_ref_repaired',
+      'reading_book_broken_ref_repaired',
+      'reading_duplicate_warning_existing_used',
+      'reading_duplicate_warning_restore_used',
+      'reading_duplicate_warning_bypassed',
+      'reading_super_admin_passage_archived',
+    ].forEach((action) => {
+      expect(validation).toContain(`newData.child('action').val() === '${action}'`);
+    });
+    [
+      'teacher',
+      'super_admin',
+      'system',
+    ].forEach((actorRole) => {
+      expect(validation).toContain(`newData.child('actorRole').val() === '${actorRole}'`);
+    });
+    [
+      'reading-passage',
+      'reading-master',
+      'reading-book',
+      'duplicate-warning',
+    ].forEach((entityType) => {
+      expect(validation).toContain(`newData.child('entityType').val() === '${entityType}'`);
+    });
+    [
+      'passageBody',
+      'bodyText',
+      'document',
+      'answerKey',
+      'studentAnswers',
+      'scoringRule',
+      'aiReviewEvidence',
+      'hiddenProvenance',
+      'importEvidence',
+    ].forEach((field) => {
+      expect(validation).toContain(`!newData.child('${field}').exists()`);
+    });
+  });
+
+  it('requires Reading V2 duplicate index rows to stay owner scoped and unsafe-field denied', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const rowRules =
+      readingV2Rules.duplicate_indexes.passages_by_owner.$ownerId.$passageMaterialId as Record<string, string>;
+    const validation = rowRules['.validate'];
+
+    expect(rowRules['.read']).toContain('$ownerId === auth.uid');
+    expect(rowRules['.write']).toContain('$ownerId === auth.uid');
+    expect(validation).toContain("newData.child('ownerId').val() === $ownerId");
+    expect(validation).toContain("newData.child('passageMaterialId').val() === $passageMaterialId");
+    [
+      'passageBody',
+      'bodyText',
+      'questionText',
+      'document',
+      'answerKey',
+      'scoringRule',
+      'aiReviewEvidence',
+      'hiddenProvenance',
+      'importEvidence',
+    ].forEach((field) => {
+      expect(validation).toContain(`!newData.child('${field}').exists()`);
+    });
+  });
+
+  it('requires archive/restore/remove to use soft state writes and keeps immutable snapshots protected', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const passageRules = readingV2Rules.reading_passage_materials.$materialId as Record<string, string>;
+    const metadataRules = readingV2Rules.material_metadata.$materialId as Record<string, string>;
+    const compositionRules = readingV2Rules.full_test_compositions.$compositionId as Record<string, string>;
+    const versionRules = readingV2Rules.reading_passage_material_versions.$materialId.$versionId as Record<string, string>;
+    const snapshotRules = readingV2Rules.published_snapshots.$materialId.$snapshotVersionId as Record<string, string>;
+
+    expect(passageRules['.write']).toContain('newData.exists()');
+    expect(metadataRules['.write']).toContain('newData.exists()');
+    expect(compositionRules['.write']).toContain('newData.exists()');
+    expect(passageRules['.validate']).toContain('state');
+    expect(metadataRules['.validate']).toContain('state');
+    expect(compositionRules['.validate']).toContain('state');
+    expect(versionRules['.write']).toContain('!data.exists()');
+    expect(snapshotRules['.write']).toContain('!data.exists()');
+    expect(versionRules['.write']).not.toContain('data.child');
+    expect(snapshotRules['.write']).not.toContain('data.child');
   });
 });
 
@@ -357,6 +507,92 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         studentId: 'student-1',
         ownerId: 'teacher-1',
         hiddenProvenance: { source: 'draft-1' },
+      }),
+    );
+  });
+
+  it('allows valid Reading V2 audit create but rejects read, update, delete, and unsafe fields', async () => {
+    const {
+      admin,
+      student,
+      teacher,
+    } = makeReadingV2RuleContexts();
+    const auditPath = 'reading_v2/audit_events/audit-1';
+    const auditEvent = {
+      schemaVersion: 1,
+      eventId: 'audit-1',
+      createdAt: '2026-06-09T12:00:00.000Z',
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      action: 'reading_passage_archived',
+      entityType: 'reading-passage',
+      entityId: 'passage-1',
+      ownerId: 'teacher-1',
+      materialId: 'passage-1',
+      versionId: 'snapshot-1',
+      correlationId: 'corr-1',
+      sourceFeatureId: 'teacher-materials-reading-passage',
+      sourceRoute: '/lobby',
+    };
+
+    await assertSucceeds(teacher.database().ref(auditPath).set(auditEvent));
+    await assertSucceeds(admin.database().ref(auditPath).once('value'));
+    await assertFails(student.database().ref(auditPath).once('value'));
+    await assertFails(teacher.database().ref(auditPath).update({ titleSnapshot: 'changed' }));
+    await assertFails(teacher.database().ref(auditPath).remove());
+    await assertFails(
+      teacher.database().ref('reading_v2/audit_events/audit-unsafe').set({
+        ...auditEvent,
+        eventId: 'audit-unsafe',
+        answerKey: { q1: 'A' },
+      }),
+    );
+    await assertFails(
+      teacher.database().ref('reading_v2/audit_events/audit-view-only').set({
+        ...auditEvent,
+        eventId: 'audit-view-only',
+        action: 'reading_passage_duplicate_warning_shown',
+      }),
+    );
+  });
+
+  it('allows safe owner duplicate index writes and rejects unsafe or cross-owner rows', async () => {
+    const {
+      otherTeacher,
+      teacher,
+    } = makeReadingV2RuleContexts();
+    const row = {
+      schemaVersion: 1,
+      ownerId: 'teacher-1',
+      passageMaterialId: 'passage-1',
+      currentVersionId: 'snapshot-1',
+      title: 'Safe duplicate index row',
+      state: 'published',
+      visibility: 'private',
+      source: { sourceFullTestId: 'full-test-1' },
+      testType: { primaryTestTypeId: 'ielts', testTypeIds: ['ielts'] },
+      questionCount: 2,
+      updatedAt: '2026-06-09T12:00:00.000Z',
+      bodyShingleSize: 5,
+      questionShingleSize: 3,
+      bodyShingleHashes: ['a'.repeat(64)],
+      questionShingleHashes: ['b'.repeat(64)],
+    };
+
+    await assertSucceeds(
+      teacher.database().ref('reading_v2/duplicate_indexes/passages_by_owner/teacher-1/passage-1').set(row),
+    );
+    await assertFails(
+      otherTeacher.database().ref('reading_v2/duplicate_indexes/passages_by_owner/teacher-1/passage-2').set({
+        ...row,
+        passageMaterialId: 'passage-2',
+      }),
+    );
+    await assertFails(
+      teacher.database().ref('reading_v2/duplicate_indexes/passages_by_owner/teacher-1/passage-unsafe').set({
+        ...row,
+        passageMaterialId: 'passage-unsafe',
+        document: { canonical: true },
       }),
     );
   });

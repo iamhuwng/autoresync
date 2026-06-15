@@ -19,6 +19,7 @@ export type ReadingV2StoragePathClass =
   | 'previewPayloads'
   | 'studentSafeTests'
   | 'sessionSafePayloads'
+  | 'assignmentPayloads'
   | 'reviewProjections'
   | 'attempts'
   | 'results'
@@ -59,6 +60,8 @@ export const readingV2StoragePaths = {
     namespaced(`projections/student_safe_tests/${materialId}:${snapshotVersionId}`),
   sessionSafePayloads: (sessionCode: string, snapshotVersionId = 'current'): string =>
     namespaced(`projections/session_test_payloads/${sessionCode}:${snapshotVersionId}`),
+  assignmentPayloads: (homeworkId: string, compositionVersionId: string): string =>
+    namespaced(`projections/assignment_payloads/${homeworkId}:${compositionVersionId}`),
   reviewProjections: (materialId: string, snapshotVersionId: string): string =>
     namespaced(`projections/review/${materialId}:${snapshotVersionId}`),
   attempts: (attemptId: string): string => namespaced(`attempts/${attemptId}`),

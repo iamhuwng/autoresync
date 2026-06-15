@@ -14,6 +14,7 @@ export interface ReadingV2TrustedSubmissionRequest {
   sourceSnapshotVersionId: string;
   materialId?: string;
   answers: readonly ReadingV2TrustedSubmissionAnswer[];
+  integrityReport?: Record<string, unknown> | null;
   context?: {
     surface?: ReadingV2SubmitSurface;
     sessionCode?: string;
@@ -99,6 +100,18 @@ const optionalString = (value: unknown): string | undefined =>
 const optionalNullableString = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 
+const optionalIntegrityReport = (value: unknown): Record<string, unknown> | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (!isRecord(value)) {
+    throw new Error('Reading V2 integrityReport must be an object when provided.');
+  }
+
+  return sanitizeRtdbValue(value);
+};
+
 export const sanitizeRtdbValue = <T>(value: T): T => {
   if (value === undefined) {
     return null as T;
@@ -144,6 +157,7 @@ export const parseReadingV2TrustedSubmissionRequest = (
     sourceSnapshotVersionId: requiredString(body.sourceSnapshotVersionId, 'sourceSnapshotVersionId'),
     materialId: optionalString(body.materialId),
     answers: body.answers.map((answer, index) => parseAnswer(answer, index)),
+    integrityReport: optionalIntegrityReport(body.integrityReport),
     context: isRecord(body.context) ? {
       surface: parseSurface(body.context.surface),
       sessionCode: optionalString(body.context.sessionCode),
@@ -385,6 +399,26 @@ const sortReadingPassageSetItems = (homework: Record<string, any>): Record<strin
     ? [...homework.readingPassageSet.items].sort((left, right) => Number(left.order) - Number(right.order))
     : [];
 
+const sortCompositionPassageRefs = (composition: Record<string, any>): Record<string, any>[] =>
+  Array.isArray(composition.passageRefs)
+    ? [...composition.passageRefs].sort((left, right) => Number(left.order) - Number(right.order))
+    : [];
+
+const passageItemTitle = (item: Record<string, any>): string =>
+  optionalString(item.titleSnapshot)
+    ?? optionalString(item.title)
+    ?? optionalString(item.materialTitle)
+    ?? `Passage ${Number(item.order) || 1}`;
+
+const passageItemSourceOrderDisplay = (item: Record<string, any>): string | null =>
+  optionalNullableString(item.sourceOrderDisplay)
+    ?? optionalNullableString(item.sourceOrderDisplaySnapshot)
+    ?? optionalNullableString(item.source?.sourceOrderDisplay);
+
+const passageItemSourceFullTestTitle = (item: Record<string, any>): string | null =>
+  optionalNullableString(item.sourceFullTestTitle)
+    ?? optionalNullableString(item.source?.sourceFullTestTitle);
+
 const prefixedCanonicalInteractions = (
   prefix: string,
   snapshot: Record<string, any>,
@@ -423,16 +457,17 @@ const prefixedReviewContent = (input: {
   prefix: string;
   item: Record<string, any>;
   projection: Record<string, any>;
-  visibleNumberOffset: number;
+  interactionDisplayNumbers: Readonly<Record<string, number>>;
 }): Record<string, any> => {
   const content = input.projection.content ?? {};
+  const title = passageItemTitle(input.item);
   const passageSection = {
     order: input.item.order,
-    title: input.item.titleSnapshot,
+    title,
     passageMaterialId: input.item.passageMaterialId,
     snapshotVersionId: input.item.snapshotVersionId,
-    sourceOrderDisplay: input.item.sourceOrderDisplay ?? null,
-    sourceFullTestTitle: input.item.sourceFullTestTitle ?? null,
+    sourceOrderDisplay: passageItemSourceOrderDisplay(input.item),
+    sourceFullTestTitle: passageItemSourceFullTestTitle(input.item),
   };
 
   return {
@@ -440,7 +475,7 @@ const prefixedReviewContent = (input: {
       ? content.sections.map((section: Record<string, any>) => ({
         ...section,
         sectionId: requiredString(prefixId(input.prefix, section.sectionId), 'prefixed sectionId'),
-        title: `Passage ${input.item.order}: ${input.item.titleSnapshot}`,
+        title: `Passage ${input.item.order}: ${title}`,
         stimulusIds: prefixIds(input.prefix, section.stimulusIds),
         taskGroupIds: prefixIds(input.prefix, section.taskGroupIds),
       }))
@@ -478,14 +513,21 @@ const prefixedReviewContent = (input: {
         }))
         : [],
       interactions: Array.isArray(taskGroup.interactions)
-        ? taskGroup.interactions.map((interaction: Record<string, any>) => ({
-          ...interaction,
-          interactionId: requiredString(prefixId(input.prefix, interaction.interactionId), 'prefixed interactionId'),
-          taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'),
-          displayNumber: input.visibleNumberOffset + Number(interaction.displayNumber ?? 0),
-          primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId),
-          contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds),
-        }))
+        ? taskGroup.interactions.map((interaction: Record<string, any>) => {
+          const prefixedInteractionId = requiredString(
+            prefixId(input.prefix, interaction.interactionId),
+            'prefixed interactionId',
+          );
+
+          return {
+            ...interaction,
+            interactionId: prefixedInteractionId,
+            taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'),
+            displayNumber: input.interactionDisplayNumbers[prefixedInteractionId] ?? Number(interaction.displayNumber ?? 0),
+            primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId),
+            contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds),
+          };
+        })
         : [],
     })),
     optionSets: Array.isArray(content.optionSets)
@@ -498,11 +540,123 @@ const prefixedReviewContent = (input: {
   };
 };
 
-const countProjectedInteractions = (projection: Record<string, any>): number =>
-  projectedGroups(projection).reduce(
-    (sum, taskGroup) => sum + (Array.isArray(taskGroup.interactions) ? taskGroup.interactions.length : 0),
-    0,
-  );
+const buildInteractionDisplayNumbers = (input: {
+  items: readonly Record<string, any>[];
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+}): Record<string, number> => {
+  const interactionDisplayNumbers: Record<string, number> = {};
+  let nextDisplayNumber = 1;
+
+  input.items.forEach((item, index) => {
+    const passageRecord = input.passageRecords[index];
+    const prefix = `passage-${item.order}`;
+    projectedGroups(passageRecord?.reviewProjection ?? {}).forEach((taskGroup) => {
+      if (!Array.isArray(taskGroup.interactions)) {
+        return;
+      }
+
+      taskGroup.interactions.forEach((interaction: Record<string, any>) => {
+        const prefixedInteractionId = prefixId(prefix, interaction.interactionId);
+        if (prefixedInteractionId) {
+          interactionDisplayNumbers[prefixedInteractionId] = nextDisplayNumber;
+          nextDisplayNumber += 1;
+        }
+      });
+    });
+  });
+
+  return interactionDisplayNumbers;
+};
+
+const composeTrustedPassageRecords = (input: {
+  materialId: string;
+  snapshotVersionId: string;
+  title: string;
+  ownerId?: string;
+  publishedBy?: string;
+  durationMinutes?: number;
+  materialKind: string;
+  items: readonly Record<string, any>[];
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+  generatedAt?: string;
+}): ReadingV2SubmitLoadedRecords => {
+  if (input.items.length === 0 || input.items.length !== input.passageRecords.length) {
+    throw new Error('Reading V2 trusted passage composition requires one passage record per assigned passage.');
+  }
+
+  const interactionDisplayNumbers = buildInteractionDisplayNumbers({
+    items: input.items,
+    passageRecords: input.passageRecords,
+  });
+  const canonicalInteractions: Record<string, any> = {};
+  const canonicalTaskGroups: Record<string, any> = {};
+  const reviewContents: Record<string, any>[] = [];
+
+  input.items.forEach((item, index) => {
+    const passageRecord = input.passageRecords[index];
+    if (!passageRecord) {
+      throw new Error('Reading V2 trusted passage composition is missing a passage record.');
+    }
+
+    const prefix = `passage-${item.order}`;
+    if (
+      passageRecord.snapshot.materialId !== item.passageMaterialId ||
+      passageRecord.snapshot.snapshotVersionId !== item.snapshotVersionId ||
+      passageRecord.reviewProjection.sourceSnapshotVersionId !== item.snapshotVersionId
+    ) {
+      throw new Error('Reading V2 trusted passage composition record does not match the assigned snapshot.');
+    }
+
+    Object.assign(canonicalInteractions, prefixedCanonicalInteractions(prefix, passageRecord.snapshot));
+    Object.assign(canonicalTaskGroups, prefixedCanonicalTaskGroups(prefix, passageRecord.snapshot));
+    reviewContents.push(prefixedReviewContent({
+      prefix,
+      item,
+      projection: passageRecord.reviewProjection,
+      interactionDisplayNumbers,
+    }));
+  });
+
+  const firstRecord = input.passageRecords[0];
+  if (!firstRecord) {
+    throw new Error('Reading V2 trusted passage composition requires at least one passage record.');
+  }
+
+  return {
+    snapshot: {
+      snapshotVersionId: input.snapshotVersionId,
+      materialId: input.materialId,
+      ownerId: input.ownerId ?? firstRecord.snapshot.ownerId,
+      publishedAt: input.generatedAt ?? firstRecord.snapshot.publishedAt,
+      publishedBy: input.publishedBy ?? input.ownerId ?? firstRecord.snapshot.publishedBy,
+      document: {
+        title: input.title,
+        interactions: canonicalInteractions,
+        taskGroups: canonicalTaskGroups,
+      },
+    },
+    reviewProjection: {
+      deliveryEngine: READING_V2_ENGINE,
+      projectionKind: 'review',
+      sourceSnapshotVersionId: input.snapshotVersionId,
+      generatedAt: input.generatedAt ?? firstRecord.reviewProjection.generatedAt,
+      content: {
+        title: input.title,
+        sections: reviewContents.flatMap((content) => content.sections),
+        stimuli: reviewContents.flatMap((content) => content.stimuli),
+        anchors: reviewContents.flatMap((content) => content.anchors),
+        taskGroups: reviewContents.flatMap((content) => content.taskGroups),
+        optionSets: reviewContents.flatMap((content) => content.optionSets),
+      },
+    },
+    metadata: {
+      materialId: input.materialId,
+      title: input.title,
+      materialKind: input.materialKind,
+      durationMinutes: input.durationMinutes ?? 0,
+    },
+  };
+};
 
 export const composeReadingPassageSetTrustedRecords = (input: {
   homework: Record<string, any>;
@@ -522,79 +676,52 @@ export const composeReadingPassageSetTrustedRecords = (input: {
     throw new Error('Reading Passage set trusted submission requires one passage record per assigned passage.');
   }
 
-  let visibleNumberOffset = 0;
-  const canonicalInteractions: Record<string, any> = {};
-  const canonicalTaskGroups: Record<string, any> = {};
-  const reviewContents: Record<string, any>[] = [];
-
-  items.forEach((item, index) => {
-    const passageRecord = input.passageRecords[index];
-    if (!passageRecord) {
-      throw new Error('Reading Passage set trusted submission is missing a passage record.');
-    }
-
-    const prefix = `passage-${item.order}`;
-    if (
-      passageRecord.snapshot.materialId !== item.passageMaterialId ||
-      passageRecord.snapshot.snapshotVersionId !== item.snapshotVersionId ||
-      passageRecord.reviewProjection.sourceSnapshotVersionId !== item.snapshotVersionId
-    ) {
-      throw new Error('Reading Passage set trusted submission record does not match the assigned snapshot.');
-    }
-
-    Object.assign(canonicalInteractions, prefixedCanonicalInteractions(prefix, passageRecord.snapshot));
-    Object.assign(canonicalTaskGroups, prefixedCanonicalTaskGroups(prefix, passageRecord.snapshot));
-    reviewContents.push(prefixedReviewContent({
-      prefix,
-      item,
-      projection: passageRecord.reviewProjection,
-      visibleNumberOffset,
-    }));
-    visibleNumberOffset += countProjectedInteractions(passageRecord.reviewProjection);
-  });
-
-  const firstRecord = input.passageRecords[0];
-  if (!firstRecord) {
-    throw new Error('Reading Passage set trusted submission requires at least one passage record.');
-  }
-
   const snapshotVersionId = `homework-set:${input.homework.id ?? input.homework.materialId.replace(/^reading-passage-set:/, '')}`;
   const title = input.homework.readingPassageSet?.titleSnapshot ?? input.homework.title ?? input.homework.materialTitle ?? 'Reading Passage Set';
 
-  return {
-    snapshot: {
-      snapshotVersionId,
-      materialId: input.homework.materialId,
-      ownerId: input.homework.createdBy ?? firstRecord.snapshot.ownerId,
-      publishedAt: input.generatedAt ?? firstRecord.snapshot.publishedAt,
-      publishedBy: input.homework.createdBy ?? firstRecord.snapshot.publishedBy,
-      document: {
-        title,
-        interactions: canonicalInteractions,
-        taskGroups: canonicalTaskGroups,
-      },
-    },
-    reviewProjection: {
-      deliveryEngine: READING_V2_ENGINE,
-      projectionKind: 'review',
-      sourceSnapshotVersionId: snapshotVersionId,
-      generatedAt: input.generatedAt ?? firstRecord.reviewProjection.generatedAt,
-      content: {
-        title,
-        sections: reviewContents.flatMap((content) => content.sections),
-        stimuli: reviewContents.flatMap((content) => content.stimuli),
-        anchors: reviewContents.flatMap((content) => content.anchors),
-        taskGroups: reviewContents.flatMap((content) => content.taskGroups),
-        optionSets: reviewContents.flatMap((content) => content.optionSets),
-      },
-    },
-    metadata: {
-      materialId: input.homework.materialId,
-      title,
-      materialKind: 'reading-passage-set',
-      durationMinutes: input.homework.config?.timerMinutes ?? 0,
-    },
-  };
+  return composeTrustedPassageRecords({
+    materialId: input.homework.materialId,
+    snapshotVersionId,
+    title,
+    ownerId: input.homework.createdBy,
+    publishedBy: input.homework.createdBy,
+    durationMinutes: input.homework.config?.timerMinutes,
+    materialKind: 'reading-passage-set',
+    items,
+    passageRecords: input.passageRecords,
+    generatedAt: input.generatedAt,
+  });
+};
+
+export const composeReadingV2CompositionTrustedRecords = (input: {
+  composition: Record<string, any>;
+  materialId: string;
+  snapshotVersionId: string;
+  metadata?: Record<string, any> | null;
+  passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
+  generatedAt?: string;
+}): ReadingV2SubmitLoadedRecords => {
+  const items = sortCompositionPassageRefs(input.composition);
+  if (items.length === 0 || items.length !== input.passageRecords.length) {
+    throw new Error('Reading V2 composition trusted submission requires one passage record per composition passage.');
+  }
+
+  const title = optionalString(input.metadata?.title)
+    ?? optionalString(input.composition.title)
+    ?? 'Reading V2 Full Test';
+
+  return composeTrustedPassageRecords({
+    materialId: input.materialId,
+    snapshotVersionId: input.snapshotVersionId,
+    title,
+    ownerId: optionalString(input.composition.ownerId),
+    publishedBy: optionalString(input.composition.ownerId),
+    durationMinutes: Number(input.metadata?.durationMinutes ?? 0),
+    materialKind: optionalString(input.metadata?.materialKind) ?? 'reading-v2-full-test-composition',
+    items,
+    passageRecords: input.passageRecords,
+    generatedAt: input.generatedAt,
+  });
 };
 
 const orderedCanonicalInteractions = (snapshot: Record<string, any>): Record<string, any>[] => {
@@ -825,6 +952,7 @@ const getStudentName = (
 const materialLabelForKind = (kind: string | undefined): string | undefined => {
   if (kind === 'reading-passage') return 'Reading Passage';
   if (kind === 'reading-passage-set') return 'Reading Passage Set';
+  if (kind === 'reading-v2-full-test-composition') return 'Reading V2 Full Test';
   return undefined;
 };
 
@@ -1035,6 +1163,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     studentId: input.auth.uid,
     sourceSnapshotVersionId: snapshotVersionId,
     context: attemptContext,
+    integrityReport: input.request.integrityReport ?? null,
     answers: Object.fromEntries(input.request.answers.map((answer) => [
       answer.interactionId,
       {
@@ -1131,6 +1260,7 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     moduleId: context.moduleId ?? input.records.session?.moduleId ?? null,
     visibility,
     context: buildResultContext(mode, context, materialId, testTitle),
+    integrityReport: input.request.integrityReport ?? null,
     deliveryEngine: READING_V2_ENGINE,
     readingV2: {
       result,

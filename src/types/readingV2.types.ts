@@ -447,16 +447,47 @@ export interface ReadingV2FullTest extends ReadingV2PlaneMarker<'packaging'> {
 export interface ReadingV2PassageRef {
   readonly refId: ReadingV2PassageRefId;
   readonly passageMaterialId: ReadingV2ReadingPassageMaterialId;
+  readonly materialId: ReadingV2ReadingPassageMaterialId;
   readonly snapshotVersionId: ReadingV2SnapshotVersionId;
   readonly order: number;
   readonly sourcePassageNumber?: number | null;
   readonly sourceOrderLabelSnapshot: string;
   readonly sourceOrderDisplaySnapshot: string;
   readonly titleSnapshot: string;
+  readonly title: string;
+  readonly source: {
+    readonly sourceOrderDisplay?: string;
+    readonly sourceOrderLabel?: string;
+    readonly sourceFullTestId?: string;
+    readonly sourceFullTestTitle?: string;
+  };
   readonly questionRangeSnapshot?: string;
   readonly questionCountSnapshot: number;
+  readonly questionCount: number;
   readonly durationSnapshot?: number;
+  readonly ownerId: string;
+  readonly visibility: ReadingPassageVisibilityScope;
+  readonly currentVersionId?: ReadingV2SnapshotVersionId;
+  readonly testType: {
+    readonly primaryTestTypeId?: MaterialTestTypeId;
+    readonly testTypeIds: readonly MaterialTestTypeId[];
+  };
   readonly testTypeIdsSnapshot: readonly MaterialTestTypeId[];
+}
+
+export interface ReadingV2CompositionNumberingPassageRange {
+  readonly order: number;
+  readonly passageMaterialId: string;
+  readonly snapshotVersionId: string;
+  readonly firstDisplayNumber: number | null;
+  readonly lastDisplayNumber: number | null;
+  readonly questionCount: number;
+}
+
+export interface ReadingV2CompositionNumbering {
+  readonly interactionDisplayNumbers: Readonly<Record<string, number>>;
+  readonly passageRanges: readonly ReadingV2CompositionNumberingPassageRange[];
+  readonly totalQuestionCount: number;
 }
 
 export interface ReadingV2FullTestComposition
@@ -469,6 +500,7 @@ export interface ReadingV2FullTestComposition
   readonly skill: string;
   readonly passageRefs: readonly ReadingV2PassageRef[];
   readonly questionCount: number;
+  readonly numbering: ReadingV2CompositionNumbering;
   readonly durationMinutes?: number;
   readonly visibility: ReadingPassageVisibilityScope;
   readonly ownerId: string;

@@ -8,6 +8,7 @@ import { materialCatalogIds } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 import {
+  assertReadingV2RefOnlyFullTestComposition,
   createReadingV2FullTestCompositionFromRefs,
   getReadingV2PassageRefUpdateState,
   planReadingV2PassageEditFromCompositionRef,
@@ -47,14 +48,27 @@ const documentWithPassageNumber = (title = 'Legacy Reading Test'): ReadingV2Docu
 const passageRef = (overrides: Partial<ReadingV2PassageRef> = {}): ReadingV2PassageRef => ({
   refId: readingV2Ids.passageRefId('ref-shared-passage'),
   passageMaterialId: readingV2Ids.readingPassageMaterialId('shared-passage'),
+  materialId: readingV2Ids.readingPassageMaterialId('shared-passage'),
   snapshotVersionId: readingV2Ids.snapshotVersionId('shared-version-1'),
   order: 1,
   sourcePassageNumber: 1,
   sourceOrderLabelSnapshot: 'Passage',
   sourceOrderDisplaySnapshot: 'Passage 1',
   titleSnapshot: 'Shared passage',
+  title: 'Shared passage',
+  source: {
+    sourceOrderDisplay: 'Passage 1',
+  },
   questionRangeSnapshot: '1-13',
   questionCountSnapshot: 13,
+  questionCount: 13,
+  ownerId: 'teacher-1',
+  visibility: 'public',
+  currentVersionId: readingV2Ids.snapshotVersionId('shared-version-1'),
+  testType: {
+    primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+    testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+  },
   testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
   ...overrides,
 });
@@ -78,6 +92,33 @@ describe('readingV2FullTestComposition.service', () => {
 
     expect(resolved.compatibilityMode).toBe('native-composition');
     expect(resolved.composition).toBe(composition);
+    expect(composition.numbering.totalQuestionCount).toBe(13);
+  });
+
+  it('rejects embedded payload fields in ref-only master compositions', () => {
+    const composition = createReadingV2FullTestCompositionFromRefs({
+      compositionId: readingV2Ids.fullTestCompositionId('composition-ref-only'),
+      testMaterialId: readingV2Ids.materialId('ref-only-full-test'),
+      title: 'Ref-only composition',
+      ownerId: 'teacher-1',
+      publishedVersionId: readingV2Ids.snapshotVersionId('snapshot-ref-only'),
+      passageRefs: [passageRef()],
+      createdAt: NOW,
+    });
+
+    expect(() =>
+      assertReadingV2RefOnlyFullTestComposition({
+        ...composition,
+        document: documentWithPassageNumber(),
+      }),
+    ).toThrow(/embedded master payload field: document/);
+
+    expect(() =>
+      assertReadingV2RefOnlyFullTestComposition({
+        ...composition,
+        passageRefs: [{ ...composition.passageRefs[0], taskGroups: [] }],
+      }),
+    ).toThrow(/embedded master payload field: passageRefs\.0\.taskGroups/);
   });
 
   it('builds a compatibility composition from legacy full-test documents without passageRefs', () => {

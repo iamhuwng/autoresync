@@ -131,6 +131,11 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
           skill: 'reading',
           passageRefs: [],
           questionCount: 0,
+          numbering: {
+            interactionDisplayNumbers: {},
+            passageRanges: [],
+            totalQuestionCount: 0,
+          },
           visibility: 'private',
           ownerId: 'teacher-1',
           publishedVersionId: 'snapshot-1',

@@ -245,11 +245,13 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
     expect(compositionOperation).toBeTruthy();
     expect(firebaseUpdates.updates['tests/material-firebase-passages']).toMatchObject({
+      compositionId: 'composition-material-firebase-passages-snapshot-firebase-passages',
       testType: 'IELTS',
       type: 'IELTS',
       primaryTestTypeId: 'ielts',
       testTypeIds: ['ielts'],
       metadata: expect.objectContaining({
+        compositionId: 'composition-material-firebase-passages-snapshot-firebase-passages',
         primaryTestTypeId: 'ielts',
         testTypeIds: ['ielts'],
       }),
@@ -261,11 +263,18 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         readingV2StoragePaths.studentSafeTests(passageId, 'snapshot-firebase-passages'),
         readingV2StoragePaths.reviewProjections(passageId, 'snapshot-firebase-passages'),
         readingV2StoragePaths.materialMetadata(passageId),
+        readingV2StoragePaths.studentSafeTests('material-firebase-passages', 'snapshot-firebase-passages'),
+        readingV2StoragePaths.sessionSafePayloads('publish-template', 'snapshot-firebase-passages'),
+        readingV2StoragePaths.reviewProjections('material-firebase-passages', 'snapshot-firebase-passages'),
+        'reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-firebase-passages-passage-1',
         'material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1',
         'material_catalog/material_indexes/by_visibility/public/material-firebase-passages-passage-1',
         'material_catalog/material_indexes/by_material_kind/reading-passage/material-firebase-passages-passage-1',
         'material_catalog/material_indexes/by_test_type/ielts/material-firebase-passages-passage-1',
       ]),
+    );
+    expect(updatePaths).not.toContain(
+      readingV2StoragePaths.publishedSnapshots('material-firebase-passages', 'snapshot-firebase-passages'),
     );
     expect(updatePaths).toContain(compositionOperation!.path);
     expect(firebaseUpdates.updates[readingV2StoragePaths.readingPassageMaterials(passageId)]).toMatchObject({
@@ -277,6 +286,10 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     });
     expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests(passageId, 'snapshot-firebase-passages')]))
       .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
+    expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests('material-firebase-passages', 'snapshot-firebase-passages')]))
+      .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
+    expect(JSON.stringify(firebaseUpdates.updates['reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-firebase-passages-passage-1']))
+      .not.toMatch(/bodyText|questionText|document|answerKey|scoringRule|hiddenProvenance/);
     expect(JSON.stringify(firebaseUpdates.updates['material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1']))
       .not.toMatch(/acceptableAnswers|scoringRule|document|provenance/);
     expect(containsUndefined(firebaseUpdates.updates)).toBe(false);

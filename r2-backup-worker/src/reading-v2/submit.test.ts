@@ -124,6 +124,39 @@ const makeHomework = () => ({
     },
 });
 
+const makeFullTestComposition = () => ({
+    compositionId: 'composition-master-1',
+    testMaterialId: 'master-1',
+    ownerId: 'teacher-1',
+    title: 'IELTS Full Test',
+    passageRefs: [
+        {
+            order: 1,
+            passageMaterialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            title: 'Passage A',
+            titleSnapshot: 'Passage A',
+            questionCount: 1,
+            sourceOrderDisplaySnapshot: 'Passage 1',
+            source: {
+                sourceFullTestTitle: 'IELTS Full Test',
+            },
+        },
+        {
+            order: 2,
+            passageMaterialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            title: 'Passage B',
+            titleSnapshot: 'Passage B',
+            questionCount: 1,
+            sourceOrderDisplaySnapshot: 'Passage 2',
+            source: {
+                sourceFullTestTitle: 'IELTS Full Test',
+            },
+        },
+    ],
+});
+
 const firestoreValue = (value: unknown): Record<string, unknown> => {
     if (value === null) {
         return { nullValue: null };
@@ -275,5 +308,110 @@ describe('Reading V2 Worker submit route', () => {
                 method: 'GET',
             }),
         );
+    });
+
+    it('scores composition-first master tests without a master published snapshot', async () => {
+        const composition = makeFullTestComposition();
+        const rtdbRecords = new Map<string, unknown>([
+            ['reading_v2/material_metadata/master-1', {
+                materialId: 'master-1',
+                title: 'IELTS Full Test',
+                materialKind: 'reading-v2-full-test-composition',
+                compositionId: 'composition-master-1',
+                durationMinutes: 60,
+            }],
+            ['reading_v2/full_test_composition_versions/composition-master-1/master-snapshot', composition],
+            ['reading_v2/full_test_compositions/composition-master-1', composition],
+            ['reading_v2/published_snapshots/passage-a/snapshot-a', makeSnapshot({
+                materialId: 'passage-a',
+                snapshotVersionId: 'snapshot-a',
+                answer: 'Answer A',
+            })],
+            ['reading_v2/projections/review/passage-a:snapshot-a', makeReviewProjection({
+                snapshotVersionId: 'snapshot-a',
+                title: 'Passage A',
+            })],
+            ['reading_v2/material_metadata/passage-a', { materialId: 'passage-a', title: 'Passage A' }],
+            ['reading_v2/published_snapshots/passage-b/snapshot-b', makeSnapshot({
+                materialId: 'passage-b',
+                snapshotVersionId: 'snapshot-b',
+                answer: 'Answer B',
+            })],
+            ['reading_v2/projections/review/passage-b:snapshot-b', makeReviewProjection({
+                snapshotVersionId: 'snapshot-b',
+                title: 'Passage B',
+            })],
+            ['reading_v2/material_metadata/passage-b', { materialId: 'passage-b', title: 'Passage B' }],
+            ['users/student-1', { name: 'Student One' }],
+        ]);
+        const requestedPaths: string[] = [];
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = new URL(String(input));
+            const method = init?.method ?? 'GET';
+
+            if (url.hostname === 'db.example.test') {
+                const path = decodeURIComponent(url.pathname.replace(/^\/|\.json$/g, ''));
+                requestedPaths.push(path);
+                if (method === 'GET') {
+                    return json(rtdbRecords.get(path) ?? null);
+                }
+
+                if (method === 'PUT' || method === 'PATCH') {
+                    return json({ ok: true });
+                }
+            }
+
+            throw new Error(`Unexpected fetch ${method} ${url.toString()}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const request = new Request('https://worker.example.test/api/reading-v2/submit', {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer student-token',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                deliveryEngine: READING_V2_ENGINE,
+                projectionId: 'student-safe:master-1:master-snapshot',
+                sourceSnapshotVersionId: 'master-snapshot',
+                materialId: 'master-1',
+                answers: [
+                    {
+                        interactionId: 'passage-1:interaction_1',
+                        taskGroupId: 'passage-1:task_group_1',
+                        displayNumber: 1,
+                        value: 'answer a',
+                    },
+                    {
+                        interactionId: 'passage-2:interaction_1',
+                        taskGroupId: 'passage-2:task_group_1',
+                        displayNumber: 2,
+                        value: 'answer b',
+                    },
+                ],
+                context: {
+                    surface: 'solo-practice',
+                    sourceName: 'IELTS Full Test',
+                },
+            }),
+        });
+
+        const response = await handleReadingV2Submit(request, {
+            FIREBASE_PROJECT_ID: 'temp-a1437',
+            FIREBASE_DB_URL: 'https://db.example.test',
+            GOOGLE_SA_KEY: '{}',
+        } as WorkerEnv);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(200);
+        expect(body).toEqual(expect.objectContaining({
+            totalScore: 2,
+            maxScore: 2,
+            percentage: 100,
+        }));
+        expect(requestedPaths).toContain('reading_v2/full_test_composition_versions/composition-master-1/master-snapshot');
+        expect(requestedPaths).toContain('reading_v2/published_snapshots/passage-a/snapshot-a');
+        expect(requestedPaths).toContain('reading_v2/published_snapshots/passage-b/snapshot-b');
     });
 });

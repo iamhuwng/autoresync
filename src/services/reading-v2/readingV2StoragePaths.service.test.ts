@@ -26,6 +26,7 @@ const samplePathByClass = {
   previewPayloads: readingV2StoragePaths.previewPayloads('draft-1'),
   studentSafeTests: readingV2StoragePaths.studentSafeTests('material-1', 'snapshot-1'),
   sessionSafePayloads: readingV2StoragePaths.sessionSafePayloads('ABC123', 'snapshot-1'),
+  assignmentPayloads: readingV2StoragePaths.assignmentPayloads('homework-1', 'composition-version-1'),
   reviewProjections: readingV2StoragePaths.reviewProjections('material-1', 'snapshot-1'),
   attempts: readingV2StoragePaths.attempts('attempt-1'),
   results: readingV2StoragePaths.results('result-1'),
@@ -69,6 +70,9 @@ describe('readingV2StoragePaths.service', () => {
     );
     expect(readingV2StoragePaths.fullTestCompositionVersions('composition-1', 'snapshot-1')).toBe(
       'reading_v2/full_test_composition_versions/composition-1/snapshot-1',
+    );
+    expect(readingV2StoragePaths.assignmentPayloads('homework-1', 'composition-version-1')).toBe(
+      'reading_v2/projections/assignment_payloads/homework-1:composition-version-1',
     );
     expect(readingV2StoragePaths.listingIndexes('teacher-materials', 'material-1')).toBe(
       'reading_v2/listing_indexes/teacher-materials/material-1',

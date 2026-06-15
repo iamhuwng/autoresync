@@ -4,6 +4,7 @@ import { getFirebaseAccessToken } from '../auth/google-oauth';
 import {
     buildReadingV2TrustedSubmissionPlan,
     composeReadingPassageSetTrustedRecords,
+    composeReadingV2CompositionTrustedRecords,
     getMaterialIdFromRequest,
     parseReadingV2TrustedSubmissionRequest,
     sanitizeRtdbValue,
@@ -264,6 +265,13 @@ const isReadingPassageSetSubmit = (
     request.context?.surface === 'homework' &&
     materialId.startsWith('reading-passage-set:');
 
+const isCompositionFirstMasterMetadata = (
+    metadata: Record<string, any> | null
+): metadata is Record<string, any> & { compositionId: string } =>
+    metadata?.materialKind === 'reading-v2-full-test-composition' &&
+    typeof metadata.compositionId === 'string' &&
+    metadata.compositionId.trim().length > 0;
+
 const loadReadingPassageSetRecords = async (input: {
     env: WorkerEnv;
     accessToken: string;
@@ -345,6 +353,124 @@ const loadReadingPassageSetRecords = async (input: {
     });
 };
 
+const loadCompositionFirstMasterRecords = async (input: {
+    env: WorkerEnv;
+    accessToken: string;
+    materialId: string;
+    snapshotVersionId: string;
+    metadata: Record<string, any>;
+    generatedAt: string;
+}): Promise<ReadingV2SubmitLoadedRecords> => {
+    const compositionId = String(input.metadata.compositionId);
+    const composition = await loadRtdb<Record<string, any>>(
+        input.env,
+        input.accessToken,
+        `reading_v2/full_test_composition_versions/${compositionId}/${input.snapshotVersionId}`
+    ) ?? await loadRtdb<Record<string, any>>(
+        input.env,
+        input.accessToken,
+        `reading_v2/full_test_compositions/${compositionId}`
+    );
+
+    if (!composition) {
+        throw new Error('Reading V2 composition trusted submission could not load the full-test composition.');
+    }
+
+    const passageRefs = Array.isArray(composition.passageRefs)
+        ? [...composition.passageRefs].sort((left, right) => Number(left.order) - Number(right.order))
+        : [];
+
+    if (passageRefs.length === 0) {
+        throw new Error('Reading V2 composition trusted submission has no passage refs.');
+    }
+
+    const passageRecords: ReadingPassageSetTrustedPassageRecord[] = await Promise.all(
+        passageRefs.map(async (item: Record<string, any>) => {
+            const [snapshot, reviewProjection, passageMetadata] = await Promise.all([
+                loadRtdb<Record<string, any>>(
+                    input.env,
+                    input.accessToken,
+                    `reading_v2/published_snapshots/${item.passageMaterialId}/${item.snapshotVersionId}`
+                ),
+                loadRtdb<Record<string, any>>(
+                    input.env,
+                    input.accessToken,
+                    `reading_v2/projections/review/${item.passageMaterialId}:${item.snapshotVersionId}`
+                ),
+                loadRtdb<Record<string, any>>(
+                    input.env,
+                    input.accessToken,
+                    `reading_v2/material_metadata/${item.passageMaterialId}`
+                ),
+            ]);
+
+            if (!snapshot || !reviewProjection) {
+                throw new Error('Reading V2 composition trusted submission could not load an assigned passage snapshot.');
+            }
+
+            return {
+                item,
+                snapshot,
+                reviewProjection,
+                metadata: passageMetadata,
+            };
+        })
+    );
+
+    return composeReadingV2CompositionTrustedRecords({
+        composition,
+        materialId: input.materialId,
+        snapshotVersionId: input.snapshotVersionId,
+        metadata: input.metadata,
+        passageRecords,
+        generatedAt: input.generatedAt,
+    });
+};
+
+const loadStandardReadingV2Records = async (input: {
+    env: WorkerEnv;
+    accessToken: string;
+    materialId: string;
+    snapshotVersionId: string;
+    generatedAt: string;
+}): Promise<ReadingV2SubmitLoadedRecords> => {
+    const metadata = await loadRtdb<Record<string, any>>(
+        input.env,
+        input.accessToken,
+        `reading_v2/material_metadata/${input.materialId}`
+    );
+
+    if (isCompositionFirstMasterMetadata(metadata)) {
+        return loadCompositionFirstMasterRecords({
+            env: input.env,
+            accessToken: input.accessToken,
+            materialId: input.materialId,
+            snapshotVersionId: input.snapshotVersionId,
+            metadata,
+            generatedAt: input.generatedAt,
+        });
+    }
+
+    const [snapshot, reviewProjection] = await Promise.all([
+        loadRtdb<Record<string, any>>(
+            input.env,
+            input.accessToken,
+            `reading_v2/published_snapshots/${input.materialId}/${input.snapshotVersionId}`
+        ),
+        loadRtdb<Record<string, any>>(
+            input.env,
+            input.accessToken,
+            `reading_v2/projections/review/${input.materialId}:${input.snapshotVersionId}`
+        ),
+    ]);
+
+    return {
+        snapshot: snapshot ?? {},
+        reviewProjection: reviewProjection ?? {},
+        metadata,
+    };
+};
+
 export async function handleReadingV2Submit(
     request: Request,
     env: WorkerEnv
@@ -379,27 +505,13 @@ export async function handleReadingV2Submit(
                 snapshotVersionId: submission.sourceSnapshotVersionId,
                 generatedAt: submittedAt.toISOString(),
             })
-            : Promise.all([
-                loadRtdb<Record<string, any>>(
-                    env,
-                    accessToken,
-                    `reading_v2/published_snapshots/${materialId}/${submission.sourceSnapshotVersionId}`
-                ),
-                loadRtdb<Record<string, any>>(
-                    env,
-                    accessToken,
-                    `reading_v2/projections/review/${materialId}:${submission.sourceSnapshotVersionId}`
-                ),
-                loadRtdb<Record<string, any>>(
-                    env,
-                    accessToken,
-                    `reading_v2/material_metadata/${materialId}`
-                ),
-            ]).then(([snapshot, reviewProjection, metadata]): ReadingV2SubmitLoadedRecords => ({
-                snapshot: snapshot ?? {},
-                reviewProjection: reviewProjection ?? {},
-                metadata,
-            }));
+            : loadStandardReadingV2Records({
+                env,
+                accessToken,
+                materialId,
+                snapshotVersionId: submission.sourceSnapshotVersionId,
+                generatedAt: submittedAt.toISOString(),
+            });
 
         const [records, session, studentProfile] = await Promise.all([
             trustedRecordsPromise,

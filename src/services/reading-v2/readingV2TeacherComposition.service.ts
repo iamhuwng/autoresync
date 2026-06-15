@@ -1,5 +1,8 @@
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
-import { buildMaterialCatalogIndexWrites } from '../materialCatalog/materialCatalogIndexes.service';
+import {
+  buildMaterialCatalogIndexWrites,
+  listMaterialCatalogIndexPaths,
+} from '../materialCatalog/materialCatalogIndexes.service';
 import { materialCatalogIds, type MaterialTestTypeId } from '../../types/materialCatalog.types';
 import {
   READING_V2_SCHEMA_VERSION,
@@ -25,6 +28,11 @@ import { buildReadingV2FirebasePublishUpdates } from './readingV2FirebasePublish
 import { publishReadingV2Material } from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import {
+  type ReadingV2AuditActorRole,
+  buildReadingV2AuditEvent,
+  getReadingV2AuditEventPath,
+} from './readingV2AuditTrail.service';
 
 export interface ReadingV2TeacherCompositionRepository {
   readonly read?: (path: string) => Promise<unknown>;
@@ -32,13 +40,20 @@ export interface ReadingV2TeacherCompositionRepository {
   readonly update?: (updates: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
+export interface ReadingV2MasterRemoveRepository {
+  readonly write: (path: string, value: unknown) => Promise<void>;
+  readonly remove: (path: string) => Promise<void>;
+}
+
 export interface ReadingV2TeacherCompositionPassageInput {
   readonly id?: string;
   readonly materialId?: string;
+  readonly ownerId?: string;
   readonly title?: string;
   readonly questionCount?: number;
   readonly durationMinutes?: number;
   readonly publishedSnapshotVersionId?: string;
+  readonly currentVersionId?: string;
   readonly sourceOrderDisplay?: string;
   readonly sourceQuestionRange?: string;
   readonly primaryTestTypeId?: string;
@@ -47,10 +62,31 @@ export interface ReadingV2TeacherCompositionPassageInput {
     readonly testTypeId?: string;
   }[];
   readonly visibility?: string;
+  readonly state?: string;
+  readonly archivedAt?: string | null;
+  readonly archived?: boolean;
+  readonly accessible?: boolean;
+  readonly selectable?: boolean;
 }
 
 export interface CreateReadingV2TeacherCompositionResult {
   readonly composition: ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition>;
+  readonly paths: {
+    readonly composition: string;
+    readonly version: string;
+  };
+}
+
+type ReadingV2TeacherSelectedPassageDraftComposition =
+  ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition> & {
+    readonly mode: 'draft';
+    readonly state: 'draft';
+    readonly updatedAt: string;
+  };
+
+export interface CreateReadingV2TeacherCompositionDraftResult {
+  readonly draft: ReadingV2TeacherSelectedPassageDraftComposition;
+  readonly composition: ReadingV2TeacherSelectedPassageDraftComposition;
   readonly paths: {
     readonly composition: string;
     readonly version: string;
@@ -152,7 +188,7 @@ const getPassageMaterialId = (passage: ReadingV2TeacherCompositionPassageInput):
   String(passage.materialId || passage.id || '').trim();
 
 const getSnapshotVersionId = (passage: ReadingV2TeacherCompositionPassageInput): string =>
-  String(passage.publishedSnapshotVersionId || '').trim();
+  String(passage.publishedSnapshotVersionId || passage.currentVersionId || '').trim();
 
 const getTestTypeIds = (passage: ReadingV2TeacherCompositionPassageInput): MaterialTestTypeId[] => (
   unique([
@@ -175,6 +211,7 @@ const getVisibility = (
 );
 
 const buildPassageRefs = (
+  teacherId: string,
   passages: readonly ReadingV2TeacherCompositionPassageInput[],
 ): ReadingV2PassageRef[] => passages.map((passage, index) => {
   const passageMaterialId = getPassageMaterialId(passage);
@@ -189,20 +226,39 @@ const buildPassageRefs = (
   }
 
   const order = index + 1;
+  const title = passage.title || `Reading Passage ${order}`;
+  const sourceOrderDisplay = passage.sourceOrderDisplay || `Passage ${order}`;
+  const testTypeIds = getTestTypeIds(passage);
+  const primaryTestTypeId = testTypeIds[0];
+  const visibility = passage.visibility === 'public' ? 'public' : 'private';
 
   return {
     refId: readingV2Ids.passageRefId(`selected-passage-${order}`),
     passageMaterialId: readingV2Ids.readingPassageMaterialId(passageMaterialId),
+    materialId: readingV2Ids.readingPassageMaterialId(passageMaterialId),
     snapshotVersionId: readingV2Ids.snapshotVersionId(snapshotVersionId),
     order,
     sourcePassageNumber: order,
     sourceOrderLabelSnapshot: 'Passage',
-    sourceOrderDisplaySnapshot: passage.sourceOrderDisplay || `Passage ${order}`,
-    titleSnapshot: passage.title || `Reading Passage ${order}`,
+    sourceOrderDisplaySnapshot: sourceOrderDisplay,
+    titleSnapshot: title,
+    title,
+    source: {
+      sourceOrderLabel: 'Passage',
+      sourceOrderDisplay,
+    },
     questionRangeSnapshot: passage.sourceQuestionRange,
     questionCountSnapshot: Number(passage.questionCount || 0),
+    questionCount: Number(passage.questionCount || 0),
     durationSnapshot: passage.durationMinutes,
-    testTypeIdsSnapshot: getTestTypeIds(passage),
+    ownerId: passage.ownerId || teacherId,
+    visibility,
+    currentVersionId: readingV2Ids.snapshotVersionId(snapshotVersionId),
+    testType: {
+      ...(primaryTestTypeId ? { primaryTestTypeId } : {}),
+      testTypeIds,
+    },
+    testTypeIdsSnapshot: testTypeIds,
   };
 });
 
@@ -688,7 +744,7 @@ export const buildReadingV2TeacherSelectedPassageComposition = (input: {
     `teacher-selected-${sanitizeIdPart(input.teacherId)}-${sanitizeIdPart(firstPassageId)}-${sanitizeIdPart(snapshotSeed)}-${sanitizeIdPart(createdAt)}`,
   );
   const testMaterialId = readingV2Ids.materialId(`composition-${compositionId}`) as ReadingV2MaterialId;
-  const passageRefs = buildPassageRefs(input.passages);
+  const passageRefs = buildPassageRefs(input.teacherId, input.passages);
   const testTypeIds = unique(passageRefs.flatMap((ref) => ref.testTypeIdsSnapshot));
 
   return createReadingV2FullTestCompositionFromRefs({
@@ -705,6 +761,66 @@ export const buildReadingV2TeacherSelectedPassageComposition = (input: {
     visibility: getVisibility(input.passages),
     createdAt,
   });
+};
+
+const assertPublishedUnarchivedSelectablePassages = (
+  passages: readonly ReadingV2TeacherCompositionPassageInput[],
+): void => {
+  passages.forEach((passage, index) => {
+    const state = String(passage.state || '').trim().toLowerCase();
+    const hasArchivedMarker = Boolean(passage.archivedAt) || passage.archived === true || state === 'archived';
+    const isPublished = !state || state === 'published';
+    const isSelectable = passage.accessible !== false && passage.selectable !== false;
+
+    if (!isPublished || hasArchivedMarker || !isSelectable) {
+      throw new Error(`Selected Reading Passage ${index + 1} must be published, unarchived, and accessible.`);
+    }
+  });
+};
+
+export const createReadingV2TeacherSelectedPassageDraft = async (input: {
+  readonly teacherId: string;
+  readonly passages: readonly ReadingV2TeacherCompositionPassageInput[];
+  readonly repository: ReadingV2TeacherCompositionRepository;
+  readonly now?: string;
+  readonly metadata?: {
+    readonly title?: string;
+    readonly durationMinutes?: number;
+    readonly visibility?: 'private' | 'public' | string;
+  };
+}): Promise<CreateReadingV2TeacherCompositionDraftResult> => {
+  assertPublishedUnarchivedSelectablePassages(input.passages);
+
+  const composition = buildReadingV2TeacherSelectedPassageComposition(input);
+  const title = String(input.metadata?.title || composition.title).trim() || composition.title;
+  const visibility = input.metadata?.visibility === 'public' ? 'public' : composition.visibility;
+  const draft = {
+    ...composition,
+    title,
+    durationMinutes: Number(input.metadata?.durationMinutes || composition.durationMinutes || 0) || undefined,
+    visibility,
+    mode: 'draft' as const,
+    state: 'draft' as const,
+    updatedAt: composition.createdAt,
+  };
+  const paths = {
+    composition: readingV2StoragePaths.fullTestCompositions(draft.compositionId),
+    version: readingV2StoragePaths.fullTestCompositionVersions(
+      draft.compositionId,
+      draft.publishedVersionId,
+    ),
+  };
+
+  await writeUpdates(input.repository, {
+    [paths.composition]: draft,
+    [paths.version]: {
+      ...draft,
+      draftCreatedAt: draft.createdAt,
+      draftCreatedBy: input.teacherId,
+    },
+  });
+
+  return { draft, composition: draft, paths };
 };
 
 export const createReadingV2TeacherSelectedPassageComposition = async (input: {
@@ -764,4 +880,82 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
   });
 
   return { composition, paths };
+};
+
+export const removeReadingV2MasterComposition = async (input: {
+  readonly actorUserId: string;
+  readonly actorRole: ReadingV2AuditActorRole;
+  readonly composition: ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition>;
+  readonly repository: ReadingV2MasterRemoveRepository;
+  readonly now?: string;
+  readonly correlationId: string;
+  readonly sourceFeatureId: string;
+  readonly sourceRoute: string;
+}): Promise<{ readonly changedPaths: readonly string[] }> => {
+  if (input.actorRole !== 'super_admin' && input.actorUserId !== input.composition.ownerId) {
+    throw new Error('Only the owner teacher can remove this Reading V2 master.');
+  }
+
+  const removedAt = input.now ?? new Date().toISOString();
+  const changedPaths: string[] = [];
+  const compositionPath = readingV2StoragePaths.fullTestCompositions(input.composition.compositionId);
+  const metadataPath = readingV2StoragePaths.materialMetadata(input.composition.testMaterialId);
+  const materialStateWrites = [
+    { path: `${compositionPath}/state`, value: 'removed' },
+    { path: `${compositionPath}/removedAt`, value: removedAt },
+    { path: `${compositionPath}/removedBy`, value: input.actorUserId },
+    { path: `${compositionPath}/updatedAt`, value: removedAt },
+    { path: `${metadataPath}/state`, value: 'removed' },
+    { path: `${metadataPath}/removedAt`, value: removedAt },
+    { path: `${metadataPath}/removedBy`, value: input.actorUserId },
+    { path: `${metadataPath}/updatedAt`, value: removedAt },
+  ];
+
+  for (const write of materialStateWrites) {
+    await input.repository.write(write.path, write.value);
+    changedPaths.push(write.path);
+  }
+
+  const indexSummary = {
+    materialId: input.composition.testMaterialId,
+    ownerId: input.composition.ownerId,
+    title: input.composition.title,
+    visibility: input.composition.visibility === 'public' ? 'public' : 'private',
+    materialKind: 'full-test' as const,
+    testTypeIds: input.composition.testTypeIds,
+    updatedAt: input.composition.updatedAt,
+  };
+
+  for (const path of listMaterialCatalogIndexPaths(indexSummary)) {
+    await input.repository.remove(path);
+    changedPaths.push(path);
+  }
+
+  const eventId = `${input.correlationId}:reading_master_removed:${input.composition.compositionId}`;
+  const auditPath = getReadingV2AuditEventPath(eventId);
+  const event = buildReadingV2AuditEvent({
+    eventId,
+    createdAt: removedAt,
+    actorUserId: input.actorUserId,
+    actorRole: input.actorRole,
+    action: 'reading_master_removed',
+    entityType: 'reading-master',
+    entityId: input.composition.compositionId,
+    ownerId: input.composition.ownerId,
+    materialId: input.composition.testMaterialId,
+    versionId: input.composition.publishedVersionId,
+    titleSnapshot: input.composition.title,
+    after: {
+      state: 'removed',
+      passageRefCount: input.composition.passageRefs.length,
+    },
+    adminOverride: input.actorRole === 'super_admin' || undefined,
+    correlationId: input.correlationId,
+    sourceFeatureId: input.sourceFeatureId,
+    sourceRoute: input.sourceRoute,
+  });
+  await input.repository.write(auditPath, event);
+  changedPaths.push(auditPath);
+
+  return { changedPaths };
 };

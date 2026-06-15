@@ -206,6 +206,7 @@ export const buildReadingV2FirebasePublishUpdates = (
     id: metadataOperation.metadata.materialId,
     materialId: metadataOperation.metadata.materialId,
     ownerId,
+    compositionId: metadataOperation.metadata.compositionId,
     deliveryEngine: READING_V2_ENGINE,
     contentEngine: READING_V2_ENGINE,
     runtimeEngine: READING_V2_ENGINE,
@@ -224,6 +225,7 @@ export const buildReadingV2FirebasePublishUpdates = (
     testTypeIds: metadataOperation.metadata.testTypeIds,
     updatedAt: committedAt,
     metadata: {
+      compositionId: metadataOperation.metadata.compositionId,
       title: metadataOperation.metadata.title,
       duration: metadataOperation.metadata.durationMinutes,
       difficulty: metadataOperation.metadata.difficulty,

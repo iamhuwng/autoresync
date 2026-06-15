@@ -94,15 +94,29 @@ describe('readingV2.types', () => {
     const passageRef = {
       refId: readingV2Ids.passageRefId('passage-ref-1'),
       passageMaterialId: readingV2Ids.readingPassageMaterialId('passage-material-1'),
+      materialId: readingV2Ids.readingPassageMaterialId('passage-material-1'),
       snapshotVersionId: readingV2Ids.snapshotVersionId('snapshot-1'),
       order: 1,
       sourcePassageNumber: 1,
       sourceOrderLabelSnapshot: 'Passage',
       sourceOrderDisplaySnapshot: 'Passage 1',
       titleSnapshot: 'Source Passage 1',
+      title: 'Source Passage 1',
+      source: {
+        sourceOrderLabel: 'Passage',
+        sourceOrderDisplay: 'Passage 1',
+      },
       questionRangeSnapshot: '1-13',
       questionCountSnapshot: 13,
+      questionCount: 13,
       durationSnapshot: 20,
+      ownerId: 'teacher-1',
+      visibility: 'private',
+      currentVersionId: readingV2Ids.snapshotVersionId('snapshot-1'),
+      testType: {
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      },
       testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
     } satisfies ReadingV2PassageRef;
 
@@ -118,6 +132,18 @@ describe('readingV2.types', () => {
       skill: 'reading',
       passageRefs: [passageRef],
       questionCount: 13,
+      numbering: {
+        interactionDisplayNumbers: {},
+        passageRanges: [{
+          order: 1,
+          passageMaterialId: 'passage-material-1',
+          snapshotVersionId: 'snapshot-1',
+          firstDisplayNumber: 1,
+          lastDisplayNumber: 13,
+          questionCount: 13,
+        }],
+        totalQuestionCount: 13,
+      },
       durationMinutes: 20,
       visibility: 'private',
       ownerId: 'teacher-1',

@@ -34,14 +34,32 @@ import {
 } from './readingV2MaterialMetadata.service';
 import {
   extractReadingV2PassageMaterials,
+  type ReadingV2ExtractedPassageCandidate,
   type ReadingV2PassageExtractionResult,
 } from './readingV2PassageExtraction.service';
+import {
+  buildReadingV2DuplicateIndexRow,
+  findReadingV2PassageDuplicateMatches,
+  getReadingV2DuplicateIndexPath,
+  type ReadingV2DuplicateGuardResult,
+  type ReadingV2DuplicateIndexRow,
+} from './readingV2PassageDuplicateGuard.service';
+import { assertReadingV2RefOnlyFullTestComposition } from './readingV2FullTestComposition.service';
+import {
+  assertReadingV2MasterHasNoBrokenRefs,
+  getReadingV2BrokenReferenceSummaryFromComposition,
+  type ReadingV2BrokenRefReason,
+} from './readingV2BrokenReference.service';
 import {
   assertReadingV2PublishGate,
   ReadingV2PublishGateError,
   validateReadingV2Draft,
   type ReadingV2ValidationResult,
 } from './readingV2Validation.service';
+import {
+  composeReadingV2PassageSetRuntimeProjection,
+  type ReadingPassageHomeworkLaunchItem,
+} from './readingV2PassageHomeworkLaunch.service';
 import { writeReadingV2WhereUsedForPublish } from './readingV2PassageAssetWorkflow.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
@@ -79,6 +97,7 @@ export interface ReadingV2PublishStorageWrite {
     | 'reading-passage-review-projection'
     | 'reading-passage-metadata'
     | 'reading-passage-listing-index'
+    | 'reading-passage-duplicate-index'
     | 'full-test-composition'
     | 'full-test-composition-version';
 }
@@ -156,6 +175,13 @@ export interface ReadingV2PublishPipelineInput {
     readonly visibility?: ReadingPassageVisibilityScope;
     readonly durationMinutes?: number;
   };
+  readonly duplicateIndexRows?: readonly ReadingV2DuplicateIndexRow[];
+  readonly duplicateIndexStatus?: 'available' | 'missing' | 'stale';
+  readonly masterComposition?: {
+    readonly hasBrokenRefs?: boolean;
+    readonly brokenRefCount?: number;
+    readonly brokenRefReasons?: readonly ReadingV2BrokenRefReason[];
+  };
   readonly returnContext?: string;
   readonly onDiagnosticEvent?: (event: string, payload: Record<string, unknown>) => void;
 }
@@ -168,8 +194,14 @@ export interface ReadingV2PublishPipelineResult {
   readonly relationshipIndexWrites: readonly ReadingV2PublishRelationshipIndexWrite[];
   readonly whereUsedWrites: readonly ReadingV2WhereUsedEntry[];
   readonly readingPassageExtraction?: ReadingV2PassageExtractionResult;
+  readonly duplicateWarnings: readonly ReadingV2AutoSplitDuplicateWarning[];
   readonly commitPlan: ReadingV2PublishCommitPlan;
   readonly returnContextNotification?: string;
+}
+
+export interface ReadingV2AutoSplitDuplicateWarning {
+  readonly passageMaterialId: ReadingV2MaterialId;
+  readonly result: ReadingV2DuplicateGuardResult;
 }
 
 export const generateReadingV2PreviewOnly = (input: {
@@ -324,6 +356,126 @@ const buildReadingPassageSnapshotValue = (input: {
   publishedBy: input.publishedBy,
 });
 
+const buildReadingPassagePublishedSnapshot = (input: {
+  readonly candidate: ReadingV2ExtractedPassageCandidate;
+  readonly ownerId: string;
+  readonly publishedAt: string;
+  readonly publishedBy: string;
+}): ReadingV2PublishedSnapshot => ({
+  snapshotVersionId: input.candidate.material.currentSnapshotVersionId,
+  materialId: toMaterialId(input.candidate.material.passageMaterialId),
+  ownerId: input.ownerId,
+  document: input.candidate.document,
+  publishedAt: input.publishedAt,
+  publishedBy: input.publishedBy,
+});
+
+const buildDuplicateBodyText = (candidate: ReadingV2ExtractedPassageCandidate): string =>
+  JSON.stringify({
+    stimulus: candidate.stimulus.content,
+  });
+
+const buildDuplicateQuestionText = (candidate: ReadingV2ExtractedPassageCandidate): string =>
+  JSON.stringify({
+    taskGroups: candidate.taskGroups.map((taskGroup) => ({
+      taskGroupId: taskGroup.taskGroupId,
+      officialTaskType: taskGroup.officialTaskType,
+      groupTitle: taskGroup.groupTitle,
+      instructionBlocks: taskGroup.instructionBlocks,
+      answerRule: taskGroup.answerRule,
+      stimulusRefs: taskGroup.stimulusRefs,
+      optionSetRefs: taskGroup.optionSetRefs,
+    })),
+    interactions: candidate.interactions.map((interaction) => ({
+      interactionId: interaction.interactionId,
+      responseShape: interaction.responseShape,
+      reviewLabel: interaction.reviewLabel,
+      promptText: interaction.promptText,
+      primaryAnchorId: interaction.primaryAnchorId,
+      contextAnchorIds: interaction.contextAnchorIds,
+    })),
+    optionSets: candidate.optionSets,
+  });
+
+const assertDuplicateIndexReady = (
+  input: Pick<ReadingV2PublishPipelineInput, 'duplicateIndexStatus'>,
+): void => {
+  if (input.duplicateIndexStatus === 'missing') {
+    throw new Error('Reading V2 auto-split duplicate index is missing; publish cannot fall back to canonical scans.');
+  }
+
+  if (input.duplicateIndexStatus === 'stale') {
+    throw new Error('Reading V2 auto-split duplicate index is stale; publish cannot fall back to canonical scans.');
+  }
+};
+
+const buildReadingPassageDuplicateArtifacts = (input: {
+  readonly extraction: ReadingV2PassageExtractionResult;
+  readonly ownerId: string;
+  readonly duplicateIndexRows?: readonly ReadingV2DuplicateIndexRow[];
+  readonly publishedAt: string;
+}): {
+  readonly warnings: readonly ReadingV2AutoSplitDuplicateWarning[];
+  readonly writes: readonly ReadingV2PublishStorageWrite[];
+} => {
+  const rows = input.duplicateIndexRows ?? [];
+  const warnings: ReadingV2AutoSplitDuplicateWarning[] = [];
+  const writes: ReadingV2PublishStorageWrite[] = [];
+
+  input.extraction.passages.forEach((candidate) => {
+    const passageMaterialId = toMaterialId(candidate.material.passageMaterialId);
+    const bodyText = buildDuplicateBodyText(candidate);
+    const questionText = buildDuplicateQuestionText(candidate);
+    const result = findReadingV2PassageDuplicateMatches({
+      teacherId: input.ownerId,
+      candidate: {
+        title: candidate.material.title,
+        source: {
+          sourceFullTestId: candidate.material.sourceFullTestId,
+          sourceOrderDisplay: candidate.material.sourceOrder.displaySnapshot,
+        },
+        bodyText,
+        questionText,
+      },
+      rows,
+      currentMaterialId: candidate.material.passageMaterialId,
+    });
+
+    if (result.shouldWarn) {
+      warnings.push({ passageMaterialId, result });
+    }
+
+    writes.push({
+      path: getReadingV2DuplicateIndexPath(input.ownerId, candidate.material.passageMaterialId),
+      value: buildReadingV2DuplicateIndexRow({
+        ownerId: input.ownerId,
+        passageMaterialId: candidate.material.passageMaterialId,
+        currentVersionId: candidate.material.currentSnapshotVersionId,
+        title: candidate.material.title,
+        state: candidate.material.state === 'archived' ? 'archived' : 'published',
+        visibility: candidate.material.visibility,
+        source: {
+          sourceFullTestId: candidate.material.sourceFullTestId,
+          sourceOrderDisplay: candidate.material.sourceOrder.displaySnapshot,
+        },
+        testType: {
+          ...(candidate.material.primaryTestTypeId
+            ? { primaryTestTypeId: candidate.material.primaryTestTypeId }
+            : {}),
+          testTypeIds: candidate.material.testTypeIds,
+        },
+        questionCount: candidate.material.interactionIds.length,
+        updatedAt: input.publishedAt,
+        bodyText,
+        questionText,
+      }),
+      writeKind: 'reading-passage-duplicate-index',
+    });
+  });
+
+  return { warnings, writes };
+};
+
 const buildCompositionVersionValue = (input: {
   readonly composition: ReadingV2FullTestComposition;
   readonly publishedAt: string;
@@ -342,17 +494,17 @@ const buildReadingPassageStorageWrites = (input: {
   readonly publishedAt: string;
   readonly publishedBy: string;
   readonly testTypeConfigs?: readonly MaterialTestTypeConfig[];
+  readonly duplicateIndexWrites?: readonly ReadingV2PublishStorageWrite[];
 }): ReadingV2PublishStorageWrite[] => {
+  assertReadingV2RefOnlyFullTestComposition(input.extraction.composition);
   const passageWrites = input.extraction.passages.flatMap((candidate): ReadingV2PublishStorageWrite[] => {
     const passageMaterialId = toMaterialId(candidate.material.passageMaterialId);
-    const passageSnapshot: ReadingV2PublishedSnapshot = {
-      snapshotVersionId: candidate.material.currentSnapshotVersionId,
-      materialId: passageMaterialId,
+    const passageSnapshot = buildReadingPassagePublishedSnapshot({
+      candidate,
       ownerId: input.ownerId,
-      document: candidate.document,
       publishedAt: input.publishedAt,
       publishedBy: input.publishedBy,
-    };
+    });
     const studentSafeProjection = generateReadingV2StudentSafeProjection(
       passageSnapshot,
       input.publishedAt,
@@ -442,6 +594,9 @@ const buildReadingPassageStorageWrites = (input: {
         value: metadata,
         writeKind: 'reading-passage-metadata',
       },
+      ...((input.duplicateIndexWrites ?? []).filter((write) =>
+        write.path.endsWith(`/${candidate.material.passageMaterialId}`),
+      )),
       ...indexWrites.map((write) => ({
         path: write.path,
         value: write.value,
@@ -472,10 +627,95 @@ const buildReadingPassageStorageWrites = (input: {
   ];
 };
 
+const compositionProjectionItems = (
+  composition: ReadingV2FullTestComposition,
+): readonly ReadingPassageHomeworkLaunchItem[] =>
+  [...composition.passageRefs]
+    .sort((left, right) => left.order - right.order)
+    .map((ref) => ({
+      passageMaterialId: ref.passageMaterialId,
+      snapshotVersionId: ref.snapshotVersionId,
+      titleSnapshot: ref.titleSnapshot || ref.title,
+      questionCount: ref.questionCountSnapshot || ref.questionCount,
+      testTypeIds: [...ref.testTypeIdsSnapshot],
+      sourceOrderDisplay: ref.sourceOrderDisplaySnapshot || ref.source?.sourceOrderDisplay,
+      sourceFullTestTitle: ref.source?.sourceFullTestTitle,
+      order: ref.order,
+    }));
+
+const buildCompositionFirstMasterProjections = (input: {
+  readonly materialId: ReadingV2MaterialId;
+  readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly ownerId: string;
+  readonly publishedAt: string;
+  readonly publishedBy: string;
+  readonly metadata: ReadingV2MaterialMetadata;
+  readonly extraction: ReadingV2PassageExtractionResult;
+  readonly sessionCodeForProjection?: string;
+}): readonly ReadingV2DerivedProjection[] => {
+  const items = compositionProjectionItems(input.extraction.composition);
+  const studentSafePassageProjections = input.extraction.passages.map((candidate) =>
+    generateReadingV2StudentSafeProjection(
+      buildReadingPassagePublishedSnapshot({
+        candidate,
+        ownerId: input.ownerId,
+        publishedAt: input.publishedAt,
+        publishedBy: input.publishedBy,
+      }),
+      input.publishedAt,
+    ),
+  );
+  const reviewPassageProjections = input.extraction.passages.map((candidate) =>
+    generateReadingV2ReviewProjection(
+      buildReadingPassagePublishedSnapshot({
+        candidate,
+        ownerId: input.ownerId,
+        publishedAt: input.publishedAt,
+        publishedBy: input.publishedBy,
+      }),
+      input.publishedAt,
+    ),
+  );
+  const studentSafeProjection = composeReadingV2PassageSetRuntimeProjection({
+    title: input.metadata.title,
+    materialId: input.materialId,
+    sourceDocumentId: input.extraction.composition.compositionId,
+    projectionId: `student-safe:${input.materialId}:${input.snapshotVersionId}`,
+    projectionKind: 'student-safe',
+    sourceSnapshotVersionId: input.snapshotVersionId,
+    runtimeContract: 'student-runtime',
+    items,
+    projections: studentSafePassageProjections,
+    generatedAt: input.publishedAt,
+  });
+  const sessionSafeProjection = generateReadingV2SessionSafeProjection({
+    sessionCode: input.sessionCodeForProjection ?? 'publish-template',
+    studentSafeProjection,
+    generatedAt: input.publishedAt,
+  });
+  const reviewProjection = composeReadingV2PassageSetRuntimeProjection({
+    title: input.metadata.title,
+    materialId: input.materialId,
+    sourceDocumentId: input.extraction.composition.compositionId,
+    projectionId: `review:${input.materialId}:${input.snapshotVersionId}`,
+    projectionKind: 'review',
+    sourceSnapshotVersionId: input.snapshotVersionId,
+    runtimeContract: 'review-shell',
+    items,
+    projections: reviewPassageProjections,
+    generatedAt: input.publishedAt,
+  });
+
+  assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
+  assertReadingV2ProjectionIsStudentSanitized(sessionSafeProjection);
+
+  return [studentSafeProjection, sessionSafeProjection, reviewProjection];
+};
+
 const buildReadingV2PublishCommitPlan = (input: {
   readonly materialId: ReadingV2MaterialId;
   readonly snapshotVersionId: ReadingV2SnapshotVersionId;
-  readonly snapshot: ReadingV2PublishedSnapshot;
+  readonly snapshot?: ReadingV2PublishedSnapshot;
   readonly projections: readonly ReadingV2DerivedProjection[];
   readonly metadata: ReadingV2MaterialMetadata;
   readonly relationshipIndexWrites: readonly ReadingV2PublishRelationshipIndexWrite[];
@@ -485,11 +725,13 @@ const buildReadingV2PublishCommitPlan = (input: {
 }): ReadingV2PublishCommitPlan => {
   const commitKey = `${input.materialId}/${input.snapshotVersionId}`;
   const operations: ReadingV2PublishCommitOperation[] = [
-    {
+    ...(input.snapshot
+      ? [{
       kind: 'published-snapshot',
       operationKey: `${commitKey}/snapshot`,
       snapshot: input.snapshot,
-    },
+    } as const]
+      : []),
     ...input.projections.map((projection) => ({
       kind: 'projection' as const,
       operationKey: `${commitKey}/projection/${projection.projectionKind}`,
@@ -537,7 +779,7 @@ export const commitReadingV2PublishPlanToRepository = (
   repository: ReturnType<typeof createReadingV2Repository>,
   commitPlan: ReadingV2PublishCommitPlan,
 ): {
-  readonly snapshot: ReadingV2PublishedSnapshot;
+  readonly snapshot?: ReadingV2PublishedSnapshot;
   readonly whereUsedWrites: readonly ReadingV2WhereUsedEntry[];
 } => {
   const previousSnapshots = new Map(repository.store.publishedSnapshots);
@@ -575,12 +817,13 @@ export const commitReadingV2PublishPlanToRepository = (
     throw error;
   }
 
-  if (!committedSnapshot) {
+  const hasStorageWrites = commitPlan.operations.some((operation) => operation.kind === 'storage-write');
+  if (!committedSnapshot && !hasStorageWrites) {
     throw new Error('Reading V2 publish commit plan is missing an immutable snapshot operation.');
   }
 
   return {
-    snapshot: committedSnapshot,
+    snapshot: committedSnapshot ?? undefined,
     whereUsedWrites,
   };
 };
@@ -619,6 +862,12 @@ export const dispatchReadingV2PublishCommitPlanToSinks = (
 export const publishReadingV2Material = (
   input: ReadingV2PublishPipelineInput,
 ): ReadingV2PublishPipelineResult => {
+  if (input.masterComposition) {
+    assertReadingV2MasterHasNoBrokenRefs(
+      getReadingV2BrokenReferenceSummaryFromComposition(input.masterComposition),
+    );
+  }
+
   let validation: ReadingV2ValidationResult;
   try {
     validation = assertReadingV2PublishGate(input.document);
@@ -641,25 +890,7 @@ export const publishReadingV2Material = (
     publishedAt,
     publishedBy: input.publishedBy,
   };
-  const studentSafeProjection = generateReadingV2StudentSafeProjection(stagedSnapshot, publishedAt);
-  const sessionSafeProjection = generateReadingV2SessionSafeProjection({
-    sessionCode: input.sessionCodeForProjection ?? 'publish-template',
-    studentSafeProjection,
-    generatedAt: publishedAt,
-  });
-  const reviewProjection = generateReadingV2ReviewProjection(stagedSnapshot, publishedAt);
-  const analyticsProjection = generateReadingV2AnalyticsProjection(stagedSnapshot, publishedAt);
-  const projections = [
-    studentSafeProjection,
-    sessionSafeProjection,
-    reviewProjection,
-    analyticsProjection,
-  ];
-
-  assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
-  assertReadingV2ProjectionIsStudentSanitized(sessionSafeProjection);
-
-  const metadata = deriveReadingV2MaterialMetadata({
+  const baseMetadata = deriveReadingV2MaterialMetadata({
     ...input.metadata,
     materialId: input.materialId,
     ownerId: input.ownerId,
@@ -674,7 +905,7 @@ export const publishReadingV2Material = (
     consumerId: input.materialId,
     consumerKind: use.consumerKind,
   }));
-  const readingPassageExtractionInput = resolveReadingPassageExtractionInput(input, metadata);
+  const readingPassageExtractionInput = resolveReadingPassageExtractionInput(input, baseMetadata);
   const readingPassageExtraction = readingPassageExtractionInput
     ? extractReadingV2PassageMaterials({
         document: input.document,
@@ -682,7 +913,7 @@ export const publishReadingV2Material = (
         sourceFullTestId: readingPassageExtractionInput.sourceFullTestId,
         testMaterialId: input.materialId,
         sourceSnapshotVersionId: snapshotVersionId,
-        sourceTitleSnapshot: metadata.title,
+        sourceTitleSnapshot: baseMetadata.title,
         primaryTestTypeId: readingPassageExtractionInput.primaryTestTypeId,
         testTypeIds: readingPassageExtractionInput.testTypeIds,
         testTypeConfigs: readingPassageExtractionInput.testTypeConfigs,
@@ -691,6 +922,13 @@ export const publishReadingV2Material = (
         createdAt: publishedAt,
       })
     : undefined;
+  const metadata: ReadingV2MaterialMetadata = readingPassageExtraction
+    ? {
+        ...baseMetadata,
+        compositionId: readingPassageExtraction.composition.compositionId,
+      }
+    : baseMetadata;
+  const writesCompositionFirstMaster = Boolean(readingPassageExtraction);
 
   if (readingPassageExtraction?.validationIssues.some((entry) => entry.severity === 'error')) {
     emitPassageExtractionCanonicalValidationBlocked(input, readingPassageExtraction);
@@ -701,6 +939,50 @@ export const publishReadingV2Material = (
     throw new Error(`Reading V2 passage extraction blocked publish: ${codes}`);
   }
 
+  const projections = writesCompositionFirstMaster
+    ? buildCompositionFirstMasterProjections({
+        materialId: input.materialId,
+        snapshotVersionId,
+        ownerId: input.ownerId,
+        publishedAt,
+        publishedBy: input.publishedBy,
+        metadata,
+        extraction: readingPassageExtraction!,
+        sessionCodeForProjection: input.sessionCodeForProjection,
+      })
+    : (() => {
+        const studentSafeProjection = generateReadingV2StudentSafeProjection(stagedSnapshot, publishedAt);
+        const sessionSafeProjection = generateReadingV2SessionSafeProjection({
+          sessionCode: input.sessionCodeForProjection ?? 'publish-template',
+          studentSafeProjection,
+          generatedAt: publishedAt,
+        });
+        const reviewProjection = generateReadingV2ReviewProjection(stagedSnapshot, publishedAt);
+        const analyticsProjection = generateReadingV2AnalyticsProjection(stagedSnapshot, publishedAt);
+
+        assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
+        assertReadingV2ProjectionIsStudentSanitized(sessionSafeProjection);
+
+        return [
+          studentSafeProjection,
+          sessionSafeProjection,
+          reviewProjection,
+          analyticsProjection,
+        ];
+      })();
+
+  if (readingPassageExtraction) {
+    assertDuplicateIndexReady(input);
+  }
+  const duplicateArtifacts = readingPassageExtraction
+    ? buildReadingPassageDuplicateArtifacts({
+        extraction: readingPassageExtraction,
+        ownerId: input.ownerId,
+        duplicateIndexRows: input.duplicateIndexRows,
+        publishedAt,
+      })
+    : { warnings: [], writes: [] };
+
   const storageWrites = readingPassageExtraction
     ? buildReadingPassageStorageWrites({
         extraction: readingPassageExtraction,
@@ -710,12 +992,13 @@ export const publishReadingV2Material = (
         publishedAt,
         publishedBy: input.publishedBy,
         testTypeConfigs: readingPassageExtractionInput?.testTypeConfigs,
+        duplicateIndexWrites: duplicateArtifacts.writes,
       })
     : [];
   const commitPlan = buildReadingV2PublishCommitPlan({
     materialId: input.materialId,
     snapshotVersionId,
-    snapshot: stagedSnapshot,
+    snapshot: writesCompositionFirstMaster ? undefined : stagedSnapshot,
     projections,
     metadata,
     relationshipIndexWrites,
@@ -733,6 +1016,7 @@ export const publishReadingV2Material = (
     relationshipIndexWrites,
     whereUsedWrites: committed.whereUsedWrites,
     readingPassageExtraction,
+    duplicateWarnings: duplicateArtifacts.warnings,
     commitPlan,
     returnContextNotification: input.returnContext,
   };

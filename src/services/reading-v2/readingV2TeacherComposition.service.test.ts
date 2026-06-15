@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildReadingV2TeacherSelectedPassageComposition,
+  createReadingV2TeacherSelectedPassageDraft,
   createReadingV2TeacherSelectedPassageComposition,
+  removeReadingV2MasterComposition,
 } from './readingV2TeacherComposition.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
@@ -45,6 +47,9 @@ describe('readingV2TeacherComposition.service', () => {
       title: 'Selected Reading Passages',
       ownerId: 'teacher-1',
       questionCount: 21,
+      numbering: expect.objectContaining({
+        totalQuestionCount: 21,
+      }),
       durationMinutes: 33,
       visibility: 'private',
       testTypeIds: ['ielts'],
@@ -236,6 +241,73 @@ describe('readingV2TeacherComposition.service', () => {
     expect(Object.keys(updates).some((path) => path.includes('reading_passage_materials/'))).toBe(false);
   });
 
+  it('creates an unpublished ref-only draft master from selected published passages', async () => {
+    const updates: Record<string, unknown> = {};
+    const repository = {
+      update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+        Object.assign(updates, nextUpdates);
+      }),
+    };
+
+    const result = await createReadingV2TeacherSelectedPassageDraft({
+      teacherId: 'teacher-1',
+      passages,
+      repository,
+      metadata: {
+        title: 'Existing Passage Draft',
+        durationMinutes: 60,
+        visibility: 'private',
+      },
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    expect(repository.update).toHaveBeenCalledTimes(1);
+    expect(result.draft.mode).toBe('draft');
+    expect(result.draft.title).toBe('Existing Passage Draft');
+    expect(result.draft.passageRefs.map((ref) => ref.passageMaterialId)).toEqual(['passage-a', 'passage-b']);
+    expect(updates[result.paths.composition]).toMatchObject({
+      title: 'Existing Passage Draft',
+      ownerId: 'teacher-1',
+      mode: 'draft',
+      passageRefs: [
+        expect.objectContaining({ passageMaterialId: 'passage-a', snapshotVersionId: 'snapshot-a' }),
+        expect.objectContaining({ passageMaterialId: 'passage-b', snapshotVersionId: 'snapshot-b' }),
+      ],
+    });
+    expect(Object.keys(updates).some((path) => path.includes('/published_snapshots/'))).toBe(false);
+    expect(Object.keys(updates).some((path) => path.includes('/projections/student_safe_tests/'))).toBe(false);
+  });
+
+  it('rejects draft master creation from draft, archived, inaccessible, or missing-projection passage rows', async () => {
+    const repository = {
+      update: vi.fn(),
+    };
+
+    await expect(createReadingV2TeacherSelectedPassageDraft({
+      teacherId: 'teacher-1',
+      passages: [
+        { materialId: 'draft-passage', title: 'Draft', state: 'draft', publishedSnapshotVersionId: 'snapshot-draft' },
+      ],
+      repository,
+    })).rejects.toThrow('published, unarchived');
+
+    await expect(createReadingV2TeacherSelectedPassageDraft({
+      teacherId: 'teacher-1',
+      passages: [
+        { materialId: 'archived-passage', title: 'Archived', state: 'archived', publishedSnapshotVersionId: 'snapshot-archived' },
+      ],
+      repository,
+    })).rejects.toThrow('published, unarchived');
+
+    await expect(createReadingV2TeacherSelectedPassageDraft({
+      teacherId: 'teacher-1',
+      passages: [
+        { materialId: 'missing-projection', title: 'Missing Projection', state: 'published' },
+      ],
+      repository,
+    })).rejects.toThrow('published snapshot version');
+  });
+
   it('prefixes option-id answer keys when selected passage snapshots are merged', async () => {
     const updates: Record<string, unknown> = {};
     const sourceSnapshots = {
@@ -283,5 +355,67 @@ describe('readingV2TeacherComposition.service', () => {
       passages: [{ materialId: 'passage-without-snapshot', title: 'Missing Snapshot' }],
       now: '2026-06-02T00:00:00.000Z',
     })).toThrow('missing a published snapshot version');
+  });
+
+  it('soft-removes a master without deleting linked Reading Passage materials', async () => {
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+    const writes: Array<{ path: string; value: unknown }> = [];
+    const removes: string[] = [];
+
+    const result = await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async (path, value) => {
+          writes.push({ path, value });
+        },
+        remove: async (path) => {
+          removes.push(path);
+        },
+      },
+      now: '2026-06-03T00:00:00.000Z',
+      correlationId: 'corr-master-remove-1',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+
+    expect(writes).toEqual(expect.arrayContaining([
+      {
+        path: `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
+        value: 'removed',
+      },
+      {
+        path: `${readingV2StoragePaths.materialMetadata(composition.testMaterialId)}/state`,
+        value: 'removed',
+      },
+      {
+        path: `reading_v2/audit_events/corr-master-remove-1:reading_master_removed:${composition.compositionId}`,
+        value: expect.objectContaining({
+          action: 'reading_master_removed',
+          entityType: 'reading-master',
+          entityId: composition.compositionId,
+        }),
+      },
+    ]));
+    expect(removes).toEqual(expect.arrayContaining([
+      `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
+      `material_catalog/material_indexes/by_visibility/private/${composition.testMaterialId}`,
+      `material_catalog/material_indexes/by_material_kind/full-test/${composition.testMaterialId}`,
+      `material_catalog/material_indexes/by_test_type/ielts/${composition.testMaterialId}`,
+    ]));
+    expect([...writes.map((write) => write.path), ...removes].some((path) =>
+      path.includes('reading_passage_materials/passage-a') ||
+      path.includes('reading_passage_materials/passage-b') ||
+      path.includes('published_snapshots'),
+    )).toBe(false);
+    expect(result.changedPaths).toEqual(expect.arrayContaining([
+      `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
+      `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
+    ]));
   });
 });

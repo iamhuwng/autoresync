@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildReadingV2TrustedSubmissionPlan = exports.composeReadingPassageSetTrustedRecords = exports.getMaterialIdFromRequest = exports.parseReadingV2TrustedSubmissionRequest = exports.sanitizeRtdbValue = exports.READING_V2_SCHEMA_VERSION = exports.READING_V2_ENGINE = void 0;
+exports.buildReadingV2TrustedSubmissionPlan = exports.composeReadingV2CompositionTrustedRecords = exports.composeReadingPassageSetTrustedRecords = exports.getMaterialIdFromRequest = exports.parseReadingV2TrustedSubmissionRequest = exports.sanitizeRtdbValue = exports.READING_V2_SCHEMA_VERSION = exports.READING_V2_ENGINE = void 0;
 exports.READING_V2_ENGINE = 'reading-v2';
 exports.READING_V2_SCHEMA_VERSION = 1;
 const storagePaths = {
@@ -17,6 +17,15 @@ const requiredString = (value, fieldName) => {
 };
 const optionalString = (value) => typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 const optionalNullableString = (value) => typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+const optionalIntegrityReport = (value) => {
+    if (value === undefined || value === null) {
+        return null;
+    }
+    if (!isRecord(value)) {
+        throw new Error('Reading V2 integrityReport must be an object when provided.');
+    }
+    return (0, exports.sanitizeRtdbValue)(value);
+};
 const sanitizeRtdbValue = (value) => {
     if (value === undefined) {
         return null;
@@ -51,6 +60,7 @@ const parseReadingV2TrustedSubmissionRequest = (body) => {
         sourceSnapshotVersionId: requiredString(body.sourceSnapshotVersionId, 'sourceSnapshotVersionId'),
         materialId: optionalString(body.materialId),
         answers: body.answers.map((answer, index) => parseAnswer(answer, index)),
+        integrityReport: optionalIntegrityReport(body.integrityReport),
         context: isRecord(body.context) ? {
             surface: parseSurface(body.context.surface),
             sessionCode: optionalString(body.context.sessionCode),
@@ -143,22 +153,52 @@ const prefixId = (prefix, value) => typeof value === 'string' && value.length > 
 const prefixIds = (prefix, values) => Array.isArray(values)
     ? values.map((value) => prefixId(prefix, value)).filter((value) => typeof value === 'string')
     : [];
-const prefixAnchorRefs = (prefix, value) => {
-    if (Array.isArray(value)) {
-        return value.map((entry) => prefixAnchorRefs(prefix, entry));
+const prefixedStimulusContent = (prefix, content) => {
+    if (!isRecord(content)) {
+        return content;
     }
-    if (!isRecord(value)) {
-        return value;
+    if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
+        return Object.assign(Object.assign({}, content), { paragraphs: content.paragraphs.map((paragraph) => {
+                var _a;
+                return isRecord(paragraph)
+                    ? Object.assign(Object.assign({}, paragraph), { anchorId: (_a = prefixId(prefix, paragraph.anchorId)) !== null && _a !== void 0 ? _a : paragraph.anchorId }) : paragraph;
+            }) });
     }
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
-        if (key === 'anchorId') {
-            return [key, prefixId(prefix, entry)];
-        }
-        if (key === 'anchorIds') {
-            return [key, prefixIds(prefix, entry)];
-        }
-        return [key, prefixAnchorRefs(prefix, entry)];
-    }));
+    if (content.kind === 'table-content' && Array.isArray(content.rows)) {
+        return Object.assign(Object.assign({}, content), { rows: content.rows.map((row) => Array.isArray(row)
+                ? row.map((cell) => {
+                    var _a;
+                    if (!isRecord(cell)) {
+                        return cell;
+                    }
+                    const splitSourceCells = Array.isArray(cell.splitSourceCells)
+                        ? cell.splitSourceCells.map((sourceCell) => {
+                            var _a;
+                            return isRecord(sourceCell)
+                                ? Object.assign(Object.assign({}, sourceCell), { anchorId: (_a = prefixId(prefix, sourceCell.anchorId)) !== null && _a !== void 0 ? _a : sourceCell.anchorId, anchorIds: Array.isArray(sourceCell.anchorIds)
+                                        ? prefixIds(prefix, sourceCell.anchorIds)
+                                        : sourceCell.anchorIds }) : sourceCell;
+                        })
+                        : cell.splitSourceCells;
+                    return Object.assign(Object.assign({}, cell), { anchorId: (_a = prefixId(prefix, cell.anchorId)) !== null && _a !== void 0 ? _a : cell.anchorId, anchorIds: Array.isArray(cell.anchorIds) ? prefixIds(prefix, cell.anchorIds) : cell.anchorIds, splitSourceCells });
+                })
+                : row) });
+    }
+    if (content.kind === 'flowchart-content' && Array.isArray(content.steps)) {
+        return Object.assign(Object.assign({}, content), { steps: content.steps.map((step) => {
+                var _a;
+                return isRecord(step)
+                    ? Object.assign(Object.assign({}, step), { anchorId: (_a = prefixId(prefix, step.anchorId)) !== null && _a !== void 0 ? _a : step.anchorId }) : step;
+            }) });
+    }
+    if (content.kind === 'diagram-content' && Array.isArray(content.hotspots)) {
+        return Object.assign(Object.assign({}, content), { hotspots: content.hotspots.map((hotspot) => {
+                var _a;
+                return isRecord(hotspot)
+                    ? Object.assign(Object.assign({}, hotspot), { anchorId: (_a = prefixId(prefix, hotspot.anchorId)) !== null && _a !== void 0 ? _a : hotspot.anchorId }) : hotspot;
+            }) });
+    }
+    return content;
 };
 const findProjectedTaskGroup = (projection, interactionId) => projectedGroups(projection).find((taskGroup) => Array.isArray(taskGroup.interactions) &&
     taskGroup.interactions.some((interaction) => interaction.interactionId === interactionId));
@@ -173,6 +213,21 @@ const sortReadingPassageSetItems = (homework) => {
     return Array.isArray((_a = homework.readingPassageSet) === null || _a === void 0 ? void 0 : _a.items)
         ? [...homework.readingPassageSet.items].sort((left, right) => Number(left.order) - Number(right.order))
         : [];
+};
+const sortCompositionPassageRefs = (composition) => Array.isArray(composition.passageRefs)
+    ? [...composition.passageRefs].sort((left, right) => Number(left.order) - Number(right.order))
+    : [];
+const passageItemTitle = (item) => {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = optionalString(item.titleSnapshot)) !== null && _a !== void 0 ? _a : optionalString(item.title)) !== null && _b !== void 0 ? _b : optionalString(item.materialTitle)) !== null && _c !== void 0 ? _c : `Passage ${Number(item.order) || 1}`;
+};
+const passageItemSourceOrderDisplay = (item) => {
+    var _a, _b, _c;
+    return (_b = (_a = optionalNullableString(item.sourceOrderDisplay)) !== null && _a !== void 0 ? _a : optionalNullableString(item.sourceOrderDisplaySnapshot)) !== null && _b !== void 0 ? _b : optionalNullableString((_c = item.source) === null || _c === void 0 ? void 0 : _c.sourceOrderDisplay);
+};
+const passageItemSourceFullTestTitle = (item) => {
+    var _a, _b;
+    return (_a = optionalNullableString(item.sourceFullTestTitle)) !== null && _a !== void 0 ? _a : optionalNullableString((_b = item.source) === null || _b === void 0 ? void 0 : _b.sourceFullTestTitle);
 };
 const prefixedCanonicalInteractions = (prefix, snapshot) => {
     var _a, _b;
@@ -190,22 +245,23 @@ const prefixedCanonicalTaskGroups = (prefix, snapshot) => {
     }));
 };
 const prefixedReviewContent = (input) => {
-    var _a, _b, _c;
+    var _a;
     const content = (_a = input.projection.content) !== null && _a !== void 0 ? _a : {};
+    const title = passageItemTitle(input.item);
     const passageSection = {
         order: input.item.order,
-        title: input.item.titleSnapshot,
+        title,
         passageMaterialId: input.item.passageMaterialId,
         snapshotVersionId: input.item.snapshotVersionId,
-        sourceOrderDisplay: (_b = input.item.sourceOrderDisplay) !== null && _b !== void 0 ? _b : null,
-        sourceFullTestTitle: (_c = input.item.sourceFullTestTitle) !== null && _c !== void 0 ? _c : null,
+        sourceOrderDisplay: passageItemSourceOrderDisplay(input.item),
+        sourceFullTestTitle: passageItemSourceFullTestTitle(input.item),
     };
     return {
         sections: Array.isArray(content.sections)
-            ? content.sections.map((section) => (Object.assign(Object.assign({}, section), { sectionId: requiredString(prefixId(input.prefix, section.sectionId), 'prefixed sectionId'), title: `Passage ${input.item.order}: ${input.item.titleSnapshot}`, stimulusIds: prefixIds(input.prefix, section.stimulusIds), taskGroupIds: prefixIds(input.prefix, section.taskGroupIds) })))
+            ? content.sections.map((section) => (Object.assign(Object.assign({}, section), { sectionId: requiredString(prefixId(input.prefix, section.sectionId), 'prefixed sectionId'), title: `Passage ${input.item.order}: ${title}`, stimulusIds: prefixIds(input.prefix, section.stimulusIds), taskGroupIds: prefixIds(input.prefix, section.taskGroupIds) })))
             : [],
         stimuli: Array.isArray(content.stimuli)
-            ? content.stimuli.map((stimulus) => (Object.assign(Object.assign({}, stimulus), { stimulusId: requiredString(prefixId(input.prefix, stimulus.stimulusId), 'prefixed stimulusId'), anchorIds: prefixIds(input.prefix, stimulus.anchorIds), content: prefixAnchorRefs(input.prefix, stimulus.content) })))
+            ? content.stimuli.map((stimulus) => (Object.assign(Object.assign({}, stimulus), { stimulusId: requiredString(prefixId(input.prefix, stimulus.stimulusId), 'prefixed stimulusId'), anchorIds: prefixIds(input.prefix, stimulus.anchorIds), content: prefixedStimulusContent(input.prefix, stimulus.content) })))
             : [],
         anchors: Array.isArray(content.anchors)
             ? content.anchors.map((anchor) => (Object.assign(Object.assign({}, anchor), { anchorId: requiredString(prefixId(input.prefix, anchor.anchorId), 'prefixed anchorId'), stimulusId: requiredString(prefixId(input.prefix, anchor.stimulusId), 'prefixed anchor stimulusId') })))
@@ -216,8 +272,9 @@ const prefixedReviewContent = (input) => {
                 ? taskGroup.stimulusRefs.map((ref) => (Object.assign(Object.assign({}, ref), { stimulusId: requiredString(prefixId(input.prefix, ref.stimulusId), 'prefixed stimulus ref'), anchorIds: prefixIds(input.prefix, ref.anchorIds) })))
                 : [], interactions: Array.isArray(taskGroup.interactions)
                 ? taskGroup.interactions.map((interaction) => {
-                    var _a;
-                    return (Object.assign(Object.assign({}, interaction), { interactionId: requiredString(prefixId(input.prefix, interaction.interactionId), 'prefixed interactionId'), taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'), displayNumber: input.visibleNumberOffset + Number((_a = interaction.displayNumber) !== null && _a !== void 0 ? _a : 0), primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId), contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds) }));
+                    var _a, _b;
+                    const prefixedInteractionId = requiredString(prefixId(input.prefix, interaction.interactionId), 'prefixed interactionId');
+                    return Object.assign(Object.assign({}, interaction), { interactionId: prefixedInteractionId, taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'), displayNumber: (_a = input.interactionDisplayNumbers[prefixedInteractionId]) !== null && _a !== void 0 ? _a : Number((_b = interaction.displayNumber) !== null && _b !== void 0 ? _b : 0), primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId), contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds) });
                 })
                 : [] }))),
         optionSets: Array.isArray(content.optionSets)
@@ -225,9 +282,101 @@ const prefixedReviewContent = (input) => {
             : [],
     };
 };
-const countProjectedInteractions = (projection) => projectedGroups(projection).reduce((sum, taskGroup) => sum + (Array.isArray(taskGroup.interactions) ? taskGroup.interactions.length : 0), 0);
+const buildInteractionDisplayNumbers = (input) => {
+    const interactionDisplayNumbers = {};
+    let nextDisplayNumber = 1;
+    input.items.forEach((item, index) => {
+        var _a;
+        const passageRecord = input.passageRecords[index];
+        const prefix = `passage-${item.order}`;
+        projectedGroups((_a = passageRecord === null || passageRecord === void 0 ? void 0 : passageRecord.reviewProjection) !== null && _a !== void 0 ? _a : {}).forEach((taskGroup) => {
+            if (!Array.isArray(taskGroup.interactions)) {
+                return;
+            }
+            taskGroup.interactions.forEach((interaction) => {
+                const prefixedInteractionId = prefixId(prefix, interaction.interactionId);
+                if (prefixedInteractionId) {
+                    interactionDisplayNumbers[prefixedInteractionId] = nextDisplayNumber;
+                    nextDisplayNumber += 1;
+                }
+            });
+        });
+    });
+    return interactionDisplayNumbers;
+};
+const composeTrustedPassageRecords = (input) => {
+    var _a, _b, _c, _d, _e, _f;
+    if (input.items.length === 0 || input.items.length !== input.passageRecords.length) {
+        throw new Error('Reading V2 trusted passage composition requires one passage record per assigned passage.');
+    }
+    const interactionDisplayNumbers = buildInteractionDisplayNumbers({
+        items: input.items,
+        passageRecords: input.passageRecords,
+    });
+    const canonicalInteractions = {};
+    const canonicalTaskGroups = {};
+    const reviewContents = [];
+    input.items.forEach((item, index) => {
+        const passageRecord = input.passageRecords[index];
+        if (!passageRecord) {
+            throw new Error('Reading V2 trusted passage composition is missing a passage record.');
+        }
+        const prefix = `passage-${item.order}`;
+        if (passageRecord.snapshot.materialId !== item.passageMaterialId ||
+            passageRecord.snapshot.snapshotVersionId !== item.snapshotVersionId ||
+            passageRecord.reviewProjection.sourceSnapshotVersionId !== item.snapshotVersionId) {
+            throw new Error('Reading V2 trusted passage composition record does not match the assigned snapshot.');
+        }
+        Object.assign(canonicalInteractions, prefixedCanonicalInteractions(prefix, passageRecord.snapshot));
+        Object.assign(canonicalTaskGroups, prefixedCanonicalTaskGroups(prefix, passageRecord.snapshot));
+        reviewContents.push(prefixedReviewContent({
+            prefix,
+            item,
+            projection: passageRecord.reviewProjection,
+            interactionDisplayNumbers,
+        }));
+    });
+    const firstRecord = input.passageRecords[0];
+    if (!firstRecord) {
+        throw new Error('Reading V2 trusted passage composition requires at least one passage record.');
+    }
+    return {
+        snapshot: {
+            snapshotVersionId: input.snapshotVersionId,
+            materialId: input.materialId,
+            ownerId: (_a = input.ownerId) !== null && _a !== void 0 ? _a : firstRecord.snapshot.ownerId,
+            publishedAt: (_b = input.generatedAt) !== null && _b !== void 0 ? _b : firstRecord.snapshot.publishedAt,
+            publishedBy: (_d = (_c = input.publishedBy) !== null && _c !== void 0 ? _c : input.ownerId) !== null && _d !== void 0 ? _d : firstRecord.snapshot.publishedBy,
+            document: {
+                title: input.title,
+                interactions: canonicalInteractions,
+                taskGroups: canonicalTaskGroups,
+            },
+        },
+        reviewProjection: {
+            deliveryEngine: exports.READING_V2_ENGINE,
+            projectionKind: 'review',
+            sourceSnapshotVersionId: input.snapshotVersionId,
+            generatedAt: (_e = input.generatedAt) !== null && _e !== void 0 ? _e : firstRecord.reviewProjection.generatedAt,
+            content: {
+                title: input.title,
+                sections: reviewContents.flatMap((content) => content.sections),
+                stimuli: reviewContents.flatMap((content) => content.stimuli),
+                anchors: reviewContents.flatMap((content) => content.anchors),
+                taskGroups: reviewContents.flatMap((content) => content.taskGroups),
+                optionSets: reviewContents.flatMap((content) => content.optionSets),
+            },
+        },
+        metadata: {
+            materialId: input.materialId,
+            title: input.title,
+            materialKind: input.materialKind,
+            durationMinutes: (_f = input.durationMinutes) !== null && _f !== void 0 ? _f : 0,
+        },
+    };
+};
 const composeReadingPassageSetTrustedRecords = (input) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    var _a, _b, _c, _d, _e, _f;
     if (input.homework.materialType !== 'reading-passage-set' ||
         typeof input.homework.materialId !== 'string' ||
         !input.homework.materialId.startsWith('reading-passage-set:')) {
@@ -237,73 +386,43 @@ const composeReadingPassageSetTrustedRecords = (input) => {
     if (items.length === 0 || items.length !== input.passageRecords.length) {
         throw new Error('Reading Passage set trusted submission requires one passage record per assigned passage.');
     }
-    let visibleNumberOffset = 0;
-    const canonicalInteractions = {};
-    const canonicalTaskGroups = {};
-    const reviewContents = [];
-    items.forEach((item, index) => {
-        const passageRecord = input.passageRecords[index];
-        if (!passageRecord) {
-            throw new Error('Reading Passage set trusted submission is missing a passage record.');
-        }
-        const prefix = `passage-${item.order}`;
-        if (passageRecord.snapshot.materialId !== item.passageMaterialId ||
-            passageRecord.snapshot.snapshotVersionId !== item.snapshotVersionId ||
-            passageRecord.reviewProjection.sourceSnapshotVersionId !== item.snapshotVersionId) {
-            throw new Error('Reading Passage set trusted submission record does not match the assigned snapshot.');
-        }
-        Object.assign(canonicalInteractions, prefixedCanonicalInteractions(prefix, passageRecord.snapshot));
-        Object.assign(canonicalTaskGroups, prefixedCanonicalTaskGroups(prefix, passageRecord.snapshot));
-        reviewContents.push(prefixedReviewContent({
-            prefix,
-            item,
-            projection: passageRecord.reviewProjection,
-            visibleNumberOffset,
-        }));
-        visibleNumberOffset += countProjectedInteractions(passageRecord.reviewProjection);
-    });
-    const firstRecord = input.passageRecords[0];
-    if (!firstRecord) {
-        throw new Error('Reading Passage set trusted submission requires at least one passage record.');
-    }
     const snapshotVersionId = `homework-set:${(_a = input.homework.id) !== null && _a !== void 0 ? _a : input.homework.materialId.replace(/^reading-passage-set:/, '')}`;
     const title = (_e = (_d = (_c = (_b = input.homework.readingPassageSet) === null || _b === void 0 ? void 0 : _b.titleSnapshot) !== null && _c !== void 0 ? _c : input.homework.title) !== null && _d !== void 0 ? _d : input.homework.materialTitle) !== null && _e !== void 0 ? _e : 'Reading Passage Set';
-    return {
-        snapshot: {
-            snapshotVersionId,
-            materialId: input.homework.materialId,
-            ownerId: (_f = input.homework.createdBy) !== null && _f !== void 0 ? _f : firstRecord.snapshot.ownerId,
-            publishedAt: (_g = input.generatedAt) !== null && _g !== void 0 ? _g : firstRecord.snapshot.publishedAt,
-            publishedBy: (_h = input.homework.createdBy) !== null && _h !== void 0 ? _h : firstRecord.snapshot.publishedBy,
-            document: {
-                title,
-                interactions: canonicalInteractions,
-                taskGroups: canonicalTaskGroups,
-            },
-        },
-        reviewProjection: {
-            deliveryEngine: exports.READING_V2_ENGINE,
-            projectionKind: 'review',
-            sourceSnapshotVersionId: snapshotVersionId,
-            generatedAt: (_j = input.generatedAt) !== null && _j !== void 0 ? _j : firstRecord.reviewProjection.generatedAt,
-            content: {
-                title,
-                sections: reviewContents.flatMap((content) => content.sections),
-                stimuli: reviewContents.flatMap((content) => content.stimuli),
-                anchors: reviewContents.flatMap((content) => content.anchors),
-                taskGroups: reviewContents.flatMap((content) => content.taskGroups),
-                optionSets: reviewContents.flatMap((content) => content.optionSets),
-            },
-        },
-        metadata: {
-            materialId: input.homework.materialId,
-            title,
-            materialKind: 'reading-passage-set',
-            durationMinutes: (_l = (_k = input.homework.config) === null || _k === void 0 ? void 0 : _k.timerMinutes) !== null && _l !== void 0 ? _l : 0,
-        },
-    };
+    return composeTrustedPassageRecords({
+        materialId: input.homework.materialId,
+        snapshotVersionId,
+        title,
+        ownerId: input.homework.createdBy,
+        publishedBy: input.homework.createdBy,
+        durationMinutes: (_f = input.homework.config) === null || _f === void 0 ? void 0 : _f.timerMinutes,
+        materialKind: 'reading-passage-set',
+        items,
+        passageRecords: input.passageRecords,
+        generatedAt: input.generatedAt,
+    });
 };
 exports.composeReadingPassageSetTrustedRecords = composeReadingPassageSetTrustedRecords;
+const composeReadingV2CompositionTrustedRecords = (input) => {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const items = sortCompositionPassageRefs(input.composition);
+    if (items.length === 0 || items.length !== input.passageRecords.length) {
+        throw new Error('Reading V2 composition trusted submission requires one passage record per composition passage.');
+    }
+    const title = (_c = (_b = optionalString((_a = input.metadata) === null || _a === void 0 ? void 0 : _a.title)) !== null && _b !== void 0 ? _b : optionalString(input.composition.title)) !== null && _c !== void 0 ? _c : 'Reading V2 Full Test';
+    return composeTrustedPassageRecords({
+        materialId: input.materialId,
+        snapshotVersionId: input.snapshotVersionId,
+        title,
+        ownerId: optionalString(input.composition.ownerId),
+        publishedBy: optionalString(input.composition.ownerId),
+        durationMinutes: Number((_e = (_d = input.metadata) === null || _d === void 0 ? void 0 : _d.durationMinutes) !== null && _e !== void 0 ? _e : 0),
+        materialKind: (_g = optionalString((_f = input.metadata) === null || _f === void 0 ? void 0 : _f.materialKind)) !== null && _g !== void 0 ? _g : 'reading-v2-full-test-composition',
+        items,
+        passageRecords: input.passageRecords,
+        generatedAt: input.generatedAt,
+    });
+};
+exports.composeReadingV2CompositionTrustedRecords = composeReadingV2CompositionTrustedRecords;
 const orderedCanonicalInteractions = (snapshot) => {
     var _a;
     const interactions = (_a = snapshot.document) === null || _a === void 0 ? void 0 : _a.interactions;
@@ -320,6 +439,17 @@ const stimulusExcerpt = (stimulus, anchorIds) => {
     var _a, _b;
     const content = (_a = stimulus.content) !== null && _a !== void 0 ? _a : {};
     const selectedAnchorIds = new Set(anchorIds);
+    const tableCellMatchesSelectedAnchors = (cell) => {
+        if (selectedAnchorIds.size === 0) {
+            return true;
+        }
+        const cellAnchorIds = Array.isArray(cell.anchorIds) && cell.anchorIds.length > 0
+            ? cell.anchorIds
+            : typeof cell.anchorId === 'string'
+                ? [cell.anchorId]
+                : [];
+        return cellAnchorIds.some((anchorId) => typeof anchorId === 'string' && selectedAnchorIds.has(anchorId));
+    };
     if (content.kind === 'passage-content' && Array.isArray(content.paragraphs)) {
         const paragraphs = selectedAnchorIds.size > 0
             ? content.paragraphs.filter((paragraph) => paragraph.anchorId && selectedAnchorIds.has(paragraph.anchorId))
@@ -329,7 +459,7 @@ const stimulusExcerpt = (stimulus, anchorIds) => {
     if (content.kind === 'table-content' && Array.isArray(content.rows)) {
         const cells = content.rows
             .flat()
-            .filter((cell) => selectedAnchorIds.size === 0 || (cell.anchorId && selectedAnchorIds.has(cell.anchorId)))
+            .filter(tableCellMatchesSelectedAnchors)
             .map((cell) => cell.text)
             .filter(Boolean);
         return truncateContext(cells.join(' | '));
@@ -460,6 +590,8 @@ const materialLabelForKind = (kind) => {
         return 'Reading Passage';
     if (kind === 'reading-passage-set')
         return 'Reading Passage Set';
+    if (kind === 'reading-v2-full-test-composition')
+        return 'Reading V2 Full Test';
     return undefined;
 };
 const buildSinglePassageSection = (metadata, materialId, snapshotVersionId) => {
@@ -565,7 +697,7 @@ const buildClassIndexRow = (result, courseId) => ({
     courseId,
 });
 const buildReadingV2TrustedSubmissionPlan = (input) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1;
     const materialId = (0, exports.getMaterialIdFromRequest)(input.request);
     const snapshotVersionId = input.request.sourceSnapshotVersionId;
     const snapshot = input.records.snapshot;
@@ -617,6 +749,7 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
         studentId: input.auth.uid,
         sourceSnapshotVersionId: snapshotVersionId,
         context: attemptContext,
+        integrityReport: (_g = input.request.integrityReport) !== null && _g !== void 0 ? _g : null,
         answers: Object.fromEntries(input.request.answers.map((answer) => [
             answer.interactionId,
             {
@@ -665,10 +798,10 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
     const maxScore = resultInteractions.reduce((total, interaction) => total + interaction.maxScore, 0);
     const totalScore = resultInteractions.reduce((total, interaction) => total + interaction.score, 0);
     const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
-    const visibility = buildVisibilitySnapshot(mode, context, materialId, (_g = context.sourceName) !== null && _g !== void 0 ? _g : testTitle, snapshot.ownerId, input.records.session);
+    const visibility = buildVisibilitySnapshot(mode, context, materialId, (_h = context.sourceName) !== null && _h !== void 0 ? _h : testTitle, snapshot.ownerId, input.records.session);
     const savedResult = (0, exports.sanitizeRtdbValue)({
         resultId: input.identity.resultId,
-        sessionCode: (_h = context.sessionCode) !== null && _h !== void 0 ? _h : 'reading-v2',
+        sessionCode: (_j = context.sessionCode) !== null && _j !== void 0 ? _j : 'reading-v2',
         testId: materialId,
         studentId: input.auth.uid,
         studentName,
@@ -692,17 +825,18 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
         totalQuestions: resultInteractions.length,
         submittedAt: input.identity.submittedAtMs,
         timeElapsed: 0,
-        testDuration: Number((_k = (_j = input.records.metadata) === null || _j === void 0 ? void 0 : _j.durationMinutes) !== null && _k !== void 0 ? _k : 0),
+        testDuration: Number((_l = (_k = input.records.metadata) === null || _k === void 0 ? void 0 : _k.durationMinutes) !== null && _l !== void 0 ? _l : 0),
         createdAt: input.identity.submittedAtMs,
         teacherId: snapshot.ownerId,
         testTitle,
         testType: 'ielts-reading-v2',
         testSkill: 'reading',
-        courseId: (_l = context.courseId) !== null && _l !== void 0 ? _l : null,
-        classId: (_r = (_p = (_m = context.classId) !== null && _m !== void 0 ? _m : (_o = input.records.session) === null || _o === void 0 ? void 0 : _o.linkedClassId) !== null && _p !== void 0 ? _p : (_q = input.records.session) === null || _q === void 0 ? void 0 : _q.classId) !== null && _r !== void 0 ? _r : null,
-        moduleId: (_u = (_s = context.moduleId) !== null && _s !== void 0 ? _s : (_t = input.records.session) === null || _t === void 0 ? void 0 : _t.moduleId) !== null && _u !== void 0 ? _u : null,
+        courseId: (_m = context.courseId) !== null && _m !== void 0 ? _m : null,
+        classId: (_s = (_q = (_o = context.classId) !== null && _o !== void 0 ? _o : (_p = input.records.session) === null || _p === void 0 ? void 0 : _p.linkedClassId) !== null && _q !== void 0 ? _q : (_r = input.records.session) === null || _r === void 0 ? void 0 : _r.classId) !== null && _s !== void 0 ? _s : null,
+        moduleId: (_v = (_t = context.moduleId) !== null && _t !== void 0 ? _t : (_u = input.records.session) === null || _u === void 0 ? void 0 : _u.moduleId) !== null && _v !== void 0 ? _v : null,
         visibility,
         context: buildResultContext(mode, context, materialId, testTitle),
+        integrityReport: (_w = input.request.integrityReport) !== null && _w !== void 0 ? _w : null,
         deliveryEngine: exports.READING_V2_ENGINE,
         readingV2: {
             result,
@@ -712,7 +846,7 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
     });
     const canonicalResultPath = `test_results/${input.identity.resultId}`;
     const secondaryUpdates = {
-        [storagePaths.attempts(input.identity.attemptId)]: (0, exports.sanitizeRtdbValue)(Object.assign(Object.assign({}, attempt), { materialId, sessionCode: (_v = context.sessionCode) !== null && _v !== void 0 ? _v : null })),
+        [storagePaths.attempts(input.identity.attemptId)]: (0, exports.sanitizeRtdbValue)(Object.assign(Object.assign({}, attempt), { materialId, sessionCode: (_x = context.sessionCode) !== null && _x !== void 0 ? _x : null })),
         [storagePaths.results(input.identity.resultId)]: (0, exports.sanitizeRtdbValue)(Object.assign(Object.assign({}, result), { materialId })),
         [storagePaths.reviewIndexes(input.identity.resultId)]: (0, exports.sanitizeRtdbValue)(Object.assign(Object.assign({}, reviewPayload), { ownerId: result.ownerId, taskGroupIds: reviewPayload.taskGroups.map((taskGroup) => taskGroup.taskGroupId) })),
         [`test_results_by_session/${savedResult.sessionCode}/${input.identity.resultId}`]: (0, exports.sanitizeRtdbValue)(buildSessionIndexRow(savedResult)),
@@ -728,10 +862,10 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
     }
     const canonicalCourseId = typeof visibility.courseId === 'string'
         ? visibility.courseId
-        : (_w = savedResult.courseId) !== null && _w !== void 0 ? _w : null;
+        : (_y = savedResult.courseId) !== null && _y !== void 0 ? _y : null;
     const canonicalClassId = typeof visibility.classId === 'string'
         ? visibility.classId
-        : (_x = savedResult.classId) !== null && _x !== void 0 ? _x : null;
+        : (_z = savedResult.classId) !== null && _z !== void 0 ? _z : null;
     if (visibility.ownershipResolved && visibility.contextType !== 'solo_practice' && canonicalCourseId) {
         secondaryUpdates[`test_results_by_course/${canonicalCourseId}/${input.auth.uid}/${input.identity.resultId}`] =
             (0, exports.sanitizeRtdbValue)(buildCourseIndexRow(savedResult));
@@ -748,7 +882,7 @@ const buildReadingV2TrustedSubmissionPlan = (input) => {
                 resultId: input.identity.resultId,
                 attemptId: input.identity.attemptId,
             });
-        if ((_z = (_y = input.records.session) === null || _y === void 0 ? void 0 : _y.players) === null || _z === void 0 ? void 0 : _z[input.auth.uid]) {
+        if ((_1 = (_0 = input.records.session) === null || _0 === void 0 ? void 0 : _0.players) === null || _1 === void 0 ? void 0 : _1[input.auth.uid]) {
             secondaryUpdates[`game_sessions/${context.sessionCode}/players/${input.auth.uid}/submittedAt`] =
                 input.identity.submittedAtMs;
             secondaryUpdates[`game_sessions/${context.sessionCode}/players/${input.auth.uid}/isSubmitted`] = true;

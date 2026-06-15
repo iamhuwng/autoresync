@@ -3,6 +3,7 @@ import {
   READING_V2_ENGINE,
   buildReadingV2TrustedSubmissionPlan,
   composeReadingPassageSetTrustedRecords,
+  composeReadingV2CompositionTrustedRecords,
   parseReadingV2TrustedSubmissionRequest,
 } from './readingV2SubmitCore';
 
@@ -181,6 +182,39 @@ const makeReadingPassageSetHomework = () => ({
   },
 });
 
+const makeFullTestComposition = () => ({
+  compositionId: 'composition-master-1',
+  testMaterialId: 'master-1',
+  ownerId: 'teacher-1',
+  title: 'IELTS Full Test',
+  passageRefs: [
+    {
+      order: 1,
+      passageMaterialId: 'passage-a',
+      snapshotVersionId: 'snapshot-a',
+      title: 'Passage A',
+      titleSnapshot: 'Passage A',
+      questionCount: 1,
+      sourceOrderDisplaySnapshot: 'Passage 1',
+      source: {
+        sourceFullTestTitle: 'IELTS Full Test',
+      },
+    },
+    {
+      order: 2,
+      passageMaterialId: 'passage-b',
+      snapshotVersionId: 'snapshot-b',
+      title: 'Passage B',
+      titleSnapshot: 'Passage B',
+      questionCount: 1,
+      sourceOrderDisplaySnapshot: 'Passage 2',
+      source: {
+        sourceFullTestTitle: 'IELTS Full Test',
+      },
+    },
+  ],
+});
+
 describe('readingV2SubmitCore', () => {
   it('parses a browser-safe request and rejects unsupported payloads', () => {
     const request = parseReadingV2TrustedSubmissionRequest({
@@ -194,6 +228,11 @@ describe('readingV2SubmitCore', () => {
         displayNumber: 1,
         value: 'answer one',
       }],
+      integrityReport: {
+        violationCount: 1,
+        totalEvents: 1,
+        events: [],
+      },
       context: {
         surface: 'solo-practice',
       },
@@ -203,6 +242,18 @@ describe('readingV2SubmitCore', () => {
       displayNumber: 1,
       value: 'answer one',
     }));
+    expect(request.integrityReport).toEqual(expect.objectContaining({
+      violationCount: 1,
+      totalEvents: 1,
+    }));
+    expect(() => parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'student-safe:material-1:snapshot-1',
+      sourceSnapshotVersionId: 'snapshot-1',
+      materialId: 'material-1',
+      answers: [],
+      integrityReport: 'invalid',
+    })).toThrow('integrityReport');
     expect(() => parseReadingV2TrustedSubmissionRequest({
       deliveryEngine: 'legacy-reading',
       answers: [],
@@ -233,6 +284,12 @@ describe('readingV2SubmitCore', () => {
         surface: 'live-session',
         sessionCode: 'LIVE123',
         sourceName: 'Live Reading',
+      },
+      integrityReport: {
+        violationCount: 2,
+        totalEvents: 3,
+        riskLevel: 'medium',
+        events: [],
       },
     });
 
@@ -272,6 +329,10 @@ describe('readingV2SubmitCore', () => {
     expect(plan.secondaryUpdates).toEqual(expect.objectContaining({
       'reading_v2/attempts/attempt-1': expect.objectContaining({
         studentId: 'student-1',
+        integrityReport: expect.objectContaining({
+          violationCount: 2,
+          riskLevel: 'medium',
+        }),
       }),
       'reading_v2/review_indexes/result-1': expect.objectContaining({
         title: 'Trusted Reading Test',
@@ -283,6 +344,12 @@ describe('readingV2SubmitCore', () => {
         resultId: 'result-1',
       }),
       'game_sessions/LIVE123/players/student-1/hasCompletedTest': true,
+    }));
+    expect(plan.savedResult).toEqual(expect.objectContaining({
+      integrityReport: expect.objectContaining({
+        violationCount: 2,
+        totalEvents: 3,
+      }),
     }));
     expect(JSON.stringify(plan.savedResult.readingV2.reviewPayload)).not.toContain('scoringRule');
   });
@@ -576,6 +643,120 @@ describe('readingV2SubmitCore', () => {
     expect(plan.secondaryUpdates['reading_v2/review_indexes/result-set-1']).toEqual(expect.objectContaining({
       taskGroupIds: ['passage-1:task_group_1', 'passage-2:task_group_1'],
     }));
+  });
+
+  it('scores composition-first master tests against generated passage snapshots', () => {
+    const composition = makeFullTestComposition();
+    const trustedRecords = composeReadingV2CompositionTrustedRecords({
+      composition,
+      materialId: 'master-1',
+      snapshotVersionId: 'master-snapshot',
+      metadata: {
+        materialId: 'master-1',
+        title: 'IELTS Full Test',
+        materialKind: 'reading-v2-full-test-composition',
+        durationMinutes: 60,
+      },
+      passageRecords: [
+        {
+          item: composition.passageRefs[0],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-a',
+            snapshotVersionId: 'snapshot-a',
+            answer: 'Answer A',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-a',
+            title: 'Passage A',
+          }),
+        },
+        {
+          item: composition.passageRefs[1],
+          snapshot: makePassageSnapshot({
+            materialId: 'passage-b',
+            snapshotVersionId: 'snapshot-b',
+            answer: 'Answer B',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: 'snapshot-b',
+            title: 'Passage B',
+          }),
+        },
+      ],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+    const request = parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'student-safe:master-1:master-snapshot',
+      sourceSnapshotVersionId: 'master-snapshot',
+      materialId: 'master-1',
+      answers: [
+        {
+          interactionId: 'passage-1:interaction_1',
+          taskGroupId: 'passage-1:task_group_1',
+          displayNumber: 1,
+          value: 'answer a',
+        },
+        {
+          interactionId: 'passage-2:interaction_1',
+          taskGroupId: 'passage-2:task_group_1',
+          displayNumber: 2,
+          value: 'answer b',
+        },
+      ],
+      context: {
+        surface: 'solo-practice',
+        sourceName: 'IELTS Full Test',
+      },
+    });
+
+    const plan = buildReadingV2TrustedSubmissionPlan({
+      request,
+      auth: {
+        uid: 'student-1',
+        name: 'Student One',
+      },
+      records: {
+        ...trustedRecords,
+        studentProfile: null,
+        session: null,
+      },
+      identity: {
+        resultId: 'result-master-1',
+        attemptId: 'attempt-master-1',
+        submittedAtIso: '2026-06-01T00:05:00.000Z',
+        submittedAtMs: 1780272300000,
+      },
+    });
+
+    expect(plan.response).toEqual(expect.objectContaining({
+      totalScore: 2,
+      maxScore: 2,
+      percentage: 100,
+    }));
+    expect(plan.savedResult.testId).toBe('master-1');
+    expect(plan.savedResult.readingV2.reviewPayload).toEqual(expect.objectContaining({
+      materialKind: 'reading-v2-full-test-composition',
+      materialLabel: 'Reading V2 Full Test',
+    }));
+    expect(plan.savedResult.readingV2.reviewPayload.taskGroups).toEqual([
+      expect.objectContaining({
+        taskGroupId: 'passage-1:task_group_1',
+        passageSection: expect.objectContaining({
+          title: 'Passage A',
+          snapshotVersionId: 'snapshot-a',
+          sourceOrderDisplay: 'Passage 1',
+        }),
+      }),
+      expect.objectContaining({
+        taskGroupId: 'passage-2:task_group_1',
+        passageSection: expect.objectContaining({
+          title: 'Passage B',
+          snapshotVersionId: 'snapshot-b',
+          sourceOrderDisplay: 'Passage 2',
+        }),
+      }),
+    ]);
   });
 
   it('rejects malformed Reading Passage set responses and mismatched assigned snapshots', () => {

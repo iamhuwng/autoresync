@@ -292,6 +292,36 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(asText).toContain("!newData.child('canonicalEditableDraft').exists()");
   });
 
+  it('defines owner-scoped archive indexes as safe lightweight rows only', () => {
+    const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
+    const archiveIndexes = materialCatalog.material_archive_indexes as Record<string, any>;
+    const listRule = archiveIndexes.by_owner.$ownerId['reading-passage'] as Record<string, any>;
+    const rowRule = archiveIndexes.by_owner.$ownerId['reading-passage'].$materialId as Record<string, string>;
+    const asText = JSON.stringify(archiveIndexes);
+
+    expect(listRule['.read']).toContain('$ownerId === auth.uid');
+    expect(rowRule['.read']).toContain('$ownerId === auth.uid');
+    expect(rowRule['.write']).toContain('$ownerId === auth.uid');
+    expect(rowRule['.validate']).toContain("newData.child('materialId').val() === $materialId");
+    expect(rowRule['.validate']).toContain("newData.child('ownerId').val() === $ownerId");
+    expect(rowRule['.validate']).toContain("newData.child('currentVersionId').isString()");
+    expect(rowRule['.validate']).toContain("newData.child('archivedAt').isString()");
+    [
+      'passageBody',
+      'bodyText',
+      'questionText',
+      'reviewPayload',
+      'document',
+      'answerKey',
+      'answerKeys',
+      'scoringRule',
+      'hiddenProvenance',
+      'importEvidence',
+    ].forEach((field) => {
+      expect(asText).toContain(`!newData.child('${field}').exists()`);
+    });
+  });
+
   it('does not require empty test-type children on broad material index buckets', () => {
     const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
     const indexes = materialCatalog.material_indexes as Record<string, unknown>;

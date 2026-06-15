@@ -5,6 +5,7 @@ import {
   composeReadingPassageSetTrustedRecords,
   parseReadingV2TrustedSubmissionRequest,
 } from '../../functions/src/readingV2SubmitCore';
+import { composeReadingV2CompositionNumbering } from '../services/reading-v2/readingV2CompositionNumbering.service';
 
 const makeSnapshot = (input: { materialId: string; snapshotVersionId: string; answer: string }) => ({
   snapshotVersionId: input.snapshotVersionId,
@@ -120,6 +121,22 @@ const buildRecords = () => composeReadingPassageSetTrustedRecords({
 
 describe('Reading Passage set trusted submission core', () => {
   it('scores assigned set passages through the trusted Reading V2 plan', () => {
+    const numbering = composeReadingV2CompositionNumbering({
+      passages: [
+        {
+          order: 1,
+          passageMaterialId: 'passage-a',
+          snapshotVersionId: 'snapshot-a',
+          interactions: [{ interactionId: 'passage-1:interaction_1' }],
+        },
+        {
+          order: 2,
+          passageMaterialId: 'passage-b',
+          snapshotVersionId: 'snapshot-b',
+          interactions: [{ interactionId: 'passage-2:interaction_1' }],
+        },
+      ],
+    });
     const request = parseReadingV2TrustedSubmissionRequest({
       deliveryEngine: READING_V2_ENGINE,
       projectionId: 'homework-set:hw-set-1',
@@ -129,13 +146,13 @@ describe('Reading Passage set trusted submission core', () => {
         {
           interactionId: 'passage-1:interaction_1',
           taskGroupId: 'passage-1:task_group_1',
-          displayNumber: 1,
+          displayNumber: numbering.interactionDisplayNumbers['passage-1:interaction_1']!,
           value: 'answer a',
         },
         {
           interactionId: 'passage-2:interaction_1',
           taskGroupId: 'passage-2:task_group_1',
-          displayNumber: 2,
+          displayNumber: numbering.interactionDisplayNumbers['passage-2:interaction_1']!,
           value: 'answer b',
         },
       ],

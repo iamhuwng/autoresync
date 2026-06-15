@@ -114,6 +114,11 @@ describe('readingV2PassageExtraction.service', () => {
     expect(result.composition.passageRefs).toHaveLength(3);
     expect(result.composition.questionCount).toBe(6);
     expect(result.composition.testMaterialId).toBe('material-full-test-ielts-1');
+    expect(result.passages.map((candidate) => candidate.material.title)).toEqual([
+      'IELTS Academic Reading Test 1: Passage 1',
+      'IELTS Academic Reading Test 1: Passage 2',
+      'IELTS Academic Reading Test 1: Passage 3',
+    ]);
     expect(result.passages.map((candidate) => candidate.material.sourceOrder)).toEqual([
       {
         kind: 'numeric',
@@ -148,6 +153,42 @@ describe('readingV2PassageExtraction.service', () => {
     expect(result.passages[0]?.material.sourceTitleSnapshot).toBe('IELTS Academic Reading Test 1');
     expect(result.passages[0]?.teacherAdminProvenance.sourceSectionId).toBe(document.sectionIds[0]);
     expect(JSON.stringify(result.composition)).not.toMatch(/teacherAdminProvenance|importEvidence|acceptableAnswers/);
+  });
+
+  it('uses the source passage title as the generated Reading Passage title while preserving source metadata', () => {
+    const baseDocument = buildFullTestDocument('IELTS Cambridge 10 - Test 02: Reading', [
+      { taskType: 'sentence-completion', sectionTitle: 'Reading - Source unknown', reviewNumbers: [1, 13] },
+    ]);
+    const stimulusId = baseDocument.sections[baseDocument.sectionIds[0]!]!.stimulusIds[0]!;
+    const document: ReadingV2Document = {
+      ...baseDocument,
+      stimuli: {
+        ...baseDocument.stimuli,
+        [stimulusId]: {
+          ...baseDocument.stimuli[stimulusId]!,
+          title: 'The History of Coffee',
+        },
+      },
+    };
+
+    const result = extractReadingV2PassageMaterials({
+      document,
+      ownerId: 'teacher-1',
+      sourceFullTestId: readingV2Ids.fullTestId('cambridge-10-test-02'),
+      testMaterialId: readingV2Ids.materialId('material-cambridge-10-test-02'),
+      sourceSnapshotVersionId: readingV2Ids.snapshotVersionId('snapshot-cambridge-10-test-02'),
+      sourceTitleSnapshot: 'IELTS Cambridge 10 - Test 02: Reading',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      createdAt: NOW,
+    });
+
+    expect(result.passages[0]?.material.title).toBe('The History of Coffee');
+    expect(result.passages[0]?.document.title).toBe('The History of Coffee');
+    expect(result.passages[0]?.material.sourceTitleSnapshot).toBe('IELTS Cambridge 10 - Test 02: Reading');
+    expect(result.passages[0]?.material.sourceFullTestId).toBe('cambridge-10-test-02');
+    expect(result.passages[0]?.material.sourceSnapshotVersionId).toBe('snapshot-cambridge-10-test-02');
+    expect(result.passages[0]?.material.sourceOrder.displaySnapshot).toBe('Passage unknown');
   });
 
   it('accepts a published snapshot package as source input', () => {
@@ -251,6 +292,7 @@ describe('readingV2PassageExtraction.service', () => {
       labelSnapshot: 'Section',
       displaySnapshot: 'Section unknown',
     });
+    expect(result.passages[0]?.material.title).toBe('THCS Reading Test: Passage 1');
   });
 
   it('blocks publish when passage boundaries are missing instead of silently merging sections', () => {

@@ -19,6 +19,7 @@ import {
   type ReadingV2PassageExtractionIssue,
 } from './readingV2PassageExtraction.service';
 import type { MaterialTestTypeConfig } from '../../types/materialCatalog.types';
+import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
 
 export type ReadingV2CompositionCompatibilityMode =
   | 'native-composition'
@@ -43,6 +44,44 @@ export interface ReadingV2ReferencedPassageEditPlan {
 }
 
 const unique = <T>(values: readonly T[]): T[] => Array.from(new Set(values));
+
+export const READING_V2_REF_ONLY_MASTER_PROHIBITED_FIELDS = [
+  'document',
+  'sections',
+  'stimuli',
+  'taskGroups',
+  'interactions',
+  'optionSets',
+  'answerKey',
+  'correctAnswers',
+] as const;
+
+const assertNoEmbeddedMasterPayload = (value: unknown, path = ''): void => {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoEmbeddedMasterPayload(entry, `${path}.${index}`));
+    return;
+  }
+
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+    const childPath = path ? `${path}.${key}` : key;
+    if (READING_V2_REF_ONLY_MASTER_PROHIBITED_FIELDS.includes(
+      key as typeof READING_V2_REF_ONLY_MASTER_PROHIBITED_FIELDS[number],
+    )) {
+      throw new Error(`Reading V2 ref-only master contains embedded master payload field: ${childPath}`);
+    }
+    assertNoEmbeddedMasterPayload(child, childPath);
+  });
+};
+
+export function assertReadingV2RefOnlyFullTestComposition(
+  value: unknown,
+): asserts value is ReadingV2FullTestComposition {
+  assertNoEmbeddedMasterPayload(value);
+}
 
 const assertUniqueCompositionRefs = (passageRefs: readonly ReadingV2PassageRef[]): void => {
   const refIds = new Set<string>();
@@ -83,8 +122,17 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
   assertUniqueCompositionRefs(input.passageRefs);
 
   const sortedRefs = [...input.passageRefs].sort((left, right) => left.order - right.order);
-
-  return {
+  const numbering = composeReadingV2CompositionNumbering({
+    passages: sortedRefs.map((ref) => ({
+      order: ref.order,
+      passageMaterialId: ref.passageMaterialId,
+      snapshotVersionId: ref.snapshotVersionId,
+      interactions: Array.from({ length: ref.questionCountSnapshot }, (_value, index) => ({
+        interactionId: `${ref.refId}:q${index + 1}`,
+      })),
+    })),
+  });
+  const composition: ReadingV2FullTestComposition = {
     deliveryEngine: READING_V2_ENGINE,
     plane: 'packaging',
     schemaVersion: 1,
@@ -99,7 +147,8 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
     ]),
     skill: input.skill ?? 'reading',
     passageRefs: sortedRefs,
-    questionCount: sortedRefs.reduce((count, ref) => count + ref.questionCountSnapshot, 0),
+    questionCount: numbering.totalQuestionCount,
+    numbering,
     durationMinutes: input.durationMinutes,
     visibility: input.visibility ?? 'private',
     ownerId: input.ownerId,
@@ -107,6 +156,9 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
   };
+
+  assertReadingV2RefOnlyFullTestComposition(composition);
+  return composition;
 };
 
 export const resolveReadingV2FullTestComposition = (input: {
