@@ -72,6 +72,7 @@ import {
   READING_V2_STUDIO_OPERATIONAL_STATES,
   type ReadingV2StudioOperationalStateId,
 } from './ReadingV2StudioOperationalStates';
+import { toast } from '../../modern/ToastNotification';
 import './ReadingV2StudioShell.css';
 
 export type ReadingV2StudioMode =
@@ -157,7 +158,29 @@ export interface ReadingV2StudioPublishResult {
   readonly firebaseOperationCount?: number;
   readonly publishOutcome?: 'success' | 'partial-failure';
   readonly duplicateWarnings?: readonly ReadingV2AutoSplitDuplicateWarning[];
+  readonly generatedReadingPassages?: readonly {
+    readonly materialId: string;
+    readonly snapshotVersionId: string;
+    readonly title: string;
+  }[];
 }
+
+const announcementTitle = (value: string | undefined, fallback: string): string => {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+};
+
+const announceReadingV2PublishSuccess = (
+  snapshot: ReadingV2StudioWorkflowSnapshot,
+  result: ReadingV2StudioPublishResult,
+) => {
+  const masterTitle = announcementTitle(snapshot.metadata.title || snapshot.document.title, 'Untitled Reading V2 test');
+
+  toast.success(`Published "${masterTitle}". It is now visible in My Content.`);
+  result.generatedReadingPassages?.forEach((passage) => {
+    toast.success(`Created Reading Passage "${announcementTitle(passage.title, 'Untitled Reading Passage')}" from "${masterTitle}".`);
+  });
+};
 
 const getInitialStudioStep = (mode: ReadingV2StudioMode): ReadingV2TeacherStudioStep =>
   mode === 'create-from-import' || mode === 'create-from-auto' ? 'Passages' : 'Test Info';
@@ -2621,6 +2644,7 @@ export function ReadingV2StudioShell({
       setPublishState('success');
       setWorkflowMessage('Published successfully.');
       emitAction('publish', { outcome: 'success' });
+      announceReadingV2PublishSuccess(snapshot, result);
       onPublishSuccess?.(snapshot, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
@@ -3136,7 +3160,9 @@ export function ReadingV2StudioShell({
   const handleBuildWorkspaceMetadataChange = (nextMetadata: ReadingV2StudioMetadata) => {
     setMetadata(nextMetadata);
     emitAction('metadataEdit', {
-      outcome: 'workspaceVisibilityChange',
+      outcome: nextMetadata.title !== metadata.title
+        ? 'workspaceTitleChange'
+        : 'workspaceVisibilityChange',
       visibility: nextMetadata.visibility,
     });
   };

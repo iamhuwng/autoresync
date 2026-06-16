@@ -290,6 +290,7 @@ export function ReadingV2StudioModalAdapter({
               firebaseCommitPath: result.firebaseCommitPath,
               firebaseOperationCount: result.firebaseOperationCount,
               duplicateWarnings: result.duplicateWarnings,
+              generatedReadingPassages: result.generatedReadingPassages,
             };
           }}
           onExit={onClose}

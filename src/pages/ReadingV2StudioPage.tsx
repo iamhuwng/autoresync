@@ -425,6 +425,7 @@ export default function ReadingV2StudioPage() {
           firebaseCommitPath: result.firebaseCommitPath,
           firebaseOperationCount: result.firebaseOperationCount,
           duplicateWarnings: result.duplicateWarnings,
+          generatedReadingPassages: result.generatedReadingPassages,
         };
       }}
       onPublishSuccess={mode === 'revise-published' ? undefined : (snapshot, result) => {

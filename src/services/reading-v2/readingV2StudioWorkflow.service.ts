@@ -131,6 +131,11 @@ export interface ReadingV2StudioPublishResult {
   readonly firebaseCommitPath: string;
   readonly firebaseOperationCount: number;
   readonly duplicateWarnings: readonly ReadingV2AutoSplitDuplicateWarning[];
+  readonly generatedReadingPassages: readonly {
+    readonly materialId: ReadingV2MaterialId;
+    readonly snapshotVersionId: string;
+    readonly title: string;
+  }[];
 }
 
 export type ReadingV2StudioPublishCommitAdapter = (
@@ -730,5 +735,10 @@ export const publishReadingV2StudioDraft = async (
     firebaseCommitPath: firebaseCommit.commitPath,
     firebaseOperationCount: firebaseCommit.operationKeys.length,
     duplicateWarnings: result.duplicateWarnings,
+    generatedReadingPassages: result.readingPassageExtraction?.passages.map((passage) => ({
+      materialId: readingV2Ids.materialId(passage.material.passageMaterialId),
+      snapshotVersionId: passage.material.currentSnapshotVersionId,
+      title: passage.material.title,
+    })) ?? [],
   };
 };

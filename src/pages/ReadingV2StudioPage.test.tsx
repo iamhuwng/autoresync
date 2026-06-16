@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReadingV2StudioPage from './ReadingV2StudioPage';
+import { toast } from '../components/modern/ToastNotification';
 import { createTeacherRoutes } from '../routes/teacherRoutes';
 import { readingV2Ids } from '../types/readingV2.types';
 import { createReadingV2CanonicalFixture } from '../services/reading-v2/fixtures/readingV2CanonicalFixtures';
@@ -15,6 +16,7 @@ import {
 const trackActionMock = vi.fn();
 const navigateToMock = vi.fn();
 const discoverTargetsMock = vi.fn();
+let toastSuccessSpy: ReturnType<typeof vi.spyOn>;
 
 vi.mock('../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({
@@ -103,6 +105,49 @@ const renderRoute = (path: string | { pathname: string; state?: unknown }, patte
     </MemoryRouter>,
   );
 
+const createThreePassageDocument = () => {
+  const first = createReadingV2CanonicalFixture('sentence-completion');
+  const second = createReadingV2CanonicalFixture('matching-headings');
+  const third = createReadingV2CanonicalFixture('multiple-choice');
+
+  return {
+    ...first,
+    documentId: readingV2Ids.documentId('doc-full-test-toast'),
+    title: 'Full Test Toast Ready',
+    sectionIds: [...first.sectionIds, ...second.sectionIds, ...third.sectionIds],
+    sections: {
+      ...first.sections,
+      ...second.sections,
+      ...third.sections,
+    },
+    stimuli: {
+      ...first.stimuli,
+      ...second.stimuli,
+      ...third.stimuli,
+    },
+    anchors: {
+      ...first.anchors,
+      ...second.anchors,
+      ...third.anchors,
+    },
+    taskGroups: {
+      ...first.taskGroups,
+      ...second.taskGroups,
+      ...third.taskGroups,
+    },
+    interactions: {
+      ...first.interactions,
+      ...second.interactions,
+      ...third.interactions,
+    },
+    optionSets: {
+      ...first.optionSets,
+      ...second.optionSets,
+      ...third.optionSets,
+    },
+  };
+};
+
 describe('ReadingV2StudioPage', () => {
   beforeEach(() => {
     trackActionMock.mockClear();
@@ -126,6 +171,8 @@ describe('ReadingV2StudioPage', () => {
     readingV2StudioRepository.store.whereUsed.clear();
     readingV2StudioRepository.store.taskGroupMaterials.clear();
     readingV2StudioRepository.store.fullTests.clear();
+    toastSuccessSpy?.mockRestore();
+    toastSuccessSpy = vi.spyOn(toast, 'success').mockImplementation(() => 'toast-id');
   });
 
   it('resolves create route into the shared Studio shell', async () => {
@@ -288,6 +335,42 @@ describe('ReadingV2StudioPage', () => {
       draftId: draft.draftId,
       reason: 'reading_v2_studio_publish_success',
     }));
+  });
+
+  it('announces the created master test and generated Reading Passages after full-test publish', async () => {
+    const user = userEvent.setup();
+    readingV2StudioRepository.createDraft({
+      draftId: readingV2Ids.draftId('full-test-toast-draft'),
+      ownerId: 'teacher-modal',
+      materialId: readingV2Ids.materialId('full-test-toast-material'),
+      document: createThreePassageDocument(),
+      studioMetadata: {
+        title: 'Full Test Toast Ready',
+        ownerId: 'teacher-modal',
+        visibility: 'private',
+        provenanceSummary: 'Generated from full-test paste import',
+      },
+    });
+
+    renderRoute({
+      pathname: '/teacher/reading-v2/drafts/full-test-toast-draft',
+      state: {
+        entryPoint: 'test-creation-modal',
+        initialMetadata: {
+          ownerId: 'teacher-modal',
+        },
+      },
+    }, '/teacher/reading-v2/drafts/:draftId');
+
+    await screen.findByRole('main');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish' })).not.toBeDisabled());
+    await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(toastSuccessSpy).toHaveBeenCalledTimes(4));
+    expect(toastSuccessSpy).toHaveBeenCalledWith('Published "Full Test Toast Ready". It is now visible in My Content.');
+    expect(toastSuccessSpy).toHaveBeenCalledWith('Created Reading Passage "Full Test Toast Ready: Passage 1" from "Full Test Toast Ready".');
+    expect(toastSuccessSpy).toHaveBeenCalledWith('Created Reading Passage "Full Test Toast Ready: Passage 2" from "Full Test Toast Ready".');
+    expect(toastSuccessSpy).toHaveBeenCalledWith('Created Reading Passage "Full Test Toast Ready: Passage 3" from "Full Test Toast Ready".');
   });
 
   it('does not report publish failure when post-publish reference discovery is denied', async () => {
