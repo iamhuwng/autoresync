@@ -1131,6 +1131,7 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
     skipReadingPassageExtraction: true,
     metadata: {
       title: composition.title,
+      compositionId: composition.compositionId,
       materialKind: 'full-test',
       durationMinutes: composition.durationMinutes,
       visibility: composition.visibility === 'public' ? 'public' : 'private',
@@ -1234,6 +1235,7 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
     skipReadingPassageExtraction: true,
     metadata: {
       title: composition.title,
+      compositionId: composition.compositionId,
       materialKind: 'full-test',
       durationMinutes: composition.durationMinutes,
       visibility: composition.visibility === 'public' ? 'public' : 'private',

@@ -226,15 +226,20 @@ describe('readingV2TeacherComposition.service', () => {
       id: materialId,
       materialId,
       ownerId: 'teacher-1',
+      compositionId: result.composition.compositionId,
       deliveryEngine: 'reading-v2',
       title: 'Selected Reading Passages',
       materialKind: 'full-test',
       questionCount: 4,
       publishedSnapshotVersionId: snapshotVersionId,
+      metadata: expect.objectContaining({
+        compositionId: result.composition.compositionId,
+      }),
     });
     expect(updates[readingV2StoragePaths.materialMetadata(materialId)]).toMatchObject({
       materialId,
       ownerId: 'teacher-1',
+      compositionId: result.composition.compositionId,
       title: 'Selected Reading Passages',
       materialKind: 'full-test',
       publishedSnapshotVersionId: snapshotVersionId,
@@ -507,9 +512,16 @@ describe('readingV2TeacherComposition.service', () => {
     expect(updates[readingV2StoragePaths.materialMetadata(existing.testMaterialId)])
       .toMatchObject({
         materialId: existing.testMaterialId,
+        compositionId: existing.compositionId,
         title: 'Edited Master',
         publishedSnapshotVersionId: result.composition.publishedVersionId,
       });
+    expect(updates[`tests/${existing.testMaterialId}`]).toMatchObject({
+      compositionId: existing.compositionId,
+      metadata: expect.objectContaining({
+        compositionId: existing.compositionId,
+      }),
+    });
   });
 
   it('indexes public master edits as public catalog rows and stores canonical public visibility', async () => {

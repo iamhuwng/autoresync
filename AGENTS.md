@@ -1,4 +1,4 @@
-## Integration Safety Rules (23 rules - ZERO BYPASS)
+## Integration Safety Rules (24 rules - ZERO BYPASS)
 
 When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
 
@@ -9,6 +9,10 @@ Before any UI or UX work, read [`documentation/architecture/ui-design-standards.
 ## Teacher Header Shell Boundary (MANDATORY)
 
 For teacher pages, `TeacherHeader` owns shared header design and must stay attached to the top page/shell edge. Put page padding, max-width, and content spacing inside `main` or a content wrapper, never around `TeacherHeader`.
+
+## User Action Announcements (MANDATORY)
+
+Before adding or modifying user-facing create, save, update, publish, assign, enroll, restore, archive, remove, or delete announcements, read [`rules/announcements.md`](documentation/rules/announcements.md). These outcomes must use the shared announcement system: bottom-right rectangular notifications that slowly fade/disappear after a readable duration, with `role="status"` for success/info/warning and `role="alert"` for failures. Do not add one-off page banners, `alert()`, or silent success states for these workflows. This applies across tests, homework, Reading V2 masters/passages, students, courses/classes, books, and future material types.
 
 ## Dev Login Shortcuts (MANDATORY)
 
@@ -60,6 +64,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Changing `TeacherHeader` placement or teacher page shell spacing | [`architecture/teacher-lobby-authoring-and-navigation.md`](documentation/architecture/teacher-lobby-authoring-and-navigation.md) |
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
+| Adding or modifying create/save/update/publish/assign/enroll/restore/archive/remove/delete announcements | [`rules/announcements.md`](documentation/rules/announcements.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
 | Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 | Writing hooks using `window.*`, `document.*`, `navigator.*` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |

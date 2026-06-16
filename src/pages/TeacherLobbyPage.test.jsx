@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherLobbyPage from './TeacherLobbyPage';
+import { ToastContainer, toast } from '../components/modern/ToastNotification';
 import { createReadingV2CanonicalFixture } from '../services/reading-v2/fixtures/readingV2CanonicalFixtures';
 import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
 
@@ -205,10 +206,14 @@ vi.mock('../components/navigation', () => ({
   TeacherHeader: () => <header data-testid="teacher-header">Teacher Header</header>,
 }));
 
-vi.mock('../components/modern', () => ({
-  Card: ({ children, className = '' }) => <section className={className}>{children}</section>,
-  CardBody: ({ children, className = '' }) => <div className={className}>{children}</div>,
-}));
+vi.mock('../components/modern', async () => {
+  const actual = await vi.importActual('../components/modern');
+  return {
+    ...actual,
+    Card: ({ children, className = '' }) => <section className={className}>{children}</section>,
+    CardBody: ({ children, className = '' }) => <div className={className}>{children}</div>,
+  };
+});
 
 vi.mock('../components/modern/TestCard', () => ({
   default: ({ test, onEdit, onStartTest }) => (
@@ -403,9 +408,17 @@ const readingPassageSnapshotFor = (materialId, snapshotVersionId) => ({
   publishedBy: 'teacher-1',
 });
 
+const renderTeacherLobbyWithToasts = () => render(
+  <>
+    <TeacherLobbyPage />
+    <ToastContainer />
+  </>,
+);
+
 describe('TeacherLobbyPage Reading V2 integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    toast.clear();
     mocks.tests = [];
     mocks.drafts = [];
     mocks.loadedScope = 'owned';
@@ -471,7 +484,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
   it('surfaces a route notice when disabled Book editor navigation redirects back to Materials', () => {
     mocks.locationState = { teacherMaterialsNotice: 'book-editor-disabled' };
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     expect(screen.getByRole('status')).toHaveTextContent('Book editing is disabled for this rollout.');
   });
@@ -492,7 +505,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     expect(screen.getByTestId('material-list-row-material-v2')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create Reading V2' })).not.toBeInTheDocument();
@@ -574,7 +587,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       ],
     };
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
 
@@ -624,7 +637,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       ],
     };
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
 
@@ -635,6 +648,110 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       compositionId: 'composition-material-v2-snapshot-v2',
       compositionLoadState: 'ready',
     }));
+  });
+
+  it('derives selected-passage composition identity from composition-backed material ids before edit and remove', async () => {
+    const user = userEvent.setup();
+    const compositionId = 'teacher-selected-teacher-1-public-passage-1-snapshot-1-2026-06-16t09-47-56-275z';
+    const materialId = `composition-${compositionId}`;
+    mocks.tests = [
+      {
+        id: materialId,
+        materialId,
+        deliveryEngine: 'reading-v2',
+        ownerId: 'teacher-1',
+        title: 'Selected Public Reading Passages',
+        materialKind: 'full-test',
+        state: 'published',
+        visibility: 'public',
+        testTypeIds: ['ielts'],
+        publishedSnapshotVersionId: 'edit-teacher-selected-2026-06-16t09-48-08-141z',
+        questionCount: 40,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions(compositionId)] = {
+      compositionId,
+      testMaterialId: materialId,
+      title: 'Selected Public Reading Passages',
+      ownerId: 'teacher-1',
+      visibility: 'public',
+      testTypeIds: ['ielts'],
+      updatedAt: '2026-06-16T09:48:08.141Z',
+      publishedVersionId: 'edit-teacher-selected-2026-06-16t09-48-08-141z',
+      passageRefs: [
+        {
+          refId: 'selected-passage-1',
+          passageMaterialId: 'public-passage-1',
+          materialId: 'public-passage-1',
+          ownerId: 'other-teacher',
+          titleSnapshot: 'Public Passage 1',
+          snapshotVersionId: 'snapshot-1',
+          currentVersionId: 'snapshot-1',
+        },
+        {
+          refId: 'selected-passage-2',
+          passageMaterialId: 'public-passage-2',
+          materialId: 'public-passage-2',
+          ownerId: 'other-teacher',
+          titleSnapshot: 'Public Passage 2',
+          snapshotVersionId: 'snapshot-2',
+          currentVersionId: 'snapshot-2',
+        },
+        {
+          refId: 'selected-passage-3',
+          passageMaterialId: 'public-passage-3',
+          materialId: 'public-passage-3',
+          ownerId: 'other-teacher',
+          titleSnapshot: 'Public Passage 3',
+          snapshotVersionId: 'snapshot-3',
+          currentVersionId: 'snapshot-3',
+        },
+      ],
+    };
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(within(screen.getByTestId(`material-list-row-${materialId}`)).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(3);
+    });
+    expect(mocks.masterModalProps.at(-1).master).toEqual(expect.objectContaining({
+      compositionId,
+      testMaterialId: materialId,
+      compositionLoadState: 'ready',
+    }));
+
+    await user.click(within(screen.getByTestId(`material-list-row-${materialId}`)).getByRole('button', { name: 'Delete' }));
+    expect(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).toHaveTextContent('3 linked Reading Passages');
+    expect(within(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).getByRole('button', { name: 'Remove master and linked passages' })).toBeDisabled();
+    await user.click(within(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).getByRole('button', { name: 'Remove master only' }));
+
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: `${readingV2StoragePaths.fullTestCompositions(compositionId)}/state`,
+          value: 'removed',
+        },
+        {
+          path: `${readingV2StoragePaths.materialMetadata(materialId)}/state`,
+          value: 'removed',
+        },
+        {
+          path: `tests/${materialId}`,
+          value: null,
+        },
+      ]));
+    });
+    expect(mocks.dbWrites.some((write) =>
+      String(write.path).includes('composition-composition-') ||
+      String(write.path).includes('public-passage-1/state')
+    )).toBe(false);
+    await waitFor(() => {
+      expect(screen.getByText('Removed "Selected Public Reading Passages". Linked Reading Passages were kept.').closest('.toast-card'))
+        .toBeInTheDocument();
+    });
+    expect(mocks.refreshTests).toHaveBeenCalled();
   });
 
   it('keeps legacy Reading cards on the existing edit-modal path', async () => {
@@ -648,7 +765,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     };
     mocks.tests = [legacyReadingTest];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-legacy-reading-1')).getByRole('button', { name: 'Edit' }));
 
@@ -685,7 +802,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
     const row = screen.getByTestId('material-list-row-master-1');
     await user.click(within(row).getByRole('button', { name: 'Delete' }));
 
@@ -729,7 +846,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
     await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
     await user.click(within(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).getByRole('button', { name: 'Remove master only' }));
 
@@ -751,6 +868,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
     expect(mocks.dbWrites.some((write) => write.path === 'reading_v2/material_metadata/passage-1/state')).toBe(false);
     expect(mocks.dbWrites.some((write) => String(write.path).startsWith('reading_v2/audit_events/'))).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByText('Removed "IELTS Cambridge 10 - Test 02: Reading". Linked Reading Passages were kept.').closest('.toast-card'))
+        .toBeInTheDocument();
+    });
     expect(mocks.refreshTests).toHaveBeenCalled();
   });
 
@@ -807,7 +928,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       mocks.dbReads[`reading_v2/reading_passage_materials/${passageId}`] = { ownerId: 'teacher-1', state: 'published' };
     });
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
     await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
     const dialog = screen.getByRole('dialog', { name: 'Remove Reading V2 master?' });
     await user.click(within(dialog).getByRole('checkbox', { name: /I understand/i }));
@@ -830,6 +951,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       ]));
     });
     expect(mocks.dbWrites.some((write) => write.path === 'reading_v2/material_metadata/master-1/state' && write.value === 'removed')).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByText('Removed "IELTS Cambridge 10 - Test 02: Reading". 2 linked Reading Passages were archived.').closest('.toast-card'))
+        .toBeInTheDocument();
+    });
   });
 
   it('blocks linked-passage master removal when any linked Reading Passage is not owner-owned', async () => {
@@ -861,7 +986,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
     await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Remove Reading V2 master?' });
@@ -887,7 +1012,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     expect(screen.queryByTestId('material-list-row-passage-asset-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('material-list-row-material-v2')).toBeInTheDocument();
@@ -1029,7 +1154,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
   it('keeps Reading Passage and Book visibility controls inside the search bar', async () => {
     const user = userEvent.setup();
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     const readingSearchBar = screen.getByTestId('search-filter-bar');
@@ -1844,7 +1969,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')] =
       readingPassageSnapshotFor('passage-b', 'snapshot-b');
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
@@ -1980,7 +2105,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')] =
       readingPassageSnapshotFor('passage-b', 'snapshot-b');
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     await screen.findByTestId('material-list-row-passage-a');
@@ -2005,8 +2130,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
     expect(screen.getByRole('tablist', { name: /teacher lobby content tabs/i }))
       .toHaveAttribute('data-active-tab', 'my');
-    expect(screen.getByRole('status'))
-      .toHaveTextContent('Published "Selected Reading Passages". It is now visible in My Content.');
+    expect(screen.getByText('Published "Selected Reading Passages". It is now visible in My Content.').closest('.toast-card'))
+      .toBeInTheDocument();
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'reading_v2_master_publish_completed',

@@ -19,6 +19,7 @@ export interface ToastOptions {
   title?: string;
   message: string;
   tone?: ToastTone;
+  duration?: number;
 }
 
 interface ToastRecord {
@@ -38,7 +39,10 @@ const DEFAULT_TITLES: Record<ToastTone, string> = {
 
 const listeners = new Set<() => void>();
 const exitTimers = new Map<string, number>();
+const dismissTimers = new Map<string, number>();
 let toastQueue: ToastRecord[] = [];
+const DEFAULT_DURATION_MS = 5000;
+const EXIT_DURATION_MS = 650;
 
 function emitChange() {
   listeners.forEach((listener) => listener());
@@ -64,6 +68,21 @@ function removeToast(id: string) {
     window.clearTimeout(timeoutId);
     exitTimers.delete(id);
   }
+  const dismissTimeoutId = dismissTimers.get(id);
+  if (dismissTimeoutId) {
+    window.clearTimeout(dismissTimeoutId);
+    dismissTimers.delete(id);
+  }
+  emitChange();
+}
+
+function clearToasts() {
+  [...exitTimers.values(), ...dismissTimers.values()].forEach((timeoutId) => {
+    window.clearTimeout(timeoutId);
+  });
+  exitTimers.clear();
+  dismissTimers.clear();
+  toastQueue = [];
   emitChange();
 }
 
@@ -90,12 +109,12 @@ function dismissToast(id: string) {
 
   const timeoutId = window.setTimeout(() => {
     removeToast(id);
-  }, 220);
+  }, EXIT_DURATION_MS);
 
   exitTimers.set(id, timeoutId);
 }
 
-function pushToast({ message, tone = 'info', title }: ToastOptions) {
+function pushToast({ message, tone = 'info', title, duration = DEFAULT_DURATION_MS }: ToastOptions) {
   const id = createToastId();
 
   toastQueue = [
@@ -110,9 +129,12 @@ function pushToast({ message, tone = 'info', title }: ToastOptions) {
 
   emitChange();
 
-  window.setTimeout(() => {
-    dismissToast(id);
-  }, 4000);
+  if (duration > 0) {
+    const timeoutId = window.setTimeout(() => {
+      dismissToast(id);
+    }, duration);
+    dismissTimers.set(id, timeoutId);
+  }
 
   return id;
 }
@@ -124,11 +146,13 @@ function ToastCard({
   toastRecord: ToastRecord;
   onClose: () => void;
 }) {
+  const isError = toastRecord.tone === 'error';
+
   return (
     <div
       className={`toast-card toast-card--${toastRecord.tone} ${toastRecord.leaving ? 'toast-card--leaving' : ''}`.trim()}
-      role="status"
-      aria-live="polite"
+      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
     >
       <div className="toast-card__content">
         <div className="toast-card__title">{toastRecord.title}</div>
@@ -138,7 +162,7 @@ function ToastCard({
         type="button"
         className="toast-card__close"
         onClick={onClose}
-        aria-label="Dismiss notification"
+        aria-label="Dismiss announcement"
       >
         ×
       </button>
@@ -164,6 +188,9 @@ export const toast = {
   },
   dismiss(id: string) {
     dismissToast(id);
+  },
+  clear() {
+    clearToasts();
   },
 };
 

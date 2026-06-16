@@ -128,6 +128,7 @@ export interface ToastOptions {
   title?: string;
   message: string;
   tone?: ToastTone;
+  duration?: number;
 }
 
 export const ToastContainer: React.FC<ToastContainerProps>;
@@ -139,4 +140,5 @@ export const toast: {
   warning: (message: string) => string;
   show: (options: ToastOptions) => string;
   dismiss: (id: string) => void;
+  clear: () => void;
 };

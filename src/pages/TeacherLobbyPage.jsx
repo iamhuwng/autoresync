@@ -17,7 +17,7 @@ import {
   getTeacherMaterialsElapsedMs,
   logTeacherMaterialsDiagnostic,
 } from '../utils/teacherMaterialsDiagnostics';
-import { Card, CardBody } from '../components/modern';
+import { Card, CardBody, toast } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
 import {
   createMaterialTestTypeConfigRepository,
@@ -151,24 +151,40 @@ const isPublishedReadingV2MasterMaterial = (material) => (
   )
 );
 
-const toReadingV2MasterModalRecord = (material) => ({
-  ...material,
-  materialId: material?.materialId || material?.id || material?.testMaterialId,
-  testMaterialId: material?.testMaterialId || material?.materialId || material?.id,
-  compositionId:
-    material?.compositionId
-    || material?.fullTestCompositionId
-    || (
-      (material?.materialId || material?.id || material?.testMaterialId)
-      && (material?.publishedVersionId || material?.publishedSnapshotVersionId)
-        ? buildReadingV2ExtractedFullTestCompositionId(
-            material?.materialId || material?.id || material?.testMaterialId,
-            material?.publishedVersionId || material?.publishedSnapshotVersionId,
-          )
+const deriveReadingV2SelectedPassageCompositionId = (materialId) => {
+  if (typeof materialId !== 'string' || !materialId.startsWith('composition-')) {
+    return undefined;
+  }
+
+  return materialId.slice('composition-'.length) || undefined;
+};
+
+const toReadingV2MasterModalRecord = (material) => {
+  const materialId = material?.materialId || material?.id || material?.testMaterialId;
+  const publishedVersionId =
+    material?.publishedVersionId ||
+    material?.publishedSnapshotVersionId ||
+    material?.metadata?.publishedVersionId ||
+    material?.metadata?.publishedSnapshotVersionId;
+  const compositionId =
+    material?.compositionId ||
+    material?.fullTestCompositionId ||
+    material?.metadata?.compositionId ||
+    deriveReadingV2SelectedPassageCompositionId(materialId) ||
+    (
+      materialId && publishedVersionId
+        ? buildReadingV2ExtractedFullTestCompositionId(materialId, publishedVersionId)
         : undefined
-    ),
-  publishedVersionId: material?.publishedVersionId || material?.publishedSnapshotVersionId,
-});
+    );
+
+  return {
+    ...material,
+    materialId,
+    testMaterialId: material?.testMaterialId || materialId,
+    compositionId,
+    publishedVersionId,
+  };
+};
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -214,6 +230,20 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
 
 const getReadingV2MasterTitle = (master) =>
   master?.title || master?.metadata?.title || 'Untitled Reading V2 master';
+
+const getReadingV2MasterRemovalNotice = ({ master, includeLinkedPassages, passageCount }) => {
+  const title = getReadingV2MasterTitle(master);
+  if (!passageCount) {
+    return `Removed "${title}".`;
+  }
+
+  if (!includeLinkedPassages) {
+    return `Removed "${title}". Linked Reading Passages were kept.`;
+  }
+
+  const passageLabel = passageCount === 1 ? 'Reading Passage was archived' : 'Reading Passages were archived';
+  return `Removed "${title}". ${passageCount} linked ${passageLabel}.`;
+};
 
 const getReadingV2MasterPassageRefs = (master) => {
   if (Array.isArray(master?.passageRefs)) {
@@ -376,7 +406,6 @@ const TeacherLobbyPage = () => {
   const [testTypeConfigs, setTestTypeConfigs] = useState(DEFAULT_MATERIAL_TEST_TYPES);
   const [pinnedTestTypeIds, setPinnedTestTypeIds] = useState(null);
   const [testTypePreferencesOpen, setTestTypePreferencesOpen] = useState(false);
-  const [teacherMaterialsActionNotice, setTeacherMaterialsActionNotice] = useState(null);
   const [readingPassageScope, setReadingPassageScope] = useState('private');
   const [readingPassageRows, setReadingPassageRows] = useState([]);
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
@@ -926,7 +955,6 @@ const TeacherLobbyPage = () => {
   ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
-    setTeacherMaterialsActionNotice(null);
     setContentFilter((currentTab) => {
       if (currentTab !== nextTab) {
         trackAction('teacher_materials_tab_changed', {
@@ -1331,6 +1359,11 @@ const TeacherLobbyPage = () => {
         linkedPassagesArchived: includeLinkedPassages,
         passageCount: passageRefs.length,
       });
+      toast.success(getReadingV2MasterRemovalNotice({
+        master,
+        includeLinkedPassages,
+        passageCount: passageRefs.length,
+      }));
       setReadingV2MasterRemoveRequest(null);
       setReadingV2MasterRemoveAcknowledged(false);
       setReadingV2MasterRemoveStatus('idle');
@@ -1824,7 +1857,7 @@ const TeacherLobbyPage = () => {
       if (isDraftPublish) {
         setContentFilter('my');
         setSelectedReadingPassageIds([]);
-        setTeacherMaterialsActionNotice(
+        toast.success(
           `Published "${publishedMaster.title || payload.title || 'Selected Reading Passages'}". It is now visible in My Content.`,
         );
       }
@@ -2217,7 +2250,7 @@ const TeacherLobbyPage = () => {
                 onReturnToQuiz={(code) => navigateTo('TEACHER_WAITING', { gameSessionId: code }, { reason: 'lobby_return_quiz' })}
               />
 
-              {[teacherMaterialsNotice, teacherMaterialsActionNotice].filter(Boolean).map((notice) => (
+              {[teacherMaterialsNotice].filter(Boolean).map((notice) => (
                 <div className="teacher-materials-route-notice" role="status" key={notice}>
                   {notice}
                 </div>
