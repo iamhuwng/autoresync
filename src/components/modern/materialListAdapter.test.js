@@ -291,7 +291,12 @@ describe('materialListAdapter', () => {
     expect(handlers.onRestoreReadingPassage).toHaveBeenCalledWith(row.source);
   });
 
-  it('omits owner-only Reading Passage archive/revise actions for public rows', () => {
+  it('offers clone on non-owned public Reading Passage rows without owner-only actions', () => {
+    const handlers = {
+      onOpenReadingPassage: vi.fn(),
+      onCloneReadingPassage: vi.fn(),
+      onAssignReadingPassage: vi.fn(),
+    };
     const row = toReadingPassageRowModel({
       id: 'public-passage',
       materialId: 'public-passage',
@@ -303,14 +308,24 @@ describe('materialListAdapter', () => {
       sourceOrderDisplay: 'Part 4',
       actions: [
         { key: 'view', label: 'View' },
+        { key: 'clone-reading-passage', label: 'Clone to my library' },
         { key: 'assign-homework', label: 'Assign homework' },
       ],
+    }, {
+      handlers,
     });
 
     expect(row.badges.map((badge) => badge.label)).toContain('Public');
-    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Assign homework']);
+    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Clone to my library', 'Assign homework']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
     expect(row.actions.map((item) => item.label)).not.toContain('Archive');
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
+
+    row.actions.forEach((item) => item.onSelect());
+
+    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onCloneReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
   });
 
   it('disables Reading Passage assignment when a safe projection or published version is missing', () => {

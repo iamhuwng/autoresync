@@ -402,6 +402,9 @@ function readingPassageActionIconKind(key) {
   if (key === 'archive') {
     return 'archive';
   }
+  if (key === 'clone-reading-passage') {
+    return 'clone';
+  }
   if (key === 'restore') {
     return 'restore';
   }
@@ -421,6 +424,7 @@ function defaultReadingPassageActions(record) {
       ]
     : [
         { key: 'view', label: 'View' },
+        { key: 'clone-reading-passage', label: 'Clone to my library' },
         { key: 'assign-homework', label: 'Assign homework' },
     ];
 }
@@ -475,6 +479,9 @@ function readingPassageActionHandler(key, source, handlers = {}) {
   if (key === 'assign-homework') {
     return () => handlers.onAssignReadingPassage?.(source);
   }
+  if (key === 'clone-reading-passage') {
+    return () => handlers.onCloneReadingPassage?.(source);
+  }
   if (key === 'revise') {
     return () => handlers.onReviseReadingPassage?.(source);
   }
@@ -503,15 +510,6 @@ function getReadingPassageAssignmentBlocker(record) {
   return undefined;
 }
 
-const READING_PASSAGE_ACTION_SLOT_BY_KEY = {
-  open: 1,
-  view: 1,
-  'assign-homework': 2,
-  revise: 3,
-  archive: 4,
-  restore: 4,
-};
-
 export function toReadingPassageRowModel(record, options = {}) {
   const {
     testTypeConfig,
@@ -524,7 +522,7 @@ export function toReadingPassageRowModel(record, options = {}) {
   const actions = (record?.actions?.length ? record.actions : defaultReadingPassageActions(record))
     .filter((entry) => !entry.ownerOnly || record?.isOwner)
     .filter((entry) => entry.key !== 'delete')
-    .map((entry) => action({
+    .map((entry, index) => action({
       key: entry.key,
       label: entry.key === 'archive' ? 'Remove from library' : entry.label,
       variant: entry.key === 'archive' ? 'danger' : entry.key === 'restore' ? 'primary' : entry.key === 'assign-homework' ? 'primary' : 'secondary',
@@ -532,7 +530,7 @@ export function toReadingPassageRowModel(record, options = {}) {
       onSelect: readingPassageActionHandler(entry.key, rowSource, handlers),
       disabled: entry.key === 'assign-homework' && Boolean(assignmentBlocker),
       disabledReason: entry.key === 'assign-homework' ? assignmentBlocker : undefined,
-      slot: READING_PASSAGE_ACTION_SLOT_BY_KEY[entry.key],
+      slot: entry.slot ?? index + 1,
     }));
 
   return {
