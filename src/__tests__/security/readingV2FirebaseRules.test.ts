@@ -364,6 +364,19 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(versionRules['.write']).not.toContain('data.child');
     expect(snapshotRules['.write']).not.toContain('data.child');
   });
+
+  it('allows teacher reads of safe public Reading Passage metadata needed by the public passage library', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const metadataRules = readingV2Rules.material_metadata.$materialId as Record<string, string>;
+    const readRule = metadataRules['.read'];
+
+    expect(readRule).toContain("root.child('users').child(auth.uid).child('role').val() === 'teacher'");
+    expect(readRule).toContain("data.child('materialKind').val() === 'reading-passage'");
+    expect(readRule).toContain("data.child('visibility').val() === 'library-eligible'");
+    expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('visibility').val() === 'public'");
+    expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'");
+    expect(readRule).not.toContain("root.child('users').child(auth.uid).child('role').val() === 'student'");
+  });
 });
 
 describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
