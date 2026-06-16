@@ -154,6 +154,37 @@ describe('ReadingV2MasterEditModal', () => {
     expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument();
   });
 
+  it('does not require numbering review for metadata-only edits', async () => {
+    const user = userEvent.setup();
+    const onPublish = vi.fn();
+
+    render(
+      <ReadingV2MasterEditModal
+        open
+        mode="published"
+        currentTeacherId="teacher-1"
+        master={master}
+        onClose={vi.fn()}
+        onPublish={onPublish}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText(/master title/i));
+    await user.type(screen.getByLabelText(/master title/i), 'Updated Master');
+    await user.selectOptions(screen.getByLabelText(/visibility/i), 'public');
+
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /numbering review/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /publish master/i }));
+
+    expect(screen.queryByText(/Confirm numbering changes before publishing/i)).not.toBeInTheDocument();
+    expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Updated Master',
+      visibility: 'public',
+    }));
+  });
+
   it('opens passage slots through the single-passage Studio route and blocks non-owned direct edit', async () => {
     const user = userEvent.setup();
     const onOpenPassageStudio = vi.fn();

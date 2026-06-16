@@ -127,6 +127,15 @@ const getRefKey = (ref: ReadingV2MasterPassageRef | ReadingV2BrokenRefEntry): st
 const getQuestionCount = (ref: ReadingV2MasterPassageRef): number =>
   Number(ref.questionCount ?? ref.questionCountSnapshot ?? 0);
 
+const getNumberingSignature = (refs: readonly ReadingV2MasterPassageRef[]): string =>
+  refs.map((ref, index) => [
+    getRefKey(ref) || getPassageId(ref) || `slot-${index + 1}`,
+    getPassageId(ref),
+    ref.snapshotVersionId || ref.currentVersionId || '',
+    Number(ref.order || index + 1),
+    getQuestionCount(ref),
+  ].join(':')).join('|');
+
 const toPassageRefFromReplacement = (
   brokenRef: ReadingV2BrokenRefEntry,
   replacement: ReadingV2MasterReplacementPassage,
@@ -211,6 +220,8 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
   });
   const initialQuestionCount = initialRefs.reduce((total, ref) => total + getQuestionCount(ref), 0);
   const currentQuestionCount = passageRefs.reduce((total, ref) => total + getQuestionCount(ref), 0);
+  const initialNumberingSignature = getNumberingSignature(initialRefs);
+  const currentNumberingSignature = getNumberingSignature(passageRefs);
   const declaredQuestionCount = Number(master.questionCount ?? master.metadata?.questionCount ?? 0);
   const compositionLoadState = String(master.compositionLoadState || '');
   const hasUnresolvedPublishedMasterRefs = mode === 'published' &&
@@ -219,7 +230,7 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
       declaredQuestionCount > 0 ||
       ['loading', 'missing-composition', 'load-failed'].includes(compositionLoadState)
     );
-  const numberingChanged = initialQuestionCount !== currentQuestionCount || dirty;
+  const numberingChanged = initialNumberingSignature !== currentNumberingSignature;
   const needsNumberingConfirmation = numberingChanged && !numberingConfirmed;
 
   const clearBrokenRef = (brokenRef: ReadingV2BrokenRefEntry) => {
@@ -333,6 +344,7 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
       return next.map((ref, orderIndex) => ({ ...ref, order: orderIndex + 1 }));
     });
     setDirty(true);
+    setNumberingConfirmed(false);
   };
 
   return (
@@ -398,7 +410,9 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
               aria-label="Broken Reading Passage refs"
             >
               {unresolvedBrokenRefs.length === 0
-                ? 'Broken Reading Passage refs repaired locally. Review numbering before publishing.'
+                ? numberingChanged
+                  ? 'Broken Reading Passage refs repaired locally. Review numbering before publishing.'
+                  : 'Broken Reading Passage refs repaired locally.'
                 : `${unresolvedBrokenRefs.length} passage needs repair before this master can publish.`}
             </div>
           )}
