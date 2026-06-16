@@ -1841,6 +1841,8 @@ const TeacherLobbyPage = () => {
         brokenRefs: [],
       };
       const isDraftPublish = payload.mode === 'draft';
+      const publishedTitle = publishedMaster.title || payload.title || 'Selected Reading Passages';
+      const visibilityLabel = publishedMaster.visibility === 'public' ? 'Public' : 'Private';
       setReadingV2MasterModalState((current) => ({
         ...(isDraftPublish
           ? {
@@ -1858,7 +1860,11 @@ const TeacherLobbyPage = () => {
         setContentFilter('my');
         setSelectedReadingPassageIds([]);
         toast.success(
-          `Published "${publishedMaster.title || payload.title || 'Selected Reading Passages'}". It is now visible in My Content.`,
+          `Published "${publishedTitle}". It is now visible in My Content.`,
+        );
+      } else {
+        toast.success(
+          `Published changes to "${publishedTitle}". Visibility is now ${visibilityLabel}.`,
         );
       }
       trackAction('reading_v2_master_publish_completed', {

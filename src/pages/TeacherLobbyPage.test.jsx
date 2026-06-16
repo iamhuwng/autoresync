@@ -604,6 +604,62 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     }));
   });
 
+  it('shows a shared toast after republishing a published Reading V2 master', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'material-v2',
+        materialId: 'material-v2',
+        deliveryEngine: 'reading-v2',
+        ownerId: 'teacher-1',
+        title: 'Published Reading V2',
+        materialKind: 'reading-v2-full-test-composition',
+        state: 'published',
+        compositionId: 'composition-v2',
+        publishedVersionId: 'composition-version-v2',
+        questionCount: 13,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-v2')] = {
+      compositionId: 'composition-v2',
+      testMaterialId: 'material-v2',
+      title: 'Published Reading V2',
+      ownerId: 'teacher-1',
+      visibility: 'private',
+      publishedVersionId: 'composition-version-v2',
+      passageRefs: [
+        {
+          refId: 'ref-a',
+          passageMaterialId: 'passage-a',
+          materialId: 'passage-a',
+          ownerId: 'teacher-1',
+          snapshotVersionId: 'snapshot-a',
+          currentVersionId: 'snapshot-a',
+          titleSnapshot: 'Passage A',
+          questionCountSnapshot: 13,
+          visibility: 'private',
+          testTypeIdsSnapshot: ['ielts'],
+        },
+      ],
+    };
+    mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')] =
+      readingPassageSnapshotFor('passage-a', 'snapshot-a');
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Publish Master' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Published changes to "Published Reading V2". Visibility is now Private.').closest('.toast-card'))
+        .toBeInTheDocument();
+    });
+  });
+
   it('derives legacy auto-split composition identity before hydrating published master references', async () => {
     const user = userEvent.setup();
     mocks.tests = [
