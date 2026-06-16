@@ -11,13 +11,8 @@
  */
 
 import { ref, get, query, orderByChild, equalTo, limitToFirst } from 'firebase/database';
-import { database } from './firebase';
+import { auth, database } from './firebase';
 import dataCache, { CacheTypes, CacheTTL } from './dataCache';
-import {
-  getTeacherMaterialsDiagnosticTime,
-  getTeacherMaterialsElapsedMs,
-  logTeacherMaterialsDiagnostic,
-} from '../utils/teacherMaterialsDiagnostics';
 
 const toTestList = (data) => data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
 
@@ -199,6 +194,17 @@ class FirebaseQueryOptimizer {
    * @returns {Promise<Array>} Array of tests
    */
   async getAllTests(skipCache = false) {
+    const currentUserId = auth.currentUser?.uid;
+    const currentUserRole = currentUserId ? await this.getCurrentUserRole(currentUserId) : null;
+
+    if (currentUserId && currentUserRole !== 'super_admin') {
+      return this.getVisibleTestsForCurrentUser(currentUserId, skipCache);
+    }
+
+    if (!currentUserId) {
+      return [];
+    }
+
     const cacheKey = 'all';
 
     if (!skipCache) {
@@ -228,6 +234,39 @@ class FirebaseQueryOptimizer {
     return testList;
   }
 
+  async getCurrentUserRole(userId) {
+    try {
+      const roleSnapshot = await get(ref(database, `users/${userId}/role`));
+      return roleSnapshot.val() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getVisibleTestsForCurrentUser(userId, skipCache = false) {
+    const cacheKey = `visible:${userId}`;
+
+    if (!skipCache) {
+      const cached = dataCache.get(CacheTypes.TEST, cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const [ownedTests, publicTests] = await Promise.all([
+      this.getTeacherOwnedTests(userId, skipCache),
+      this.getPublicTests(skipCache),
+    ]);
+    const testList = dedupeTestsById([ownedTests, publicTests]);
+
+    dataCache.set(CacheTypes.TEST, cacheKey, testList, CacheTTL.MEDIUM);
+    testList.forEach(test => {
+      dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
+    });
+
+    return testList;
+  }
+
   /**
    * Fetch tests visible in a teacher's My Content tab using indexed ownership queries.
    * Avoids downloading the full /tests node on the lobby route.
@@ -236,12 +275,7 @@ class FirebaseQueryOptimizer {
    * @returns {Promise<Array>} Array of tests
    */
   async getTeacherOwnedTests(ownerId, skipCache = false) {
-    const startedAt = getTeacherMaterialsDiagnosticTime();
     if (!ownerId) {
-      logTeacherMaterialsDiagnostic('optimizer_fetch_skipped', {
-        scope: 'owned',
-        reason: 'missing_owner',
-      });
       return [];
     }
 
@@ -249,23 +283,10 @@ class FirebaseQueryOptimizer {
     if (!skipCache) {
       const cached = dataCache.get(CacheTypes.TEST, cacheKey);
       if (cached) {
-        logTeacherMaterialsDiagnostic('optimizer_cache_hit', {
-          scope: 'owned',
-          cacheKey,
-          count: cached.length,
-          durationMs: getTeacherMaterialsElapsedMs(startedAt),
-        });
         return cached;
       }
     }
 
-    logTeacherMaterialsDiagnostic('optimizer_fetch_requested', {
-      scope: 'owned',
-      strategy: 'indexed_owner_and_createdBy',
-      branches: ['ownerId', 'createdBy'],
-      skipCache,
-      ownerTail: ownerId.slice(-6),
-    });
     const testsRef = ref(database, 'tests');
     const [ownerSnapshot, createdBySnapshot] = await Promise.all([
       get(query(testsRef, orderByChild('ownerId'), equalTo(ownerId))),
@@ -282,15 +303,6 @@ class FirebaseQueryOptimizer {
       dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
     });
 
-    logTeacherMaterialsDiagnostic('optimizer_fetch_succeeded', {
-      scope: 'owned',
-      strategy: 'indexed_owner_and_createdBy',
-      branches: ['ownerId', 'createdBy'],
-      count: testList.length,
-      ownerIdCount: toTestList(ownerSnapshot.val()).length,
-      createdByCount: toTestList(createdBySnapshot.val()).length,
-      durationMs: getTeacherMaterialsElapsedMs(startedAt),
-    });
     return testList;
   }
 
@@ -300,27 +312,14 @@ class FirebaseQueryOptimizer {
    * @returns {Promise<Array>} Array of public tests
    */
   async getPublicTests(skipCache = false) {
-    const startedAt = getTeacherMaterialsDiagnosticTime();
     const cacheKey = 'public';
     if (!skipCache) {
       const cached = dataCache.get(CacheTypes.TEST, cacheKey);
       if (cached) {
-        logTeacherMaterialsDiagnostic('optimizer_cache_hit', {
-          scope: 'public',
-          cacheKey,
-          count: cached.length,
-          durationMs: getTeacherMaterialsElapsedMs(startedAt),
-        });
         return cached;
       }
     }
 
-    logTeacherMaterialsDiagnostic('optimizer_fetch_requested', {
-      scope: 'public',
-      strategy: 'indexed_isPublic',
-      branches: ['isPublic'],
-      skipCache,
-    });
     const testsRef = ref(database, 'tests');
     const snapshot = await get(query(testsRef, orderByChild('isPublic'), equalTo(true)));
     const testList = sortTestsByRecentUpdate(toTestList(snapshot.val()));
@@ -330,13 +329,6 @@ class FirebaseQueryOptimizer {
       dataCache.set(CacheTypes.TEST, test.id, test, CacheTTL.LONG);
     });
 
-    logTeacherMaterialsDiagnostic('optimizer_fetch_succeeded', {
-      scope: 'public',
-      strategy: 'indexed_isPublic',
-      branches: ['isPublic'],
-      count: testList.length,
-      durationMs: getTeacherMaterialsElapsedMs(startedAt),
-    });
     return testList;
   }
 

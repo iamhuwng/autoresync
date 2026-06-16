@@ -1,19 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     enrichWithStudentHistory,
+    getCourseMaterials,
     getLibraryMaterials,
     getStudentMaterialHistory,
 } from './materialDiscoveryService';
 import { getStudentResults as getCanonicalStudentResults } from './testResults.service';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type { LibraryMaterial } from '../types/solo.types';
-import { get, ref } from 'firebase/database';
+import { equalTo, get, orderByChild, query, ref } from 'firebase/database';
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
 import { READING_V2_PROJECTION_FIXTURES } from './reading-v2/fixtures/readingV2ProjectionFixtures';
 
 vi.mock('firebase/database', () => ({
+    equalTo: vi.fn((value) => ({ type: 'equalTo', value })),
     ref: vi.fn(),
     get: vi.fn(),
+    orderByChild: vi.fn((child) => ({ type: 'orderByChild', child })),
+    query: vi.fn((baseRef, ...constraints) => ({ baseRef, constraints })),
 }));
 
 vi.mock('./firebase', () => ({
@@ -28,6 +32,112 @@ describe('materialDiscoveryService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.mocked(ref).mockImplementation((_database, path) => path as any);
+    });
+
+    it('does not broad-read legacy tests for the student My Courses library source', async () => {
+        vi.mocked(get).mockImplementation(async (path: any) => {
+            if (path === 'tests') {
+                throw new Error('Unexpected broad tests read');
+            }
+
+            return {
+                exists: () => false,
+                val: () => null,
+            } as any;
+        });
+
+        const materials = await getLibraryMaterials({ source: 'my_courses' });
+
+        expect(materials).toEqual([]);
+        expect(vi.mocked(ref).mock.calls.map(call => call[1])).not.toContain('tests');
+        expect(query).not.toHaveBeenCalled();
+    });
+
+    it('uses the public legacy tests index instead of a broad tests read for the public library source', async () => {
+        vi.mocked(get).mockImplementation(async (path: any) => {
+            if (path === 'tests') {
+                throw new Error('Unexpected broad tests read');
+            }
+
+            if (path?.baseRef === 'tests') {
+                return {
+                    exists: () => true,
+                    val: () => ({
+                        'legacy-public': {
+                            id: 'legacy-public',
+                            title: 'Legacy Public Test',
+                            isPublic: true,
+                            skillType: 'reading',
+                            type: 'Test',
+                            questionCount: 12,
+                            duration: 60,
+                        },
+                    }),
+                } as any;
+            }
+
+            return {
+                exists: () => false,
+                val: () => null,
+            } as any;
+        });
+
+        const materials = await getLibraryMaterials({ source: 'public', skill: 'reading' });
+
+        expect(ref).toHaveBeenCalledWith({}, 'tests');
+        expect(orderByChild).toHaveBeenCalledWith('isPublic');
+        expect(equalTo).toHaveBeenCalledWith(true);
+        expect(query).toHaveBeenCalledWith('tests', { type: 'orderByChild', child: 'isPublic' }, { type: 'equalTo', value: true });
+        expect(materials).toEqual([
+            expect.objectContaining({
+                id: 'legacy-public',
+                title: 'Legacy Public Test',
+                source: { type: 'public', courseName: undefined, courseId: undefined },
+            }),
+        ]);
+    });
+
+    it('uses the public legacy tests index instead of a broad tests read for course materials', async () => {
+        vi.mocked(get).mockImplementation(async (path: any) => {
+            if (path === 'tests') {
+                throw new Error('Unexpected broad tests read');
+            }
+
+            if (path?.baseRef === 'tests') {
+                return {
+                    exists: () => true,
+                    val: () => ({
+                        'legacy-public': {
+                            id: 'legacy-public',
+                            title: 'Legacy Public Test',
+                            isPublic: true,
+                            skillType: 'reading',
+                            type: 'Test',
+                            questionCount: 12,
+                            duration: 60,
+                            soloConfig: { soloEnabled: true },
+                        },
+                    }),
+                } as any;
+            }
+
+            return {
+                exists: () => false,
+                val: () => null,
+            } as any;
+        });
+
+        const materials = await getCourseMaterials('course-1', 'student-1');
+
+        expect(ref).toHaveBeenCalledWith({}, 'tests');
+        expect(query).toHaveBeenCalledWith('tests', { type: 'orderByChild', child: 'isPublic' }, { type: 'equalTo', value: true });
+        expect(materials).toEqual([
+            expect.objectContaining({
+                id: 'legacy-public',
+                title: 'Legacy Public Test',
+                source: { type: 'course', courseId: 'course-1', courseName: undefined },
+            }),
+        ]);
     });
 
     it('uses canonical student results and only counts self-study attempts for the target material', async () => {
@@ -252,7 +362,7 @@ describe('materialDiscoveryService', () => {
 
     it('keeps public Reading V2 library rows hidden while rollout is default closed', async () => {
         vi.mocked(get).mockImplementation(async (path: any) => {
-            if (path === 'tests') {
+            if (path === 'tests' || path?.baseRef === 'tests') {
                 return {
                     exists: () => false,
                     val: () => null,

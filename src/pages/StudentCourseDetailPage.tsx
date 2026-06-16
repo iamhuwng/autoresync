@@ -54,6 +54,71 @@ function getStudentCourseDetailCache(studentId?: string | null, courseId?: strin
     return studentCourseDetailCache.get(`${studentId}:${courseId}`) ?? null;
 }
 
+const fallbackCourseMaterialMeta = (): TestMeta => ({
+    title: 'Course material',
+    type: 'test',
+});
+
+async function readCourseMaterialMeta(materialId: string): Promise<TestMeta> {
+    try {
+        const metadataPlan = buildReadingV2LaunchReadPlan({
+            surface: 'course-material',
+            materialId,
+        });
+        const metadataSnap = await get(ref(database, metadataPlan.metadataPath));
+        const metadata = metadataSnap.exists()
+            ? metadataSnap.val() as ReadingV2MaterialMetadata
+            : null;
+
+        if (metadata && isReadingV2LaunchCandidate(metadata)) {
+            let projection: ReadingV2DerivedProjection | null = null;
+
+            try {
+                const projectionPlan = buildReadingV2LaunchReadPlan({
+                    surface: 'course-material',
+                    materialId,
+                    snapshotVersionId: metadata.publishedSnapshotVersionId,
+                });
+                const projectionSnap = await get(ref(database, projectionPlan.projectionPath));
+                projection = projectionSnap.exists()
+                    ? projectionSnap.val() as ReadingV2DerivedProjection
+                    : null;
+            } catch {
+                projection = null;
+            }
+
+            const summary = createReadingV2LaunchMaterialSummary({ metadata, projection });
+
+            return {
+                title: summary.title,
+                type: 'ReadingV2',
+                duration: summary.durationMinutes,
+                testType: 'ReadingV2',
+                metadata: summary.metadata,
+            };
+        }
+    } catch {
+        // Non-Reading V2 legacy course materials can be denied at the Reading V2 metadata path.
+    }
+
+    try {
+        const snap = await get(ref(database, `tests/${materialId}`));
+        const data = snap.exists() ? snap.val() : null;
+        const isThcs = data?.testType === 'THCS-THPT';
+        const title = isThcs ? (data?.metadata?.title || 'Untitled THCS Test') : (data?.title || 'Untitled');
+
+        return {
+            title,
+            type: data?.type || 'test',
+            duration: isThcs ? data?.metadata?.duration : data?.duration,
+            testType: data?.testType,
+            metadata: data?.metadata,
+        };
+    } catch {
+        return fallbackCourseMaterialMeta();
+    }
+}
+
 const localStyles = {
     card: { background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, padding: 24, marginBottom: 16 },
     moduleCard: {
@@ -177,50 +242,10 @@ const StudentCourseDetailPage: React.FC = () => {
             let nextTestMeta: Record<string, TestMeta> = {};
             if (materialsRes.length > 0) {
                 const uniqueIds = [...new Set(materialsRes.map(m => m.materialId))];
-                const entries = await Promise.all(uniqueIds.map(async (tid) => {
-                    const metadataPlan = buildReadingV2LaunchReadPlan({
-                        surface: 'course-material',
-                        materialId: tid,
-                    });
-                    const metadataSnap = await get(ref(database, metadataPlan.metadataPath));
-                    const metadata = metadataSnap.exists()
-                        ? metadataSnap.val() as ReadingV2MaterialMetadata
-                        : null;
-
-                    if (metadata && isReadingV2LaunchCandidate(metadata)) {
-                        const projectionPlan = buildReadingV2LaunchReadPlan({
-                            surface: 'course-material',
-                            materialId: tid,
-                            snapshotVersionId: metadata.publishedSnapshotVersionId,
-                        });
-                        const projectionSnap = await get(ref(database, projectionPlan.projectionPath));
-                        const projection = projectionSnap.exists()
-                            ? projectionSnap.val() as ReadingV2DerivedProjection
-                            : null;
-                        const summary = createReadingV2LaunchMaterialSummary({ metadata, projection });
-
-                        return [tid, {
-                            title: summary.title,
-                            type: 'ReadingV2',
-                            duration: summary.durationMinutes,
-                            testType: 'ReadingV2',
-                            metadata: summary.metadata,
-                        }] as [string, TestMeta];
-                    }
-
-                    const snap = await get(ref(database, `tests/${tid}`));
-                    const data = snap.exists() ? snap.val() : null;
-                    // Phase 3 Task 5.2: Handle THCS test metadata
-                    const isThcs = data?.testType === 'THCS-THPT';
-                    const title = isThcs ? (data?.metadata?.title || 'Untitled THCS Test') : (data?.title || 'Untitled');
-                    return [tid, {
-                        title,
-                        type: data?.type || 'test',
-                        duration: isThcs ? data?.metadata?.duration : data?.duration,
-                        testType: data?.testType,
-                        metadata: data?.metadata,
-                    }] as [string, TestMeta];
-                }));
+                const entries = await Promise.all(uniqueIds.map(async (tid) => [
+                    tid,
+                    await readCourseMaterialMeta(tid),
+                ] as [string, TestMeta]));
                 nextTestMeta = Object.fromEntries(entries);
             }
             setTestMeta(nextTestMeta);

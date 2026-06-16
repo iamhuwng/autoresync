@@ -38,6 +38,17 @@ const isPublishedUnarchived = (row: ReadingV2MasterPassagePickerRow): boolean =>
   return Boolean(getPassageId(row)) && hasPublishedSnapshot && isPublished && !archived && selectable;
 };
 
+const canCurrentTeacherUseRow = (
+  row: ReadingV2MasterPassagePickerRow,
+  currentTeacherId: string,
+): boolean => {
+  if (row.ownerId === currentTeacherId) {
+    return true;
+  }
+
+  return row.visibility === 'public' || row.visibility === 'library-eligible';
+};
+
 export const ReadingV2MasterPassagePicker: React.FC<ReadingV2MasterPassagePickerProps> = ({
   rows,
   currentTeacherId,
@@ -46,7 +57,10 @@ export const ReadingV2MasterPassagePicker: React.FC<ReadingV2MasterPassagePicker
 }) => {
   const [status, setStatus] = useState('');
   const selectedIds = useMemo(() => new Set(selectedPassageIds.map((id) => String(id))), [selectedPassageIds]);
-  const availableRows = useMemo(() => rows.filter(isPublishedUnarchived), [rows]);
+  const availableRows = useMemo(
+    () => rows.filter((row) => isPublishedUnarchived(row) && canCurrentTeacherUseRow(row, currentTeacherId)),
+    [currentTeacherId, rows],
+  );
 
   if (availableRows.length === 0) {
     return (

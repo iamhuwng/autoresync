@@ -6,6 +6,12 @@ import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { Card, CardBody, Button } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
 
+const DEV_LOGIN_CREDENTIALS = {
+  teacher: { email: 'teacher@test.com', password: 'password123' },
+  teacher2: { email: 'teacher2@test.com', password: 'password123' },
+  student: { email: 'student@test.com', password: 'password123' },
+};
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const { user, profile, loading, login, loginWithEmail } = useAuth();
@@ -67,8 +73,8 @@ const LoginPage = () => {
     setDevLoading(role);
     trackAction('login', { method: 'dev', role });
     try {
-      const email = role === 'teacher' ? 'teacher@test.com' : 'student@test.com';
-      await loginWithEmail(email, 'password123');
+      const credentials = DEV_LOGIN_CREDENTIALS[role] ?? DEV_LOGIN_CREDENTIALS.student;
+      await loginWithEmail(credentials.email, credentials.password);
     } catch (error) {
       console.error(`Dev ${role} login error:`, error);
       setLoginError(getLoginErrorMessage(error));
@@ -246,7 +252,7 @@ const LoginPage = () => {
                     </span>
                     <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <button
                     id="dev-login-teacher"
                     onClick={() => handleDevLogin('teacher')}
@@ -294,6 +300,54 @@ const LoginPage = () => {
                       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                     {devLoading === 'teacher' ? 'Logging in...' : 'Teacher'}
+                  </button>
+                  <button
+                    id="dev-login-teacher2"
+                    onClick={() => handleDevLogin('teacher2')}
+                    disabled={devLoading !== null}
+                    style={{
+                      flex: 1,
+                      padding: '0.625rem 1rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #475569',
+                      background: devLoading === 'teacher2'
+                        ? 'linear-gradient(135deg, #64748b 0%, #475569 100%)'
+                        : 'rgba(71, 85, 105, 0.06)',
+                      color: devLoading === 'teacher2' ? '#fff' : '#475569',
+                      fontWeight: '600',
+                      fontSize: '0.875rem',
+                      cursor: devLoading !== null ? 'not-allowed' : 'pointer',
+                      opacity: devLoading !== null && devLoading !== 'teacher2' ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!devLoading) {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
+                        e.currentTarget.style.color = '#fff';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(71, 85, 105, 0.24)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!devLoading || devLoading !== 'teacher2') {
+                        e.currentTarget.style.background = 'rgba(71, 85, 105, 0.06)';
+                        e.currentTarget.style.color = '#475569';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    {devLoading === 'teacher2' ? 'Logging in...' : 'Teacher 2'}
                   </button>
                   <button
                     id="dev-login-student"

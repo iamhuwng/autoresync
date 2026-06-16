@@ -180,6 +180,8 @@ Student-visible summary and launch preparation must use student-readable bridges
 - non-live full-test launch summary/detail: `tests/{materialId}` plus `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`
 - live-session full-test launch: `reading_v2/projections/session_test_payloads/{sessionCode}:{snapshotVersionId}`
 
+The legacy `tests` bridge must not be broadly list-readable by every teacher. Teacher reads of `tests` must use indexed public, owner, or creator queries, while super-admin remains the only role allowed to read the whole bridge. Direct child reads must allow public rows, owner/creator rows, or super-admin only.
+
 For single Reading Passage homework, the assigned snapshot points to:
 
 - `reading_v2/projections/student_safe_tests/{passageMaterialId}:{snapshotVersionId}`

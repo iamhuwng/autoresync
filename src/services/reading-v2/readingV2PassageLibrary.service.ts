@@ -422,17 +422,28 @@ export const listTeacherReadingPassages = async (
     scope: input.scope,
     teacherId,
   });
+  const readingPassageIndexRows = indexRows.filter((row) => row.materialKind === 'reading-passage');
+
   const rows = await Promise.all(
-    indexRows
-      .filter((row) => row.materialKind === 'reading-passage')
+    readingPassageIndexRows
       .map(async (indexRow) => {
-        const metadata = await reader.readMetadata(indexRow.materialId);
+        let metadata: ReadingV2MaterialMetadata | null = null;
+
+        try {
+          metadata = await reader.readMetadata(indexRow.materialId);
+        } catch {
+          return null;
+        }
 
         if (!metadata || !isReadingPassageMetadata(metadata)) {
           return null;
         }
 
-        if (!rowMatchesScope(indexRow, metadata, input) || !rowMatchesTestType(metadata, input.testTypeId)) {
+        if (!rowMatchesScope(indexRow, metadata, input)) {
+          return null;
+        }
+
+        if (!rowMatchesTestType(metadata, input.testTypeId)) {
           return null;
         }
 
@@ -444,12 +455,18 @@ export const listTeacherReadingPassages = async (
           return null;
         }
 
-        const projection = metadata.publishedSnapshotVersionId
-          ? await reader.readStudentSafeProjection?.(
+        let projection: Pick<ReadingV2DerivedProjection, 'content' | 'sourceSnapshotVersionId'> | null = null;
+
+        if (metadata.publishedSnapshotVersionId) {
+          try {
+            projection = await reader.readStudentSafeProjection?.(
               metadata.materialId,
               metadata.publishedSnapshotVersionId,
-            )
-          : null;
+            ) ?? null;
+          } catch {
+            projection = null;
+          }
+        }
 
         return createRow({
           metadata,

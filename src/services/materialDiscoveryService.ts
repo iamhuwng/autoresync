@@ -9,7 +9,7 @@
  * - Recommended materials
  */
 
-import { ref, get } from 'firebase/database';
+import { equalTo, get, orderByChild, query, ref } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
 import type { TestData } from './testStorage';
@@ -205,6 +205,26 @@ function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCa
     return historyByMaterialId;
 }
 
+function shouldReadLegacyPublicTests(filters: LibraryFilters): boolean {
+    return !filters.source || filters.source === 'public';
+}
+
+async function getLegacyPublicLibraryTests(filters: LibraryFilters): Promise<TestData[]> {
+    if (!shouldReadLegacyPublicTests(filters)) {
+        return [];
+    }
+
+    const testsRef = ref(database, 'tests');
+    const publicTestsQuery = query(testsRef, orderByChild('isPublic'), equalTo(true));
+    const snapshot = await get(publicTestsQuery);
+
+    if (!snapshot.exists()) {
+        return [];
+    }
+
+    return Object.values(snapshot.val() ?? {}) as TestData[];
+}
+
 async function getStudentMaterialHistoryMap(studentId: string): Promise<Map<string, StudentMaterialHistory>> {
     try {
         const allResults = await getCanonicalStudentResults(studentId);
@@ -228,13 +248,9 @@ export async function getLibraryMaterials(
     try {
         logMaterialLibraryDiagnostic('getLibraryMaterials_requested', { filters });
 
-        // Get all legacy tests from Firebase. Reading V2 public entries are
-        // loaded separately from the approved library relationship index.
-        const testsRef = ref(database, 'tests');
-        const snapshot = await get(testsRef);
-
-        const testsData = snapshot.exists() ? snapshot.val() : {};
-        const allTests: TestData[] = Object.values(testsData);
+        // Legacy tests are limited to the public index. Reading V2 public
+        // entries are loaded separately from the approved relationship index.
+        const allTests = await getLegacyPublicLibraryTests(filters);
 
         // Filter tests based on criteria
         let filteredTests = allTests.filter(test => {
@@ -336,16 +352,7 @@ export async function getCourseMaterials(
         // TODO: Verify student enrollment in course
         // For now, we'll fetch all materials linked to the course
 
-        // Get all tests
-        const testsRef = ref(database, 'tests');
-        const snapshot = await get(testsRef);
-
-        if (!snapshot.exists()) {
-            return [];
-        }
-
-        const testsData = snapshot.val();
-        const allTests: TestData[] = Object.values(testsData);
+        const allTests = await getLegacyPublicLibraryTests({ source: 'public' });
 
         // Filter tests that belong to this course and have solo enabled
         const courseMaterials = allTests.filter(test => {

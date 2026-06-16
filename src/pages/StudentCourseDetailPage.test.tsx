@@ -164,6 +164,33 @@ describe('StudentCourseDetailPage', () => {
         });
     });
 
+    it('falls back to legacy test metadata when the Reading V2 metadata probe is denied', async () => {
+        (get as any).mockImplementation(async (path: string) => {
+            if (path === 'reading_v2/material_metadata/test1') {
+                throw new Error('Permission denied');
+            }
+
+            if (path === 'tests/test1') {
+                return {
+                    exists: () => true,
+                    val: () => ({ title: 'Legacy Course Material', type: 'Test' }),
+                };
+            }
+
+            return {
+                exists: () => false,
+                val: () => null,
+            };
+        });
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('Legacy Course Material')).toBeInTheDocument();
+        });
+        expect(screen.queryByText('Permission denied')).not.toBeInTheDocument();
+    });
+
     it('should show class context alert', async () => {
         renderPage();
 

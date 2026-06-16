@@ -89,6 +89,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /show dev quick login/i }));
 
     expect(screen.getByRole('button', { name: /^teacher$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^teacher 2$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^student$/i })).toBeInTheDocument();
     expect(mockTrackAction).toHaveBeenCalledWith('toggleDevQuickLogin', { visible: true });
   });
@@ -125,6 +126,17 @@ describe('LoginPage', () => {
 
     expect(mockLoginWithEmail).toHaveBeenCalledWith('student@test.com', 'password123');
     expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'dev', role: 'student' });
+  });
+
+  it('calls email login with the second teacher demo credentials', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /show dev quick login/i }));
+
+    await user.click(screen.getByRole('button', { name: /^teacher 2$/i }));
+
+    expect(mockLoginWithEmail).toHaveBeenCalledWith('teacher2@test.com', 'password123');
+    expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'dev', role: 'teacher2' });
   });
 
   it('redirects teachers to the lobby', async () => {

@@ -378,6 +378,23 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'");
     expect(readRule).not.toContain("root.child('users').child(auth.uid).child('role').val() === 'student'");
   });
+
+  it('does not allow broad teacher reads of the legacy tests bridge', () => {
+    const testsRules = databaseRules.rules.tests as Record<string, any>;
+    const parentReadRule = testsRules['.read'];
+    const childReadRule = testsRules.$testId['.read'];
+
+    expect(parentReadRule).toContain("role').val() === 'super_admin'");
+    expect(parentReadRule).toContain("query.orderByChild === 'isPublic'");
+    expect(parentReadRule).toContain('query.equalTo === true');
+    expect(parentReadRule).toContain("query.orderByChild === 'ownerId'");
+    expect(parentReadRule).toContain("query.orderByChild === 'createdBy'");
+    expect(parentReadRule).not.toBe('auth != null');
+    expect(childReadRule).toContain("data.child('isPublic').val() === true");
+    expect(childReadRule).toContain("data.child('ownerId').val() === auth.uid");
+    expect(childReadRule).toContain("data.child('createdBy').val() === auth.uid");
+    expect(childReadRule).not.toContain("role').val() === 'teacher'");
+  });
 });
 
 describeEmulator('Reading V2 Firebase rule emulator behavior', () => {

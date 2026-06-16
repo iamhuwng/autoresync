@@ -29,6 +29,17 @@ const rows = [
     state: 'published',
   },
   {
+    materialId: 'passage-other-private',
+    title: 'Other Teacher Private Passage',
+    testTypeIds: ['ielts'],
+    visibility: 'private',
+    ownerId: 'teacher-2',
+    currentVersionId: 'snapshot-other-private',
+    publishedSnapshotVersionId: 'snapshot-other-private',
+    questionCount: 11,
+    state: 'published',
+  },
+  {
     materialId: 'passage-draft',
     title: 'Draft Passage',
     ownerId: 'teacher-1',
@@ -60,6 +71,7 @@ describe('ReadingV2MasterPassagePicker', () => {
 
     expect(screen.getByText('Published Passage')).toBeInTheDocument();
     expect(screen.getByText('Public Passage')).toBeInTheDocument();
+    expect(screen.queryByText('Other Teacher Private Passage')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Passage')).not.toBeInTheDocument();
     expect(screen.queryByText('Archived Passage')).not.toBeInTheDocument();
     expect(loadCanonicalPassage).not.toHaveBeenCalled();

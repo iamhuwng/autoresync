@@ -232,6 +232,79 @@ describe('readingV2PassageLibrary.service', () => {
     ]);
   });
 
+  it('skips unreadable public index rows instead of failing the whole public list', async () => {
+    const testReader = reader({
+      listIndexRows: vi.fn(async () => [
+        indexRow({
+          materialId: 'stale-public-passage',
+          ownerId: 'teacher-2',
+          visibility: 'public',
+        }) as any,
+        indexRow({
+          materialId: 'valid-public-passage',
+          ownerId: 'teacher-3',
+          visibility: 'public',
+        }) as any,
+      ]),
+      readMetadata: vi.fn(async (materialId) => {
+        if (materialId === 'stale-public-passage') {
+          throw new Error('permission_denied at reading_v2/material_metadata/stale-public-passage');
+        }
+
+        return metadata({
+          materialId,
+          ownerId: 'teacher-3',
+          visibility: 'public' as any,
+          publishedSnapshotVersionId: 'snapshot-public',
+        }) as any;
+      }),
+      readStudentSafeProjection: vi.fn(async () => projection(8) as any),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'public',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows.map((row) => row.materialId)).toEqual(['valid-public-passage']);
+    expect(rows[0]).toMatchObject({
+      scope: 'public',
+      isOwner: false,
+      visibility: 'public',
+      questionCount: 8,
+    });
+  });
+
+  it('does not expose stale private rows when index and metadata are not owned by the current teacher', async () => {
+    const testReader = reader({
+      listIndexRows: vi.fn(async () => [
+        indexRow({
+          materialId: 'other-private-passage',
+          ownerId: 'teacher-2',
+          visibility: 'private',
+        }) as any,
+      ]),
+      readMetadata: vi.fn(async () =>
+        metadata({
+          materialId: 'other-private-passage',
+          ownerId: 'teacher-2',
+          visibility: 'private',
+        }) as any,
+      ),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toEqual([]);
+  });
+
   it('combines search and active Test Type filter with AND semantics over summary fields only', async () => {
     const testReader = reader({
       listIndexRows: vi.fn(async () => [
