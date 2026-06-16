@@ -140,6 +140,39 @@ describe('readingV2TeacherComposition.service', () => {
     },
   );
 
+  const snapshotWithNoteLayoutNumbers = (
+    materialId: string,
+    snapshotVersionId: string,
+    displayNumbers: readonly [number, number],
+  ): ReadingV2PublishedSnapshot => snapshotFor(
+    materialId,
+    snapshotVersionId,
+    'note-completion',
+    (document) => {
+      const [taskGroupId] = Object.keys(document.taskGroups);
+      const taskGroup = document.taskGroups[taskGroupId]!;
+      taskGroup.layoutHint = JSON.stringify({
+        kind: 'note-completion-layout',
+        sections: [
+          {
+            heading: 'Source note section',
+            questionNumbers: displayNumbers,
+          },
+        ],
+      });
+
+      taskGroup.interactionIds.forEach((interactionId, index) => {
+        document.interactions[interactionId] = {
+          ...document.interactions[interactionId]!,
+          reviewLabel: {
+            ...document.interactions[interactionId]!.reviewLabel,
+            displayNumber: displayNumbers[index],
+          },
+        };
+      });
+    },
+  );
+
   it('writes a teacher-visible, launchable full-test material from selected passage snapshots', async () => {
     const updates: Record<string, unknown> = {};
     const sourceSnapshots = {
@@ -350,6 +383,44 @@ describe('readingV2TeacherComposition.service', () => {
     expect(firstInteraction.scoringRule.acceptableAnswers).toEqual(['passage-1:multiple-choice-option-a']);
   });
 
+  it('remaps structured layout question numbers when selected passages are renumbered', async () => {
+    const updates: Record<string, unknown> = {};
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]:
+        snapshotFor('passage-a', 'snapshot-a'),
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
+        snapshotWithNoteLayoutNumbers('passage-b', 'snapshot-b', [8, 9]),
+    };
+    const repository = {
+      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+        Object.assign(updates, nextUpdates);
+      }),
+    };
+
+    const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: buildReadingV2TeacherSelectedPassageComposition({
+        teacherId: 'teacher-1',
+        passages,
+        now: '2026-06-02T00:00:00.000Z',
+      }),
+      passages,
+      repository,
+      now: '2026-06-16T00:00:00.000Z',
+    });
+
+    const publishedSnapshot = updates[readingV2StoragePaths.publishedSnapshots(
+      result.composition.testMaterialId,
+      result.composition.publishedVersionId,
+    )] as ReadingV2PublishedSnapshot;
+    const noteTaskGroup = Object.values(publishedSnapshot.document.taskGroups)
+      .find((taskGroup) => taskGroup.officialTaskType === 'note-completion')!;
+    const layout = JSON.parse(noteTaskGroup.layoutHint ?? '{}');
+
+    expect(layout.sections[0].questionNumbers).toEqual([3, 4]);
+  });
+
   it('publishes master edits by writing a new composition version and fresh projections', async () => {
     const updates: Record<string, unknown> = {};
     const sourceSnapshots = {
@@ -439,6 +510,117 @@ describe('readingV2TeacherComposition.service', () => {
         title: 'Edited Master',
         publishedSnapshotVersionId: result.composition.publishedVersionId,
       });
+  });
+
+  it('indexes public master edits as public catalog rows while keeping canonical publish visibility', async () => {
+    const updates: Record<string, unknown> = {};
+    const publicPassages = passages.map((passage) => ({
+      ...passage,
+      visibility: 'public',
+    }));
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]:
+        snapshotFor('passage-a', 'snapshot-a'),
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
+        snapshotFor('passage-b', 'snapshot-b'),
+    };
+    const repository = {
+      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+        Object.assign(updates, nextUpdates);
+      }),
+    };
+    const existing = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages: publicPassages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: existing,
+      passages: publicPassages,
+      repository,
+      now: '2026-06-16T00:00:00.000Z',
+      metadata: {
+        title: 'Public Master',
+        visibility: 'public',
+      },
+    });
+
+    expect(updates[readingV2StoragePaths.materialMetadata(existing.testMaterialId)])
+      .toMatchObject({
+        visibility: 'library-eligible',
+      });
+    expect(updates[`material_catalog/material_indexes/by_visibility/public/${existing.testMaterialId}`])
+      .toMatchObject({
+        materialId: existing.testMaterialId,
+        visibility: 'public',
+        materialKind: 'full-test',
+      });
+    expect(Object.keys(updates)).not.toContain(
+      `material_catalog/material_indexes/by_visibility/library-eligible/${existing.testMaterialId}`,
+    );
+  });
+
+  it('publishes master edits from already-published passages without inheriting stale child validation issues', async () => {
+    const updates: Record<string, unknown> = {};
+    const snapshotWithStaleIssue = snapshotFor(
+      'passage-a',
+      'snapshot-a',
+      'sentence-completion',
+      (document) => {
+        const [taskGroupId] = Object.keys(document.taskGroups);
+        document.taskGroups[taskGroupId] = {
+          ...document.taskGroups[taskGroupId],
+          validationState: {
+            issues: [
+              {
+                code: 'stale-import-warning',
+                severity: 'error',
+                message: 'Old source import issue that should not block recomposed master publish.',
+                objectId: taskGroupId,
+              },
+            ],
+          },
+        };
+      },
+    );
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]: snapshotWithStaleIssue,
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
+        snapshotFor('passage-b', 'snapshot-b'),
+    };
+    const repository = {
+      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+        Object.assign(updates, nextUpdates);
+      }),
+    };
+    const existing = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: existing,
+      passages,
+      repository,
+      now: '2026-06-16T00:00:00.000Z',
+    });
+
+    const publishedSnapshot = updates[readingV2StoragePaths.publishedSnapshots(
+      existing.testMaterialId,
+      result.composition.publishedVersionId,
+    )] as ReadingV2PublishedSnapshot;
+
+    expect(JSON.stringify(publishedSnapshot.document.validationState?.issues ?? []))
+      .not.toContain('stale-import-warning');
+    expect(Object.values(publishedSnapshot.document.taskGroups).flatMap((taskGroup) =>
+      taskGroup.validationState?.issues ?? [],
+    )).toEqual([]);
   });
 
   it('rejects selected rows that are missing frozen published snapshots', () => {

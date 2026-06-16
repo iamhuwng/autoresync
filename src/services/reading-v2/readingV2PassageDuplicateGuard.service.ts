@@ -87,6 +87,7 @@ export interface ReadingV2DuplicateGuardResult {
 const BODY_SHINGLE_SIZE = 5;
 const QUESTION_SHINGLE_SIZE = 3;
 const WARNING_THRESHOLD_PERCENT = 80;
+const EMPTY_SHINGLE_SET_SENTINEL = '__empty_shingle_set__';
 
 const HASH_CONSTANTS = [
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -223,14 +224,21 @@ export const createReadingV2DuplicateShingleHashes = (
   return [...shingles].sort();
 };
 
+const persistableShingleHashes = (hashes: readonly string[]): readonly string[] =>
+  hashes.length > 0 ? hashes : [EMPTY_SHINGLE_SET_SENTINEL];
+
 const sorensenDicePercent = (left: readonly string[], right: readonly string[]): number => {
-  if (left.length === 0 && right.length === 0) {
+  const leftHashes = left.filter((hash) => hash !== EMPTY_SHINGLE_SET_SENTINEL);
+  const rightHashes = right.filter((hash) => hash !== EMPTY_SHINGLE_SET_SENTINEL);
+
+  if (leftHashes.length === 0 && rightHashes.length === 0) {
     return 0;
   }
 
-  const rightSet = new Set(right);
-  const intersectionSize = new Set(left.filter((value) => rightSet.has(value))).size;
-  return Math.round((2 * intersectionSize / (new Set(left).size + new Set(right).size)) * 100);
+  const leftSet = new Set(leftHashes);
+  const rightSet = new Set(rightHashes);
+  const intersectionSize = new Set(leftHashes.filter((value) => rightSet.has(value))).size;
+  return Math.round((2 * intersectionSize / (leftSet.size + rightSet.size)) * 100);
 };
 
 export const calculateReadingV2DuplicateSimilarity = (
@@ -318,8 +326,12 @@ export const buildReadingV2DuplicateIndexRow = (
     updatedAt: input.updatedAt,
     bodyShingleSize: BODY_SHINGLE_SIZE,
     questionShingleSize: QUESTION_SHINGLE_SIZE,
-    bodyShingleHashes: createReadingV2DuplicateShingleHashes(input.bodyText, BODY_SHINGLE_SIZE),
-    questionShingleHashes: createReadingV2DuplicateShingleHashes(input.questionText, QUESTION_SHINGLE_SIZE),
+    bodyShingleHashes: persistableShingleHashes(
+      createReadingV2DuplicateShingleHashes(input.bodyText, BODY_SHINGLE_SIZE),
+    ),
+    questionShingleHashes: persistableShingleHashes(
+      createReadingV2DuplicateShingleHashes(input.questionText, QUESTION_SHINGLE_SIZE),
+    ),
   });
 
 const isAccessibleDuplicateRow = (teacherId: string, row: ReadingV2DuplicateIndexRow): boolean =>

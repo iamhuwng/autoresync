@@ -193,6 +193,197 @@ const sanitizeFirebaseUpdates = (
   Object.entries(updates).map(([path, value]) => [path, omitUndefinedForFirebase(value)]),
 );
 
+const isTeacherCompositionDiagnosticsEnabled = (): boolean =>
+  Boolean(import.meta.env.DEV) && !Boolean(import.meta.env.VITEST);
+
+const getStringArray = (record: Record<string, unknown>, key: string): string[] | undefined =>
+  Array.isArray(record[key])
+    ? record[key].filter((entry): entry is string => typeof entry === 'string')
+    : undefined;
+
+const getPathFamily = (path: string): string => {
+  if (path.startsWith('material_catalog/material_indexes/')) {
+    const [, , bucket] = path.split('/');
+    return `material_catalog/${bucket || 'unknown'}`;
+  }
+
+  if (path.startsWith('reading_v2/projections/')) {
+    const [, , projectionKind] = path.split('/');
+    return `reading_v2/projections/${projectionKind || 'unknown'}`;
+  }
+
+  if (path.startsWith('reading_v2/relationship_indexes/')) {
+    return 'reading_v2/relationship_indexes';
+  }
+
+  if (path.startsWith('tests/')) {
+    return 'tests';
+  }
+
+  return path.split('/').slice(0, 2).join('/') || path;
+};
+
+const summarizeDiagnosticValue = (path: string, value: unknown): Record<string, unknown> => {
+  if (value === null) {
+    return { path, valueType: 'null' };
+  }
+
+  if (!isRecord(value)) {
+    return { path, valueType: typeof value };
+  }
+
+  if (path.startsWith('material_catalog/material_indexes/')) {
+    const [, , bucket, bucketKey] = path.split('/');
+
+    return {
+      path,
+      bucket,
+      bucketKey,
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      visibility: getString(value, 'visibility'),
+      materialKind: getString(value, 'materialKind'),
+      sourceFullTestId: getString(value, 'sourceFullTestId'),
+      testTypeIds: getStringArray(value, 'testTypeIds'),
+    };
+  }
+
+  if (path.startsWith('reading_v2/material_metadata/')) {
+    return {
+      path,
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      compositionId: getString(value, 'compositionId'),
+      visibility: getString(value, 'visibility'),
+      materialKind: getString(value, 'materialKind'),
+      state: getString(value, 'state'),
+      publishedSnapshotVersionId: getString(value, 'publishedSnapshotVersionId'),
+    };
+  }
+
+  if (path.startsWith('tests/')) {
+    return {
+      path,
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      compositionId: getString(value, 'compositionId'),
+      deliveryEngine: getString(value, 'deliveryEngine'),
+      materialKind: getString(value, 'materialKind'),
+      publishedSnapshotVersionId: getString(value, 'publishedSnapshotVersionId'),
+      isPublic: typeof value.isPublic === 'boolean' ? value.isPublic : undefined,
+    };
+  }
+
+  if (path.startsWith('reading_v2/full_test_compositions/')) {
+    return {
+      path,
+      compositionId: getString(value, 'compositionId'),
+      ownerId: getString(value, 'ownerId'),
+      testMaterialId: getString(value, 'testMaterialId'),
+      visibility: getString(value, 'visibility'),
+      state: getString(value, 'state'),
+      mode: getString(value, 'mode'),
+      publishedVersionId: getString(value, 'publishedVersionId'),
+      passageRefCount: Array.isArray(value.passageRefs) ? value.passageRefs.length : undefined,
+    };
+  }
+
+  if (path.startsWith('reading_v2/projections/')) {
+    return {
+      path,
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      projectionKind: getString(value, 'projectionKind'),
+      sourceSnapshotVersionId: getString(value, 'sourceSnapshotVersionId'),
+    };
+  }
+
+  if (path.startsWith('reading_v2/relationship_indexes/')) {
+    return {
+      path,
+      surface: getString(value, 'surface'),
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      source: getString(value, 'source'),
+      snapshotVersionId: getString(value, 'snapshotVersionId'),
+    };
+  }
+
+  if (path.startsWith('reading_v2/publish_commits/')) {
+    return {
+      path,
+      commitKey: getString(value, 'commitKey'),
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      snapshotVersionId: getString(value, 'snapshotVersionId'),
+      writePathCount: Array.isArray(value.writePaths) ? value.writePaths.length : undefined,
+      operationKeyCount: Array.isArray(value.operationKeys) ? value.operationKeys.length : undefined,
+    };
+  }
+
+  if (path.startsWith('reading_v2/published_snapshots/')) {
+    return {
+      path,
+      materialId: getString(value, 'materialId'),
+      ownerId: getString(value, 'ownerId'),
+      snapshotVersionId: getString(value, 'snapshotVersionId'),
+      documentPresent: isRecord(value.document),
+    };
+  }
+
+  return {
+    path,
+    keys: Object.keys(value).sort(),
+  };
+};
+
+const buildTeacherCompositionWriteDiagnostics = (
+  updates: Readonly<Record<string, unknown>>,
+  error?: unknown,
+): Record<string, unknown> => {
+  const paths = Object.keys(updates).sort();
+  const pathFamilyCounts = paths.reduce<Record<string, number>>((counts, path) => {
+    const family = getPathFamily(path);
+    counts[family] = (counts[family] ?? 0) + 1;
+    return counts;
+  }, {});
+  const materialCatalogVisibilityRows = paths
+    .filter((path) => path.startsWith('material_catalog/material_indexes/by_visibility/'))
+    .map((path) => summarizeDiagnosticValue(path, updates[path]));
+
+  return {
+    pathCount: paths.length,
+    pathFamilyCounts,
+    paths,
+    materialCatalogVisibilityRows,
+    suspiciousPaths: paths.filter((path) =>
+      path.startsWith('material_catalog/material_indexes/by_visibility/library-eligible/'),
+    ),
+    pathSummaries: paths.map((path) => summarizeDiagnosticValue(path, updates[path])),
+    error: error instanceof Error
+      ? { name: error.name, message: error.message }
+      : undefined,
+  };
+};
+
+const logTeacherCompositionWriteDiagnostics = (
+  event: 'publish_update_prepare' | 'publish_update_failed',
+  updates: Readonly<Record<string, unknown>>,
+  error?: unknown,
+): void => {
+  if (!isTeacherCompositionDiagnosticsEnabled()) {
+    return;
+  }
+
+  try {
+    const payload = JSON.stringify(buildTeacherCompositionWriteDiagnostics(updates, error));
+    const logMethod = event === 'publish_update_failed' ? console.error : console.info;
+    logMethod(`[Diag][ReadingV2TeacherComposition] ${event}`, payload);
+  } catch (logError) {
+    console.warn('[Diag][ReadingV2TeacherComposition] publish_update_diagnostic_failed', logError);
+  }
+};
+
 const getPassageMaterialId = (passage: ReadingV2TeacherCompositionPassageInput): string =>
   String(passage.materialId || passage.id || '').trim();
 
@@ -320,6 +511,55 @@ const prefixResponseShape = (
   }
 
   return clone(responseShape);
+};
+
+const remapLayoutQuestionNumbers = (
+  value: unknown,
+  questionNumberMap: ReadonlyMap<number, number>,
+): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => remapLayoutQuestionNumbers(entry, questionNumberMap));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+      if (key === 'questionNumber' && typeof entry === 'number') {
+        return [key, questionNumberMap.get(entry) ?? entry];
+      }
+
+      if (key === 'questionNumbers' && Array.isArray(entry)) {
+        return [
+          key,
+          entry.map((questionNumber) =>
+            typeof questionNumber === 'number'
+              ? questionNumberMap.get(questionNumber) ?? questionNumber
+              : questionNumber,
+          ),
+        ];
+      }
+
+      return [key, remapLayoutQuestionNumbers(entry, questionNumberMap)];
+    }),
+  );
+};
+
+const remapLayoutHintQuestionNumbers = (
+  layoutHint: string | undefined,
+  questionNumberMap: ReadonlyMap<number, number>,
+): string | undefined => {
+  if (!layoutHint || questionNumberMap.size === 0) {
+    return layoutHint;
+  }
+
+  try {
+    return JSON.stringify(remapLayoutQuestionNumbers(JSON.parse(layoutHint), questionNumberMap));
+  } catch {
+    return layoutHint;
+  }
 };
 
 const getResponseShapeOptionSetId = (responseShape: ReadingV2ResponseShape): string | undefined => {
@@ -451,7 +691,11 @@ const prefixAnchor = (prefix: string, anchor: ReadingV2Anchor): ReadingV2Anchor 
   stimulusId: prefixStimulusId(prefix, anchor.stimulusId),
 });
 
-const prefixTaskGroup = (prefix: string, taskGroup: ReadingV2TaskGroup): ReadingV2TaskGroup => ({
+const prefixTaskGroup = (
+  prefix: string,
+  taskGroup: ReadingV2TaskGroup,
+  questionNumberMap: ReadonlyMap<number, number>,
+): ReadingV2TaskGroup => ({
   ...taskGroup,
   taskGroupId: prefixTaskGroupId(prefix, taskGroup.taskGroupId),
   sectionId: prefixSectionId(prefix, taskGroup.sectionId),
@@ -473,7 +717,8 @@ const prefixTaskGroup = (prefix: string, taskGroup: ReadingV2TaskGroup): Reading
   optionSetRefs: taskGroup.optionSetRefs.map((optionSetId) => prefixOptionSetId(prefix, optionSetId)),
   interactionIds: taskGroup.interactionIds.map((interactionId) => prefixInteractionId(prefix, interactionId)),
   importEvidenceRefs: taskGroup.importEvidenceRefs?.map((evidenceId) => prefixImportEvidenceId(prefix, evidenceId)),
-  validationState: clone(taskGroup.validationState),
+  layoutHint: remapLayoutHintQuestionNumbers(taskGroup.layoutHint, questionNumberMap),
+  validationState: { issues: [] },
 });
 
 const prefixInteraction = (
@@ -584,7 +829,23 @@ const appendPrefixedSnapshotDocument = (
   });
 
   Object.values(snapshot.document.taskGroups).forEach((taskGroup) => {
-    const prefixed = prefixTaskGroup(prefix, taskGroup);
+    const questionNumberMap = new Map<number, number>();
+
+    taskGroup.interactionIds.forEach((interactionId) => {
+      const sourceDisplayNumber = snapshot.document.interactions[interactionId]?.reviewLabel.displayNumber;
+      const nextDisplayNumber = displayNumbers.get(interactionId);
+
+      if (
+        typeof sourceDisplayNumber === 'number' &&
+        Number.isFinite(sourceDisplayNumber) &&
+        typeof nextDisplayNumber === 'number' &&
+        Number.isFinite(nextDisplayNumber)
+      ) {
+        questionNumberMap.set(sourceDisplayNumber, nextDisplayNumber);
+      }
+    });
+
+    const prefixed = prefixTaskGroup(prefix, taskGroup, questionNumberMap);
     target.taskGroups[prefixed.taskGroupId] = prefixed;
   });
 
@@ -709,7 +970,7 @@ const buildMaterialCatalogUpdates = (input: {
     materialId: input.composition.testMaterialId,
     ownerId: input.composition.ownerId,
     title: input.composition.title,
-    visibility: input.composition.visibility === 'public' ? 'library-eligible' : 'private',
+    visibility: input.composition.visibility === 'public' ? 'public' : 'private',
     materialKind: 'full-test',
     testTypeIds: input.composition.testTypeIds,
     updatedAt: input.updatedAt,
@@ -721,15 +982,26 @@ const writeUpdates = async (
   updates: Readonly<Record<string, unknown>>,
 ): Promise<void> => {
   const sanitized = sanitizeFirebaseUpdates(updates);
+  logTeacherCompositionWriteDiagnostics('publish_update_prepare', sanitized);
 
   if (repository.update) {
-    await repository.update(sanitized);
+    try {
+      await repository.update(sanitized);
+    } catch (error) {
+      logTeacherCompositionWriteDiagnostics('publish_update_failed', sanitized, error);
+      throw error;
+    }
     return;
   }
 
-  await Promise.all(
-    Object.entries(sanitized).map(([path, value]) => repository.write(path, value)),
-  );
+  try {
+    await Promise.all(
+      Object.entries(sanitized).map(([path, value]) => repository.write(path, value)),
+    );
+  } catch (error) {
+    logTeacherCompositionWriteDiagnostics('publish_update_failed', sanitized, error);
+    throw error;
+  }
 };
 
 export const buildReadingV2TeacherSelectedPassageComposition = (input: {
@@ -938,6 +1210,7 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
   });
   const composition: ReadingV2FullTestComposition = {
     ...baseComposition,
+    mode: 'published',
     updatedAt: publishedAt,
     state: 'published',
   } as ReadingV2FullTestComposition;

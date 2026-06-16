@@ -586,8 +586,8 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         updatedAt: '2026-06-16T00:00:00.000Z',
         bodyShingleSize: 5,
         questionShingleSize: 3,
-        bodyShingleHashes: [],
-        questionShingleHashes: [],
+        bodyShingleHashes: ['__empty_shingle_set__'],
+        questionShingleHashes: ['__empty_shingle_set__'],
       },
     };
 
@@ -720,6 +720,159 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         writePaths: [`reading_v2/material_metadata/${materialId}`],
         committedAt: '2026-06-15T19:12:11.000Z',
       },
+    };
+
+    await assertSucceeds(teacher.database().ref().update(updates));
+  });
+
+  it('allows teachers to publish a full-test composition made from selected Reading Passages', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const materialId = 'composition-selected-public-passages';
+    const compositionId = 'teacher-selected-public-passages';
+    const snapshotVersionId = 'snapshot-selected-public-passages';
+    const updatedAt = '2026-06-16T05:30:00.000Z';
+    const materialSummary = {
+      materialId,
+      ownerId: 'teacher-1',
+      title: 'Selected Reading Passages',
+      visibility: 'public',
+      materialKind: 'full-test',
+      testTypeIds: ['ielts'],
+      testTypeMembership: { ielts: true },
+      updatedAt,
+    };
+    const relationshipSurfaces = [
+      'teacher-lobby',
+      'assignment-picker',
+      'solo-launch',
+      'homework-assignment',
+      'course-material',
+      'library-listing',
+      'live-launch-summary',
+      'result-identity',
+      'material-profile',
+      'analytics',
+    ];
+    const updates = {
+      [`tests/${materialId}`]: {
+        id: materialId,
+        materialId,
+        ownerId: 'teacher-1',
+        compositionId,
+        deliveryEngine: 'reading-v2',
+        contentEngine: 'reading-v2',
+        runtimeEngine: 'reading-v2',
+        title: 'Selected Reading Passages',
+        testType: 'IELTS',
+        type: 'IELTS',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        duration: 60,
+        questionCount: 40,
+        isPublic: true,
+        materialKind: 'full-test',
+        productLabel: 'Reading V2',
+        publishedSnapshotVersionId: snapshotVersionId,
+        primaryTestTypeId: 'ielts',
+        testTypeIds: ['ielts'],
+        updatedAt,
+      },
+      [`reading_v2/published_snapshots/${materialId}/${snapshotVersionId}`]: {
+        materialId,
+        snapshotVersionId,
+        ownerId: 'teacher-1',
+        document: { title: 'Selected Reading Passages' },
+      },
+      [`reading_v2/projections/student_safe_tests/${materialId}:${snapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'student-safe',
+        sourceSnapshotVersionId: snapshotVersionId,
+      },
+      [`reading_v2/projections/session_test_payloads/publish-template:${snapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'session-safe',
+        sourceSnapshotVersionId: snapshotVersionId,
+      },
+      [`reading_v2/projections/review/${materialId}:${snapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'review',
+        sourceSnapshotVersionId: snapshotVersionId,
+      },
+      [`reading_v2/analytics_outputs/${materialId}:${snapshotVersionId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        projectionKind: 'analytics',
+        sourceSnapshotVersionId: snapshotVersionId,
+      },
+      [`reading_v2/material_metadata/${materialId}`]: {
+        materialId,
+        ownerId: 'teacher-1',
+        compositionId,
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: 'Selected Reading Passages',
+        materialKind: 'full-test',
+        visibility: 'library-eligible',
+        publishedSnapshotVersionId: snapshotVersionId,
+        state: 'published',
+        updatedAt,
+      },
+      [`reading_v2/full_test_compositions/${compositionId}`]: {
+        compositionId,
+        ownerId: 'teacher-1',
+        testMaterialId: materialId,
+        title: 'Selected Reading Passages',
+        passageRefs: [{
+          passageMaterialId: 'public-passage-1',
+          snapshotVersionId: 'snapshot-public-1',
+          order: 1,
+        }],
+        publishedVersionId: snapshotVersionId,
+        state: 'published',
+      },
+      [`reading_v2/full_test_composition_versions/${compositionId}/${snapshotVersionId}`]: {
+        compositionId,
+        ownerId: 'teacher-1',
+        testMaterialId: materialId,
+        title: 'Selected Reading Passages',
+        passageRefs: [{
+          passageMaterialId: 'public-passage-1',
+          snapshotVersionId: 'snapshot-public-1',
+          order: 1,
+        }],
+        publishedVersionId: snapshotVersionId,
+        publishedAt: updatedAt,
+        publishedBy: 'teacher-1',
+      },
+      [`material_catalog/material_indexes/by_owner/teacher-1/${materialId}`]: materialSummary,
+      [`material_catalog/material_indexes/by_visibility/public/${materialId}`]: materialSummary,
+      [`material_catalog/material_indexes/by_material_kind/full-test/${materialId}`]: materialSummary,
+      [`material_catalog/material_indexes/by_test_type/ielts/${materialId}`]: materialSummary,
+      [`reading_v2/publish_commits/${materialId}:${snapshotVersionId}`]: {
+        commitKey: `${materialId}/${snapshotVersionId}`,
+        materialId,
+        snapshotVersionId,
+        ownerId: 'teacher-1',
+        deliveryEngine: 'reading-v2',
+        operationKeys: [`${materialId}/${snapshotVersionId}/metadata`],
+        writePaths: [`reading_v2/material_metadata/${materialId}`],
+        committedAt: updatedAt,
+      },
+      ...Object.fromEntries(relationshipSurfaces.map((surface) => [
+        `reading_v2/relationship_indexes/${surface}/${materialId}`,
+        {
+          surface,
+          materialId,
+          snapshotVersionId,
+          source: 'published-metadata',
+          ownerId: 'teacher-1',
+          deliveryEngine: 'reading-v2',
+          updatedAt,
+        },
+      ])),
     };
 
     await assertSucceeds(teacher.database().ref().update(updates));

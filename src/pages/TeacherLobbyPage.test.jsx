@@ -377,6 +377,18 @@ vi.mock('../components/reading-v2/master/ReadingV2MasterEditModal', () => ({
         <h2>{props.mode === 'draft' ? 'Unpublished draft' : 'Published master'}</h2>
         <p>{props.master?.title || props.master?.metadata?.title || 'Untitled master'}</p>
         <button type="button" onClick={props.onClose}>Close master modal</button>
+        <button
+          type="button"
+          onClick={() => props.onPublish({
+            master: props.master,
+            mode: props.mode,
+            passageRefs: props.master?.passageRefs ?? [],
+            title: props.master?.title || props.master?.metadata?.title || 'Untitled master',
+            visibility: props.master?.visibility || 'private',
+          })}
+        >
+          Publish Master
+        </button>
       </div>
     ) : null;
   },
@@ -1879,6 +1891,90 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'testCreation',
       'teacher_materials_reading_full_test_composition_created',
       expect.objectContaining({ passageCount: 2 }),
+    );
+  }, 10000);
+
+  it('closes the master modal and shows the new test after selected passages publish', async () => {
+    const user = userEvent.setup();
+    mocks.listReadingPassages.mockResolvedValue([
+      {
+        id: 'passage-a',
+        materialId: 'passage-a',
+        ownerId: 'teacher-1',
+        title: 'Passage A',
+        materialKind: 'reading-passage',
+        questionCount: 10,
+        durationMinutes: 12,
+        updatedAt: '2026-05-12T00:00:00Z',
+        visibility: 'private',
+        publishedSnapshotVersionId: 'snapshot-a',
+        sourceOrderDisplay: 'Passage 1',
+        sourceQuestionRange: '1-10',
+        isOwner: true,
+        selectable: true,
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        actions: [{ key: 'open', label: 'Open' }],
+      },
+      {
+        id: 'passage-b',
+        materialId: 'passage-b',
+        ownerId: 'teacher-1',
+        title: 'Passage B',
+        materialKind: 'reading-passage',
+        questionCount: 11,
+        durationMinutes: 13,
+        updatedAt: '2026-05-12T00:00:00Z',
+        visibility: 'private',
+        publishedSnapshotVersionId: 'snapshot-b',
+        sourceOrderDisplay: 'Passage 2',
+        sourceQuestionRange: '11-21',
+        isOwner: true,
+        selectable: true,
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        actions: [{ key: 'open', label: 'Open' }],
+      },
+    ]);
+    mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')] =
+      readingPassageSnapshotFor('passage-a', 'snapshot-a');
+    mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')] =
+      readingPassageSnapshotFor('passage-b', 'snapshot-b');
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
+    await screen.findByTestId('material-list-row-passage-a');
+    await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
+    await user.click(screen.getByRole('button', { name: 'Select Passage B' }));
+    await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
+    await screen.findByRole('dialog', { name: /edit reading v2 master/i });
+
+    await user.click(screen.getByRole('button', { name: 'Publish Master' }));
+
+    await waitFor(() => {
+      expect(mocks.masterModalProps.at(-1)).toEqual(expect.objectContaining({
+        mode: 'published',
+        master: expect.objectContaining({
+          mode: 'published',
+          publishedVersionId: expect.any(String),
+        }),
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /edit reading v2 master/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('tablist', { name: /teacher lobby content tabs/i }))
+      .toHaveAttribute('data-active-tab', 'my');
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Published "Selected Reading Passages". It is now visible in My Content.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'reading_v2_master_publish_completed',
+      expect.objectContaining({
+        source: 'teacher_lobby_master_modal',
+        publishedVersionId: expect.any(String),
+      }),
     );
   }, 10000);
 

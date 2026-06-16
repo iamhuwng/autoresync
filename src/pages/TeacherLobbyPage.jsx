@@ -376,6 +376,7 @@ const TeacherLobbyPage = () => {
   const [testTypeConfigs, setTestTypeConfigs] = useState(DEFAULT_MATERIAL_TEST_TYPES);
   const [pinnedTestTypeIds, setPinnedTestTypeIds] = useState(null);
   const [testTypePreferencesOpen, setTestTypePreferencesOpen] = useState(false);
+  const [teacherMaterialsActionNotice, setTeacherMaterialsActionNotice] = useState(null);
   const [readingPassageScope, setReadingPassageScope] = useState('private');
   const [readingPassageRows, setReadingPassageRows] = useState([]);
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
@@ -922,6 +923,7 @@ const TeacherLobbyPage = () => {
   ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
+    setTeacherMaterialsActionNotice(null);
     setContentFilter((currentTab) => {
       if (currentTab !== nextTab) {
         trackAction('teacher_materials_tab_changed', {
@@ -1791,20 +1793,37 @@ const TeacherLobbyPage = () => {
         },
       });
 
+      const publishedMaster = {
+        ...payload.master,
+        ...result.composition,
+        compositionLoadState: 'ready',
+        brokenRefSummary: null,
+        hasBrokenRefs: false,
+        brokenRefCount: 0,
+        brokenRefReasons: [],
+        brokenRefs: [],
+      };
+      const isDraftPublish = payload.mode === 'draft';
       setReadingV2MasterModalState((current) => ({
-        ...current,
+        ...(isDraftPublish
+          ? {
+            open: false,
+          }
+          : current),
+        mode: 'published',
         master: {
           ...current.master,
-          ...result.composition,
-          compositionLoadState: 'ready',
-          brokenRefSummary: null,
-          hasBrokenRefs: false,
-          brokenRefCount: 0,
-          brokenRefReasons: [],
-          brokenRefs: [],
+          ...publishedMaster,
         },
       }));
       await refreshTests();
+      if (isDraftPublish) {
+        setContentFilter('my');
+        setSelectedReadingPassageIds([]);
+        setTeacherMaterialsActionNotice(
+          `Published "${publishedMaster.title || payload.title || 'Selected Reading Passages'}". It is now visible in My Content.`,
+        );
+      }
       trackAction('reading_v2_master_publish_completed', {
         source: 'teacher_lobby_master_modal',
         materialId: result.composition.testMaterialId,
@@ -2194,11 +2213,11 @@ const TeacherLobbyPage = () => {
                 onReturnToQuiz={(code) => navigateTo('TEACHER_WAITING', { gameSessionId: code }, { reason: 'lobby_return_quiz' })}
               />
 
-              {teacherMaterialsNotice && (
-                <div className="teacher-materials-route-notice" role="status">
-                  {teacherMaterialsNotice}
+              {[teacherMaterialsNotice, teacherMaterialsActionNotice].filter(Boolean).map((notice) => (
+                <div className="teacher-materials-route-notice" role="status" key={notice}>
+                  {notice}
                 </div>
-              )}
+              ))}
 
               {/* Drafts Tab */}
               {contentFilter === 'drafts' ? (

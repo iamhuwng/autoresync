@@ -242,4 +242,30 @@ describe('readingV2PassageDuplicateGuard.service', () => {
       }),
     ).toThrow(/unsafe duplicate index field.*document/);
   });
+
+  it('persists a sentinel for empty shingle sets without making empty passages duplicates', () => {
+    const row = buildReadingV2DuplicateIndexRow({
+      ownerId: 'teacher-1',
+      passageMaterialId: 'passage-short',
+      currentVersionId: 'snapshot-short',
+      title: 'Short',
+      state: 'published',
+      visibility: 'private',
+      source: {},
+      testType: { testTypeIds: [] },
+      questionCount: 0,
+      updatedAt: '2026-06-16T00:00:00.000Z',
+      bodyText: 'short',
+      questionText: 'tiny',
+    });
+
+    expect(row.bodyShingleHashes).toEqual(['__empty_shingle_set__']);
+    expect(row.questionShingleHashes).toEqual(['__empty_shingle_set__']);
+    expect(calculateReadingV2DuplicateSimilarity(row, row)).toMatchObject({
+      bodySimilarityPercent: 0,
+      questionSimilarityPercent: 0,
+      combinedSimilarityPercent: 0,
+      shouldWarn: false,
+    });
+  });
 });
