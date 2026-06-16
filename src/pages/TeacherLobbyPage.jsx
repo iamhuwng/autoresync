@@ -41,9 +41,11 @@ import {
 } from '../services/reading-v2/readingV2PassageLibrary.service';
 import { restoreReadingV2PassageMaterial } from '../services/reading-v2/readingV2PassageArchive.service';
 import { writeReadingV2AuditEvent } from '../services/reading-v2/readingV2AuditTrail.service';
+import { cloneReadingV2PublicPassageToTeacherLibrary } from '../services/reading-v2/readingV2PassageClone.service';
 import { shouldShowReadingV2TeacherLobbyItem } from '../services/reading-v2/readingV2TeacherLobbyIntegration.service';
 import {
   createReadingV2TeacherSelectedPassageDraft,
+  publishReadingV2TeacherSelectedPassageCompositionEdit,
   removeReadingV2MasterComposition,
 } from '../services/reading-v2/readingV2TeacherComposition.service';
 import { buildReadingV2ExtractedFullTestCompositionId } from '../services/reading-v2/readingV2PassageExtraction.service';
@@ -1599,6 +1601,231 @@ const TeacherLobbyPage = () => {
     }
   }, [getReadingPassageId, readingPassageRestoreRequest, readingV2PassageArchiveRepository, trackAction, user?.uid]);
 
+  const addClonedReadingPassageRow = useCallback((result) => {
+    setReadingPassageRows((currentRows) => {
+      const clonedRow = {
+        id: result.material.passageMaterialId,
+        materialId: result.material.passageMaterialId,
+        ownerId: user?.uid,
+        deliveryEngine: 'reading-v2',
+        title: result.material.title,
+        materialKind: 'reading-passage',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        questionCount: result.passageRef.questionCount,
+        duration: result.material.durationMinutes || 0,
+        durationMinutes: result.material.durationMinutes || 0,
+        updatedAt: result.material.updatedAt,
+        visibility: 'private',
+        scope: 'private',
+        isOwner: true,
+        selectable: true,
+        primaryTestTypeId: result.material.primaryTestTypeId,
+        testTypeIds: result.material.testTypeIds || [],
+        testTypes: [],
+        sourceOrderDisplay: result.material.sourceOrder?.displaySnapshot,
+        sourceQuestionRange: result.material.sourceQuestionRange,
+        sourceFullTestId: result.material.sourceFullTestId,
+        sourceFullTestTitle: result.material.sourceTitleSnapshot,
+        publishedSnapshotVersionId: result.material.currentSnapshotVersionId,
+        currentVersionId: result.material.currentSnapshotVersionId,
+        hasStudentSafeProjection: true,
+        accessible: true,
+        archived: false,
+        actions: [
+          { key: 'open', label: 'Open' },
+          { key: 'assign-homework', label: 'Assign homework' },
+          { key: 'revise', label: 'Revise', ownerOnly: true },
+          { key: 'archive', label: 'Remove from library', ownerOnly: true },
+        ],
+        metadata: {
+          title: result.material.title,
+          tags: [],
+          visibility: 'private',
+          materialKind: 'reading-passage',
+          deliveryEngine: 'reading-v2',
+          productLabel: 'Reading V2',
+          sourceOrderDisplay: result.material.sourceOrder?.displaySnapshot,
+          sourceQuestionRange: result.material.sourceQuestionRange,
+          sourceFullTestTitle: result.material.sourceTitleSnapshot,
+          publishedSnapshotVersionId: result.material.currentSnapshotVersionId,
+        },
+      };
+      return [
+        clonedRow,
+        ...currentRows.filter((row) => getReadingPassageId(row) !== result.material.passageMaterialId),
+      ];
+    });
+  }, [getReadingPassageId, user?.uid]);
+
+  const handleCloneReadingV2MasterPassage = useCallback(async ({ master, passageRef }) => {
+    if (!user?.uid) {
+      throw new Error('You must be signed in to clone a Reading Passage.');
+    }
+
+    const sourceMaterialId = passageRef?.passageMaterialId || passageRef?.materialId || passageRef?.id;
+    const sourceSnapshotVersionId = passageRef?.snapshotVersionId || passageRef?.currentVersionId;
+    if (!sourceMaterialId || !sourceSnapshotVersionId) {
+      throw new Error('This Reading Passage is missing a pinned version and cannot be cloned.');
+    }
+
+    trackAction('reading_v2_master_passage_clone_requested', {
+      source: 'teacher_lobby_master_modal',
+      masterMaterialId: master?.testMaterialId || master?.materialId,
+      sourceMaterialId,
+    });
+
+    const result = await cloneReadingV2PublicPassageToTeacherLibrary({
+      sourceMaterialId,
+      sourceSnapshotVersionId,
+      actorTeacherId: user.uid,
+      repository: readingV2CompositionRepository,
+    });
+
+    addClonedReadingPassageRow(result);
+
+    trackAction('reading_v2_master_passage_cloned', {
+      source: 'teacher_lobby_master_modal',
+      masterMaterialId: master?.testMaterialId || master?.materialId,
+      sourceMaterialId,
+      clonedMaterialId: result.material.passageMaterialId,
+    });
+    logTeacherMaterialsDiagnostic('reading_v2_master_passage_cloned', {
+      masterMaterialId: master?.testMaterialId || master?.materialId,
+      sourceMaterialId,
+      clonedMaterialId: result.material.passageMaterialId,
+    });
+
+    return result.passageRef;
+  }, [
+    addClonedReadingPassageRow,
+    getReadingPassageId,
+    readingV2CompositionRepository,
+    trackAction,
+    user?.uid,
+  ]);
+
+  const handleCloneReadingV2LibraryPassage = useCallback(async (passage) => {
+    if (!user?.uid) {
+      return;
+    }
+
+    const sourceMaterialId = getReadingPassageId(passage);
+    const sourceSnapshotVersionId = passage?.publishedSnapshotVersionId || passage?.currentVersionId;
+    if (!sourceMaterialId || !sourceSnapshotVersionId) {
+      setReadingPassageError('This Reading Passage is missing a pinned version and cannot be cloned.');
+      return;
+    }
+
+    trackAction('reading_v2_library_passage_clone_requested', {
+      source: 'teacher_materials_reading_passage_row',
+      sourceMaterialId,
+    });
+
+    try {
+      const result = await cloneReadingV2PublicPassageToTeacherLibrary({
+        sourceMaterialId,
+        sourceSnapshotVersionId,
+        actorTeacherId: user.uid,
+        repository: readingV2CompositionRepository,
+      });
+      addClonedReadingPassageRow(result);
+      trackAction('reading_v2_library_passage_cloned', {
+        source: 'teacher_materials_reading_passage_row',
+        sourceMaterialId,
+        clonedMaterialId: result.material.passageMaterialId,
+      });
+    } catch (error) {
+      console.error('Failed to clone Reading Passage:', error);
+      setReadingPassageError(error instanceof Error ? error.message : 'Failed to clone Reading Passage.');
+    }
+  }, [
+    addClonedReadingPassageRow,
+    getReadingPassageId,
+    readingV2CompositionRepository,
+    trackAction,
+    user?.uid,
+  ]);
+
+  const handlePublishReadingV2MasterEdit = useCallback(async (payload) => {
+    if (!user?.uid || !payload?.master) {
+      return;
+    }
+
+    trackAction(
+      payload.master?.hasBrokenRefs
+        ? 'reading_v2_master_repair_publish_submitted'
+        : 'reading_v2_master_publish_submitted',
+      {
+        source: 'teacher_lobby_master_modal',
+        mode: payload.mode,
+        passageCount: payload.passageRefs.length,
+      },
+    );
+
+    try {
+      const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+        teacherId: user.uid,
+        composition: payload.master,
+        passages: payload.passageRefs.map((passageRef) => ({
+          materialId: passageRef.passageMaterialId || passageRef.materialId || passageRef.id,
+          ownerId: passageRef.ownerId,
+          title: passageRef.title || passageRef.titleSnapshot,
+          questionCount: passageRef.questionCount ?? passageRef.questionCountSnapshot,
+          durationMinutes: passageRef.durationMinutes ?? passageRef.durationSnapshot,
+          publishedSnapshotVersionId: passageRef.snapshotVersionId || passageRef.currentVersionId,
+          currentVersionId: passageRef.currentVersionId || passageRef.snapshotVersionId,
+          sourceOrderDisplay: passageRef.sourceOrderDisplaySnapshot,
+          sourceQuestionRange: passageRef.questionRangeSnapshot,
+          primaryTestTypeId: passageRef.primaryTestTypeId,
+          testTypeIds: passageRef.testTypeIdsSnapshot || passageRef.testTypeIds || [],
+          visibility: passageRef.visibility || 'private',
+          state: 'published',
+          accessible: true,
+          selectable: true,
+        })),
+        repository: readingV2CompositionRepository,
+        metadata: {
+          title: payload.title,
+          visibility: payload.visibility,
+        },
+      });
+
+      setReadingV2MasterModalState((current) => ({
+        ...current,
+        master: {
+          ...current.master,
+          ...result.composition,
+          compositionLoadState: 'ready',
+          brokenRefSummary: null,
+          hasBrokenRefs: false,
+          brokenRefCount: 0,
+          brokenRefReasons: [],
+          brokenRefs: [],
+        },
+      }));
+      await refreshTests();
+      trackAction('reading_v2_master_publish_completed', {
+        source: 'teacher_lobby_master_modal',
+        materialId: result.composition.testMaterialId,
+        compositionId: result.composition.compositionId,
+        publishedVersionId: result.composition.publishedVersionId,
+      });
+    } catch (error) {
+      console.error('Failed to publish Reading V2 master edit:', error);
+      setReadingPassageError(error instanceof Error ? error.message : 'Failed to publish Reading V2 master edit.');
+      trackAction('reading_v2_master_publish_failed', {
+        source: 'teacher_lobby_master_modal',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [
+    readingV2CompositionRepository,
+    refreshTests,
+    trackAction,
+    user?.uid,
+  ]);
+
   const handleReadingPassageScopeChange = useCallback((scope) => {
     setReadingPassageScope(scope);
     trackAction('changeReadingPassageScope', {
@@ -1862,6 +2089,7 @@ const TeacherLobbyPage = () => {
     handlers: {
       onOpenReadingPassage: handleOpenReadingPassage,
       onAssignReadingPassage: handleAssignReadingPassage,
+      onCloneReadingPassage: handleCloneReadingV2LibraryPassage,
       onReviseReadingPassage: handleReviseReadingPassage,
       onArchiveReadingPassage: handleArchiveReadingPassage,
       onRestoreReadingPassage: handleRestoreReadingPassage,
@@ -2319,6 +2547,7 @@ const TeacherLobbyPage = () => {
           replacementPassages={readingPassageRows}
           onClose={handleCloseReadingV2MasterModal}
           onOpenPassageStudio={handleOpenReadingV2PassageStudio}
+          onClonePassage={handleCloneReadingV2MasterPassage}
           onRepairWithExisting={({ brokenRef, replacement }) => {
             trackAction('reading_v2_master_ref_repaired_existing', {
               source: 'teacher_lobby_master_modal',
@@ -2373,18 +2602,7 @@ const TeacherLobbyPage = () => {
               passageCount: payload.passageRefs.length,
             });
           }}
-          onPublish={(payload) => {
-            trackAction(
-              readingV2MasterModalState.master?.hasBrokenRefs
-                ? 'reading_v2_master_repair_publish_submitted'
-                : 'reading_v2_master_publish_submitted',
-              {
-              source: 'teacher_lobby_master_modal',
-              mode: payload.mode,
-              passageCount: payload.passageRefs.length,
-              },
-            );
-          }}
+          onPublish={handlePublishReadingV2MasterEdit}
         />
 
         {readingPassageArchiveRequest && (

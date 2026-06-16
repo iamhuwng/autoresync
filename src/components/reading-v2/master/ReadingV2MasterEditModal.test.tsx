@@ -181,6 +181,88 @@ describe('ReadingV2MasterEditModal', () => {
     expect(within(publicRow).getByRole('button', { name: /clone to my library/i })).toBeInTheDocument();
   });
 
+  it('clones a public non-owned slot into a teacher-owned ref and replaces only that master slot', async () => {
+    const user = userEvent.setup();
+    const onClonePassage = vi.fn(async () => ({
+      passageMaterialId: 'passage-b-clone',
+      materialId: 'passage-b-clone',
+      snapshotVersionId: 'snapshot-b-clone',
+      currentVersionId: 'snapshot-b-clone',
+      title: 'Public Passage B',
+      titleSnapshot: 'Public Passage B',
+      visibility: 'private',
+      ownerId: 'teacher-1',
+      questionCount: 14,
+      questionCountSnapshot: 14,
+      order: 2,
+    }));
+    const onPublish = vi.fn();
+
+    render(
+      <ReadingV2MasterEditModal
+        open
+        mode="published"
+        currentTeacherId="teacher-1"
+        master={master}
+        onClose={vi.fn()}
+        onClonePassage={onClonePassage}
+        onPublish={onPublish}
+      />,
+    );
+
+    await user.click(within(screen.getByTestId('master-passage-row-passage-b')).getByRole('button', { name: /clone to my library/i }));
+
+    expect(onClonePassage).toHaveBeenCalledWith(expect.objectContaining({
+      passageRef: expect.objectContaining({
+        passageMaterialId: 'passage-b',
+        ownerId: 'teacher-2',
+        snapshotVersionId: 'snapshot-b',
+      }),
+      master,
+    }));
+    expect(screen.queryByTestId('master-passage-row-passage-b')).not.toBeInTheDocument();
+    expect(screen.getByTestId('master-passage-row-passage-b-clone')).toHaveTextContent('Public Passage B');
+    expect(within(screen.getByTestId('master-passage-row-passage-b-clone')).queryByRole('button', { name: /clone to my library/i }))
+      .not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: /I reviewed the passage order and question numbering/i }));
+    await user.click(screen.getByRole('button', { name: /publish master/i }));
+
+    expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({
+      passageRefs: [
+        expect.objectContaining({ passageMaterialId: 'passage-a' }),
+        expect.objectContaining({
+          passageMaterialId: 'passage-b-clone',
+          ownerId: 'teacher-1',
+          snapshotVersionId: 'snapshot-b-clone',
+        }),
+      ],
+    }));
+  });
+
+  it('keeps the original non-owned ref when clone fails', async () => {
+    const user = userEvent.setup();
+    const onClonePassage = vi.fn(async () => {
+      throw new Error('Clone failed in service.');
+    });
+
+    render(
+      <ReadingV2MasterEditModal
+        open
+        mode="published"
+        currentTeacherId="teacher-1"
+        master={master}
+        onClose={vi.fn()}
+        onClonePassage={onClonePassage}
+      />,
+    );
+
+    await user.click(within(screen.getByTestId('master-passage-row-passage-b')).getByRole('button', { name: /clone to my library/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Clone failed in service.');
+    expect(screen.getByTestId('master-passage-row-passage-b')).toHaveTextContent('Public Passage B');
+  });
+
   it('refreshes passage version status through an explicit action', async () => {
     const user = userEvent.setup();
     const onRefreshVersionStatus = vi.fn();

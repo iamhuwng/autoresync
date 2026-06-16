@@ -9,6 +9,7 @@ import {
   readingV2Ids,
   type ReadingV2Anchor,
   type ReadingV2Document,
+  type ReadingV2FullTestComposition,
   type ReadingV2Interaction,
   type ReadingV2MaterialId,
   type ReadingV2OptionSet,
@@ -71,6 +72,14 @@ export interface ReadingV2TeacherCompositionPassageInput {
 
 export interface CreateReadingV2TeacherCompositionResult {
   readonly composition: ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition>;
+  readonly paths: {
+    readonly composition: string;
+    readonly version: string;
+  };
+}
+
+export interface PublishReadingV2TeacherCompositionEditResult {
+  readonly composition: ReadingV2FullTestComposition;
   readonly paths: {
     readonly composition: string;
     readonly version: string;
@@ -874,6 +883,108 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
     ...buildMaterialCatalogUpdates({
       composition,
       updatedAt: composition.createdAt,
+    }),
+    [paths.composition]: composition,
+    [paths.version]: versionValue,
+  });
+
+  return { composition, paths };
+};
+
+export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (input: {
+  readonly teacherId: string;
+  readonly composition: ReadingV2FullTestComposition;
+  readonly passages: readonly ReadingV2TeacherCompositionPassageInput[];
+  readonly repository: ReadingV2TeacherCompositionRepository;
+  readonly now?: string;
+  readonly metadata?: {
+    readonly title?: string;
+    readonly durationMinutes?: number;
+    readonly visibility?: 'private' | 'public' | string;
+  };
+}): Promise<PublishReadingV2TeacherCompositionEditResult> => {
+  if (input.composition.ownerId !== input.teacherId) {
+    throw new Error('Only the owner teacher can publish this Reading V2 master edit.');
+  }
+
+  assertPublishedUnarchivedSelectablePassages(input.passages);
+
+  const publishedAt = input.now ?? nowIso();
+  const passageRefs = buildPassageRefs(input.teacherId, input.passages);
+  const title = String(input.metadata?.title || input.composition.title || 'Selected Reading Passages').trim() ||
+    'Selected Reading Passages';
+  const visibility = input.metadata?.visibility === 'public' ? 'public' : 'private';
+  const publishedVersionId = readingV2Ids.snapshotVersionId(
+    `edit-${sanitizeIdPart(input.composition.compositionId)}-${sanitizeIdPart(publishedAt)}`,
+  );
+  const baseComposition = createReadingV2FullTestCompositionFromRefs({
+    compositionId: input.composition.compositionId,
+    testMaterialId: input.composition.testMaterialId,
+    title,
+    ownerId: input.teacherId,
+    publishedVersionId,
+    primaryTestTypeId: getPrimaryTestTypeId(input.passages) ?? input.composition.primaryTestTypeId,
+    testTypeIds: unique([
+      ...(input.composition.testTypeIds ?? []),
+      ...passageRefs.flatMap((ref) => ref.testTypeIdsSnapshot),
+    ]),
+    skill: input.composition.skill,
+    passageRefs,
+    durationMinutes: Number(input.metadata?.durationMinutes || 0) ||
+      passageRefs.reduce((total, ref) => total + Number(ref.durationSnapshot || 0), 0) ||
+      input.composition.durationMinutes,
+    visibility,
+    createdAt: input.composition.createdAt || publishedAt,
+  });
+  const composition: ReadingV2FullTestComposition = {
+    ...baseComposition,
+    updatedAt: publishedAt,
+    state: 'published',
+  } as ReadingV2FullTestComposition;
+  const paths = {
+    composition: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
+    version: readingV2StoragePaths.fullTestCompositionVersions(
+      composition.compositionId,
+      composition.publishedVersionId,
+    ),
+  };
+  const snapshots = await readSelectedPassageSnapshots(input.repository, composition.passageRefs);
+  const document = buildReadingV2TeacherSelectedPassageDocument({ composition, snapshots });
+  const publishResult = publishReadingV2Material({
+    repository: createReadingV2Repository(),
+    materialId: composition.testMaterialId,
+    ownerId: input.teacherId,
+    document,
+    publishedBy: input.teacherId,
+    snapshotVersionId: composition.publishedVersionId,
+    publishedAt,
+    skipReadingPassageExtraction: true,
+    metadata: {
+      title: composition.title,
+      materialKind: 'full-test',
+      durationMinutes: composition.durationMinutes,
+      visibility: composition.visibility === 'public' ? 'library-eligible' : 'private',
+      primaryTestTypeId: composition.primaryTestTypeId,
+      testTypeIds: composition.testTypeIds,
+      description: 'Updated from Reading V2 master editor.',
+      tags: ['reading-passage-selection'],
+    },
+  });
+  const firebaseUpdates = buildReadingV2FirebasePublishUpdates(
+    publishResult.commitPlan,
+    publishedAt,
+  );
+  const versionValue = {
+    ...composition,
+    publishedAt,
+    publishedBy: input.teacherId,
+  };
+
+  await writeUpdates(input.repository, {
+    ...firebaseUpdates.updates,
+    ...buildMaterialCatalogUpdates({
+      composition,
+      updatedAt: publishedAt,
     }),
     [paths.composition]: composition,
     [paths.version]: versionValue,

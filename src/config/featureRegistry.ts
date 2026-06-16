@@ -257,6 +257,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'reading_v2_master_passage_reordered',
       'reading_v2_master_passage_added',
       'reading_v2_master_passage_removed',
+      'reading_v2_master_passage_clone_requested',
+      'reading_v2_master_passage_cloned',
       'reading_v2_master_clone_requested',
       'reading_v2_master_publish_submitted',
       'reading_v2_master_broken_refs_viewed',

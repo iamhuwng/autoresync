@@ -19,6 +19,8 @@ export interface ReadingV2MasterPassageRef {
   readonly order?: number;
   readonly questionCount?: number;
   readonly questionCountSnapshot?: number;
+  readonly questionRangeSnapshot?: string;
+  readonly sourceOrderDisplaySnapshot?: string;
   readonly currentVersionId?: string;
   readonly snapshotVersionId?: string;
   readonly testTypeIds?: readonly string[];
@@ -90,6 +92,10 @@ export interface ReadingV2MasterEditModalProps {
   readonly onRemoveBrokenRef?: (brokenRef: ReadingV2BrokenRefEntry) => void;
   readonly onRemakeBrokenRef?: (brokenRef: ReadingV2BrokenRefEntry) => void;
   readonly onRestoreBrokenSource?: (brokenRef: ReadingV2BrokenRefEntry) => void;
+  readonly onClonePassage?: (payload: {
+    readonly master: ReadingV2MasterRecord;
+    readonly passageRef: ReadingV2MasterPassageRef;
+  }) => Promise<ReadingV2MasterPassageRef> | ReadingV2MasterPassageRef;
 }
 
 const getTitle = (master: ReadingV2MasterRecord | null): string =>
@@ -156,6 +162,7 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
   onRemoveBrokenRef,
   onRemakeBrokenRef,
   onRestoreBrokenSource,
+  onClonePassage,
 }) => {
   const initialRefs = useMemo(() => normalizePassageRefs(master), [master]);
   const [title, setTitle] = useState(getTitle(master));
@@ -166,6 +173,8 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
   const [mixedTestTypeConfirmations, setMixedTestTypeConfirmations] = useState<Record<string, boolean>>({});
   const [numberingConfirmed, setNumberingConfirmed] = useState(false);
   const [publishBlockMessage, setPublishBlockMessage] = useState('');
+  const [cloneErrorMessage, setCloneErrorMessage] = useState('');
+  const [cloningRefKey, setCloningRefKey] = useState('');
 
   useEffect(() => {
     setTitle(getTitle(master));
@@ -176,6 +185,8 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
     setMixedTestTypeConfirmations({});
     setNumberingConfirmed(false);
     setPublishBlockMessage('');
+    setCloneErrorMessage('');
+    setCloningRefKey('');
   }, [master, open]);
 
   if (!open || !master) {
@@ -257,6 +268,38 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
     clearBrokenRef(brokenRef);
     setDirty(true);
     onRestoreBrokenSource?.(brokenRef);
+  };
+
+  const handleClonePassage = async (ref: ReadingV2MasterPassageRef) => {
+    if (!onClonePassage) {
+      setCloneErrorMessage('Clone to my library is not available for this passage yet.');
+      return;
+    }
+
+    const refKey = getRefKey(ref) || getPassageId(ref);
+    setCloneErrorMessage('');
+    setCloningRefKey(refKey);
+    try {
+      const clonedRef = await onClonePassage({ master, passageRef: ref });
+      setPassageRefs((refs) => refs.map((candidate, index) => (
+        getRefKey(candidate) === getRefKey(ref) || getPassageId(candidate) === getPassageId(ref)
+          ? {
+            ...candidate,
+            ...clonedRef,
+            refId: candidate.refId || clonedRef.refId || clonedRef.passageMaterialId || clonedRef.materialId,
+            order: candidate.order || index + 1,
+            ownerId: clonedRef.ownerId || currentTeacherId,
+            visibility: clonedRef.visibility || 'private',
+          }
+          : candidate
+      )));
+      setDirty(true);
+      setNumberingConfirmed(false);
+    } catch (error) {
+      setCloneErrorMessage(error instanceof Error ? error.message : 'Failed to clone Reading Passage.');
+    } finally {
+      setCloningRefKey('');
+    }
   };
 
   const handlePublish = () => {
@@ -370,6 +413,12 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
             </div>
           )}
 
+          {cloneErrorMessage && (
+            <p className="reading-v2-master-modal__error" role="alert">
+              {cloneErrorMessage}
+            </p>
+          )}
+
           {brokenRefs.length > 0 && (
             <ReadingV2MasterRepairPanel
               brokenRefs={unresolvedBrokenRefs}
@@ -401,6 +450,8 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
               const passageId = getPassageId(ref);
               const ownedByTeacher = !ref.ownerId || ref.ownerId === currentTeacherId;
               const questionCount = ref.questionCount ?? ref.questionCountSnapshot;
+              const cloneKey = getRefKey(ref) || passageId;
+              const cloningThisRef = cloneKey.length > 0 && cloningRefKey === cloneKey;
 
               return (
                 <article
@@ -445,7 +496,17 @@ export const ReadingV2MasterEditModal: React.FC<ReadingV2MasterEditModalProps> =
                     >
                       Open single-passage Studio
                     </button>
-                    {!ownedByTeacher && <button type="button">Clone to my library</button>}
+                    {!ownedByTeacher && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleClonePassage(ref);
+                        }}
+                        disabled={cloningThisRef}
+                      >
+                        {cloningThisRef ? 'Cloning...' : 'Clone to my library'}
+                      </button>
+                    )}
                   </div>
                 </article>
               );

@@ -40,7 +40,7 @@ export interface ReadingV2PassageLibraryReader {
 }
 
 export interface ReadingV2PassageLibraryAction {
-  readonly key: 'open' | 'view' | 'assign-homework' | 'revise' | 'archive' | 'restore';
+  readonly key: 'open' | 'view' | 'clone-reading-passage' | 'assign-homework' | 'revise' | 'archive' | 'restore';
   readonly label: string;
   readonly ownerOnly?: boolean;
 }
@@ -319,6 +319,7 @@ const buildActions = (
       ]
     : [
         { key: 'view', label: 'View' },
+        { key: 'clone-reading-passage', label: 'Clone to my library' },
         { key: 'assign-homework', label: 'Assign homework' },
       ];
 

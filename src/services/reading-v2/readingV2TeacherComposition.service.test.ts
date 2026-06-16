@@ -3,6 +3,7 @@ import {
   buildReadingV2TeacherSelectedPassageComposition,
   createReadingV2TeacherSelectedPassageDraft,
   createReadingV2TeacherSelectedPassageComposition,
+  publishReadingV2TeacherSelectedPassageCompositionEdit,
   removeReadingV2MasterComposition,
 } from './readingV2TeacherComposition.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
@@ -347,6 +348,97 @@ describe('readingV2TeacherComposition.service', () => {
       optionSetId: 'passage-1:option-set-multiple-choice',
     });
     expect(firstInteraction.scoringRule.acceptableAnswers).toEqual(['passage-1:multiple-choice-option-a']);
+  });
+
+  it('publishes master edits by writing a new composition version and fresh projections', async () => {
+    const updates: Record<string, unknown> = {};
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]:
+        snapshotFor('passage-a', 'snapshot-a'),
+      [readingV2StoragePaths.publishedSnapshots('passage-b-clone', 'snapshot-b-clone')]:
+        snapshotFor('passage-b-clone', 'snapshot-b-clone'),
+    };
+    const repository = {
+      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+        Object.assign(updates, nextUpdates);
+      }),
+    };
+    const existing = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: existing,
+      passages: [
+        passages[0],
+        {
+          ...passages[1],
+          materialId: 'passage-b-clone',
+          publishedSnapshotVersionId: 'snapshot-b-clone',
+          ownerId: 'teacher-1',
+          visibility: 'private',
+        },
+      ],
+      repository,
+      now: '2026-06-16T00:00:00.000Z',
+      metadata: {
+        title: 'Edited Master',
+        visibility: 'private',
+      },
+    });
+
+    expect(result.composition.compositionId).toBe(existing.compositionId);
+    expect(result.composition.testMaterialId).toBe(existing.testMaterialId);
+    expect(result.composition.publishedVersionId).not.toBe(existing.publishedVersionId);
+    expect(result.composition.passageRefs.map((ref) => ref.passageMaterialId))
+      .toEqual(['passage-a', 'passage-b-clone']);
+    expect(repository.read).toHaveBeenCalledWith(
+      readingV2StoragePaths.publishedSnapshots('passage-b-clone', 'snapshot-b-clone'),
+    );
+    expect(updates[readingV2StoragePaths.fullTestCompositions(existing.compositionId)])
+      .toMatchObject({
+        compositionId: existing.compositionId,
+        testMaterialId: existing.testMaterialId,
+        title: 'Edited Master',
+        passageRefs: [
+          expect.objectContaining({ passageMaterialId: 'passage-a' }),
+          expect.objectContaining({ passageMaterialId: 'passage-b-clone' }),
+        ],
+      });
+    expect(updates[readingV2StoragePaths.fullTestCompositionVersions(
+      existing.compositionId,
+      result.composition.publishedVersionId,
+    )]).toMatchObject({
+      compositionId: existing.compositionId,
+      publishedVersionId: result.composition.publishedVersionId,
+      publishedAt: '2026-06-16T00:00:00.000Z',
+      publishedBy: 'teacher-1',
+    });
+    expect(updates[readingV2StoragePaths.publishedSnapshots(
+      existing.testMaterialId,
+      result.composition.publishedVersionId,
+    )]).toMatchObject({
+      materialId: existing.testMaterialId,
+      snapshotVersionId: result.composition.publishedVersionId,
+      ownerId: 'teacher-1',
+    });
+    expect(updates[readingV2StoragePaths.studentSafeTests(
+      existing.testMaterialId,
+      result.composition.publishedVersionId,
+    )]).toMatchObject({
+      materialId: existing.testMaterialId,
+      projectionKind: 'student-safe',
+    });
+    expect(updates[readingV2StoragePaths.materialMetadata(existing.testMaterialId)])
+      .toMatchObject({
+        materialId: existing.testMaterialId,
+        title: 'Edited Master',
+        publishedSnapshotVersionId: result.composition.publishedVersionId,
+      });
   });
 
   it('rejects selected rows that are missing frozen published snapshots', () => {
