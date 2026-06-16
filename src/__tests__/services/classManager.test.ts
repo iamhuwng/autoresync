@@ -392,6 +392,14 @@ describe('Class Manager - Teacher Access Control', () => {
     expect(teacherBClassIds).not.toContain(teacherAClassId);
   });
 
+  it('does not emit trace logs when loading teacher classes', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await getClasses(TEST_TEACHER_UID);
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
   it('should verify teacher can only manage their own classes', async () => {
     const classA = await getClass(teacherAClassId);
     const classB = await getClass(teacherBClassId);

@@ -48,7 +48,6 @@ export const createNotification = withRestoreGuard(
         };
 
         await set(ref(database, `${NOTIFICATIONS_REF}/${data.userId}/${notificationId}`), notificationBody);
-        console.log(`📢 [NotificationService] Created notification ${notificationId} for user ${data.userId} at path ${NOTIFICATIONS_REF}/${data.userId}/${notificationId}`);
 
         return { success: true, notificationId };
     } catch (error) {
@@ -71,7 +70,6 @@ export async function getUserNotifications(userId: string): Promise<Notification
 
         const notifications = snapshot.val();
         const result = Object.values(notifications).sort((a: any, b: any) => b.createdAt - a.createdAt) as Notification[];
-        console.log(`📢 [NotificationService] Fetched ${result.length} notifications for user ${userId}`);
         return result;
     } catch (error) {
         console.error('Error getting user notifications:', error);
@@ -86,7 +84,6 @@ export async function getUnreadNotifications(userId: string): Promise<Notificati
     try {
         const allNotifications = await getUserNotifications(userId);
         const unread = allNotifications.filter(n => !n.read);
-        console.log(`📢 [NotificationService] Found ${unread.length} unread notifications for user ${userId}`);
         return unread;
     } catch (error) {
         console.error('Error getting unread notifications:', error);
@@ -101,7 +98,6 @@ export async function markNotificationAsRead(userId: string, notificationId: str
     try {
         const notificationRef = ref(database, `${NOTIFICATIONS_REF}/${userId}/${notificationId}`);
         await update(notificationRef, { read: true });
-        console.log(`📢 [NotificationService] Marked notification ${notificationId} as read for user ${userId}`);
         return { success: true };
     } catch (error) {
         console.error('Error marking notification as read:', error);
@@ -124,7 +120,6 @@ export async function markAllNotificationsAsRead(userId: string): Promise<{ succ
         if (Object.keys(updates).length > 0) {
             await update(ref(database), updates);
         }
-        console.log(`📢 [NotificationService] Marked ${notifications.length} notifications as read for user ${userId}`);
 
         return { success: true };
     } catch (error) {
@@ -154,7 +149,6 @@ export async function getPaginatedUserNotifications(
         const snapshot = await get(notificationsQuery);
 
         if (!snapshot.exists()) {
-            console.log(`📢 [NotificationService] Paginated fetch: 0 notifications for user ${userId}, hasMore=false, cursor=undefined`);
             return { notifications: [], hasMore: false, lastKey: undefined };
         }
 
@@ -172,7 +166,6 @@ export async function getPaginatedUserNotifications(
 
         const newLastKey = notificationsArr.length > 0 ? notificationsArr[notificationsArr.length - 1]?.id : undefined;
 
-        console.log(`📢 [NotificationService] Paginated fetch: ${notificationsArr.length} notifications for user ${userId}, hasMore=${hasMore}, cursor=${newLastKey}`);
 
         return {
             notifications: notificationsArr,
@@ -194,7 +187,6 @@ export function subscribeToNotifications(
 ): () => void {
     const notificationsRef = ref(database, `${NOTIFICATIONS_REF}/${userId}`);
 
-    console.log(`📢 [NotificationService] Subscribed to real-time notifications for user ${userId}`);
     const unsubscribe = onValue(notificationsRef, (snapshot) => {
         if (!snapshot.exists()) {
             callback([]);
@@ -236,7 +228,6 @@ export function subscribeToNewNotifications(
         startAfter(sinceMs)
     );
 
-    console.log(`📢 [NotificationService] Subscribed to new notifications for user ${userId} since ${sinceMs}`);
 
     const unsubscribe = onChildAdded(newNotificationsQuery, (snapshot) => {
         if (!snapshot.exists()) return;
@@ -286,8 +277,6 @@ export const createBulkNotifications = withRestoreGuard(
             await update(ref(database), updates);
         }
 
-        console.log(`📢 [NotificationService] Bulk-created ${notificationIds.length} notifications for ${userIds.length} users`);
-        console.log(`✅ [Notification] Created ${notificationIds.length} bulk notifications`);
         return { success: true, notificationIds };
     } catch (error) {
         console.error('Error creating bulk notifications:', error);
@@ -334,10 +323,6 @@ export async function sendFeedbackNotification(
         };
 
         const result = await createNotification(notificationData);
-
-        if (result.success) {
-            console.log(`✅ [Notification] Feedback notification sent to student ${studentId} for result ${resultId}`);
-        }
 
         return result;
     } catch (error) {
@@ -391,10 +376,6 @@ export async function sendReviewedNotification(
 
         const result = await createNotification(notificationData);
 
-        if (result.success) {
-            console.log(`✅ [Notification] Reviewed notification sent to student ${studentId} for ${skill} test ${resultId}`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending reviewed notification:', error);
@@ -443,10 +424,6 @@ export async function sendGradeUpdatedNotification(
         };
 
         const result = await createNotification(notificationData);
-
-        if (result.success) {
-            console.log(`✅ [Notification] Grade updated notification sent to student ${studentId} for Q${questionNumber} in ${testName}`);
-        }
 
         return result;
     } catch (error) {
@@ -498,10 +475,6 @@ export async function sendHomeworkAssignedNotification(
             }
         });
 
-        if (result.success) {
-            console.log(`✅ [Notification] Homework assigned notifications sent to ${studentIds.length} students`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending homework assigned notification:', error);
@@ -550,10 +523,6 @@ export async function sendHomeworkDueSoonNotification(
 
         const result = await createNotification(notificationData);
 
-        if (result.success) {
-            console.log(`✅ [Notification] Homework due soon reminder sent to student ${studentId}`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending homework due soon notification:', error);
@@ -589,10 +558,6 @@ export async function sendHomeworkReminderNotification(
         };
 
         const result = await createNotification(notificationData);
-
-        if (result.success) {
-            console.log(`✅ [Notification] Teacher reminder sent to student ${studentId} for homework ${homeworkId}`);
-        }
 
         return result;
     } catch (error) {
@@ -647,10 +612,6 @@ export async function sendHomeworkSubmittedNotification(
 
         const result = await createNotification(notificationData);
 
-        if (result.success) {
-            console.log(`✅ [Notification] Homework submitted confirmation sent to student ${studentId}`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending homework submitted notification:', error);
@@ -704,10 +665,6 @@ export async function sendHomeworkGradedNotification(
         };
 
         const result = await createNotification(notificationData);
-
-        if (result.success) {
-            console.log(`✅ [Notification] Homework graded notification sent to student ${studentId}`);
-        }
 
         return result;
     } catch (error) {
@@ -771,7 +728,6 @@ export async function sendSessionOpenedNotifications(
             metadata: { classId, sessionCode, sessionMode },
         });
 
-        console.log(`📢 [NotificationService] Session-opened notifications sent to ${studentIds.length} students (class ${classId})`);
     } catch (error) {
         console.warn('📢 [NotificationService] Failed to send session-opened notifications (non-blocking):', error);
     }
@@ -803,7 +759,6 @@ export async function sendTestStartedNotifications(
             metadata: { classId, sessionCode, testName, sessionMode: 'test' },
         });
 
-        console.log(`📢 [NotificationService] Test-started notifications sent to ${studentIds.length} students (class ${classId})`);
     } catch (error) {
         console.warn('📢 [NotificationService] Failed to send test-started notifications (non-blocking):', error);
     }
@@ -835,7 +790,6 @@ export async function sendTestEndedNotifications(
             metadata: { classId, sessionCode, testName },
         });
 
-        console.log(`📢 [NotificationService] Test-ended notifications sent to ${studentIds.length} students (class ${classId})`);
     } catch (error) {
         console.warn('📢 [NotificationService] Failed to send test-ended notifications (non-blocking):', error);
     }
@@ -881,10 +835,6 @@ export async function sendHomeworkResetNotification(
 
         const result = await createNotification(notificationData);
 
-        if (result.success) {
-            console.log(`✅ [Notification] Homework reset notification sent to student ${studentId} for homework ${homeworkId}`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending homework reset notification:', error);
@@ -928,10 +878,6 @@ export async function sendThcsHomeworkAssignedNotification(
             link: buildStudentHomeworkLink(homeworkId),
             metadata: { homeworkId, testTitle, dueDate, teacherName, notifType: 'thcs_homework_assigned' }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] THCS homework assigned notifications sent to ${studentIds.length} students`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending THCS homework assigned notification:', error);
@@ -1037,10 +983,6 @@ export async function sendThcsFullyGradedNotification(
             link: buildResultDetailLink(resultId),
             metadata: { testTitle, totalScore, resultId, notifType: 'thcs_fully_graded' }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] THCS fully graded notification sent to student ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending THCS fully graded notification:', error);
@@ -1075,10 +1017,6 @@ export async function sendThcsHomeworkDueSoonNotification(
             link: buildStudentHomeworkLink(homeworkId),
             metadata: { homeworkId, testTitle, hoursRemaining, notifType: 'thcs_homework_due_soon' }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] THCS homework due soon reminder sent to student ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending THCS homework due soon notification:', error);
@@ -1111,10 +1049,6 @@ export async function sendThcsSubmittedNotification(
             link: buildStudentHomeworkLink(homeworkId),
             metadata: { testTitle, homeworkId, notifType: 'thcs_submitted' }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] THCS submitted notification sent to student ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending THCS submitted notification:', error);
@@ -1167,7 +1101,6 @@ export async function sendThcsLateSubmissionNotification(
             metadata: { testTitle, homeworkId, studentId, studentName, notifType: 'thcs_late_submission' }
         });
 
-        console.log(`✅ [Notification] THCS late submission notifications sent (student: ${studentId}, teacher: ${teacherId})`);
         return { success: true };
     } catch (error) {
         console.error('Error sending THCS late submission notification:', error);
@@ -1206,10 +1139,6 @@ export async function notifyWritingSubmitted(
             link: `/student/academic-record`,
             metadata: { submissionId, testTitle, contextType, submittedAt: Date.now() }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] Writing submitted notification sent to ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending writing submitted notification:', error);
@@ -1252,10 +1181,6 @@ export async function notifyTeacherWritingSubmitted(
             },
         });
 
-        if (result.success) {
-            console.log(`✅ [Notification] Writing submission notification sent to teacher ${teacherId}`);
-        }
-
         return result;
     } catch (error) {
         console.error('Error sending teacher writing submitted notification:', error);
@@ -1289,10 +1214,6 @@ export async function notifyWritingGraded(
             link: `/student/academic-record`,
             metadata: { submissionId, testTitle, overallBand, teacherName, gradedAt: Date.now() }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] Writing graded notification sent to ${studentId} (band ${overallBand})`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending writing graded notification:', error);
@@ -1327,10 +1248,6 @@ export async function notifyWritingPartiallyGraded(
             link: `/student/academic-record`,
             metadata: { submissionId, testTitle, gradedTaskNumber, taskBand, teacherName, gradedAt: Date.now() }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] Writing partially graded notification sent to ${studentId} (Task ${gradedTaskNumber})`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending writing partially graded notification:', error);
@@ -1368,10 +1285,6 @@ export async function notifyWritingReopened(
             link: `/student/academic-record`,
             metadata: { submissionId, testTitle, teacherNote, teacherName, reopenedAt: Date.now() }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] Writing reopened notification sent to ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending writing reopened notification:', error);
@@ -1409,10 +1322,6 @@ export async function notifyWritingReGraded(
             link: `/student/academic-record`,
             metadata: { submissionId, testTitle, newOverallBand, previousBand, teacherName, reGradedAt: Date.now() }
         });
-
-        if (result.success) {
-            console.log(`✅ [Notification] Writing re-graded notification sent to ${studentId}`);
-        }
         return result;
     } catch (error) {
         console.error('Error sending writing re-graded notification:', error);

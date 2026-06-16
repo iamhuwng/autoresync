@@ -11,6 +11,7 @@ import {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     getPaginatedUserNotifications,
+    subscribeToNotifications,
     sendSessionOpenedNotifications,
     sendTestStartedNotifications,
 } from './notificationService';
@@ -184,6 +185,18 @@ describe('notificationService', () => {
 
             expect(result.notifications).toHaveLength(2);
             expect(result.hasMore).toBe(false);
+        });
+    });
+
+    describe('subscriptions', () => {
+        it('does not log when attaching a real-time notification subscription', () => {
+            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            mockOnValue.mockReturnValueOnce(() => {});
+
+            subscribeToNotifications('user-123', vi.fn());
+
+            expect(consoleSpy).not.toHaveBeenCalled();
+            expect(mockOnValue).toHaveBeenCalledTimes(1);
         });
     });
 

@@ -229,14 +229,11 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
   const snapshot = await get(classesRef);
 
   if (!snapshot.exists()) {
-    console.log(`[Courses DEBUG] getStudentClasses: no classes found in DB at all`);
     return [];
   }
 
   const enrolledClasses: ClassSummary[] = [];
   const data = snapshot.val();
-  const classKeys = Object.keys(data);
-  console.log(`[Courses DEBUG] getStudentClasses: scanning ${classKeys.length} total classes for uid="${studentUid}"`);
 
   for (const [id, classData] of Object.entries(data)) {
     const cls = classData as ClassSession;
@@ -247,27 +244,18 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
     );
 
     if (!matchedStudentEntry) {
-      const uidsInClass = studentEntries.map(([key, student]) => ({ key, uid: student.uid }));
-      if (studentEntries.length > 0) {
-        console.log(`[Courses DEBUG]   class "${cls.name}" (${id}) - not enrolled. Students:`, uidsInClass);
-      }
       continue;
     }
 
     const [, matchedStudent] = matchedStudentEntry;
     if (matchedStudent.status === 'pending_approval' || matchedStudent.status === 'removed') {
-      console.log(
-        `[Courses DEBUG]   class "${cls.name}" (${id}) - membership status "${matchedStudent.status}" is not student-visible yet`
-      );
       continue;
     }
 
     if (cls.status === 'deleted') {
-      console.log(`[Courses DEBUG]   class "${cls.name}" skipped (deleted)`);
       continue;
     }
 
-    console.log(`[Courses DEBUG]   ✅ ENROLLED in class "${cls.name}" (${id})`);
     enrolledClasses.push(buildClassSummary(id, cls));
   }
 
@@ -468,14 +456,11 @@ export async function getClass(classId: string): Promise<ClassSession | null> {
  * Get all classes for a teacher
  */
 export async function getClasses(teacherId?: string): Promise<ClassSummary[]> {
-  console.log('🏫 [ClassManager] getClasses called');
-  console.log('🏫 [ClassManager] teacherId filter:', teacherId);
 
   try {
     let snapshot;
 
     if (teacherId) {
-      console.log('🏫 [ClassManager] Querying by teacherId...');
       const classesQuery = query(
         ref(database, CLASSES_REF),
         orderByChild('createdBy'),
@@ -483,13 +468,11 @@ export async function getClasses(teacherId?: string): Promise<ClassSummary[]> {
       );
       snapshot = await get(classesQuery);
     } else {
-      console.log('🏫 [ClassManager] Fetching all classes...');
       const classesRef = ref(database, CLASSES_REF);
       snapshot = await get(classesRef);
     }
 
     if (!snapshot.exists()) {
-      console.log('🏫 [ClassManager] No classes found');
       return [];
     }
 
@@ -517,7 +500,7 @@ export async function getClasses(teacherId?: string): Promise<ClassSummary[]> {
 
     return classes;
   } catch (error) {
-    console.error('🏫 [ClassManager] ERROR getting classes:', error);
+    console.error('Error getting classes:', error);
     return [];
   }
 }
@@ -956,11 +939,7 @@ export async function approveClassStudent(
     try {
       const { createAssignment } = await import('./assignmentManager');
       const assignResult = await createAssignment(studentId, teacherId, teacherId);
-      if (assignResult.success) {
-        console.log(`✅ [ClassManager] Approved student ${studentId} in class ${classCode} and created assignment`);
-      } else if (assignResult.error?.includes('already exists')) {
-        console.log(`📋 [ClassManager] Assignment already exists for ${studentId} → ${teacherId}`);
-      } else {
+      if (!assignResult.success && !assignResult.error?.includes('already exists')) {
         console.warn(`⚠️ [ClassManager] Assignment creation issue: ${assignResult.error}`);
       }
     } catch (assignError) {
@@ -1036,7 +1015,6 @@ export async function rejectClassStudent(
       console.warn('⚠️ [ClassManager] Failed to send rejection notification:', notifError);
     }
 
-    console.log(`🚫 [ClassManager] Rejected student ${studentId} from class ${classCode}`);
     return { success: true };
   } catch (error) {
     console.error('Error rejecting student:', error);
@@ -1052,9 +1030,7 @@ export async function getStudentClasses(studentUid: string): Promise<ClassSummar
   try {
     const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
     if (indexedClasses === null) {
-      const enrolledClasses = await getStudentClassesByLegacyScan(studentUid);
-      console.log(`[Courses DEBUG] getStudentClasses: found ${enrolledClasses.length} enrolled classes`);
-      return enrolledClasses;
+      return getStudentClassesByLegacyScan(studentUid);
     }
 
     const scannedClasses = await getStudentClassesByLegacyScan(studentUid);
@@ -1065,8 +1041,6 @@ export async function getStudentClasses(studentUid: string): Promise<ClassSummar
         `[Courses DEBUG] getStudentClasses: membership index was incomplete for uid="${studentUid}" ` +
         `(${indexedClasses.length} indexed vs ${mergedClasses.length} merged)`
       );
-    } else {
-      console.log(`[Courses DEBUG] getStudentClasses: using student_classes index for uid="${studentUid}" (${indexedClasses.length} classes)`);
     }
 
     return mergedClasses;
@@ -1398,3 +1372,4 @@ export const classManager = {
 };
 
 export default classManager;
+

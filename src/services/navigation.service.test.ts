@@ -40,6 +40,15 @@ describe('NavigationService', () => {
     });
   });
 
+  it('does not emit navigation debug logs by default during initialize', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    service.reset();
+    service.initialize(mockNavigate, 'student');
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
   it('navigates to a route and records history', () => {
     const result = service.navigateTo('SESSIONS', {}, { reason: 'user_click' });
 

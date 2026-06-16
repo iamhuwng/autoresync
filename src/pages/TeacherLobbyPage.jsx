@@ -418,7 +418,9 @@ const TeacherLobbyPage = () => {
 
   // ---------- Hooks ----------
   const modals = useModalManager();
+  const shouldLoadTeacherTests = contentFilter === 'my' || contentFilter === 'public';
   const { tests, loading: contentLoading, loadedScope, deleteTest, refresh: refreshTests } = useTeacherTests({
+    enabled: shouldLoadTeacherTests,
     ownerId: user?.uid,
     userRole: profile?.role,
     contentFilter,
@@ -463,6 +465,7 @@ const TeacherLobbyPage = () => {
     : profile?.role === 'super_admin' && contentFilter === 'my'
       ? 'all'
       : 'owned';
+  const shouldLogTestGridRender = contentFilter === 'my' || contentFilter === 'public';
   const teacherTestTypePreferenceRepository = useMemo(() => createTeacherTestTypePreferenceRepository({
     read: async (path) => {
       const snapshot = await get(ref(database, path));
@@ -974,7 +977,7 @@ const TeacherLobbyPage = () => {
   }, [contentFilter, readingPassageRows]);
 
   useEffect(() => {
-    if (contentLoading || contentFilter === 'drafts' || loadedScope !== activeTestScope) {
+    if (!shouldLogTestGridRender || contentLoading || loadedScope !== activeTestScope) {
       return;
     }
 
@@ -1006,6 +1009,7 @@ const TeacherLobbyPage = () => {
     thcsGradeFilter,
     visibleReadingV2Count,
     visibleTests.length,
+    shouldLogTestGridRender,
   ]);
 
   const handleOpenTestCreation = useCallback(() => {

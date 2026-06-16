@@ -154,6 +154,26 @@ describe('useTeacherTests', () => {
     expect(result.current.tests).toEqual([]);
   });
 
+  it('stays idle when disabled for non-test surfaces', async () => {
+    const { result } = renderHook(() => useTeacherTests({
+      enabled: false,
+      realtime: true,
+      ownerId: 'teacher-1',
+      contentFilter: 'reading-passage',
+    }));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.tests).toEqual([]);
+    expect(result.current.loadedScope).toBeNull();
+    expect(mockGetTeacherOwnedTests).not.toHaveBeenCalled();
+    expect(mockGetPublicTests).not.toHaveBeenCalled();
+    expect(mockGetAllTests).not.toHaveBeenCalled();
+    expect(mockOnValue).not.toHaveBeenCalled();
+  });
+
   it('skips first onValue call and processes second call for real-time updates', async () => {
     mockGetPublicTests
       .mockResolvedValueOnce(mockTests)
@@ -187,6 +207,43 @@ describe('useTeacherTests', () => {
     expect(mockGetAllTests).not.toHaveBeenCalled();
     expect(mockOrderByChild).toHaveBeenCalledWith('isPublic');
     expect(mockEqualTo).toHaveBeenCalledWith(true);
+  });
+
+  it('coalesces owned realtime listener bursts into one reload', async () => {
+    const updatedTests = [{ id: 'test-3', title: 'New Test' }];
+    mockGetTeacherOwnedTests
+      .mockResolvedValueOnce(mockTests)
+      .mockResolvedValue(updatedTests);
+
+    const { result } = renderHook(() => useTeacherTests({
+      realtime: true,
+      ownerId: 'teacher-1',
+      contentFilter: 'my',
+    }));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(onValueCallbacks).toHaveLength(2);
+
+    act(() => {
+      onValueCallbacks.forEach((callback) => callback({ val: () => ({}) }));
+    });
+
+    expect(result.current.tests).toEqual(mockTests);
+
+    act(() => {
+      onValueCallbacks.forEach((callback) => callback({ val: () => ({ 'test-3': { title: 'New Test' } }) }));
+    });
+
+    await waitFor(() => {
+      expect(result.current.tests).toEqual(updatedTests);
+    });
+
+    expect(mockGetTeacherOwnedTests).toHaveBeenCalledTimes(2);
+    expect(mockInvalidate).toHaveBeenCalledTimes(1);
+    expect(mockInvalidate).toHaveBeenCalledWith('test', 'owner:teacher-1');
   });
 
   it('cleans up subscription on unmount', async () => {

@@ -13,6 +13,7 @@ import {
 type TeacherContentFilter = 'my' | 'public' | 'drafts' | 'reading-passage' | 'book';
 
 interface UseTeacherTestsOptions {
+  enabled?: boolean;
   realtime?: boolean;
   skipCache?: boolean;
   ownerId?: string;
@@ -31,7 +32,14 @@ function summarizeTestsForDiagnostics(testList: any[]) {
 }
 
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
-  const { ownerId, userRole = '', contentFilter = 'my', realtime = true, skipCache = false } = options;
+  const {
+    enabled = true,
+    ownerId,
+    userRole = '',
+    contentFilter = 'my',
+    realtime = true,
+    skipCache = false,
+  } = options;
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +108,56 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   useEffect(() => {
     const unsubscribers: Array<() => void> = [];
     let isSubscribed = true;
+    let realtimeReloadScheduled = false;
+
+    if (!enabled) {
+      setTests([]);
+      setLoading(false);
+      setError(null);
+      setLoadedScope(null);
+      return () => {
+        isSubscribed = false;
+      };
+    }
+
+    const scheduleRealtimeReload = () => {
+      if (realtimeReloadScheduled || !isSubscribed) {
+        return;
+      }
+
+      realtimeReloadScheduled = true;
+
+      void Promise.resolve().then(() => {
+        realtimeReloadScheduled = false;
+
+        if (!isSubscribed) {
+          return;
+        }
+
+        invalidateScopedCache();
+        const reloadStartedAt = getTeacherMaterialsDiagnosticTime();
+        void loadTeacherTests(true).then((list) => {
+          if (!isSubscribed) return;
+          logTeacherMaterialsDiagnostic('realtime_reload_succeeded', {
+            scope: listScope,
+            contentFilter,
+            durationMs: getTeacherMaterialsElapsedMs(reloadStartedAt),
+            ...summarizeTestsForDiagnostics(list),
+          });
+          setTests(list);
+          setLoadedScope(listScope);
+          setLoading(false);
+        }).catch((error: any) => {
+          if (!isSubscribed) return;
+          logTeacherMaterialsDiagnostic('realtime_reload_failed', {
+            scope: listScope,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          console.error('Error loading indexed tests:', error);
+          setLoading(false);
+        });
+      });
+    };
 
     const loadData = async () => {
       const startedAt = getTeacherMaterialsDiagnosticTime();
@@ -151,28 +209,7 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
                 return;
               }
 
-              invalidateScopedCache();
-              const reloadStartedAt = getTeacherMaterialsDiagnosticTime();
-              void loadTeacherTests(true).then((list) => {
-                if (!isSubscribed) return;
-                logTeacherMaterialsDiagnostic('realtime_reload_succeeded', {
-                  scope: listScope,
-                  contentFilter,
-                  durationMs: getTeacherMaterialsElapsedMs(reloadStartedAt),
-                  ...summarizeTestsForDiagnostics(list),
-                });
-                setTests(list);
-                setLoadedScope(listScope);
-                setLoading(false);
-              }).catch((error: any) => {
-                if (!isSubscribed) return;
-                logTeacherMaterialsDiagnostic('realtime_reload_failed', {
-                  scope: listScope,
-                  message: error instanceof Error ? error.message : String(error),
-                });
-                console.error('Error loading indexed tests:', error);
-                setLoading(false);
-              });
+              scheduleRealtimeReload();
             }, (error: any) => {
               if (error.code === 'PERMISSION_DENIED') {
                 console.log('[REALTIME] Test listener stopped (user logged out)');
@@ -206,9 +243,17 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
         if (typeof unsubscribe === 'function') unsubscribe();
       });
     };
-  }, [contentFilter, loadTeacherTests, getRealtimeQueries, invalidateScopedCache, listScope, ownerId, realtime, skipCache]);
+  }, [contentFilter, enabled, loadTeacherTests, getRealtimeQueries, invalidateScopedCache, listScope, ownerId, realtime, skipCache]);
 
   const refresh = async () => {
+    if (!enabled) {
+      setTests([]);
+      setLoadedScope(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     const startedAt = getTeacherMaterialsDiagnosticTime();
     logTeacherMaterialsDiagnostic('refresh_requested', {
       scope: listScope,

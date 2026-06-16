@@ -100,10 +100,13 @@ Realtime listeners must match the active listing scope:
 - owned scope: indexed `ownerId` and `createdBy` listeners
 - public scope: indexed `isPublic` listener
 - all scope: super-admin-only broad listener
+- non-test tabs such as Reading Passage, Book, and Drafts do not start `/tests` hook loads or `/tests` realtime listeners
 
 Initial RTDB listener snapshots are skipped because the initial indexed fetch already loaded the same data. Later realtime events invalidate the matching scoped cache and reload with `skipCache=true`.
 
 The page exposes `loadedScope` from `useTeacherTests` and only emits rendered-grid diagnostics when `loadedScope` matches the active tab. This prevents stale owned data from being logged as a completed public render during tab switches.
+
+`grid_rendered` is reserved for the `/tests`-backed My Content and Public Library surfaces. Reading Passage and Book tabs use their dedicated `reading_passage_list_*` and `book_list_*` diagnostics instead of re-emitting `grid_rendered`.
 
 ## Diagnostics Contract
 

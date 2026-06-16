@@ -37,7 +37,7 @@ class NavigationService {
   };
 
   private navigationStack: NavigationRecord[] = [];
-  private debugMode = process.env.NODE_ENV === 'development';
+  private debugMode = false;
   private maxStackSize = 10;
   private loopDetectionWindow = 3; // Check last 3 navigations for loops
 

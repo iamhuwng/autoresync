@@ -1,9 +1,9 @@
 /**
  * Data Cache Service
- * 
+ *
  * Intelligent caching layer to prevent redundant Firebase queries
  * and dramatically improve page load performance across the application.
- * 
+ *
  * Features:
  * - TTL-based cache expiration
  * - Automatic cache invalidation
@@ -23,8 +23,8 @@ class DataCache {
    * @private
    */
   _generateKey(type, id, params = {}) {
-    const paramStr = Object.keys(params).length > 0 
-      ? JSON.stringify(params) 
+    const paramStr = Object.keys(params).length > 0
+      ? JSON.stringify(params)
       : '';
     return `${type}:${id}:${paramStr}`;
   }
@@ -45,15 +45,13 @@ class DataCache {
       ttl,
       expiresAt: Date.now() + ttl,
     };
-    
+
     this.cache.set(key, entry);
-    
+
     // Auto-cleanup after TTL
     setTimeout(() => {
       this.delete(type, id, params);
     }, ttl);
-
-    console.log(`📦 [Cache] SET ${key} (TTL: ${ttl}ms)`);
   }
 
   /**
@@ -68,18 +66,14 @@ class DataCache {
     const entry = this.cache.get(key);
 
     if (!entry) {
-      console.log(`📦 [Cache] MISS ${key}`);
       return null;
     }
 
-    // Check if expired
     if (Date.now() > entry.expiresAt) {
-      console.log(`📦 [Cache] EXPIRED ${key}`);
       this.cache.delete(key);
       return null;
     }
 
-    console.log(`📦 [Cache] HIT ${key} (age: ${Date.now() - entry.timestamp}ms)`);
     return entry.data;
   }
 
@@ -91,10 +85,7 @@ class DataCache {
    */
   delete(type, id, params = {}) {
     const key = this._generateKey(type, id, params);
-    const deleted = this.cache.delete(key);
-    if (deleted) {
-      console.log(`📦 [Cache] DELETE ${key}`);
-    }
+    this.cache.delete(key);
   }
 
   /**
@@ -102,23 +93,18 @@ class DataCache {
    * @param {string} type - Cache type to invalidate
    */
   invalidateType(type) {
-    let count = 0;
     for (const key of this.cache.keys()) {
       if (key.startsWith(`${type}:`)) {
         this.cache.delete(key);
-        count++;
       }
     }
-    console.log(`📦 [Cache] INVALIDATED ${count} entries of type: ${type}`);
   }
 
   /**
    * Clear all cache
    */
   clear() {
-    const size = this.cache.size;
     this.cache.clear();
-    console.log(`📦 [Cache] CLEARED all ${size} entries`);
   }
 
   /**
@@ -131,7 +117,7 @@ class DataCache {
     let expiredEntries = 0;
     let totalSize = 0;
 
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [, entry] of this.cache.entries()) {
       if (now > entry.expiresAt) {
         expiredEntries++;
       } else {
@@ -159,7 +145,6 @@ class DataCache {
     items.forEach(({ id, data, params = {} }) => {
       this.set(type, id, data, ttl, params);
     });
-    console.log(`📦 [Cache] BATCH SET ${items.length} ${type} entries`);
   }
 
   /**
@@ -170,13 +155,12 @@ class DataCache {
    */
   batchGet(type, ids) {
     const results = new Map();
-    ids.forEach(id => {
+    ids.forEach((id) => {
       const data = this.get(type, id);
       if (data !== null) {
         results.set(id, data);
       }
     });
-    console.log(`📦 [Cache] BATCH GET ${results.size}/${ids.length} ${type} entries`);
     return results;
   }
 
@@ -190,13 +174,13 @@ class DataCache {
   has(type, id, params = {}) {
     const key = this._generateKey(type, id, params);
     const entry = this.cache.get(key);
-    
+
     if (!entry) return false;
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
       return false;
     }
-    
+
     return true;
   }
 
@@ -210,25 +194,21 @@ class DataCache {
   update(type, id, data, params = {}) {
     const key = this._generateKey(type, id, params);
     const entry = this.cache.get(key);
-    
+
     if (entry && Date.now() <= entry.expiresAt) {
       entry.data = data;
       entry.timestamp = Date.now();
       this.cache.set(key, entry);
-      console.log(`📦 [Cache] UPDATE ${key}`);
     } else {
-      // If expired or missing, set with default TTL
       this.set(type, id, data, this.defaultTTL, params);
     }
   }
 }
 
-// Singleton instance
 const dataCache = new DataCache();
 
 export default dataCache;
 
-// Export cache types for consistency
 export const CacheTypes = {
   SESSION: 'session',
   QUIZ: 'quiz',
@@ -238,10 +218,9 @@ export const CacheTypes = {
   PLAYER: 'player',
 };
 
-// Export TTL presets
 export const CacheTTL = {
-  SHORT: 10000,    // 10 seconds - for frequently changing data
-  MEDIUM: 30000,   // 30 seconds - default
-  LONG: 60000,     // 1 minute - for stable data
-  VERY_LONG: 300000, // 5 minutes - for rarely changing data
+  SHORT: 10000,
+  MEDIUM: 30000,
+  LONG: 60000,
+  VERY_LONG: 300000,
 };

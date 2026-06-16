@@ -937,6 +937,45 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
   });
 
+  it('does not emit grid_rendered diagnostics for Reading Passage or Book tabs', async () => {
+    const user = userEvent.setup();
+
+    render(<TeacherLobbyPage />);
+
+    await waitFor(() => {
+      expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+        'grid_rendered',
+        expect.objectContaining({ tab: 'my' }),
+      );
+    });
+
+    mocks.logDiagnostic.mockClear();
+
+    await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
+
+    await waitFor(() => {
+      expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+        'reading_passage_list_succeeded',
+        expect.objectContaining({ scope: 'private', count: 0 }),
+      );
+    });
+
+    expect(mocks.logDiagnostic.mock.calls.some(([event]) => event === 'grid_rendered')).toBe(false);
+
+    mocks.logDiagnostic.mockClear();
+
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+
+    await waitFor(() => {
+      expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+        'book_list_succeeded',
+        expect.objectContaining({ scope: 'private', count: 0 }),
+      );
+    });
+
+    expect(mocks.logDiagnostic.mock.calls.some(([event]) => event === 'grid_rendered')).toBe(false);
+  });
+
   it('tracks Section 17 tab and Test Type filter actions with exact snake_case names', async () => {
     const user = userEvent.setup();
 
