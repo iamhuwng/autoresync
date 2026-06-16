@@ -365,13 +365,14 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(snapshotRules['.write']).not.toContain('data.child');
   });
 
-  it('allows teacher reads of safe public Reading Passage metadata needed by the public passage library', () => {
+  it('allows teacher reads of safe public Reading Passage metadata for canonical public and legacy library-eligible rows', () => {
     const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
     const metadataRules = readingV2Rules.material_metadata.$materialId as Record<string, string>;
     const readRule = metadataRules['.read'];
 
     expect(readRule).toContain("root.child('users').child(auth.uid).child('role').val() === 'teacher'");
     expect(readRule).toContain("data.child('materialKind').val() === 'reading-passage'");
+    expect(readRule).toContain("data.child('visibility').val() === 'public'");
     expect(readRule).toContain("data.child('visibility').val() === 'library-eligible'");
     expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('visibility').val() === 'public'");
     expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'");
@@ -601,7 +602,7 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     );
   });
 
-  it('allows owners to republish a private Reading Passage as library eligible', async () => {
+  it('allows owners to republish a private Reading Passage as public', async () => {
     const { teacher } = makeReadingV2RuleContexts();
     const materialId = 'passage-visibility-republish';
     const previousSnapshotVersionId = 'snapshot-private';
@@ -673,7 +674,7 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         productLabel: 'Reading V2',
         title: 'Public Passage',
         materialKind: 'reading-passage',
-        visibility: 'library-eligible',
+        visibility: 'public',
         publishedSnapshotVersionId: nextSnapshotVersionId,
         state: 'published',
         updatedAt: '2026-06-15T19:12:11.000Z',
@@ -815,7 +816,7 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
         productLabel: 'Reading V2',
         title: 'Selected Reading Passages',
         materialKind: 'full-test',
-        visibility: 'library-eligible',
+        visibility: 'public',
         publishedSnapshotVersionId: snapshotVersionId,
         state: 'published',
         updatedAt,

@@ -37,11 +37,14 @@ Individual `reading-passage` Studio revisions expose `Private / Public` in the m
 Control mapping:
 
 - `Private` maps to `private`
-- `Public` maps to `library-eligible`
+- `Public` maps to `public`
 
 Publish must carry the selected visibility into the canonical material metadata, Reading Passage row, and Material Catalog visibility indexes.
 
+`library-eligible` is legacy compatibility only for pre-existing `reading_v2/material_metadata/{materialId}` rows and the temporary read/rule/backfill bridges needed during migration rollout. New publish, restore, selected-passage master, and backfill writes must store `public` as the canonical public metadata value.
+
 Obsolete interpretation retired 2026-06-16: visibility is not a hidden Developer Details-only control for single Reading Passage revision flows.
+Obsolete interpretation retired 2026-06-16: `Public` maps to `library-eligible`.
 
 ## Publish Model
 

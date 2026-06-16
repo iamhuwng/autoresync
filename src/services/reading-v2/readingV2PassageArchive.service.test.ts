@@ -246,7 +246,7 @@ describe('readingV2PassageArchive.service', () => {
     expect(repo.adapter.update).toHaveBeenCalledTimes(1);
     expect(repo.updates[0]).toEqual(expect.objectContaining({
       [`${readingV2StoragePaths.materialMetadata('passage-1')}/state`]: 'published',
-      [`${readingV2StoragePaths.materialMetadata('passage-1')}/visibility`]: 'library-eligible',
+      [`${readingV2StoragePaths.materialMetadata('passage-1')}/visibility`]: 'public',
       'material_catalog/material_indexes/by_visibility/public/passage-1': expect.objectContaining({
         materialId: 'passage-1',
         visibility: 'public',

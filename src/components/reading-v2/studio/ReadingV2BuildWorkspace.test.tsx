@@ -261,7 +261,7 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     fireEvent.click(publicButton);
 
     expect(onMetadataChange).toHaveBeenCalledWith(expect.objectContaining({
-      visibility: 'library-eligible',
+      visibility: 'public',
     }));
   });
 

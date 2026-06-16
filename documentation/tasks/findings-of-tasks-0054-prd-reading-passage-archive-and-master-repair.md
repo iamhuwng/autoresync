@@ -316,7 +316,7 @@ Final PASS result:
 - Archive writes only current material/metadata state fields and the lightweight archive index. It removes active material catalog index rows and writes an audit event through `reading_v2/audit_events/{eventId}`.
 - Archive does not write to `reading_v2/published_snapshots/*` or `reading_v2/reading_passage_material_versions/*`, preserving immutable snapshots and published versions.
 - Restore validates current version and student-safe projection before recreating active catalog indexes.
-- Restore writes selected visibility as `private` or `public` active index rows, maps public metadata visibility to `library-eligible`, removes the archive index row, and writes a restore audit event.
+- Restore writes selected visibility as `private` or `public` active index rows, writes canonical public metadata as `public`, keeps legacy `library-eligible` read/rule compatibility, removes the archive index row, and writes a restore audit event.
 - Added archive index path: `material_catalog/material_archive_indexes/by_owner/{ownerId}/reading-passage/{materialId}`.
 - Archive index stores safe metadata only: material id, owner id, title, source/test-type strings when known, visibility, archived fields, current version id, question count, and optional `hasBrokenRefs`.
 - Updated `src/services/reading-v2/readingV2PassageLibrary.service.ts` so active `private`/`public` lists exclude archived metadata and explicit `scope: 'archived'` returns owner archive rows.

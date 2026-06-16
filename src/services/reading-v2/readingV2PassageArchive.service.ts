@@ -20,6 +20,7 @@ import {
   type ReadingV2DuplicateIndexRow,
   type ReadingV2DuplicateIndexState,
 } from './readingV2PassageDuplicateGuard.service';
+import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export interface ReadingV2PassageArchiveRepository {
@@ -90,10 +91,10 @@ export interface ReadingV2ArchivedPassageListReader {
 }
 
 const normalizeActiveVisibility = (visibility: string): 'private' | 'public' =>
-  visibility === 'public' || visibility === 'library-eligible' ? 'public' : 'private';
+  isReadingV2PublicVisibility(visibility) ? 'public' : 'private';
 
-const metadataVisibilityFor = (visibility: 'private' | 'public'): 'private' | 'library-eligible' =>
-  visibility === 'public' ? 'library-eligible' : 'private';
+const metadataVisibilityFor = (visibility: 'private' | 'public'): 'private' | 'public' =>
+  visibility === 'public' ? 'public' : 'private';
 
 const materialVisibilityFor = (visibility: 'private' | 'public'): 'private' | 'public' =>
   visibility === 'public' ? 'public' : 'private';

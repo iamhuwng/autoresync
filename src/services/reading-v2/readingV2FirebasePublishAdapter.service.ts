@@ -8,6 +8,7 @@ import type {
   ReadingV2PublishRelationshipIndexWrite,
 } from './readingV2PublishPipeline.service';
 import { resolveLegacyTestTypeLabelFromMaterialTestTypeIds } from '../materialCatalog/materialTestTypeMapping.service';
+import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export interface ReadingV2FirebasePublishUpdates {
@@ -217,7 +218,7 @@ export const buildReadingV2FirebasePublishUpdates = (
     skillType: 'reading-v2',
     duration: metadataOperation.metadata.durationMinutes,
     questionCount: countProjectionInteractions(studentSafeProjection),
-    isPublic: metadataOperation.metadata.visibility === 'library-eligible',
+    isPublic: isReadingV2PublicVisibility(metadataOperation.metadata.visibility),
     materialKind: metadataOperation.metadata.materialKind,
     productLabel: metadataOperation.metadata.productLabel,
     publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,

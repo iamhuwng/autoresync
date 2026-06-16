@@ -30,7 +30,9 @@ import {
   type ReadingV2DerivedProjection,
 } from './readingV2Projection.service';
 import {
+  canonicalizeReadingV2MaterialVisibility,
   deriveReadingV2MaterialMetadata,
+  isReadingV2PublicVisibility,
   type ReadingV2MaterialMetadata,
   type ReadingV2MaterialMetadataInput,
   type ReadingV2RelationshipSurface,
@@ -298,11 +300,11 @@ const storageOperation = (
 const visibilityToMetadataVisibility = (
   visibility: ReadingPassageVisibilityScope,
 ): ReadingV2MaterialMetadataInput['visibility'] =>
-  visibility === 'public' ? 'library-eligible' : 'private';
+  visibility === 'public' ? 'public' : 'private';
 
 const metadataVisibilityToReadingPassageVisibility = (
   visibility: ReadingV2MaterialMetadata['visibility'],
-): ReadingPassageVisibilityScope => (visibility === 'library-eligible' ? 'public' : 'private');
+): ReadingPassageVisibilityScope => (isReadingV2PublicVisibility(visibility) ? 'public' : 'private');
 
 const oppositeReadingPassageVisibility = (
   visibility: ReadingPassageVisibilityScope,
@@ -671,7 +673,9 @@ const buildStandaloneReadingPassageStorageWrites = (input: {
   readonly publishedAt: string;
   readonly publishedBy: string;
 }): ReadingV2PublishStorageWrite[] => {
-  const visibility = metadataVisibilityToReadingPassageVisibility(input.metadata.visibility);
+  const visibility = metadataVisibilityToReadingPassageVisibility(
+    canonicalizeReadingV2MaterialVisibility(input.metadata.visibility),
+  );
   const oppositeVisibility = oppositeReadingPassageVisibility(visibility);
   const taskGroupIds = getStandalonePassageTaskGroupIds(input.document);
   const material: ReadingV2ReadingPassageMaterial = {

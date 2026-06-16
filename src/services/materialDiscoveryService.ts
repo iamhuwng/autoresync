@@ -27,7 +27,10 @@ import {
     resolveReadingV2LaunchDecision,
 } from './reading-v2/readingV2LaunchIntegration.service';
 import type { ReadingV2DerivedProjection } from './reading-v2/readingV2Projection.service';
-import type { ReadingV2MaterialMetadata } from './reading-v2/readingV2MaterialMetadata.service';
+import {
+    isReadingV2PublicVisibility,
+    type ReadingV2MaterialMetadata,
+} from './reading-v2/readingV2MaterialMetadata.service';
 import { readingV2StoragePaths } from './reading-v2/readingV2StoragePaths.service';
 
 type StudentMaterialHistory = NonNullable<LibraryMaterial['studentHistory']>;
@@ -125,7 +128,7 @@ async function getReadingV2PublicLibraryMaterials(
         if (
             !metadata ||
             !isReadingV2LaunchCandidate(metadata) ||
-            metadata.visibility !== 'library-eligible'
+            !isReadingV2PublicVisibility(metadata.visibility)
         ) {
             return null;
         }

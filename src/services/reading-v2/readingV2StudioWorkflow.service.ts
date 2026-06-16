@@ -38,6 +38,11 @@ import {
 } from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
+import {
+  canonicalizeReadingV2MaterialVisibility,
+  isReadingV2PublicVisibility,
+  type ReadingV2MaterialVisibility,
+} from './readingV2MaterialMetadata.service';
 import type {
   ReadingV2MaterialKind,
   ReadingV2MaterialMetadata,
@@ -61,7 +66,7 @@ export interface ReadingV2StudioWorkflowMetadata {
   readonly targetBand: string;
   readonly description: string;
   readonly tags: readonly string[];
-  readonly visibility: 'private' | 'library-eligible' | 'assigned-only';
+  readonly visibility: ReadingV2MaterialVisibility;
   readonly ownerId: string;
   readonly provenanceSummary: string;
   readonly primaryTestTypeId?: MaterialTestTypeId;
@@ -147,7 +152,7 @@ export const createReadingV2StudioDefaultMetadata = (
   targetBand: overrides.targetBand ?? 'Band 6-7',
   description: overrides.description ?? '',
   tags: overrides.tags ?? [],
-  visibility: overrides.visibility ?? 'private',
+  visibility: canonicalizeReadingV2MaterialVisibility(overrides.visibility),
   ownerId: overrides.ownerId ?? 'current-teacher',
   provenanceSummary: overrides.provenanceSummary ?? 'Original Reading V2 draft',
   primaryTestTypeId: overrides.primaryTestTypeId,
@@ -182,7 +187,7 @@ const shouldExtractReadingPassagesOnPublish = (
 const toReadingPassageExtractionVisibility = (
   visibility: ReadingV2StudioWorkflowMetadata['visibility'],
 ): ReadingPassageVisibilityScope =>
-  visibility === 'library-eligible' ? 'public' : 'private';
+  isReadingV2PublicVisibility(visibility) ? 'public' : 'private';
 
 const createDocument = (title?: string): ReadingV2Document => {
   const documentId = readingV2Ids.documentId(`draft-${nowId()}`);

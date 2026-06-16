@@ -42,7 +42,7 @@ describe('ReadingV2MetadataPanel', () => {
     fireEvent.change(screen.getByLabelText('Material kind'), {
       target: { value: 'extracted-task-group-material' },
     });
-    fireEvent.change(screen.getByLabelText('Visibility and library eligibility'), {
+    fireEvent.change(screen.getByLabelText('Visibility'), {
       target: { value: 'assigned-only' },
     });
 

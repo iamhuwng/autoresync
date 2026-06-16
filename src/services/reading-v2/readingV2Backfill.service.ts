@@ -140,7 +140,7 @@ const sourceKey = (
 const visibilityToMetadataVisibility = (
   visibility: ReadingPassageVisibilityScope,
 ): ReadingV2MaterialMetadataInput['visibility'] =>
-  visibility === 'public' ? 'library-eligible' : 'private';
+  visibility === 'public' ? 'public' : 'private';
 
 const buildReadingPassageSnapshotValue = (input: {
   readonly material: ReadingV2PassageExtractionResult['passages'][number]['material'];

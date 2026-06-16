@@ -93,7 +93,7 @@ const createPassagePublishPlan = () => {
       primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
       testTypeIds: [materialCatalogIds.testTypeId('ielts')],
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-      visibility: 'library-eligible',
+      visibility: 'public' as any,
     },
     readingPassageExtraction: {
       sourceFullTestId: readingV2Ids.fullTestId('full-test-firebase-passages'),
@@ -250,10 +250,12 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       type: 'IELTS',
       primaryTestTypeId: 'ielts',
       testTypeIds: ['ielts'],
+      isPublic: true,
       metadata: expect.objectContaining({
         compositionId: 'composition-material-firebase-passages-snapshot-firebase-passages',
         primaryTestTypeId: 'ielts',
         testTypeIds: ['ielts'],
+        visibility: 'public',
       }),
     });
     expect(updatePaths).toEqual(

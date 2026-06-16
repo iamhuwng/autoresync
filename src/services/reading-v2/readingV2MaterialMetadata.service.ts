@@ -17,7 +17,7 @@ export type ReadingV2MaterialKind =
   | 'extracted-task-group-material'
   | 'reading-passage'
   | 'reading-v2-full-test-composition';
-export type ReadingV2MaterialVisibility = 'private' | 'library-eligible' | 'assigned-only';
+export type ReadingV2MaterialVisibility = 'private' | 'public' | 'library-eligible' | 'assigned-only';
 export type ReadingV2PrimaryTestTypeState = 'active' | 'inactive' | 'missing';
 export type ReadingV2SourceOrderValue = number | string | null;
 export type ReadingV2RelationshipSurface =
@@ -31,6 +31,19 @@ export type ReadingV2RelationshipSurface =
   | 'solo-launch'
   | 'result-identity'
   | 'analytics';
+
+export const isReadingV2PublicVisibility = (visibility: string | undefined | null): boolean =>
+  visibility === 'public' || visibility === 'library-eligible';
+
+export const canonicalizeReadingV2MaterialVisibility = (
+  visibility: string | undefined | null,
+): Exclude<ReadingV2MaterialVisibility, 'library-eligible'> => {
+  if (visibility === 'assigned-only') {
+    return 'assigned-only';
+  }
+
+  return isReadingV2PublicVisibility(visibility) ? 'public' : 'private';
+};
 
 export interface ReadingV2MaterialMetadataInput {
   readonly materialId: ReadingV2MaterialId;
@@ -218,7 +231,7 @@ export const deriveReadingV2MaterialMetadata = (
     targetBand: input.targetBand,
     description: input.description ?? '',
     tags: input.tags ?? [],
-    visibility: input.visibility ?? 'private',
+    visibility: canonicalizeReadingV2MaterialVisibility(input.visibility),
     primaryTestTypeId: input.primaryTestTypeId,
     primaryTestTypeState: resolvePrimaryTestTypeState(input.primaryTestTypeId, primaryTestTypeConfig),
     testTypeIds: input.testTypeIds ?? [],

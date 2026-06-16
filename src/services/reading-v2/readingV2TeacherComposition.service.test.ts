@@ -512,7 +512,7 @@ describe('readingV2TeacherComposition.service', () => {
       });
   });
 
-  it('indexes public master edits as public catalog rows while keeping canonical publish visibility', async () => {
+  it('indexes public master edits as public catalog rows and stores canonical public visibility', async () => {
     const updates: Record<string, unknown> = {};
     const publicPassages = passages.map((passage) => ({
       ...passage,
@@ -550,7 +550,7 @@ describe('readingV2TeacherComposition.service', () => {
 
     expect(updates[readingV2StoragePaths.materialMetadata(existing.testMaterialId)])
       .toMatchObject({
-        visibility: 'library-eligible',
+        visibility: 'public',
       });
     expect(updates[`material_catalog/material_indexes/by_visibility/public/${existing.testMaterialId}`])
       .toMatchObject({

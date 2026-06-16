@@ -6,6 +6,7 @@ import {
   type ReadingV2LaunchMaterialSummary,
 } from './readingV2LaunchIntegration.service';
 import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
+import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
@@ -85,7 +86,7 @@ const createTeacherLobbyCardRecord = (
   skillType: 'reading-v2',
   duration: summary.durationMinutes,
   questionCount: summary.questionCount,
-  isPublic: metadata.visibility === 'library-eligible',
+  isPublic: isReadingV2PublicVisibility(metadata.visibility),
   materialKind: metadata.materialKind,
   productLabel: metadata.productLabel,
   publishedSnapshotVersionId: summary.sourceSnapshotVersionId,

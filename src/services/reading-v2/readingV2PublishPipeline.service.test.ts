@@ -413,7 +413,7 @@ describe('readingV2PublishPipeline.service', () => {
         primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-        visibility: 'library-eligible',
+        visibility: 'public' as any,
       },
       readingPassageExtraction: {
         sourceFullTestId: readingV2Ids.fullTestId('full-test-with-passages'),
@@ -483,6 +483,7 @@ describe('readingV2PublishPipeline.service', () => {
     )).toBe(false);
     expect(byPath[readingV2StoragePaths.materialMetadata(firstPassageId)]).toMatchObject({
       materialKind: 'reading-passage',
+      visibility: 'public',
       sourceFullTestId: 'full-test-with-passages',
       sourceOrderDisplaySnapshot: 'Passage 1',
       sourceQuestionRange: '1-13',
@@ -573,7 +574,7 @@ describe('readingV2PublishPipeline.service', () => {
         primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-        visibility: 'library-eligible' as const,
+        visibility: 'public' as any,
       },
       readingPassageExtraction: {
         sourceFullTestId: readingV2Ids.fullTestId('full-test-idempotent'),
@@ -681,7 +682,7 @@ describe('readingV2PublishPipeline.service', () => {
         primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-        visibility: 'library-eligible',
+        visibility: 'public' as any,
       },
       readingPassageExtraction: {
         sourceFullTestId: readingV2Ids.fullTestId('full-test-duplicate-guard'),
@@ -739,7 +740,7 @@ describe('readingV2PublishPipeline.service', () => {
           primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
           testTypeIds: [materialCatalogIds.testTypeId('ielts')],
           testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-          visibility: 'library-eligible',
+          visibility: 'public' as any,
         },
         duplicateIndexStatus: 'stale',
       }),
@@ -764,7 +765,7 @@ describe('readingV2PublishPipeline.service', () => {
         primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-        visibility: 'library-eligible',
+        visibility: 'public' as any,
       },
     });
     const firstPassageId = 'material-multi-anchor-table-full-test-passage-1';
@@ -815,7 +816,7 @@ describe('readingV2PublishPipeline.service', () => {
         primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-        visibility: 'library-eligible',
+        visibility: 'public' as any,
       },
     });
 
@@ -881,6 +882,10 @@ describe('readingV2PublishPipeline.service', () => {
       sourceFullTestId: 'source-full-test',
       sourceSnapshotVersionId: 'source-snapshot',
       sourceQuestionRange: '1-13',
+    });
+    expect(result.metadata).toMatchObject({
+      visibility: 'public',
+      materialKind: 'reading-passage',
     });
     expect(byPath[readingV2StoragePaths.readingPassageMaterialVersions(materialId, snapshotVersionId)])
       .toMatchObject({

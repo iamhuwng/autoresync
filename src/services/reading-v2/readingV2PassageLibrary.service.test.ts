@@ -142,7 +142,47 @@ describe('readingV2PassageLibrary.service', () => {
     ]);
   });
 
-  it('lists public/library-eligible Reading Passages without mixing them into top-level Public Library semantics', async () => {
+  it('lists canonically public Reading Passages without mixing them into top-level Public Library semantics', async () => {
+    const testReader = reader({
+      listIndexRows: vi.fn(async () => [
+        indexRow({
+          materialId: 'public-passage',
+          ownerId: 'teacher-2',
+          visibility: 'public',
+          testTypeIds: ['toeic'],
+          testTypeMembership: { toeic: true },
+        }) as any,
+      ]),
+      readMetadata: vi.fn(async () =>
+        metadata({
+          materialId: 'public-passage',
+          ownerId: 'teacher-2',
+          visibility: 'public' as any,
+          primaryTestTypeId: 'toeic',
+          testTypeIds: ['toeic'],
+          sourceOrderDisplaySnapshot: 'Part 3',
+        }) as any,
+      ),
+      readStudentSafeProjection: vi.fn(async () => projection(10) as any),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'public',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      materialId: 'public-passage',
+      scope: 'public',
+      isOwner: false,
+      visibility: 'public',
+    });
+  });
+
+  it('keeps legacy library-eligible Reading Passages readable in public scope until migration', async () => {
     const testReader = reader({
       listIndexRows: vi.fn(async () => [
         indexRow({

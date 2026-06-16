@@ -118,7 +118,7 @@ export function ReadingV2TeacherTestInfoPanel({
             }
           >
             <option value="private">Private</option>
-            <option value="library-eligible">Library eligible</option>
+            <option value="public">Public</option>
             <option value="assigned-only">Assigned only</option>
           </select>
         </label>

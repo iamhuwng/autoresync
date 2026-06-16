@@ -394,6 +394,34 @@ describe('readingV2Backfill.service', () => {
     expect(composition.publishedVersionId).toBe('public-not-shareable-snapshot');
   });
 
+  it('writes canonical public metadata and public catalog indexes for shareable public sources', () => {
+    const report = planReadingV2FullTestPassageBackfill({
+      fullTests: [
+        fullTest('public-shareable', {
+          visibility: 'public',
+          publicShareable: true,
+        }),
+      ],
+      now: NOW,
+    });
+    const writes = createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' });
+    const metadataWrite = writes.find((write) => write.writeKind === 'reading-passage-metadata');
+    const publicIndexWrite = writes.find((write) =>
+      write.path === 'material_catalog/material_indexes/by_visibility/public/public-shareable-passage-1'
+    );
+
+    expect(report.rows[0].visibilityDowngradedToPrivate).toBe(false);
+    expect(metadataWrite?.path).toBe('reading_v2/material_metadata/public-shareable-passage-1');
+    expect(metadataWrite?.value).toMatchObject({
+      materialId: 'public-shareable-passage-1',
+      visibility: 'public',
+    });
+    expect(publicIndexWrite?.value).toMatchObject({
+      materialId: 'public-shareable-passage-1',
+      visibility: 'public',
+    });
+  });
+
   it('classifies deterministic duplicate stimulus registries as auto-repairable before extraction writes', () => {
     const report = planReadingV2FullTestPassageBackfill({
       fullTests: [

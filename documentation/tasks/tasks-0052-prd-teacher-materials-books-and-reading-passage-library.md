@@ -353,7 +353,7 @@ Status: Draft
   - [x] 7.1 Create `src/services/reading-v2/readingV2PassageLibrary.service.ts`.
   - [x] 7.2 Implement `listTeacherReadingPassages({ teacherId, scope, searchTerm, testTypeId })`.
   - [x] 7.3 For `scope=private`, return teacher-owned private Reading Passage records.
-  - [x] 7.4 For `scope=public`, return public/library-eligible Reading Passage records only.
+  - [x] 7.4 For `scope=public`, return canonical public plus legacy library-eligible Reading Passage records only.
   - [x] 7.5 Keep this private/public scope inside the `Reading Passage` tab only. Do not map it to top-level `My Content` or `Public Library`.
   - [x] 7.6 Use listing indexes and metadata summaries. Do not scan canonical snapshots or full `/tests`.
   - [x] 7.7 Add search over summary fields only: title, tags, Test Type labels, source title, and source order display.

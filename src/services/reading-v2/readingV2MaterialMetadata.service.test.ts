@@ -16,13 +16,14 @@ describe('readingV2MaterialMetadata.service', () => {
       document: fixtureDocument(),
       title: 'Published Reading V2 material',
       durationMinutes: 45,
-      visibility: 'library-eligible',
+      visibility: 'public' as any,
       tags: ['ielts', 'reading'],
       updatedAt: '2026-04-25T00:00:00.000Z',
     });
 
     expect(metadata.deliveryEngine).toBe('reading-v2');
     expect(metadata.title).toBe('Published Reading V2 material');
+    expect(metadata.visibility).toBe('public');
     expect(metadata.relationshipSurfaces).toEqual(
       expect.arrayContaining([
         'teacher-lobby',

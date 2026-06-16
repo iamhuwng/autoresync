@@ -46,7 +46,7 @@ export function ReadingV2SettingsPanel({
           onChange={(event) => onMetadataChange({ ...metadata, visibility: event.currentTarget.value as ReadingV2Visibility })}
         >
           <option value="private">Private</option>
-          <option value="library-eligible">Library eligible</option>
+          <option value="public">Public</option>
           <option value="assigned-only">Assigned only</option>
         </select>
       </label>

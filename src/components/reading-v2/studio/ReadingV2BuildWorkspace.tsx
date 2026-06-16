@@ -5075,7 +5075,9 @@ export function ReadingV2BuildWorkspace({
     onMetadataChange({ ...metadata, visibility });
   };
 
-  const passageVisibility = metadata.visibility === 'library-eligible' ? 'public' : 'private';
+  const passageVisibility = metadata.visibility === 'public' || metadata.visibility === 'library-eligible'
+    ? 'public'
+    : 'private';
   const showPassageVisibilityControl = metadata.materialKind === 'reading-passage';
 
   function scrollQuestionIntoView(questionNumber: number) {
@@ -5611,7 +5613,7 @@ export function ReadingV2BuildWorkspace({
                     className="reading-v2-build__visibility-option"
                     data-selected={passageVisibility === 'public' ? 'true' : 'false'}
                     aria-pressed={passageVisibility === 'public'}
-                    onClick={() => handleVisibilityChange('library-eligible')}
+                    onClick={() => handleVisibilityChange('public')}
                   >
                     Public
                   </button>

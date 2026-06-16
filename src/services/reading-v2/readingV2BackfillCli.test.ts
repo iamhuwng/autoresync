@@ -166,6 +166,43 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
     ]);
   });
 
+  it('treats canonical public metadata rows as public backfill sources too', () => {
+    const result = buildBackfillSourcesFromFirebaseSnapshot({
+      materialMetadata: {
+        'canonical-public': {
+          materialId: 'canonical-public',
+          ownerId: 'teacher-1',
+          title: 'Canonical Public',
+          materialKind: 'full-test',
+          state: 'published',
+          visibility: 'public',
+          publicShareable: true,
+          publishedSnapshotVersionId: 'snapshot-1',
+          updatedAt: '2026-05-15T00:00:00.000Z',
+          durationMinutes: 60,
+          primaryTestTypeId: 'ielts',
+          testTypeIds: ['ielts'],
+        },
+      },
+      publishedSnapshots: {
+        'canonical-public': {
+          'snapshot-1': {
+            ...snapshot,
+            materialId: 'canonical-public',
+          },
+        },
+      },
+      fullTestCompositions: {},
+    });
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]).toMatchObject({
+      materialId: 'canonical-public',
+      visibility: 'public',
+      publicShareable: true,
+    });
+  });
+
   it('builds a root RTDB update payload from service write plans', () => {
     expect(
       buildBackfillUpdatePayload([

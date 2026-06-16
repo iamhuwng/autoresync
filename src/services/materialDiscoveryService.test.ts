@@ -138,7 +138,60 @@ describe('materialDiscoveryService', () => {
         expect(enriched[1].studentHistory).toBeUndefined();
     });
 
-    it('loads public Reading V2 library rows from approved relationship indexes, metadata, and student-safe projections', async () => {
+    it('loads canonically public Reading V2 library rows from approved relationship indexes, metadata, and student-safe projections', async () => {
+        const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+        vi.mocked(get).mockImplementation(async (path: any) => {
+            const valueByPath: Record<string, unknown> = {
+                tests: null,
+                'reading_v2/relationship_indexes/library-listing/': {
+                    'material-v2': {
+                        materialId: 'material-v2',
+                        snapshotVersionId: projection.sourceSnapshotVersionId,
+                        source: 'student-safe-projection',
+                    },
+                },
+                'reading_v2/material_metadata/material-v2': {
+                    materialId: 'material-v2',
+                    ownerId: 'teacher-1',
+                    deliveryEngine: READING_V2_ENGINE,
+                    productLabel: 'Reading V2',
+                    title: 'Published Reading V2',
+                    materialKind: 'full-test',
+                    durationMinutes: 55,
+                    difficulty: 'intermediate',
+                    description: 'Public V2 material',
+                    tags: ['reading'],
+                    visibility: 'public',
+                    publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+                    updatedAt: '2026-01-01T00:00:00.000Z',
+                    relationshipSurfaces: ['library-listing'],
+                },
+                [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
+            };
+            const value = valueByPath[path];
+            return {
+                exists: () => value !== null && value !== undefined,
+                val: () => value,
+            } as any;
+        });
+
+        const materials = await getLibraryMaterials(
+            { source: 'public', skill: 'reading' },
+            { readingV2RolloutMode: 'public' }
+        );
+
+        expect(materials).toHaveLength(1);
+        expect(materials[0]).toMatchObject({
+            id: 'material-v2',
+            title: 'Published Reading V2',
+            skill: 'reading-v2',
+            type: 'test',
+            questionCount: 2,
+            source: { type: 'public' },
+        });
+    });
+
+    it('keeps legacy library-eligible Reading V2 library rows readable until migration', async () => {
         const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
         vi.mocked(get).mockImplementation(async (path: any) => {
             const valueByPath: Record<string, unknown> = {

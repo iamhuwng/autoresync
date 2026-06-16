@@ -13,6 +13,7 @@ import {
   countReadingV2ProjectionInteractions,
 } from './readingV2LaunchIntegration.service';
 import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
+import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import {
   archiveReadingV2PassageMaterial as archiveReadingV2PassageMaterialLifecycle,
@@ -230,7 +231,7 @@ const metadataListVisibility = (
     return 'private';
   }
 
-  if (metadata.visibility === 'library-eligible') {
+  if (isReadingV2PublicVisibility(metadata.visibility)) {
     return 'public';
   }
 

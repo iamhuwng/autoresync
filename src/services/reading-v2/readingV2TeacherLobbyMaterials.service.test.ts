@@ -101,6 +101,54 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
     expect(query).toHaveBeenCalled();
   });
 
+  it('treats canonical public metadata as public in Teacher Lobby cards', async () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+
+    vi.mocked(get).mockImplementation(async (target: any) => {
+      const path = typeof target === 'string' ? target : target.path;
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/relationship_indexes/teacher-lobby/': {
+          'material-v2': {
+            surface: 'teacher-lobby',
+            materialId: 'material-v2',
+            snapshotVersionId: projection.sourceSnapshotVersionId,
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+            deliveryEngine: READING_V2_ENGINE,
+          },
+        },
+        'reading_v2/material_metadata/material-v2': {
+          materialId: 'material-v2',
+          ownerId: 'teacher-1',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Published Reading V2',
+          materialKind: 'full-test',
+          durationMinutes: 55,
+          difficulty: 'intermediate',
+          description: 'Teacher lobby material',
+          tags: ['ielts'],
+          visibility: 'public',
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          relationshipSurfaces: ['teacher-lobby'],
+        },
+        [`reading_v2/projections/student_safe_tests/material-v2:${projection.sourceSnapshotVersionId}`]: projection,
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined && value !== null,
+        val: () => value,
+      } as any;
+    });
+
+    const materials = await getReadingV2TeacherLobbyTests('teacher-1');
+
+    expect(materials).toHaveLength(1);
+    expect(materials[0]?.isPublic).toBe(true);
+    expect(materials[0]?.metadata.visibility).toBe('public');
+  });
+
   it('does not request Reading V2 lobby rows without an owner id', async () => {
     const materials = await getReadingV2TeacherLobbyTests(undefined);
 

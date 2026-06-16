@@ -390,7 +390,9 @@ const toSource = (
   const materialId = readingV2Ids.materialId(getString(metadata, 'materialId') ?? snapshot.materialId);
   const snapshotVersionId = readingV2Ids.snapshotVersionId(snapshot.snapshotVersionId);
   const primaryTestTypeId = getString(metadata, 'primaryTestTypeId');
-  const visibility = getString(metadata, 'visibility') === 'library-eligible' ? 'public' : 'private';
+  const visibility = ['public', 'library-eligible'].includes(getString(metadata, 'visibility') ?? '')
+    ? 'public'
+    : 'private';
 
   return {
     materialId,
