@@ -1295,6 +1295,30 @@
   white-space: nowrap;
 }
 
+.reading-v2-build__identity h1:hover {
+  color: #006c63;
+  cursor: text;
+}
+
+.reading-v2-build__title-input {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  padding: 3px 8px;
+  border: 1px solid #8ec5bd;
+  border-radius: 6px;
+  color: #111827;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.08rem, 1.55vw, 1.55rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.reading-v2-build__title-input:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.22);
+  outline-offset: 2px;
+}
+
 .reading-v2-build__state-row {
   grid-area: state;
   display: flex;
@@ -1535,15 +1559,19 @@
 
 .reading-v2-build__passage-tab-list {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .reading-v2-build__passage-tab-item {
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .reading-v2-build__passage-tab {
@@ -1555,6 +1583,14 @@
   color: #475467;
   font-weight: 800;
   cursor: pointer;
+}
+
+.reading-v2-build__passage-tab-label-full {
+  display: inline;
+}
+
+.reading-v2-build__passage-tab-label-short {
+  display: none;
 }
 
 .reading-v2-build__passage-tab[aria-pressed="true"] {
@@ -1584,8 +1620,10 @@
 
 .reading-v2-build__passage-add {
   align-self: center;
+  flex: 0 0 36px;
+  width: 36px;
   min-height: 36px;
-  padding: 6px 12px;
+  padding: 0;
 }
 
 .reading-v2-build__passage-remove:hover:not(:disabled),
@@ -1598,6 +1636,30 @@
 .reading-v2-build__passage-remove:disabled {
   cursor: not-allowed;
   opacity: 0.42;
+}
+
+@container (max-width: 520px) {
+  .reading-v2-build__passage-tabs {
+    gap: 8px;
+  }
+
+  .reading-v2-build__passage-tab-list {
+    gap: 6px;
+  }
+
+  .reading-v2-build__passage-tab {
+    min-width: 24px;
+    padding: 0 1px;
+    text-align: center;
+  }
+
+  .reading-v2-build__passage-tab-label-full {
+    display: none;
+  }
+
+  .reading-v2-build__passage-tab-label-short {
+    display: inline;
+  }
 }
 
 .reading-v2-build__workspace {
@@ -1619,6 +1681,7 @@
 }
 
 .reading-v2-build__passage-panel {
+  container-type: inline-size;
   border-right: 1px solid #dbe3e8;
   background: #ffffff;
 }

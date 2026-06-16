@@ -882,6 +882,68 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     }));
   });
 
+  it('edits the top title on double click and publishes the updated metadata title', async () => {
+    const document = createPublishableThreePassageDocument();
+    const onPublish = vi.fn(async () => ({
+      snapshotVersionId: 'snapshot-renamed-title',
+      firebaseCommitStatus: 'committed' as const,
+    }));
+
+    render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        draftId="renamed-title-draft"
+        document={document}
+        metadata={{ title: 'Original Reading Title' }}
+        onPublish={onPublish}
+      />,
+    );
+
+    fireEvent.doubleClick(screen.getByRole('heading', { name: 'Original Reading Title' }));
+    const titleInput = screen.getByLabelText('Test title');
+    fireEvent.change(titleInput, { target: { value: 'Edited Reading Title' } });
+    fireEvent.keyDown(titleInput, { key: 'Enter' });
+
+    expect(screen.getByRole('heading', { name: 'Edited Reading Title' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(onPublish).toHaveBeenCalledOnce());
+    expect(onPublish.mock.calls[0]?.[0].metadata).toMatchObject({
+      title: 'Edited Reading Title',
+    });
+  });
+
+  it('publishes full-test public visibility from the master visibility control', async () => {
+    const document = createPublishableThreePassageDocument();
+    const onPublish = vi.fn(async () => ({
+      snapshotVersionId: 'snapshot-master-public',
+      firebaseCommitStatus: 'committed' as const,
+    }));
+
+    render(
+      <ReadingV2StudioShell
+        mode="resume-draft"
+        draftId="master-public-draft"
+        document={document}
+        metadata={{ title: 'Master Visibility Test', materialKind: 'full-test', visibility: 'private' }}
+        onPublish={onPublish}
+      />,
+    );
+
+    const visibilityGroup = screen.getByRole('group', { name: 'Master test visibility' });
+    expect(within(visibilityGroup).getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(visibilityGroup).getByRole('button', { name: 'Public' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => expect(onPublish).toHaveBeenCalledOnce());
+    expect(onPublish.mock.calls[0]?.[0].metadata).toMatchObject({
+      materialKind: 'full-test',
+      visibility: 'public',
+    });
+  });
+
   it('preserves hidden test-type metadata when publishing from Studio', async () => {
     const document = createPublishableThreePassageDocument();
     const onPublish = vi.fn(async () => ({

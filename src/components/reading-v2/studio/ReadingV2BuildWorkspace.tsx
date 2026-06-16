@@ -9,7 +9,7 @@ import {
   IconUnderline,
   IconX,
 } from '@tabler/icons-react';
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReadingV2DerivedNumber } from '../../../services/reading-v2/readingV2Numbering.service';
 import {
   readingV2Ids,
@@ -4788,7 +4788,6 @@ export function ReadingV2QuestionGroupCard({
               : 'reading-v2-build-card__section'}
             aria-label="Instructions"
           >
-            <h4>Instructions</h4>
             {taskGroup.instructionBlocks.map((block, blockIndex) => (
               <div className="reading-v2-build-card__instruction-row" key={block.id}>
                 <label className="reading-v2-build-card__instruction-field">
@@ -4901,6 +4900,8 @@ export function ReadingV2BuildWorkspace({
   const [passageFocusRequest, setPassageFocusRequest] = useState(0);
   const [reviewIssuesOpen, setReviewIssuesOpen] = useState(false);
   const [focusedIssueQuestion, setFocusedIssueQuestion] = useState<number | null>(null);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(metadata.title);
   const selectedPassage = passageSlots.find((passage) => passage.passageNumber === selectedPassageNumber)
     ?? passageSlots[0];
   const numberByInteractionId = useMemo(
@@ -5075,10 +5076,39 @@ export function ReadingV2BuildWorkspace({
     onMetadataChange({ ...metadata, visibility });
   };
 
+  const startTitleEdit = () => {
+    setDraftTitle(metadata.title);
+    setTitleEditing(true);
+  };
+
+  const commitTitleEdit = () => {
+    onMetadataChange({ ...metadata, title: draftTitle.trim() });
+    setTitleEditing(false);
+  };
+
+  const cancelTitleEdit = () => {
+    setDraftTitle(metadata.title);
+    setTitleEditing(false);
+  };
+
+  const handleTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitTitleEdit();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelTitleEdit();
+    }
+  };
+
   const passageVisibility = metadata.visibility === 'public' || metadata.visibility === 'library-eligible'
     ? 'public'
     : 'private';
-  const showPassageVisibilityControl = metadata.materialKind === 'reading-passage';
+  const showVisibilityControl = metadata.materialKind === 'reading-passage' || metadata.materialKind === 'full-test';
+  const visibilityControlLabel = metadata.materialKind === 'reading-passage'
+    ? 'Reading Passage visibility'
+    : 'Master test visibility';
 
   function scrollQuestionIntoView(questionNumber: number) {
     if (typeof window === 'undefined' || !window.document) {
@@ -5296,10 +5326,12 @@ export function ReadingV2BuildWorkspace({
               <button
                 className="reading-v2-build__passage-tab"
                 type="button"
+                aria-label={`Passage ${passage.passageNumber}`}
                 aria-pressed={passage.passageNumber === selectedPassageNumber}
                 onClick={() => onSelectPassage(passage.passageNumber)}
               >
-                Passage {passage.passageNumber}
+                <span className="reading-v2-build__passage-tab-label-full">Passage {passage.passageNumber}</span>
+                <span className="reading-v2-build__passage-tab-label-short" aria-hidden="true">{passage.passageNumber}</span>
               </button>
               {onRemovePassage ? (
                 <button
@@ -5318,9 +5350,14 @@ export function ReadingV2BuildWorkspace({
         })}
       </div>
       {onAddPassage ? (
-        <button className="reading-v2-build__passage-add" type="button" onClick={onAddPassage}>
+        <button
+          className="reading-v2-build__passage-add"
+          type="button"
+          aria-label="Add Passage"
+          title="Add Passage"
+          onClick={onAddPassage}
+        >
           <IconPlus aria-hidden="true" size={16} stroke={1.9} />
-          Add Passage
         </button>
       ) : null}
     </nav>
@@ -5331,7 +5368,19 @@ export function ReadingV2BuildWorkspace({
       <header className="reading-v2-build__topbar">
         <div className="reading-v2-build__identity">
           <p>IELTS Reading V2: Build Test</p>
-          <h1 title={title}>{title}</h1>
+          {titleEditing ? (
+            <input
+              aria-label="Test title"
+              autoFocus
+              className="reading-v2-build__title-input"
+              value={draftTitle}
+              onBlur={commitTitleEdit}
+              onChange={(event) => setDraftTitle(event.currentTarget.value)}
+              onKeyDown={handleTitleKeyDown}
+            />
+          ) : (
+            <h1 title={title} onDoubleClick={startTitleEdit}>{title}</h1>
+          )}
         </div>
         <div className="reading-v2-build__state-row" aria-label="Build status">
           <p className="reading-v2-studio__sr-only" role="status" aria-live="polite">
@@ -5596,9 +5645,9 @@ export function ReadingV2BuildWorkspace({
               <p>{selectedPassageTaskGroups.length} group{selectedPassageTaskGroups.length === 1 ? '' : 's'} in this passage, {allTaskGroups.length} total.</p>
             </div>
             <div className="reading-v2-build__question-actions">
-              {showPassageVisibilityControl ? (
+              {showVisibilityControl ? (
                 <fieldset className="reading-v2-build__visibility-control">
-                  <legend className="reading-v2-studio__sr-only">Reading Passage visibility</legend>
+                  <legend className="reading-v2-studio__sr-only">{visibilityControlLabel}</legend>
                   <button
                     type="button"
                     className="reading-v2-build__visibility-option"

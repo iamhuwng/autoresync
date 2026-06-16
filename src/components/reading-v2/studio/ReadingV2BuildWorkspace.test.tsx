@@ -58,6 +58,7 @@ const renderWorkspace = (
     readonly layoutHint?: string;
     readonly validationMessages?: readonly ReadingV2BuildValidationMessage[];
     readonly metadata?: ReadingV2StudioMetadata;
+    readonly onAddPassage?: () => void;
   } = {},
 ) => {
   let document = createReadingV2CanonicalFixture(taskType);
@@ -180,7 +181,7 @@ const renderWorkspace = (
   const onReviewIssuesAction = vi.fn();
   const onMetadataChange = vi.fn();
 
-  render(
+  const renderResult = render(
     <ReadingV2BuildWorkspace
       document={document}
       metadata={options.metadata ?? metadata}
@@ -203,6 +204,7 @@ const renderWorkspace = (
       onPublish={vi.fn()}
       onExit={vi.fn()}
       onSelectPassage={vi.fn()}
+      onAddPassage={options.onAddPassage}
       onMetadataChange={onMetadataChange}
       onPassageTitleChange={vi.fn()}
       onPassageTextChange={onPassageTextChange}
@@ -226,6 +228,7 @@ const renderWorkspace = (
   );
 
   return {
+    container: renderResult.container,
     document,
     taskGroup,
     onInteractionChange,
@@ -243,6 +246,35 @@ const renderWorkspace = (
 };
 
 describe('ReadingV2BuildWorkspace task-type editors', () => {
+  it('renders Add Passage as an icon-only control with an accessible name', () => {
+    renderWorkspace('summary-completion-text', {
+      onAddPassage: vi.fn(),
+    });
+
+    const addPassageButton = screen.getByRole('button', { name: 'Add Passage' });
+
+    expect(addPassageButton).toHaveAttribute('aria-label', 'Add Passage');
+    expect(addPassageButton.textContent?.trim()).toBe('');
+    expect(addPassageButton.querySelector('svg')).toBeTruthy();
+  });
+
+  it('keeps numeric passage tab labels available for constrained layouts', () => {
+    const { container } = renderWorkspace('summary-completion-text');
+
+    const firstTab = screen.getByRole('button', { name: 'Passage 1' });
+
+    expect(firstTab.querySelector('.reading-v2-build__passage-tab-label-full')).toHaveTextContent('Passage 1');
+    expect(firstTab.querySelector('.reading-v2-build__passage-tab-label-short')).toHaveTextContent('1');
+    expect(container.querySelector('.reading-v2-build__passage-tab-list')).toBeInTheDocument();
+  });
+
+  it('does not render the redundant Instructions heading inside question cards', () => {
+    renderWorkspace('summary-completion-text');
+
+    expect(screen.queryByRole('heading', { name: 'Instructions' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Summary Completion: words from passage instruction 1')).toBeInTheDocument();
+  });
+
   it('exposes public and private visibility beside Add Question Group for passage materials', () => {
     const { onMetadataChange } = renderWorkspace('summary-completion-text', {
       metadata: {
