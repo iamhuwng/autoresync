@@ -1457,6 +1457,130 @@ describe('readingV2ImportNormalization.service', () => {
     expect(passageText).not.toContain('Provider-added note');
   });
 
+  it('keeps structured passage titles out of the editable passage body', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'The Story of Silk',
+            passages: [
+              {
+                title: 'The Story of Silk',
+                content: [
+                  'The Story of Silk',
+                  '',
+                  'Archaeologists found woven silk fragments near the river settlement.',
+                  '',
+                  'The discovery changed how researchers dated early trade routes.',
+                ].join('\n'),
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'true-false-not-given',
+                questionRange: { start: 1, end: 1 },
+                text: 'Do the following statements agree with the information given in Reading Passage 1?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'true-false-not-given',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'Silk fragments were found near a river settlement.',
+                answer: 'TRUE',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({ text: structuredPayload });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const section = result.document.sections[result.document.sectionIds[0]!]!;
+    const stimulus = result.document.stimuli[section.stimulusIds[0]!]!;
+    const passageText = stimulus.content.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(stimulus.title).toBe('The Story of Silk');
+    expect(passageText).not.toContain('The Story of Silk');
+    expect(passageText).toContain('Archaeologists found woven silk fragments');
+  });
+
+  it('keeps Auto V4 source passage titles out of the editable passage body', () => {
+    const sourceRawText = [
+      '### READING PASSAGE 1',
+      'You should spend about 20 minutes on Questions 1-1.',
+      'The Lost City',
+      '',
+      'Researchers mapped the buried streets with radar before the excavation began.',
+      '',
+      'The survey helped the team protect fragile buildings from heavy machinery.',
+      '',
+      'Questions 1-1',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '1 Researchers used radar before excavating.',
+      '',
+      'Answers',
+      '1 TRUE',
+    ].join('\n');
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [
+          {
+            passageNumber: 1,
+            title: 'The Lost City',
+            passages: [
+              {
+                title: 'The Lost City',
+                content: 'Provider passage text should be replaced by source-backed text.',
+              },
+            ],
+            sectionInstructions: [
+              {
+                id: 'p1-q1',
+                taskType: 'true-false-not-given',
+                questionRange: { start: 1, end: 1 },
+                text: 'Do the following statements agree with the information given in Reading Passage 1?',
+              },
+            ],
+            questions: [
+              {
+                questionNumber: 1,
+                type: 'true-false-not-given',
+                sectionInstructionId: 'p1-q1',
+                questionText: 'Researchers used radar before excavating.',
+                answer: 'TRUE',
+              },
+            ],
+          },
+        ],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const candidate = {
+      ...createReadingV2ImportCandidateFromText({ text: structuredPayload, sourceKind: 'auto-gemini' }),
+      sourceRawText,
+    };
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const section = result.document.sections[result.document.sectionIds[0]!]!;
+    const stimulus = result.document.stimuli[section.stimulusIds[0]!]!;
+    const passageText = stimulus.content.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(stimulus.title).toBe('The Lost City');
+    expect(passageText).not.toContain('The Lost City');
+    expect(passageText).toContain('Researchers mapped the buried streets with radar');
+    expect(passageText).not.toContain('Provider passage text');
+  });
+
   it('keeps sentence-completion word-limit tags out of the sentence text', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,

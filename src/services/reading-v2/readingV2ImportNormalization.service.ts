@@ -534,6 +534,22 @@ const passageTitle = (text: string, fallback: string): string => {
   return match?.[1] ? cleanMarkdown(match[1]) : fallback;
 };
 
+const passageTitleComparisonText = (value: string | undefined): string =>
+  cleanMarkdown((value ?? '').replace(/^#{1,6}\s+/, '')).toLowerCase();
+
+const isSamePassageTitleText = (value: string | undefined, title: string | undefined): boolean => {
+  const titleText = passageTitleComparisonText(title);
+  return titleText.length > 0 && passageTitleComparisonText(value) === titleText;
+};
+
+const stripLeadingPassageTitleParagraph = (
+  paragraphs: readonly string[],
+  title: string,
+): readonly string[] =>
+  paragraphs[0] && isSamePassageTitleText(paragraphs[0], title)
+    ? paragraphs.slice(1)
+    : paragraphs;
+
 const passageParagraphs = (passageBlock: string): readonly string[] => {
   const beforeQuestions = passageBlock.split(/\n#### Questions/i)[0] ?? passageBlock;
 
@@ -1113,6 +1129,16 @@ type NormalizedStructuredPassageBlock = Pick<
   'blockKind' | 'headingLevel' | 'itemId' | 'label' | 'listKind' | 'text'
 >;
 
+const FALLBACK_PASSAGE_REVIEW_TEXT = 'Imported passage text requires teacher review before publish.';
+
+const stripLeadingStructuredPassageTitleBlock = (
+  blocks: readonly NormalizedStructuredPassageBlock[],
+  title: string,
+): readonly NormalizedStructuredPassageBlock[] =>
+  blocks[0] && isSamePassageTitleText(blocks[0].text, title)
+    ? blocks.slice(1)
+    : blocks;
+
 const passageHeadingLevel = (value: number | undefined): 1 | 2 | 3 => {
   if (value === 1 || value === 2 || value === 3) {
     return value;
@@ -1272,7 +1298,7 @@ const structuredPassageBlocks = (
     ? blocks
     : [{
         blockKind: 'paragraph',
-        text: 'Imported passage text requires teacher review before publish.',
+        text: FALLBACK_PASSAGE_REVIEW_TEXT,
       }];
 };
 
@@ -2933,12 +2959,16 @@ const normalizeStructuredReadingPayload = (
     const stimulusId = readingV2Ids.stimulusId(`${idStem}-stimulus-${passageNumber}`);
     const passage = material.passages?.[0];
     const passageTitleText = cleanMarkdown(passage?.title ?? material.title ?? `Reading passage ${passageNumber}`);
-    const passageBlocks = structuredPassageBlocks(
+    const sourcePassageBlocks = structuredPassageBlocks(
       passage,
       sourceBackedStructuredPassageContent(candidate, passageNumber),
     );
+    const passageBlocks = stripLeadingStructuredPassageTitleBlock(sourcePassageBlocks, passageTitleText);
+    const visiblePassageBlocks = passageBlocks.length > 0
+      ? passageBlocks
+      : [{ blockKind: 'paragraph' as const, text: FALLBACK_PASSAGE_REVIEW_TEXT }];
     const passageMedia = structuredPassageMedia(passage);
-    const anchorIds = passageBlocks.map((_, paragraphIndex) =>
+    const anchorIds = visiblePassageBlocks.map((_, paragraphIndex) =>
       readingV2Ids.anchorId(`${idStem}-p${passageNumber}-${paragraphIndex + 1}`),
     );
     const mediaStimulusIds = passageMedia.map((_, mediaIndex) =>
@@ -2960,7 +2990,7 @@ const normalizeStructuredReadingPayload = (
       title: passageTitleText,
       content: {
         kind: 'passage-content',
-        paragraphs: passageBlocks.map((block, paragraphIndex) =>
+        paragraphs: visiblePassageBlocks.map((block, paragraphIndex) =>
           withoutUndefined({
             anchorId: anchorIds[paragraphIndex],
             label: block.label,
@@ -3476,10 +3506,10 @@ export const normalizeReadingV2ImportCandidate = (
     const passageStem = slug(`${idStem}-passage-${passageNumber}-${title}`);
     const sectionId = readingV2Ids.sectionId(`${idStem}-section-${passageNumber}`);
     const stimulusId = readingV2Ids.stimulusId(`${passageStem}-stimulus`);
-    const paragraphs = passageParagraphs(plainPassage.text);
+    const paragraphs = stripLeadingPassageTitleParagraph(passageParagraphs(plainPassage.text), title);
     const paragraphTexts = paragraphs.length > 0
       ? paragraphs
-      : ['Imported passage text requires teacher review before publish.'];
+      : [FALLBACK_PASSAGE_REVIEW_TEXT];
     const anchorIds = paragraphTexts.map((_, index) =>
       readingV2Ids.anchorId(`${passageStem}-p${index + 1}`),
     );
