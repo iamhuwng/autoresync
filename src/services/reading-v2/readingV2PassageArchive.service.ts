@@ -341,6 +341,7 @@ export const archiveReadingV2PassageMaterial = async (
     ? []
     : listMaterialCatalogIndexPaths(toIndexSummary(input.passage))
       .map((path) => ({ path, value: null }));
+  const legacyTestBridgeCleanupWrite = { path: `tests/${materialId}`, value: null };
   const duplicateIndexWrite = await buildDuplicateIndexStateWrite({
     read,
     ownerId: input.passage.ownerId,
@@ -355,6 +356,7 @@ export const archiveReadingV2PassageMaterial = async (
   const updatePayload = toUpdatePayload([
     ...writes,
     ...cleanupWrites,
+    legacyTestBridgeCleanupWrite,
     ...(duplicateIndexWrite ? [duplicateIndexWrite] : []),
     auditWrite,
   ]);

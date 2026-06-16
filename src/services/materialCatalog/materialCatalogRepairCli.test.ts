@@ -56,6 +56,24 @@ describe('material-catalog-repair script helpers', () => {
           document: { shouldNotHydrate: true },
           answerKey: { shouldNotHydrate: true },
         },
+        'archived-passage': {
+          materialId: 'archived-passage',
+          ownerId: 'teacher-1',
+          title: 'Archived Passage',
+          visibility: 'library-eligible',
+          materialKind: 'reading-passage',
+          state: 'archived',
+          updatedAt: '2026-06-02T00:00:00.000Z',
+        },
+        'removed-test': {
+          materialId: 'removed-test',
+          ownerId: 'teacher-1',
+          title: 'Removed Test',
+          visibility: 'library-eligible',
+          materialKind: 'full-test',
+          state: 'removed',
+          updatedAt: '2026-06-02T00:00:00.000Z',
+        },
       },
       materialIndexes: {
         by_owner: {

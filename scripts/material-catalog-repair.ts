@@ -195,6 +195,9 @@ const toTestTypeIds = (value: JsonRecord): MaterialTestTypeId[] =>
 const normalizeMaterialCatalogVisibility = (visibility: string): 'private' | 'public' =>
   visibility === 'public' || visibility === 'library-eligible' ? 'public' : 'private';
 
+const isInactiveMaterialMetadataState = (state: string | undefined): boolean =>
+  state === 'archived' || state === 'removed';
+
 const materialSummaryFromMetadata = (value: unknown) => {
   if (!isRecord(value)) {
     return null;
@@ -205,7 +208,12 @@ const materialSummaryFromMetadata = (value: unknown) => {
   const title = getString(value, 'title');
   const visibility = getString(value, 'visibility');
   const materialKind = getString(value, 'materialKind');
+  const state = getString(value, 'state');
   const updatedAt = getString(value, 'updatedAt') ?? getString(value, 'publishedAt');
+
+  if (isInactiveMaterialMetadataState(state)) {
+    return null;
+  }
 
   if (!materialId || !ownerId || !title || !visibility || !isMaterialKind(materialKind) || !updatedAt) {
     return null;

@@ -130,6 +130,7 @@ describe('readingV2PassageArchive.service', () => {
         materialId: 'passage-1',
         archivedAt: '2026-06-02T00:00:00.000Z',
       }),
+      'tests/passage-1': null,
       'material_catalog/material_indexes/by_owner/teacher-1/passage-1': null,
     }));
     expect(Object.keys(repo.updates[0] ?? {})).toEqual(expect.arrayContaining([
