@@ -66,6 +66,7 @@ interface ContentResolution {
     materialTitle: string;
     materialType: 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     materialSkill: 'reading' | 'listening' | 'writing' | 'speaking';
+    studentSafeProjection?: Record<string, unknown>;
     readingPassageSnapshot?: Record<string, unknown>;
     readingPassageSet?: Record<string, unknown>;
     readingV2FullTest?: {
@@ -588,6 +589,26 @@ function kindMatchesRecord(kind: HomeworkContentKind, record: Record<string, any
     return false;
 }
 
+function buildStudentSafeWritingProjection(record: Record<string, any>): Record<string, unknown> {
+    const tasks = Array.isArray(record.tasks)
+        ? record.tasks.map((task) => {
+            if (!isRecord(task)) {
+                return task;
+            }
+
+            const { modelAnswer, rubricNotes, ...studentTask } = task;
+            void modelAnswer;
+            void rubricNotes;
+            return studentTask;
+        })
+        : record.tasks;
+
+    return stripUndefined({
+        ...record,
+        tasks,
+    });
+}
+
 function requiresLegacyStudentSafeProjection(kind: HomeworkContentKind): boolean {
     return kind === 'ielts_reading' || kind === 'ielts_listening';
 }
@@ -663,6 +684,9 @@ async function resolveStandardTestContent(
         materialTitle: title,
         materialType: contentRef.contentKind === 'thcs_test' ? 'thcs-test' : 'test',
         materialSkill: skillForKind(contentRef.contentKind),
+        studentSafeProjection: contentRef.contentKind === 'ielts_writing'
+            ? buildStudentSafeWritingProjection(record)
+            : undefined,
     };
 }
 
@@ -1017,6 +1041,15 @@ export async function handleCreateHomeworkAssignment(
 
         if (readingV2Assignment) {
             await writeRtdb(env, accessToken, readingV2Assignment.payload.path, readingV2Assignment.payload.projection);
+        }
+
+        if (content.studentSafeProjection) {
+            await writeRtdb(
+                env,
+                accessToken,
+                'student_safe_tests/' + content.contentRef.contentId,
+                content.studentSafeProjection,
+            );
         }
 
         await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);

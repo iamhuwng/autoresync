@@ -292,7 +292,7 @@ describe('StudentPracticePage', () => {
   ) => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {
-        if (target.path === `tests/${materialId}`) {
+        if (target.path === `student_safe_tests/${materialId}`) {
           return {
             id: materialId,
             testType,
@@ -312,7 +312,7 @@ describe('StudentPracticePage', () => {
 
         return null;
       },
-      exists: () => target.path === `tests/${materialId}`,
+      exists: () => target.path === `student_safe_tests/${materialId}`,
     }));
     getHomeworkByIdMock.mockResolvedValue({
       id: 'hw-worker-1',
@@ -368,7 +368,85 @@ describe('StudentPracticePage', () => {
     });
 
     expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
-    expect(refMock).toHaveBeenCalledWith({}, `tests/${materialId}`);
+    expect(refMock).toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+  });
+
+  it('launches private Worker-created IELTS Writing homework from its student-safe projection', async () => {
+    const materialId = 'ielts-writing-private-1';
+    getMock.mockImplementation(async (target: { path: string }) => {
+      if (target.path === `tests/${materialId}`) {
+        throw new Error('Permission denied');
+      }
+
+      if (target.path === `student_safe_tests/${materialId}`) {
+        return {
+          val: () => ({
+            id: materialId,
+            testType: 'IELTS',
+            skill: 'Writing',
+            metadata: { title: 'Private Writing' },
+            tasks: [{ taskNumber: 2, promptText: 'Discuss both views.' }],
+          }),
+          exists: () => true,
+        };
+      }
+
+      return {
+        val: () => null,
+        exists: () => false,
+      };
+    });
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-private-writing',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: 'Private Writing',
+      materialType: 'test',
+      materialSkill: 'writing',
+      contentRef: {
+        contentKind: 'ielts_writing',
+        contentId: materialId,
+        title: 'Private Writing',
+      },
+      config: {
+        timerMinutes: null,
+        maxAttempts: null,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-private-writing',
+      studentId: 'student-1',
+      homeworkId: 'hw-private-writing',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: `/student/practice/${materialId}`,
+          state: {
+            isHomework: true,
+            homeworkId: 'hw-private-writing',
+            submissionId: 'submission-private-writing',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('writing-practice-view')).toBeInTheDocument();
+    });
+
+    expect(refMock).toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+    expect(refMock).not.toHaveBeenCalledWith({}, `tests/${materialId}`);
   });
 
   it('rehydrates writing homework context from canonical homework and submission records', async () => {

@@ -146,6 +146,13 @@ const inferIeltsSkillFromMaterialId = (materialId: string): CanonicalIeltsSkill 
     return null;
 };
 
+const STUDENT_SAFE_STANDARD_HOMEWORK_KINDS = new Set([
+    'thcs_test',
+    'ielts_reading',
+    'ielts_listening',
+    'ielts_writing',
+]);
+
 const getReadingV2LaunchSurface = (locationState: PracticeLocationState): ReadingV2LaunchSurface => {
     if (locationState.isHomework) {
         return 'homework';
@@ -372,8 +379,20 @@ const StudentPracticePageContent: React.FC = () => {
                     return;
                 }
 
-                const launchTestSnap = await get(ref(database, `tests/${materialId}`));
+                const normalizedHomeworkKind = homeworkForLaunch?.contentRef?.contentKind;
+                const usesStudentSafeHomeworkProjection = Boolean(
+                    normalizedHomeworkKind
+                    && STUDENT_SAFE_STANDARD_HOMEWORK_KINDS.has(normalizedHomeworkKind),
+                );
+                const launchTestPath = usesStudentSafeHomeworkProjection
+                    ? `student_safe_tests/${materialId}`
+                    : `tests/${materialId}`;
+                const launchTestSnap = await get(ref(database, launchTestPath));
                 const launchTestData = launchTestSnap.exists() ? launchTestSnap.val() : null;
+
+                if (usesStudentSafeHomeworkProjection && !launchTestData) {
+                    throw new Error(`Student-safe homework projection not found for ${materialId}`);
+                }
 
                 if (isExplicitReadingV2Launch(launchTestData)) {
                     const launchSurface = getReadingV2LaunchSurface(locationState);

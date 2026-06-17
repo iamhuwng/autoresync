@@ -397,6 +397,39 @@ describe('homework assignment Worker route', () => {
         expect(contentRefFields.contentId.stringValue).toBe(contentRef.contentId);
     });
 
+    it('writes a student-safe IELTS Writing projection without teacher-only feedback fields', async () => {
+        const record = {
+            ...makeTestRecord({ id: 'ielts-writing-1', skill: 'Writing', title: 'IELTS Writing' }),
+            tasks: [{
+                taskNumber: 2,
+                promptText: 'Discuss both views.',
+                modelAnswer: 'Teacher model answer',
+                rubricNotes: { TA: 'Teacher-only note' },
+            }],
+        };
+        const records = recordsForTestContent(record);
+        const { rtdbWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_writing', contentId: 'ielts-writing-1' },
+        })), env);
+
+        expect(response.status).toBe(201);
+        expect(rtdbWrites).toContainEqual({
+            path: 'student_safe_tests/ielts-writing-1',
+            body: expect.objectContaining({
+                id: 'ielts-writing-1',
+                skill: 'Writing',
+                tasks: [{
+                    taskNumber: 2,
+                    promptText: 'Discuss both views.',
+                }],
+            }),
+        });
+        expect(JSON.stringify(rtdbWrites)).not.toContain('Teacher model answer');
+        expect(JSON.stringify(rtdbWrites)).not.toContain('Teacher-only note');
+    });
+
     it('accepts Reading Passage content only when snapshot and student-safe projection exist', async () => {
         const records = new Map<string, unknown>([
             ['users/teacher-1', { role: 'teacher' }],
