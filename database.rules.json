@@ -470,6 +470,23 @@
             ".read": "auth != null",
             ".write": "auth != null"
         },
+        "homework_student_safe_tests": {
+            "$homeworkId": {
+                ".read": "auth != null && (data.child('teacherId').val() === auth.uid || root.child('homework_student_safe_test_access').child($homeworkId).child(auth.uid).val() === true || (data.child('targetType').val() === 'class' && root.child('classes').child(data.child('classId').val()).child('students').child(auth.uid).exists()) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".validate": "!newData.exists() || (newData.child('teacherId').isString() && (newData.child('targetType').val() === 'students' || (newData.child('targetType').val() === 'class' && newData.child('classId').isString())) && !newData.child('answerKeys').exists() && !newData.child('modelAnswer').exists() && !newData.child('rubricNotes').exists())"
+            }
+        },
+        "homework_student_safe_test_access": {
+            "$homeworkId": {
+                ".read": "auth != null && (root.child('homework_student_safe_tests').child($homeworkId).child('teacherId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                "$uid": {
+                    ".read": "$uid === auth.uid || root.child('homework_student_safe_tests').child($homeworkId).child('teacherId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                    ".validate": "newData.val() === true || !newData.exists()"
+                }
+            }
+        },
         "quizzes": {
             ".read": "auth != null",
             ".write": "auth != null",

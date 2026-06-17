@@ -36,7 +36,7 @@ const HOMEWORK_COLLECTION = 'homework_assignments';
 /**
  * Input data for creating homework
  */
-interface CreateHomeworkInput {
+export interface CreateHomeworkInput {
     materialId: string;
     materialTitle: string;
     materialType?: HomeworkMaterialType;

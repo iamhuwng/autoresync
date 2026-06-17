@@ -100,6 +100,9 @@ export interface ReadingV2MaterialMetadata {
   readonly sourceQuestionRange?: string;
   readonly sourceTitleSnapshot?: string;
   readonly publishedSnapshotVersionId?: string;
+  readonly hasBrokenRefs?: boolean;
+  readonly brokenRefCount?: number;
+  readonly brokenRefReasons?: readonly string[];
   readonly publishedAt?: string;
   readonly archivedAt?: string;
   readonly archivedBy?: string;

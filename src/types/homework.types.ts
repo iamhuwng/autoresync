@@ -177,6 +177,19 @@ export type HomeworkMaterialType = 'quiz' | 'test' | 'thcs-test' | 'reading-pass
 
 export type HomeworkMaterialSkill = 'reading' | 'listening' | 'writing' | 'speaking';
 
+export interface HomeworkContentRef {
+    contentKind:
+        | 'thcs_test'
+        | 'reading_passage'
+        | 'ielts_reading'
+        | 'ielts_listening'
+        | 'ielts_writing';
+    contentId: string;
+    version?: string;
+    title?: string;
+    source?: string;
+}
+
 export interface ReadingPassageHomeworkSnapshot {
     passageMaterialId: string;
     snapshotVersionId: string;
@@ -229,6 +242,9 @@ export interface HomeworkAssignment {
     /** Material skill type */
     materialSkill: HomeworkMaterialSkill;
 
+    /** Normalized canonical content reference for Worker-created assignments. */
+    contentRef?: HomeworkContentRef;
+
     /** Reading Passage assignment-time snapshot. Only set for materialType === 'reading-passage'. */
     readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
 
@@ -237,6 +253,9 @@ export interface HomeworkAssignment {
 
     /** Frozen Reading V2 composed assignment projection path for composition-backed Reading Passage sets. */
     readingV2AssignmentPayloadPath?: string;
+
+    /** Homework-scoped student-safe payload for Worker-created private standard tests. */
+    studentSafeTestPayloadPath?: string;
 
     // ========== Target ==========
     /** Who should complete this homework */

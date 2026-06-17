@@ -10,6 +10,7 @@ import {
   UseAsIsIcon,
   ViewIcon,
 } from './icons.jsx';
+import TeacherLobbyAssignmentAction from './TeacherLobbyAssignmentAction';
 import './MaterialListRow.css';
 
 const ICONS = {
@@ -66,6 +67,10 @@ const MaterialListRow = ({ row }) => {
   };
 
   const renderActionButton = (item) => {
+    if (item.key === 'assign-homework') {
+      return <TeacherLobbyAssignmentAction key={item.key} action={item} />;
+    }
+
     const ActionIcon = ICONS[item.iconKind] || null;
     return (
       <button

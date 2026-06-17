@@ -5,7 +5,7 @@ import { HomeworkTagChips } from './HomeworkTagChips';
 import { StudentGroupSelector } from './StudentGroupSelector';
 import { AntiCheatConfigSection } from './AntiCheatConfigSection';
 import { useHomeworkTags } from '../../hooks/useHomeworkTags';
-import { createHomework } from '../../services/homeworkManager';
+import { createHomework, type CreateHomeworkInput } from '../../services/homeworkManager';
 import { createTemplate, getTemplatesByTeacher } from '../../services/homeworkTemplateService';
 import {
     createReadingPassageHomeworkSnapshot,
@@ -14,6 +14,7 @@ import {
 } from '../../services/reading-v2/readingV2PassageHomework.service';
 import type {
     HomeworkConfig,
+    HomeworkContentRef,
     HomeworkMaterialSkill,
     HomeworkMaterialType,
     HomeworkTarget,
@@ -35,6 +36,7 @@ interface HomeworkCreateModalProps {
     onClose: () => void;
     onSuccess: () => void;
     preselectedMaterialId?: string;
+    preselectedMaterial?: Material;
     preselectedMaterialFilter?: 'all' | 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     preselectedTarget?: HomeworkTarget;
     preselectedReadingPassage?: ReadingPassageHomeworkCandidate;
@@ -42,6 +44,8 @@ interface HomeworkCreateModalProps {
         title: string;
         passages: readonly ReadingPassageHomeworkCandidate[];
     };
+    preselectedContentRef?: HomeworkContentRef;
+    createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
 }
 
 type Step = 'material' | 'target' | 'config' | 'review';
@@ -143,10 +147,13 @@ export function HomeworkCreateModal({
     onClose,
     onSuccess,
     preselectedMaterialId,
+    preselectedMaterial,
     preselectedMaterialFilter,
     preselectedTarget,
     preselectedReadingPassage,
     preselectedReadingPassageSet,
+    preselectedContentRef,
+    createHomeworkAssignment,
 }: HomeworkCreateModalProps) {
     const { user } = useAuth();
     const { tags: availableTags } = useHomeworkTags();
@@ -216,7 +223,9 @@ export function HomeworkCreateModal({
         }
     }, [isOpen]);
 
-    const effectivePreselectedMaterialId = preselectedReadingPassage
+    const effectivePreselectedMaterialId = preselectedMaterial
+        ? preselectedMaterial.id
+        : preselectedReadingPassage
         ? preselectedReadingPassage.materialId
         : preselectedReadingPassageSet
             ? READING_PASSAGE_SET_PRESELECTED_ID
@@ -297,6 +306,11 @@ export function HomeworkCreateModal({
 
             if (preselectedReadingPassageSet) {
                 setMaterials([mapReadingPassageSet(preselectedReadingPassageSet)]);
+                return;
+            }
+
+            if (preselectedMaterial) {
+                setMaterials([preselectedMaterial]);
                 return;
             }
 
@@ -425,7 +439,7 @@ export function HomeworkCreateModal({
                     }),
                 };
 
-            await createHomework({
+            const homeworkInput: CreateHomeworkInput = {
                 materialId: selectedMaterial.id,
                 materialTitle: selectedMaterial.title,
                 materialType: selectedMaterial.type,
@@ -440,13 +454,24 @@ export function HomeworkCreateModal({
                 antiCheatConfig,
                 readingPassageSnapshot: selectedMaterial.readingPassageSnapshot,
                 readingPassageSet: selectedMaterial.readingPassageSet,
-            });
+            };
+
+            if (createHomeworkAssignment) {
+                await createHomeworkAssignment({
+                    ...homeworkInput,
+                    contentRef: preselectedContentRef,
+                });
+            } else {
+                await createHomework(homeworkInput);
+            }
 
             onSuccess();
             handleClose();
         } catch (err) {
             console.error('Error creating homework:', err);
-            setError('Failed to create homework. Please try again.');
+            setError(err instanceof Error && err.message
+                ? err.message
+                : 'Failed to create homework. Please try again.');
         } finally {
             setSubmitting(false);
         }

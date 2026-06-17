@@ -50,6 +50,11 @@ import {
 } from '../services/reading-v2/readingV2TeacherComposition.service';
 import { buildReadingV2ExtractedFullTestCompositionId } from '../services/reading-v2/readingV2PassageExtraction.service';
 import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
+import { createHomeworkAssignmentViaWorker } from '../services/homeworkAssignmentClient';
+import {
+  homeworkAssignmentReasonMessage,
+  resolveTeacherLobbyAssignability,
+} from '../services/teacherLobbyAssignability';
 import { ReadingV2MasterEditModal } from '../components/reading-v2/master/ReadingV2MasterEditModal';
 import {
   isTeacherMaterialsVisualFixturesEnabled,
@@ -129,6 +134,39 @@ const collectMaterialTestTypeTokens = (material) => {
   appendTestTypeTokens(tokens, material?.metadata?.testType);
   return tokens;
 };
+
+const homeworkSkillForContentKind = (contentKind) => {
+  if (contentKind === 'ielts_listening') {
+    return 'listening';
+  }
+  if (contentKind === 'ielts_writing') {
+    return 'writing';
+  }
+  return 'reading';
+};
+
+const getTeacherLobbyHomeworkQuestionCount = (item) => {
+  if (Array.isArray(item?.questions)) {
+    return item.questions.length;
+  }
+  if (Array.isArray(item?.sections)) {
+    return item.sections.reduce((sum, section) => sum + (section?.questions?.length || 0), 0);
+  }
+  return Number(item?.questionCount || item?.metadata?.questionCount || 0) || undefined;
+};
+
+const toTeacherLobbyHomeworkMaterial = (item, contentRef) => ({
+  id: contentRef.contentId,
+  title: contentRef.title || item?.metadata?.title || item?.title || 'Untitled material',
+  type: contentRef.contentKind === 'thcs_test' ? 'thcs-test' : 'test',
+  skill: homeworkSkillForContentKind(contentRef.contentKind),
+  questionCount: getTeacherLobbyHomeworkQuestionCount(item),
+  duration: item?.duration || item?.metadata?.duration || item?.durationMinutes,
+  soloConfig: item?.soloConfig,
+  testType: item?.testType,
+  gradeLevel: item?.metadata?.gradeLevel,
+  isPublicLibrary: item?.isPublic === true || item?.isPublicLibrary === true,
+});
 
 const isReadingV2MasterMaterial = (material) => {
   if (!isReadingV2Payload(material)) {
@@ -426,6 +464,7 @@ const TeacherLobbyPage = () => {
     message: null,
   });
   const [readingPassageHomeworkRequest, setReadingPassageHomeworkRequest] = useState(null);
+  const [standardHomeworkRequest, setStandardHomeworkRequest] = useState(null);
   const [readingPassageArchiveRequest, setReadingPassageArchiveRequest] = useState(null);
   const [readingPassageArchiveAcknowledged, setReadingPassageArchiveAcknowledged] = useState(false);
   const [readingPassageRestoreRequest, setReadingPassageRestoreRequest] = useState(null);
@@ -437,7 +476,7 @@ const TeacherLobbyPage = () => {
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
-  const [bookEditorDirty, setBookEditorDirty] = useState(false);
+  const [, setBookEditorDirty] = useState(false);
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
@@ -1424,7 +1463,15 @@ const TeacherLobbyPage = () => {
 
   const handleUseAsIsAssignHW = useCallback((test) => {
     modals.closeUseAsIs();
-    modals.openHwDialog(test);
+    const assignability = resolveTeacherLobbyAssignability(test, { family: 'test' });
+    if (!assignability.assignable || !assignability.contentRef) {
+      toast.error(homeworkAssignmentReasonMessage(assignability.reasonCode));
+      return;
+    }
+    modals.openHwDialog({
+      ...test,
+      _assignmentContentRef: assignability.contentRef,
+    });
   }, [modals.closeUseAsIs, modals.openHwDialog]);
 
   const getReadingPassageId = useCallback((passage) => (
@@ -1464,8 +1511,14 @@ const TeacherLobbyPage = () => {
     );
   }, [getReadingPassageId, navigateTo, trackAction]);
 
-  const handleAssignReadingPassage = useCallback((passage) => {
+  const handleAssignReadingPassage = useCallback((passage, providedAssignability) => {
     const materialId = getReadingPassageId(passage);
+    const assignability = providedAssignability || resolveTeacherLobbyAssignability(passage, { family: 'reading_passage' });
+    if (!assignability.assignable || !assignability.contentRef) {
+      toast.error(homeworkAssignmentReasonMessage(assignability.reasonCode));
+      return;
+    }
+
     trackAction('assignReadingPassageHomework', { materialId, source: 'teacher_materials_reading_passage_row' });
     trackAction('teacher_materials_reading_passage_assigned', {
       materialId,
@@ -1474,6 +1527,7 @@ const TeacherLobbyPage = () => {
     setReadingPassageHomeworkRequest({
       mode: 'single',
       passages: [passage],
+      contentRef: assignability.contentRef,
     });
   }, [getReadingPassageId, trackAction]);
 
@@ -1990,6 +2044,46 @@ const TeacherLobbyPage = () => {
         ? 'Retry create full test'
         : 'Create full test from selected';
 
+  const createTeacherLobbyHomeworkAssignment = useCallback(async (input) => {
+    try {
+      const assignmentId = await createHomeworkAssignmentViaWorker(input);
+      toast.success('Homework assignment created.');
+      return assignmentId;
+    } catch (error) {
+      const reasonCode = error?.reasonCode;
+      toast.error(homeworkAssignmentReasonMessage(reasonCode));
+      throw error;
+    }
+  }, []);
+
+  const handleAssignHomework = useCallback((item, providedAssignability) => {
+    const assignability = providedAssignability || resolveTeacherLobbyAssignability(item, { family: 'test' });
+
+    if (!assignability.assignable || !assignability.contentRef) {
+      toast.error(homeworkAssignmentReasonMessage(assignability.reasonCode));
+      return;
+    }
+
+    trackAction('assignHomework', {
+      materialId: assignability.contentRef.contentId,
+      contentKind: assignability.contentRef.contentKind,
+      source: 'teacher_lobby_test_row',
+    });
+
+    if (assignability.flow === 'thcs') {
+      modals.openHwDialog({
+        ...item,
+        _assignmentContentRef: assignability.contentRef,
+      });
+      return;
+    }
+
+    setStandardHomeworkRequest({
+      material: item,
+      contentRef: assignability.contentRef,
+    });
+  }, [modals, trackAction]);
+
   const handleAssignSelectedReadingPassages = useCallback(() => {
     if (selectedReadingPassages.length === 0) {
       return;
@@ -2118,8 +2212,31 @@ const TeacherLobbyPage = () => {
       preselectedReadingPassage: toReadingPassageHomeworkCandidate(
         readingPassageHomeworkRequest.passages[0],
       ),
+      preselectedContentRef: readingPassageHomeworkRequest.contentRef,
+      createHomeworkAssignment: readingPassageHomeworkRequest.contentRef
+        ? createTeacherLobbyHomeworkAssignment
+        : undefined,
     };
-  }, [readingPassageHomeworkRequest, toReadingPassageHomeworkCandidate]);
+  }, [createTeacherLobbyHomeworkAssignment, readingPassageHomeworkRequest, toReadingPassageHomeworkCandidate]);
+
+  const standardHomeworkModalProps = useMemo(() => {
+    if (!standardHomeworkRequest?.contentRef) {
+      return null;
+    }
+
+    return {
+      preselectedMaterialId: standardHomeworkRequest.contentRef.contentId,
+      preselectedMaterial: toTeacherLobbyHomeworkMaterial(
+        standardHomeworkRequest.material,
+        standardHomeworkRequest.contentRef,
+      ),
+      preselectedMaterialFilter: standardHomeworkRequest.contentRef.contentKind === 'thcs_test'
+        ? 'thcs-test'
+        : 'test',
+      preselectedContentRef: standardHomeworkRequest.contentRef,
+      createHomeworkAssignment: createTeacherLobbyHomeworkAssignment,
+    };
+  }, [createTeacherLobbyHomeworkAssignment, standardHomeworkRequest]);
 
   // ---------- Helpers ----------
   const isOwner = useCallback((item) => {
@@ -2142,7 +2259,7 @@ const TeacherLobbyPage = () => {
       onStartTest: handleStartTest,
       onUseAsIs: modals.openUseAsIs,
       onClone: handleCloneTest,
-      onAssignHw: modals.openHwDialog,
+      onAssignHw: handleAssignHomework,
     },
   }));
   const readingPassageListRows = readingPassageRows.map((passage) => toReadingPassageRowModel(passage, {
@@ -2840,6 +2957,17 @@ const TeacherLobbyPage = () => {
           />
         )}
 
+        {standardHomeworkModalProps && (
+          <HomeworkCreateModal
+            isOpen={Boolean(standardHomeworkRequest)}
+            onClose={() => setStandardHomeworkRequest(null)}
+            onSuccess={() => {
+              setStandardHomeworkRequest(null);
+            }}
+            {...standardHomeworkModalProps}
+          />
+        )}
+
         <CreateBookModal
           opened={createBookModalOpen}
           title="Create Book"
@@ -2910,6 +3038,8 @@ const TeacherLobbyPage = () => {
               testTitle={modals.state.hwDialog.test.metadata?.title || 'Untitled THCS Test'}
               versionKey={modals.state.hwDialog.test._changelog ? Object.keys(modals.state.hwDialog.test._changelog).pop() : undefined}
               testMetadata={modals.state.hwDialog.test.metadata}
+              contentRef={modals.state.hwDialog.test._assignmentContentRef}
+              createHomeworkAssignment={createTeacherLobbyHomeworkAssignment}
             />
           </Suspense>
         )}

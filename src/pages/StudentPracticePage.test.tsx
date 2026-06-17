@@ -276,6 +276,285 @@ describe('StudentPracticePage', () => {
     }));
   });
 
+  it('launches Worker-created THCS homework from the legacy tests path without a student-safe projection', async () => {
+    const materialId = 'thcs-worker-1';
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === `tests/${materialId}`) {
+          return {
+            id: materialId,
+            testType: 'THCS-THPT',
+            skill: 'Reading',
+            metadata: { title: 'THCS Test' },
+          };
+        }
+
+        if (target.path === `student_safe_tests/${materialId}`) {
+          return null;
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return 'THCS-THPT';
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return 'Reading';
+        }
+
+        return null;
+      },
+      exists: () => target.path === `tests/${materialId}`,
+    }));
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-worker-1',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: 'THCS Test',
+      materialType: 'thcs-test',
+      materialSkill: 'reading',
+      contentRef: {
+        contentKind: 'thcs_test',
+        contentId: materialId,
+        title: 'THCS Test',
+      },
+      config: {
+        timerMinutes: 30,
+        maxAttempts: 1,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-worker-1',
+      studentId: 'student-1',
+      homeworkId: 'hw-worker-1',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: `/student/practice/${materialId}`,
+            state: {
+              isHomework: true,
+              homeworkId: 'hw-worker-1',
+              submissionId: 'submission-worker-1',
+              timerMinutes: 30,
+              maxAttempts: 1,
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('thcs-practice-view')).toBeInTheDocument();
+    });
+
+    expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
+    expect(refMock).toHaveBeenCalledWith({}, `tests/${materialId}`);
+    expect(refMock).not.toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+  });
+
+  it.each([
+    ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view', null],
+    ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view', null],
+    ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', 'homework_student_safe_tests/hw-worker-1'],
+    ['legacy IELTS Writing', 'ielts-writing-legacy-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', null],
+  ])('launches Worker-created %s homework through compatibility fields', async (
+    title,
+    materialId,
+    testType,
+    skill,
+    contentKind,
+    materialType,
+    expectedTestId,
+    studentSafeTestPayloadPath,
+  ) => {
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (studentSafeTestPayloadPath && target.path === studentSafeTestPayloadPath) {
+          return {
+            id: materialId,
+            testType,
+            skill,
+            metadata: { title },
+            tasks: [],
+          };
+        }
+
+        if (target.path === `student_safe_tests/${materialId}`) {
+          return {
+            id: materialId,
+            testType,
+            skill,
+            metadata: { title },
+            tasks: skill === 'Writing' ? [] : undefined,
+          };
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return testType;
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return skill;
+        }
+
+        return null;
+      },
+      exists: () => target.path === `student_safe_tests/${materialId}` || target.path === studentSafeTestPayloadPath,
+    }));
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-worker-1',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: title,
+      materialType,
+      materialSkill: String(skill).toLowerCase(),
+      contentRef: {
+        contentKind,
+        contentId: materialId,
+        title,
+      },
+      ...(studentSafeTestPayloadPath ? { studentSafeTestPayloadPath } : {}),
+      config: {
+        timerMinutes: 30,
+        maxAttempts: 1,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-worker-1',
+      studentId: 'student-1',
+      homeworkId: 'hw-worker-1',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: `/student/practice/${materialId}`,
+            state: {
+              isHomework: true,
+              homeworkId: 'hw-worker-1',
+              submissionId: 'submission-worker-1',
+              timerMinutes: 30,
+              maxAttempts: 1,
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId(expectedTestId)).toBeInTheDocument();
+    });
+
+    expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
+    expect(refMock).toHaveBeenCalledWith({}, studentSafeTestPayloadPath || `student_safe_tests/${materialId}`);
+  });
+
+  it('launches private Worker-created IELTS Writing homework from its homework-scoped safe projection', async () => {
+    const materialId = 'ielts-writing-private-1';
+    const studentSafeTestPayloadPath = 'homework_student_safe_tests/hw-private-writing';
+    getMock.mockImplementation(async (target: { path: string }) => {
+      if (target.path === `tests/${materialId}`) {
+        throw new Error('Permission denied');
+      }
+
+      if (target.path === `student_safe_tests/${materialId}`) {
+        throw new Error('Global student_safe_tests must not be used for private Writing homework');
+      }
+
+      if (target.path === studentSafeTestPayloadPath) {
+        return {
+          val: () => ({
+            id: materialId,
+            testType: 'IELTS',
+            skill: 'Writing',
+            metadata: { title: 'Private Writing' },
+            tasks: [{ taskNumber: 2, promptText: 'Discuss both views.' }],
+          }),
+          exists: () => true,
+        };
+      }
+
+      return {
+        val: () => null,
+        exists: () => false,
+      };
+    });
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-private-writing',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: 'Private Writing',
+      materialType: 'test',
+      materialSkill: 'writing',
+      contentRef: {
+        contentKind: 'ielts_writing',
+        contentId: materialId,
+        title: 'Private Writing',
+      },
+      studentSafeTestPayloadPath,
+      config: {
+        timerMinutes: null,
+        maxAttempts: null,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-private-writing',
+      studentId: 'student-1',
+      homeworkId: 'hw-private-writing',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: `/student/practice/${materialId}`,
+          state: {
+            isHomework: true,
+            homeworkId: 'hw-private-writing',
+            submissionId: 'submission-private-writing',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('writing-practice-view')).toBeInTheDocument();
+    });
+
+    expect(refMock).toHaveBeenCalledWith({}, studentSafeTestPayloadPath);
+    expect(refMock).not.toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+    expect(refMock).not.toHaveBeenCalledWith({}, `tests/${materialId}`);
+  });
+
   it('rehydrates writing homework context from canonical homework and submission records', async () => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {

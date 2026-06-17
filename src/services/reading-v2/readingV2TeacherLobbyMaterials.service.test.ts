@@ -94,6 +94,14 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
       questionCount: 2,
       materialKind: 'full-test',
       compositionId: 'composition-material-v2-snapshot-v2',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      passageRefCount: projection.content.sections.length,
+      metadata: expect.objectContaining({
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        passageRefCount: projection.content.sections.length,
+      }),
     });
     expect(ref).toHaveBeenCalledWith({}, 'reading_v2/relationship_indexes/teacher-lobby/');
     expect(orderByChild).toHaveBeenCalledWith('ownerId');

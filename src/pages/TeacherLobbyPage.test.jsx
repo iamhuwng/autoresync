@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   updateBookMetadata: vi.fn(),
   confirm: vi.fn(),
   homeworkModalProps: [],
+  useAsIsTest: null,
+  closeUseAsIs: vi.fn(),
   logDiagnostic: vi.fn(),
   loadedScope: 'owned',
   locationState: null,
@@ -71,6 +73,10 @@ vi.mock('firebase/database', () => ({
 
 vi.mock('../services/firebase', () => ({
   database: {},
+}));
+
+vi.mock('../services/homeworkAssignmentClient', () => ({
+  createHomeworkAssignmentViaWorker: vi.fn(async () => 'homework-worker-1'),
 }));
 
 vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
@@ -142,7 +148,7 @@ vi.mock('../hooks/useModalManager', () => ({
       editThcsTest: { show: false, test: null },
       testCreation: { show: false },
       hwDialog: { show: false, test: null },
-      useAsIs: { show: false, test: null },
+      useAsIs: { show: Boolean(mocks.useAsIsTest), test: mocks.useAsIsTest },
     },
     openEditTest: mocks.openEditTest,
     closeEditTest: vi.fn(),
@@ -151,7 +157,7 @@ vi.mock('../hooks/useModalManager', () => ({
     openTestCreation: mocks.openTestCreation,
     closeTestCreation: vi.fn(),
     openUseAsIs: mocks.openUseAsIs,
-    closeUseAsIs: vi.fn(),
+    closeUseAsIs: mocks.closeUseAsIs,
     openHwDialog: mocks.openHwDialog,
     closeHwDialog: vi.fn(),
   }),
@@ -353,7 +359,13 @@ vi.mock('../components/ClassSelectionModal', () => ({
 }));
 
 vi.mock('../components/UseAsIsModal', () => ({
-  default: () => null,
+  default: ({ test, opened, onAssignHomework }) => (
+    opened ? (
+      <div role="dialog" aria-label="Use Test As-Is">
+        <button type="button" onClick={() => onAssignHomework(test)}>Assign as Homework</button>
+      </div>
+    ) : null
+  ),
 }));
 
 vi.mock('../components/homework/HomeworkCreateModal', () => ({
@@ -425,6 +437,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.locationState = null;
     mocks.dbReads = {};
     mocks.dbWrites = [];
+    mocks.useAsIsTest = null;
     mocks.capabilities = {
       canUseTestTypeBlocks: true,
       canManageAdminTestTypes: true,
@@ -435,6 +448,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     };
     mocks.homeworkModalProps = [];
     mocks.masterModalProps = [];
+    mocks.closeUseAsIs.mockReset();
     mocks.listReadingPassages.mockResolvedValue([]);
     mocks.listTeacherBooks.mockResolvedValue([]);
     mocks.listBookNodes.mockResolvedValue([]);
@@ -442,6 +456,81 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.updateBookMetadata.mockReset();
     mocks.confirm.mockReturnValue(true);
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
+  });
+
+  it('opens standard homework modal for assignable IELTS materials with normalized contentRef', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'ielts-reading-1',
+        title: 'IELTS Reading Practice',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-ielts-reading-1');
+    await user.click(within(row).getByRole('button', { name: 'Assign HW' }));
+
+    expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
+    expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+      preselectedMaterialId: 'ielts-reading-1',
+      preselectedMaterialFilter: 'test',
+      preselectedContentRef: expect.objectContaining({
+        contentKind: 'ielts_reading',
+        contentId: 'ielts-reading-1',
+      }),
+      createHomeworkAssignment: expect.any(Function),
+    }));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'assignHomework',
+      expect.objectContaining({
+        contentKind: 'ielts_reading',
+        materialId: 'ielts-reading-1',
+      }),
+    );
+  });
+
+  it('opens THCS homework dialog with normalized contentRef from Use as-is assignment', async () => {
+    const user = userEvent.setup();
+    mocks.useAsIsTest = {
+      id: 'public-thcs-1',
+      testType: 'THCS-THPT',
+      title: 'Public THCS Practice',
+      metadata: {
+        title: 'Public THCS Practice',
+        gradeLevel: 10,
+      },
+      ownerId: 'teacher-2',
+      isPublic: true,
+      status: 'published',
+      published: true,
+      isComplete: true,
+      questionCount: 20,
+      questions: [{ id: 'q1' }],
+    };
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('button', { name: /Assign as Homework/i }));
+
+    expect(mocks.closeUseAsIs).toHaveBeenCalled();
+    expect(mocks.openHwDialog).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'public-thcs-1',
+      _assignmentContentRef: expect.objectContaining({
+        contentKind: 'thcs_test',
+        contentId: 'public-thcs-1',
+        title: 'Public THCS Practice',
+      }),
+    }));
   });
 
   it('keeps the unified TeacherHeader attached to the page root', () => {

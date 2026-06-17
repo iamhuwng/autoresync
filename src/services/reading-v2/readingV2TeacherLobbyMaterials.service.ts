@@ -34,6 +34,13 @@ export interface ReadingV2TeacherLobbyTestCardRecord {
   readonly materialKind: string;
   readonly productLabel: string;
   readonly publishedSnapshotVersionId?: string;
+  readonly hasStudentSafeProjection: boolean;
+  readonly deliveryProjectionReady: boolean;
+  readonly studentSafeProjectionReady: boolean;
+  readonly passageRefCount: number;
+  readonly hasBrokenRefs?: boolean;
+  readonly brokenRefCount?: number;
+  readonly brokenRefReasons?: readonly string[];
   readonly metadata: {
     readonly title: string;
     readonly compositionId?: string;
@@ -47,6 +54,13 @@ export interface ReadingV2TeacherLobbyTestCardRecord {
     readonly materialKind: string;
     readonly deliveryEngine: typeof READING_V2_ENGINE;
     readonly publishedSnapshotVersionId?: string;
+    readonly hasStudentSafeProjection: boolean;
+    readonly deliveryProjectionReady: boolean;
+    readonly studentSafeProjectionReady: boolean;
+    readonly passageRefCount: number;
+    readonly hasBrokenRefs?: boolean;
+    readonly brokenRefCount?: number;
+    readonly brokenRefReasons?: readonly string[];
   };
 }
 
@@ -73,6 +87,7 @@ const hasReadingV2MetadataShape = (value: unknown): value is ReadingV2MaterialMe
 const createTeacherLobbyCardRecord = (
   metadata: ReadingV2MaterialMetadata,
   summary: ReadingV2LaunchMaterialSummary,
+  projection: ReadingV2DerivedProjection | null,
 ): ReadingV2TeacherLobbyTestCardRecord => ({
   id: metadata.materialId,
   materialId: metadata.materialId,
@@ -90,6 +105,13 @@ const createTeacherLobbyCardRecord = (
   materialKind: metadata.materialKind,
   productLabel: metadata.productLabel,
   publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
+  hasStudentSafeProjection: projection !== null,
+  deliveryProjectionReady: projection !== null,
+  studentSafeProjectionReady: projection !== null,
+  passageRefCount: projection?.content.sections.length ?? 0,
+  hasBrokenRefs: metadata.hasBrokenRefs,
+  brokenRefCount: metadata.brokenRefCount,
+  brokenRefReasons: metadata.brokenRefReasons,
   metadata: {
     title: summary.title,
     compositionId: metadata.compositionId,
@@ -103,6 +125,13 @@ const createTeacherLobbyCardRecord = (
     materialKind: metadata.materialKind,
     deliveryEngine: READING_V2_ENGINE,
     publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
+    hasStudentSafeProjection: projection !== null,
+    deliveryProjectionReady: projection !== null,
+    studentSafeProjectionReady: projection !== null,
+    passageRefCount: projection?.content.sections.length ?? 0,
+    hasBrokenRefs: metadata.hasBrokenRefs,
+    brokenRefCount: metadata.brokenRefCount,
+    brokenRefReasons: metadata.brokenRefReasons,
   },
 });
 
@@ -147,7 +176,7 @@ const readTeacherLobbyMaterial = async (
     projection,
   });
 
-  return createTeacherLobbyCardRecord(metadata, summary);
+  return createTeacherLobbyCardRecord(metadata, summary, projection);
 };
 
 export const getReadingV2TeacherLobbyIndexQuery = (

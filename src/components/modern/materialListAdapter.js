@@ -1,4 +1,8 @@
 import { getMaterialVisuals } from './materialVisualTaxonomy';
+import {
+  HOMEWORK_ASSIGNMENT_REASON_CODES,
+  resolveTeacherLobbyAssignability,
+} from '../../services/teacherLobbyAssignability';
 
 const EMPTY_LABEL = '--';
 
@@ -195,6 +199,7 @@ function action({
   onSelect,
   disabled = false,
   disabledReason,
+  assignability,
   priority = 'primary',
   slot,
 }) {
@@ -206,12 +211,14 @@ function action({
     onSelect,
     disabled,
     disabledReason,
+    assignability,
     priority,
     slot: slot ?? ACTION_SLOT_BY_KEY[key],
   };
 }
 
 function buildPublicActions(item, handlers) {
+  const assignability = resolveTeacherLobbyAssignability(item, { family: 'test' });
   if (item?.testType === 'THCS-THPT') {
     return [
       action({
@@ -228,10 +235,21 @@ function buildPublicActions(item, handlers) {
         iconKind: 'clone',
         onSelect: () => handlers?.onClone?.(item),
       }),
+      ...(assignability.assignable ? [
+        action({
+          key: 'assign-homework',
+          label: 'Assign HW',
+          variant: 'outline',
+          iconKind: 'assign-homework',
+          onSelect: () => handlers?.onAssignHw?.(item, assignability),
+          assignability,
+          priority: 'secondary',
+        }),
+      ] : []),
     ];
   }
 
-  return [
+  const actions = [
     action({
       key: 'view',
       label: 'View',
@@ -249,10 +267,25 @@ function buildPublicActions(item, handlers) {
       }),
     ]),
   ];
+
+  if (assignability.assignable) {
+    actions.push(action({
+      key: 'assign-homework',
+      label: 'Assign HW',
+      variant: 'outline',
+      iconKind: 'assign-homework',
+      onSelect: () => handlers?.onAssignHw?.(item, assignability),
+      assignability,
+      priority: 'secondary',
+    }));
+  }
+
+  return actions;
 }
 
 function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
   const incomplete = item?.isComplete === false;
+  const assignability = resolveTeacherLobbyAssignability(item, { family: 'test' });
   const editLabel = canEdit ? (incomplete ? 'Complete' : 'Edit') : 'View';
   const actions = [
     action({
@@ -284,13 +317,14 @@ function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
     }));
   }
 
-  if (item?.testType === 'THCS-THPT' && !incomplete) {
+  if (assignability.assignable) {
     actions.push(action({
       key: 'assign-homework',
       label: 'Assign HW',
       variant: 'outline',
-      iconKind: 'clone',
-      onSelect: () => handlers?.onAssignHw?.(item),
+      iconKind: 'assign-homework',
+      onSelect: () => handlers?.onAssignHw?.(item, assignability),
+      assignability,
       priority: 'secondary',
     }));
   }
@@ -307,6 +341,8 @@ export function buildTestMaterialListRow(item, options = {}) {
     handlers = {},
   } = options;
 
+  const assignability = resolveTeacherLobbyAssignability(item, { family: 'test' });
+
   return {
     id: String(item?.id || item?.materialId || `material-${index}`),
     source: item,
@@ -321,6 +357,7 @@ export function buildTestMaterialListRow(item, options = {}) {
     statusKind: getStatusKind(item),
     isOwner,
     disabledReason: item?.isComplete === false ? 'Complete the material before starting a session' : undefined,
+    assignability,
     actions: isPublicLibrary
       ? buildPublicActions(item, handlers)
       : buildOwnedActions(item, { canEdit, handlers }),
@@ -537,11 +574,21 @@ function readingPassageActionHandler(key, source, handlers = {}) {
 }
 
 function getReadingPassageAssignmentBlocker(record) {
+  const assignability = resolveTeacherLobbyAssignability(record, { family: 'reading_passage' });
+
+  if (assignability.assignable) {
+    return undefined;
+  }
+
   if (record?.archived === true) {
     return 'Archived Reading Passages cannot be assigned.';
   }
 
-  if (!record?.publishedSnapshotVersionId || record?.hasStudentSafeProjection === false) {
+  if (
+    assignability.reasonCode === HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_UNPUBLISHED ||
+    !record?.publishedSnapshotVersionId ||
+    record?.hasStudentSafeProjection === false
+  ) {
     return 'Publish this passage with a student-safe projection before assignment.';
   }
 
@@ -560,6 +607,7 @@ export function toReadingPassageRowModel(record, options = {}) {
   } = options;
   const title = record?.title || record?.metadata?.title || 'Untitled Reading Passage';
   const rowSource = sanitizeReadingPassageSource(record);
+  const assignability = resolveTeacherLobbyAssignability(rowSource, { family: 'reading_passage' });
   const assignmentBlocker = getReadingPassageAssignmentBlocker(record);
   const actions = normalizeReadingPassageActions(record)
     .map((entry, index) => action({
@@ -570,7 +618,8 @@ export function toReadingPassageRowModel(record, options = {}) {
       onSelect: readingPassageActionHandler(entry.key, rowSource, handlers),
       disabled: entry.key === 'assign-homework' && Boolean(assignmentBlocker),
       disabledReason: entry.key === 'assign-homework' ? assignmentBlocker : undefined,
-      slot: entry.slot ?? index + 1,
+      assignability: entry.key === 'assign-homework' ? assignability : undefined,
+      slot: entry.slot ?? (entry.key === 'assign-homework' ? ACTION_SLOT_BY_KEY['assign-homework'] : index + 1),
     }));
 
   return {
@@ -586,6 +635,7 @@ export function toReadingPassageRowModel(record, options = {}) {
     updatedLabel: getUpdatedLabel(record),
     statusKind: 'reading-passage',
     isOwner: Boolean(record?.isOwner),
+    assignability,
     selection: record?.archived === true || record?.scope === 'archived' || record?.selectable === false ? undefined : {
       checked: selected,
       label: `Select ${title}`,
