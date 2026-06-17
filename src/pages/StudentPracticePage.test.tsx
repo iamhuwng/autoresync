@@ -276,8 +276,94 @@ describe('StudentPracticePage', () => {
     }));
   });
 
+  it('launches Worker-created THCS homework from the legacy tests path without a student-safe projection', async () => {
+    const materialId = 'thcs-worker-1';
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === `tests/${materialId}`) {
+          return {
+            id: materialId,
+            testType: 'THCS-THPT',
+            skill: 'Reading',
+            metadata: { title: 'THCS Test' },
+          };
+        }
+
+        if (target.path === `student_safe_tests/${materialId}`) {
+          return null;
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return 'THCS-THPT';
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return 'Reading';
+        }
+
+        return null;
+      },
+      exists: () => target.path === `tests/${materialId}`,
+    }));
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-worker-1',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: 'THCS Test',
+      materialType: 'thcs-test',
+      materialSkill: 'reading',
+      contentRef: {
+        contentKind: 'thcs_test',
+        contentId: materialId,
+        title: 'THCS Test',
+      },
+      config: {
+        timerMinutes: 30,
+        maxAttempts: 1,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-worker-1',
+      studentId: 'student-1',
+      homeworkId: 'hw-worker-1',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: `/student/practice/${materialId}`,
+            state: {
+              isHomework: true,
+              homeworkId: 'hw-worker-1',
+              submissionId: 'submission-worker-1',
+              timerMinutes: 30,
+              maxAttempts: 1,
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('thcs-practice-view')).toBeInTheDocument();
+    });
+
+    expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
+    expect(refMock).toHaveBeenCalledWith({}, `tests/${materialId}`);
+    expect(refMock).not.toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+  });
+
   it.each([
-    ['THCS Test', 'thcs-worker-1', 'THCS-THPT', 'Reading', 'thcs_test', 'thcs-test', 'thcs-practice-view'],
     ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view'],
     ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view'],
     ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view'],

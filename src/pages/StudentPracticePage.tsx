@@ -147,7 +147,6 @@ const inferIeltsSkillFromMaterialId = (materialId: string): CanonicalIeltsSkill 
 };
 
 const STUDENT_SAFE_STANDARD_HOMEWORK_KINDS = new Set([
-    'thcs_test',
     'ielts_reading',
     'ielts_listening',
     'ielts_writing',

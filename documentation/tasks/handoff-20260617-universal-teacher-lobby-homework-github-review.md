@@ -5,39 +5,35 @@
 - Repo: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 - Branch: `codex/universal-teacher-lobby-homework`
 - Goal: universal Teacher Lobby homework assignment through Worker-backed `POST /api/homework/assignments`
+- Follow-up fix in this commit: THCS homework must launch from legacy `tests/{materialId}`, not `student_safe_tests/{materialId}`.
 
 ## What Changed
 
-- `r2-backup-worker/src/homework/assignments.ts`
-- `r2-backup-worker/src/homework/assignments.test.ts`
 - `src/pages/StudentPracticePage.tsx`
 - `src/pages/StudentPracticePage.test.tsx`
+- `documentation/tasks/handoff-20260617-universal-teacher-lobby-homework-github-review.md`
 
 ## What To Review
 
-1. Worker auth + role gate.
-2. Worker content resolution and rejection reasons.
-3. Worker write of normalized `contentRef` plus compatibility fields.
-4. Student launch path for Worker-created IELTS Writing homework.
-5. Test coverage for the new worker-safe projection path.
+1. `StudentPracticePage.tsx` now excludes `thcs_test` from `STUDENT_SAFE_STANDARD_HOMEWORK_KINDS`.
+2. `StudentPracticePage.test.tsx` now proves Worker-created THCS homework launches from `tests/{materialId}` and does not require `student_safe_tests/{materialId}`.
+3. IELTS Reading, IELTS Listening, and IELTS Writing still launch from `student_safe_tests/{materialId}`.
+4. Reading Passage and Reading V2 launch behavior remains unchanged.
+5. Worker files are intentionally untouched in this fix.
 
-## Live Proof
+## Why This Fix
 
-- Worker deployed from this branch.
-- Deployment URL: `https://r2-backup-worker.iamhuwng.workers.dev`
-- Current Worker version: `4c32276b-5ef9-41bc-9b26-f7265687b1bf`
-- Teacher assignment POST returned `201`.
-- Firestore assignment doc contained normalized `contentRef` and legacy compatibility fields.
-- `student_safe_tests/codex-writing-import-material-1778221459436` existed and did not include teacher-only writing fields.
-- Student launched the created homework at `http://localhost:5174/student/practice/codex-writing-import-material-1778221459436`.
+`thcs_test` is a standard THCS homework kind in the Worker. The Worker does not create or validate a THCS `student_safe_tests/{contentId}` projection, so keeping THCS in the student-safe set made StudentPracticePage probe the wrong path and fail closed. Removing THCS from the projection-backed set preserves existing runtime behavior and avoids introducing a THCS projection contract in this branch.
 
 ## Validation
 
 - `npx vitest run src/pages/StudentPracticePage.test.tsx --reporter=dot`
 - `cd r2-backup-worker && npx vitest run src/homework/assignments.test.ts --reporter=dot`
 - `git diff --check`
+- `npm run check:utf8`
+- `npm run build`
 
 ## Notes
 
-- Existing release checklist lives at `documentation/release-checklists/universal-teacher-lobby-homework.md`.
-- Local untracked design draft `documentation/teacher-lobby-universal-homework.md` was ignored for this review.
+- Remote reviewer should inspect the committed diff on GitHub only; no local filesystem access is required.
+- Existing untracked local draft `documentation/teacher-lobby-universal-homework.md` was left out of this fix.
