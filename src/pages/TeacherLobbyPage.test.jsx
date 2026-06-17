@@ -1749,9 +1749,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         sourceOrderDisplay: 'Passage 1',
         sourceFullTestTitle: 'Source Full Test',
         actions: [
-          { key: 'open', label: 'Open' },
+          { key: 'edit', label: 'Edit' },
           { key: 'assign-homework', label: 'Assign homework' },
-          { key: 'revise', label: 'Revise', ownerOnly: true },
           { key: 'archive', label: 'Archive', ownerOnly: true },
         ],
       },
@@ -1771,7 +1770,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         testTypes: [{ testTypeId: 'toeic', label: 'TOEIC', shortLabel: 'TOEIC', active: true }],
         sourceOrderDisplay: 'Part 2',
         actions: [
-          { key: 'view', label: 'View' },
+          { key: 'clone-reading-passage', label: 'Clone to my library' },
           { key: 'assign-homework', label: 'Assign homework' },
         ],
       },
@@ -1797,7 +1796,13 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(screen.getByRole('button', { name: 'Public' }));
 
-    expect(await screen.findByTestId('material-list-row-passage-public')).toBeInTheDocument();
+    const publicRow = await screen.findByTestId('material-list-row-passage-public');
+    expect(publicRow).toBeInTheDocument();
+    expect(within(publicRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(within(publicRow).queryByRole('button', { name: 'Revise' })).not.toBeInTheDocument();
+    expect(within(publicRow).queryByRole('button', { name: 'View' })).not.toBeInTheDocument();
+    expect(within(publicRow).getByRole('button', { name: 'Clone to my library' })).toBeInTheDocument();
+    expect(within(publicRow).getByRole('button', { name: 'Assign homework' })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'reading-passage');
     expect(mocks.listReadingPassages).toHaveBeenLastCalledWith(expect.objectContaining({
       teacherId: 'teacher-1',
@@ -1809,7 +1814,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   }, 10000);
 
-  it('wires Reading Passage open, revise, remove-from-library confirmation, restore, and single assign actions', async () => {
+  it('wires Reading Passage edit, remove-from-library confirmation, restore, and single assign actions', async () => {
     const user = userEvent.setup();
     mocks.listReadingPassages.mockImplementation(async ({ scope }) => (scope === 'private' ? [
       {
@@ -1832,9 +1837,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         selectable: true,
         testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
         actions: [
-          { key: 'open', label: 'Open' },
+          { key: 'edit', label: 'Edit' },
           { key: 'assign-homework', label: 'Assign homework' },
-          { key: 'revise', label: 'Revise', ownerOnly: true },
           { key: 'archive', label: 'Remove from library', ownerOnly: true },
         ],
       },
@@ -1884,18 +1888,13 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));
     const row = await screen.findByTestId('material-list-row-passage-owner');
 
-    await user.click(within(row).getByRole('button', { name: 'Open' }));
-    expect(mocks.navigateTo).toHaveBeenCalledWith(
-      'TEACHER_READING_V2_REVISE',
-      { materialId: 'passage-owner' },
-      { reason: 'teacher_materials_open_reading_passage' },
-    );
+    expect(within(row).queryByRole('button', { name: 'Revise' })).not.toBeInTheDocument();
 
-    await user.click(within(row).getByRole('button', { name: 'Revise' }));
+    await user.click(within(row).getByRole('button', { name: 'Edit' }));
     expect(mocks.navigateTo).toHaveBeenCalledWith(
       'TEACHER_READING_V2_REVISE',
       { materialId: 'passage-owner' },
-      { reason: 'teacher_materials_revise_reading_passage' },
+      { reason: 'teacher_materials_edit_reading_passage' },
     );
 
     await user.click(within(row).getByRole('button', { name: 'Assign homework' }));

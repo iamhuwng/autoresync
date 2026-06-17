@@ -190,8 +190,8 @@ describe('materialListAdapter', () => {
   it('maps Reading Passage records into list rows with source metadata and owner actions', () => {
     const handlers = {
       onOpenReadingPassage: vi.fn(),
+      onEditReadingPassage: vi.fn(),
       onAssignReadingPassage: vi.fn(),
-      onReviseReadingPassage: vi.fn(),
       onArchiveReadingPassage: vi.fn(),
       onToggleReadingPassageSelection: vi.fn(),
     };
@@ -210,9 +210,8 @@ describe('materialListAdapter', () => {
       sourceQuestionRange: 'Questions 14-26',
       sourceFullTestTitle: 'Cambridge IELTS 18 Test 1',
       actions: [
-        { key: 'open', label: 'Open' },
+        { key: 'edit', label: 'Edit' },
         { key: 'assign-homework', label: 'Assign homework' },
-        { key: 'revise', label: 'Revise', ownerOnly: true },
         { key: 'archive', label: 'Archive', ownerOnly: true },
       ],
     }, {
@@ -242,16 +241,50 @@ describe('materialListAdapter', () => {
       'Questions 14-26',
       '20 min',
     ]);
-    expect(row.actions.map((item) => item.label)).toEqual(['Open', 'Assign homework', 'Revise', 'Remove from library']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
+    expect(row.actions.map((item) => item.label)).toEqual(['Edit', 'Assign homework', 'Remove from library']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
 
     row.selection.onChange();
     row.actions.forEach((item) => item.onSelect());
 
     expect(handlers.onToggleReadingPassageSelection).toHaveBeenCalledWith(row.source);
-    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onEditReadingPassage).toHaveBeenCalledWith(row.source);
     expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
-    expect(handlers.onReviseReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onArchiveReadingPassage).toHaveBeenCalledWith(row.source);
+  });
+
+  it('normalizes legacy owned Reading Passage open and revise actions into one Edit action', () => {
+    const handlers = {
+      onEditReadingPassage: vi.fn(),
+      onAssignReadingPassage: vi.fn(),
+      onArchiveReadingPassage: vi.fn(),
+    };
+    const row = toReadingPassageRowModel({
+      id: 'legacy-owned-passage',
+      materialId: 'legacy-owned-passage',
+      title: 'Legacy Owned Passage',
+      questionCount: 13,
+      visibility: 'private',
+      isOwner: true,
+      actions: [
+        { key: 'open', label: 'Open' },
+        { key: 'assign-homework', label: 'Assign homework' },
+        { key: 'revise', label: 'Revise', ownerOnly: true },
+        { key: 'archive', label: 'Archive', ownerOnly: true },
+      ],
+    }, {
+      handlers,
+    });
+
+    expect(row.actions.map((item) => item.label)).toEqual(['Edit', 'Assign homework', 'Remove from library']);
+    expect(row.actions.map((item) => item.key)).not.toContain('revise');
+    expect(row.actions.map((item) => item.key)).not.toContain('open');
+
+    row.actions.forEach((item) => item.onSelect());
+
+    expect(handlers.onEditReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onEditReadingPassage).toHaveBeenCalledTimes(1);
+    expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
     expect(handlers.onArchiveReadingPassage).toHaveBeenCalledWith(row.source);
   });
 
@@ -316,14 +349,17 @@ describe('materialListAdapter', () => {
     });
 
     expect(row.badges.map((badge) => badge.label)).toContain('Public');
-    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Clone to my library', 'Assign homework']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
+    expect(row.actions.map((item) => item.label)).toEqual(['Clone to my library', 'Assign homework']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2]);
+    expect(row.actions.map((item) => item.label)).not.toContain('View');
+    expect(row.actions.map((item) => item.label)).not.toContain('Edit');
+    expect(row.actions.map((item) => item.label)).not.toContain('Revise');
     expect(row.actions.map((item) => item.label)).not.toContain('Archive');
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
 
     row.actions.forEach((item) => item.onSelect());
 
-    expect(handlers.onOpenReadingPassage).toHaveBeenCalledWith(row.source);
+    expect(handlers.onOpenReadingPassage).not.toHaveBeenCalled();
     expect(handlers.onCloneReadingPassage).toHaveBeenCalledWith(row.source);
     expect(handlers.onAssignReadingPassage).toHaveBeenCalledWith(row.source);
   });
@@ -340,7 +376,7 @@ describe('materialListAdapter', () => {
       hasStudentSafeProjection: false,
       actions: [
         { key: 'assign-homework', label: 'Assign homework' },
-        { key: 'revise', label: 'Revise', ownerOnly: true },
+        { key: 'edit', label: 'Edit', ownerOnly: true },
       ],
     });
 

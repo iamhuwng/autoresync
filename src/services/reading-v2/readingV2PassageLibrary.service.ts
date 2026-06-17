@@ -41,7 +41,7 @@ export interface ReadingV2PassageLibraryReader {
 }
 
 export interface ReadingV2PassageLibraryAction {
-  readonly key: 'open' | 'view' | 'clone-reading-passage' | 'assign-homework' | 'revise' | 'archive' | 'restore';
+  readonly key: 'edit' | 'open' | 'view' | 'clone-reading-passage' | 'assign-homework' | 'revise' | 'archive' | 'restore';
   readonly label: string;
   readonly ownerOnly?: boolean;
 }
@@ -313,13 +313,11 @@ const buildActions = (
     :
   isOwner
     ? [
-        { key: 'open', label: 'Open' },
+        { key: 'edit', label: 'Edit' },
         { key: 'assign-homework', label: 'Assign homework' },
-        { key: 'revise', label: 'Revise', ownerOnly: true },
         { key: 'archive', label: 'Remove from library', ownerOnly: true },
       ]
     : [
-        { key: 'view', label: 'View' },
         { key: 'clone-reading-passage', label: 'Clone to my library' },
         { key: 'assign-homework', label: 'Assign homework' },
       ];

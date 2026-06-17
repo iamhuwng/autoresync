@@ -99,7 +99,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'publishTest',
       'deleteTest',
       'openReadingPassage',
-      'reviseReadingPassage',
+      'editReadingPassage',
       'assignReadingPassageHomework',
       'assignSelectedReadingPassages',
       'createReadingFullTestFromSelectedPassages',

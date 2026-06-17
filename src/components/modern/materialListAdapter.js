@@ -396,7 +396,7 @@ function readingPassageActionIconKind(key) {
   if (key === 'assign-homework') {
     return 'assign-homework';
   }
-  if (key === 'revise') {
+  if (key === 'edit' || key === 'revise') {
     return 'edit';
   }
   if (key === 'archive') {
@@ -415,18 +415,60 @@ function readingPassageActionIconKind(key) {
 }
 
 function defaultReadingPassageActions(record) {
+  if (record?.archived === true || record?.scope === 'archived') {
+    return record?.isOwner
+      ? [
+          { key: 'view', label: 'View read-only' },
+          { key: 'restore', label: 'Restore', ownerOnly: true },
+        ]
+      : [];
+  }
+
   return record?.isOwner
     ? [
-        { key: 'open', label: 'Open' },
+        { key: 'edit', label: 'Edit' },
         { key: 'assign-homework', label: 'Assign homework' },
-        { key: 'revise', label: 'Revise', ownerOnly: true },
         { key: 'archive', label: 'Remove from library', ownerOnly: true },
       ]
     : [
-        { key: 'view', label: 'View' },
         { key: 'clone-reading-passage', label: 'Clone to my library' },
         { key: 'assign-homework', label: 'Assign homework' },
     ];
+}
+
+function normalizeReadingPassageAction(entry, isOwner) {
+  if (isOwner && (entry.key === 'open' || entry.key === 'revise')) {
+    return {
+      ...entry,
+      key: 'edit',
+      label: 'Edit',
+      ownerOnly: entry.ownerOnly,
+    };
+  }
+
+  return entry;
+}
+
+function normalizeReadingPassageActions(record) {
+  const isOwner = Boolean(record?.isOwner);
+  const sourceActions = record?.actions?.length ? record.actions : defaultReadingPassageActions(record);
+  const allowedKeys = isOwner
+    ? new Set(['edit', 'open', 'revise', 'assign-homework', 'archive', 'view', 'restore'])
+    : new Set(['clone-reading-passage', 'assign-homework']);
+  const seenKeys = new Set();
+
+  return sourceActions
+    .filter((entry) => allowedKeys.has(entry.key))
+    .filter((entry) => !entry.ownerOnly || isOwner)
+    .filter((entry) => entry.key !== 'delete')
+    .map((entry) => normalizeReadingPassageAction(entry, isOwner))
+    .filter((entry) => {
+      if (seenKeys.has(entry.key)) {
+        return false;
+      }
+      seenKeys.add(entry.key);
+      return true;
+    });
 }
 
 const READING_PASSAGE_ROW_SOURCE_KEYS = [
@@ -476,14 +518,14 @@ function readingPassageActionHandler(key, source, handlers = {}) {
   if (key === 'open' || key === 'view') {
     return () => handlers.onOpenReadingPassage?.(source);
   }
+  if (key === 'edit') {
+    return () => handlers.onEditReadingPassage?.(source);
+  }
   if (key === 'assign-homework') {
     return () => handlers.onAssignReadingPassage?.(source);
   }
   if (key === 'clone-reading-passage') {
     return () => handlers.onCloneReadingPassage?.(source);
-  }
-  if (key === 'revise') {
-    return () => handlers.onReviseReadingPassage?.(source);
   }
   if (key === 'archive') {
     return () => handlers.onArchiveReadingPassage?.(source);
@@ -519,9 +561,7 @@ export function toReadingPassageRowModel(record, options = {}) {
   const title = record?.title || record?.metadata?.title || 'Untitled Reading Passage';
   const rowSource = sanitizeReadingPassageSource(record);
   const assignmentBlocker = getReadingPassageAssignmentBlocker(record);
-  const actions = (record?.actions?.length ? record.actions : defaultReadingPassageActions(record))
-    .filter((entry) => !entry.ownerOnly || record?.isOwner)
-    .filter((entry) => entry.key !== 'delete')
+  const actions = normalizeReadingPassageActions(record)
     .map((entry, index) => action({
       key: entry.key,
       label: entry.key === 'archive' ? 'Remove from library' : entry.label,

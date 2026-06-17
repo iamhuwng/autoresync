@@ -135,9 +135,8 @@ describe('readingV2PassageLibrary.service', () => {
       },
     ]);
     expect(rows[0]?.actions.map((action) => action.key)).toEqual([
-      'open',
+      'edit',
       'assign-homework',
-      'revise',
       'archive',
     ]);
   });
@@ -226,7 +225,6 @@ describe('readingV2PassageLibrary.service', () => {
       visibility: 'public',
     });
     expect(rows[0]?.actions.map((action) => action.key)).toEqual([
-      'view',
       'clone-reading-passage',
       'assign-homework',
     ]);

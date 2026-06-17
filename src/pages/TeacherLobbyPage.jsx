@@ -1454,13 +1454,13 @@ const TeacherLobbyPage = () => {
     );
   }, [getReadingPassageId, navigateTo, trackAction]);
 
-  const handleReviseReadingPassage = useCallback((passage) => {
+  const handleEditReadingPassage = useCallback((passage) => {
     const materialId = getReadingPassageId(passage);
-    trackAction('reviseReadingPassage', { materialId, source: 'teacher_materials_reading_passage_row' });
+    trackAction('editReadingPassage', { materialId, source: 'teacher_materials_reading_passage_row' });
     navigateTo(
       'TEACHER_READING_V2_REVISE',
       { materialId },
-      { reason: 'teacher_materials_revise_reading_passage' },
+      { reason: 'teacher_materials_edit_reading_passage' },
     );
   }, [getReadingPassageId, navigateTo, trackAction]);
 
@@ -1672,9 +1672,8 @@ const TeacherLobbyPage = () => {
         accessible: true,
         archived: false,
         actions: [
-          { key: 'open', label: 'Open' },
+          { key: 'edit', label: 'Edit' },
           { key: 'assign-homework', label: 'Assign homework' },
-          { key: 'revise', label: 'Revise', ownerOnly: true },
           { key: 'archive', label: 'Remove from library', ownerOnly: true },
         ],
         metadata: {
@@ -2150,9 +2149,9 @@ const TeacherLobbyPage = () => {
     selected: selectedReadingPassageIds.includes(getReadingPassageId(passage)),
     handlers: {
       onOpenReadingPassage: handleOpenReadingPassage,
+      onEditReadingPassage: handleEditReadingPassage,
       onAssignReadingPassage: handleAssignReadingPassage,
       onCloneReadingPassage: handleCloneReadingV2LibraryPassage,
-      onReviseReadingPassage: handleReviseReadingPassage,
       onArchiveReadingPassage: handleArchiveReadingPassage,
       onRestoreReadingPassage: handleRestoreReadingPassage,
       onToggleReadingPassageSelection: handleToggleReadingPassageSelection,
