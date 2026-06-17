@@ -104,6 +104,9 @@ const countProjectionInteractions = (projection: ReadingV2DerivedProjection | un
     0,
   ) ?? 0;
 
+const countProjectionSections = (projection: ReadingV2DerivedProjection | undefined): number =>
+  projection?.content?.sections?.length ?? 0;
+
 const omitUndefinedForFirebase = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((entry) => (entry === undefined ? null : omitUndefinedForFirebase(entry)));
@@ -202,6 +205,8 @@ export const buildReadingV2FirebasePublishUpdates = (
     metadataOperation.metadata.primaryTestTypeId,
     ...metadataOperation.metadata.testTypeIds,
   ]);
+  const hasStudentSafeProjection = Boolean(studentSafeProjection);
+  const passageRefCount = countProjectionSections(studentSafeProjection);
 
   updates[`tests/${metadataOperation.metadata.materialId}`] = {
     id: metadataOperation.metadata.materialId,
@@ -224,6 +229,10 @@ export const buildReadingV2FirebasePublishUpdates = (
     publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
     primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
     testTypeIds: metadataOperation.metadata.testTypeIds,
+    hasStudentSafeProjection,
+    deliveryProjectionReady: hasStudentSafeProjection,
+    studentSafeProjectionReady: hasStudentSafeProjection,
+    passageRefCount,
     updatedAt: committedAt,
     metadata: {
       compositionId: metadataOperation.metadata.compositionId,
@@ -240,6 +249,10 @@ export const buildReadingV2FirebasePublishUpdates = (
       publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
       primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
       testTypeIds: metadataOperation.metadata.testTypeIds,
+      hasStudentSafeProjection,
+      deliveryProjectionReady: hasStudentSafeProjection,
+      studentSafeProjectionReady: hasStudentSafeProjection,
+      passageRefCount,
     },
   };
 

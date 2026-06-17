@@ -499,6 +499,163 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
+  it('shows Assign HW for owned My Content IELTS Reading enriched with student-safe projection metadata', async () => {
+    mocks.tests = [
+      {
+        id: 'ielts-reading-owned',
+        title: 'Owned IELTS Reading',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 40,
+        // Shape produced by getTeacherOwnedTests after student_safe_tests enrichment.
+        hasStudentSafeProjection: true,
+        metadata: { hasStudentSafeProjection: true },
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    const row = await screen.findByTestId('material-list-row-ielts-reading-owned');
+    expect(within(row).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+  });
+
+  it('shows Assign HW for owned My Content IELTS Listening enriched with student-safe projection metadata', async () => {
+    mocks.tests = [
+      {
+        id: 'ielts-listening-owned',
+        title: 'Owned IELTS Listening',
+        testType: 'IELTS',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 10,
+        deliveryProjectionReady: true,
+        metadata: { deliveryProjectionReady: true },
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    const row = await screen.findByTestId('material-list-row-ielts-listening-owned');
+    expect(within(row).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+  });
+
+  it('shows Assign HW for thin owned legacy Reading and Listening rows after safe projection enrichment', async () => {
+    mocks.tests = [
+      {
+        id: 'reading-thin-owned',
+        title: 'Thin Owned Reading',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 40,
+        hasStudentSafeProjection: true,
+      },
+      {
+        id: 'listening-thin-owned',
+        title: 'Thin Owned Listening',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 10,
+        deliveryProjectionReady: true,
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    const readingRow = await screen.findByTestId('material-list-row-reading-thin-owned');
+    expect(within(readingRow).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+
+    const listeningRow = await screen.findByTestId('material-list-row-listening-thin-owned');
+    expect(within(listeningRow).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+  });
+
+  it('shows Assign HW for owned My Content Reading V2 IELTS Reading enriched from its namespaced projection', async () => {
+    mocks.tests = [
+      {
+        id: 'reading-v2-owned',
+        materialId: 'reading-v2-owned',
+        title: 'Owned Reading V2',
+        testType: 'IELTS',
+        skill: 'Reading',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        questionCount: 40,
+        publishedSnapshotVersionId: 'snapshot-owned',
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 3,
+        metadata: {
+          materialKind: 'full-test',
+          publishedSnapshotVersionId: 'snapshot-owned',
+          hasStudentSafeProjection: true,
+          deliveryProjectionReady: true,
+          studentSafeProjectionReady: true,
+          passageRefCount: 3,
+        },
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    const row = await screen.findByTestId('material-list-row-reading-v2-owned');
+    expect(within(row).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+  });
+
+  it('hides Assign HW for owned My Content IELTS Reading/Listening without a student-safe projection', async () => {
+    mocks.tests = [
+      {
+        id: 'ielts-reading-unsafe',
+        title: 'Unsafe Owned Reading',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 40,
+        metadata: {},
+      },
+      {
+        id: 'ielts-listening-unsafe',
+        title: 'Unsafe Owned Listening',
+        testType: 'IELTS',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        isPublic: false,
+        status: 'published',
+        isComplete: true,
+        questionCount: 10,
+        metadata: {},
+      },
+    ];
+
+    render(<TeacherLobbyPage />);
+
+    await screen.findByTestId('material-list-row-ielts-reading-unsafe');
+
+    const readingRow = screen.getByTestId('material-list-row-ielts-reading-unsafe');
+    expect(within(readingRow).queryByRole('button', { name: 'Assign HW' })).not.toBeInTheDocument();
+
+    const listeningRow = screen.getByTestId('material-list-row-ielts-listening-unsafe');
+    expect(within(listeningRow).queryByRole('button', { name: 'Assign HW' })).not.toBeInTheDocument();
+  });
+
   it('opens THCS homework dialog with normalized contentRef from Use as-is assignment', async () => {
     const user = userEvent.setup();
     mocks.useAsIsTest = {

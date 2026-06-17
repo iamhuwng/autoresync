@@ -72,9 +72,11 @@ vi.mock('../../services/reading-v2/readingV2TeacherLobbyMaterials.service', () =
     ownerId,
   }),
   mergeReadingV2TeacherLobbyTests: (legacyTests: any[], readingV2Tests: any[]) => {
-    const seenIds = new Set(legacyTests.map((test) => test.id));
+    const readingV2ById = new Map(readingV2Tests.map((test) => [test.id, test]));
+    const mergedLegacyRows = legacyTests.map((test) => readingV2ById.get(test.id) || test);
+    const seenIds = new Set(mergedLegacyRows.map((test) => test.id));
     return [
-      ...legacyTests,
+      ...mergedLegacyRows,
       ...readingV2Tests.filter((test) => !seenIds.has(test.id)),
     ];
   },
@@ -120,15 +122,27 @@ describe('useTeacherTests', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('uses tests registry rows for Reading V2 cards without relationship hydration', async () => {
-    const readingV2Material = {
+  it('hydrates owned Reading V2 cards from the canonical Teacher Lobby index and prefers them over stale bridge rows', async () => {
+    const staleBridgeRow = {
+      id: 'reading-v2-material-1',
+      materialId: 'reading-v2-material-1',
+      title: 'Stale Bridge Row',
+      deliveryEngine: 'reading-v2',
+      ownerId: 'teacher-1',
+    };
+    const canonicalReadingV2Material = {
       id: 'reading-v2-material-1',
       materialId: 'reading-v2-material-1',
       title: 'Published Reading V2',
       deliveryEngine: 'reading-v2',
       ownerId: 'teacher-1',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 3,
     };
-    mockGetTeacherOwnedTests.mockResolvedValueOnce([readingV2Material]);
+    mockGetTeacherOwnedTests.mockResolvedValueOnce([staleBridgeRow]);
+    mockGetReadingV2TeacherLobbyTests.mockResolvedValueOnce([canonicalReadingV2Material]);
 
     const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
 
@@ -137,8 +151,8 @@ describe('useTeacherTests', () => {
     });
 
     expect(mockGetTeacherOwnedTests).toHaveBeenCalledWith('teacher-1', false);
-    expect(mockGetReadingV2TeacherLobbyTests).not.toHaveBeenCalled();
-    expect(result.current.tests).toEqual([readingV2Material]);
+    expect(mockGetReadingV2TeacherLobbyTests).toHaveBeenCalledWith('teacher-1');
+    expect(result.current.tests).toEqual([canonicalReadingV2Material]);
   });
 
   it('exposes error state when initial load fails', async () => {
@@ -225,7 +239,7 @@ describe('useTeacherTests', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(onValueCallbacks).toHaveLength(2);
+    expect(onValueCallbacks).toHaveLength(3);
 
     act(() => {
       onValueCallbacks.forEach((callback) => callback({ val: () => ({}) }));

@@ -5,6 +5,11 @@ import { ref, onValue, remove, update as dbUpdate, query, orderByChild, equalTo 
 import { doc, deleteDoc } from 'firebase/firestore';
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import {
+  getReadingV2TeacherLobbyIndexQuery,
+  getReadingV2TeacherLobbyTests,
+  mergeReadingV2TeacherLobbyTests,
+} from '../../services/reading-v2/readingV2TeacherLobbyMaterials.service';
+import {
   getTeacherMaterialsDiagnosticTime,
   getTeacherMaterialsElapsedMs,
   logTeacherMaterialsDiagnostic,
@@ -65,7 +70,11 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       return [];
     }
 
-    return queryOptimizer.getTeacherOwnedTests(ownerId, nextSkipCache);
+    const [legacyTests, readingV2Tests] = await Promise.all([
+      queryOptimizer.getTeacherOwnedTests(ownerId, nextSkipCache),
+      getReadingV2TeacherLobbyTests(ownerId),
+    ]);
+    return mergeReadingV2TeacherLobbyTests(legacyTests, readingV2Tests);
   }, [listScope, ownerId, skipCache]);
 
   const invalidateScopedCache = useCallback(() => {
@@ -102,6 +111,7 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     return [
       query(testsRef, orderByChild('ownerId'), equalTo(ownerId)),
       query(testsRef, orderByChild('createdBy'), equalTo(ownerId)),
+      getReadingV2TeacherLobbyIndexQuery(ownerId),
     ];
   }, [listScope, ownerId]);
 

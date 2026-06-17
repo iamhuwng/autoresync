@@ -175,11 +175,19 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       skill: 'Reading',
       skillType: 'reading-v2',
       questionCount: 2,
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
     });
     expect(firebaseUpdates.updates['tests/material-firebase']).toMatchObject({
       testTypeIds: [],
       metadata: expect.objectContaining({
         testTypeIds: [],
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 1,
       }),
     });
     expect(firebaseUpdates.updates[readingV2StoragePaths.relationshipIndexes('solo-launch', 'material-firebase')])

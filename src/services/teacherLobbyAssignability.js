@@ -61,6 +61,44 @@ function hasReadingV2PassageRefs(item) {
   return passageRefCount > 0 || (Array.isArray(item?.passageRefs) && item.passageRefs.length > 0);
 }
 
+function hasTestTypeId(item, expected) {
+  const values = [
+    item?.primaryTestTypeId,
+    item?.metadata?.primaryTestTypeId,
+    ...(Array.isArray(item?.testTypeIds) ? item.testTypeIds : []),
+    ...(Array.isArray(item?.metadata?.testTypeIds) ? item.metadata.testTypeIds : []),
+  ];
+  return values.some((value) => lower(value) === expected);
+}
+
+function isIeltsLikeTest(item) {
+  return lower(item?.testType || item?.type || item?.metadata?.testType || item?.metadata?.type) === 'ielts'
+    || hasTestTypeId(item, 'ielts');
+}
+
+export function resolveTeacherLobbyTestContentKind(item) {
+  if (item?.testType === 'THCS-THPT') {
+    return 'thcs_test';
+  }
+
+  if (item?.deliveryEngine === 'reading-v2') {
+    return isReadingV2FullTest(item) ? 'ielts_reading' : null;
+  }
+
+  const skill = lower(item?.skill || item?.metadata?.skill);
+  if (skill === 'reading') {
+    return 'ielts_reading';
+  }
+  if (skill === 'listening') {
+    return 'ielts_listening';
+  }
+  if (skill === 'writing' && isIeltsLikeTest(item)) {
+    return 'ielts_writing';
+  }
+
+  return null;
+}
+
 export function assertTeacherLobbyFamilyRegistered(family) {
   if (!REGISTERED_FAMILIES.has(family)) {
     throw new Error('Teacher Lobby assignment family is not registered: ' + family);
@@ -130,7 +168,9 @@ function resolveTestAssignability(item) {
   const title = getTitle(item);
   const baseRef = title ? { contentId, title } : { contentId };
 
-  if (item?.testType === 'THCS-THPT') {
+  const contentKind = resolveTeacherLobbyTestContentKind(item);
+
+  if (contentKind === 'thcs_test') {
     return supported({
       contentKind: 'thcs_test',
       ...baseRef,
@@ -166,24 +206,22 @@ function resolveTestAssignability(item) {
     });
   }
 
-  const testType = lower(item?.testType);
-  const skill = lower(item?.skill || item?.metadata?.skill);
-  if (testType === 'ielts') {
-    if (skill === 'reading') {
-      if (!hasReadyStudentSafeProjection(item)) {
-        return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
-      }
-      return supported({ contentKind: 'ielts_reading', ...baseRef, source: 'ielts' });
+  if (contentKind === 'ielts_reading') {
+    if (!hasReadyStudentSafeProjection(item)) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
     }
-    if (skill === 'listening') {
-      if (!hasReadyStudentSafeProjection(item)) {
-        return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
-      }
-      return supported({ contentKind: 'ielts_listening', ...baseRef, source: 'ielts' });
+    return supported({ contentKind: 'ielts_reading', ...baseRef, source: 'ielts' });
+  }
+
+  if (contentKind === 'ielts_listening') {
+    if (!hasReadyStudentSafeProjection(item)) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
     }
-    if (skill === 'writing') {
-      return supported({ contentKind: 'ielts_writing', ...baseRef, source: 'ielts' });
-    }
+    return supported({ contentKind: 'ielts_listening', ...baseRef, source: 'ielts' });
+  }
+
+  if (contentKind === 'ielts_writing') {
+    return supported({ contentKind: 'ielts_writing', ...baseRef, source: 'ielts' });
   }
 
   return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.UNSUPPORTED_CONTENT_KIND);

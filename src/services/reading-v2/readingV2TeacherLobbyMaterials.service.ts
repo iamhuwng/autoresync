@@ -227,9 +227,13 @@ export const mergeReadingV2TeacherLobbyTests = <T extends { readonly id?: string
   legacyTests: readonly T[],
   readingV2Tests: readonly ReadingV2TeacherLobbyTestCardRecord[],
 ): Array<T | ReadingV2TeacherLobbyTestCardRecord> => {
-  const seenIds = new Set(legacyTests.map((test) => test.id).filter(Boolean));
+  const readingV2ById = new Map(readingV2Tests.map((test) => [test.id, test]));
+  const mergedLegacyRows = legacyTests.map((test) =>
+    test.id && readingV2ById.has(test.id) ? readingV2ById.get(test.id)! : test,
+  );
+  const seenIds = new Set(mergedLegacyRows.map((test) => test.id).filter(Boolean));
   return [
-    ...legacyTests,
+    ...mergedLegacyRows,
     ...readingV2Tests.filter((test) => !seenIds.has(test.id)),
   ];
 };

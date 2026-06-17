@@ -234,6 +234,117 @@ describe('materialListAdapter', () => {
     expect(row.actions.map((item) => item.key)).not.toContain('assign-homework');
   });
 
+  it('shows Assign HW on owned My Content IELTS Reading/Listening rows enriched via metadata', () => {
+    const ownedReading = buildTestMaterialListRow({
+      id: 'ielts-reading-owned',
+      title: 'Owned Reading',
+      testType: 'IELTS',
+      skill: 'Reading',
+      ownerId: 'teacher-1',
+      isPublic: false,
+      status: 'published',
+      isComplete: true,
+      questionCount: 40,
+      // Shape produced by getTeacherOwnedTests after student_safe_tests enrichment.
+      hasStudentSafeProjection: true,
+      metadata: { hasStudentSafeProjection: true },
+    });
+    const ownedListening = buildTestMaterialListRow({
+      id: 'ielts-listening-owned',
+      title: 'Owned Listening',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      isPublic: false,
+      status: 'published',
+      isComplete: true,
+      questionCount: 10,
+      deliveryProjectionReady: true,
+      metadata: { deliveryProjectionReady: true },
+    });
+
+    expect(ownedReading.assignability).toMatchObject({
+      assignable: true,
+      contentRef: { contentKind: 'ielts_reading', contentId: 'ielts-reading-owned' },
+    });
+    expect(ownedReading.actions.map((item) => item.key)).toContain('assign-homework');
+    expect(ownedReading.actions.find((item) => item.key === 'assign-homework')?.slot).toBe(4);
+
+    expect(ownedListening.assignability).toMatchObject({
+      assignable: true,
+      contentRef: { contentKind: 'ielts_listening', contentId: 'ielts-listening-owned' },
+    });
+    expect(ownedListening.actions.map((item) => item.key)).toContain('assign-homework');
+  });
+
+  it('shows Assign HW on thin owned legacy Reading/Listening rows when safe projection is proven', () => {
+    const thinReading = buildTestMaterialListRow({
+      id: 'reading-thin-owned',
+      title: 'Thin Reading',
+      skill: 'Reading',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      hasStudentSafeProjection: true,
+    });
+    const thinListening = buildTestMaterialListRow({
+      id: 'listening-thin-owned',
+      title: 'Thin Listening',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      deliveryProjectionReady: true,
+    });
+
+    expect(thinReading.assignability).toMatchObject({
+      assignable: true,
+      contentRef: { contentKind: 'ielts_reading', contentId: 'reading-thin-owned' },
+    });
+    expect(thinReading.actions.map((item) => item.key)).toContain('assign-homework');
+
+    expect(thinListening.assignability).toMatchObject({
+      assignable: true,
+      contentRef: { contentKind: 'ielts_listening', contentId: 'listening-thin-owned' },
+    });
+    expect(thinListening.actions.map((item) => item.key)).toContain('assign-homework');
+  });
+
+  it('blocks Assign HW on owned My Content IELTS Reading/Listening rows lacking safe projection metadata', () => {
+    const ownedReading = buildTestMaterialListRow({
+      id: 'ielts-reading-owned-unsafe',
+      title: 'Owned Reading Unsafe',
+      testType: 'IELTS',
+      skill: 'Reading',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      metadata: {},
+    });
+    const ownedListening = buildTestMaterialListRow({
+      id: 'ielts-listening-owned-unsafe',
+      title: 'Owned Listening Unsafe',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      metadata: {},
+    });
+
+    expect(ownedReading.assignability).toMatchObject({
+      assignable: false,
+      reasonCode: 'CONTENT_NOT_ASSIGNABLE',
+    });
+    expect(ownedReading.actions.map((item) => item.key)).not.toContain('assign-homework');
+
+    expect(ownedListening.assignability).toMatchObject({
+      assignable: false,
+      reasonCode: 'CONTENT_NOT_ASSIGNABLE',
+    });
+    expect(ownedListening.actions.map((item) => item.key)).not.toContain('assign-homework');
+  });
+
   it('uses neutral fallbacks for missing metadata', () => {
     const row = buildTestMaterialListRow({ id: 'unknown-1' });
 

@@ -164,7 +164,7 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
     expect(get).not.toHaveBeenCalled();
   });
 
-  it('dedupes Reading V2 rows when a legacy test already uses the same id', () => {
+  it('prefers canonical Reading V2 rows when a legacy test bridge already uses the same id', () => {
     const merged = mergeReadingV2TeacherLobbyTests(
       [{ id: 'material-v2', title: 'Legacy row' }],
       [{
@@ -182,6 +182,10 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
         isPublic: false,
         materialKind: 'full-test',
         productLabel: 'Reading V2',
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 1,
         metadata: {
           title: 'Reading V2 row',
           duration: 60,
@@ -189,10 +193,19 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
           productLabel: 'Reading V2',
           materialKind: 'full-test',
           deliveryEngine: READING_V2_ENGINE,
+          hasStudentSafeProjection: true,
+          deliveryProjectionReady: true,
+          studentSafeProjectionReady: true,
+          passageRefCount: 1,
         },
       }],
     );
 
-    expect(merged).toEqual([{ id: 'material-v2', title: 'Legacy row' }]);
+    expect(merged).toMatchObject([{
+      id: 'material-v2',
+      title: 'Reading V2 row',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+    }]);
   });
 });

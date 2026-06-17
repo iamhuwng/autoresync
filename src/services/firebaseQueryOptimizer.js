@@ -13,8 +13,177 @@
 import { ref, get, query, orderByChild, equalTo, limitToFirst } from 'firebase/database';
 import { auth, database } from './firebase';
 import dataCache, { CacheTypes, CacheTTL } from './dataCache';
+import { resolveTeacherLobbyTestContentKind } from './teacherLobbyAssignability';
 
 const toTestList = (data) => data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+
+const STUDENT_SAFE_TESTS_PATH = (testId) => `student_safe_tests/${testId}`;
+const READING_V2_STUDENT_SAFE_TEST_PATH = (materialId, snapshotVersionId) =>
+  `reading_v2/projections/student_safe_tests/${materialId}:${snapshotVersionId}`;
+const READING_V2_STUDENT_SAFE_SECTIONS_PATH = (materialId, snapshotVersionId) =>
+  `${READING_V2_STUDENT_SAFE_TEST_PATH(materialId, snapshotVersionId)}/content/sections`;
+
+function snapshotHasValue(snapshot) {
+  if (typeof snapshot?.exists === 'function') {
+    return snapshot.exists();
+  }
+  return Boolean(snapshot && snapshot.val && snapshot.val());
+}
+
+function snapshotValue(snapshot) {
+  return snapshot && snapshot.val ? snapshot.val() : null;
+}
+
+function countProjectionSections(value) {
+  if (Array.isArray(value)) {
+    return value.length;
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value).length;
+  }
+  return 0;
+}
+
+function sectionCountFromProjectionValue(value) {
+  return countProjectionSections(value?.content?.sections ?? value?.sections ?? value);
+}
+
+function hasReadyProjectionSignal(test) {
+  return test?.deliveryProjectionReady === true
+    || test?.hasStudentSafeProjection === true
+    || test?.studentSafeProjectionReady === true
+    || test?.metadata?.deliveryProjectionReady === true
+    || test?.metadata?.hasStudentSafeProjection === true
+    || test?.metadata?.studentSafeProjectionReady === true;
+}
+
+function markProjectionReady(test, extraFields = {}) {
+  test.deliveryProjectionReady = true;
+  test.hasStudentSafeProjection = true;
+  test.studentSafeProjectionReady = true;
+  Object.assign(test, extraFields);
+  test.metadata = {
+    ...(test.metadata || {}),
+    deliveryProjectionReady: true,
+    hasStudentSafeProjection: true,
+    studentSafeProjectionReady: true,
+    ...extraFields,
+  };
+}
+
+function legacyIeltsNeedsProjectionCheck(test) {
+  if (!test?.id) {
+    return false;
+  }
+  if (hasReadyProjectionSignal(test)) {
+    return false;
+  }
+  if (test.deliveryEngine === 'reading-v2') {
+    return false;
+  }
+  // Temporary legacy bridge: remove Reading V1 probing after Reading V1 tests are retired.
+  // Listening remains here until it moves to the System A / Reading V2-style projection model.
+  const contentKind = resolveTeacherLobbyTestContentKind(test);
+  return contentKind === 'ielts_reading' || contentKind === 'ielts_listening';
+}
+
+function getReadingV2MaterialId(test) {
+  return String(test?.materialId || test?.id || '').trim();
+}
+
+function getReadingV2SnapshotVersionId(test) {
+  return String(
+    test?.publishedSnapshotVersionId
+      || test?.snapshotVersionId
+      || test?.currentVersionId
+      || test?.metadata?.publishedSnapshotVersionId
+      || '',
+  ).trim();
+}
+
+function readingV2NeedsProjectionCheck(test) {
+  if (resolveTeacherLobbyTestContentKind(test) !== 'ielts_reading') {
+    return false;
+  }
+  const passageRefCount = Number(test?.passageRefCount ?? test?.metadata?.passageRefCount ?? 0);
+  if (hasReadyProjectionSignal(test) && passageRefCount > 0) {
+    return false;
+  }
+  return Boolean(getReadingV2MaterialId(test) && getReadingV2SnapshotVersionId(test));
+}
+
+async function enrichLegacyIeltsProjectionReadiness(testList) {
+  const candidates = testList.filter(legacyIeltsNeedsProjectionCheck);
+  if (candidates.length === 0) {
+    return;
+  }
+
+  const checks = await Promise.all(candidates.map(async (test) => {
+    try {
+      const snapshot = await get(ref(database, STUDENT_SAFE_TESTS_PATH(test.id)));
+      return { test, hasProjection: snapshotHasValue(snapshot) };
+    } catch (error) {
+      console.error(`[QueryOptimizer] Failed to read student_safe_tests/${test.id}:`, error);
+      return { test, hasProjection: false };
+    }
+  }));
+
+  checks.forEach(({ test, hasProjection }) => {
+    if (!hasProjection) {
+      return;
+    }
+    markProjectionReady(test);
+  });
+}
+
+async function enrichReadingV2ProjectionReadiness(testList) {
+  const candidates = testList.filter(readingV2NeedsProjectionCheck);
+  if (candidates.length === 0) {
+    return;
+  }
+
+  const checks = await Promise.all(candidates.map(async (test) => {
+    const materialId = getReadingV2MaterialId(test);
+    const snapshotVersionId = getReadingV2SnapshotVersionId(test);
+    const sectionsPath = READING_V2_STUDENT_SAFE_SECTIONS_PATH(materialId, snapshotVersionId);
+    const projectionPath = READING_V2_STUDENT_SAFE_TEST_PATH(materialId, snapshotVersionId);
+
+    try {
+      const sectionsSnapshot = await get(ref(database, sectionsPath));
+      if (snapshotHasValue(sectionsSnapshot)) {
+        return {
+          test,
+          sectionCount: countProjectionSections(snapshotValue(sectionsSnapshot)),
+        };
+      }
+
+      const projectionSnapshot = await get(ref(database, projectionPath));
+      return {
+        test,
+        sectionCount: snapshotHasValue(projectionSnapshot)
+          ? sectionCountFromProjectionValue(snapshotValue(projectionSnapshot))
+          : 0,
+      };
+    } catch (error) {
+      console.error(`[QueryOptimizer] Failed to read ${sectionsPath}:`, error);
+      return { test, sectionCount: 0 };
+    }
+  }));
+
+  checks.forEach(({ test, sectionCount }) => {
+    if (sectionCount <= 0) {
+      return;
+    }
+    markProjectionReady(test, { passageRefCount: sectionCount });
+  });
+}
+
+async function enrichTeacherLobbyAssignmentReadiness(testList) {
+  await Promise.all([
+    enrichLegacyIeltsProjectionReadiness(testList),
+    enrichReadingV2ProjectionReadiness(testList),
+  ]);
+}
 
 const sortTestsByRecentUpdate = (tests) => [...tests].sort((a, b) => {
   const aTime = a.updatedAt || a.publishedAt || a.createdAt || 0;
@@ -283,6 +452,7 @@ class FirebaseQueryOptimizer {
     if (!skipCache) {
       const cached = dataCache.get(CacheTypes.TEST, cacheKey);
       if (cached) {
+        await enrichTeacherLobbyAssignmentReadiness(cached);
         return cached;
       }
     }
@@ -297,6 +467,8 @@ class FirebaseQueryOptimizer {
       toTestList(ownerSnapshot.val()),
       toTestList(createdBySnapshot.val()),
     ]);
+
+    await enrichTeacherLobbyAssignmentReadiness(testList);
 
     dataCache.set(CacheTypes.TEST, cacheKey, testList, CacheTTL.MEDIUM);
     testList.forEach(test => {

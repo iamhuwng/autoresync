@@ -76,6 +76,22 @@ describe('teacherLobbyAssignability', () => {
   });
 
   it.each([
+    ['IELTS Reading', { ...publishedBase, id: 'ielts-reading-metadata-1', skill: 'Reading', metadata: { hasStudentSafeProjection: true } }, 'ielts_reading'],
+    ['IELTS Listening', { ...publishedBase, id: 'ielts-listening-metadata-1', skill: 'Listening', metadata: { deliveryProjectionReady: true } }, 'ielts_listening'],
+    ['legacy IELTS Reading without testType', { id: 'reading-thin-1', title: 'Thin Reading', skill: 'Reading', status: 'published', isComplete: true, hasStudentSafeProjection: true }, 'ielts_reading'],
+    ['legacy IELTS Listening without testType', { id: 'listening-thin-1', title: 'Thin Listening', skill: 'Listening', status: 'published', isComplete: true, hasStudentSafeProjection: true }, 'ielts_listening'],
+  ])('returns assignable metadata for %s when safe projection readiness lives under metadata', (_label, item, contentKind) => {
+    const result = resolveTeacherLobbyAssignability(item, { family: 'test' });
+
+    expect(result.assignable).toBe(true);
+    expect(result.flow).toBe('standard');
+    expect(result.contentRef).toMatchObject({
+      contentKind,
+      contentId: item.id,
+    });
+  });
+
+  it.each([
     ['Book', { id: 'book-1', title: 'Book 1' }, 'book', HOMEWORK_ASSIGNMENT_REASON_CODES.WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED],
     ['Draft', { id: 'draft-1', status: 'draft', title: 'Draft 1' }, 'draft', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_DRAFT],
     ['Incomplete item', { ...publishedBase, isComplete: false }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE],
@@ -121,6 +137,19 @@ describe('teacherLobbyAssignability', () => {
     expect(result).toMatchObject({
       assignable: false,
       reasonCode,
+    });
+    expect(result.contentRef).toBeUndefined();
+  });
+
+  it.each([
+    ['Reading', { ...publishedBase, id: 'ielts-reading-unready', skill: 'Reading', metadata: {} }],
+    ['Listening', { ...publishedBase, id: 'ielts-listening-unready', skill: 'Listening', metadata: {} }],
+  ])('blocks IELTS %s when safe projection readiness is missing from item and metadata', (_label, item) => {
+    const result = resolveTeacherLobbyAssignability(item, { family: 'test' });
+
+    expect(result).toMatchObject({
+      assignable: false,
+      reasonCode: HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE,
     });
     expect(result.contentRef).toBeUndefined();
   });
