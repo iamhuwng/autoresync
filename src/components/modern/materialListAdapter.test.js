@@ -30,8 +30,53 @@ describe('materialListAdapter', () => {
       'IELTS - Reading',
       '60 min',
     ]);
-    expect(row.actions.map((item) => item.label)).toEqual(['Edit', 'Delete', 'Start Test']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
+    expect(row.actions.map((item) => item.label)).toEqual(['Edit', 'Delete', 'Start Test', 'Assign HW']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
+    expect(row.actions.find((item) => item.key === 'assign-homework')?.assignability).toMatchObject({
+      assignable: true,
+      contentRef: {
+        contentKind: 'ielts_reading',
+        contentId: 'ielts-1',
+      },
+    });
+  });
+
+  it('maps IELTS Listening and Writing tests into the shared assignment slot', () => {
+    const listening = buildTestMaterialListRow({
+      id: 'ielts-listening-1',
+      title: 'IELTS Listening Section 1',
+      testType: 'IELTS',
+      skill: 'Listening',
+      questionCount: 10,
+      status: 'published',
+      isComplete: true,
+    }, {
+      handlers: { onAssignHw: vi.fn() },
+    });
+    const writing = buildTestMaterialListRow({
+      id: 'ielts-writing-1',
+      title: 'IELTS Writing Task 1',
+      testType: 'IELTS',
+      skill: 'Writing',
+      metadata: { title: 'IELTS Writing Task 1' },
+      status: 'published',
+      isComplete: true,
+    }, {
+      handlers: { onAssignHw: vi.fn() },
+    });
+
+    expect(listening.actions.find((item) => item.key === 'assign-homework')).toMatchObject({
+      slot: 4,
+      assignability: {
+        contentRef: { contentKind: 'ielts_listening', contentId: 'ielts-listening-1' },
+      },
+    });
+    expect(writing.actions.find((item) => item.key === 'assign-homework')).toMatchObject({
+      slot: 4,
+      assignability: {
+        contentRef: { contentKind: 'ielts_writing', contentId: 'ielts-writing-1' },
+      },
+    });
   });
 
   it('maps THCS tests with assignment action and grade badges', () => {
@@ -95,7 +140,7 @@ describe('materialListAdapter', () => {
     expect(row.badges.map((badge) => badge.label)).toContain('Reading V2');
     expect(row.itemLabel).toBe('40 questions');
     expect(row.durationLabel).toBe('60 min');
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
   });
 
   it('maps incomplete items to recovery actions without Start Test', () => {
@@ -121,6 +166,10 @@ describe('materialListAdapter', () => {
       '2 missing answers',
     ]);
     expect(row.actions.map((item) => item.label)).toEqual(['Complete', 'Delete']);
+    expect(row.assignability).toMatchObject({
+      assignable: false,
+      reasonCode: 'CONTENT_NOT_ASSIGNABLE',
+    });
     expect(row.actions.map((item) => item.slot)).toEqual([1, 2]);
   });
 
@@ -134,8 +183,8 @@ describe('materialListAdapter', () => {
       isPublicLibrary: true,
     });
 
-    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Start Test']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 3]);
+    expect(row.actions.map((item) => item.label)).toEqual(['View', 'Start Test', 'Assign HW']);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 3, 4]);
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
   });
 
@@ -205,6 +254,8 @@ describe('materialListAdapter', () => {
       visibility: 'private',
       isOwner: true,
       selectable: true,
+      publishedSnapshotVersionId: 'snapshot-1',
+      hasStudentSafeProjection: true,
       testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
       sourceOrderDisplay: 'Passage 2',
       sourceQuestionRange: 'Questions 14-26',
@@ -242,7 +293,14 @@ describe('materialListAdapter', () => {
       '20 min',
     ]);
     expect(row.actions.map((item) => item.label)).toEqual(['Edit', 'Assign homework', 'Remove from library']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3]);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 4, 3]);
+    expect(row.actions.find((item) => item.key === 'assign-homework')?.assignability).toMatchObject({
+      assignable: true,
+      contentRef: {
+        contentKind: 'reading_passage',
+        contentId: 'passage-1',
+      },
+    });
 
     row.selection.onChange();
     row.actions.forEach((item) => item.onSelect());
@@ -350,7 +408,7 @@ describe('materialListAdapter', () => {
 
     expect(row.badges.map((badge) => badge.label)).toContain('Public');
     expect(row.actions.map((item) => item.label)).toEqual(['Clone to my library', 'Assign homework']);
-    expect(row.actions.map((item) => item.slot)).toEqual([1, 2]);
+    expect(row.actions.map((item) => item.slot)).toEqual([1, 4]);
     expect(row.actions.map((item) => item.label)).not.toContain('View');
     expect(row.actions.map((item) => item.label)).not.toContain('Edit');
     expect(row.actions.map((item) => item.label)).not.toContain('Revise');

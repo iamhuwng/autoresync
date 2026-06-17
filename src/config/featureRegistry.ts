@@ -94,6 +94,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'createTest',
       'changeMaterialsViewMode',
       'editTest',
+      'assignHomework',
       'toggleVisibility',
       'saveDraft',
       'publishTest',

@@ -129,6 +129,66 @@ describe('HomeworkCreateModal', () => {
         expect(screen.getByText('Public Library')).toBeInTheDocument();
     });
 
+    it('uses a direct preselected Teacher Lobby material and normalized Worker writer', async () => {
+        const createHomeworkAssignment = vi.fn(async () => 'homework-worker-1');
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedTarget={{
+                    type: 'class',
+                    classId: 'class-1',
+                    className: 'IELTS Class',
+                }}
+                preselectedMaterial={{
+                    id: 'reading-v2-master-1',
+                    title: 'Reading V2 Master',
+                    type: 'test',
+                    skill: 'reading',
+                    questionCount: 40,
+                }}
+                preselectedContentRef={{
+                    contentKind: 'ielts_reading',
+                    contentId: 'reading-v2-master-1',
+                    version: 'composition-version-1',
+                    source: 'reading-v2',
+                }}
+                createHomeworkAssignment={createHomeworkAssignment}
+            />
+        );
+
+        expect(mockGetAllTests).not.toHaveBeenCalled();
+        expect(mockGetAllQuizzes).not.toHaveBeenCalled();
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.change(screen.getByLabelText(/Due Date/i), {
+            target: { value: '2026-06-15T10:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
+
+        await waitFor(() => {
+            expect(createHomeworkAssignment).toHaveBeenCalledWith(expect.objectContaining({
+                materialId: 'reading-v2-master-1',
+                materialTitle: 'Reading V2 Master',
+                materialType: 'test',
+                materialSkill: 'reading',
+                contentRef: {
+                    contentKind: 'ielts_reading',
+                    contentId: 'reading-v2-master-1',
+                    version: 'composition-version-1',
+                    source: 'reading-v2',
+                },
+            }));
+        });
+        expect(createHomework).not.toHaveBeenCalled();
+    });
+
     it('opens a preselected Reading Passage without broad material scans and creates typed homework', async () => {
         vi.mocked(createHomework).mockResolvedValue('homework-1');
         const onSuccess = vi.fn();

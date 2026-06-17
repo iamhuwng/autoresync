@@ -24,6 +24,7 @@ import { verifyAdminToken } from './auth/firebase-auth';
 import { BackupR2Client } from './utils/r2-client';
 import { clearStaleRestoreFlag } from './backup/auto-backup';
 import { handleReadingV2Submit } from './reading-v2/submit';
+import { handleCreateHomeworkAssignment } from './homework/assignments';
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -411,6 +412,10 @@ async function handleRequest(
 
     if (method === 'POST' && path === '/api/reading-v2/submit') {
         return handleReadingV2Submit(request, env);
+    }
+
+    if (method === 'POST' && path === '/api/homework/assignments') {
+        return handleCreateHomeworkAssignment(request, env);
     }
 
     const r2 = createR2Client(env);

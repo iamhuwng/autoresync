@@ -73,6 +73,10 @@ vi.mock('../services/firebase', () => ({
   database: {},
 }));
 
+vi.mock('../services/homeworkAssignmentClient', () => ({
+  createHomeworkAssignmentViaWorker: vi.fn(async () => 'homework-worker-1'),
+}));
+
 vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
   const actual = await vi.importActual('../services/reading-v2/readingV2PassageLibrary.service');
 
@@ -442,6 +446,46 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.updateBookMetadata.mockReset();
     mocks.confirm.mockReturnValue(true);
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
+  });
+
+  it('opens standard homework modal for assignable IELTS materials with normalized contentRef', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'ielts-reading-1',
+        title: 'IELTS Reading Practice',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-ielts-reading-1');
+    await user.click(within(row).getByRole('button', { name: 'Assign HW' }));
+
+    expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
+    expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+      preselectedMaterialId: 'ielts-reading-1',
+      preselectedMaterialFilter: 'test',
+      preselectedContentRef: expect.objectContaining({
+        contentKind: 'ielts_reading',
+        contentId: 'ielts-reading-1',
+      }),
+      createHomeworkAssignment: expect.any(Function),
+    }));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'assignHomework',
+      expect.objectContaining({
+        contentKind: 'ielts_reading',
+        materialId: 'ielts-reading-1',
+      }),
+    );
   });
 
   it('keeps the unified TeacherHeader attached to the page root', () => {

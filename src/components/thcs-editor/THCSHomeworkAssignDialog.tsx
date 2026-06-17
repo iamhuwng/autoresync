@@ -18,14 +18,14 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { createHomework } from '../../services/homeworkManager';
+import { createHomework, type CreateHomeworkInput } from '../../services/homeworkManager';
 import { sendThcsHomeworkAssignedNotification } from '../../services/notificationService';
 import { ref, get } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { getClasses, getClass } from '../../services/classManager';
 import { DateTimeCalendar } from '../common/DateTimeCalendar';
 import { Button, Input, Textarea } from '../modern';
-import type { HomeworkTarget } from '../../types/homework.types';
+import type { HomeworkContentRef, HomeworkTarget } from '../../types/homework.types';
 import type { AntiCheatPreset } from '../../types/integrity.types';
 import { getContextDefaults, resolvePreset } from '../../utils/antiCheatPresets';
 
@@ -50,6 +50,8 @@ interface THCSHomeworkAssignDialogProps {
         gradeLevel?: number;
         examType?: string;
     };
+    contentRef?: HomeworkContentRef;
+    createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
 }
 
 type LateSubmissionPolicy = 'accept' | 'accept-late' | 'reject' | 'penalty';
@@ -67,6 +69,8 @@ export function THCSHomeworkAssignDialog({
     testTitle,
     versionKey,
     testMetadata,
+    contentRef,
+    createHomeworkAssignment,
 }: THCSHomeworkAssignDialogProps) {
     const { user } = useAuth();
 
@@ -231,7 +235,7 @@ export function THCSHomeworkAssignDialog({
                 target = { type: 'students', studentIds: selectedStudentIds, studentNames };
             }
 
-            await createHomework({
+            const homeworkInput: CreateHomeworkInput = {
                 materialId: testId,
                 materialTitle: testTitle,
                 materialType: 'thcs-test',
@@ -265,7 +269,16 @@ export function THCSHomeworkAssignDialog({
                     ...(versionKey ? { versionKey } : {}),
                     pinToVersion,
                 },
-            });
+            };
+
+            if (createHomeworkAssignment) {
+                await createHomeworkAssignment({
+                    ...homeworkInput,
+                    contentRef,
+                });
+            } else {
+                await createHomework(homeworkInput);
+            }
 
             // Note: thcsConfig is stored separately via homeworkManager extension (Task 2.4)
             // For now we create the basic homework. Task 2.4 will extend createHomework to handle thcsConfig.

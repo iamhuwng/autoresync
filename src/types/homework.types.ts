@@ -177,6 +177,19 @@ export type HomeworkMaterialType = 'quiz' | 'test' | 'thcs-test' | 'reading-pass
 
 export type HomeworkMaterialSkill = 'reading' | 'listening' | 'writing' | 'speaking';
 
+export interface HomeworkContentRef {
+    contentKind:
+        | 'thcs_test'
+        | 'reading_passage'
+        | 'ielts_reading'
+        | 'ielts_listening'
+        | 'ielts_writing';
+    contentId: string;
+    version?: string;
+    title?: string;
+    source?: string;
+}
+
 export interface ReadingPassageHomeworkSnapshot {
     passageMaterialId: string;
     snapshotVersionId: string;
@@ -228,6 +241,9 @@ export interface HomeworkAssignment {
     materialType: HomeworkMaterialType;
     /** Material skill type */
     materialSkill: HomeworkMaterialSkill;
+
+    /** Normalized canonical content reference for Worker-created assignments. */
+    contentRef?: HomeworkContentRef;
 
     /** Reading Passage assignment-time snapshot. Only set for materialType === 'reading-passage'. */
     readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
