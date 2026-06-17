@@ -469,7 +469,9 @@ export function HomeworkCreateModal({
             handleClose();
         } catch (err) {
             console.error('Error creating homework:', err);
-            setError('Failed to create homework. Please try again.');
+            setError(err instanceof Error && err.message
+                ? err.message
+                : 'Failed to create homework. Please try again.');
         } finally {
             setSubmitting(false);
         }

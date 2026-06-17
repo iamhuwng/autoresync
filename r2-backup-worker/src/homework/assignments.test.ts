@@ -75,6 +75,7 @@ const makeTestRecord = (input: {
     ownerId?: string;
     isPublic?: boolean;
     deliveryProjectionReady?: boolean;
+    omitDeliveryProjectionReady?: boolean;
 }) => ({
     id: input.id,
     title: input.title ?? input.id,
@@ -86,7 +87,7 @@ const makeTestRecord = (input: {
     ownerId: input.ownerId ?? 'teacher-1',
     isPublic: input.isPublic ?? false,
     solo_enabled: true,
-    deliveryProjectionReady: input.deliveryProjectionReady ?? true,
+    ...(!input.omitDeliveryProjectionReady ? { deliveryProjectionReady: input.deliveryProjectionReady ?? true } : {}),
     questionCount: 3,
     questions: [{ id: 'q1' }],
 });
@@ -127,6 +128,7 @@ const okRecords = (contentRecord = makeTestRecord({ id: 'ielts-reading-1', skill
     ['users/teacher-1', { role: 'teacher', uid: 'teacher-1' }],
     ['classes/class-1', classRecord],
     ['tests/ielts-reading-1', contentRecord],
+    ['student_safe_tests/' + contentRecord.id, { id: contentRecord.id, title: contentRecord.title, questions: [{ id: 'q1' }] }],
 ]);
 
 describe('homework assignment Worker route', () => {
@@ -176,11 +178,73 @@ describe('homework assignment Worker route', () => {
         expect(body.reasonCode).toBe('TARGET_NOT_ALLOWED');
     });
 
+    it('accepts direct student targets through active teacher-student links', async () => {
+        const records = okRecords();
+        records.set('classes', {});
+        records.set('student_teacher_links/teacher-1', { 'student-linked': true });
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            target: { type: 'students', studentIds: ['student-linked'] },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(201);
+        expect(body.assignmentId).toBeTruthy();
+        expect(JSON.stringify(firestoreWrites[0])).toContain('student-linked');
+    });
+
+    it('accepts direct student targets through active assignment records', async () => {
+        const records = okRecords();
+        records.set('classes', {});
+        records.set('student_teacher_links/teacher-1', {});
+        records.set('student_teacher_assignments', {
+            assignment1: {
+                studentId: 'student-assigned',
+                teacherId: 'teacher-1',
+                status: 'active',
+            },
+        });
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            target: { type: 'students', studentIds: ['student-assigned'] },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(201);
+        expect(body.assignmentId).toBeTruthy();
+        expect(JSON.stringify(firestoreWrites[0])).toContain('student-assigned');
+    });
+
+    it('rejects direct student targets without class membership or active teacher-student assignment', async () => {
+        const records = okRecords();
+        records.set('classes', {});
+        records.set('student_teacher_links/teacher-1', {});
+        records.set('student_teacher_assignments', {
+            assignment1: {
+                studentId: 'student-other',
+                teacherId: 'teacher-2',
+                status: 'active',
+            },
+        });
+        makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            target: { type: 'students', studentIds: ['student-not-allowed'] },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(403);
+        expect(body.reasonCode).toBe('TARGET_NOT_ALLOWED');
+    });
+
     it.each([
         ['missing content', new Map<string, unknown>([['users/teacher-1', { role: 'teacher' }], ['classes/class-1', classRecord]]), 'CONTENT_NOT_FOUND'],
         ['draft content', okRecords(makeTestRecord({ id: 'ielts-reading-1', skill: 'Reading', status: 'draft' })), 'CONTENT_DRAFT'],
         ['unpublished content', okRecords(makeTestRecord({ id: 'ielts-reading-1', skill: 'Reading', published: false })), 'CONTENT_UNPUBLISHED'],
         ['unsafe delivery projection', okRecords(makeTestRecord({ id: 'ielts-reading-1', skill: 'Reading', deliveryProjectionReady: false })), 'CONTENT_NOT_ASSIGNABLE'],
+        ['missing delivery projection marker', okRecords(makeTestRecord({ id: 'ielts-reading-1', skill: 'Reading', omitDeliveryProjectionReady: true })), 'CONTENT_NOT_ASSIGNABLE'],
     ])('rejects %s', async (_label, records, reasonCode) => {
         makeFetchMock(records);
 
@@ -189,6 +253,18 @@ describe('homework assignment Worker route', () => {
 
         expect(response.status).toBeGreaterThanOrEqual(400);
         expect(body.reasonCode).toBe(reasonCode);
+    });
+
+    it('rejects IELTS Reading content when the legacy student-safe projection is missing', async () => {
+        const records = okRecords(makeTestRecord({ id: 'ielts-reading-1', skill: 'Reading', deliveryProjectionReady: true }));
+        records.delete('student_safe_tests/ielts-reading-1');
+        makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody()), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
     });
 
     it('rejects unsupported content kind', async () => {

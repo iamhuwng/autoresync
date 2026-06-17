@@ -1463,7 +1463,15 @@ const TeacherLobbyPage = () => {
 
   const handleUseAsIsAssignHW = useCallback((test) => {
     modals.closeUseAsIs();
-    modals.openHwDialog(test);
+    const assignability = resolveTeacherLobbyAssignability(test, { family: 'test' });
+    if (!assignability.assignable || !assignability.contentRef) {
+      toast.error(homeworkAssignmentReasonMessage(assignability.reasonCode));
+      return;
+    }
+    modals.openHwDialog({
+      ...test,
+      _assignmentContentRef: assignability.contentRef,
+    });
   }, [modals.closeUseAsIs, modals.openHwDialog]);
 
   const getReadingPassageId = useCallback((passage) => (

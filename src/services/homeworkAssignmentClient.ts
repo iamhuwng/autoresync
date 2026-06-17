@@ -3,6 +3,7 @@ import type { HomeworkContentRef } from '../types/homework.types';
 import type { CreateHomeworkInput } from './homeworkManager';
 
 const WORKER_BASE_URL = import.meta.env.VITE_BACKUP_WORKER_URL || '';
+const HOMEWORK_ASSIGNMENTS_PATH = '/api/homework/assignments';
 
 export class HomeworkAssignmentWorkerError extends Error {
     readonly reasonCode?: string;
@@ -51,11 +52,23 @@ function serializeAssignment(input: WorkerHomeworkAssignmentInput): Record<strin
     };
 }
 
+function getHomeworkAssignmentEndpoint(): string {
+    if (!WORKER_BASE_URL && import.meta.env.PROD) {
+        throw new HomeworkAssignmentWorkerError(
+            'Homework assignment service is not configured. Missing VITE_BACKUP_WORKER_URL.',
+            500,
+            'INVALID_ASSIGNMENT_REQUEST'
+        );
+    }
+    return WORKER_BASE_URL + HOMEWORK_ASSIGNMENTS_PATH;
+}
+
 export async function createHomeworkAssignmentViaWorker(
     input: WorkerHomeworkAssignmentInput
 ): Promise<string> {
+    const endpoint = getHomeworkAssignmentEndpoint();
     const token = await getCurrentIdToken();
-    const response = await fetch(WORKER_BASE_URL + '/api/homework/assignments', {
+    const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

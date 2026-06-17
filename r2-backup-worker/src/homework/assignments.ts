@@ -494,23 +494,50 @@ async function resolveTarget(
             return assignmentError('INVALID_ASSIGNMENT_REQUEST', 'Missing student targets.', 400);
         }
 
-        const classes = await readRtdb<Record<string, any>>(env, accessToken, 'classes') ?? {};
         const allowedStudentIds = new Set<string>();
-        Object.values(classes).forEach((classData) => {
-            if (!isRecord(classData)) {
-                return;
-            }
-            if (role !== 'super_admin' && !teacherOwnsRecord(classData, uid)) {
-                return;
-            }
-            const students = isRecord(classData.students) ? classData.students : {};
-            Object.entries(students).forEach(([studentKey, entry]) => {
-                allowedStudentIds.add(studentKey);
-                if (isRecord(entry) && typeof entry.uid === 'string') {
-                    allowedStudentIds.add(entry.uid);
+
+        if (role === 'super_admin') {
+            studentIds.forEach((studentId) => allowedStudentIds.add(studentId));
+        } else {
+            const [classes, linkedStudents, assignments] = await Promise.all([
+                readRtdb<Record<string, any>>(env, accessToken, 'classes'),
+                readRtdb<Record<string, any>>(env, accessToken, 'student_teacher_links/' + uid),
+                readRtdb<Record<string, any>>(env, accessToken, 'student_teacher_assignments'),
+            ]);
+
+            Object.values(classes ?? {}).forEach((classData) => {
+                if (!isRecord(classData)) {
+                    return;
+                }
+                if (!teacherOwnsRecord(classData, uid)) {
+                    return;
+                }
+                const students = isRecord(classData.students) ? classData.students : {};
+                Object.entries(students).forEach(([studentKey, entry]) => {
+                    allowedStudentIds.add(studentKey);
+                    if (isRecord(entry) && typeof entry.uid === 'string') {
+                        allowedStudentIds.add(entry.uid);
+                    }
+                });
+            });
+
+            Object.entries(linkedStudents ?? {}).forEach(([studentId, linked]) => {
+                if (linked === true || (isRecord(linked) && linked.status === 'active')) {
+                    allowedStudentIds.add(studentId);
                 }
             });
-        });
+
+            Object.values(assignments ?? {}).forEach((assignment) => {
+                if (
+                    isRecord(assignment) &&
+                    assignment.teacherId === uid &&
+                    assignment.status === 'active' &&
+                    typeof assignment.studentId === 'string'
+                ) {
+                    allowedStudentIds.add(assignment.studentId);
+                }
+            });
+        }
 
         if (studentIds.some((studentId) => !allowedStudentIds.has(studentId))) {
             return assignmentError('TARGET_NOT_ALLOWED', 'Teacher cannot assign to one or more students.', 403);
@@ -561,6 +588,32 @@ function kindMatchesRecord(kind: HomeworkContentKind, record: Record<string, any
     return false;
 }
 
+function requiresLegacyStudentSafeProjection(kind: HomeworkContentKind): boolean {
+    return kind === 'ielts_reading' || kind === 'ielts_listening';
+}
+
+async function assertLegacyStudentSafeProjection(
+    env: WorkerEnv,
+    accessToken: string,
+    contentRef: HomeworkContentRef,
+    record: Record<string, any>
+): Promise<AssignmentError | null> {
+    if (!requiresLegacyStudentSafeProjection(contentRef.contentKind)) {
+        return null;
+    }
+
+    if (record.deliveryProjectionReady !== true) {
+        return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Content is missing a safe delivery projection.', 400);
+    }
+
+    const projection = await readRtdb<Record<string, any>>(env, accessToken, 'student_safe_tests/' + contentRef.contentId);
+    if (!isRecord(projection)) {
+        return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Content is missing a safe delivery projection.', 400);
+    }
+
+    return null;
+}
+
 async function resolveStandardTestContent(
     env: WorkerEnv,
     accessToken: string,
@@ -587,11 +640,9 @@ async function resolveStandardTestContent(
         return assignmentError('UNSUPPORTED_CONTENT_KIND', 'Submitted content kind does not match the content record.', 400);
     }
 
-    if (
-        (contentRef.contentKind === 'ielts_reading' || contentRef.contentKind === 'ielts_listening') &&
-        record.deliveryProjectionReady === false
-    ) {
-        return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Content is missing a safe delivery projection.', 400);
+    const projectionError = await assertLegacyStudentSafeProjection(env, accessToken, contentRef, record);
+    if (projectionError) {
+        return projectionError;
     }
 
     const title = String(
