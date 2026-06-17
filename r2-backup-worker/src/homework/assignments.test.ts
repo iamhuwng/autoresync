@@ -213,19 +213,26 @@ describe('homework assignment Worker route', () => {
     });
 
     it('accepts direct student targets through active teacher-student links', async () => {
-        const records = okRecords();
+        const record = makeTestRecord({ id: 'ielts-writing-1', skill: 'Writing', title: 'IELTS Writing' });
+        const records = recordsForTestContent(record);
         records.set('classes', {});
         records.set('student_teacher_links/teacher-1', { 'student-linked': true });
-        const { firestoreWrites } = makeFetchMock(records);
+        const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_writing', contentId: 'ielts-writing-1' },
             target: { type: 'students', studentIds: ['student-linked'] },
         })), env);
         const body = await response.json() as Record<string, unknown>;
+        const assignmentId = String(body.assignmentId);
 
         expect(response.status).toBe(201);
         expect(body.assignmentId).toBeTruthy();
         expect(JSON.stringify(firestoreWrites[0])).toContain('student-linked');
+        expect(rtdbWrites).toContainEqual({
+            path: 'homework_student_safe_test_access/' + assignmentId,
+            body: { 'student-linked': true },
+        });
     });
 
     it('accepts direct student targets through active assignment records', async () => {
@@ -397,7 +404,7 @@ describe('homework assignment Worker route', () => {
         expect(contentRefFields.contentId.stringValue).toBe(contentRef.contentId);
     });
 
-    it('writes a student-safe IELTS Writing projection without teacher-only feedback fields', async () => {
+    it('writes a homework-scoped IELTS Writing projection without teacher-only feedback fields', async () => {
         const record = {
             ...makeTestRecord({ id: 'ielts-writing-1', skill: 'Writing', title: 'IELTS Writing' }),
             tasks: [{
@@ -408,24 +415,37 @@ describe('homework assignment Worker route', () => {
             }],
         };
         const records = recordsForTestContent(record);
-        const { rtdbWrites } = makeFetchMock(records);
+        const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
             contentRef: { contentKind: 'ielts_writing', contentId: 'ielts-writing-1' },
         })), env);
+        const body = await response.json() as Record<string, unknown>;
+        const assignmentId = String(body.assignmentId);
+        const fields = firestoreFields(firestoreWrites[0]);
 
         expect(response.status).toBe(201);
-        expect(rtdbWrites).toContainEqual({
+        expect(fields.studentSafeTestPayloadPath.stringValue).toBe('homework_student_safe_tests/' + assignmentId);
+        expect(rtdbWrites).not.toContainEqual(expect.objectContaining({
             path: 'student_safe_tests/ielts-writing-1',
+        }));
+        expect(rtdbWrites).toContainEqual({
+            path: 'homework_student_safe_tests/' + assignmentId,
             body: expect.objectContaining({
                 id: 'ielts-writing-1',
                 skill: 'Writing',
+                teacherId: 'teacher-1',
+                targetType: 'class',
+                classId: 'class-1',
                 tasks: [{
                     taskNumber: 2,
                     promptText: 'Discuss both views.',
                 }],
             }),
         });
+        expect(rtdbWrites).not.toContainEqual(expect.objectContaining({
+            path: 'homework_student_safe_test_access/' + assignmentId,
+        }));
         expect(JSON.stringify(rtdbWrites)).not.toContain('Teacher model answer');
         expect(JSON.stringify(rtdbWrites)).not.toContain('Teacher-only note');
     });

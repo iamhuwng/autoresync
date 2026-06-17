@@ -36,18 +36,31 @@ describe('teacherLobbyAssignability', () => {
     ],
     [
       'IELTS Reading',
-      { ...publishedBase, id: 'ielts-reading-1', skill: 'Reading' },
+      { ...publishedBase, id: 'ielts-reading-1', skill: 'Reading', deliveryProjectionReady: true },
       { contentKind: 'ielts_reading', contentId: 'ielts-reading-1', flow: 'standard' },
     ],
     [
       'IELTS Listening',
-      { ...publishedBase, id: 'ielts-listening-1', skill: 'Listening' },
+      { ...publishedBase, id: 'ielts-listening-1', skill: 'Listening', deliveryProjectionReady: true },
       { contentKind: 'ielts_listening', contentId: 'ielts-listening-1', flow: 'standard' },
     ],
     [
       'IELTS Writing',
       { ...publishedBase, id: 'ielts-writing-1', skill: 'Writing', metadata: { title: 'Writing Task 1' } },
       { contentKind: 'ielts_writing', contentId: 'ielts-writing-1', flow: 'standard' },
+    ],
+    [
+      'Reading V2 full test',
+      {
+        ...publishedBase,
+        id: 'reading-v2-full-1',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        publishedSnapshotVersionId: 'snapshot-1',
+        hasStudentSafeProjection: true,
+        passageRefCount: 3,
+      },
+      { contentKind: 'ielts_reading', contentId: 'reading-v2-full-1', version: 'snapshot-1', flow: 'standard' },
     ],
   ])('returns assignable metadata for %s', (_label, item, expected) => {
     const family = expected.family || 'test';
@@ -69,6 +82,38 @@ describe('teacherLobbyAssignability', () => {
     ['Unpublished item', { ...publishedBase, published: false }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_UNPUBLISHED],
     ['Deleted item', { ...publishedBase, deleted: true }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE],
     ['Archived item', { ...publishedBase, archived: true }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE],
+    ['IELTS Reading missing safe projection', { ...publishedBase, skill: 'Reading', deliveryProjectionReady: false }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE],
+    ['IELTS Listening missing safe projection', { ...publishedBase, skill: 'Listening', deliveryProjectionReady: false }, 'test', HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE],
+    [
+      'Reading V2 missing snapshot version',
+      { ...publishedBase, deliveryEngine: 'reading-v2', materialKind: 'full-test', materialId: 'v2-1', hasStudentSafeProjection: true, passageRefCount: 3 },
+      'test',
+      HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_UNPUBLISHED,
+    ],
+    [
+      'Reading V2 missing safe projection',
+      { ...publishedBase, deliveryEngine: 'reading-v2', materialKind: 'full-test', materialId: 'v2-1', publishedSnapshotVersionId: 'snapshot-1', hasStudentSafeProjection: false, passageRefCount: 3 },
+      'test',
+      HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE,
+    ],
+    [
+      'Reading V2 passage material',
+      { ...publishedBase, deliveryEngine: 'reading-v2', materialKind: 'reading-passage', materialId: 'v2-1', publishedSnapshotVersionId: 'snapshot-1', hasStudentSafeProjection: true, passageRefCount: 1 },
+      'test',
+      HOMEWORK_ASSIGNMENT_REASON_CODES.UNSUPPORTED_CONTENT_KIND,
+    ],
+    [
+      'Reading V2 broken composition',
+      { ...publishedBase, deliveryEngine: 'reading-v2', materialKind: 'full-test', materialId: 'v2-1', publishedSnapshotVersionId: 'snapshot-1', hasStudentSafeProjection: true, passageRefCount: 3, hasBrokenRefs: true },
+      'test',
+      HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE,
+    ],
+    [
+      'Reading V2 empty composition',
+      { ...publishedBase, deliveryEngine: 'reading-v2', materialKind: 'full-test', materialId: 'v2-1', publishedSnapshotVersionId: 'snapshot-1', hasStudentSafeProjection: true, passageRefCount: 0 },
+      'test',
+      HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE,
+    ],
     ['Unknown family', { id: 'future-1', title: 'Future' }, 'future_family', HOMEWORK_ASSIGNMENT_REASON_CODES.UNSUPPORTED_CONTENT_KIND],
   ])('blocks %s with exact reason code', (_label, item, family, reasonCode) => {
     const result = resolveTeacherLobbyAssignability(item, { family, strict: false });

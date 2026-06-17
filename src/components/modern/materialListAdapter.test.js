@@ -10,6 +10,7 @@ describe('materialListAdapter', () => {
       skill: 'Reading',
       questionCount: 40,
       duration: 60,
+      deliveryProjectionReady: true,
       updatedAt: '2026-05-12T10:15:00Z',
     }, {
       handlers: { onEdit: vi.fn(), onDelete: vi.fn(), onStartTest: vi.fn() },
@@ -50,6 +51,7 @@ describe('materialListAdapter', () => {
       questionCount: 10,
       status: 'published',
       isComplete: true,
+      deliveryProjectionReady: true,
     }, {
       handlers: { onAssignHw: vi.fn() },
     });
@@ -112,6 +114,8 @@ describe('materialListAdapter', () => {
       title: 'IELTS Reading V2',
       testType: 'IELTS',
       skill: 'Reading',
+      publishedSnapshotVersionId: 'snapshot-1',
+      hasStudentSafeProjection: true,
       questionCount: 3,
       metadata: { durationMinutes: 60 },
     });
@@ -131,6 +135,9 @@ describe('materialListAdapter', () => {
       title: 'IELTS Full Test',
       testType: 'IELTS',
       skill: 'Reading',
+      publishedSnapshotVersionId: 'snapshot-1',
+      hasStudentSafeProjection: true,
+      passageRefCount: 3,
       questionCount: 40,
       durationMinutes: 60,
       hiddenProvenance: { importEvidence: 'secret' },
@@ -141,6 +148,26 @@ describe('materialListAdapter', () => {
     expect(row.itemLabel).toBe('40 questions');
     expect(row.durationLabel).toBe('60 min');
     expect(row.actions.map((item) => item.slot)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('hides homework action for broken Reading V2 full-test compositions', () => {
+    const row = buildTestMaterialListRow({
+      id: 'broken-full-test-1',
+      materialId: 'broken-full-test-1',
+      deliveryEngine: 'reading-v2',
+      materialKind: 'full-test',
+      title: 'Broken IELTS Full Test',
+      testType: 'IELTS',
+      skill: 'Reading',
+      publishedSnapshotVersionId: 'snapshot-1',
+      hasStudentSafeProjection: true,
+      passageRefCount: 3,
+      hasBrokenRefs: true,
+    }, {
+      handlers: { onAssignHw: vi.fn() },
+    });
+
+    expect(row.actions.map((action) => action.key)).not.toContain('assign-homework');
   });
 
   it('maps incomplete items to recovery actions without Start Test', () => {
@@ -179,6 +206,7 @@ describe('materialListAdapter', () => {
       title: 'Public Reading',
       testType: 'IELTS',
       skill: 'Reading',
+      deliveryProjectionReady: true,
     }, {
       isPublicLibrary: true,
     });
@@ -186,6 +214,24 @@ describe('materialListAdapter', () => {
     expect(row.actions.map((item) => item.label)).toEqual(['View', 'Start Test', 'Assign HW']);
     expect(row.actions.map((item) => item.slot)).toEqual([1, 3, 4]);
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
+  });
+
+  it('hides homework action when safe projection readiness is missing', () => {
+    const row = buildTestMaterialListRow({
+      id: 'ielts-reading-unready',
+      title: 'IELTS Reading Unready',
+      testType: 'IELTS',
+      skill: 'Reading',
+      deliveryProjectionReady: false,
+      status: 'published',
+      isComplete: true,
+    });
+
+    expect(row.assignability).toMatchObject({
+      assignable: false,
+      reasonCode: 'CONTENT_NOT_ASSIGNABLE',
+    });
+    expect(row.actions.map((item) => item.key)).not.toContain('assign-homework');
   });
 
   it('uses neutral fallbacks for missing metadata', () => {

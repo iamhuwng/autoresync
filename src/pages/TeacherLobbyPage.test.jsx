@@ -469,6 +469,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         ownerId: 'teacher-1',
         status: 'published',
         isComplete: true,
+        deliveryProjectionReady: true,
         questions: [{ id: 'q1' }],
       },
     ];

@@ -379,13 +379,16 @@ const StudentPracticePageContent: React.FC = () => {
                 }
 
                 const normalizedHomeworkKind = homeworkForLaunch?.contentRef?.contentKind;
+                const studentSafeTestPayloadPath = normalizedHomeworkKind === 'ielts_writing'
+                    ? (homeworkForLaunch as { studentSafeTestPayloadPath?: string | null } | null)?.studentSafeTestPayloadPath
+                    : null;
                 const usesStudentSafeHomeworkProjection = Boolean(
                     normalizedHomeworkKind
                     && STUDENT_SAFE_STANDARD_HOMEWORK_KINDS.has(normalizedHomeworkKind),
                 );
-                const launchTestPath = usesStudentSafeHomeworkProjection
+                const launchTestPath = studentSafeTestPayloadPath || (usesStudentSafeHomeworkProjection
                     ? `student_safe_tests/${materialId}`
-                    : `tests/${materialId}`;
+                    : `tests/${materialId}`);
                 const launchTestSnap = await get(ref(database, launchTestPath));
                 const launchTestData = launchTestSnap.exists() ? launchTestSnap.val() : null;
 

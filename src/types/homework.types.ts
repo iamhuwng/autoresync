@@ -254,6 +254,9 @@ export interface HomeworkAssignment {
     /** Frozen Reading V2 composed assignment projection path for composition-backed Reading Passage sets. */
     readingV2AssignmentPayloadPath?: string;
 
+    /** Homework-scoped student-safe payload for Worker-created private standard tests. */
+    studentSafeTestPayloadPath?: string;
+
     // ========== Target ==========
     /** Who should complete this homework */
     target: HomeworkTarget;

@@ -33,6 +33,34 @@ const supported = (contentRef, flow = 'standard') => ({
   flow,
 });
 
+function hasReadyStudentSafeProjection(item) {
+  return item?.deliveryProjectionReady === true
+    || item?.hasStudentSafeProjection === true
+    || item?.studentSafeProjectionReady === true
+    || item?.metadata?.deliveryProjectionReady === true
+    || item?.metadata?.hasStudentSafeProjection === true
+    || item?.metadata?.studentSafeProjectionReady === true;
+}
+
+function isReadingV2FullTest(item) {
+  const materialKind = lower(item?.materialKind || item?.metadata?.materialKind);
+  return materialKind === 'full-test' || materialKind === 'reading-v2-full-test-composition';
+}
+
+function hasBrokenReadingV2Refs(item) {
+  const brokenRefCount = Number(item?.brokenRefCount ?? item?.metadata?.brokenRefCount ?? 0);
+  const brokenRefReasons = item?.brokenRefReasons ?? item?.metadata?.brokenRefReasons;
+  return item?.hasBrokenRefs === true
+    || item?.metadata?.hasBrokenRefs === true
+    || brokenRefCount > 0
+    || (Array.isArray(brokenRefReasons) && brokenRefReasons.length > 0);
+}
+
+function hasReadingV2PassageRefs(item) {
+  const passageRefCount = Number(item?.passageRefCount ?? item?.metadata?.passageRefCount ?? 0);
+  return passageRefCount > 0 || (Array.isArray(item?.passageRefs) && item.passageRefs.length > 0);
+}
+
 export function assertTeacherLobbyFamilyRegistered(family) {
   if (!REGISTERED_FAMILIES.has(family)) {
     throw new Error('Teacher Lobby assignment family is not registered: ' + family);
@@ -112,16 +140,28 @@ function resolveTestAssignability(item) {
   }
 
   if (item?.deliveryEngine === 'reading-v2') {
+    if (!isReadingV2FullTest(item)) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.UNSUPPORTED_CONTENT_KIND);
+    }
     const version = asText(
       item?.publishedSnapshotVersionId ||
       item?.snapshotVersionId ||
       item?.currentVersionId ||
       item?.metadata?.publishedSnapshotVersionId
     );
+    if (!version) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_UNPUBLISHED);
+    }
+    if (!hasReadyStudentSafeProjection(item)) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
+    }
+    if (hasBrokenReadingV2Refs(item) || !hasReadingV2PassageRefs(item)) {
+      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
+    }
     return supported({
       contentKind: 'ielts_reading',
       ...baseRef,
-      version: version || undefined,
+      version,
       source: 'reading-v2',
     });
   }
@@ -130,9 +170,15 @@ function resolveTestAssignability(item) {
   const skill = lower(item?.skill || item?.metadata?.skill);
   if (testType === 'ielts') {
     if (skill === 'reading') {
+      if (!hasReadyStudentSafeProjection(item)) {
+        return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
+      }
       return supported({ contentKind: 'ielts_reading', ...baseRef, source: 'ielts' });
     }
     if (skill === 'listening') {
+      if (!hasReadyStudentSafeProjection(item)) {
+        return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
+      }
       return supported({ contentKind: 'ielts_listening', ...baseRef, source: 'ielts' });
     }
     if (skill === 'writing') {

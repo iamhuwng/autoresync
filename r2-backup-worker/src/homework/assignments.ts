@@ -58,6 +58,7 @@ interface AssignmentError {
 interface TargetResolution {
     target: HomeworkTarget;
     totalAssigned: number;
+    authorizedStudentIds: string[];
 }
 
 interface ContentResolution {
@@ -66,7 +67,7 @@ interface ContentResolution {
     materialTitle: string;
     materialType: 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     materialSkill: 'reading' | 'listening' | 'writing' | 'speaking';
-    studentSafeProjection?: Record<string, unknown>;
+    studentSafeAssignmentPayload?: Record<string, unknown>;
     readingPassageSnapshot?: Record<string, unknown>;
     readingPassageSet?: Record<string, unknown>;
     readingV2FullTest?: {
@@ -306,6 +307,18 @@ function readingV2AssignmentPayloadPath(homeworkId: string, compositionVersionId
     return 'reading_v2/projections/assignment_payloads/' + homeworkId + ':' + compositionVersionId;
 }
 
+function studentSafeAssignmentPayloadPath(homeworkId: string): string {
+    return 'homework_student_safe_tests/' + homeworkId;
+}
+
+function studentSafeAssignmentAccessPath(homeworkId: string): string {
+    return 'homework_student_safe_test_access/' + homeworkId;
+}
+
+function studentAccessMap(studentIds: string[]): Record<string, true> {
+    return Object.fromEntries([...new Set(studentIds)].map((studentId) => [studentId, true]));
+}
+
 function readingV2PassageRefItems(composition: Record<string, any>): Record<string, unknown>[] {
     return [...(Array.isArray(composition.passageRefs) ? composition.passageRefs : [])]
         .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0))
@@ -484,6 +497,7 @@ async function resolveTarget(
                 className: target.className || classData.name,
             },
             totalAssigned: Object.keys(students).length,
+            authorizedStudentIds: [],
         };
     }
 
@@ -551,6 +565,7 @@ async function resolveTarget(
                 studentNames: Array.isArray(target.studentNames) ? target.studentNames : undefined,
             },
             totalAssigned: new Set(studentIds).size,
+            authorizedStudentIds: [...new Set(studentIds)],
         };
     }
 
@@ -684,7 +699,7 @@ async function resolveStandardTestContent(
         materialTitle: title,
         materialType: contentRef.contentKind === 'thcs_test' ? 'thcs-test' : 'test',
         materialSkill: skillForKind(contentRef.contentKind),
-        studentSafeProjection: contentRef.contentKind === 'ielts_writing'
+        studentSafeAssignmentPayload: contentRef.contentKind === 'ielts_writing'
             ? buildStudentSafeWritingProjection(record)
             : undefined,
     };
@@ -976,6 +991,9 @@ function buildHomeworkRecord(input: {
         readingPassageSnapshot: input.content.readingPassageSnapshot,
         readingPassageSet: input.readingV2Assignment?.readingPassageSet ?? input.content.readingPassageSet,
         readingV2AssignmentPayloadPath: input.readingV2Assignment?.payload.path,
+        studentSafeTestPayloadPath: input.content.studentSafeAssignmentPayload
+            ? studentSafeAssignmentPayloadPath(input.assignmentId)
+            : undefined,
     });
 }
 
@@ -1043,13 +1061,31 @@ export async function handleCreateHomeworkAssignment(
             await writeRtdb(env, accessToken, readingV2Assignment.payload.path, readingV2Assignment.payload.projection);
         }
 
-        if (content.studentSafeProjection) {
+        if (content.studentSafeAssignmentPayload) {
+            const payloadPath = studentSafeAssignmentPayloadPath(assignmentId);
             await writeRtdb(
                 env,
                 accessToken,
-                'student_safe_tests/' + content.contentRef.contentId,
-                content.studentSafeProjection,
+                payloadPath,
+                stripUndefined({
+                    ...content.studentSafeAssignmentPayload,
+                    homeworkId: assignmentId,
+                    teacherId: auth.uid,
+                    targetType: target.target.type,
+                    classId: target.target.type === 'class' ? target.target.classId : undefined,
+                    contentRef: content.contentRef,
+                    materialId: content.materialId,
+                    materialTitle: content.materialTitle,
+                }),
             );
+            if (target.authorizedStudentIds.length > 0) {
+                await writeRtdb(
+                    env,
+                    accessToken,
+                    studentSafeAssignmentAccessPath(assignmentId),
+                    studentAccessMap(target.authorizedStudentIds),
+                );
+            }
         }
 
         await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);

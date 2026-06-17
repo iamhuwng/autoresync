@@ -364,9 +364,10 @@ describe('StudentPracticePage', () => {
   });
 
   it.each([
-    ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view'],
-    ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view'],
-    ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view'],
+    ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view', null],
+    ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view', null],
+    ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', 'homework_student_safe_tests/hw-worker-1'],
+    ['legacy IELTS Writing', 'ielts-writing-legacy-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', null],
   ])('launches Worker-created %s homework through compatibility fields', async (
     title,
     materialId,
@@ -375,9 +376,20 @@ describe('StudentPracticePage', () => {
     contentKind,
     materialType,
     expectedTestId,
+    studentSafeTestPayloadPath,
   ) => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {
+        if (studentSafeTestPayloadPath && target.path === studentSafeTestPayloadPath) {
+          return {
+            id: materialId,
+            testType,
+            skill,
+            metadata: { title },
+            tasks: [],
+          };
+        }
+
         if (target.path === `student_safe_tests/${materialId}`) {
           return {
             id: materialId,
@@ -398,7 +410,7 @@ describe('StudentPracticePage', () => {
 
         return null;
       },
-      exists: () => target.path === `student_safe_tests/${materialId}`,
+      exists: () => target.path === `student_safe_tests/${materialId}` || target.path === studentSafeTestPayloadPath,
     }));
     getHomeworkByIdMock.mockResolvedValue({
       id: 'hw-worker-1',
@@ -412,6 +424,7 @@ describe('StudentPracticePage', () => {
         contentId: materialId,
         title,
       },
+      ...(studentSafeTestPayloadPath ? { studentSafeTestPayloadPath } : {}),
       config: {
         timerMinutes: 30,
         maxAttempts: 1,
@@ -454,17 +467,22 @@ describe('StudentPracticePage', () => {
     });
 
     expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
-    expect(refMock).toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+    expect(refMock).toHaveBeenCalledWith({}, studentSafeTestPayloadPath || `student_safe_tests/${materialId}`);
   });
 
-  it('launches private Worker-created IELTS Writing homework from its student-safe projection', async () => {
+  it('launches private Worker-created IELTS Writing homework from its homework-scoped safe projection', async () => {
     const materialId = 'ielts-writing-private-1';
+    const studentSafeTestPayloadPath = 'homework_student_safe_tests/hw-private-writing';
     getMock.mockImplementation(async (target: { path: string }) => {
       if (target.path === `tests/${materialId}`) {
         throw new Error('Permission denied');
       }
 
       if (target.path === `student_safe_tests/${materialId}`) {
+        throw new Error('Global student_safe_tests must not be used for private Writing homework');
+      }
+
+      if (target.path === studentSafeTestPayloadPath) {
         return {
           val: () => ({
             id: materialId,
@@ -494,6 +512,7 @@ describe('StudentPracticePage', () => {
         contentId: materialId,
         title: 'Private Writing',
       },
+      studentSafeTestPayloadPath,
       config: {
         timerMinutes: null,
         maxAttempts: null,
@@ -531,7 +550,8 @@ describe('StudentPracticePage', () => {
       expect(screen.getByTestId('writing-practice-view')).toBeInTheDocument();
     });
 
-    expect(refMock).toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+    expect(refMock).toHaveBeenCalledWith({}, studentSafeTestPayloadPath);
+    expect(refMock).not.toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
     expect(refMock).not.toHaveBeenCalledWith({}, `tests/${materialId}`);
   });
 
