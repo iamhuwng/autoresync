@@ -869,7 +869,12 @@ async function resolveContent(
         return assignmentError('INVALID_ASSIGNMENT_REQUEST', 'Missing content reference.', 400);
     }
 
-    if (!SUPPORTED_CONTENT_KINDS.has(contentRef.contentKind)) {
+    const submittedKind = contentRef.contentKind.trim();
+    if (submittedKind === 'book') {
+        return assignmentError('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED', 'Whole-book assignment is not supported.', 400);
+    }
+
+    if (!SUPPORTED_CONTENT_KINDS.has(submittedKind as HomeworkContentKind)) {
         return assignmentError('UNSUPPORTED_CONTENT_KIND', 'Unsupported content kind.', 400);
     }
 
@@ -877,15 +882,20 @@ async function resolveContent(
         return assignmentError('INVALID_ASSIGNMENT_REQUEST', 'Missing content id.', 400);
     }
 
-    if (contentRef.contentKind === 'reading_passage') {
-        return resolveReadingPassageContent(env, accessToken, contentRef, uid, role);
+    const normalizedContentRef = {
+        ...contentRef,
+        contentKind: submittedKind as HomeworkContentKind,
+    };
+
+    if (normalizedContentRef.contentKind === 'reading_passage') {
+        return resolveReadingPassageContent(env, accessToken, normalizedContentRef, uid, role);
     }
 
-    if (contentRef.contentKind === 'ielts_reading' && isReadingV2Source(contentRef)) {
-        return resolveReadingV2FullTestContent(env, accessToken, contentRef, uid, role);
+    if (normalizedContentRef.contentKind === 'ielts_reading' && isReadingV2Source(normalizedContentRef)) {
+        return resolveReadingV2FullTestContent(env, accessToken, normalizedContentRef, uid, role);
     }
 
-    return resolveStandardTestContent(env, accessToken, contentRef, uid, role);
+    return resolveStandardTestContent(env, accessToken, normalizedContentRef, uid, role);
 }
 
 function buildHomeworkRecord(input: {

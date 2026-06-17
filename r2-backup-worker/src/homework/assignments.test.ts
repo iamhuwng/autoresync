@@ -58,6 +58,17 @@ const requestFor = (body: unknown, auth = 'Bearer teacher-token') => new Request
     },
 );
 
+const requestWithoutAuth = (body: unknown) => new Request(
+    'https://worker.example.test/api/homework/assignments',
+    {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    },
+);
+
 const json = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
         status,
@@ -131,6 +142,16 @@ const okRecords = (contentRecord = makeTestRecord({ id: 'ielts-reading-1', skill
     ['student_safe_tests/' + contentRecord.id, { id: contentRecord.id, title: contentRecord.title, questions: [{ id: 'q1' }] }],
 ]);
 
+const recordsForTestContent = (contentRecord: ReturnType<typeof makeTestRecord>) => {
+    const records = okRecords(contentRecord);
+    records.delete('tests/ielts-reading-1');
+    records.set('tests/' + contentRecord.id, contentRecord);
+    return records;
+};
+
+const firestoreFields = (write: unknown): Record<string, any> =>
+    ((write as { fields?: Record<string, any> })?.fields ?? {});
+
 describe('homework assignment Worker route', () => {
     beforeEach(() => {
         vi.mocked(verifyFirebaseToken).mockResolvedValue({
@@ -142,15 +163,28 @@ describe('homework assignment Worker route', () => {
         vi.mocked(getFirebaseAccessToken).mockResolvedValue('google-token');
     });
 
-    it('rejects missing or invalid auth with a stable reason code', async () => {
-        vi.mocked(verifyFirebaseToken).mockResolvedValue({ valid: false, error: 'bad token' });
+    it('rejects missing auth with a stable reason code', async () => {
+        vi.mocked(verifyFirebaseToken).mockResolvedValue({ valid: false, error: 'missing token' });
         makeFetchMock(new Map());
 
-        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody(), ''), env);
+        const response = await handleCreateHomeworkAssignment(requestWithoutAuth(assignmentBody()), env);
         const body = await response.json() as Record<string, unknown>;
 
         expect(response.status).toBe(401);
         expect(body.reasonCode).toBe('INVALID_ASSIGNMENT_REQUEST');
+        expect(verifyFirebaseToken).toHaveBeenCalledWith(null, env);
+    });
+
+    it('rejects invalid auth with a stable reason code', async () => {
+        vi.mocked(verifyFirebaseToken).mockResolvedValue({ valid: false, error: 'bad token' });
+        makeFetchMock(new Map());
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody(), 'Bearer bad-token'), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(401);
+        expect(body.reasonCode).toBe('INVALID_ASSIGNMENT_REQUEST');
+        expect(verifyFirebaseToken).toHaveBeenCalledWith('Bearer bad-token', env);
     });
 
     it('rejects non-teacher roles', async () => {
@@ -267,11 +301,65 @@ describe('homework assignment Worker route', () => {
         expect(body.reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
     });
 
-    it('rejects unsupported content kind', async () => {
+    it.each([
+        ['IELTS Reading', 'ielts_reading', 'ielts-reading-1', 'Reading'],
+        ['IELTS Listening', 'ielts_listening', 'ielts-listening-1', 'Listening'],
+    ])('rejects %s when deliveryProjectionReady is missing', async (_label, contentKind, contentId, skill) => {
+        const record = makeTestRecord({
+            id: contentId,
+            skill,
+            omitDeliveryProjectionReady: true,
+        });
+        makeFetchMock(recordsForTestContent(record));
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind, contentId },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
+    });
+
+    it.each([
+        ['IELTS Reading', 'ielts_reading', 'ielts-reading-1', 'Reading'],
+        ['IELTS Listening', 'ielts_listening', 'ielts-listening-1', 'Listening'],
+    ])('rejects %s when the legacy student-safe projection is missing', async (_label, contentKind, contentId, skill) => {
+        const record = makeTestRecord({
+            id: contentId,
+            skill,
+            deliveryProjectionReady: true,
+        });
+        const records = recordsForTestContent(record);
+        records.delete('student_safe_tests/' + contentId);
+        makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind, contentId },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
+    });
+
+    it('rejects whole-book content kind with a stable whole-book reason', async () => {
         makeFetchMock(okRecords());
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
             contentRef: { contentKind: 'book', contentId: 'book-1' },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED');
+    });
+
+    it('rejects unsupported content kind', async () => {
+        makeFetchMock(okRecords());
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'future_kind', contentId: 'future-1' },
         })), env);
         const body = await response.json() as Record<string, unknown>;
 
@@ -292,12 +380,21 @@ describe('homework assignment Worker route', () => {
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({ contentRef })), env);
         const body = await response.json() as Record<string, unknown>;
+        const fields = firestoreFields(firestoreWrites[0]);
+        const contentRefFields = fields.contentRef.mapValue.fields;
 
         expect(response.status).toBe(201);
         expect(body.assignmentId).toBeTruthy();
         expect(body.contentRef).toMatchObject(contentRef);
-        expect(JSON.stringify(firestoreWrites[0])).toContain(String(contentRef.contentKind));
-        expect(JSON.stringify(firestoreWrites[0])).toContain(expectedMaterialType);
+        expect(fields.createdBy.stringValue).toBe('teacher-1');
+        expect(fields.materialId.stringValue).toBe(contentRef.contentId);
+        expect(fields.materialTitle.stringValue).toBe(record.title);
+        expect(fields.materialType.stringValue).toBe(expectedMaterialType);
+        expect(fields.materialSkill.stringValue).toBe(String(record.skill).toLowerCase());
+        expect(fields.target.mapValue.fields.classId.stringValue).toBe('class-1');
+        expect(fields.stats.mapValue.fields.totalAssigned.integerValue).toBe('2');
+        expect(contentRefFields.contentKind.stringValue).toBe(contentRef.contentKind);
+        expect(contentRefFields.contentId.stringValue).toBe(contentRef.contentId);
     });
 
     it('accepts Reading Passage content only when snapshot and student-safe projection exist', async () => {

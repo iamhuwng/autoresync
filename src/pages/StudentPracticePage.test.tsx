@@ -276,6 +276,101 @@ describe('StudentPracticePage', () => {
     }));
   });
 
+  it.each([
+    ['THCS Test', 'thcs-worker-1', 'THCS-THPT', 'Reading', 'thcs_test', 'thcs-test', 'thcs-practice-view'],
+    ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view'],
+    ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view'],
+    ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view'],
+  ])('launches Worker-created %s homework through compatibility fields', async (
+    title,
+    materialId,
+    testType,
+    skill,
+    contentKind,
+    materialType,
+    expectedTestId,
+  ) => {
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === `tests/${materialId}`) {
+          return {
+            id: materialId,
+            testType,
+            skill,
+            metadata: { title },
+            tasks: skill === 'Writing' ? [] : undefined,
+          };
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return testType;
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return skill;
+        }
+
+        return null;
+      },
+      exists: () => target.path === `tests/${materialId}`,
+    }));
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-worker-1',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: title,
+      materialType,
+      materialSkill: String(skill).toLowerCase(),
+      contentRef: {
+        contentKind,
+        contentId: materialId,
+        title,
+      },
+      config: {
+        timerMinutes: 30,
+        maxAttempts: 1,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-worker-1',
+      studentId: 'student-1',
+      homeworkId: 'hw-worker-1',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: `/student/practice/${materialId}`,
+            state: {
+              isHomework: true,
+              homeworkId: 'hw-worker-1',
+              submissionId: 'submission-worker-1',
+              timerMinutes: 30,
+              maxAttempts: 1,
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId(expectedTestId)).toBeInTheDocument();
+    });
+
+    expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
+    expect(refMock).toHaveBeenCalledWith({}, `tests/${materialId}`);
+  });
+
   it('rehydrates writing homework context from canonical homework and submission records', async () => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {
