@@ -1,5 +1,6 @@
 import type { ReadingV2ValidationIssue } from '../../../types/readingV2.types';
 import type { ReadingV2TeacherAnswerKeyAuthority } from '../../../services/reading-v2/readingV2StudioParsingDiagnostics.service';
+import { AssessmentValidationSummary } from '../../../features/assessment/shared/components/AssessmentValidationSummary';
 import type { ReadingV2StudioMetadata, ReadingV2Visibility } from './ReadingV2MetadataPanel';
 
 export interface ReadingV2SettingsPanelProps {
@@ -72,18 +73,21 @@ export function ReadingV2SettingsPanel({
         <h3>Accessibility And Runtime Advisories</h3>
         <p>Dense table, flowchart, and diagram tasks require runtime-specific advisories before publish.</p>
       </section>
-      <section className="reading-v2-editor-section" aria-label="Publish readiness">
-        <h3>Publish Readiness</h3>
-        <p>{publishBlocked ? 'Publish blocked until validation issues are resolved.' : 'Ready for Task 5 publish handoff.'}</p>
-        {answerKeyAuthority ? (
-          <p>
-            {answerKeyAuthority.blocking
-              ? 'Publish is blocked by teacher answer-key binding.'
-              : 'Teacher answer key is authoritative for marking.'}
-          </p>
-        ) : null}
-        <p>Issues: {validationIssues.length}</p>
-      </section>
+      <AssessmentValidationSummary
+        title="Publish Readiness"
+        status={publishBlocked ? 'blocked' : 'ready'}
+        summary={publishBlocked
+          ? 'Publish blocked until validation issues are resolved.'
+          : 'Ready for Task 5 publish handoff.'}
+        messages={answerKeyAuthority
+          ? [
+              answerKeyAuthority.blocking
+                ? 'Publish is blocked by teacher answer-key binding.'
+                : 'Teacher answer key is authoritative for marking.',
+            ]
+          : []}
+        issueCount={validationIssues.length}
+      />
       <p className="reading-v2-studio__muted">
         Assignment targets, session state, course placement, and final result release stay with their owning platform
         features.

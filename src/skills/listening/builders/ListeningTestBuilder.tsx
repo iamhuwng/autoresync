@@ -15,6 +15,7 @@ import type { ParsedQuestion } from '../../../types/document.types';
 import { listeningRouter } from '../../../services/parser/listening.router';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigation } from '../../../hooks/useNavigation';
+import { AssessmentStatusState } from '../../../features/assessment/shared/components/AssessmentStatusState';
 
 // Test types
 type TestType = 'IELTS' | 'TOEFL' | 'Custom';
@@ -2044,14 +2045,13 @@ Write NO MORE THAN TWO WORDS for each answer.
                 )}
 
                 {questions.length === 0 ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '3rem',
-                    color: '#64748b',
-                  }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
-                    <p>No questions added yet. Click "Add Question" to start.</p>
-                  </div>
+                  <AssessmentStatusState
+                    variant="empty"
+                    title="No questions added yet"
+                    titleLevel={3}
+                    align="center"
+                    message={<p>Click "Add Question" to start.</p>}
+                  />
                 ) : (
                   <div style={{ display: 'grid', gap: '0.75rem' }}>
                     {questions.map((q, idx) => (

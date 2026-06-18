@@ -4,6 +4,7 @@ import { FEATURE_IDS } from '../config/featureRegistry';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useNavigation } from '../hooks/useNavigation';
 import { useReadingV2StudioAutosave } from '../hooks/reading-v2/useReadingV2StudioAutosave';
+import { AssessmentStatusState } from '../features/assessment/shared/components/AssessmentStatusState';
 import {
   ReadingV2StudioShell,
   type ReadingV2ReturnContext,
@@ -293,30 +294,44 @@ export default function ReadingV2StudioPage() {
 
   if (isRevisionHydrating) {
     return (
-      <main aria-busy="true" style={{ padding: '2rem' }}>
-        <h1>READING-V2</h1>
-        <p>Loading published Reading V2 material...</p>
-      </main>
+      <AssessmentStatusState
+        as="main"
+        variant="loading"
+        title="READING-V2"
+        message={<p>Loading published Reading V2 material...</p>}
+      />
     );
   }
 
   if (revisionHydrationError) {
     return (
-      <main role="alert" style={{ padding: '2rem' }}>
-        <h1>READING-V2</h1>
-        <p>Unable to open this published Reading V2 material for editing.</p>
-        <p>{revisionHydration.message ?? 'The published snapshot could not be hydrated.'}</p>
-      </main>
+      <AssessmentStatusState
+        as="main"
+        variant="error"
+        title="READING-V2"
+        message={(
+          <>
+            <p>Unable to open this published Reading V2 material for editing.</p>
+            <p>{revisionHydration.message ?? 'The published snapshot could not be hydrated.'}</p>
+          </>
+        )}
+      />
     );
   }
 
   if (studioContext.status === 'invalid') {
     return (
-      <main role="alert" style={{ padding: '2rem' }}>
-        <h1>READING-V2</h1>
-        <p>Unable to open this Reading V2 Studio draft.</p>
-        <p>{studioContext.message ?? 'Auto import needs review before Studio can open.'}</p>
-      </main>
+      <AssessmentStatusState
+        as="main"
+        variant="error"
+        title="READING-V2"
+        message={(
+          <>
+            <p>Unable to open this Reading V2 Studio draft.</p>
+            <p>{studioContext.message ?? 'Auto import needs review before Studio can open.'}</p>
+          </>
+        )}
+      />
     );
   }
 
