@@ -2754,10 +2754,8 @@ export function ReadingV2RuntimeShell({
       questionAnchorRefs.current.get(pendingTarget.displayNumber),
     );
   }, [
-    activeInteractionId,
     activeSectionId,
     activeSectionScrollKey,
-    activeTaskGroupId,
     isMobile,
     isQuestionSheetOpen,
     navigationScrollVersion,

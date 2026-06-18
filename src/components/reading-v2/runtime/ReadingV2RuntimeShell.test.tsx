@@ -699,6 +699,23 @@ describe('ReadingV2RuntimeShell', () => {
     expect(sheet.scrollTop).toBeGreaterThan(0);
   });
 
+  it('keeps phone question-sheet scroll stable while choosing or typing answers', () => {
+    setViewport(390, 844);
+
+    render(<ReadingV2RuntimeShell projection={mixedImportedProjection()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Questions' }));
+    const sheet = screen.getByLabelText('Bottom-sheet question surface');
+
+    sheet.scrollTop = 333;
+    fireEvent.click(within(getRuntimeQuestionAnchor(2)).getByRole('radio', { name: 'TRUE' }));
+    expect(sheet.scrollTop).toBe(333);
+
+    sheet.scrollTop = 444;
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Question 1 answer' }));
+    expect(sheet.scrollTop).toBe(444);
+  });
+
   it('restores phone question-sheet scroll after close and reopen', async () => {
     setViewport(390, 844);
 
