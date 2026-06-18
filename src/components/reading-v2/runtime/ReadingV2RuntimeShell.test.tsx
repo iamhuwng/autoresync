@@ -536,6 +536,79 @@ describe('ReadingV2RuntimeShell', () => {
     await storage.remove(textSizeStorageKey);
   });
 
+  it('preserves and persists a text-size change made before hydration completes', async () => {
+    setViewport(390, 844);
+    const textSizeStorageKey = 'reading_text_size_mobile-v2-race';
+    let resolveStoredSize!: (value: number | undefined) => void;
+    const storedSize = new Promise<number | undefined>((resolve) => {
+      resolveStoredSize = resolve;
+    });
+    const getSpy = vi.spyOn(storage, 'get').mockReturnValueOnce(storedSize);
+    const setSpy = vi.spyOn(storage, 'set');
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        textSizeStorageKey={textSizeStorageKey}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Text size' }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Reading text size' }), {
+      target: { value: '20' },
+    });
+
+    await act(async () => {
+      resolveStoredSize(19);
+      await storedSize;
+    });
+
+    expect(getSpy).toHaveBeenCalledWith(textSizeStorageKey);
+    expect(screen.getByLabelText('Reading V2 Runtime Shell')).toHaveStyle(
+      '--reading-v2-runtime-mobile-content-size: 20px',
+    );
+    await waitFor(() => expect(setSpy).toHaveBeenCalledWith(textSizeStorageKey, 20));
+  });
+
+  it('restores overflow-trigger focus after returning from menu-opened review', async () => {
+    setViewport(390, 844);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'More options' });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review answers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Test' }));
+
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('tracks text-size adjustments with the shared size metadata field', () => {
+    setViewport(390, 844);
+    const onAction = vi.fn();
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onAction={onAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Text size' }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Reading text size' }), {
+      target: { value: '20' },
+    });
+
+    expect(onAction).toHaveBeenCalledWith('adjustTextSize', { size: 20 });
+  });
+
   it('closes the mobile overflow menu on Escape and restores trigger focus', () => {
     setViewport(390, 844);
 
@@ -570,7 +643,7 @@ describe('ReadingV2RuntimeShell', () => {
 
     expect(onAction).toHaveBeenCalledWith('openOverflowMenu', undefined);
     expect(onAction).toHaveBeenCalledWith('openTextSizeControl', undefined);
-    expect(onAction).toHaveBeenCalledWith('adjustTextSize', { textSize: 18 });
+    expect(onAction).toHaveBeenCalledWith('adjustTextSize', { size: 18 });
     expect(onAction).toHaveBeenCalledWith('closeTextSizeControl', undefined);
   });
 

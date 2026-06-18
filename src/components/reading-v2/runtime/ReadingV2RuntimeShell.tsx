@@ -2262,6 +2262,7 @@ export function ReadingV2RuntimeShell({
   const [navigationScrollVersion, setNavigationScrollVersion] = useState(0);
   const [leftWidthPercent, setLeftWidthPercent] = useState(50);
   const [passageFontSize, setPassageFontSize] = useState(16);
+  const [textSizeHydrated, setTextSizeHydrated] = useState(!textSizeStorageKey);
   const [passageLineHeight, setPassageLineHeight] = useState(1.5);
   const [highlighterActive, setHighlighterActive] = useState(false);
   const [highlightColor, setHighlightColor] = useState('#fff59d');
@@ -2283,6 +2284,7 @@ export function ReadingV2RuntimeShell({
   const submitLockRef = useRef(false);
   const persistenceHydratedRef = useRef(!persistenceKey);
   const textSizeHydratedRef = useRef(!textSizeStorageKey);
+  const textSizeDirtyRef = useRef(false);
   const answersDirtyRef = useRef(false);
   const answersRef = useRef(answers);
   const initialAnswersRef = useRef(initialAnswers);
@@ -2441,13 +2443,16 @@ export function ReadingV2RuntimeShell({
   }, [answers, onAnswersChange, persistenceKey]);
 
   useEffect(() => {
+    textSizeDirtyRef.current = false;
     if (!textSizeStorageKey) {
       textSizeHydratedRef.current = true;
+      setTextSizeHydrated(true);
       return;
     }
 
     let cancelled = false;
     textSizeHydratedRef.current = false;
+    setTextSizeHydrated(false);
 
     const hydrateTextSize = async () => {
       const savedSize = await storage.get<number>(textSizeStorageKey);
@@ -2456,9 +2461,15 @@ export function ReadingV2RuntimeShell({
       }
 
       textSizeHydratedRef.current = true;
-      if (Number.isInteger(savedSize) && savedSize! >= 14 && savedSize! <= 22) {
+      if (
+        !textSizeDirtyRef.current
+        && Number.isInteger(savedSize)
+        && savedSize! >= 14
+        && savedSize! <= 22
+      ) {
         setPassageFontSize(savedSize!);
       }
+      setTextSizeHydrated(true);
     };
 
     void hydrateTextSize();
@@ -2468,12 +2479,12 @@ export function ReadingV2RuntimeShell({
   }, [textSizeStorageKey]);
 
   useEffect(() => {
-    if (!textSizeStorageKey || !textSizeHydratedRef.current) {
+    if (!textSizeStorageKey || !textSizeHydrated || !textSizeHydratedRef.current) {
       return;
     }
 
     void storage.set(textSizeStorageKey, passageFontSize);
-  }, [passageFontSize, textSizeStorageKey]);
+  }, [passageFontSize, textSizeHydrated, textSizeStorageKey]);
 
   useEffect(() => {
     if (!isMobile || (!isQuestionSheetOpen && !showReviewSummary && !mobileUtilityPanel)) {
@@ -2916,9 +2927,11 @@ export function ReadingV2RuntimeShell({
   };
 
   const openReviewSummary = () => {
-    reviewReturnFocusRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
+    reviewReturnFocusRef.current = isMobile && isMobileOverflowOpen
+      ? mobileOverflowButtonRef.current
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     if (isMobile) {
       questionSheetWasOpenBeforeReviewRef.current = isQuestionSheetOpen;
       if (isQuestionSheetOpen) {
@@ -3216,8 +3229,9 @@ export function ReadingV2RuntimeShell({
           textSize={passageFontSize}
           instructionGroups={activeInstructionGroups}
           onTextSizeChange={(textSize) => {
+            textSizeDirtyRef.current = true;
             setPassageFontSize(textSize);
-            onAction?.('adjustTextSize', { textSize });
+            onAction?.('adjustTextSize', { size: textSize });
           }}
           onClose={closeMobileUtility}
         />
@@ -3342,7 +3356,10 @@ export function ReadingV2RuntimeShell({
                 lineHeight={passageLineHeight}
                 highlighterActive={highlighterActive}
                 highlightColor={highlightColor}
-                onFontSizeChange={setPassageFontSize}
+                onFontSizeChange={(fontSize) => {
+                  textSizeDirtyRef.current = true;
+                  setPassageFontSize(fontSize);
+                }}
                 onLineHeightChange={setPassageLineHeight}
                 onHighlighterActiveChange={setHighlighterActive}
                 onHighlightColorChange={setHighlightColor}
