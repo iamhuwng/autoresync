@@ -59,7 +59,7 @@ describe('MaterialListRow', () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it('keeps row actions in stable icon slots', async () => {
+  it('keeps row actions in slot order without fixed placement', async () => {
     const user = userEvent.setup();
     const onAssign = vi.fn();
     render(
@@ -73,12 +73,38 @@ describe('MaterialListRow', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Edit' })).toHaveStyle({ gridColumn: '1' });
-    expect(screen.getByRole('button', { name: 'Assign HW' })).toHaveStyle({ gridColumn: '4' });
+    expect(screen.getAllByRole('button', { name: /Edit|Assign HW/ }).map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Edit',
+      'Assign HW',
+    ]);
+    expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveStyle({ gridColumn: '1' });
+    expect(screen.getByRole('button', { name: 'Assign HW' })).not.toHaveStyle({ gridColumn: '4' });
 
     await user.click(screen.getByRole('button', { name: 'Assign HW' }));
 
     expect(onAssign).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders actions in slot order so the rail stays on one line', () => {
+    render(
+      <MaterialListRow
+        row={makeRow({
+          actions: [
+            { key: 'edit', label: 'Edit', variant: 'secondary', iconKind: 'edit', slot: 1, onSelect: vi.fn() },
+            { key: 'assign-homework', label: 'Assign homework', variant: 'primary', iconKind: 'clone', slot: 4, onSelect: vi.fn() },
+            { key: 'archive', label: 'Remove from library', variant: 'danger', iconKind: 'archive', slot: 3, onSelect: vi.fn() },
+          ],
+        })}
+      />
+    );
+
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Edit',
+      'Remove from library',
+      'Assign homework',
+    ]);
+    expect(screen.getByRole('button', { name: 'Remove from library' })).not.toHaveStyle({ gridColumn: '3' });
+    expect(screen.getByRole('button', { name: 'Assign homework' })).not.toHaveStyle({ gridColumn: '4' });
   });
 
   it('uses row highlight and row click for Reading Passage selection', async () => {

@@ -38,10 +38,18 @@ const isInteractiveTarget = (target) => Boolean(target?.closest?.(
   'button, a, input, select, textarea, [role="button"], [data-row-action]',
 ));
 
+const getSortedActions = (actions = []) =>
+  [...actions].sort((left, right) => {
+    const leftSlot = left.slot ?? Number.MAX_SAFE_INTEGER;
+    const rightSlot = right.slot ?? Number.MAX_SAFE_INTEGER;
+    return leftSlot - rightSlot;
+  });
+
 const MaterialListRow = ({ row }) => {
   const RowIcon = ROW_ICONS[row.iconKind] || FileIcon;
   const canSelect = Boolean(row.selection && !row.selection.disabled);
   const isSelected = Boolean(row.selection?.checked);
+  const actions = getSortedActions(row.actions);
 
   const toggleSelection = () => {
     if (canSelect) {
@@ -78,7 +86,6 @@ const MaterialListRow = ({ row }) => {
         type="button"
         data-row-action="true"
         className={`material-list-row__action material-list-row__action--${item.variant || 'secondary'}`}
-        style={{ gridColumn: item.slot || 'auto' }}
         aria-label={item.label}
         disabled={item.disabled}
         title={item.disabled ? item.disabledReason : item.label}
@@ -135,7 +142,7 @@ const MaterialListRow = ({ row }) => {
         {row.updatedLabel}
       </div>
       <div className="material-list-row__actions" aria-label={`${row.title} actions`}>
-        {row.actions.map((item) => renderActionButton(item))}
+        {actions.map((item) => renderActionButton(item))}
       </div>
     </div>
   );

@@ -10,7 +10,6 @@ const TeacherLobbyAssignmentAction = ({ action }) => {
       data-row-action="true"
       data-assignment-reason-code={action.assignability?.reasonCode}
       className={`material-list-row__action material-list-row__action--${action.variant || 'secondary'}`}
-      style={{ gridColumn: action.slot || 'auto' }}
       aria-label={action.label}
       disabled={action.disabled}
       title={action.disabled ? action.disabledReason : action.label}

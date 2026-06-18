@@ -168,10 +168,10 @@
 }
 
 .material-list-row__actions {
-  display: grid;
-  grid-template-columns: repeat(4, var(--material-action-button-size));
+  display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: nowrap;
   gap: var(--material-action-gap);
   box-sizing: border-box;
   width: var(--material-action-rail-width);
@@ -181,6 +181,7 @@
 
 .material-list-row__action {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   width: var(--material-action-button-size);
@@ -304,8 +305,9 @@
   .material-list-row__actions {
     grid-column: 3;
     grid-row: 4;
-    grid-template-columns: repeat(auto-fit, var(--material-action-button-size));
+    display: flex;
     justify-content: flex-start;
+    flex-wrap: wrap;
     width: 100%;
     min-width: 0;
     padding-right: 0;

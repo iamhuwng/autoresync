@@ -28,7 +28,7 @@ describe('TeacherLobbyAssignmentAction', () => {
     );
 
     const button = screen.getByRole('button', { name: 'Assign HW' });
-    expect(button).toHaveStyle({ gridColumn: '4' });
+    expect(button).not.toHaveStyle({ gridColumn: '4' });
 
     await user.click(button);
 
