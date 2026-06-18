@@ -146,6 +146,7 @@ export function ReadingV2ReviewContentAdapter(
       style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
     >
       <div
+        className="reading-v2-review-summary"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -157,7 +158,7 @@ export function ReadingV2ReviewContentAdapter(
           background: '#f8fafc',
         }}
       >
-        <div>
+        <div className="reading-v2-review-summary-copy">
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
             {materialLabel} Review
           </div>
@@ -165,7 +166,10 @@ export function ReadingV2ReviewContentAdapter(
             {props.reviewPayload.title}
           </div>
         </div>
-        <div style={{ fontSize: '0.8125rem', color: '#475569', textAlign: 'right' }}>
+        <div
+          className="reading-v2-review-summary-snapshot"
+          style={{ fontSize: '0.8125rem', color: '#475569', textAlign: 'right' }}
+        >
           Snapshot {props.reviewPayload.sourceSnapshotVersionId}
         </div>
       </div>

@@ -427,8 +427,33 @@
   }
 
   .rsp-tab-bar {
-    padding: 0 16px;
-    overflow-x: auto;
+    padding: 0 4px;
+    overflow-x: hidden;
+  }
+
+  .rsp-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 12px 2px;
+    font-size: clamp(0.68rem, 3.45vw, 0.82rem);
+    text-align: center;
+  }
+
+  .rsp-panel--mobile .reading-v2-review-summary {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .rsp-panel--mobile .reading-v2-review-summary-copy,
+  .rsp-panel--mobile .reading-v2-review-summary-snapshot {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .rsp-panel--mobile .reading-v2-review-summary-snapshot {
+    text-align: left !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .rsp-tab-body {

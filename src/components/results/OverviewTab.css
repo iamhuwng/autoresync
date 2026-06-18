@@ -501,6 +501,14 @@
     align-items: flex-start;
   }
 
+  .ov-pill-grid {
+    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)) !important;
+  }
+
+  .ov-pill {
+    min-height: 44px;
+  }
+
   .ov-section-card-row {
     flex-wrap: wrap;
   }
