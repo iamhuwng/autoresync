@@ -1,10 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentPracticePage from './StudentPracticePage';
 import { READING_V2_PROJECTION_FIXTURES } from '../services/reading-v2/fixtures/readingV2ProjectionFixtures';
+import { navigationService } from '../services/navigation.service';
 
 const {
   getMock,
@@ -19,6 +20,7 @@ const {
   getSubmissionByIdMock,
   submitHomeworkMock,
   submitReadingV2RuntimeAttemptMock,
+  isReadingV2RuntimeSubmissionConfiguredMock,
   readingV2RuntimePropsMock,
   useTestIntegrityMock,
   useAntiCopyPasteMock,
@@ -39,6 +41,7 @@ const {
   getSubmissionByIdMock: vi.fn(),
   submitHomeworkMock: vi.fn(),
   submitReadingV2RuntimeAttemptMock: vi.fn(),
+  isReadingV2RuntimeSubmissionConfiguredMock: vi.fn(),
   readingV2RuntimePropsMock: vi.fn(),
   useTestIntegrityMock: vi.fn(),
   useAntiCopyPasteMock: vi.fn(),
@@ -97,7 +100,7 @@ vi.mock('../services/homeworkSubmissionService', () => ({
 }));
 
 vi.mock('../services/reading-v2/readingV2RuntimeSubmission.service', () => ({
-  isReadingV2RuntimeSubmissionConfigured: () => true,
+  isReadingV2RuntimeSubmissionConfigured: (...args: unknown[]) => isReadingV2RuntimeSubmissionConfiguredMock(...args),
   submitReadingV2RuntimeAttempt: (...args: unknown[]) => submitReadingV2RuntimeAttemptMock(...args),
 }));
 
@@ -181,8 +184,74 @@ vi.mock('../components/writing-practice/WritingPracticeView', () => ({
   },
 }));
 
+const RouteStateProbe = ({
+  label,
+  testId,
+}: {
+  label: string;
+  testId: string;
+}) => {
+  const location = useLocation();
+  return (
+    <div>
+      <span>{label}</span>
+      <pre data-testid={testId}>{JSON.stringify(location.state ?? null)}</pre>
+    </div>
+  );
+};
+
+const mockReadingV2Launch = (input: {
+  materialId: string;
+  title?: string;
+  durationMinutes?: number | null;
+}) => {
+  const fixture = READING_V2_PROJECTION_FIXTURES.studentSafe;
+  const snapshotVersionId = fixture.sourceSnapshotVersionId;
+  const materialTitle = input.title ?? 'Reading V2 Submit Test';
+  const projection = {
+    ...fixture,
+    materialId: input.materialId,
+    content: {
+      ...fixture.content,
+      title: materialTitle,
+      materialId: input.materialId,
+    },
+  };
+
+  getMock.mockImplementation(async (target: { path: string }) => ({
+    val: () => {
+      if (target.path === `tests/${input.materialId}`) {
+        return {
+          id: input.materialId,
+          materialId: input.materialId,
+          deliveryEngine: 'reading-v2',
+          runtimeEngine: 'reading-v2',
+          testType: 'IELTS',
+          skill: 'Reading',
+          skillType: 'reading-v2',
+          durationMinutes: input.durationMinutes ?? 40,
+          publishedSnapshotVersionId: snapshotVersionId,
+        };
+      }
+
+      if (target.path === `reading_v2/projections/student_safe_tests/${input.materialId}:${snapshotVersionId}`) {
+        return projection;
+      }
+
+      return null;
+    },
+    exists: () => [
+      `tests/${input.materialId}`,
+      `reading_v2/projections/student_safe_tests/${input.materialId}:${snapshotVersionId}`,
+    ].includes(target.path),
+  }));
+
+  return projection;
+};
+
 describe('StudentPracticePage', () => {
   beforeEach(() => {
+    navigationService.reset();
     vi.clearAllMocks();
 
     refMock.mockImplementation((_database: unknown, path: string) => ({ path }));
@@ -205,6 +274,7 @@ describe('StudentPracticePage', () => {
     getEffectiveHomeworkDueDateMock.mockReturnValue(0);
     getSubmissionByIdMock.mockResolvedValue(null);
     submitHomeworkMock.mockResolvedValue(undefined);
+    isReadingV2RuntimeSubmissionConfiguredMock.mockReturnValue(true);
     submitReadingV2RuntimeAttemptMock.mockResolvedValue({
       resultId: 'result-1',
       attemptId: 'attempt-1',
@@ -942,6 +1012,7 @@ describe('StudentPracticePage', () => {
       >
         <Routes>
           <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route path="/student/homework" element={<div>Homework submit destination</div>} />
         </Routes>
       </MemoryRouter>,
     );
@@ -980,6 +1051,237 @@ describe('StudentPracticePage', () => {
         homeworkId: 'hw-v2-integrity',
       }),
     }));
+  });
+
+  it('routes Reading V2 homework submissions to the homework list after trusted submit and homework update', async () => {
+    const user = userEvent.setup();
+    mockReadingV2Launch({
+      materialId: 'material-v2-submit-homework',
+      title: 'Reading V2 Homework Submit',
+    });
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-v2-submit',
+      materialId: 'material-v2-submit-homework',
+      materialType: 'test',
+      materialTitle: 'Reading V2 Homework Submit',
+      materialSkill: 'reading',
+      config: { timerMinutes: 40, maxAttempts: 1 },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/student/practice/material-v2-submit-homework',
+          state: {
+            isHomework: true,
+            homeworkId: 'hw-v2-submit',
+            submissionId: 'submission-v2-submit',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route
+            path="/student/homework"
+            element={<RouteStateProbe label="Homework submit destination" testId="homework-submit-state" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId('reading-v2-runtime');
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    await waitFor(() => {
+      expect(submitReadingV2RuntimeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+        context: expect.objectContaining({
+          surface: 'homework',
+          homeworkId: 'hw-v2-submit',
+        }),
+      }));
+      expect(submitHomeworkMock).toHaveBeenCalledWith(
+        'submission-v2-submit',
+        'result-1',
+        13,
+        13,
+        100,
+        undefined,
+        expect.any(Number),
+      );
+    });
+    expect(await screen.findByText('Homework submit destination')).toBeInTheDocument();
+    expect(screen.getByTestId('homework-submit-state')).toHaveTextContent('"justSubmitted":true');
+  });
+
+  it('routes Reading V2 solo submissions to Academic Record with result state', async () => {
+    const user = userEvent.setup();
+    mockReadingV2Launch({
+      materialId: 'material-v2-submit-solo',
+      title: 'Reading V2 Solo Submit',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/student/practice/material-v2-submit-solo']}>
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route
+            path="/student/academic-record"
+            element={<RouteStateProbe label="Academic Record destination" testId="academic-record-state" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId('reading-v2-runtime');
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    await waitFor(() => {
+      expect(submitReadingV2RuntimeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+        context: expect.objectContaining({
+          surface: 'solo-practice',
+        }),
+      }));
+    });
+    expect(submitHomeworkMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('Academic Record destination')).toBeInTheDocument();
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"resultId":"result-1"');
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"showResult":true');
+  });
+
+  it('routes Reading V2 public-library submissions to Academic Record with result state', async () => {
+    const user = userEvent.setup();
+    mockReadingV2Launch({
+      materialId: 'material-v2-submit-library',
+      title: 'Reading V2 Library Submit',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/student/practice/material-v2-submit-library',
+          state: {
+            context: {
+              type: 'practice',
+              source: {
+                type: 'library',
+                id: 'material-v2-submit-library',
+                name: 'Public Library Reading V2',
+              },
+            },
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route
+            path="/student/academic-record"
+            element={<RouteStateProbe label="Academic Record destination" testId="academic-record-state" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId('reading-v2-runtime');
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    await waitFor(() => {
+      expect(submitReadingV2RuntimeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+        context: expect.objectContaining({
+          surface: 'public-library',
+          sourceName: 'Public Library Reading V2',
+        }),
+      }));
+    });
+    expect(submitHomeworkMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('Academic Record destination')).toBeInTheDocument();
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"resultId":"result-1"');
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"showResult":true');
+  });
+
+  it('routes Reading V2 course-material submissions to Academic Record with result state', async () => {
+    const user = userEvent.setup();
+    mockReadingV2Launch({
+      materialId: 'material-v2-submit-course',
+      title: 'Reading V2 Course Submit',
+    });
+    resolvePracticeSettingsMock.mockResolvedValue({
+      enabled: true,
+      timerMinutes: 40,
+      feedbackTiming: 'after_completion',
+      maxAttempts: null,
+      allowPause: true,
+      minPassingScore: null,
+      reading: { showTimer: true },
+      listening: {
+        allowReplay: true,
+        maxReplays: null,
+        allowSpeedControl: true,
+        allowSkipSection: true,
+        allowPauseAudio: true,
+      },
+      _sources: {},
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/student/practice/material-v2-submit-course',
+          state: {
+            courseId: 'course-1',
+            moduleId: 'module-1',
+            courseName: 'IELTS Reading Course',
+          },
+        }]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route
+            path="/student/academic-record"
+            element={<RouteStateProbe label="Academic Record destination" testId="academic-record-state" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId('reading-v2-runtime');
+    await user.click(screen.getByRole('button', { name: 'Submit Reading V2' }));
+
+    await waitFor(() => {
+      expect(submitReadingV2RuntimeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+        context: expect.objectContaining({
+          surface: 'course-material',
+          courseId: 'course-1',
+          moduleId: 'module-1',
+        }),
+      }));
+    });
+    expect(submitHomeworkMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('Academic Record destination')).toBeInTheDocument();
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"resultId":"result-1"');
+    expect(screen.getByTestId('academic-record-state')).toHaveTextContent('"showResult":true');
+  });
+
+  it('leaves Reading V2 submit unavailable when the trusted endpoint is not configured', async () => {
+    mockReadingV2Launch({
+      materialId: 'material-v2-submit-unconfigured',
+      title: 'Reading V2 Unconfigured Submit',
+    });
+    isReadingV2RuntimeSubmissionConfiguredMock.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/student/practice/material-v2-submit-unconfigured']}>
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId('reading-v2-runtime');
+
+    expect(readingV2RuntimePropsMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      onSubmit: undefined,
+    }));
+    expect(screen.queryByRole('button', { name: 'Submit Reading V2' })).not.toBeInTheDocument();
   });
 
   it('preserves explicitly untimed Reading V2 homework launches', async () => {
@@ -1368,6 +1670,7 @@ describe('StudentPracticePage', () => {
       >
         <Routes>
           <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route path="/student/homework" element={<div>Homework submit destination</div>} />
         </Routes>
       </MemoryRouter>,
     );

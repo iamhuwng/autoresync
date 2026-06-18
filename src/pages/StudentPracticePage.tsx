@@ -69,6 +69,7 @@ import { useAntiCopyPaste } from '../hooks/test/useAntiCopyPaste';
 import { useFullscreenMode } from '../hooks/test/useFullscreenMode';
 import { useTestIntegrity } from '../hooks/test/useTestIntegrity';
 import type { AntiCheatConfig } from '../types/integrity.types';
+import { storage } from '../core/platform/storage';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -167,6 +168,12 @@ const getReadingV2LaunchSurface = (locationState: PracticeLocationState): Readin
 
     return 'solo-practice';
 };
+
+const getReadingV2PracticePersistenceKey = (input: {
+    studentId?: string;
+    materialId?: string;
+    projectionId: string;
+}): string => `reading-v2:practice:${input.studentId ?? 'anonymous'}:${input.materialId}:${input.projectionId}`;
 
 const normalizePositiveTimerMinutes = (value: unknown): number | null => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -753,6 +760,33 @@ const StudentPracticePageContent: React.FC = () => {
                     materialType: readingPassageHomeworkKind,
                 });
             }
+
+            await Promise.allSettled([
+                storage.remove(getReadingV2PracticePersistenceKey({
+                    studentId: user?.uid,
+                    materialId,
+                    projectionId: payload.projectionId,
+                })),
+                studentResumeService.clearResume(),
+            ]);
+            setReadingV2Answers({});
+
+            if (locationState.isHomework) {
+                navigateTo('STUDENT_HOMEWORK', undefined, {
+                    replace: true,
+                    force: true,
+                    state: { justSubmitted: true },
+                    reason: 'test_submission_homework',
+                });
+                return;
+            }
+
+            navigateTo('STUDENT_ACADEMIC_RECORD', undefined, {
+                replace: true,
+                force: true,
+                state: { resultId: result.resultId, showResult: true },
+                reason: 'test_submission_solo',
+            });
         } catch (submitError) {
             trackAction('submitReadingV2Attempt', {
                 ...trackingPayload,
@@ -775,7 +809,9 @@ const StudentPracticePageContent: React.FC = () => {
         readingV2Projection?.content.title,
         readingPassageHomeworkKind,
         readingV2StartedAt,
+        navigateTo,
         trackAction,
+        user?.uid,
     ]);
     const readingV2SubmitHandler = isReadingV2RuntimeSubmissionConfigured()
         ? handleReadingV2Submit
@@ -865,7 +901,11 @@ const StudentPracticePageContent: React.FC = () => {
                     onExit={handleReadingV2Exit}
                     initialAnswers={readingV2Answers}
                     onAnswersChange={setReadingV2Answers}
-                    persistenceKey={`reading-v2:practice:${user?.uid ?? 'anonymous'}:${materialId}:${readingV2Projection.projectionId}`}
+                    persistenceKey={getReadingV2PracticePersistenceKey({
+                        studentId: user?.uid,
+                        materialId,
+                        projectionId: readingV2Projection.projectionId,
+                    })}
                     lifecycle={readingV2Lifecycle}
                     timer={{
                         durationMinutes: resolvedSettings.timerMinutes,
