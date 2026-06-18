@@ -423,6 +423,7 @@ describe('TestPageRouter', () => {
 
     await waitFor(() => {
       expect(readingV2RuntimePropsMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        textSizeStorageKey: 'reading_text_size_student-1',
         lifecycle: expect.objectContaining({
           status: 'in-progress',
           forceSubmitToken: 7890,

@@ -867,6 +867,9 @@ describe('StudentPracticePage', () => {
       {},
       `reading_v2/projections/student_safe_tests/material-v2:${snapshotVersionId}`,
     );
+    expect(readingV2RuntimePropsMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      textSizeStorageKey: 'reading_text_size_student-1',
+    }));
   });
 
   it('uses canonical homework timer settings for explicit Reading V2 homework launches', async () => {

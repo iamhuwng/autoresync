@@ -672,15 +672,20 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           running: readingV2LiveSession.status === 'in-progress',
           autoSubmitOnExpiry: true,
         };
+        const liveStudentId = sessionService.getPlayerId();
 
         return (
           <div ref={readingV2RuntimeContainerRef}>
             <ReadingV2RuntimeShell
               projection={readingV2Projection}
               onSubmit={readingV2SubmitHandler}
+              onAction={(action, metadata) => trackAction(action, metadata)}
               initialAnswers={readingV2Answers}
               onAnswersChange={setReadingV2Answers}
               persistenceKey={`reading-v2:live:${sessionCode ?? 'unknown-session'}:${readingV2Projection.projectionId}`}
+              textSizeStorageKey={liveStudentId
+                ? `reading_text_size_${liveStudentId}`
+                : undefined}
               lifecycle={liveLifecycle}
               timer={liveTimer}
             />

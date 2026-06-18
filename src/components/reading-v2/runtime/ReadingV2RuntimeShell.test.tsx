@@ -242,6 +242,26 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeInTheDocument();
   });
 
+  it('keeps the phone runtime on phone hardware in landscape', () => {
+    setViewport(844, 390);
+    vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148',
+    );
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    expect(screen.getByLabelText('Phone passage-first runtime')).toBeInTheDocument();
+    expect(screen.getByLabelText('Student Reading runtime header')).toBeInTheDocument();
+  });
+
+  it('uses the phone runtime across the full student mobile breakpoint', () => {
+    setViewport(767, 500);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    expect(screen.getByLabelText('Phone passage-first runtime')).toBeInTheDocument();
+  });
+
   it('renders a top-right exit button when a return handler is provided', async () => {
     setViewport(1366, 900);
     const onExit = vi.fn();
@@ -432,7 +452,8 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Passage-first primary surface')).toBeInTheDocument();
     expect(screen.queryByLabelText('Bottom-sheet question surface')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    const moreOptions = screen.getByRole('button', { name: 'More options' });
+    fireEvent.click(moreOptions);
     expect(screen.getByRole('menu')).toHaveTextContent('0 of 2 answered');
     fireEvent.click(screen.getByRole('menuitem', { name: 'Review answers' }));
     expect(screen.getByLabelText('Pre-submit review summary')).toHaveTextContent('Answered 0 of 2');
@@ -446,10 +467,7 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Phone question navigator')).toHaveTextContent('1');
     expect(screen.getByLabelText('Phone question navigator')).toHaveTextContent('2');
     expect(screen.getByRole('button', { name: 'Question 1' })).toHaveTextContent('1');
-    expect(screen.getByLabelText('Preserved passage scroll position')).toHaveTextContent(
-      'Fixture stimulus for multiple-choice',
-    );
-    expect(screen.getByLabelText('Preserved passage scroll position')).toHaveTextContent('@ 248px');
+    expect(screen.queryByLabelText('Preserved passage scroll position')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Questions' }));
     expect(screen.queryByLabelText('Bottom-sheet question surface')).not.toBeInTheDocument();
@@ -477,6 +495,85 @@ describe('ReadingV2RuntimeShell', () => {
     await waitFor(() => expect(screen.queryByLabelText('Pre-submit review summary')).not.toBeInTheDocument());
   });
 
+  it('offers persisted text size and current instructions from the mobile overflow menu', async () => {
+    setViewport(390, 844);
+    const textSizeStorageKey = 'reading_text_size_mobile-v2-test';
+    await storage.set(textSizeStorageKey, 19);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        textSizeStorageKey={textSizeStorageKey}
+      />,
+    );
+
+    const runtime = screen.getByLabelText('Reading V2 Runtime Shell');
+    await waitFor(() => {
+      expect(runtime).toHaveStyle('--reading-v2-runtime-mobile-content-size: 19px');
+    });
+
+    const moreOptions = screen.getByRole('button', { name: 'More options' });
+    fireEvent.click(moreOptions);
+    expect(screen.getByRole('menuitem', { name: 'Review answers' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Text size' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Instructions' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Text size' }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Reading text size' }), {
+      target: { value: '20' },
+    });
+    expect(runtime).toHaveStyle('--reading-v2-runtime-mobile-content-size: 20px');
+    await waitFor(async () => expect(storage.get(textSizeStorageKey)).resolves.toBe(20));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(moreOptions).toHaveFocus();
+
+    fireEvent.click(moreOptions);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Instructions' }));
+    expect(screen.getByRole('dialog', { name: 'Instructions' })).toHaveTextContent('Questions 1-2');
+    expect(screen.getByRole('dialog', { name: 'Instructions' })).toHaveTextContent('Complete the sentences below.');
+    expect(screen.queryByLabelText('Preserved passage scroll position')).not.toBeInTheDocument();
+
+    await storage.remove(textSizeStorageKey);
+  });
+
+  it('closes the mobile overflow menu on Escape and restores trigger focus', () => {
+    setViewport(390, 844);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    const trigger = screen.getByRole('button', { name: 'More options' });
+    fireEvent.click(trigger);
+    const menu = screen.getByRole('menu');
+    fireEvent.keyDown(menu, { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('reports mobile runtime tool actions to the owning host', () => {
+    setViewport(390, 844);
+    const onAction = vi.fn();
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onAction={onAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Text size' }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Reading text size' }), {
+      target: { value: '18' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(onAction).toHaveBeenCalledWith('openOverflowMenu', undefined);
+    expect(onAction).toHaveBeenCalledWith('openTextSizeControl', undefined);
+    expect(onAction).toHaveBeenCalledWith('adjustTextSize', { textSize: 18 });
+    expect(onAction).toHaveBeenCalledWith('closeTextSizeControl', undefined);
+  });
+
   it('keeps phone passage scroll positions scoped to the selected passage', async () => {
     setViewport(390, 844);
 
@@ -500,6 +597,111 @@ describe('ReadingV2RuntimeShell', () => {
     fireEvent.click(screen.getByRole('button', { name: /Passage 2/ }));
 
     await waitFor(() => expect(passageSurface.scrollTop).toBe(91));
+  });
+
+  it('scrolls and focuses the selected question inside the phone question sheet', () => {
+    setViewport(390, 844);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['multiple-choice'].studentSafe}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Questions' }));
+    const sheet = screen.getByLabelText('Bottom-sheet question surface');
+    const scrollTo = mockScrollablePanel(sheet, {
+      scrollTop: 0,
+      scrollHeight: 1200,
+      clientHeight: 400,
+    });
+    mockElementRect(sheet, 48, 400);
+    const questionTwo = getRuntimeQuestionAnchor(2);
+    mockElementRect(questionTwo, 720, 60);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Question 2' }));
+
+    expect(questionTwo).toHaveFocus();
+    expect(scrollTo).toHaveBeenCalled();
+    expect(sheet.scrollTop).toBeGreaterThan(0);
+  });
+
+  it('restores phone question-sheet scroll after close and reopen', async () => {
+    setViewport(390, 844);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Questions' }));
+    const firstSheet = screen.getByLabelText('Bottom-sheet question surface');
+    firstSheet.scrollTop = 333;
+    fireEvent.click(screen.getByRole('button', { name: 'Close Questions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Questions' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Bottom-sheet question surface').scrollTop).toBe(333);
+    });
+  });
+
+  it('closes the phone question dialog on Escape and restores focus to its trigger', () => {
+    setViewport(390, 844);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    const trigger = screen.getByRole('button', { name: 'Open Questions' });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Bottom-sheet question surface' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Bottom-sheet question surface' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('restores the question sheet after returning from mobile review', async () => {
+    setViewport(390, 844);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Questions' }));
+    const sheet = screen.getByLabelText('Bottom-sheet question surface');
+    sheet.scrollTop = 222;
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    expect(screen.queryByLabelText('Bottom-sheet question surface')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Pre-submit review summary' })).toHaveAttribute('aria-modal', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Test' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Bottom-sheet question surface').scrollTop).toBe(222);
+      expect(screen.getByRole('button', { name: 'Close Questions' })).toHaveFocus();
+    });
+  });
+
+  it('moves focus into mobile review and restores the header submit trigger', async () => {
+    setViewport(390, 844);
+
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const submit = screen.getByRole('button', { name: 'Submit' });
+    submit.focus();
+    fireEvent.click(submit);
+
+    const back = screen.getByRole('button', { name: 'Back to Test' });
+    await waitFor(() => expect(back).toHaveFocus());
+    fireEvent.click(back);
+
+    expect(submit).toHaveFocus();
   });
 
   it('keeps submit controls unavailable until a launch surface provides a submit handler', () => {

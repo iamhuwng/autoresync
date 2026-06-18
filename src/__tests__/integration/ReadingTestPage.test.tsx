@@ -460,6 +460,7 @@ describe('ReadingTestPage integration', () => {
     await waitFor(() => {
       const lastCall = vi.mocked(useTestAutoSave).mock.calls.at(-1)?.[0];
       expect(lastCall?.mobileState).toEqual({
+        kind: 'reading',
         activePassageId: 'p1',
         questionSheetOpen: true,
         reviewSummaryOpen: false,

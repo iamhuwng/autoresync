@@ -1,6 +1,7 @@
 // Reading V2 runtime boundary: renders derived V2 projections only.
 // V1 Reading runtime files are visual references; legacy flat-question payloads are rejected before rendering.
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
 import { useScreenSize } from '../../../core/platform/hooks/useScreenSize';
 import { storage } from '../../../core/platform/storage';
 import {
@@ -30,6 +31,10 @@ import {
 } from './task-type-components/ReadingV2TaskTypeComponents';
 import { ReadingV2InstructionText } from '../shared/ReadingV2InstructionText';
 import { ReadingV2FormattedText } from '../shared/ReadingV2FormattedText';
+import {
+  ReadingV2MobileUtilities,
+  type ReadingV2MobileUtilityPanel,
+} from './ReadingV2MobileUtilities';
 import './ReadingV2RuntimeShell.css';
 
 export type ReadingV2RuntimeState =
@@ -78,14 +83,33 @@ type ReadingV2RuntimeSubmitHandler = (
   payload: ReadingV2RuntimeSubmitPayload,
 ) => void | Promise<void>;
 
+export type ReadingV2RuntimeAction =
+  | 'openQuestionSheet'
+  | 'closeQuestionSheet'
+  | 'jumpToQuestion'
+  | 'openReviewSummary'
+  | 'closeReviewSummary'
+  | 'openOverflowMenu'
+  | 'closeOverflowMenu'
+  | 'openTextSizeControl'
+  | 'adjustTextSize'
+  | 'closeTextSizeControl'
+  | 'openInstructions'
+  | 'closeInstructions';
+
 export interface ReadingV2RuntimeShellProps {
   readonly projection?: ReadingV2DerivedProjection;
   readonly state?: ReadingV2RuntimeState;
   readonly onSubmit?: ReadingV2RuntimeSubmitHandler;
   readonly onExit?: () => void;
+  readonly onAction?: (
+    action: ReadingV2RuntimeAction,
+    metadata?: Readonly<Record<string, unknown>>,
+  ) => void;
   readonly initialAnswers?: Readonly<Record<string, ReadingV2AnswerValue>>;
   readonly onAnswersChange?: (answers: Readonly<Record<string, ReadingV2AnswerValue>>) => void;
   readonly persistenceKey?: string;
+  readonly textSizeStorageKey?: string;
   readonly lifecycle?: ReadingV2RuntimeLifecycle;
   readonly timer?: ReadingV2RuntimeTimer;
 }
@@ -2213,21 +2237,25 @@ export function ReadingV2RuntimeShell({
   state = 'ready',
   onSubmit,
   onExit,
+  onAction,
   initialAnswers,
   onAnswersChange,
   persistenceKey,
+  textSizeStorageKey,
   lifecycle,
   timer,
 }: ReadingV2RuntimeShellProps) {
-  const { isMobile } = useScreenSize();
+  const { isMobile: isNarrowViewport } = useScreenSize();
+  const { isMobileExamMode } = useMobileExamMode();
+  const isMobile = isNarrowViewport || isMobileExamMode;
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [activeTaskGroupId, setActiveTaskGroupId] = useState<string | null>(null);
   const [activeInteractionId, setActiveInteractionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Readonly<Record<string, ReadingV2AnswerValue>>>(initialAnswers ?? {});
   const [isQuestionSheetOpen, setIsQuestionSheetOpen] = useState(false);
   const [isMobileOverflowOpen, setIsMobileOverflowOpen] = useState(false);
+  const [mobileUtilityPanel, setMobileUtilityPanel] = useState<ReadingV2MobileUtilityPanel | null>(null);
   const [showReviewSummary, setShowReviewSummary] = useState(false);
-  const [preservedScrollLabel, setPreservedScrollLabel] = useState('top');
   const [submitPhase, setSubmitPhase] = useState<'idle' | 'pending' | 'failure' | 'success'>('idle');
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [autoSubmitReason, setAutoSubmitReason] = useState<'timer' | 'force-submit' | null>(null);
@@ -2243,8 +2271,18 @@ export function ReadingV2RuntimeShell({
   const pendingNavigationScrollRef = useRef<RuntimeNavigationScrollTarget | null>(null);
   const phonePassageRef = useRef<HTMLDivElement | null>(null);
   const phonePassageScrollTopBySectionRef = useRef<Record<string, number>>({});
+  const phoneQuestionSheetRef = useRef<HTMLElement | null>(null);
+  const phoneQuestionScrollTopBySectionRef = useRef<Record<string, number>>({});
+  const questionsFabRef = useRef<HTMLButtonElement | null>(null);
+  const questionSheetCloseRef = useRef<HTMLButtonElement | null>(null);
+  const mobileOverflowButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMenuFirstItemRef = useRef<HTMLButtonElement | null>(null);
+  const questionSheetWasOpenBeforeReviewRef = useRef(false);
+  const reviewBackButtonRef = useRef<HTMLButtonElement | null>(null);
+  const reviewReturnFocusRef = useRef<HTMLElement | null>(null);
   const submitLockRef = useRef(false);
   const persistenceHydratedRef = useRef(!persistenceKey);
+  const textSizeHydratedRef = useRef(!textSizeStorageKey);
   const answersDirtyRef = useRef(false);
   const answersRef = useRef(answers);
   const initialAnswersRef = useRef(initialAnswers);
@@ -2401,6 +2439,71 @@ export function ReadingV2RuntimeShell({
 
     void storage.set(persistenceKey, answers);
   }, [answers, onAnswersChange, persistenceKey]);
+
+  useEffect(() => {
+    if (!textSizeStorageKey) {
+      textSizeHydratedRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+    textSizeHydratedRef.current = false;
+
+    const hydrateTextSize = async () => {
+      const savedSize = await storage.get<number>(textSizeStorageKey);
+      if (cancelled) {
+        return;
+      }
+
+      textSizeHydratedRef.current = true;
+      if (Number.isInteger(savedSize) && savedSize! >= 14 && savedSize! <= 22) {
+        setPassageFontSize(savedSize!);
+      }
+    };
+
+    void hydrateTextSize();
+    return () => {
+      cancelled = true;
+    };
+  }, [textSizeStorageKey]);
+
+  useEffect(() => {
+    if (!textSizeStorageKey || !textSizeHydratedRef.current) {
+      return;
+    }
+
+    void storage.set(textSizeStorageKey, passageFontSize);
+  }, [passageFontSize, textSizeStorageKey]);
+
+  useEffect(() => {
+    if (!isMobile || (!isQuestionSheetOpen && !showReviewSummary && !mobileUtilityPanel)) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobile, isQuestionSheetOpen, mobileUtilityPanel, showReviewSummary]);
+
+  useEffect(() => {
+    if (isQuestionSheetOpen && !pendingNavigationScrollRef.current) {
+      questionSheetCloseRef.current?.focus();
+    }
+  }, [isQuestionSheetOpen]);
+
+  useEffect(() => {
+    if (showReviewSummary) {
+      reviewBackButtonRef.current?.focus();
+    }
+  }, [showReviewSummary]);
+
+  useEffect(() => {
+    if (isMobileOverflowOpen) {
+      mobileMenuFirstItemRef.current?.focus();
+    }
+  }, [isMobileOverflowOpen]);
 
   useEffect(() => {
     if (!persistenceKey || submitPhase !== 'success') {
@@ -2600,7 +2703,31 @@ export function ReadingV2RuntimeShell({
 
   useLayoutEffect(() => {
     const pendingTarget = pendingNavigationScrollRef.current;
-    if (!pendingTarget || isMobile) {
+    if (isMobile) {
+      const questionSheet = phoneQuestionSheetRef.current;
+      if (!isQuestionSheetOpen || !questionSheet) {
+        return;
+      }
+
+      if (!pendingTarget) {
+        questionSheet.scrollTop = phoneQuestionScrollTopBySectionRef.current[activeSectionScrollKey] ?? 0;
+        return;
+      }
+
+      pendingNavigationScrollRef.current = null;
+      if (pendingTarget.kind === 'section') {
+        scrollRuntimePanelToTop(questionSheet);
+        return;
+      }
+
+      scrollRuntimeQuestionToFocusSlot(
+        questionSheet,
+        questionAnchorRefs.current.get(pendingTarget.displayNumber),
+      );
+      return;
+    }
+
+    if (!pendingTarget) {
       return;
     }
 
@@ -2615,7 +2742,15 @@ export function ReadingV2RuntimeShell({
       desktopQuestionPanelRef.current,
       questionAnchorRefs.current.get(pendingTarget.displayNumber),
     );
-  }, [activeInteractionId, activeSectionId, activeTaskGroupId, isMobile, navigationScrollVersion]);
+  }, [
+    activeInteractionId,
+    activeSectionId,
+    activeSectionScrollKey,
+    activeTaskGroupId,
+    isMobile,
+    isQuestionSheetOpen,
+    navigationScrollVersion,
+  ]);
 
   if (state !== 'ready') {
     const stateCopy = RUNTIME_STATES[state];
@@ -2659,13 +2794,17 @@ export function ReadingV2RuntimeShell({
     questionAnchorRefs.current.delete(interaction.displayNumber);
   };
 
-  const queueDesktopNavigationScroll = (target: RuntimeNavigationScrollTarget) => {
-    if (isMobile) {
-      return;
-    }
-
+  const queueRuntimeNavigationScroll = (target: RuntimeNavigationScrollTarget) => {
     pendingNavigationScrollRef.current = target;
     setNavigationScrollVersion((current) => current + 1);
+  };
+
+  const saveCurrentPhoneQuestionSheetScroll = () => {
+    const currentScroll = phoneQuestionSheetRef.current?.scrollTop;
+    if (typeof currentScroll === 'number') {
+      phoneQuestionScrollTopBySectionRef.current[activeSectionScrollKey] = currentScroll;
+    }
+    return currentScroll ?? phoneQuestionScrollTopBySectionRef.current[activeSectionScrollKey] ?? 0;
   };
 
   const saveCurrentPhonePassageScroll = () => {
@@ -2680,8 +2819,12 @@ export function ReadingV2RuntimeShell({
   ) => {
     const owningTaskGroup = taskGroups.find((taskGroup) => taskGroup.taskGroupId === interaction.taskGroupId);
     const owningSection = sections.find((section) => section.taskGroupIds.includes(interaction.taskGroupId));
-    if (isMobile && !isQuestionSheetOpen && owningSection?.sectionId !== activeSection.sectionId) {
-      saveCurrentPhonePassageScroll();
+    if (isMobile && owningSection?.sectionId !== activeSection.sectionId) {
+      if (isQuestionSheetOpen) {
+        saveCurrentPhoneQuestionSheetScroll();
+      } else {
+        saveCurrentPhonePassageScroll();
+      }
     }
     if (owningSection) {
       setActiveSectionId(owningSection.sectionId);
@@ -2691,7 +2834,7 @@ export function ReadingV2RuntimeShell({
     }
     setActiveInteractionId(interaction.interactionId);
     if (options.scrollIntoView) {
-      queueDesktopNavigationScroll({ kind: 'interaction', displayNumber: interaction.displayNumber });
+      queueRuntimeNavigationScroll({ kind: 'interaction', displayNumber: interaction.displayNumber });
     }
   };
 
@@ -2701,14 +2844,18 @@ export function ReadingV2RuntimeShell({
   ) => {
     const firstTaskGroup = taskGroupsBySection(section)[0];
     const firstInteraction = firstTaskGroup?.interactions[0];
-    if (isMobile && !isQuestionSheetOpen && section.sectionId !== activeSection.sectionId) {
-      saveCurrentPhonePassageScroll();
+    if (isMobile && section.sectionId !== activeSection.sectionId) {
+      if (isQuestionSheetOpen) {
+        saveCurrentPhoneQuestionSheetScroll();
+      } else {
+        saveCurrentPhonePassageScroll();
+      }
     }
     setActiveSectionId(section.sectionId);
     setActiveTaskGroupId(firstTaskGroup?.taskGroupId ?? null);
     setActiveInteractionId(firstInteraction?.interactionId ?? null);
     if (options.scrollToTop) {
-      queueDesktopNavigationScroll({ kind: 'section' });
+      queueRuntimeNavigationScroll({ kind: 'section' });
     }
   };
 
@@ -2754,13 +2901,56 @@ export function ReadingV2RuntimeShell({
   };
 
   const openQuestionSheet = () => {
-    const scrollTop = saveCurrentPhonePassageScroll();
-    setPreservedScrollLabel(`${activeStimulus?.title ?? getPassageLabel(activeSectionIndex)} @ ${Math.round(scrollTop)}px`);
+    saveCurrentPhonePassageScroll();
     setIsQuestionSheetOpen(true);
+    onAction?.('openQuestionSheet', undefined);
   };
 
-  const closeQuestionSheet = () => {
+  const closeQuestionSheet = (restoreFocus = true) => {
+    saveCurrentPhoneQuestionSheetScroll();
     setIsQuestionSheetOpen(false);
+    onAction?.('closeQuestionSheet', undefined);
+    if (restoreFocus) {
+      questionsFabRef.current?.focus();
+    }
+  };
+
+  const openReviewSummary = () => {
+    reviewReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    if (isMobile) {
+      questionSheetWasOpenBeforeReviewRef.current = isQuestionSheetOpen;
+      if (isQuestionSheetOpen) {
+        saveCurrentPhoneQuestionSheetScroll();
+        setIsQuestionSheetOpen(false);
+      }
+      setMobileUtilityPanel(null);
+      setIsMobileOverflowOpen(false);
+    }
+    setShowReviewSummary(true);
+    onAction?.('openReviewSummary', undefined);
+  };
+
+  const closeReviewSummary = () => {
+    setShowReviewSummary(false);
+    onAction?.('closeReviewSummary', undefined);
+    if (isMobile && questionSheetWasOpenBeforeReviewRef.current) {
+      questionSheetWasOpenBeforeReviewRef.current = false;
+      setIsQuestionSheetOpen(true);
+    } else {
+      reviewReturnFocusRef.current?.focus();
+    }
+  };
+
+  const closeMobileUtility = () => {
+    if (mobileUtilityPanel === 'text-size') {
+      onAction?.('closeTextSizeControl', undefined);
+    } else if (mobileUtilityPanel === 'instructions') {
+      onAction?.('closeInstructions', undefined);
+    }
+    setMobileUtilityPanel(null);
+    mobileOverflowButtonRef.current?.focus();
   };
 
   const moveInteraction = (direction: -1 | 1) => {
@@ -2823,9 +3013,19 @@ export function ReadingV2RuntimeShell({
       registerQuestionAnchor={registerQuestionAnchor}
     />
   );
+  const activeInstructionGroups = activeSectionTaskGroups.map((taskGroup) => ({
+    taskGroupId: taskGroup.taskGroupId,
+    rangeLabel: getTaskGroupRange(taskGroup),
+    texts: taskGroup.instructionBlocks.map((block) => getRuntimeInstructionText(taskGroup, block.text)),
+  }));
 
   const reviewSummary = showReviewSummary ? (
-    <section className="reading-v2-runtime__review" aria-label="Pre-submit review summary">
+    <section
+      className="reading-v2-runtime__review"
+      aria-label="Pre-submit review summary"
+      role="dialog"
+      aria-modal="true"
+    >
       <h2>Review Answers</h2>
       <p>
         Answered {answeredCount} of {allInteractions.length}
@@ -2847,7 +3047,8 @@ export function ReadingV2RuntimeShell({
                     type="button"
                     data-answered={isRuntimeInteractionComplete(interaction) ? 'true' : 'false'}
                     onClick={() => {
-                      focusInteraction(interaction);
+                      focusInteraction(interaction, { scrollIntoView: true });
+                      questionSheetWasOpenBeforeReviewRef.current = false;
                       setShowReviewSummary(false);
                       if (isMobile) {
                         setIsQuestionSheetOpen(true);
@@ -2866,7 +3067,7 @@ export function ReadingV2RuntimeShell({
         <p role="alert">{RUNTIME_STATES['submit-failure'].message}</p>
       ) : null}
       <div className="reading-v2-runtime__review-actions">
-        <button type="button" onClick={() => setShowReviewSummary(false)}>Back to Test</button>
+        <button ref={reviewBackButtonRef} type="button" onClick={closeReviewSummary}>Back to Test</button>
         <button
           type="button"
           disabled={!canSubmit || manualSubmitDisabled}
@@ -2885,6 +3086,7 @@ export function ReadingV2RuntimeShell({
       className="reading-v2-runtime"
       data-layout={isMobile ? 'phone' : 'desktop-tablet'}
       aria-label="Reading V2 Runtime Shell"
+      style={{ '--reading-v2-runtime-mobile-content-size': `${passageFontSize}px` } as CSSProperties}
     >
       {isMobile ? (
         <header className="reading-v2-runtime__mobile-header" aria-label="Student Reading runtime header">
@@ -2903,19 +3105,21 @@ export function ReadingV2RuntimeShell({
             type="button"
             aria-label="Submit"
             disabled={!canSubmit || manualSubmitDisabled}
-            onClick={() => {
-              setIsMobileOverflowOpen(false);
-              setShowReviewSummary(true);
-            }}
+            onClick={openReviewSummary}
           >
             Submit
           </button>
           <button
+            ref={mobileOverflowButtonRef}
             className="reading-v2-runtime__mobile-overflow"
             type="button"
             aria-label="More options"
             aria-expanded={isMobileOverflowOpen}
-            onClick={() => setIsMobileOverflowOpen((current) => !current)}
+            onClick={() => setIsMobileOverflowOpen((current) => {
+              const next = !current;
+              onAction?.(next ? 'openOverflowMenu' : 'closeOverflowMenu', undefined);
+              return next;
+            })}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <circle cx="10" cy="4" r="1.5" />
@@ -2925,19 +3129,51 @@ export function ReadingV2RuntimeShell({
           </button>
           {exitButton}
           {isMobileOverflowOpen ? (
-            <div className="reading-v2-runtime__mobile-menu" role="menu">
+            <div
+              className="reading-v2-runtime__mobile-menu"
+              role="menu"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setIsMobileOverflowOpen(false);
+                  onAction?.('closeOverflowMenu', undefined);
+                  mobileOverflowButtonRef.current?.focus();
+                }
+              }}
+            >
               <p>{answeredCount} of {allInteractions.length} answered</p>
+              <button
+                ref={mobileMenuFirstItemRef}
+                className="reading-v2-runtime__mobile-menu-action"
+                type="button"
+                role="menuitem"
+                onClick={openReviewSummary}
+              >
+                Review answers
+              </button>
               <button
                 className="reading-v2-runtime__mobile-menu-action"
                 type="button"
                 role="menuitem"
                 onClick={() => {
                   setIsMobileOverflowOpen(false);
-                  setIsQuestionSheetOpen(false);
-                  setShowReviewSummary(true);
+                  setMobileUtilityPanel('text-size');
+                  onAction?.('openTextSizeControl', undefined);
                 }}
               >
-                Review answers
+                Text size
+              </button>
+              <button
+                className="reading-v2-runtime__mobile-menu-action"
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsMobileOverflowOpen(false);
+                  setMobileUtilityPanel('instructions');
+                  onAction?.('openInstructions', undefined);
+                }}
+              >
+                Instructions
               </button>
               {!canSubmit ? <p>Submission is not available for this Reading V2 launch yet.</p> : null}
             </div>
@@ -2974,6 +3210,19 @@ export function ReadingV2RuntimeShell({
         </header>
       )}
 
+      {mobileUtilityPanel ? (
+        <ReadingV2MobileUtilities
+          panel={mobileUtilityPanel}
+          textSize={passageFontSize}
+          instructionGroups={activeInstructionGroups}
+          onTextSizeChange={(textSize) => {
+            setPassageFontSize(textSize);
+            onAction?.('adjustTextSize', { textSize });
+          }}
+          onClose={closeMobileUtility}
+        />
+      ) : null}
+
       {lifecycleStatus && lifecycleStatus !== 'in-progress' ? (
         <section className="reading-v2-runtime__lifecycle-banner" role="status">
           {lifecycle.message
@@ -3002,6 +3251,7 @@ export function ReadingV2RuntimeShell({
             {stimulusView}
           </div>
           <button
+            ref={questionsFabRef}
             className="reading-v2-runtime__questions-fab"
             type="button"
             aria-label="Open Questions"
@@ -3010,16 +3260,27 @@ export function ReadingV2RuntimeShell({
             <span>Questions</span>
             <small>{activeSectionAnsweredCount}/{activeSectionInteractions.length}</small>
           </button>
-          <p className="reading-v2-runtime__preserved-position" aria-label="Preserved passage scroll position">Preserved passage position: {preservedScrollLabel}</p>
           {isQuestionSheetOpen ? (
             <>
               <button
                 className="reading-v2-runtime__sheet-backdrop"
                 type="button"
                 aria-label="Close question sheet backdrop"
-                onClick={closeQuestionSheet}
+                onClick={() => closeQuestionSheet()}
               />
-              <aside className="reading-v2-runtime__bottom-sheet" aria-label="Bottom-sheet question surface">
+              <aside
+                ref={phoneQuestionSheetRef}
+                className="reading-v2-runtime__bottom-sheet"
+                aria-label="Bottom-sheet question surface"
+                role="dialog"
+                aria-modal="true"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeQuestionSheet();
+                  }
+                }}
+              >
                 <div className="reading-v2-runtime__sheet-handle" aria-hidden="true" />
                 <header className="reading-v2-runtime__sheet-header">
                   <div>
@@ -3027,7 +3288,14 @@ export function ReadingV2RuntimeShell({
                     <h2>{getSectionRange(activeSectionTaskGroups)}</h2>
                     <span>{activeSectionAnsweredCount}/{activeSectionInteractions.length} answered</span>
                   </div>
-                  <button className="reading-v2-runtime__link-button" type="button" onClick={closeQuestionSheet}>Close Questions</button>
+                  <button
+                    ref={questionSheetCloseRef}
+                    className="reading-v2-runtime__link-button"
+                    type="button"
+                    onClick={() => closeQuestionSheet()}
+                  >
+                    Close Questions
+                  </button>
                 </header>
                 <PassageTabs
                   sections={sections}
@@ -3045,7 +3313,10 @@ export function ReadingV2RuntimeShell({
                       aria-label={`Question ${interaction.displayNumber}`}
                       data-answered={isRuntimeInteractionComplete(interaction) ? 'true' : 'false'}
                       aria-pressed={interaction.interactionId === activeInteractionId}
-                      onClick={() => focusInteraction(interaction)}
+                      onClick={() => {
+                        focusInteraction(interaction, { scrollIntoView: true });
+                        onAction?.('jumpToQuestion', { displayNumber: interaction.displayNumber });
+                      }}
                     >
                       {interaction.displayNumber}
                     </button>
@@ -3111,7 +3382,7 @@ export function ReadingV2RuntimeShell({
             submitDisabled={manualSubmitDisabled}
             onSelectSection={(section) => selectSection(section, { scrollToTop: true })}
             onSelectInteraction={(interaction) => focusInteraction(interaction, { scrollIntoView: true })}
-            onSubmit={() => setShowReviewSummary(true)}
+            onSubmit={openReviewSummary}
           />
         </>
       )}

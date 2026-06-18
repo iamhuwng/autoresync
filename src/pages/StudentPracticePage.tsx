@@ -899,6 +899,7 @@ const StudentPracticePageContent: React.FC = () => {
                     projection={readingV2Projection}
                     onSubmit={readingV2SubmitHandler}
                     onExit={handleReadingV2Exit}
+                    onAction={(action, metadata) => trackAction(action, metadata)}
                     initialAnswers={readingV2Answers}
                     onAnswersChange={setReadingV2Answers}
                     persistenceKey={getReadingV2PracticePersistenceKey({
@@ -906,6 +907,7 @@ const StudentPracticePageContent: React.FC = () => {
                         materialId,
                         projectionId: readingV2Projection.projectionId,
                     })}
+                    textSizeStorageKey={user?.uid ? `reading_text_size_${user.uid}` : undefined}
                     lifecycle={readingV2Lifecycle}
                     timer={{
                         durationMinutes: resolvedSettings.timerMinutes,

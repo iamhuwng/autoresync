@@ -58,6 +58,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'closeOverflowMenu',
       'openTextSizeControl',
       'adjustTextSize',
+      'closeTextSizeControl',
       'openInstructions',
       'closeInstructions',
       'leaveTest',
