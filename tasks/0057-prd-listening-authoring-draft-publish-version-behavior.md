@@ -1,6 +1,6 @@
 # PRD 0057: Listening Authoring Draft, Publish, And Version Behavior
 
-Status: Draft child PRD - B2 Option B data contract approved; implementation remains blocked pending Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, Task 3 shared-presentation stability, minimum PRD-0058 foundation, and explicit implementation authorization
+Status: Draft child PRD - B2 Option B data contract approved; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, Task 3 shared-presentation stability, minimum PRD-0058 foundation, and explicit implementation authorization
 Created: 2026-06-20
 Task number: 0057
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`

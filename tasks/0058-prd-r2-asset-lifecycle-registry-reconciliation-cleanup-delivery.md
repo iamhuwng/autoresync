@@ -1,6 +1,6 @@
 # PRD 0058: R2 Asset Lifecycle, Registry, Reconciliation, Cleanup, And Delivery
 
-Status: Draft child PRD - B1 Option B bridge ownership approved; implementation remains blocked pending Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization
+Status: Draft child PRD - B1 Option B bridge ownership approved; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization
 Created: 2026-06-20
 Task number: 0058
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1210,7 +1210,7 @@ Required bridge evidence before PRD-0058 implementation:
 5. Rollback to the captured pre-bridge `r2-upload-signer` version restores the compatibility path without deleting or moving objects.
 6. No bridge write reaches `media_assets/**`, `listening_authoring/**`, `tests/**`, or generic `drafts/**`.
 
-PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 is resolved at planning-contract level; implementation remains blocked by Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization.
+PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 is resolved at planning-contract level; Task 1.11 parent acceptance is complete; implementation remains blocked by Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization.
 
 ## 39. Task 1.10 Canonical Dependency Synchronization - 2026-06-20
 
