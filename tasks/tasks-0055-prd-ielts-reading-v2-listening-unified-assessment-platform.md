@@ -304,13 +304,13 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
   - [x] 1.12 HARD STOP: presented OQ decisions, draft child PRDs, complete traceability matrix, dependency graph, and Task 1 evidence to the product owner plus architecture/security reviewer. Separate explicit approvals were recorded on 2026-06-20 under `PRD-0055-TASK-1.12-PRODUCT-OWNER-APPROVAL-2026-06-20` and `PRD-0055-TASK-1.12-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`. End the run. Do not continue into Task 2 or any later implementation task without separate explicit authorization.
 
 - [ ] 2.0 Ship urgent severable upload-worker security hardening gate S0
-  - [ ] 2.1 Record explicit product-owner plus architecture/security reviewer sign-off in findings. Reconcile/regenerate this provisional scaffold against the approved S0 child PRD; child PRD wins. Do not continue on mismatch.
-  - [ ] 2.2 Resolve canonical upload-worker and deployment truth before code changes:
+  - [x] 2.1 Record explicit product-owner plus architecture/security reviewer sign-off in findings. Reconcile/regenerate this provisional scaffold against the approved S0 child PRD; child PRD wins. Do not continue on mismatch.
+  - [x] 2.2 Resolve canonical upload-worker and deployment truth before code changes:
     - read `documentation/rules/infrastructure.md`, `documentation/SOP/R2_WORKER_UPDATE_GUIDE.md`, checked-in `cloudflare/worker.js`, and deployed `r2-upload-signer` source/configuration;
     - record deployed worker name, route/domain, native bindings, secret names without values, deployment history, and current rollback mechanism;
     - decide whether canonical implementation uses checked-in `aws4fetch`/S3 credentials or native `env.R2_BUCKET`;
     - record exact source-of-truth, deploy, version-pin, and rollback procedure;
-    - if Wrangler becomes canonical, check in approved `cloudflare/wrangler.toml`; if dashboard deployment remains canonical, document exact dashboard deployment/version rollback steps;
+    - if Wrangler becomes canonical, record that approved `cloudflare/wrangler.toml` must be checked in during the approved harness/implementation subphase before deploy; if dashboard deployment remains canonical, document exact dashboard deployment/version rollback steps;
     - stop if deployed source/configuration cannot be obtained or reconciled.
   - [ ] 2.3 Establish a checked-in test harness only after 2.2 resolves mechanism. For `aws4fetch`/S3 style, use focused fetch/signing mocks. For native `env.R2_BUCKET`, use Miniflare or `@cloudflare/vitest-pool-workers` and add the required dev dependency/config. Restore/create `cloudflare/package.json` consistently, add focused worker tests, and document exact local command. Treat harness/bootstrap as a non-trivial S0 subphase.
   - [ ] 2.4 Write negative tests first and prove insecure-baseline failures for:

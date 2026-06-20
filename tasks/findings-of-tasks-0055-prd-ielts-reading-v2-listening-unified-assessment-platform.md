@@ -2331,3 +2331,207 @@ A review found that the post-acceptance child-PRD gate wording removed the expli
 11. Files changed: parent PRD, parent tasklist, findings, traceability, and child PRDs 0056, 0056A, 0057, 0058, 0059, 0060, and 0061.
 12. No runtime/source/test/Worker/Firebase/deployment file changed. No implementation task started.
 13. No commit or push performed.
+
+## Packet 2A Task 2.1-2.2 S0 Approval And Upload-Worker Truth - 2026-06-20
+
+### Scope
+
+PRD-0055 Task 2A only: Task 2.1 and Task 2.2. This packet records explicit S0 planning/investigation approvals, reconciles the Task 2 scaffold against PRD-0056, and resolves canonical upload-worker/deploy/rollback truth from current local and Cloudflare evidence.
+
+No Worker hardening, registry, heartbeat, cleanup, private delivery, deployment, runtime app code, Firebase rules, R2 storage service, Listening, Reading V2, live-session code, Task 2.3, or later task work was performed.
+
+### Required Reads
+
+Read for this packet:
+
+1. `AGENTS.md`.
+2. `documentation/rules/infrastructure.md`.
+3. `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+4. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+5. `tasks/0056-prd-listening-upload-worker-security-gate-s0.md`.
+6. `tasks/0056a-prd-listening-upload-session-bridge.md`.
+7. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+8. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+9. `documentation/architecture/upload-storage-authority.md`.
+10. `documentation/SOP/R2_WORKER_UPDATE_GUIDE.md`.
+11. `cloudflare/worker.js`.
+12. `cloudflare/package-lock.json`.
+
+### Task 2.1 Explicit Approval Record
+
+Product-owner approval:
+
+> I approve PRD-0055 Task 2A for S0 planning and canonical upload-worker truth only: reconcile PRD-0056 against the approved parent plan, record Task 2.1 approval, and resolve current upload-worker deploy/rollback/harness truth. This does not authorize Worker hardening, registry, heartbeat, cleanup, private delivery, or deployment.
+
+Architecture/security reviewer approval:
+
+> I approve PRD-0055 Task 2A investigation scope only: confirm canonical upload worker, current deploy path, rollback mechanism, auth/CORS/raw-key threat boundaries, and test-harness decision before code changes. This does not waive required negative tests, deployed proof, rollback drill, or independent review for implementation.
+
+Decision references:
+
+1. `PRD-0055-TASK-2.1-PRODUCT-OWNER-APPROVAL-2026-06-20`.
+2. `PRD-0055-TASK-2.1-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`.
+
+Task 2.1 verdict: PASS. Both approvals are explicit, separately scoped, and do not authorize implementation or deployment.
+
+### Task 2 Scaffold Reconciliation
+
+PRD-0056 and the parent tasklist agree on S0 boundaries:
+
+1. S0 is urgent, severable upload-worker security hardening.
+2. S0 stays separate from registry, heartbeat, cleanup, private delivery, draft/publish, runtime, Firebase rules, and Google Drive work.
+3. Canonical mechanism is native Cloudflare R2 binding `env.R2_BUCKET`.
+4. Checked-in `aws4fetch`/S3 credential source is rejected as future canonical mechanism.
+5. Local/deployed negative tests, deployed proof, rollback/version-pin proof, and independent review remain required before implementation completion.
+
+One planning drift was corrected in the Task 2.2 scaffold: checking in `cloudflare/wrangler.toml` belongs to the later approved harness/implementation subphase before deploy, not this Task 2A truth-only packet. The tasklist now records the requirement without creating config in this packet.
+
+### Current Checked-In Worker Truth
+
+Checked-in source:
+
+1. `cloudflare/worker.js` imports `AwsClient` from `aws4fetch`.
+2. It uses S3-style names: `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUCKET_NAME`, `ACCOUNT_ID`, and `BUCKET_ID`.
+3. It allows wildcard CORS.
+4. It advertises `PUT, POST, GET, OPTIONS, DELETE` while rejecting non-`POST` requests after preflight.
+5. It accepts browser-provided `sourceKey` and `destKey` for `/move`.
+6. It signs S3 PUT URLs from browser-provided `filename`.
+7. `cloudflare/package-lock.json` declares `aws4fetch@1.0.20`.
+8. No checked-in `cloudflare/package.json`, `cloudflare/wrangler.toml`, or `cloudflare/wrangler.jsonc` exists in this packet.
+
+### Current Deployed Worker Truth
+
+Current Cloudflare account/tool access was available through Wrangler 4.97.0 with account `e41db829dabe9993f03674afdfd56510`.
+
+Worker:
+
+1. Name: `r2-upload-signer`.
+2. Workers.dev URL: `https://r2-upload-signer.iamhuwng.workers.dev`.
+3. Account workers.dev subdomain: `iamhuwng`.
+4. Script subdomain: enabled.
+5. Preview URLs: disabled.
+6. Script routes API result: empty list.
+7. Workers custom-domain records API result: empty list.
+
+Current deployment:
+
+1. Deployment ID: `92e01212-afd4-4aae-9d72-a548f063008b`.
+2. Deployment source: `quick_editor`.
+3. Strategy: `percentage`.
+4. Version receiving traffic: version 6, ID `20dd8429-5be1-4105-baed-f6dc5af68098`, 100 percent.
+5. Created on: `2026-01-26T17:27:56.516701Z`.
+6. Version source: `dash`.
+7. Last deployed from: `quick_editor`.
+8. Compatibility date: `2026-01-20`.
+9. Usage model: `standard`.
+
+Bindings and secrets:
+
+1. Native R2 binding: `R2_BUCKET`, bucket `kahoot-media`.
+2. Plain variable: `PUBLIC_URL`, value present in Cloudflare metadata but not repeated here beyond name and non-secret role.
+3. Wrangler `secret list --name r2-upload-signer --format json` returned `[]`.
+4. No deployed Worker secret names are currently present.
+
+Deployed source:
+
+1. Source fetched from Cloudflare API `content/v2` for version `20dd8429-5be1-4105-baed-f6dc5af68098`.
+2. Deployed `worker.js` JavaScript byte length: 4051.
+3. Deployed `worker.js` SHA-256: `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`.
+4. The SOP JavaScript block in `documentation/SOP/R2_WORKER_UPDATE_GUIDE.md` has the same byte length and SHA-256.
+5. Deployed source uses `env.R2_BUCKET`.
+6. Deployed source does not contain `aws4fetch` or `R2_ACCESS_KEY_ID`.
+7. Deployed source still has wildcard CORS.
+8. Deployed source still accepts `sourceKey` and `destKey`.
+9. Deployed source still has `/move`, `POST`, and `PUT` behavior.
+10. Deployed source has no Firebase authentication.
+
+Deployment history:
+
+1. Version 1: `1ac87f9b-6d5c-45e7-9954-de0ec8eff43d`, created `2026-01-20T02:52:04.933742Z`, source `dash_template`, deployed at 100 percent.
+2. Version 2: `7be2dd63-7221-4d81-ab09-247e4eb2fac8`, created `2026-01-21T05:21:09.348555Z`, source `quick_editor`, deployed at 100 percent.
+3. Version 3: `28a7a6df-0c06-4ba2-bc62-73bfba99fb24`, created `2026-01-21T06:31:43.917503Z`, source `dash`, message `Add variable: PUBLIC_URL`, deployed at 100 percent.
+4. Version 4: `7e283b8a-95f5-4e38-8eac-e8c21b4c98fe`, created `2026-01-21T06:32:52.522084Z`, source `dash`, message `Added R2 bucket binding R2_BUCKET`, deployed at 100 percent.
+5. Version 5: `d4666e76-b162-4b04-a4ef-52211c3b2b1c`, created `2026-01-25T13:14:48.793285Z`, source `quick_editor`, deployed at 100 percent.
+6. Version 6: `20dd8429-5be1-4105-baed-f6dc5af68098`, created `2026-01-26T17:27:56.516701Z`, source `quick_editor`, currently deployed at 100 percent.
+
+### Canonical Decision
+
+Canonical S0 implementation mechanism remains PRD-0056 native `env.R2_BUCKET` deployed to the existing Worker name `r2-upload-signer` from a checked-in Wrangler-managed package.
+
+Rejected canonical mechanism remains checked-in `aws4fetch`/S3 credentials.
+
+Current dashboard/Quick Editor source is accepted only as historical/current deployed truth and pre-S0 rollback target. It must not remain the canonical deployment source after the approved S0 implementation package creates checked-in Wrangler config.
+
+### Deploy, Version-Pin, Rollback, And Harness Truth
+
+Current deploy mechanism:
+
+1. Current production deployment came from Quick Editor/dashboard upload.
+2. Future canonical deploy mechanism, per PRD-0056, is checked-in Wrangler-managed package under `cloudflare/` targeting `r2-upload-signer`.
+3. No deployment was performed in this packet.
+
+Current rollback/version-pin mechanism:
+
+1. Current rollback target before S0 implementation is version `20dd8429-5be1-4105-baed-f6dc5af68098` until a later packet captures a fresher `PRE_S0_VERSION_ID`.
+2. Wrangler 4.97.0 exposes `wrangler rollback [version-id]`.
+3. PRD-0056 rollback command shape: `wrangler rollback <PRE_S0_VERSION_ID> --name r2-upload-signer --message "Rollback PRD-0056 S0 upload-worker hardening" --yes`.
+4. PRD-0056 version-pin command shape: `wrangler versions deploy <PRE_S0_VERSION_ID>@100% --name r2-upload-signer --message "Pin PRD-0056 rollback to pre-S0 version" --yes`.
+5. Rollback/version-pin was not executed in this packet.
+6. Rollback must change only Worker version traffic and must not delete, move, or rewrite R2 objects.
+
+Harness choice:
+
+1. Native `env.R2_BUCKET` mechanism requires a native-R2-compatible local Worker harness.
+2. PRD-0056 selects Vitest with a mechanism-matched R2 test binding named `R2_BUCKET`, a rate-limit test double named `UPLOAD_RATE_LIMITER`, an HMAC secret test binding named `UPLOAD_GRANT_SECRET`, and injectable/mocked Firebase verification.
+3. The exact `cloudflare/package.json`, `cloudflare/wrangler.toml` or `wrangler.jsonc`, dev dependencies, and command wiring remain Task 2.3+ implementation scope.
+
+### Task 2.2 Verdict
+
+Task 2.2 verdict: PASS for Task 2A truth resolution. Deployed source/configuration was obtained and reconciled. Canonical mechanism, worker name, route/domain, binding names, secret-name state, deployment history, source-of-truth, deploy direction, version-pin/rollback command shapes, and harness choice are recorded.
+
+Residual requirements remain binding for Task 2.3 and later: create checked-in Wrangler package/config, add harness, write RED negative tests, harden Worker/browser adapter, run local and deployed proof, drill rollback, and obtain independent review. These are not started or authorized by this packet.
+
+### Verification Evidence
+
+Commands run:
+
+1. `git status --short --branch` before branch creation: clean `main...origin/main`.
+2. `git switch -c codex/prd-0055-task-2a-s0-worker-truth`.
+3. `wrangler --version` through repo-local Wrangler with bundled Windows Node: `4.97.0`.
+4. `wrangler whoami`: authenticated as `iamhuwng@gmail.com`, account ID `e41db829dabe9993f03674afdfd56510`.
+5. `wrangler deployments status --name r2-upload-signer --json`.
+6. `wrangler deployments list --name r2-upload-signer --json`.
+7. `wrangler versions list --name r2-upload-signer --json`.
+8. `wrangler versions view 20dd8429-5be1-4105-baed-f6dc5af68098 --name r2-upload-signer --json`.
+9. `wrangler secret list --name r2-upload-signer --format json`.
+10. Cloudflare API `GET /accounts/<account>/workers/scripts/r2-upload-signer/content/v2?version=20dd8429-5be1-4105-baed-f6dc5af68098`, output reduced to hashes/booleans only.
+11. Cloudflare API `GET /accounts/<account>/workers/subdomain`.
+12. Cloudflare API `GET /accounts/<account>/workers/scripts/r2-upload-signer/subdomain`.
+13. Cloudflare API `GET /accounts/<account>/workers/scripts/r2-upload-signer/settings`.
+14. Cloudflare API `GET /accounts/<account>/workers/scripts/r2-upload-signer/routes`.
+15. Cloudflare API `GET /accounts/<account>/workers/domains/records` and filtered variants.
+
+Documentation/planning-only evidence:
+
+1. RED/GREEN/mutation proof: not applicable - non-behavioral planning/truth packet.
+2. Browser/deploy proof: not applicable - no browser behavior or deployment changed.
+3. Static/boundary/diff checks must be appended after UTF-8 and whitespace verification.
+
+### Task State
+
+Task 2.1 is checked. Task 2.2 is checked. Parent Task 2.0 remains unchecked. Task 2.3 and later remain unchecked and unstarted.
+
+### Post-Patch Verification
+
+Touched files:
+
+1. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+2. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+3. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+
+Checks:
+
+1. `npm run check:utf8 -- tasks\tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` passed.
+2. `git diff --check` passed.
+3. Task-state scan passed: Task 2.1 and 2.2 are checked; parent Task 2.0 and Task 2.3 through 2.15 remain unchecked.
+4. Dirty branch state after edits is limited to the three touched docs above.
