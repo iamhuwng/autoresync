@@ -288,7 +288,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - every explicit deferral names its future PRD/task, entry gate, and product-owner approval;
     - update the matrix whenever a child PRD or this tasklist changes.
   - [x] 1.10 Define dependency order in findings, traceability matrix, and child PRDs:
-    - Task 1.12 approval/HARD STOP is the mandatory root gate for every implementation node; Task 1.11 remains next and no approval is claimed.
+    - Task 1.12 approval/HARD STOP is the mandatory root gate for every implementation node; Task 1.11 is complete, Task 1.12 remains next, and no approval is claimed.
     - Task 3 neutral shared presentation may proceed separately after Task 1.12 under its existing display-only scope and in parallel with approved S0 or live-contract test preparation.
     - PRD-0056 S0 canonical Worker/deploy/rollback/harness implementation and deployed/current proof precede PRD-0056A reliance on secured upload/move behavior.
     - PRD-0056A is the mandatory bridge between PRD-0056 and PRD-0058; no direct PRD-0056 -> PRD-0058 implementation edge exists.

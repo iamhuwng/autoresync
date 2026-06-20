@@ -384,7 +384,7 @@ This planning bridge is complete when:
 3. PRD-0058 consumes the bridge contract without taking over session issuance.
 4. No implementation, Worker, rules, source, config, deployment, or traceability work has started.
 
-Implementation remains blocked until Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, an approved implementation packet, and fresh deployed/current S0 evidence exist.
+Task 1.11 parent acceptance is complete. Implementation remains blocked until Task 1.12 approval/HARD STOP, an approved implementation packet, and fresh deployed/current S0 evidence exist.
 
 ## 14. Source References
 
