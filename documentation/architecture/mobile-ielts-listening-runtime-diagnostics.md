@@ -68,4 +68,7 @@ It does not replace real-device symptom tracking for touch responsiveness, audio
 For the current section-tab, image-swipe, section-completion, and audio-source contract, see:
 - `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
 
+For the boundary between neutral shared assessment presentation and protected Listening runtime behavior, see:
+- `documentation/architecture/ielts-reading-v2-listening-unification.md`
+
 The older reference to `documentation/architecture/mobile-ielts-listening-real-device-issue-matrix.md` is obsolete in this checkout unless that file is recreated. Use the active navigation contract above plus fresh live-device evidence for current playback behavior.

@@ -1,5 +1,7 @@
 # Listening Test Builder - Comprehensive Improvements
 
+> **Obsolete Google Drive notice:** This is a historical implementation record. Google Drive is no longer used by any supported feature. All active uploads use Cloudflare R2. Google Drive text and code examples below are obsolete implementation history; source cleanup is deferred to a separate audit.
+
 ## 📋 Summary
 
 Created an improved Listening Test Builder with all requested features to match the sophistication of the Reading test builder.

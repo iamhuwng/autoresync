@@ -18,6 +18,8 @@ This architecture applies to the teacher Reading creation flow rendered by:
 
 It does not define student Reading delivery or Reading passage rendering behavior.
 
+Reading V2 and Listening authoring may reuse neutral presentation primitives for loading, error, empty, and validation-summary display. That shared presentation boundary is canonical in `documentation/architecture/ielts-reading-v2-listening-unification.md`. This document continues to own the legacy Reading parser, draft, and review workflow; shared UI must not generalize Listening audio, parser, storage, or live-session behavior into this pipeline.
+
 ## Teacher Lobby Entry Boundary
 
 Teacher Lobby creation starts in `TestCreationModal`; it must not route to a separate creation page before the teacher chooses test family and skill.
@@ -122,7 +124,7 @@ Standalone Gemini probes on April 10, 2026 confirmed that the numbered Gemini br
 Required rules:
 - Gemini rotation must load only `VITE_GEMINI_API_KEY_1..5` plus active Firestore Gemini keys
 - `VITE_GOOGLE_API_KEY` must not be counted as a Gemini fallback, health-check key, or admin Gemini env key
-- the legacy Google key may remain only for the old Google Drive browser service until that service is retired or refactored
+- the legacy Google key is not part of any supported upload feature; remaining Google Drive browser-service code/config is obsolete residue pending separate removal
 
 Operational consequence:
 - teacher IELTS Reading creation must no longer fail because an expired legacy Google key was included in Gemini round-robin selection
@@ -137,7 +139,7 @@ Operational finding on May 13, 2026:
 - `VITE_GEMINI_API_KEY_1` maps to Cloud API key `Gemini API Key` in project `171016256749`.
 - `VITE_GEMINI_API_KEY_3` maps to Cloud API key `Generative Language API Key` in project `983020888101`.
 - `VITE_GEMINI_API_KEY_2` did not resolve through the active gcloud account/project lookup and is the likely problematic slot for the observed `API_KEY_INVALID` / "API key expired" Reading V2 Auto failure.
-- `VITE_GOOGLE_API_KEY` is still not part of the Gemini key pool and remains legacy Google Drive-only.
+- `VITE_GOOGLE_API_KEY` is not part of the Gemini key pool or any supported upload contract. Any remaining Google Drive use is obsolete implementation residue.
 
 Required rules:
 - `generateStructuredJson(...)` must rotate across available Gemini keys for invalid, expired, forbidden, blocked, quota, rate-limit, and transient availability errors.

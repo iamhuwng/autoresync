@@ -4,10 +4,11 @@ This folder contains all the documentation for the project.
 
 ## Latest Updates
 
+*   **[June 19, 2026 - Upload And Storage Authority](./architecture/upload-storage-authority.md)** - All active uploads use Cloudflare R2; Google Drive is fully obsolete and remaining source references are cleanup residue.
 *   **[June 3, 2026 - Reading V2 Material Publish And Passage Library](./architecture/reading-v2-material-publish-and-passage-library.md)** - Current PRD-0052 contract for full-test publish, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1/V2 boundary.
 *   **[March 22, 2026 - AI Feedback Trust Contract](./knowledge-extract-ai-feedback-trust-contract.md)** - Reusable contract for separating deterministic fallback content from trusted AI explanations, preserving upgrade-needed state, and keeping generic results on the same AI regeneration path.
 *   **[November 11, 2025 - Text Highlighter Bug Fix](./SOP/0031-text-highlighter-bug-fix-nov11.md)** - Fixed critical bug where highlighting text above previous highlights failed. Changed from DOM path-based to character position-based approach for reliable sorting and rendering.
-*   **[November 11, 2025 - Comprehensive Development Session](./SOP/0023-november-11-2025-comprehensive-session.md)** - Multi-draft management, Google Drive OAuth2 integration, Groq AI fallback system, workflow optimization (5→4 steps), image upload bug fixes, answer key parsing improvements, and drawing tool lifecycle
+*   **[November 11, 2025 - Comprehensive Development Session](./SOP/0023-november-11-2025-comprehensive-session.md)** - Historical record containing obsolete Google Drive OAuth2 work; current uploads are R2-only.
 *   **[November 7, 2025 - UI Enhancements and Quiz Creation Improvements](./SOP/0021-ui-enhancements-and-quiz-creation-improvements-nov-7-2025.md)** - Inline add question flow, passage panel fixes, toolbar redesign, and skip passages feature
 *   **[November 7, 2025 - Matching Questions Answer Key & Validation Fixes](./SOP/0020-matching-questions-answer-key-and-validation-fixes-nov-7-2025.md)** - Fixed Edit Quiz validation to support both matching question formats and added debug logging for answer key merging
 *   **[November 6, 2025 - IELTS Matching Questions and Display Fixes](./SOP/0019-ielts-matching-questions-and-display-fixes-nov-6-2025.md)** - Fixed matching question display errors and added question number prefixes to teacher view
@@ -96,7 +97,7 @@ This section contains the Product Requirements Documents (PRDs) and implementati
     *   Online Class mode: Teacher + student audio sync (<1s drift)
     *   Offline Class mode: Teacher-only audio, student progress bar
     *   Headphone permission system for offline classrooms
-    *   Google Drive audio deprecation plan
+    *   Historical Google Drive removal plan; Google Drive is now fully obsolete
     *   Solo practice integration with PRD-0016
 
 ## Feature Documentation

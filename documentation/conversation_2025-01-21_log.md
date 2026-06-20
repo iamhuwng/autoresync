@@ -1,5 +1,7 @@
 # Conversation Log - January 21, 2025
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Session 1: Listening Test Audio Fixes & Teacher Monitor Audio Progress Bar
 
 ### User Request

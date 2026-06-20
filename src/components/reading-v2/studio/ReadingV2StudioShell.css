@@ -270,6 +270,16 @@
   line-height: 1.25;
 }
 
+.reading-v2-editor-section .assessment-authoring-section__header {
+  margin-bottom: 6px;
+}
+
+.reading-v2-editor-section .assessment-authoring-section__title {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
 .reading-v2-studio__state-card p,
 .reading-v2-studio__left p,
 .reading-v2-editor-section p,

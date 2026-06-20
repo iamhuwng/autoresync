@@ -1,5 +1,7 @@
 # Unifying IELTS Reading V2 and Listening in autoresync
 
+Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical research evidence only; not architecture or current-state authority. Proposals below for one shared session state, one generic test-taking shell, or Listening runner migration are superseded unless the canonical architecture explicitly reauthorizes them through tested adapters.
+
 ## Executive summary
 
 The right unification strategy is **not** to force Reading and Listening into identical behavior. It is to make them feel like the same product by sharing the same shell, navigation language, validation patterns, state model, visual tokens, and core input/rendering components, while preserving the modality-specific rules that are essential to each module. That approach aligns with core UX guidance on consistency and standards, and it also reduces avoidable cognitive load caused by users having to relearn layouts, controls, and error behavior between adjacent workflows. Research on computer-based assessment also shows that layout choices can create split-attention costs when related information is visually separated more than necessary. citeturn31search19turn34view0turn32search1

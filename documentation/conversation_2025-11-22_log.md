@@ -1,5 +1,7 @@
 # Conversation Log - November 22, 2025
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## 1. Bug Fixes
 
 ### A. TeacherFeedbackPage Auto-Advance Loop

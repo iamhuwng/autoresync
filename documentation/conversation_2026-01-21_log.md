@@ -1,5 +1,7 @@
 # Conversation Log - January 21, 2026
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## 1. Cloudflare R2 Implementation Review
 
 **User Request:** Review the Cloudflare R2 upload implementation (replacing Google Drive) to verify upload process, UI/UX, and file display are properly handled.

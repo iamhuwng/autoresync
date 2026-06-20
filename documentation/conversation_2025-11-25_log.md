@@ -1,5 +1,7 @@
 # Conversation Log - November 25, 2025
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Session Start: November 25, 2025 (Continued from previous session)
 
 ---

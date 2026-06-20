@@ -1,3 +1,19 @@
+## Sub-Agents (MANDATORY)
+
+MUST delegate decomposable research, exploration, tests, reviews, and disjoint implementation. Keep trivial, blocking, tightly coupled, sequential, or unclear work local.
+
+Main agent owns plan, decisions, integration, verification, and final claims. Give each subagent one task, explicit scope/paths, stop condition, and output format.
+
+Run 1-3 agents in parallel only for independent work. Exceed 3 only for clearly independent read-heavy tasks. Write agents need disjoint files or isolated worktrees; never allow overlapping edits without approval.
+
+Use the lowest-cost model that can reliably complete the task: mini for exploration and mechanical work, standard for coding and routine review, high-tier only for security, architecture, or deep cross-system reasoning. Never use high-tier merely because work is a review or "complex." State justification before escalation.
+
+Subagent model range is mandatory and absolute. Lowest permitted configuration: GPT-5.4 mini with high reasoning. Highest permitted configuration: GPT-5.5 with medium reasoning. Never spawn a subagent with any model or reasoning tier below GPT-5.4 mini high or above GPT-5.5 medium.
+
+Fast mode is forbidden for every subagent, regardless of priority, urgency, latency, cost, or task type. Before spawning, confirm the API/tooling exposes explicit controls for model, reasoning tier, and fast mode, and enforce the permitted range with fast mode disabled. If any control is unavailable or the configuration cannot be verified, do not spawn. User approval cannot bypass these model-range or fast-mode restrictions. These restrictions override generic "MUST use subagents" language.
+
+Review subagent output before use. Verify edits through diff, tests, and required evidence. Close each subagent immediately after its final status/output is captured and reviewed. Main agent, not subagent, owns completion claims.
+
 ## Integration Safety Rules (24 rules - ZERO BYPASS)
 
 When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.

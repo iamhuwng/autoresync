@@ -59,4 +59,26 @@ describe('ReadingV2SettingsPanel', () => {
     expect(screen.getByText(/Publish is blocked by teacher answer-key binding/)).toBeInTheDocument();
     expect(screen.getByText('Issues: 1')).toBeInTheDocument();
   });
+
+  it('uses the neutral authoring section for runtime advisory guidance', () => {
+    render(
+      <ReadingV2SettingsPanel
+        metadata={metadata}
+        validationIssues={[]}
+        publishBlocked={false}
+        onMetadataChange={vi.fn()}
+      />,
+    );
+
+    const advisorySection = screen.getByRole('region', { name: 'Accessibility and runtime advisories' });
+
+    expect(advisorySection).toContainElement(
+      screen.getByRole('heading', { level: 3, name: 'Accessibility And Runtime Advisories' }),
+    );
+    expect(advisorySection).toHaveClass('assessment-authoring-section');
+    expect(advisorySection).toHaveClass('reading-v2-editor-section');
+    expect(advisorySection).toHaveTextContent(
+      'Dense table, flowchart, and diagram tasks require runtime-specific advisories before publish.',
+    );
+  });
 });

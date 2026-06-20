@@ -1,5 +1,7 @@
 # Conversation Log - November 27, 2025
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Session Start: November 27, 2025 9:02 AM (UTC+07:00)
 
 ---
@@ -2751,4 +2753,3 @@ Exit code: 0
 ```
 
 ### Status: ✅ COMPLETE
-

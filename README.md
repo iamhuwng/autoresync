@@ -31,7 +31,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 | System | Description |
 |--------|-------------|
 | **IELTS Reading** | Multi-passage tests with 7 question types: MCQ, Multiple Select, Completion, Matching (grouped & individual), True/False/Not Given, Yes/No/Not Given, Diagram Labeling |
-| **IELTS Listening** | Audio-synced test sessions with section-based playback control, Google Drive audio streaming |
+| **IELTS Listening** | Audio-synced test sessions with section-based playback control and Cloudflare R2 audio storage |
 | **IELTS Writing** | Task 1 & Task 2 with rich-text editor (TipTap), band-score grading, annotation system |
 | **THCS Tests** | Vietnamese middle-school format with AI document extraction, auto-marking, regex parsing |
 
@@ -290,9 +290,6 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    VITE_R2_SECRET_ACCESS_KEY=
    VITE_R2_BUCKET_NAME=
 
-   # Google Drive (optional, for audio streaming)
-   VITE_GOOGLE_DRIVE_CLIENT_ID=
-   VITE_GOOGLE_API_KEY=
    ```
 
 4. Start development server:

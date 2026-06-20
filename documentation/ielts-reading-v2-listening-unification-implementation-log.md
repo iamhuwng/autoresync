@@ -1,5 +1,7 @@
 # IELTS Reading V2 / Listening unification implementation log
 
+Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
+
 ## Patch 1: Neutral assessment status state primitive
 
 ### Changed files
@@ -104,7 +106,7 @@ The neutral component still imports no Reading V2, Listening, audio, passage, te
 
 ### Intentionally not touched
 
-- Listening audio upload, Google Drive import, preview, validation, or storage lifecycle
+- Listening R2 audio upload, preview, validation, or storage lifecycle; Google Drive is obsolete and not a supported import/upload path
 - Listening question parsing logic
 - Listening save/publish behavior
 - `AudioProgressPanel`
@@ -278,3 +280,157 @@ Excluded auth, audio-section, parser, and save errors were left untouched.
 Reassess one display-only Listening validation summary only if the shared component contract preserves existing semantics. Otherwise, adopt another neutral authoring primitive.
 
 Keep protected runtime, audio, live-session, parser, save, and storage concerns out.
+
+## Patch 2: Neutral authoring layout primitive
+
+### Changed files
+
+- `src/features/assessment/shared/components/AssessmentAuthoringSection.tsx`
+- `src/features/assessment/shared/components/AssessmentAuthoringSection.css`
+- `src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx`
+- `src/skills/listening/builders/ListeningTestBuilder.tsx`
+- `src/skills/listening/builders/ListeningTestBuilder.test.tsx`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+
+### Why this patch was safe
+
+This patch extracts only neutral authoring layout structure: a semantic section, title, optional description, optional status and action slots, and child content. Adoption is limited to the Step 4 Questions wrapper and header in `ListeningTestBuilder`.
+
+No Listening state, callbacks, validation, parsing, persistence, audio behavior, or runtime behavior moved into the shared layer.
+
+### Shared component created
+
+`AssessmentAuthoringSection` provides:
+
+- a semantic section labelled by its heading,
+- a consistent heading level with a nested-level override,
+- optional description, status, and action slots,
+- responsive header spacing,
+- an unchanged child-content boundary.
+
+The component uses native React and local CSS. It has no Mantine dependency and no knowledge of Reading passages, Listening audio, live sessions, teacher monitor behavior, parsers, storage, or published payloads.
+
+### Listening adoption
+
+The component replaces only the Step 4 outer wrapper and title/action row. It receives the existing dynamic `Questions (N/total)` or image-mode Answer Key heading and the existing Add Question button through neutral props.
+
+The image-mode bulk-answer panel, `AssessmentStatusState` empty state, question list, question editors, and all event handlers remain owned by `ListeningTestBuilder` and remain children of the neutral section.
+
+### Reading V2 boundary
+
+Reading V2 was not modified. The dependency direction remains:
+
+```text
+Reading V2 -> neutral shared assessment layer
+Listening  -> neutral shared assessment layer
+```
+
+`AssessmentAuthoringSection` imports no Reading V2 component or service. Listening does not import Reading V2 internals.
+
+### Listening-specific behavior protected
+
+- Step navigation branches remain unchanged.
+- `addQuestion`, edit, delete, empty-state, and question-list behavior remain unchanged.
+- Parser, save/publish, Google validation, audio upload/storage, and published payload code remain unchanged.
+- Runtime, live Listening, audio synchronization, teacher monitor, and student test-taking files were not modified.
+- Existing Mantine `AppShell` residue remains deferred because replacing the builder shell would exceed this narrow adoption.
+
+### Tests/checks run
+
+- TDD RED: focused component test failed because `AssessmentAuthoringSection` did not exist; builder test failed because Step 4 had no labelled region.
+- `npx vitest run src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`
+  - Result after implementation: passed, 2 files, 3 tests.
+  - The builder flow uses a preconfigured direct-audio fixture to reach Step 4 through text mode, preserves `Questions (0/10)`, Add Question, and the empty state, and does not call parser, save, Google validation, or R2 upload mocks.
+  - No real external, storage, or runtime path runs.
+- `npm run build`
+  - Result: passed. Vite transformed 9342 modules and bundle budget reported `[bundle-budget] OK - root entry 229KB; public preloads are within budget.`
+  - One earlier concurrent verification run completed Vite output but then failed the budget check with `Missing build output: ...\dist\index.html` because two build processes replaced the shared `dist` directory. The uncontended rerun above passed.
+- `git diff --check`
+  - Result: passed.
+- Neutral shared-layer boundary grep
+  - Result: no prohibited Reading V2, Listening, audio, monitor, live, parser, storage, or published-payload matches.
+- Protected-path audit
+  - Result: none of the explicitly protected files were modified.
+- Independent diff review
+  - Result: approved after replacing the mocked upload interaction with a preconfigured direct-audio test fixture.
+
+### Next recommended patch
+
+Historical note: before the Reading V2 SettingsPanel adoption landed, the next step was to adopt `AssessmentAuthoringSection` in one low-risk Reading V2 authoring display section after confirming its existing heading and spacing semantics matched. Keep runtime, parser, published payload, audio, live-session, and teacher-monitor behavior out of that patch.
+
+## Patch 3: Reading V2 authoring section adoption
+
+### Changed files
+
+- `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`
+- `src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx`
+- `src/components/reading-v2/studio/ReadingV2StudioShell.css`
+- `src/features/assessment/shared/components/AssessmentAuthoringSection.tsx`
+- `src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+
+### Selected Reading V2 adoption area
+
+The selected Reading V2 authoring display section is the static `Accessibility And Runtime Advisories` guidance block inside `ReadingV2SettingsPanel`.
+
+### Why the area was low-risk
+
+The block is display-only guidance. It has no buttons, form controls, callbacks, validation calculations, publish gating, parser behavior, import behavior, passage rendering, runtime shell behavior, or persistence writes.
+
+`ReadingV2TeacherReviewPanel` was considered through independent exploration, but it includes the preview action and only has broader shell-level coverage. The Settings advisory block was safer because `ReadingV2SettingsPanel.test.tsx` already exists and the target has no action behavior.
+
+### How behavior was preserved
+
+Only the local wrapper and local heading were replaced by `AssessmentAuthoringSection`. The heading text, guidance copy, and previous accessible region label remain unchanged:
+
+- `Accessibility And Runtime Advisories`
+- `Dense table, flowchart, and diagram tasks require runtime-specific advisories before publish.`
+- `Accessibility and runtime advisories`
+
+The adopted section remains inside the existing `reading-v2-editor-section` styling boundary. Local CSS keeps compact Reading V2 editor-section heading spacing and typography for this adoption.
+
+### How the shared component remained neutral
+
+`AssessmentAuthoringSection` received one tiny neutral API improvement: optional `ariaLabel`, so an adopting surface can preserve an existing region name while keeping its visible heading unchanged. No Reading V2 props, Reading V2 services, Listening props, audio props, parser props, publish props, or runtime props were added to the shared component.
+
+Reading V2 now imports the existing neutral primitive:
+
+```text
+Reading V2 -> neutral shared assessment layer
+Listening  -> neutral shared assessment layer
+```
+
+### Protected areas not touched
+
+- `src/components/reading-v2/runtime/ReadingV2RuntimeShell.tsx`
+- `src/services/reading-v2/readingV2ImportNormalization.service.ts`
+- `src/services/reading-v2/readingV2Projection.service.ts`
+- `src/services/reading-v2/readingV2LaunchIntegration.service.ts`
+- `src/services/reading-v2/readingV2RuntimeBoundary.service.ts`
+- `src/components/test/AudioProgressPanel.tsx`
+- `src/hooks/monitor/useMonitorControls.ts`
+- `src/hooks/useMasterAudioState.ts`
+- `src/hooks/useAudioSync.ts`
+- `src/skills/listening/components/AudioPlayer.tsx`
+- `src/skills/listening/components/ListeningTestPage.tsx`
+- `src/components/practice/ListeningPracticeView.tsx`
+- `src/services/listeningTestStorage.ts`
+
+### Tests/checks run
+
+- TDD RED: `rtk npx vitest run src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic`
+  - Result: failed as expected, 1 failed test, because the runtime-advisory block still used the local section wrapper.
+- Focused GREEN: `rtk npx vitest run src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx --reporter=basic`
+  - Result: passed, 2 files, 6 tests.
+- `rtk npm run build`
+  - Result: passed. Vite transformed 9342 modules and bundle budget reported `[bundle-budget] OK - root entry 229KB; public preloads are within budget.`
+- `rtk git diff --check`
+  - Result: passed.
+- Neutral shared-layer boundary grep for `AssessmentAuthoringSection`
+  - Result: exit 1 with no prohibited Reading V2, Listening, audio, monitor, live, parser, runtime, or passage matches.
+- Protected-path diff audit
+  - Result: no diff in the protected files listed above.
+
+### Next recommended patch
+
+Adopt `AssessmentAuthoringSection` in one more low-risk authoring-only display wrapper only after confirming an existing focused test can cover the selected section. Avoid Reading V2 runtime, parser/import logic, passage rendering, Listening runtime, audio, live-session, teacher monitor, and synchronization areas.

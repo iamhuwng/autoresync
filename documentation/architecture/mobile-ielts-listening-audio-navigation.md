@@ -21,6 +21,10 @@ Applies to:
 
 Desktop Listening behavior is outside this mobile contract unless a shared playback fix is required.
 
+## Cross-Skill Unification Boundary
+
+`documentation/architecture/ielts-reading-v2-listening-unification.md` permits shared presentation primitives but does not supersede this audio/navigation contract. Generic assessment shells, navigators, or status components must not become sources of `currentAudioIndex`, playback intent, section transitions, or live-session authority.
+
 ## Current Contract
 
 ### Explicit Section Navigation
@@ -113,3 +117,4 @@ Manual live-test evidence from 2026-05-11:
 - `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md`
 - `documentation/architecture/student-test-delivery-projections.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
+- `documentation/architecture/ielts-reading-v2-listening-unification.md`

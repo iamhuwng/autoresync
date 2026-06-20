@@ -1,5 +1,7 @@
 # SOP-0023: November 11, 2025 - Comprehensive Development Session
 
+> **Historical notice:** Google Drive references in this SOP are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 **Date**: November 11, 2025  
 **Author**: Development Team  
 **Status**: Complete  

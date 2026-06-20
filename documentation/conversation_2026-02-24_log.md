@@ -1,5 +1,7 @@
 # Conversation Log - 2026-02-24
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Session Start
 - **Time:** 2026-02-24 21:40 ICT
 - **Topic:** Backup System PRD Creation

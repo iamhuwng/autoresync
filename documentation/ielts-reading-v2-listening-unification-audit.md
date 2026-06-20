@@ -1,6 +1,8 @@
 # IELTS Listening and Reading V2 Unification Audit
 
-This audit verifies the current `main` branch against the strategy document. The strategy is authoritative for product direction:
+Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Point-in-time repo snapshot only; not current architecture. Live source and canonical doc win.
+
+This audit recorded the `main` branch against the strategy document at the time it was written. The following dependency direction remains valid, but current authority now lives in `documentation/architecture/ielts-reading-v2-listening-unification.md`:
 
 ```text
 Reading V2 -> neutral shared assessment layer
@@ -8,6 +10,8 @@ Listening  -> neutral shared assessment layer
 ```
 
 Reading V2 is the design reference. It is not the owner of Listening behavior. Listening runtime, audio, live-session authority, and teacher monitor synchronization must stay Listening-specific until a tested neutral shared assessment boundary exists.
+
+Historical note: Patch 3 later added `AssessmentAuthoringSection` adoption in `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`. Treat the candidate list below as historical guidance, not a current work queue.
 
 ## Verification scope
 
@@ -78,7 +82,7 @@ Corrected from previous audit:
 
 Missing from previous audit:
 
-- Audio asset lifecycle is a protected authoring/storage concern. Any authoring alignment must preserve temp-to-permanent R2 movement, Google Drive/direct URL handling, audio preview, and persisted `audioSections`.
+- Audio asset lifecycle is a protected authoring/storage concern. Any authoring alignment must preserve temp-to-permanent R2 movement, audio preview, and persisted `audioSections`. Google Drive is fully obsolete; remaining source handling is implementation residue, not a compatibility contract.
 
 ## Listening solo/homework runtime
 

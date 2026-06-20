@@ -1,5 +1,7 @@
 # PRD-0048 Conversation Transcript
 
+> **Historical notice:** Google Drive references in this transcript are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 - Source log: `C:/Users/The Lord/.codex/sessions/2026/04/22/rollout-2026-04-22T17-00-36-019db4a2-6a58-7910-87c9-e73591f119c7.jsonl`
 - Exported on: 2026-04-24T00:17:25.831Z
 - Scope: user messages, assistant messages, tool calls, tool outputs, web/custom tool activity, and compaction markers from the long-running PRD-0048 thread.

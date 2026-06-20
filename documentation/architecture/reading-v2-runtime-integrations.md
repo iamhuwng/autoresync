@@ -16,6 +16,10 @@ Reading V2 does not own separate copies of these platform systems:
 
 Reading V2 supplies V2-specific adapters, payloads, and host wiring so those existing systems can work with V2 projections and saved results.
 
+## Cross-Skill Unification Boundary
+
+`documentation/architecture/ielts-reading-v2-listening-unification.md` governs presentation sharing between Reading V2 and Listening. It does not authorize a shared runtime authority model. This document remains authoritative for Reading V2 launch, host wiring, anti-cheat, trusted submit, feedback, monitoring, and return behavior.
+
 ## Runtime Hosts
 
 Reading V2 runtime hosts are:

@@ -1,5 +1,6 @@
 import type { ReadingV2ValidationIssue } from '../../../types/readingV2.types';
 import type { ReadingV2TeacherAnswerKeyAuthority } from '../../../services/reading-v2/readingV2StudioParsingDiagnostics.service';
+import { AssessmentAuthoringSection } from '../../../features/assessment/shared/components/AssessmentAuthoringSection';
 import { AssessmentValidationSummary } from '../../../features/assessment/shared/components/AssessmentValidationSummary';
 import type { ReadingV2StudioMetadata, ReadingV2Visibility } from './ReadingV2MetadataPanel';
 
@@ -69,10 +70,14 @@ export function ReadingV2SettingsPanel({
         <p>{metadata.materialKind}</p>
         <p>{metadata.provenanceSummary}</p>
       </section>
-      <section className="reading-v2-editor-section" aria-label="Accessibility and runtime advisories">
-        <h3>Accessibility And Runtime Advisories</h3>
+      <AssessmentAuthoringSection
+        className="reading-v2-editor-section"
+        title="Accessibility And Runtime Advisories"
+        ariaLabel="Accessibility and runtime advisories"
+        headingLevel={3}
+      >
         <p>Dense table, flowchart, and diagram tasks require runtime-specific advisories before publish.</p>
-      </section>
+      </AssessmentAuthoringSection>
       <AssessmentValidationSummary
         title="Publish Readiness"
         status={publishBlocked ? 'blocked' : 'ready'}

@@ -1,5 +1,7 @@
 # IELTS Reading V2 and IELTS Listening Unification Strategy
 
+Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical strategy/rationale only; phase sequencing and `Next recommended patch` text are retired as current execution authority as of 2026-06-19. Safety principles remain rationale.
+
 ## Purpose
 
 IELTS Reading test making and test taking are now being updated around the more stable Reading V2 implementation.
@@ -113,7 +115,7 @@ Listening-specific authoring fields remain separate:
 
 * audio upload,
 * audio preview,
-* Google Drive audio import,
+* R2 audio upload and preview; Google Drive is fully obsolete and any remaining references are implementation residue,
 * audio section setup,
 * audio duration,
 * transcript or section rubric,

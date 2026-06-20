@@ -15,6 +15,7 @@ import type { ParsedQuestion } from '../../../types/document.types';
 import { listeningRouter } from '../../../services/parser/listening.router';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigation } from '../../../hooks/useNavigation';
+import { AssessmentAuthoringSection } from '../../../features/assessment/shared/components/AssessmentAuthoringSection';
 import { AssessmentStatusState } from '../../../features/assessment/shared/components/AssessmentStatusState';
 
 // Test types
@@ -1981,20 +1982,17 @@ Write NO MORE THAN TWO WORDS for each answer.
 
             {/* STEP 4: Questions or Answer Key */}
             {currentStep === 'questions' && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: '600', margin: 0 }}>
-                    {displayMode === 'image'
-                      ? `🔑 Answer Key (${questions.length} Questions)`
-                      : `Questions (${questions.length}/${metadata.totalQuestions})`
-                    }
-                  </h2>
-                  {displayMode !== 'image' && (
+              <AssessmentAuthoringSection
+                title={displayMode === 'image'
+                  ? `🔑 Answer Key (${questions.length} Questions)`
+                  : `Questions (${questions.length}/${metadata.totalQuestions})`
+                }
+                action={displayMode !== 'image' ? (
                     <Button variant="primary" onClick={addQuestion}>
                       + Add Question
                     </Button>
-                  )}
-                </div>
+                ) : undefined}
+              >
 
                 {displayMode === 'image' && (
                   <div style={{ marginBottom: '2rem', background: 'white', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
@@ -2151,7 +2149,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                     ))}
                   </div>
                 )}
-              </div>
+              </AssessmentAuthoringSection>
             )}
 
             {/* STEP 4: Review */}

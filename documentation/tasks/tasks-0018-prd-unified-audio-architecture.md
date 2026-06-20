@@ -4,6 +4,8 @@
 > **PRD:** [0018-prd-unified-audio-architecture.md](./0018-prd-unified-audio-architecture.md)
 > **Estimated Effort:** 37-52 hours (5-7 days)
 
+> **2026-06-19 supersession:** Google Drive is fully obsolete across all product features. Completed historical tasks below describe prior migration work only; they do not authorize upload, playback, validation, streaming, or compatibility support. Current authority: `documentation/architecture/upload-storage-authority.md`.
+
 ---
 
 ## Relevant Files
@@ -23,10 +25,10 @@
 
 ### Services & Storage
 - `src/services/listeningTestStorage.ts` - Listening test data types. Add `audioMode`, `examMode` to session settings schema.
-- `src/services/googleDriveAudio.ts` - Google Drive audio handling. Add deprecation warning, keep for backwards compatibility.
+- `src/services/googleDriveAudio.ts` - Obsolete residue. No compatibility contract; remove under a separate cleanup audit.
 
 ### Builders
-- `src/skills/listening/builders/ListeningTestBuilder.tsx` - Test creation UI. Remove Google Drive upload option, add audio format validation.
+- `src/skills/listening/builders/ListeningTestBuilder.tsx` - Test creation UI. R2-only upload; remove obsolete Google Drive branches under separate cleanup.
 
 ### New Files to Create
 - `src/hooks/audio/useMasterAudioState.ts` - Hook for managing masterAudioState broadcasting (teacher) and listening (student).
@@ -323,8 +325,8 @@
 
 ---
 
-- [x] **8.0 Google Drive Deprecation & Audio Validation**
-  > Remove Google Drive upload option from test creation, add warning badges to existing tests with Google Drive audio, and implement audio format validation (MP3, WAV, M4A, AAC, OGG).
+- [x] **8.0 Google Drive Historical Migration & Audio Validation (Superseded)**
+  > Historical migration record only. Google Drive is now fully obsolete; no upload, playback, validation, warning-badge, or compatibility behavior is supported. Active uploads use R2. Remaining source residue is removed separately.
   - [x] **8.1** Update `src/skills/listening/builders/ListeningTestBuilder.tsx`:
     - ~~Remove Google Drive URL input field~~ Already done - R2 only
     - ~~Remove any "Use Google Drive" toggle~~ Already done
@@ -336,25 +338,21 @@
     - Show error for unsupported formats
     - Show warning (confirm dialog) for large files (> 50MB)
   
-  - [x] **8.3** Update `src/services/googleDriveAudio.ts`:
-    - Added `isDeprecated = true` flag to service
-    - Added `getDeprecationWarning()` method
-    - All existing functionality preserved for backwards compatibility
+  - [x] **8.3** Historical update to `src/services/googleDriveAudio.ts`:
+    - Prior deprecation flags and warning helpers are obsolete residue.
+    - No existing functionality is an approved compatibility contract.
   
-  - [x] **8.4** Create deprecation warning badge component:
+  - [x] **8.4** Historical warning-badge work (obsolete residue):
     - Create `src/components/ui/DeprecatedAudioBadge.tsx`
     - Show: "⚠️ Audio source deprecated - please re-upload"
     - Tooltip with more info on hover
   
-  - [x] **8.5** Show warning in test listing/editing:
-    - Detection via `googleDriveAudioService.isGoogleDriveUrl(url)`
-    - Use `DeprecatedAudioBadge` component
-    - Can use `getDeprecationWarning()` for warning banner
+  - [x] **8.5** Historical listing/editing warning work:
+    - Google Drive detection and warning helpers are obsolete residue pending removal.
   
-  - [x] **8.6** Keep playback for existing tests:
-    - Play capability preserved in AudioPlayer
-    - `googleDriveAudioService.validateAudioLink()` and `convertToStreamUrl()` still work
-    - Only NEW tests prevented from using Google Drive
+  - [x] **8.6** Retired:
+    - Google Drive playback, validation, conversion, and compatibility are not supported.
+    - Any remaining implementation is residue pending separate removal.
 
 ---
 

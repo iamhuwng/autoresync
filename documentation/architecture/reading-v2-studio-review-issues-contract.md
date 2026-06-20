@@ -37,6 +37,12 @@ Each review row must:
 
 The warning panel must not include a separate `Show source` button. Source evidence remains in import diagnostics and source-review surfaces. The review row's primary action is navigation to the editable field.
 
+### Shared Presentation Boundary
+
+Neutral assessment components may render status or validation summaries when they receive already-calculated Reading V2 state through props. They must not own issue normalization, severity mapping, activation, focus, navigation, or publish gating. `AssessmentValidationSummary` currently renders the Settings publish-readiness summary only; the interactive `Review issues` panel remains Reading V2-owned.
+
+Cross-skill sharing rules are canonical in `documentation/architecture/ielts-reading-v2-listening-unification.md`.
+
 ## Issue Data Contract
 
 One normalized issue list feeds all teacher-facing warning surfaces:

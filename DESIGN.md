@@ -456,9 +456,10 @@ Use this order when design sources conflict:
 4. `documentation/architecture/ui-design-standards.md` is canonical for global teacher/student UI safety rules.
 5. `documentation/architecture/teacher-lobby-authoring-and-navigation.md` is canonical for teacher header, lobby, and creation entry.
 6. Teacher architecture docs are canonical for teacher material listing, list view, visual taxonomy, route resilience, and creation parsing/review.
-7. Reading V2 Stitch/design files are visual sources only for Reading V2 Studio/build-workspace surfaces.
-8. PRDs and task docs are secondary evidence and must not override architecture docs.
-9. Live code is current-state evidence. If code contradicts canonical docs, record it in `Known Drift` instead of promoting it to design truth.
+7. `documentation/architecture/ielts-reading-v2-listening-unification.md` is canonical for cross-skill assessment presentation boundaries between Reading V2 and Listening.
+8. Reading V2 Stitch/design files are visual sources only for Reading V2 Studio/build-workspace surfaces; they do not define Listening runtime authority or generic assessment UI by themselves.
+9. PRDs and task docs are secondary evidence and must not override architecture docs.
+10. Live code is current-state evidence. If code contradicts canonical docs, record it in `Known Drift` instead of promoting it to design truth.
 
 Conflict policy:
 - Current architecture docs beat old PRDs and task docs.
@@ -473,9 +474,11 @@ Canonical source packet:
 | Root and rules | `AGENTS.md`; `documentation/architecture/ui-design-standards.md`; `documentation/rules/codebase-hygiene.md`; `documentation/rules/student-mobile-design.md`; `documentation/rules/student-data-loading.md`; `documentation/rules/mobile-portability.md`; `documentation/rules/observability.md` |
 | Teacher docs | `documentation/architecture/teacher-lobby-authoring-and-navigation.md`; `documentation/architecture/teacher-materials-listing-and-diagnostics.md`; `documentation/architecture/teacher-materials-list-view-contract.md`; `documentation/architecture/teacher-material-visual-taxonomy.md`; `documentation/architecture/teacher-route-runtime-resilience.md`; `documentation/architecture/teacher-test-creation-parsing-and-review.md`; `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md` |
 | Student docs | `documentation/design/student-view-design-standard.md`; `documentation/architecture/student-experience-architecture.md`; `documentation/architecture/student-dashboard-architecture.md`; `documentation/architecture/student-mobile-responsiveness-architecture.md`; `documentation/architecture/student-shell-right-rail-architecture.md`; `documentation/architecture/student-shell-data-loading.md`; `documentation/architecture/browser-document-title-architecture.md`; `documentation/architecture/academic-record/page-architecture.md`; `documentation/architecture/academic-record/README.md` |
+| Shared assessment docs | `documentation/architecture/ielts-reading-v2-listening-unification.md`; `documentation/architecture/reading-v2-runtime-integrations.md`; `documentation/architecture/mobile-ielts-listening-audio-navigation.md`; `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md` |
 | Reading V2 docs | `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`; `documentation/tasks/PRD0048/reading-v2-page-schema-studio.md`; `documentation/tasks/PRD0048/reading-v2-studio-ui-assessment.md`; `documentation/tasks/PRD0048/design/reading-v2-build-workspace-handoff.md`; `documentation/tasks/PRD0048/design/stitch/reading-v2-build-workspace/design.md`; `documentation/tasks/PRD0048/design/stitch/reading-v2-build-workspace/academic_precision/DESIGN.md`; `documentation/tasks/PRD0048/design/stitch/reading-v2-build-workspace/each_question_task_type_design/academic_precision/DESIGN.md` |
 | Teacher code anchors | `src/components/navigation/TeacherHeader.tsx`; `src/components/navigation/TeacherNavigation.tsx`; `src/components/navigation/MobileMenu.tsx`; `src/pages/TeacherLobbyPage.jsx`; `src/components/modern/SearchFilterBar.jsx`; `src/components/modern/SearchFilterBar.css`; `src/components/modern/MaterialListView.jsx`; `src/components/modern/MaterialListRow.jsx`; `src/components/modern/materialListAdapter.js`; `src/components/modern/materialVisualTaxonomy.js`; `src/components/test-creation/TestCreationModal.tsx`; `src/routes/teacherRoutes.tsx` |
 | Student code anchors | `src/components/layout/StudentLayout.tsx`; `src/components/layout/studentLayoutStyles.ts`; `src/components/layout/StudentSidebar.tsx`; `src/components/layout/StudentRightRail.tsx`; `src/context/StudentShellDataContext.tsx`; `src/hooks/useStudentShellData.ts`; `src/pages/StudentDashboardPage.jsx`; `src/components/dashboard/StudentDashboardFeedView.jsx`; `src/components/dashboard/PendingReviewsWidget.tsx`; `src/pages/AcademicRecordPage.tsx`; `src/pages/StudentHomeworkListPage.tsx`; `src/pages/StudentCoursesPage.tsx`; `src/pages/StudentLibraryPage.tsx`; `src/pages/StudentTestResultsPage.tsx`; `src/routes/StudentShellRoute.tsx`; `src/routes/studentRoutes.tsx`; `src/styles/student-view-override.css`; `src/constants/routes.ts` |
+| Shared assessment code anchors | `src/features/assessment/shared/components/AssessmentAuthoringSection.tsx`; `src/features/assessment/shared/components/AssessmentStatusState.tsx`; `src/features/assessment/shared/components/AssessmentValidationSummary.tsx`; `src/pages/ReadingV2StudioPage.tsx`; `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`; `src/skills/listening/builders/ListeningTestBuilder.tsx` |
 
 ## Known Drift
 
@@ -488,6 +491,7 @@ Teacher drift:
 | `src/pages/TeacherClassesPage.tsx` | `TeacherHeader` is top page/shell child; legacy Mantine `AppShell` is transitional only. | Wraps `TeacherHeader` and main content in Mantine `AppShell`. | known drift, not approved baseline |
 | `src/pages/TeacherCoursesPage.tsx` | `TeacherHeader` is top page/shell child; legacy Mantine `AppShell` is transitional only. | Wraps `TeacherHeader` and main content in Mantine `AppShell`. | known drift, not approved baseline |
 | `src/pages/TeacherGradingPage.tsx` | `TeacherHeader` is top page/shell child; legacy Mantine `AppShell` is transitional only. | Wraps `TeacherHeader` and main content in Mantine `AppShell`; also uses gradient/glass-era styling. | known drift, not approved baseline |
+| `src/skills/listening/builders/ListeningTestBuilder.tsx` | Shared assessment presentation may be neutral, but teacher authoring surfaces must follow the no-Mantine direction and must preserve Listening-specific ownership. | Uses neutral authoring-section and empty-state primitives but still wraps the flow in legacy Mantine `AppShell` with gradient/emoji-era presentation; Listening-side validation-summary adoption remains intentionally deferred. | known drift, not approved baseline |
 | `src/components/navigation/TeacherHeader.tsx` | Teacher setup and navigation iconography uses SVG icon art, not emoji labels as primary icon treatment. | Mobile drawer item data still uses emoji icon strings. | known drift, not approved baseline |
 | `src/pages/TeacherLobbyPage.jsx`; `src/components/modern/SearchFilterBar.css` | Mobile workspace pages must avoid unintended horizontal overflow unless a row explicitly owns horizontal scrolling. | Browser check at `/lobby` 375px found `documentElement.scrollWidth=369` and `clientWidth=365`; `.content-tabs` and `button.modern-btn.btn-glass.btn-sm` (`Drafts`) extend to `right=369`. Screenshot: `output/playwright/teacher-lobby-375.png`. | known drift, not approved baseline |
 
@@ -592,6 +596,7 @@ Update this file when:
 - Global visual tokens change.
 - Known drift is fixed or new drift is found.
 - Feature-specific design packets become app-level design authority.
+- Cross-skill shared assessment presentation or ownership boundaries change.
 
 Do not update this file for:
 - Admin-only design changes.

@@ -65,7 +65,8 @@
       "Bash(python -c ' *)",
       "Bash(rg -i -o \".{280}\\(removed.{0,15}master|restore surface|restore UI|teacher restore|reversible|soft removal|removed-master\\).{200}\" \"rollout-2026-06-09T08-24-34-019ea9fb-24fe-70c2-a5b8-207303ec2d69.jsonl\")",
       "Bash(rg -i -o \".{120}\\(browser proof|AI E2E|browser surface|expected.{0,5}actual.{0,5}result|trace path|log browser\\).{350}\" \"rollout-2026-06-09T08-24-34-019ea9fb-24fe-70c2-a5b8-207303ec2d69.jsonl\")",
-      "Bash(rg -i -o \".{180}\\(Archive subtab|archive sub-tab|passage.{0,20}restore|restore.{0,20}passage|Archived subtab|un-?archive\\).{180}\" \"rollout-2026-06-09T08-24-34-019ea9fb-24fe-70c2-a5b8-207303ec2d69.jsonl\")"
+      "Bash(rg -i -o \".{180}\\(Archive subtab|archive sub-tab|passage.{0,20}restore|restore.{0,20}passage|Archived subtab|un-?archive\\).{180}\" \"rollout-2026-06-09T08-24-34-019ea9fb-24fe-70c2-a5b8-207303ec2d69.jsonl\")",
+      "Bash(xargs -0 cat)"
     ],
     "deny": [],
     "ask": []

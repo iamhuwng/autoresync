@@ -1,5 +1,7 @@
 # Conversation Log - 2026-02-04
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Session: Student UI Refactoring & Avatar Bug Fix
 
 ### Objective

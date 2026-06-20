@@ -6,6 +6,8 @@
 > **Author:** Antigravity AI (via Discovery Session)  
 > **Related PRDs:** [LISTENING_AUDIO_CONTROLS_PRD](./LISTENING_AUDIO_CONTROLS_PRD.md), [PRD-0016 Solo Study & Homework System](./0016-prd-solo-study-homework-system.md)
 
+> **2026-06-19 supersession:** Google Drive is fully obsolete across all product features. Earlier requirements preserving Google Drive playback or compatibility are retired. All active uploads use Cloudflare R2. Remaining implementation references are residue for a separate cleanup audit. Current authority: `documentation/architecture/upload-storage-authority.md`.
+
 ---
 
 ## 1. Introduction/Overview
@@ -44,7 +46,7 @@ Implement a **Unified Audio Architecture** with three scenario-specific modes:
 2. **Synchronize student audio** - All students within < 1 second of teacher's position (online mode)
 3. **Support offline classrooms** - Single audio source mode for physical rooms
 4. **Integrate with solo practice** - Students can independently access listening materials
-5. **Deprecate Google Drive audio** - Remove Google Drive support, mark existing tests with warnings
+5. **Retire Google Drive entirely** - No supported feature may use it; remaining source residue is removed under a separate cleanup audit
 
 ### Success Metrics
 
@@ -265,13 +267,13 @@ Implement a **Unified Audio Architecture** with three scenario-specific modes:
 | FR-49 | When test ends, auto-submit answers for disconnected students as "incomplete" submission |
 | FR-50 | Preserve disconnected student's answers in `test_results` before clearing session data |
 
-### 4.12 Google Drive Deprecation
+### 4.12 Google Drive Requirements (Retired 2026-06-19)
 
 | # | Requirement |
 |---|-------------|
-| FR-51 | Remove Google Drive audio upload support from new test creation |
-| FR-52 | Mark existing tests with Google Drive audio with warning: "Audio source deprecated - please re-upload" |
-| FR-53 | Existing tests with Google Drive audio can still play (for backwards compatibility) until manual re-upload |
+| FR-51 | **Retired historical requirement.** Google Drive is fully obsolete; all active uploads use R2. |
+| FR-52 | **Retired historical requirement.** Warning-badge behavior is source residue, not a supported feature contract. |
+| FR-53 | **Retired historical requirement.** Google Drive playback/compatibility is not supported. Remaining code is pending separate removal. |
 
 ### 4.13 Material Access Control (Solo Practice)
 
@@ -495,17 +497,17 @@ if (drift > 1) {
 | `ListeningTestPage.tsx` | Add headphone request UI, sync indicator, late-join handling |
 | `StudentDetailModal.tsx` | Show headphone request status (no pre-grant) |
 | `listeningTestStorage.ts` | Add `audioMode` to settings schema |
-| `googleDriveAudio.ts` | Add deprecation warning, mark for removal |
-| `ListeningTestBuilder.tsx` | Remove Google Drive upload option, validate audio formats |
+| `googleDriveAudio.ts` | Obsolete residue; remove under a separate cleanup audit |
+| `ListeningTestBuilder.tsx` | R2-only upload; remove obsolete Google Drive branches under separate cleanup |
 
-### 7.5 Google Drive Deprecation Plan
+### 7.5 Google Drive Plan (Retired 2026-06-19)
 
 | Phase | Action |
 |-------|--------|
-| Phase 1 | Remove Google Drive upload UI from test creation |
-| Phase 2 | Add warning badge to tests with Google Drive audio |
-| Phase 3 | Keep playback functionality for existing tests |
-| Phase 4 | (Future) Migration script to re-upload Google Drive audio to R2 |
+| Phase 1 | Historical: removed Google Drive upload UI |
+| Phase 2 | Retired: warning-badge behavior is not a supported product contract |
+| Phase 3 | Retired: Google Drive playback compatibility is not supported |
+| Phase 4 | Separate future cleanup: audit data dependencies and remove implementation residue |
 
 ### 7.6 Firebase Considerations
 
@@ -530,7 +532,7 @@ if (drift > 1) {
 | Offline mode adoption | % of in-person tests using offline mode | > 80% |
 | Headphone request approval time | Average time from request to approval | < 30 seconds |
 | Audio loading errors | Error rate in audio playback | < 1% |
-| Google Drive warnings resolved | % of deprecated tests re-uploaded | Track over time |
+| Google Drive residue removed | Obsolete source/config references remaining | Tracked by separate cleanup task |
 
 ---
 
@@ -605,14 +607,14 @@ if (drift > 1) {
 | 6.5 | Show volume slider on approval, unmute + sync |
 | 6.6 | Handle requests during section changes (stay pending) |
 
-### Phase 7: Google Drive Deprecation (3-4 hours)
+### Phase 7: Google Drive Tasks (Historical And Superseded)
 
 | Task | Description |
 |------|-------------|
-| 7.1 | Remove Google Drive upload UI from test creation |
-| 7.2 | Add warning badge to tests with Google Drive audio |
+| 7.1 | Historical: remove Google Drive upload UI from test creation |
+| 7.2 | Retired: warning badge is not a supported feature contract |
 | 7.3 | Add audio format validation (MP3, WAV, M4A, AAC, OGG) |
-| 7.4 | Keep playback for existing tests (backwards compatible) |
+| 7.4 | Retired: do not preserve Google Drive playback compatibility |
 
 ### Phase 8: Disconnected Student Handling (2-3 hours)
 
@@ -663,7 +665,7 @@ All decisions were made through discovery sessions on 2026-02-04:
 | Mobile Behavior | Same as desktop, no warnings | A11 |
 | Optional Sync | No - sync always on for sessions | A12 |
 | Audio Pre-warming | Teacher monitor pre-loads all sections | A19 |
-| Google Drive | Remove support, mark existing with warning | A20 |
+| Google Drive | Fully obsolete; remove implementation residue under separate cleanup | A20 superseded |
 | Disconnected Students | Auto-submit as incomplete | A21 |
 | Audio Formats | MP3, WAV, M4A, AAC, OGG | A22 |
 | Clock Skew | Use Firebase serverTimestamp() | A23 |

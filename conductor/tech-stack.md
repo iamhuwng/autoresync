@@ -26,7 +26,7 @@
 
 ## Storage & Assets
 - **Primary Media:** Cloudflare R2 (Audio/Image hosting via worker proxy)
-- **Legacy Support:** Google Drive API (OAuth2 integration)
+- **Obsolete Residue:** Google Drive code/config remains pending a separate removal audit; it is not used by any supported feature
 
 ## Styling
 - **Methodology:** CSS Modules + Mantine Style System

@@ -1,0 +1,39 @@
+.assessment-authoring-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.assessment-authoring-section__heading {
+  min-width: 0;
+}
+
+.assessment-authoring-section__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.assessment-authoring-section__description {
+  margin-top: 0.375rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.assessment-authoring-section__aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 40rem) {
+  .assessment-authoring-section__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

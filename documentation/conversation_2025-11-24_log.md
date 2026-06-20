@@ -1,5 +1,7 @@
 # Conversation Log - November 24, 2025
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ---
 
 ## Latest: Multi-Test Class Architecture Implementation - Phase 1 Started

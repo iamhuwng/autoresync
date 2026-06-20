@@ -1,5 +1,7 @@
 # Conversation Log - January 18, 2026
 
+> **Historical notice:** Google Drive references in this log are obsolete and non-authoritative. No supported feature uses Google Drive; all active uploads use Cloudflare R2. Implementation residue cleanup is deferred.
+
 ## Section 1: Google Drive Audio Streaming Research
 
 **Time:** 6:26 PM UTC+7  
