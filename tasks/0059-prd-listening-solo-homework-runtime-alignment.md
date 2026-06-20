@@ -1,6 +1,6 @@
 # PRD 0059: Listening Solo/Homework Runtime Alignment
 
-Status: Draft child PRD - implementation blocked pending Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, Task 5 authoring stability, and product-owner plus architecture review
+Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP, Task 5 authoring stability, and product-owner plus architecture review
 Created: 2026-06-20
 Task number: 0059
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`

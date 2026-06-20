@@ -1,6 +1,6 @@
 # PRD 0061: Reading V2 Runtime Visual Alignment
 
-Status: Draft child PRD - implementation blocked pending Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, Task 3 shared-authoring stability, dedicated Reading V2 runtime tests, and product-owner review
+Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP, Task 3 shared-authoring stability, dedicated Reading V2 runtime tests, and product-owner review
 Created: 2026-06-20
 Task number: 0061
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`

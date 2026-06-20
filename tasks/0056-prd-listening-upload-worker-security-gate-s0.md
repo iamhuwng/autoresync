@@ -1,6 +1,6 @@
 # PRD 0056: Listening Upload Worker Security Gate S0
 
-Status: Draft child PRD - implementation blocked pending Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, and product-owner plus architecture/security approval
+Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP and product-owner plus architecture/security approval
 Created: 2026-06-20
 Task number: 0056
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
