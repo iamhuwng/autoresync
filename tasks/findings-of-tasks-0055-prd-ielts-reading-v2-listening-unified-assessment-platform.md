@@ -2228,3 +2228,11 @@ Fresh local read-only review after the Task 1.10 append returned PASS:
 4. Traceability table contains all 14 required DAG nodes and no incomplete node rows.
 5. Task 1.10 is checked; Task 1.11 and Task 1.12 remain unchecked.
 6. No positive Task 1.12 approval or implementation-start claim was found.
+
+### Post-Review Correction - 2026-06-20 10:14:06 +07:00
+
+Fixed one stale current-status sentence found during review after Packet 1L:
+
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md` now blocks implementation on Task 1.11 parent acceptance, Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization.
+- The stale `implementation remains blocked by Task 1.9` wording was removed from the current PRD-0058 gate sentence.
+- No source, runtime, Worker, schema, Firebase, deployment, Task 1.11 acceptance, or Task 1.12 approval work was performed.
