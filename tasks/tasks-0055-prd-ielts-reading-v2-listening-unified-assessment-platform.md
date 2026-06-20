@@ -312,7 +312,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - record exact source-of-truth, deploy, version-pin, and rollback procedure;
     - if Wrangler becomes canonical, record that approved `cloudflare/wrangler.toml` must be checked in during the approved harness/implementation subphase before deploy; if dashboard deployment remains canonical, document exact dashboard deployment/version rollback steps;
     - stop if deployed source/configuration cannot be obtained or reconciled.
-  - [ ] 2.3 Establish a checked-in test harness only after 2.2 resolves mechanism. For `aws4fetch`/S3 style, use focused fetch/signing mocks. For native `env.R2_BUCKET`, use Miniflare or `@cloudflare/vitest-pool-workers` and add the required dev dependency/config. Restore/create `cloudflare/package.json` consistently, add focused worker tests, and document exact local command. Treat harness/bootstrap as a non-trivial S0 subphase.
+  - [x] 2.3 Establish a checked-in test harness only after 2.2 resolves mechanism. For `aws4fetch`/S3 style, use focused fetch/signing mocks. For native `env.R2_BUCKET`, use Miniflare or `@cloudflare/vitest-pool-workers` and add the required dev dependency/config. Restore/create `cloudflare/package.json` consistently, add focused worker tests, and document exact local command. Treat harness/bootstrap as a non-trivial S0 subphase.
   - [ ] 2.4 Write negative tests first and prove insecure-baseline failures for:
     - missing/invalid Firebase identity;
     - cross-owner upload;

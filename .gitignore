@@ -1,4 +1,12 @@
 .env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+cloudflare/.env
+cloudflare/.env.*
+cloudflare/.dev.vars
+cloudflare/.dev.vars.*
 # Logs
 logs
 *.log

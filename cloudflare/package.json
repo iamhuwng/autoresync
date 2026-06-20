@@ -1,0 +1,23 @@
+{
+  "name": "r2-upload-signer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "check": "wrangler deploy --dry-run",
+    "local": "wrangler dev",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deployed-status": "wrangler deployments status --name r2-upload-signer --json",
+    "version-list": "wrangler versions list --name r2-upload-signer --json",
+    "version-pin": "wrangler versions deploy",
+    "rollback": "wrangler rollback"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.18",
+    "@cloudflare/workers-types": "^4.20260620.1",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.103.0"
+  }
+}
