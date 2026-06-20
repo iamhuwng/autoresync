@@ -1,6 +1,6 @@
 # PRD-0055 Traceability Matrix
 
-Status: Task 1.11 parent acceptance complete on 2026-06-20; traceability remains 503/503 with zero missing, duplicate, orphan, blank-owner, unresolved dependency, or vague-deferral rows. Canonical dependency DAG has 14 nodes and 21 edges with zero cycles, orphans, missing prerequisites, contradictory edges, or unresolved dependency codes. Implementation remains unstarted and Task 1.12 approval is not claimed.
+Status: Task 1 planning completed on 2026-06-20 after separate explicit product-owner and architecture/security reviewer approvals; traceability remains 503/503 with zero missing, duplicate, orphan, blank-owner, unresolved dependency, or vague-deferral rows. Canonical dependency DAG remains 14 nodes and 21 edges with zero cycles, orphans, missing prerequisites, contradictory edges, or unresolved dependency codes. Implementation remains unstarted and no implementation node is authorized by Task 1 approval alone.
 
 Authority:
 
@@ -52,7 +52,7 @@ Atomization rules:
 - `EV-0059`: Planned only. PRD-0059 section 17 testing, section 18 browser proof, and sections 20-21 acceptance/regression. No runtime or browser execution claimed.
 - `EV-0060`: Planned only. PRD-0060 section 23 testing, section 24 browser proof, and sections 28-29 acceptance/regression. Packet 1I Bucket C N1/N2 test-infrastructure corrections remain unimplemented prerequisites. No proof execution claimed.
 - `EV-0061`: Planned only. PRD-0061 sections 15-17 testing/RED-GREEN-mutation/browser and sections 21-22 acceptance/regression. No runtime implementation or proof claimed.
-- `EV-PLAN`: Existing planning evidence is approved PRD-0055, finalized child PRDs, Packet 1J Task 1.8 PASS, Task 1.9 matrix/check report, Task 1.10 canonical dependency DAG/check report, and Task 1.11 parent acceptance report. Task 1.12 approval is not claimed.
+- `EV-PLAN`: Existing planning evidence is approved PRD-0055, finalized child PRDs, Packet 1J Task 1.8 PASS, Task 1.9 matrix/check report, Task 1.10 canonical dependency DAG/check report, Task 1.11 parent acceptance report, and separate Task 1.12 approvals under `PRD-0055-TASK-1.12-PRODUCT-OWNER-APPROVAL-2026-06-20` and `PRD-0055-TASK-1.12-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`. No implementation evidence or authorization is claimed.
 - `EV-FINAL`: Planned only. Parent tasklist Task 9.1-9.15, especially 9.11-9.13 and per-row evidence under 9.12. No final rollout or acceptance evidence claimed.
 - `EV-GDRIVE`: Planned only. Separate Google Drive cleanup/deletion task must define tests, disposition proof, rollback, and governance before execution. No cleanup/deletion occurred.
 - `EV-R2MIG`: Planned only. Future migration PRD must provide inventory, backup, dry run, explicit migration tests, and recovery proof. No migration or on-read mutation occurred.
@@ -78,7 +78,7 @@ Atomization rules:
 - `DEP-0060`: Resolves to `DAG-80` and `DAG-81`. `masterAudioState` is live authority; `audioCommand` is compatibility traffic; Task 8 owns shared `AudioPlayer` internal refresh/source-handoff and live cutover.
 - `DEP-BUCKET-C`: Bucket C remains unimplemented: N1/N2 shared Playwright infrastructure, N3 PRD-0060 audio announcement/confirmation subset, and N4 revoked-headphone-state precondition. N3 non-audio residue has no parent-row ownership claim.
 - `DEP-0061`: Resolves to `DAG-90`. Entry gate is shared-authoring stability plus dedicated Reading V2 runtime tests.
-- `DEP-PLAN`: Resolves to `DAG-00`. Planning/acceptance authority only. Task 1.11 is complete; Task 1.12 remains pending and no implementation is authorized.
+- `DEP-PLAN`: Resolves to `DAG-00`. Planning/acceptance authority only. Task 1 planning is complete; implementation nodes remain independently gated and no implementation is authorized by Task 1 approval alone.
 - `DEP-FINAL`: Resolves to `DAG-99`. Cross-phase Task 9 verification and rollout after all applicable phase-local gates.
 - `DEP-GDRIVE`: No new Google Drive behavior, migration, playback removal, or Google Drive-specific error state.
 - `DEP-R2MIG`: Legacy raw-R2 reads remain adapter-based; on-read migration is prohibited.
@@ -115,7 +115,7 @@ DAG-90 -> DAG-99
 
 | Node ID | Owning PRD/task | Prerequisites | Outputs | Blocks | Parallel-safe work | Entry evidence | Approval gate | Rollback dependency | Next dependent node |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `DAG-00` | PRD-0055 Tasks 1.11-1.12 | None; Task 1.10 supplies graph evidence to Task 1.11 | Parent acceptance, then explicit Task 1.12 product-owner plus architecture/security approval record | Every implementation node | Planning/review only | Task 1.10 graph/check evidence and Task 1.11 acceptance evidence | Task 1.12 approval/HARD STOP; currently pending | Planning-only; supersede by appended decision record, never by implementation | `DAG-03`, `DAG-20`, `DAG-80` |
+| `DAG-00` | PRD-0055 Tasks 1.11-1.12 | None; Task 1.10 supplies graph evidence to Task 1.11 | Parent acceptance plus separate explicit Task 1.12 product-owner and architecture/security approval records | No remaining planning blocker; every implementation node retains its own gates | Planning/review only | Task 1.10 graph/check evidence, Task 1.11 acceptance evidence, and both dated Task 1.12 decision references | Satisfied on 2026-06-20 for planning only; no implementation authorization | Planning-only approval record; implementation rollback remains node-specific | `DAG-03`, `DAG-20`, `DAG-80` |
 | `DAG-03` | PRD-0055 Task 3 neutral shared presentation | `DAG-00` | Stable display-only neutral primitives/adoptions; no behavior ownership movement | `DAG-50`, `DAG-90`, `DAG-99` | May run separately and in parallel with `DAG-20` and `DAG-80` | Focused tests, boundary grep, two-consumer evidence, Task 3 phase-local acceptance | Approved Task 3 packet under existing narrow scope | Revert adopter/wrapper patch without changing storage/runtime | `DAG-50`, `DAG-90`, `DAG-99` |
 | `DAG-20` | PRD-0056 / Task 2 S0 | `DAG-00` | Canonical secured upload/move Worker, deploy/rollback/harness, deployed/current proof | `DAG-21`; therefore all secured upload/move reliance | May run in parallel with `DAG-03` and `DAG-80` | Local and deployed negative tests, authorized compatibility path, captured version/rollback proof | Product-owner plus architecture/security approval | Pin captured pre-S0 Worker version; no object move/delete | `DAG-21` |
 | `DAG-21` | PRD-0056A upload-session bridge | `DAG-20` | Backend-issued owner-scoped `uploadSessionId`/`assetId`, bootstrap, grant, canonical `temp/listening/...` transition | `DAG-40`; no direct `DAG-20 -> DAG-40` edge | Bridge-only packets; no PRD-0058 lifecycle behavior | Fresh deployed/current S0 proof plus bridge contract/browser/rules proof | Approved implementation packet plus architecture/security review | Restore S0 compatibility routing/prefix; preserve temp objects/session rows | `DAG-40` |
@@ -134,7 +134,7 @@ Graph invariants:
 
 1. 14 nodes and 21 directed edges.
 2. Zero cycles, zero orphan nodes, zero missing prerequisite nodes, and zero contradictory edges.
-3. Every implementation path descends from pending `DAG-00`; Task 1.12 is not bypassed or claimed complete.
+3. Every implementation path descends from approved planning node `DAG-00`; Task 1.12 is complete, but no implementation node is claimed complete or automatically authorized.
 4. `DAG-20 -> DAG-21 -> DAG-40` is the only secured upload/session/storage foundation path; obsolete direct PRD-0056 -> PRD-0058 reliance is forbidden.
 5. Phase-local rollout precedes dependent phases: `DAG-51 -> DAG-60`, then `DAG-60 -> DAG-71`/`DAG-81`, then terminal rollout.
 6. No node record claims another implementation node is complete; every entry uses required future evidence.
@@ -757,4 +757,13 @@ Forty rows carry a named deferral annotation: 35 use `approved deferral` status 
 - Traceability dependency codes: all referenced `DEP-*` codes resolve in this registry.
 - Child-order comparison: PRD-0056, PRD-0056A, PRD-0057, PRD-0058, PRD-0059, PRD-0060, and PRD-0061 use the same canonical edge set and local upstream/downstream mapping.
 - Current status drift: Task 1.9 removed from PRD-0056A/0057/0058 current status; Task 1.8 removed from PRD-0061 current status; explicitly historical Packet 1I/1J wording preserved.
-- Implementation status: unstarted. Task 1.11 is complete. Task 1.12 approval/HARD STOP remains pending and next.
+- Implementation status: unstarted. Task 1 planning, including Task 1.12 approval/HARD STOP, is complete. Every implementation node remains blocked by its child-specific approval and evidence gates.
+
+## Task 1.12 approval record
+
+- Product-owner decision reference: `PRD-0055-TASK-1.12-PRODUCT-OWNER-APPROVAL-2026-06-20`.
+- Architecture/security reviewer decision reference: `PRD-0055-TASK-1.12-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`.
+- Decision date: 2026-06-20.
+- Scope: Task 1 planning only.
+- Implementation authorization: none.
+- Preserved gates: every child-specific security, deployment, browser, load, recovery, rollback, observability, test, and review gate.

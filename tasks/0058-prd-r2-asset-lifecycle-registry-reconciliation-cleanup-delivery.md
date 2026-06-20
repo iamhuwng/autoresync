@@ -1,6 +1,6 @@
 # PRD 0058: R2 Asset Lifecycle, Registry, Reconciliation, Cleanup, And Delivery
 
-Status: Draft child PRD - B1 Option B bridge ownership approved; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization
+Status: Draft child PRD - B1 Option B bridge ownership and Task 1 planning approved; implementation remains blocked pending deployed/current PRD-0056A proof, child-specific review, dependencies, and explicit implementation authorization
 Created: 2026-06-20
 Task number: 0058
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1210,7 +1210,7 @@ Required bridge evidence before PRD-0058 implementation:
 5. Rollback to the captured pre-bridge `r2-upload-signer` version restores the compatibility path without deleting or moving objects.
 6. No bridge write reaches `media_assets/**`, `listening_authoring/**`, `tests/**`, or generic `drafts/**`.
 
-PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 is resolved at planning-contract level; Task 1.11 parent acceptance is complete; implementation remains blocked by Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, dependencies, and explicit implementation authorization.
+PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 and Task 1 planning are approved; implementation remains blocked by deployed/current PRD-0056A proof, child-specific review, dependencies, and explicit implementation authorization.
 
 ## 39. Task 1.10 Canonical Dependency Synchronization - 2026-06-20
 
@@ -1234,4 +1234,4 @@ DAG-80->DAG-81
 | `DAG-40` PRD-0058 / Task 4 minimum foundation | `DAG-21` deployed/current PRD-0056A proof | Commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, orphan metrics | `DAG-50`, `DAG-60` |
 | `DAG-60` PRD-0058 / Task 6 advanced storage/delivery | `DAG-40` and `DAG-51` selected-teacher traffic | Reconciliation conclusions, advanced cleanup/deletion, issuance/range/refresh proof, result-review private delivery | `DAG-71`, `DAG-81` |
 
-Result-review private delivery belongs to `DAG-60`/Task 6. Solo and live remain later consumers. Rollback disables cleanup/deletion, preserves old/new readers and references, and returns result review to public delivery. Historical Packet 1I/1J status wording above remains historical; no implementation completion or Task 1.12 approval is claimed.
+Result-review private delivery belongs to `DAG-60`/Task 6. Solo and live remain later consumers. Rollback disables cleanup/deletion, preserves old/new readers and references, and returns result review to public delivery. Historical Packet 1I/1J status wording above remains historical. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

@@ -1,6 +1,6 @@
 # PRD 0056: Listening Upload Worker Security Gate S0
 
-Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP and product-owner plus architecture/security approval
+Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending a child-specific approved implementation packet, product-owner plus architecture/security review, and all S0 proof gates
 Created: 2026-06-20
 Task number: 0056
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -812,6 +812,6 @@ DAG-80->DAG-81
 
 | Local node | Upstream | Output | Downstream |
 | --- | --- | --- | --- |
-| `DAG-20` PRD-0056 / Task 2 S0 | `DAG-00` pending Task 1.12 approval | Canonical secured upload/move Worker, deploy/rollback/harness, and deployed/current proof | `DAG-21` PRD-0056A only |
+| `DAG-20` PRD-0056 / Task 2 S0 | `DAG-00` Task 1 planning approval complete; child-specific authorization still required | Canonical secured upload/move Worker, deploy/rollback/harness, and deployed/current proof | `DAG-21` PRD-0056A only |
 
-PRD-0056 may run separately and in parallel with Task 3 neutral presentation and PRD-0060 authority-contract test preparation after `DAG-00`. PRD-0056 does not directly unblock PRD-0058: `DAG-21` PRD-0056A must consume deployed/current S0 proof before `DAG-40`. No implementation completion or Task 1.12 approval is claimed.
+PRD-0056 may run only in a separately approved implementation packet and may then parallelize with separately approved Task 3 neutral presentation or PRD-0060 authority-contract test preparation. PRD-0056 does not directly unblock PRD-0058: `DAG-21` PRD-0056A must consume deployed/current S0 proof before `DAG-40`. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

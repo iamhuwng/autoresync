@@ -1,19 +1,19 @@
 # Task List: PRD 0055 IELTS Reading V2 And Listening Unified Assessment Platform
 
-Status: Task 1.11 parent acceptance completed on 2026-06-20 with PRD/status consistency verified, child PRDs finalized, 503/503 traceability rows verified, one 14-node/21-edge canonical DAG verified, and implementation unstarted; Task 1.12 approval/HARD STOP is the next permitted packet
+Status: Task 1 planning completed on 2026-06-20 after explicit product-owner and architecture/security reviewer approval; implementation remains unstarted and requires separate child-specific authorization and gates
 Source PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
 Generated under: `documentation/tasks/generate-tasks.md`
 
 ## Relevant Files
 
 - `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` - Approved parent product and architecture authority; OQ-1 through OQ-4 are binding, while implementation remains gated by approved child PRDs.
-- `tasks/0056-prd-listening-upload-worker-security-gate-s0.md` - Draft child PRD for the severable Listening upload-worker Security Gate S0; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP and product-owner plus architecture/security approval.
-- `tasks/0056a-prd-listening-upload-session-bridge.md` - Approved planning bridge for backend-issued Listening upload sessions/assets and the `temp/listening-audio/` to `temp/listening/` transition; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, an approved implementation packet, and deployed/current S0 proof.
-- `tasks/0057-prd-listening-authoring-draft-publish-version-behavior.md` - Draft child PRD for Listening draft, publish, immutable version, revision, and legacy transition behavior; B2 Option B data contract is approved; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, minimum PRD-0058 foundation, and explicit authorization.
-- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md` - Draft child PRD for R2 asset lifecycle, registry, reconciliation, cleanup, and delivery; B1 Option B bridge ownership is approved and Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, deployed/current PRD-0056A proof, and explicit authorization.
-- `tasks/0059-prd-listening-solo-homework-runtime-alignment.md` - Draft child PRD for Listening solo/homework runtime alignment, submit idempotency, resume, mobile state, and host-bounded private delivery; implementation remains blocked pending approval and dependencies.
-- `tasks/0060-prd-listening-live-session-authority-runtime-load-test-plan.md` - Draft child PRD for canonical Listening live-session authority, teacher/student runtime recovery, private-delivery handoff, and the 100-student-by-20-session load-test plan; implementation remains blocked pending approval and dependencies.
-- `tasks/0061-prd-reading-v2-runtime-visual-alignment.md` - Draft child PRD for projection-bound Reading V2 runtime visual alignment, protected host/data contracts, responsive/accessibility proof, and bounded presentation decomposition; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, shared-authoring stability, dedicated Reading V2 runtime tests, and product-owner review.
+- `tasks/0056-prd-listening-upload-worker-security-gate-s0.md` - Draft child PRD for the severable Listening upload-worker Security Gate S0; Task 1 planning is complete; implementation remains blocked pending a child-specific approved implementation packet, product-owner plus architecture/security review, and all S0 proof gates.
+- `tasks/0056a-prd-listening-upload-session-bridge.md` - Approved planning bridge for backend-issued Listening upload sessions/assets and the `temp/listening-audio/` to `temp/listening/` transition; Task 1 planning is complete; implementation remains blocked pending an approved implementation packet and deployed/current S0 proof.
+- `tasks/0057-prd-listening-authoring-draft-publish-version-behavior.md` - Draft child PRD for Listening draft, publish, immutable version, revision, and legacy transition behavior; B2 Option B data contract and Task 1 planning are approved; implementation remains blocked pending Task 3 shared-presentation stability, minimum PRD-0058 foundation, child-specific review, and explicit authorization.
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md` - Draft child PRD for R2 asset lifecycle, registry, reconciliation, cleanup, and delivery; B1 Option B bridge ownership and Task 1 planning are approved; implementation remains blocked pending deployed/current PRD-0056A proof, child-specific review, dependencies, and explicit authorization.
+- `tasks/0059-prd-listening-solo-homework-runtime-alignment.md` - Draft child PRD for Listening solo/homework runtime alignment, submit idempotency, resume, mobile state, and host-bounded private delivery; Task 1 planning is complete; implementation remains blocked pending Task 5 authoring stability, child-specific product-owner plus architecture review, and remaining proof gates.
+- `tasks/0060-prd-listening-live-session-authority-runtime-load-test-plan.md` - Draft child PRD for canonical Listening live-session authority, teacher/student runtime recovery, private-delivery handoff, and the 100-student-by-20-session load-test plan; Task 1 planning is complete; implementation remains blocked pending dedicated authority tests/harness, applicable authoring/delivery dependencies, child-specific product-owner plus architecture/security approval, and remaining proof gates.
+- `tasks/0061-prd-reading-v2-runtime-visual-alignment.md` - Draft child PRD for projection-bound Reading V2 runtime visual alignment, protected host/data contracts, responsive/accessibility proof, and bounded presentation decomposition; Task 1 planning is complete; implementation remains blocked pending Task 3 shared-authoring stability, dedicated Reading V2 runtime tests, child-specific product-owner review, and explicit authorization.
 - `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` - This implementation tasklist and progress source of truth.
 - `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` - Append-only implementation findings/evidence file to create before implementation.
 - `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` - Requirement-to-task/child-PRD/test matrix; zero unmapped rows required before Task 1 STOP.
@@ -98,9 +98,9 @@ Generated under: `documentation/tasks/generate-tasks.md`
 - Follow `documentation/tasks/process-task-list.md` while implementing. Complete tasks in order unless this tasklist explicitly permits parallel work.
 - Create the findings file before implementation. Keep it strictly append-only: append after each completed subtask; never edit, remove, reorder, or combine prior entries.
 - Corrections to findings are appended as new entries that supersede earlier entries; prior entries are never mutated. Traceability matrix is the mutable status/evidence surface.
-- PRD-0055 authorizes planning, not one broad implementation patch. Task 1.12 is a mandatory human STOP. No implementation task may start in the same run that completes Task 1.
-- Task 3 may proceed now only in a separate explicitly scoped run because it preserves presentation-only boundaries and reconciles existing shared work. It does not bypass Task 1 approval gates for storage, authoring behavior, or runtime.
-- Execution order is not strict numeric order before gated implementation: after Task 1's planning STOP, Task 3 may run in a separate presentation-only session before Task 2. Backbone implementation remains Task 2 -> Task 4 -> Task 5.
+- PRD-0055 authorizes planning, not one broad implementation patch. Task 1.12 approval was recorded on 2026-06-20. No implementation task may start in the same run that completes Task 1.
+- Task 3 may proceed only in a separate explicitly scoped and approved run because it preserves presentation-only boundaries and reconciles existing shared work. Task 1 approval does not authorize Task 3 or bypass storage, authoring, runtime, or child-specific gates.
+- Execution order is not strict numeric order after the Task 1 planning STOP. Any later task requires separate explicit scope and authorization. Backbone dependency order remains Task 2 -> Task 4 -> Task 5, but no task is automatically authorized or automatically next.
 - Tasks 2 and 4 through 8 are provisional scaffolding. Before each starts, regenerate/reconcile its subtasks against the approved child PRD. If the child PRD differs, the child PRD wins and this tasklist must be rewritten before implementation.
 - OQ-1 through OQ-4 were formally approved on 2026-06-19 under `PRD-0055-PACKET-1B-OQ-APPROVAL-2026-06-19`. Junior developers must follow the approved binding decisions and must not alter them silently.
 - OQ-1 binding decision: no Google Drive migration, current playback removal, new behavior, or new Google Drive-specific error state; upload-code removal and disposition/deletion of Google Drive-backed tests occur in a separate task. OQ-1 does not block Task 3.
@@ -252,7 +252,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
 
 ## Tasks
 
-- [ ] 1.0 Resolve PRD-0055 approval gates and establish child-PRD execution boundaries
+- [x] 1.0 Resolve PRD-0055 approval gates and establish child-PRD execution boundaries
   - [x] 1.1 Read `AGENTS.md`, PRD-0055, all four unification docs, canonical unification architecture, upload-storage authority, `process-task-list.md`, and every triggered rule document before implementation.
   - [x] 1.2 Create `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` with sections for working tree, decisions, current owners, completed subtasks, verification, blockers, rollback notes, and next subtask.
   - [x] 1.3 Record `git status --short`, current branch/upstream, tracked/untracked state of PRD/shared-component files, and existing unrelated user changes. Do not clean, stage, revert, or absorb unrelated work.
@@ -288,8 +288,8 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - every explicit deferral names its future PRD/task, entry gate, and product-owner approval;
     - update the matrix whenever a child PRD or this tasklist changes.
   - [x] 1.10 Define dependency order in findings, traceability matrix, and child PRDs:
-    - Task 1.12 approval/HARD STOP is the mandatory root gate for every implementation node; Task 1.11 is complete, Task 1.12 remains next, and no approval is claimed.
-    - Task 3 neutral shared presentation may proceed separately after Task 1.12 under its existing display-only scope and in parallel with approved S0 or live-contract test preparation.
+    - Task 1.12 approval/HARD STOP was satisfied on 2026-06-20 by separate explicit product-owner and architecture/security reviewer approvals. This completes planning only and does not authorize any implementation node.
+    - Task 3 neutral shared presentation may proceed only in a separate explicitly approved run under its existing display-only scope and may then parallelize with separately approved S0 or live-contract test preparation.
     - PRD-0056 S0 canonical Worker/deploy/rollback/harness implementation and deployed/current proof precede PRD-0056A reliance on secured upload/move behavior.
     - PRD-0056A is the mandatory bridge between PRD-0056 and PRD-0058; no direct PRD-0056 -> PRD-0058 implementation edge exists.
     - PRD-0056A precedes minimum PRD-0058 registry-backed lifecycle: commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, and orphan metrics.
@@ -301,7 +301,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - PRD-0061 Reading V2 runtime waits for Task 3 shared-authoring stability and dedicated Reading V2 runtime tests.
     - Task 9 full rollout waits for all applicable phase-local acceptance gates.
   - [x] 1.11 Parent acceptance: PRD status/decision text is internally consistent, child PRDs exist, dependency graph is recorded, traceability is 100 percent with zero orphan requirements, every interim draft owner is resolved to a finalized child PRD or named approved deferral, every deferral is named/approved, no implementation ambiguity is delegated to a junior developer, and document checks pass.
-  - [ ] 1.12 HARD STOP: present OQ decisions, draft child PRDs, complete traceability matrix, dependency graph, and Task 1 evidence to the product owner plus architecture/security reviewer. End the run. Do not continue into Task 2 or any later implementation task until explicit approval is recorded. Task 3, if desired, runs separately under its existing presentation-only scope.
+  - [x] 1.12 HARD STOP: presented OQ decisions, draft child PRDs, complete traceability matrix, dependency graph, and Task 1 evidence to the product owner plus architecture/security reviewer. Separate explicit approvals were recorded on 2026-06-20 under `PRD-0055-TASK-1.12-PRODUCT-OWNER-APPROVAL-2026-06-20` and `PRD-0055-TASK-1.12-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`. End the run. Do not continue into Task 2 or any later implementation task without separate explicit authorization.
 
 - [ ] 2.0 Ship urgent severable upload-worker security hardening gate S0
   - [ ] 2.1 Record explicit product-owner plus architecture/security reviewer sign-off in findings. Reconcile/regenerate this provisional scaffold against the approved S0 child PRD; child PRD wins. Do not continue on mismatch.

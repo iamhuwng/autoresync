@@ -1,6 +1,6 @@
 # PRD 0061: Reading V2 Runtime Visual Alignment
 
-Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP, Task 3 shared-authoring stability, dedicated Reading V2 runtime tests, and product-owner review
+Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending Task 3 shared-authoring stability, dedicated Reading V2 runtime tests, child-specific product-owner review, explicit authorization, and remaining proof gates
 Created: 2026-06-20
 Task number: 0061
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1219,4 +1219,4 @@ DAG-80->DAG-81
 | --- | --- | --- | --- |
 | `DAG-90` PRD-0061 | `DAG-03` shared-authoring stability plus dedicated Reading V2 runtime characterization/tests | Projection-bound Reading V2 runtime visual alignment and phase-local cohort acceptance | `DAG-99` |
 
-PRD-0061 remains independent from Listening storage, solo, and live internals. Rollback is code-only presentation rollback with no projection/result/data migration. Historical Packet 1H/1I wording above remains historical; no implementation completion or Task 1.12 approval is claimed.
+PRD-0061 remains independent from Listening storage, solo, and live internals. Rollback is code-only presentation rollback with no projection/result/data migration. Historical Packet 1H/1I wording above remains historical. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

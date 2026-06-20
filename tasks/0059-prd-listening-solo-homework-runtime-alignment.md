@@ -1,6 +1,6 @@
 # PRD 0059: Listening Solo/Homework Runtime Alignment
 
-Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP, Task 5 authoring stability, and product-owner plus architecture review
+Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending Task 5 authoring stability, child-specific product-owner plus architecture review, explicit authorization, and remaining proof gates
 Created: 2026-06-20
 Task number: 0059
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1188,4 +1188,4 @@ DAG-80->DAG-81
 | `DAG-70` PRD-0059 / Task 7 solo alignment | `DAG-50` authoring stability | Solo presentation/state/submit/resume stability on public delivery; no `AudioPlayer` internal edits | `DAG-71` |
 | `DAG-71` PRD-0059 / Task 7 solo private cutover | `DAG-60` issuance/range/result proof and `DAG-70` | Host/adapter-level solo private rollout with `AudioPlayer` internals untouched | `DAG-99` |
 
-If solo private cutover requires shared `AudioPlayer` refresh/source-handoff internals, Task 7 stops and waits for Task 8 `DAG-81` shared-player proof; ownership never moves into PRD-0059. Rollback returns solo host delivery to public without deleting attempt/result data. No implementation completion or Task 1.12 approval is claimed.
+If solo private cutover requires shared `AudioPlayer` refresh/source-handoff internals, Task 7 stops and waits for Task 8 `DAG-81` shared-player proof; ownership never moves into PRD-0059. Rollback returns solo host delivery to public without deleting attempt/result data. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

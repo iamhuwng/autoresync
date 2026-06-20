@@ -1,6 +1,6 @@
 # PRD 0060: Listening Live-Session Authority, Runtime, And Load-Test Plan
 
-Status: Draft child PRD - Task 1.11 parent acceptance is complete; implementation blocked pending Task 1.12 approval/HARD STOP, dedicated authority contract tests/test harness, applicable authoring/delivery dependencies, and product-owner plus architecture/security approval
+Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending dedicated authority contract tests/test harness, applicable authoring/delivery dependencies, child-specific product-owner plus architecture/security approval, explicit authorization, and remaining proof gates
 Created: 2026-06-20
 Task number: 0060
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1547,7 +1547,7 @@ DAG-80->DAG-81
 
 | Local node | Upstream | Output | Downstream |
 | --- | --- | --- | --- |
-| `DAG-80` PRD-0060 / Task 8 authority tests and harness | `DAG-00` pending Task 1.12 approval | Dedicated authority contract tests, executable harness, load methodology, RED baseline | `DAG-81` |
+| `DAG-80` PRD-0060 / Task 8 authority tests and harness | `DAG-00` Task 1 planning approval complete; child-specific authorization still required | Dedicated authority contract tests, executable harness, load methodology, RED baseline | `DAG-81` |
 | `DAG-81` PRD-0060 / Task 8 live runtime/cutover | `DAG-50`, `DAG-60`, `DAG-80` | Canonical live authority, shared `AudioPlayer` internal refresh/source-handoff, live private cutover | `DAG-99`; may unblock stopped `DAG-71` proof |
 
-Task 8 exclusively owns shared `AudioPlayer` internal refresh/source-handoff and live cutover. `masterAudioState` stays canonical and `audioCommand` compatibility-only. Rollback preserves compatibility traffic/public delivery and separates authority, delivery, and cohort switches. No implementation completion or Task 1.12 approval is claimed.
+Task 8 exclusively owns shared `AudioPlayer` internal refresh/source-handoff and live cutover. `masterAudioState` stays canonical and `audioCommand` compatibility-only. Rollback preserves compatibility traffic/public delivery and separates authority, delivery, and cohort switches. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

@@ -1,6 +1,6 @@
 # PRD 0057: Listening Authoring Draft, Publish, And Version Behavior
 
-Status: Draft child PRD - B2 Option B data contract approved; Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, Task 3 shared-presentation stability, minimum PRD-0058 foundation, and explicit implementation authorization
+Status: Draft child PRD - B2 Option B data contract and Task 1 planning approved; implementation remains blocked pending Task 3 shared-presentation stability, minimum PRD-0058 foundation, child-specific review, and explicit implementation authorization
 Created: 2026-06-20
 Task number: 0057
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1276,4 +1276,4 @@ DAG-80->DAG-81
 | `DAG-50` PRD-0057 / Task 5 authoring write model | `DAG-03` shared-presentation stability and `DAG-40` minimum storage; approved B2 is authority | Save draft/Publish/version/revision stability with every audio-bearing save on tracked storage | `DAG-51`, `DAG-70`, `DAG-81` |
 | `DAG-51` Task 5.21 selected-teacher traffic | `DAG-50` phase-local acceptance | Production-shaped authoring/reconciliation sample | `DAG-60`; Task 6 reconciliation conclusions cannot precede it |
 
-Minimum `DAG-40` includes commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, and orphan metrics. Audio-bearing Save draft cannot ship before it. Rollback preserves immutable/version/reference data and compatibility readers. Historical Packet 1I/1J status wording above remains historical; no implementation completion or Task 1.12 approval is claimed.
+Minimum `DAG-40` includes commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, and orphan metrics. Audio-bearing Save draft cannot ship before it. Rollback preserves immutable/version/reference data and compatibility readers. Historical Packet 1I/1J status wording above remains historical. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.

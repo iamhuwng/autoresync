@@ -1,6 +1,6 @@
 # PRD 0055: IELTS Reading V2 And Listening Unified Assessment Platform
 
-Status: Approved parent PRD - Task 1.11 parent acceptance is complete; implementation remains gated by Task 1.12 approval/HARD STOP, approved child PRD entry gates, and explicit implementation authorization
+Status: Approved parent PRD - Task 1 planning completed on 2026-06-20 after explicit product-owner and architecture/security reviewer approval; implementation remains gated by child-specific approval, entry gates, and explicit authorization
 Created: 2026-06-19
 Task number: 0055
 Primary rule source: `documentation/tasks/create-prd.md`
@@ -1745,7 +1745,9 @@ Teacher monitor:
 
 No parent-level product question remains open. OQ-1 through OQ-4 were approved on 2026-06-19 under decision reference `PRD-0055-PACKET-1B-OQ-APPROVAL-2026-06-19`.
 
-Child-PRD implementation questions remain blocked until explicitly resolved in their applicable child PRDs. Parent approval does not authorize implementation, create child PRDs, select the canonical upload-worker mechanism, or satisfy technical architecture/security review.
+Task 1 planning was explicitly approved on 2026-06-20 under separate decision references `PRD-0055-TASK-1.12-PRODUCT-OWNER-APPROVAL-2026-06-20` and `PRD-0055-TASK-1.12-ARCHITECTURE-SECURITY-APPROVAL-2026-06-20`.
+
+Task 1.12 approval completes planning only. It does not authorize implementation, satisfy child-specific entry gates, or waive child-level product, architecture/security, deployment, browser, load, rollback, recovery, observability, or independent-review requirements.
 
 ### Obsolete Recommendation History
 
@@ -1912,7 +1914,7 @@ This PRD is done when:
 9. It does not modify runtime code or source files.
 10. `git diff --check` passes.
 11. UTF-8/doc check runs if available for the new PRD.
-12. Product owner resolved OQ-1 through OQ-4 on 2026-06-19, approved binding text is recorded, and status is `Approved parent PRD - implementation remains gated by approved child PRDs`.
+12. Product owner resolved OQ-1 through OQ-4 on 2026-06-19, Task 1 planning received separate explicit product-owner and architecture/security reviewer approval on 2026-06-20, and implementation remains gated by child-specific approval, entry gates, and explicit authorization.
 
 Future implementation work derived from this PRD is done only when:
 

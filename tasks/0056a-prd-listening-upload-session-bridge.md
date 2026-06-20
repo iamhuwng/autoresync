@@ -1,6 +1,6 @@
 # PRD 0056A: Listening Upload Session Bridge
 
-Status: Approved child planning contract - Task 1.11 parent acceptance is complete; implementation remains blocked pending Task 1.12 approval/HARD STOP, an approved implementation packet, and deployed/current PRD-0056 S0 proof
+Status: Approved child planning contract - Task 1 planning is complete; implementation remains blocked pending an approved implementation packet and deployed/current PRD-0056 S0 proof
 Created: 2026-06-20
 Task number: 0056A
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -384,7 +384,7 @@ This planning bridge is complete when:
 3. PRD-0058 consumes the bridge contract without taking over session issuance.
 4. No implementation, Worker, rules, source, config, deployment, or traceability work has started.
 
-Task 1.11 parent acceptance is complete. Implementation remains blocked until Task 1.12 approval/HARD STOP, an approved implementation packet, and fresh deployed/current S0 evidence exist.
+Task 1 planning is complete. Implementation remains blocked until an approved implementation packet and fresh deployed/current S0 evidence exist.
 
 ## 14. Source References
 
@@ -418,4 +418,4 @@ DAG-80->DAG-81
 | --- | --- | --- | --- |
 | `DAG-21` PRD-0056A | `DAG-20` deployed/current S0 proof | Backend-issued owner-scoped session/asset identity, bootstrap, grant, and canonical temp-prefix transition | `DAG-40` minimum PRD-0058 foundation |
 
-PRD-0056A is the mandatory bridge. No direct PRD-0056 -> PRD-0058 implementation edge remains. Rollback restores S0 compatibility routing/prefix while preserving temp objects and session rows. No implementation completion or Task 1.12 approval is claimed.
+PRD-0056A is the mandatory bridge. No direct PRD-0056 -> PRD-0058 implementation edge remains. Rollback restores S0 compatibility routing/prefix while preserving temp objects and session rows. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.
