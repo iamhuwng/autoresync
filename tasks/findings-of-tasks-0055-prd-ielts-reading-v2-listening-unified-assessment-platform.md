@@ -3566,3 +3566,68 @@ After appending Packet 2H-R findings and updating `EV-0056` only:
 6. Protected-path scan: PASS, changed paths are only `cloudflare/worker.js`, `cloudflare/src/upload-worker/grant-authority.js`, `cloudflare/src/upload-worker/request-handlers.js`, `cloudflare/src/upload-worker/replay-authority.js`, `cloudflare/__tests__/grant-authority.test.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, tasklist, findings, and traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, or insecure-baseline runner changed.
 7. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Task 2.8 checked; Task 2.9 checked; Tasks 2.10 through 2.15 unchecked.
 8. Line-count scan: PASS, `cloudflare/worker.js` is 136 lines, `cloudflare/src/upload-worker/grant-authority.js` is 155 lines, `cloudflare/src/upload-worker/request-handlers.js` is 203 lines, `cloudflare/src/upload-worker/replay-authority.js` is 15 lines, `cloudflare/__tests__/grant-authority.test.js` is 399 lines, and `cloudflare/__tests__/upload-worker-harness.test.js` is 499 lines.
+
+## Packet 2I Task 2.6 Integrated Authentication, Owner, And Raw-Key Non-Authority Closure - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.6 integrated closure only.
+
+Task 2.6 verdict: PASS. Integrated Task 2.6/2.7/2.9 proof closes the approved checkpoint exception. Every request reaching non-`OPTIONS` routing authenticates before rate limiting, route selection, grant handling, or R2 access; verified Firebase token `sub` is sole owner identity; browser identity fields and raw keys cannot select owner or R2 target; cross-owner and invalid grant/path attempts fail before R2; and successful upload/move controls use only grant-derived canonical paths.
+
+Scope boundaries: no production Worker code, `src/**`, Firebase rule/config, `r2-backup-worker/**`, SOP, deployment, lifecycle, browser adapter, remote state, Task 2.10, commit, push, deploy, rollback, or version pin changed. Parent Task 2.0 and Tasks 2.10 through 2.15 remain unchecked. Tasks 2.7, 2.8, and 2.9 remain checked.
+
+### Files And Responsibility
+
+1. `cloudflare/__tests__/integrated-authority.test.js`: new 499-line Packet 2I integrated authority suite only.
+2. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.6 and record Packet 2I checkpoint closure only.
+3. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: consolidate and update `EV-0056` only; earlier Task 2.7/2.8/2.9 and Packet 2H-R evidence remains represented.
+4. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2I evidence only.
+
+No existing test, fixture, manifest, runner, production module, or configuration file changed.
+
+### Integrated Claims And R2-Call Evidence
+
+1. Exact-origin `OPTIONS` preflight remains CORS-only: approved request returns `204`, unapproved origin returns `403`, and auth/rate/R2 call lists remain empty.
+2. Missing-auth authorize, legacy authorize, `PUT /upload`, `POST /move`, unsupported `GET`, unsupported `DELETE`, and unsupported path/method cases all return `401`; each records one auth attempt and zero rate or R2 calls.
+3. Query, JSON, and header `ownerId`, `uid`, email, and role values cannot replace verified owner-a `sub`; returned key stays `temp/listening-audio/owner-a/{nonce}-lesson.mp3`.
+4. Filename influences only sanitized basename after server-selected operation/prefix and verified owner. Full cross-owner legacy path returns `403`; forbidden prefix returns `403`; both have zero R2 calls.
+5. Cross-owner upload and move grants return `403` with exact R2 call list `[]`.
+6. Raw `?key=` without grant returns `400` with exact R2 call list `[]`.
+7. Raw move without grant and valid-grant source/destination assertion mismatches return `400` with exact R2 call list `[]`.
+8. Validly signed noncanonical, forbidden-prefix, cross-owner, and direct-durable upload grants fail with exact R2 call list `[]`.
+9. Validly signed cross-owner, cross-prefix, and forbidden-prefix move grants fail with exact R2 call list `[]`.
+10. Successful upload with a competing raw `?key=` records only `[['get', grantKey], ['put', grantKey]]`; raw key is never read or written.
+11. Successful move without browser source/destination assertions records only `[['get', grantDest], ['get', grantSource], ['put', grantDest], ['delete', grantSource]]`.
+12. Integrated controls preserve traversal denial, existing-destination overwrite denial, exact-origin echo, no-Origin compatibility, expiry, replay, rate-limit denial, and the 50 MB ceiling.
+
+### Mutation Proof And Exact Restoration
+
+Pre-mutation production SHA-256 values:
+
+- `cloudflare/worker.js`: `0AF516D8EF2ADD3ED85BAFD35AF9C14EE2F74F1753CE87F55FE461DE69E540DE`.
+- `cloudflare/src/upload-worker/request-handlers.js`: `CA492333A2D2EA27C61D2DD33C7FAFB63920EC2115DFB5AFF12B52C612293363`.
+
+Mutation 1 temporarily replaced verified-sub-only owner return with query `uid` precedence. Focused command selected `uses verified sub as sole owner despite browser identity fields`. Expected RED occurred: one test failed because received key used `owner-b` instead of expected `owner-a`. Mutation was removed; `cloudflare/worker.js` SHA-256 returned exactly to `0AF516D8EF2ADD3ED85BAFD35AF9C14EE2F74F1753CE87F55FE461DE69E540DE`.
+
+Mutation 2 temporarily let raw query `key` override `grantPayload.key` during upload canonical validation. Focused command selected `grant-derived canonical path for successful upload`. Expected RED occurred: one test failed because R2 `get`/`put` received `temp/listening-audio/owner-a/fedcba9876543210fedcba9876543210-raw.mp3` instead of signed grant key `temp/listening-audio/owner-a/0123456789abcdef0123456789abcdef-lesson.mp3`. Mutation was removed; `request-handlers.js` SHA-256 returned exactly to `CA492333A2D2EA27C61D2DD33C7FAFB63920EC2115DFB5AFF12B52C612293363`.
+
+### GREEN, Baseline, And Clean-Copy Evidence
+
+1. Restored focused bundled-x64 Vitest: one file passed, 26 tests passed.
+2. Restored full Worker suite: five files passed, 98 tests passed.
+3. Local insecure baseline: fixture SHA-256 exactly `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+4. Clean temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd0055-task26-integrated-301f48cc55c34ad38bbaa5bd39b712a4` excluded `node_modules`. Bundled x64 Node drove system npm CLI with x64/win32 settings and bundled-node PATH precedence.
+5. Clean-copy `npm ci`: 82 packages installed, 83 audited, zero vulnerabilities.
+6. Clean-copy full suite: five files passed, 98 tests passed.
+7. Clean-copy baseline: exact fixture SHA, 18 expected RED failures, four already-safe passes.
+8. Temp path was verified under the OS temp root and removed.
+
+### Final Packet 2I Verification
+
+1. UTF-8 check targets exactly the four final changed text files.
+2. `git diff --check` passes.
+3. Protected-path scan contains exactly the four allowed paths and no production Worker/module/config or protected application/infrastructure path.
+4. Insecure fixture, manifest, and runner have no diff from `HEAD`; baseline hash/accounting remains exact.
+5. Taskbox scan: parent Task 2.0 unchecked; Task 2.6 checked; Tasks 2.7, 2.8, and 2.9 checked; Tasks 2.10 through 2.15 unchecked.
+6. Task 2.10 was not started. No commit, push, deploy, rollback, version pin, or Cloudflare remote mutation occurred.
