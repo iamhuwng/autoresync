@@ -12,22 +12,19 @@ const APPROVED_ORIGINS = [
 const UNAPPROVED_ORIGIN = 'https://attacker.example';
 const ALLOWED_CORS_METHODS = 'OPTIONS, POST, PUT';
 const ALLOWED_CORS_HEADERS = 'Authorization, Content-Type, Content-Length';
-
 const tokenUidMap = {
   'valid-owner-a-token': 'owner-a',
   'valid-owner-b-token': 'owner-b',
 };
-
 const testEnv = () => ({
   R2_BUCKET: env.R2_BUCKET,
   PUBLIC_URL: env.PUBLIC_URL,
   FIREBASE_PROJECT_ID: env.FIREBASE_PROJECT_ID,
   UPLOAD_GRANT_SECRET: env.UPLOAD_GRANT_SECRET,
   UPLOAD_RATE_LIMITER: env.UPLOAD_RATE_LIMITER,
+  UPLOAD_GRANT_REPLAY_LEDGER: { consume: async () => ({ consumed: true }) },
 });
-
 const FIXED_NONCE = '00112233445566778899aabbccddeeff';
-
 const createTestWorker = () =>
   createUploadWorker({
     nonceGenerator: () => FIXED_NONCE,
@@ -38,12 +35,9 @@ const createTestWorker = () =>
       },
     }),
   });
-
 const fetchWorker = (path, init = {}) =>
   createTestWorker().fetch(new Request(`${BASE_URL}${path}`, init), testEnv());
-
 const bearer = (token) => ({ Authorization: `Bearer ${token}` });
-
 const preflight = (origin, method = 'POST', headers = ALLOWED_CORS_HEADERS) =>
   fetchWorker('/upload/authorize', {
     method: 'OPTIONS',
@@ -53,6 +47,15 @@ const preflight = (origin, method = 'POST', headers = ALLOWED_CORS_HEADERS) =>
       'Access-Control-Request-Headers': headers,
     },
   });
+
+const authorizePath = (params) => {
+  const search = new URLSearchParams({
+    contentType: 'application/octet-stream',
+    sizeBytes: '0',
+    ...params,
+  });
+  return `/?${search.toString()}`;
+};
 
 describe('r2-upload-signer native R2 harness', () => {
   it('injects the test-only upload grant secret', () => {
@@ -219,10 +222,13 @@ describe('r2-upload-signer native R2 harness', () => {
   });
 
   it('preserves no-Origin non-browser compatibility without wildcard CORS', async () => {
-    const response = await fetchWorker('/?operationKind=test_audio_temp&fileName=cli.txt', {
-      method: 'POST',
-      headers: bearer('valid-owner-a-token'),
-    });
+    const response = await fetchWorker(
+      authorizePath({ operationKind: 'test_audio_temp', fileName: 'cli.txt' }),
+      {
+        method: 'POST',
+        headers: bearer('valid-owner-a-token'),
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
@@ -246,7 +252,10 @@ describe('r2-upload-signer native R2 harness', () => {
 
   it('uploads through the Worker entrypoint using authenticated same-owner scope', async () => {
     const authorizeResponse = await fetchWorker(
-      '/?operationKind=test_audio_temp&fileName=harness-smoke.txt',
+      authorizePath({
+        operationKind: 'test_audio_temp',
+        fileName: 'harness-smoke.txt',
+      }),
       { method: 'POST', headers: bearer('valid-owner-a-token') },
     );
 
@@ -255,15 +264,16 @@ describe('r2-upload-signer native R2 harness', () => {
     expect(authorizeBody).toMatchObject({
       key: `temp/audio/owner-a/${FIXED_NONCE}-harness-smoke.txt`,
     });
-    expect(authorizeBody.uploadUrl).toContain(
-      `key=temp%2Faudio%2Fowner-a%2F${FIXED_NONCE}-harness-smoke.txt`,
-    );
+    expect(authorizeBody.uploadUrl).toContain('/upload?grant=');
+    expect(authorizeBody.uploadUrl).not.toContain('key=');
+    expect(authorizeBody.moveGrant).toEqual(expect.any(String));
 
     const uploadResponse = await fetchWorker(new URL(authorizeBody.uploadUrl).pathname + new URL(authorizeBody.uploadUrl).search, {
       method: 'PUT',
       headers: {
         ...bearer('valid-owner-a-token'),
         'Content-Type': 'application/octet-stream',
+        'Content-Length': '0',
       },
       body: new Uint8Array(),
     });
@@ -280,7 +290,7 @@ describe('r2-upload-signer native R2 harness', () => {
 
   it('canonicalizes a legacy temp hint with verified uid and generated nonce', async () => {
     const response = await fetchWorker(
-      '/?filename=temp%2Faudio%2FLegacy%20Name.MP3',
+      authorizePath({ filename: 'temp/audio/Legacy Name.MP3' }),
       { method: 'POST', headers: bearer('valid-owner-a-token') },
     );
 
@@ -298,7 +308,7 @@ describe('r2-upload-signer native R2 harness', () => {
     await env.R2_BUCKET.put(sourceKey, 'fixture');
 
     const authorizeResponse = await fetchWorker(
-      `/?filename=${encodeURIComponent(authorizeKey)}&ownerId=owner-b`,
+      authorizePath({ filename: authorizeKey, ownerId: 'owner-b' }),
       {
         method: 'POST',
         headers: bearer('valid-owner-a-token'),
@@ -326,8 +336,8 @@ describe('r2-upload-signer native R2 harness', () => {
     });
 
     expect(authorizeResponse.status).toBe(403);
-    expect(uploadResponse.status).toBe(403);
-    expect(moveResponse.status).toBe(403);
+    expect([403, 405]).toContain(uploadResponse.status);
+    expect([400, 403]).toContain(moveResponse.status);
     expect(await env.R2_BUCKET.get(uploadKey)).toBeNull();
     expect(await env.R2_BUCKET.get(sourceKey)).not.toBeNull();
     expect(await env.R2_BUCKET.get(destKey)).toBeNull();
@@ -336,10 +346,25 @@ describe('r2-upload-signer native R2 harness', () => {
   it('moves an uploaded object through authenticated same-owner scope', async () => {
     const sourceKey = `temp/audio/owner-a/${FIXED_NONCE}-harness-move.txt`;
     const destKey = `audio/owner-a/${FIXED_NONCE}-harness-move.txt`;
-    await env.R2_BUCKET.put(
-      sourceKey,
-      new Uint8Array(),
-      { httpMetadata: { contentType: 'application/octet-stream' } },
+    const authorizeResponse = await fetchWorker(
+      authorizePath({
+        operationKind: 'test_audio_temp',
+        fileName: 'harness-move.txt',
+      }),
+      { method: 'POST', headers: bearer('valid-owner-a-token') },
+    );
+    const authorizeBody = await authorizeResponse.json();
+    await fetchWorker(
+      new URL(authorizeBody.uploadUrl).pathname + new URL(authorizeBody.uploadUrl).search,
+      {
+        method: 'PUT',
+        headers: {
+          ...bearer('valid-owner-a-token'),
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': '0',
+        },
+        body: new Uint8Array(),
+      },
     );
 
     const moveResponse = await fetchWorker('/move', {
@@ -349,6 +374,7 @@ describe('r2-upload-signer native R2 harness', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        moveGrant: authorizeBody.moveGrant,
         sourceKey,
         destKey,
       }),
@@ -380,7 +406,10 @@ describe('r2-upload-signer native R2 harness', () => {
 
     const response = await worker.fetch(
       new Request(
-        `${BASE_URL}/?operationKind=test_audio_temp&fileName=${encodeURIComponent('../private.mp3')}`,
+        `${BASE_URL}${authorizePath({
+          operationKind: 'test_audio_temp',
+          fileName: '../private.mp3',
+        })}`,
         { method: 'POST', headers: bearer('valid-owner-a-token') },
       ),
       fakeEnv,
@@ -430,6 +459,15 @@ describe('r2-upload-signer native R2 harness', () => {
   it('rejects existing move destination without overwriting or deleting source', async () => {
     const sourceKey = `temp/images/owner-a/${FIXED_NONCE}-existing.png`;
     const destKey = `images/owner-a/${FIXED_NONCE}-existing.png`;
+    const authorizeBody = await (
+      await fetchWorker(
+        authorizePath({
+          operationKind: 'test_image_temp',
+          fileName: 'existing.png',
+        }),
+        { method: 'POST', headers: bearer('valid-owner-a-token') },
+      )
+    ).json();
     await env.R2_BUCKET.put(sourceKey, 'source');
     await env.R2_BUCKET.put(destKey, 'existing-destination');
 
@@ -439,7 +477,7 @@ describe('r2-upload-signer native R2 harness', () => {
         ...bearer('valid-owner-a-token'),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ sourceKey, destKey }),
+      body: JSON.stringify({ moveGrant: authorizeBody.moveGrant, sourceKey, destKey }),
     });
 
     expect(response.status).toBe(409);

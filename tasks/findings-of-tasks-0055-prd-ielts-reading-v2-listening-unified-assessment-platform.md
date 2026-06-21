@@ -3299,3 +3299,270 @@ After appending Packet 2G findings, updating `EV-0056`, and checking Task 2.8 on
 7. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Task 2.8 checked; Tasks 2.9 through 2.15 unchecked.
 8. Static CORS scan: PASS, production Worker/CORS policy contains no wildcard CORS, no advertised GET/DELETE CORS methods, and exact allowed methods/headers; wildcard remains only in immutable insecure-baseline fixture and RED baseline assertions.
 9. Line-count scan: PASS, `cloudflare/worker.js` is 199 lines, under the 200-line target and 250-line ceiling; `cloudflare/src/upload-worker/cors-policy.js` is 67 lines; `cloudflare/__tests__/upload-worker-harness.test.js` is 461 lines, under the 500-line ceiling.
+
+## Packet 2H Task 2.9 Opaque Grant Authority - 2026-06-21
+
+Subtask: Task 2.9 only.
+
+Task 2.9 verdict: PASS for issuing and verifying opaque upload/move grants, binding grants to verified UID, operation, canonical source/destination, content type, size, expiry, and nonce, treating browser `key`/`sourceKey`/`destKey` as non-authoritative assertions only, rejecting tampered/expired/replayed grants, enforcing request rate controls, and enforcing the 50 MB per-request/per-file ceiling.
+
+Task 2.6 remains unchecked under the approved checkpoint exception. This packet does not implement Task 2.10 or later, deployment, rollback, version pin, Cloudflare remote-state mutation, browser adapter changes, Firebase rules/config, R2 lifecycle, cleanup, deletion routes, registry, heartbeat, private delivery, Listening runtime, Reading V2, `src/services/r2Storage.ts`, or the 10-files-per-test application rule.
+
+Claims proven:
+
+1. Upload authorization returns a Worker `/upload?grant=...` URL and no longer returns a raw-key upload authority URL.
+2. `PUT /upload` requires a valid upload grant and rejects raw `?key=` uploads as authority.
+3. Upload grants are HMAC verified and fail closed when tampered.
+4. Upload grants bind verified UID before path validation; a different valid UID returns `grant_uid_mismatch`.
+5. Upload grants expire after the 10-minute TTL and reject after expiry before R2 writes.
+6. Replayed upload grants cannot overwrite the first stored object.
+7. Move requires a Worker-issued `moveGrant`; browser `sourceKey` and `destKey` are optional assertions and cannot select a different object.
+8. Replayed move grants cannot move a different browser-asserted object.
+9. The Worker calls `UPLOAD_RATE_LIMITER.limit()` with a key containing verified UID and client IP class, and returns `429` before grant issue/R2 access when limited.
+10. Authorize and upload requests reject payloads above 50 MB.
+11. Task 2.7 canonical path authority and Task 2.8 exact-origin CORS behavior remain covered by the full Worker suite.
+12. The Task 2.4 insecure deployed/SOP fixture, manifest, and runner behavior remain unchanged.
+
+Files and declared touch regions:
+
+1. `cloudflare/worker.js`: router composition only; imports grant/request handler seams, injects `now`, authenticates, enforces rate limit, and delegates authorize/upload/move handling.
+2. `cloudflare/src/upload-worker/grant-authority.js`: new bounded Task 2.9 HMAC grant, expiry, size, content-type, and rate-limit module.
+3. `cloudflare/src/upload-worker/request-handlers.js`: new bounded Task 2.9 authorize/upload/move request handlers composed behind `cloudflare/worker.js`.
+4. `cloudflare/__tests__/grant-authority.test.js`: new focused Task 2.9 RED/GREEN/mutation test file.
+5. `cloudflare/__tests__/upload-worker-harness.test.js`: update existing route harness to the secured grant contract while preserving prior auth/path/CORS coverage.
+6. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.9 only.
+7. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+8. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2H evidence only.
+
+Lines before -> after and responsibility delta:
+
+1. `cloudflare/worker.js`: 199 -> 136 lines. Responsibility narrowed from route plus inline Task 2.6-2.8 behavior to thin route/auth/CORS/rate composition with Task 2.9 handlers delegated.
+2. `cloudflare/src/upload-worker/grant-authority.js`: absent -> 155 lines. New Task 2.9-only grant signing/verification, request-size/content binding, expiry, and rate-limit seam.
+3. `cloudflare/src/upload-worker/request-handlers.js`: absent -> 197 lines. New Task 2.9-only HTTP contract handlers for authorize, grant PUT, and grant move.
+4. `cloudflare/__tests__/grant-authority.test.js`: absent -> 299 lines. New focused Task 2.9 integration tests.
+5. `cloudflare/__tests__/upload-worker-harness.test.js`: 461 -> 498 lines. Existing harness updated to secured grant contract; remains under the 500-line ceiling.
+
+Created/preserved decomposition seams:
+
+1. Created `grant-authority.js` so cryptographic grant, expiry, size, and rate logic does not grow `worker.js`.
+2. Created `request-handlers.js` so authorize/upload/move contract logic stays bounded outside the router.
+3. Preserved `path-authority.js` public return shape and Task 2.7 canonical path authority.
+4. Preserved `cors-policy.js` Task 2.8 exact-origin behavior.
+5. Preserved Task 2.4 insecure fixture/manifest/runner as immutable baseline proof.
+
+Traceability row IDs: `EV-0056`, `FR-020I`, `DATA-83`, `DATA-85`, `DATA-88`, `DATA-90`, `DATA-95`, `DECISION-OQ-3`, `DECISION-048`, `DECISION-053`, `DECISION-055`, and Task 2.9.
+
+Characterization/baseline:
+
+1. Starting state: clean branch `codex/prd-0055-task-2a-s0-worker-truth` at `c0e66e900416ff7de83868d260dc27d5d39639ee`.
+2. Existing Worker contract before Task 2.9 still used raw `?key=` upload URLs and JSON `sourceKey`/`destKey` movement after auth/path/CORS checks.
+
+RED command and result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run __tests__/grant-authority.test.js --config vitest.config.mjs"
+```
+
+Initial RED result before implementation: `__tests__/grant-authority.test.js` ran 8 tests and all 8 failed. Failures proved `/upload/authorize` grant issue was missing (`400` instead of `200`), raw same-owner `sourceKey`/`destKey` move succeeded (`200` instead of `400`), rate limiting was missing (`400` instead of `429`), and tamper/expiry/replay/size cases could not be verified because opaque grants were missing.
+
+GREEN command and result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run __tests__/grant-authority.test.js --config vitest.config.mjs"
+```
+
+Restored focused GREEN result: 1 test file passed, 9 tests passed.
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run --config vitest.config.mjs"
+```
+
+Full Worker suite result: 4 test files passed, 69 tests passed.
+
+Mutation proof and restoration evidence:
+
+1. UID-binding mutation: temporarily changed `if (payload.uid !== uid) fail('grant_uid_mismatch');` to `if (false && payload.uid !== uid) fail('grant_uid_mismatch');`.
+   - Command: focused `grant-authority.test.js -t 'different verified UID'`.
+   - Expected failure: 1 focused test failed because response changed from `{ error: 'grant_uid_mismatch' }` to `{ error: 'owner_mismatch' }`.
+   - Restoration: guard restored; focused UID-binding test passed.
+2. Expiry mutation: temporarily changed the expiry guard to `if (false && (...))`.
+   - Command: focused `grant-authority.test.js -t 'expired upload grants'`.
+   - Expected failure: 1 focused test failed because expired grant returned `200` instead of `403`.
+   - Restoration: guard restored; focused grant suite passed 9/9 and full Worker suite passed 69/69.
+
+Task 2.4 RED-baseline result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'scripts/run-insecure-baseline.mjs'"
+```
+
+Result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+Clean temporary-copy proof:
+
+1. First temp-copy attempt intentionally surfaced the known host risk: running `npm ci` through arm64 system Node failed with `Unsupported platform: win32 arm64 LE` from `workerd`.
+2. Retried with system npm CLI executed by bundled x64 Node and `npm_config_arch=x64`, `npm_config_platform=win32`.
+3. Temp path: `C:\Users\THELOR~1\AppData\Local\Temp\prd0055-task29-ec0ac0a955fb4ca280f4c44ea6489789`.
+4. Result: `npm ci` added 82 packages with 0 vulnerabilities; bundled x64 Node ran the full Worker suite with 4 files/69 tests passed; bundled x64 Node ran insecure baseline with fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, and four already-safe passes.
+
+Static/boundary/diff checks to run in final Packet 2H verification:
+
+1. `npm run check:utf8 -- <touched text files>`.
+2. `git diff --check`.
+3. Protected-path scan.
+4. Taskbox scan proving Task 2.9 only changed to checked, parent Task 2.0 remains unchecked, Task 2.6 remains unchecked, and Task 2.10+ remain unchecked.
+
+Browser/deploy artifacts: not applicable. Task 2.9 explicitly forbids browser adapter changes, deployment, rollback, version-pin, and Cloudflare remote mutation.
+
+Residual risks and deferred items:
+
+1. Task 2.6 remains unchecked until explicit integrated Task 2.6/2.7/2.9 closure proof is run and documented.
+2. Task 2.10+ hardening closure, browser proof, deployment/rollback/version-pin proof, app adapter work, and S0 parent acceptance remain incomplete.
+3. Rate-limit namespace/account deployment proof remains outside this local Task 2.9 implementation because this packet does not mutate Cloudflare remote state.
+4. The 10-files-per-test application rule remains deferred to Task 4 upload-session/application logic.
+
+Verifier and verification outcome: Task 2.9 is checked because focused RED/GREEN, UID-binding and expiry mutation proof, full Worker GREEN, unchanged insecure-baseline proof, clean temporary-copy proof, append-only findings, and `EV-0056` update are complete. Task 2.6 remains unchecked; normal strict order does not resume until explicit integrated Task 2.6 closure proof is recorded.
+
+### Final Packet 2H Verification Addendum
+
+After appending Packet 2H findings, updating `EV-0056`, and checking Task 2.9 only:
+
+1. Bundled-x64 `& $node 'node_modules/vitest/vitest.mjs' run --config vitest.config.mjs`: PASS, four files and 69 tests.
+2. Bundled-x64 `& $node 'scripts/run-insecure-baseline.mjs'`: PASS, fixture hash `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, and four already-safe passes.
+3. Clean temporary copy with bundled-x64 Node executing system npm CLI: PASS, `npm ci` installed 82 packages with zero vulnerabilities, four files and 69 tests passed, fixture hash matched, and the 18-RED/four-safe manifest matched.
+4. `npm run check:utf8 -- cloudflare/worker.js cloudflare/src/upload-worker/grant-authority.js cloudflare/src/upload-worker/request-handlers.js cloudflare/__tests__/grant-authority.test.js cloudflare/__tests__/upload-worker-harness.test.js tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS, eight text files.
+5. `git diff --check`: PASS.
+6. Protected-path scan: PASS, changed paths are only `cloudflare/worker.js`, `cloudflare/src/upload-worker/grant-authority.js`, `cloudflare/src/upload-worker/request-handlers.js`, `cloudflare/__tests__/grant-authority.test.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, tasklist, findings, and traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, or insecure-baseline runner changed.
+7. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Task 2.8 checked; Task 2.9 checked; Tasks 2.10 through 2.15 unchecked.
+8. Line-count scan: PASS, `cloudflare/worker.js` is 136 lines, below the 200-line target and 250-line ceiling; `cloudflare/src/upload-worker/grant-authority.js` is 155 lines; `cloudflare/src/upload-worker/request-handlers.js` is 197 lines; `cloudflare/__tests__/grant-authority.test.js` is 299 lines; `cloudflare/__tests__/upload-worker-harness.test.js` is 498 lines, below the 500-line ceiling.
+
+## Packet 2H-R Task 2.9 Corrective Replay Proof - 2026-06-21
+
+Subtask: corrective replay packet for Task 2.9 only.
+
+Corrective verdict: PASS. Original Packet 2H replay PASS is superseded for replay proof only because same-grant replay was not protected by an explicit atomic nonce-consumption authority. Temp upload replay was rejected by existing destination state, move replay was rejected by destination/source state, and `avatar_permanent` grants could be reused to overwrite `avatars/{uid}/avatar`. Packet 2H-R adds explicit replay/nonce authority and corrected RED/GREEN/mutation proof.
+
+Scope boundaries: no commit, push, deploy, rollback, version pin, Cloudflare remote-state mutation, browser adapter change, Firebase rules/config change, R2 lifecycle change, registry, heartbeat, cleanup, deletion route, private delivery, Listening runtime, Reading V2, `src/services/r2Storage.ts`, Task 2.6 closure, or Task 2.10 start occurred.
+
+Claims proven:
+
+1. Same `avatar_permanent` upload grant can no longer be reused to overwrite `avatars/{uid}/avatar`.
+2. Fresh `avatar_permanent` grants still preserve the intentional owner-scoped singleton replacement behavior.
+3. Same move grant replay returns replay-specific failure before second R2 access/mutation.
+4. Temp upload grant replay returns replay-specific failure before second R2 access/mutation.
+5. Browser `key`, `sourceKey`, and `destKey` remain assertions only.
+6. Replay protection uses an explicit nonce authority abstraction: `UPLOAD_GRANT_REPLAY_LEDGER.consume({ key, expiresAt })`.
+7. Replay protection fails closed with `replay_protection_unavailable` when the binding is absent.
+8. Production replay binding selection/provisioning remains later deployment work because this packet does not mutate Cloudflare remote state.
+
+Files and declared touch regions:
+
+1. `cloudflare/src/upload-worker/replay-authority.js`: new explicit replay/nonce consumption abstraction.
+2. `cloudflare/src/upload-worker/request-handlers.js`: consume grant nonce before upload R2 access and before move R2 access.
+3. `cloudflare/__tests__/grant-authority.test.js`: add focused replay RED/GREEN tests, atomic replay-ledger test double, avatar fresh-grant replacement proof, and missing-binding fail-closed proof.
+4. `cloudflare/__tests__/upload-worker-harness.test.js`: add replay-ledger happy-path test double so existing route coverage runs under the corrected contract.
+5. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+6. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2H-R evidence only.
+
+Lines before -> after and responsibility delta:
+
+1. `cloudflare/worker.js`: 199 -> 136 lines. No Packet 2H-R change; remains thin router/composition.
+2. `cloudflare/src/upload-worker/grant-authority.js`: absent -> 155 lines. No Packet 2H-R change.
+3. `cloudflare/src/upload-worker/request-handlers.js`: absent -> 203 lines. Responsibility expands narrowly to call replay consumption before R2 access.
+4. `cloudflare/src/upload-worker/replay-authority.js`: absent -> 15 lines. New replay authority abstraction.
+5. `cloudflare/__tests__/grant-authority.test.js`: absent -> 399 lines. Focused Task 2.9 test file remains below 400-line target after corrective tests.
+6. `cloudflare/__tests__/upload-worker-harness.test.js`: 461 -> 499 lines. Existing harness remains below 500-line ceiling.
+
+Created/preserved decomposition seams:
+
+1. Created `replay-authority.js` so nonce-consumption policy is not mixed into grant signing or route handlers.
+2. Preserved `grant-authority.js` as HMAC/expiry/content/size/rate support.
+3. Preserved `request-handlers.js` as HTTP-contract composition.
+4. Preserved `worker.js` under line target and without replay algorithm growth.
+5. Preserved Task 2.4 insecure fixture/manifest/runner unchanged.
+
+Traceability row IDs: `EV-0056`, `FR-020I`, `DATA-83`, `DATA-85`, `DATA-90`, `DATA-95`, `DECISION-OQ-3`, `DECISION-048`, `DECISION-055`, and Task 2.9.
+
+Characterization/baseline:
+
+1. Current dirty Task 2.9 patch before correction had no replay nonce ledger.
+2. PRD-0056 section 11 requires an atomic nonce ledger before implementation; KV or in-memory Worker state is not sufficient unless separately approved.
+3. Packet 2H-R local implementation defines the binding interface and fails closed when absent; production binding choice remains later deployment work.
+
+RED command and result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run __tests__/grant-authority.test.js --config vitest.config.mjs"
+```
+
+Corrective RED result before replay fix: 1 focused file ran 12 tests, 4 failed. Failures:
+
+1. Temp upload grant replay returned `{ error: 'Destination already exists' }` instead of replay-specific `replay_detected`.
+2. Same `avatar_permanent` grant replay returned `200` and overwrote the singleton instead of `409 replay_detected`.
+3. Same move grant replay returned `{ error: 'Destination already exists' }` instead of replay-specific `replay_detected`.
+4. Missing replay binding returned `200` instead of fail-closed `500 replay_protection_unavailable`.
+
+GREEN command and result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run __tests__/grant-authority.test.js --config vitest.config.mjs"
+```
+
+Focused GREEN result: 1 test file passed, 12 tests passed.
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run --config vitest.config.mjs"
+```
+
+Full Worker suite result: 4 test files passed, 72 tests passed.
+
+Mutation proof and restoration evidence:
+
+1. Replay-consumption mutation: temporarily added `if (payload) return { consumed: true };` at the start of `consumeGrantNonce()`.
+2. Command: focused `grant-authority.test.js -t 'replayed avatar|replayed move|fails closed when replay'`.
+3. Expected failure: 3 focused tests failed. Avatar replay returned `200` instead of `409`; move replay returned destination-state error instead of `replay_detected`; missing binding returned `200` instead of `500`.
+4. Restoration: removed mutation; focused grant suite passed 12/12; full Worker suite passed 72/72.
+
+Task 2.4 RED-baseline result:
+
+```powershell
+rtk powershell -NoProfile -Command "`$env:PATH='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin;' + `$env:PATH; & 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'scripts/run-insecure-baseline.mjs'"
+```
+
+Result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+Clean temporary-copy proof:
+
+1. Temp path: `C:\Users\THELOR~1\AppData\Local\Temp\prd0055-task29-07965b2f28754804bce098bfd557e9a8`.
+2. `npm ci` was run by system npm CLI executed through bundled x64 Node with `npm_config_arch=x64` and `npm_config_platform=win32`.
+3. Result: 82 packages installed, 0 vulnerabilities; bundled x64 Node ran full Worker suite with 4 files/72 tests passed; bundled x64 Node ran insecure baseline with fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, and four already-safe passes.
+
+Static/boundary/diff checks to run in final Packet 2H-R verification:
+
+1. `npm run check:utf8 -- <touched text files>`.
+2. `git diff --check`.
+3. Protected-path scan.
+4. Taskbox scan proving parent Task 2.0 unchecked, Task 2.6 unchecked, Tasks 2.7/2.8/2.9 checked, and Tasks 2.10 through 2.15 unchecked.
+
+Browser/deploy artifacts: not applicable. This corrective packet explicitly forbids browser adapter changes, deployment, rollback, version-pin, and Cloudflare remote mutation.
+
+Residual risks and deferred items:
+
+1. `UPLOAD_GRANT_REPLAY_LEDGER` production binding selection/provisioning remains later deployment work. Until then, production code fails closed when the binding is unavailable.
+2. Task 2.6 remains unchecked until separately requested integrated Task 2.6/2.7/2.9 closure proof is run and documented.
+3. Task 2.10+ hardening closure, browser proof, deployment/rollback/version-pin proof, app adapter work, and S0 parent acceptance remain incomplete.
+
+Verifier and verification outcome: Task 2.9 remains checked because the corrective replay RED/GREEN, replay-consumption mutation proof, full Worker GREEN, unchanged insecure-baseline proof, clean temporary-copy proof, append-only findings, and `EV-0056` update are complete. Original Packet 2H replay proof is superseded by Packet 2H-R for replay closure.
+
+### Final Packet 2H-R Verification Addendum
+
+After appending Packet 2H-R findings and updating `EV-0056` only:
+
+1. Bundled-x64 `& $node 'node_modules/vitest/vitest.mjs' run --config vitest.config.mjs`: PASS, four files and 72 tests.
+2. Bundled-x64 `& $node 'scripts/run-insecure-baseline.mjs'`: PASS, fixture hash `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, and four already-safe passes.
+3. Clean temporary copy with bundled-x64 Node executing system npm CLI: PASS, `npm ci` installed 82 packages with zero vulnerabilities, four files and 72 tests passed, fixture hash matched, and the 18-RED/four-safe manifest matched.
+4. `npm run check:utf8 -- cloudflare/worker.js cloudflare/src/upload-worker/grant-authority.js cloudflare/src/upload-worker/request-handlers.js cloudflare/src/upload-worker/replay-authority.js cloudflare/__tests__/grant-authority.test.js cloudflare/__tests__/upload-worker-harness.test.js tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS, nine text files.
+5. `git diff --check`: PASS.
+6. Protected-path scan: PASS, changed paths are only `cloudflare/worker.js`, `cloudflare/src/upload-worker/grant-authority.js`, `cloudflare/src/upload-worker/request-handlers.js`, `cloudflare/src/upload-worker/replay-authority.js`, `cloudflare/__tests__/grant-authority.test.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, tasklist, findings, and traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, or insecure-baseline runner changed.
+7. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Task 2.8 checked; Task 2.9 checked; Tasks 2.10 through 2.15 unchecked.
+8. Line-count scan: PASS, `cloudflare/worker.js` is 136 lines, `cloudflare/src/upload-worker/grant-authority.js` is 155 lines, `cloudflare/src/upload-worker/request-handlers.js` is 203 lines, `cloudflare/src/upload-worker/replay-authority.js` is 15 lines, `cloudflare/__tests__/grant-authority.test.js` is 399 lines, and `cloudflare/__tests__/upload-worker-harness.test.js` is 499 lines.
