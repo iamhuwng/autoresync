@@ -323,6 +323,39 @@ Rules:
    - any prefix not listed above.
 10. S0 must not create the future registry target path `assessment-assets/listening/{ownerId}/{assetId}/...`; that belongs to later storage lifecycle work.
 
+### Task 2.6/2.7/2.9 Ownership And Checkpoint Sequence - 2026-06-21
+
+This reconciliation changes implementation/checkpoint order only. It does not weaken FR-005, FR-008 through FR-016, this section, the negative-test contract, or final S0 acceptance.
+
+Exact requirement ownership:
+
+1. Task 2.6 owns authentication and owner identity:
+   - require Firebase authentication on every non-`OPTIONS` route;
+   - use verified token `sub` as the only owner identity;
+   - reject browser `ownerId`, `uid`, email, and role as authority;
+   - reject cross-owner upload/move attempts before any R2 read, write, copy, or delete.
+2. Task 2.7 owns prefix and canonical-path authority:
+   - enforce the allowlisted prefix families in this section;
+   - derive canonical owner/path structure server-side;
+   - reject traversal, encoded traversal, absolute paths/URLs, duplicate separators, control characters, unsupported folders, and forbidden prefixes;
+   - constrain temp-to-durable movement to the canonical same-family destination;
+   - enforce cross-prefix and overwrite bounds.
+3. Task 2.9 owns capability and request authority:
+   - issue and verify opaque upload/move grants;
+   - bind grants to UID, operation, canonical source/destination, content type, size, expiry, and nonce;
+   - treat browser `key`, `sourceKey`, and `destKey` only as optional non-authoritative assertions;
+   - enforce expiry, tamper rejection, replay protection, rate controls, and the 50 MB ceiling.
+
+Non-circular checkpoint order:
+
+1. Existing Task 2.6 evidence is provisional authentication/owner-scope evidence only; Task 2.6 remains unchecked.
+2. Task 2.7 implementation is explicitly permitted while Task 2.6 remains provisionally incomplete.
+3. After Task 2.7 passes its own focused proof, Task 2.8 may implement exact-origin CORS while Task 2.6 remains unchecked.
+4. After Task 2.8 passes its own focused proof, Task 2.9 may implement grants, assertion-only raw-key handling, expiry, replay, binding, rate, and size controls while Task 2.6 remains unchecked.
+5. Full raw-key non-authority becomes satisfied only after Task 2.7 canonical path derivation and Task 2.9 opaque-grant enforcement are both implemented and integrated with Task 2.6 authentication/owner scope.
+6. Task 2.6 may be checked only after integrated proof confirms every non-`OPTIONS` route authenticates, verified `sub` is owner, browser identity fields are not authority, cross-owner requests fail before R2 access, and browser raw keys cannot select or authorize an R2 operation.
+7. Task 2.7, Task 2.8, and Task 2.9 remain independently unchecked until their own implementation/evidence packets pass. Task 2.10 remains blocked until Tasks 2.6 through 2.9 are all checked.
+
 ## 11. CORS, Rate, Method, Replay, Expiry, And 50 MB Controls
 
 CORS:

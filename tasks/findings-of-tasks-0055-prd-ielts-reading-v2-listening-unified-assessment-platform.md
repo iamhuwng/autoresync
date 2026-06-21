@@ -2872,3 +2872,159 @@ Browser/deploy artifacts: not applicable. Task 2.5 explicitly forbids route enfo
 Residual risks and deferred items: authentication is still not enforced on upload/move routes; owner scope, raw-key rejection, CORS, prefix, grant, replay, size, rate, browser adapter, deploy, rollback, and browser proof remain later tasks.
 
 Verifier and verification outcome: Task 2.5 is checked because focused RED/GREEN, mutation proof, default GREEN, unchanged RED baseline, append-only findings, and `EV-0056` update are complete. Next task is Task 2.6.
+
+## Packet 2E Task 2.6 Authenticated Owner Scope - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.6 only.
+
+Task 2.6 verdict: PASS for authenticated owner-scope enforcement. The upload-worker route now imports the Task 2.5 Firebase verifier, requires `Authorization: Bearer <Firebase ID token>` on every non-`OPTIONS` request, treats verified `sub`/`uid` as the S0 owner identity, rejects missing/invalid/expired/wrong-audience auth before R2 writes, and rejects cross-owner root `POST ?filename`, `PUT ?key`, and `POST /move` attempts. Browser-supplied `ownerId`, `uid`, `email`, and `role` are ignored.
+
+Task 2.5 was committed first as `9b14cac` (`feat(cloudflare): add firebase token verifier`). Task 2.6 began from a clean worktree.
+
+This packet does not implement Task 2.7 prefix/traversal hardening, Task 2.8 CORS replacement, Task 2.9 rate/size/grant/replay controls, deployment, rollback, version-pin, Cloudflare remote-state mutation, app runtime changes, Firebase rules, R2 lifecycle, Listening, Reading V2, or `src/services/r2Storage.ts`.
+
+### Claims Proven
+
+1. `cloudflare/worker.js` imports `createFirebaseVerifier` and exposes `createUploadWorker({ firebaseVerifier })` so route tests inject verifier outcomes without Google network.
+2. `OPTIONS` remains preflight-compatible and unauthenticated; every other route authenticates before route handling.
+3. Missing Authorization returns `401` and does not write or move R2 objects.
+4. Invalid, expired, and wrong-audience token outcomes return `401` and do not write R2 objects.
+5. Verified token `uid` is the only S0 owner identity used by route owner checks.
+6. Root legacy `POST ?filename=...` derives missing temp-owner segments from verified uid and rejects an explicit cross-owner filename.
+7. `PUT ?key=...` rejects keys whose owner segment does not match verified uid before R2 write.
+8. `POST /move` rejects source/destination owner mismatches before R2 read/write/delete, even when browser JSON includes valid-looking `ownerId`, `uid`, `email`, or `role` fields.
+9. Authorized same-owner upload preserves the existing response shape `{ key, uploadUrl }`, and authorized same-owner move preserves `{ success: true, message }`.
+10. The Task 2.4 insecure-baseline manifest remains unchanged and still distinguishes expected RED failures from already-safe passes.
+
+### Files And Declared Touch Regions
+
+1. `cloudflare/worker.js`: route auth/owner-scope enforcement and injectable route factory only.
+2. `cloudflare/__tests__/upload-worker-harness.test.js`: focused route tests for Task 2.6 auth, owner scope, and same-owner compatibility only.
+3. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.6 only.
+4. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+5. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2E evidence only.
+
+Protected paths not touched: `src/services/r2Storage.ts`, `src/**`, Firebase rules/config, R2 lifecycle, Listening, Reading V2, `r2-backup-worker/**`, `cloudflare/test/fixtures/insecure-current-worker.js`, `cloudflare/test/insecure-baseline-manifest.js`, and `cloudflare/scripts/run-insecure-baseline.mjs`.
+
+### Lines Before -> After And Responsibility Delta
+
+1. `cloudflare/worker.js`: 107 -> 174 lines. Responsibility changes from unauthenticated native-R2 route to authenticated owner-scoped native-R2 route. It remains below the 200-line target and 250-line ceiling.
+2. `cloudflare/__tests__/upload-worker-harness.test.js`: 77 -> 204 lines. Responsibility expands from harness smoke tests to focused Task 2.6 route auth/owner-scope tests.
+3. `cloudflare/test/upload-worker-security.test.js`: 346 -> 346 lines. No test-title or baseline-contract change.
+4. `cloudflare/test/insecure-baseline-manifest.js`: 24 -> 24 lines. No expected RED case was hidden.
+
+Created seam: `createUploadWorker({ firebaseVerifier })` keeps route auth tests injected and avoids live JWKS calls. Preserved seam: Task 2.4 insecure fixture/manifest/runner remain isolated and unchanged.
+
+Traceability row IDs: `EV-0056`, `FR-020I`, `DATA-83`, `DATA-85`, `DATA-95`, `DECISION-OQ-3`, `DECISION-048`, and Task 2.6.
+
+### Characterization And RED
+
+Characterization before route implementation: existing `SELF` harness allowed unauthenticated upload/move and had no injectable route verifier.
+
+RED command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/upload-worker-harness.test.js
+```
+
+RED result: failed one file, four tests failed and three passed. Expected failure reason: `createUploadWorker` did not exist yet, proving the new route-injection/auth tests could not pass against the unauthenticated Worker.
+
+### GREEN And Mutation Proof
+
+Focused GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/upload-worker-harness.test.js
+```
+
+Focused GREEN result: one file passed, 10 tests passed.
+
+Mutation proof: temporarily changed `validateOwnerScope` to return `{ valid: true }` after deriving an owner index. Focused test `rejects cross-owner upload and move requests without mutating R2` failed as expected: `expected 200 to be 403` on the cross-owner upload assertion. The owner check was restored, then the focused harness reran GREEN with one file and 10 tests passed.
+
+Default GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run
+```
+
+Default GREEN result: two files passed, 15 tests passed.
+
+### Static, Boundary, And RED-Baseline Checks
+
+Task 2.4 RED-baseline command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'scripts/run-insecure-baseline.mjs'
+```
+
+Task 2.4 RED-baseline result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+Remaining expected RED cases outside Task 2.6: raw arbitrary same-owner key non-authority/grants, forbidden prefixes, path traversal, encoded traversal, wildcard/unapproved CORS, approved CORS without wildcard, upload over 50 MB, missing `Content-Length`, replayed upload grant, expired upload grant, replayed move grant, and deploy/browser/rollback proof. Unsupported method, `GET`, `DELETE`, and log-exclusion cases remain already-safe in the insecure baseline.
+
+Static/boundary checks to run in final verification: `git diff --check`, UTF-8 check for all touched text files, task-state scan proving only Task 2.6 changed in this packet, protected-path scan, and optional clean temporary-copy `npm ci` proof.
+
+Browser/deploy artifacts: not applicable. Task 2.6 explicitly forbids app-runtime changes, browser adapter changes, deployment, rollback, version-pin, and Cloudflare remote mutation.
+
+Residual risks and deferred items: true raw-key non-authority for arbitrary same-owner object selection still requires Task 2.7 prefix/path rules plus Task 2.9 grant/replay controls. Task 2.6 closes cross-owner authority only and intentionally leaves Task 2.7, Task 2.8, Task 2.9, parent Task 2.0, and Tasks 2.10 through 2.15 unchecked.
+
+Verifier and verification outcome: Task 2.6 is checked because focused RED/GREEN, owner-check mutation proof, default GREEN, unchanged RED-baseline accounting, append-only findings, and `EV-0056` update are complete. Next task is Task 2.7.
+
+### Final Packet 2E Verification
+
+1. Bundled-x64 `& $node 'node_modules/vitest/vitest.mjs' run`: PASS, two files and 15 tests.
+2. Bundled-x64 `& $node 'scripts/run-insecure-baseline.mjs'`: PASS, fixture hash matched and manifest remained 18 expected RED failures plus four already-safe passes.
+3. Clean temporary copy: copied `cloudflare/` without `node_modules`, prepended bundled Node directory to `PATH`, ran bundled-node npm CLI `ci`, bundled-x64 Vitest, and bundled-x64 insecure-baseline runner. PASS: 82 packages installed, zero vulnerabilities, two files/15 tests passed, fixture hash matched, and the 18-RED/four-safe manifest matched. Temporary copy was removed after path verification.
+4. Clean-copy note: an earlier temp-copy attempt failed because npm install scripts resolved system `node` (`win32 arm64`) despite npm CLI being launched by bundled Node. The temp path was removed; the passing rerun used bundled-node `PATH` precedence and no copied `node_modules`.
+5. `git diff --check`: PASS.
+6. `npm run check:utf8 -- <all five touched text files>`: PASS.
+7. Task-state scan: PASS; diff changes only Task 2.6 from unchecked to checked. Parent Task 2.0 and Tasks 2.7 through 2.15 remain unchecked.
+8. Protected-path scan: PASS; no `src/**`, Firebase rule/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, Listening, Reading V2, deployment, rollback, version-pin, or Cloudflare remote-state file/path was touched.
+
+## Packet 2E Corrective Evidence - Task 2.6 - 2026-06-21
+
+Task 2.6 correction verdict: BLOCKED. Same-owner raw `filename`, `key`, `sourceKey`, and `destKey` values still drive R2 operations. An authenticated proof of concept accepted a forbidden-prefix `PUT` and a cross-prefix move. Prior Packet 2E PASS is superseded.
+
+Task 2.6 remains BLOCKED pending explicit reconciliation of Task 2.6 versus Tasks 2.7/2.9 ownership. This corrective packet changes evidence and task state only; it does not modify Worker/runtime tests or implement Task 2.7 or later behavior.
+
+## Packet 2.6/2.7/2.9 Dependency Reconciliation - 2026-06-21
+
+### Decision
+
+Reconciliation verdict: APPROVED SEQUENCING; NO IMPLEMENTATION COMPLETION.
+
+Packet 2E failure evidence above remains authoritative and unchanged: current Worker authentication/owner checks do not prevent same-owner raw `filename`, `key`, `sourceKey`, or `destKey` values from driving R2 operations. Task 2.6 remains unchecked.
+
+Exact ownership:
+
+1. Task 2.6 owns Firebase authentication on every non-`OPTIONS` route, verified token `sub` as owner identity, rejection of browser `ownerId`/`uid`/email/role authority, and cross-owner rejection before R2 access.
+2. Task 2.7 owns allowlisted prefix families, server-derived canonical path structure, traversal/encoding/absolute-path/duplicate-separator/control-character rejection, forbidden-prefix rejection, canonical temp-to-durable movement, cross-prefix denial, and overwrite bounds.
+3. Task 2.9 owns opaque upload/move grants, browser raw keys as non-authoritative assertions only, UID/operation/path/content/size/expiry/nonce binding, tamper/expiry/replay rejection, rate controls, and 50 MB enforcement.
+
+Approved non-circular checkpoint order:
+
+1. Task 2.6 remains provisionally incomplete with authentication/owner-scope evidence only.
+2. A Task 2.7-only implementation packet is permitted next.
+3. After Task 2.7 focused proof, Task 2.8 may proceed.
+4. After Task 2.8 focused proof, Task 2.9 may proceed.
+5. After Task 2.9 focused proof, return to Task 2.6 for integrated closure.
+6. Task 2.10 remains blocked until Tasks 2.6, 2.7, 2.8, and 2.9 are all checked.
+
+Full raw-key non-authority becomes satisfied only when Task 2.7 server-derived canonical paths and Task 2.9 opaque grants are integrated with Task 2.6 authentication/owner scope, and tests prove browser raw-key values cannot select or authorize any R2 operation. Task 2.6 may be checked only at that integrated checkpoint. This is a sequencing exception, not an acceptance reduction.
+
+### Preserved Requirements And Scope
+
+1. PRD-0056 FR-005 and FR-008 through FR-016 remain unchanged and enforceable.
+2. PRD-0056 section 10 remains unchanged in authority; the added ownership/checkpoint subsection explains delivery order only.
+3. Existing negative tests, final acceptance, deploy, rollback, browser, and independent-review gates remain required.
+4. Parent Task 2.0 and Tasks 2.6 through 2.15 remain unchecked.
+5. No Worker, test, browser adapter, Firebase, R2 lifecycle, Listening, Reading V2, deployment, rollback, or Cloudflare remote-state behavior changed in this reconciliation.
