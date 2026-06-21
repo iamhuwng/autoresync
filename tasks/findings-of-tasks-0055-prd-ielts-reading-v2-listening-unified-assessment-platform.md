@@ -2766,3 +2766,109 @@ Local commands used bundled Windows x64 Node because local `workerd` cannot run 
 7. Task-state scan: PASS; diff changes only Task 2.4 from unchecked to checked. Parent Task 2.0 and Tasks 2.5 through 2.15 remain unchecked.
 8. Protected-path scan: PASS; no `src/**`, Firebase rule/config, `r2-backup-worker/**`, SOP, or `cloudflare/worker.js` change.
 9. No hardening, deployment, rollback, version pin, Cloudflare remote-state mutation, app runtime change, Firebase-rule change, Listening change, Reading V2 change, or R2-lifecycle change occurred.
+
+## Packet 2D Task 2.5 Firebase Verification Compatibility Extraction - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.5 only.
+
+Task 2.5 verdict: PASS. The upload-worker now has a bounded Firebase ID-token verifier module extracted from the compatible parts of `r2-backup-worker/src/auth/firebase-auth.ts`: Firebase securetoken JWKS, `jose` JWT verification, issuer `https://securetoken.google.com/<FIREBASE_PROJECT_ID>`, audience `<FIREBASE_PROJECT_ID>`, and verified token `sub` as `uid`.
+
+Task 2.4 was committed first as `908852b3` (`test(cloudflare): record insecure upload baseline`). Task 2.5 began from a clean worktree.
+
+This packet does not enforce authentication on any Worker route. Route enforcement and server-side owner derivation remain Task 2.6. This packet does not harden CORS, prefixes, grants, replay, size limits, move authority, upload routes, browser adapter behavior, Firebase rules, R2 lifecycle, Listening, Reading V2, app runtime, or `src/services/r2Storage.ts`. It does not deploy, roll back, version-pin, call Cloudflare APIs, or mutate Cloudflare remote state.
+
+### Claims Proven
+
+1. `r2-backup-worker/src/auth/firebase-auth.ts` is compatible only for the JWT verification pattern: `createRemoteJWKSet`, Firebase securetoken JWKS, `jwtVerify`, issuer, audience, and `payload.sub`.
+2. Backup-worker admin behavior is rejected: no `ADMIN_UID`, no `verifyAdminToken`, no `super_admin` branch, no `name`/`email` result surface, no service-account secret, no backup-route behavior, and no raw UID/token logging was copied.
+3. `cloudflare/src/upload-worker/firebase-verification.js` exposes `createFirebaseVerifier`, `FIREBASE_JWKS_URL`, `verifyToken`, and `verifyAuthorizationHeader`.
+4. Unit tests inject `jwtVerify`, `jwks`, or a complete `verifyToken` mock, so default-GREEN tests do not call Google network.
+5. The verifier returns only `{ valid: true, uid }` or bounded failure reasons. It does not log token, raw UID, token payload, email, signed grant, signed URL, raw key, secret, or audio content.
+6. `jose` was added only to `cloudflare/package.json` and `cloudflare/package-lock.json`; unrelated dependency files were not touched.
+7. The Task 2.4 insecure RED suite outcome is unchanged: 18 expected RED failures and four already-safe passes.
+
+### Files And Declared Touch Regions
+
+1. `cloudflare/src/upload-worker/firebase-verification.js`: Task 2.5 verifier module only.
+2. `cloudflare/__tests__/firebase-verification.test.js`: focused default-GREEN verifier unit tests only.
+3. `cloudflare/package.json`: add `jose` runtime dependency only.
+4. `cloudflare/package-lock.json`: lock `jose` only.
+5. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.5 only.
+6. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+7. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2D evidence only.
+
+Protected paths not touched: `cloudflare/worker.js`, `cloudflare/test/upload-worker-security.test.js`, `cloudflare/scripts/run-insecure-baseline.mjs`, `cloudflare/test/fixtures/insecure-current-worker.js`, `src/services/r2Storage.ts`, `src/**`, Firebase rules/config, R2 lifecycle, Listening, Reading V2, and `r2-backup-worker/**`.
+
+### Lines Before -> After And Responsibility Delta
+
+1. `cloudflare/src/upload-worker/firebase-verification.js`: 5 -> 70 lines. Responsibility changes from injectable placeholder to bounded upload-worker Firebase verifier. It still does not enforce routes.
+2. `cloudflare/__tests__/firebase-verification.test.js`: absent -> 77 lines. Responsibility is verifier unit coverage only.
+3. `cloudflare/worker.js`: 107 -> 107 lines. No responsibility change.
+4. `cloudflare/test/upload-worker-security.test.js`: 346 -> 346 lines. No RED-baseline test-title/status change.
+
+Created seam: route code can later inject the verifier through `createFirebaseVerifier` without coupling route tests to Google JWKS network. Preserved seam: Task 2.4 insecure fixture/manifest/runner remain isolated under `cloudflare/test` and `cloudflare/scripts`.
+
+Traceability row IDs: `EV-0056`, `DECISION-048`, `DATA-83`, and Task 2.5.
+
+### Characterization And RED
+
+Compatibility characterization:
+
+1. Backup-worker reusable lines are the Firebase JWKS + `jwtVerify` pattern and issuer/audience settings.
+2. Backup-worker rejected lines are admin UID checks and raw identity logging.
+
+RED command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/firebase-verification.test.js
+```
+
+RED result: failed one file, five tests. Expected failure reason: current seam had no `verifyAuthorizationHeader` and no exported `FIREBASE_JWKS_URL`.
+
+### GREEN And Mutation Proof
+
+Focused GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/firebase-verification.test.js
+```
+
+Focused GREEN result: one file passed, five tests passed.
+
+Mutation proof: temporarily changed verifier audience from `projectId` to `wrong-project`. Focused test `verifies Firebase tokens with JWKS, issuer, audience, and maps sub to uid` failed with expected mismatch showing received `audience: "wrong-project"` instead of `temp-a1437`. Restored `audience: projectId`, reran focused suite, and it passed one file/five tests.
+
+Default GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run
+```
+
+Default GREEN result: two files passed, 10 tests passed.
+
+### Static, Boundary, And RED-Baseline Checks
+
+Task 2.4 RED-baseline command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'scripts/run-insecure-baseline.mjs'
+```
+
+Task 2.4 RED-baseline result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+Static/boundary scan: `rg -n "console\.|ADMIN_UID|email|name|service_account|service-account|raw UID|raw token" cloudflare/src/upload-worker/firebase-verification.js cloudflare/__tests__/firebase-verification.test.js` returned only the Firebase public JWKS URL and the test name mentioning service-account secrets; no admin check, console logging, raw identity logging, or service-secret use exists in the verifier.
+
+Browser/deploy artifacts: not applicable. Task 2.5 explicitly forbids route enforcement and Cloudflare mutation.
+
+Residual risks and deferred items: authentication is still not enforced on upload/move routes; owner scope, raw-key rejection, CORS, prefix, grant, replay, size, rate, browser adapter, deploy, rollback, and browser proof remain later tasks.
+
+Verifier and verification outcome: Task 2.5 is checked because focused RED/GREEN, mutation proof, default GREEN, unchanged RED baseline, append-only findings, and `EV-0056` update are complete. Next task is Task 2.6.

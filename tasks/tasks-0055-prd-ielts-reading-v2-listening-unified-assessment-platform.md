@@ -323,7 +323,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - unsupported method;
     - over-limit upload request;
     - replayed or expired authorization.
-  - [ ] 2.5 Reuse or extract the verified Firebase-token pattern from `r2-backup-worker/src/auth/firebase-auth.ts` only if compatible with the upload worker runtime; do not copy service secrets or introduce client-trusted ownership.
+  - [x] 2.5 Reuse or extract the verified Firebase-token pattern from `r2-backup-worker/src/auth/firebase-auth.ts` only if compatible with the upload worker runtime; do not copy service secrets or introduce client-trusted ownership.
   - [ ] 2.6 Require authenticated teacher identity on upload/move requests and derive/validate owner scope server-side. Browser-supplied object keys must never be authority.
   - [ ] 2.7 Restrict operations to child-PRD-approved prefixes and canonical owner/session/asset structure; reject path traversal, alternate encoding, cross-prefix movement, and destination overwrite outside allowed scope.
   - [ ] 2.8 Replace wildcard CORS with exact approved production and localhost origins; return correct preflight headers only to allowed origins.

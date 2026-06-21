@@ -20,5 +20,8 @@
     "@cloudflare/workers-types": "^4.20260620.1",
     "vitest": "^4.1.9",
     "wrangler": "^4.103.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.3"
   }
 }
