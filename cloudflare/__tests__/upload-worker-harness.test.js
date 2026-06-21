@@ -18,8 +18,11 @@ const testEnv = () => ({
   UPLOAD_RATE_LIMITER: env.UPLOAD_RATE_LIMITER,
 });
 
+const FIXED_NONCE = '00112233445566778899aabbccddeeff';
+
 const createTestWorker = () =>
   createUploadWorker({
+    nonceGenerator: () => FIXED_NONCE,
     firebaseVerifier: createFirebaseVerifier({
       verifyToken: async (token) => {
         const uid = tokenUidMap[token];
@@ -91,17 +94,17 @@ describe('r2-upload-signer native R2 harness', () => {
 
   it('uploads through the Worker entrypoint using authenticated same-owner scope', async () => {
     const authorizeResponse = await fetchWorker(
-      '/?filename=temp/audio/harness-smoke.txt',
+      '/?operationKind=test_audio_temp&fileName=harness-smoke.txt',
       { method: 'POST', headers: bearer('valid-owner-a-token') },
     );
 
     expect(authorizeResponse.status).toBe(200);
     const authorizeBody = await authorizeResponse.json();
     expect(authorizeBody).toMatchObject({
-      key: 'temp/audio/owner-a/harness-smoke.txt',
+      key: `temp/audio/owner-a/${FIXED_NONCE}-harness-smoke.txt`,
     });
     expect(authorizeBody.uploadUrl).toContain(
-      'key=temp%2Faudio%2Fowner-a%2Fharness-smoke.txt',
+      `key=temp%2Faudio%2Fowner-a%2F${FIXED_NONCE}-harness-smoke.txt`,
     );
 
     const uploadResponse = await fetchWorker(new URL(authorizeBody.uploadUrl).pathname + new URL(authorizeBody.uploadUrl).search, {
@@ -115,7 +118,7 @@ describe('r2-upload-signer native R2 harness', () => {
 
     expect(uploadResponse.status).toBe(200);
     const storedObject = await env.R2_BUCKET.get(
-      'temp/audio/owner-a/harness-smoke.txt',
+      `temp/audio/owner-a/${FIXED_NONCE}-harness-smoke.txt`,
     );
     expect(storedObject).not.toBeNull();
     expect(storedObject?.httpMetadata?.contentType).toBe(
@@ -123,11 +126,23 @@ describe('r2-upload-signer native R2 harness', () => {
     );
   });
 
+  it('canonicalizes a legacy temp hint with verified uid and generated nonce', async () => {
+    const response = await fetchWorker(
+      '/?filename=temp%2Faudio%2FLegacy%20Name.MP3',
+      { method: 'POST', headers: bearer('valid-owner-a-token') },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      key: `temp/audio/owner-a/${FIXED_NONCE}-legacy-name.mp3`,
+    });
+  });
+
   it('rejects cross-owner upload and move requests without mutating R2', async () => {
     const authorizeKey = 'temp/audio/owner-b/harness-cross-owner-authorize.txt';
-    const uploadKey = 'temp/audio/owner-b/harness-cross-owner.txt';
-    const sourceKey = 'temp/audio/owner-b/harness-cross-owner-move.txt';
-    const destKey = 'audio/owner-b/harness-cross-owner-move.txt';
+    const uploadKey = `temp/audio/owner-b/${FIXED_NONCE}-harness-cross-owner.txt`;
+    const sourceKey = `temp/audio/owner-b/${FIXED_NONCE}-harness-cross-owner-move.txt`;
+    const destKey = `audio/owner-b/${FIXED_NONCE}-harness-cross-owner-move.txt`;
     await env.R2_BUCKET.put(sourceKey, 'fixture');
 
     const authorizeResponse = await fetchWorker(
@@ -167,8 +182,10 @@ describe('r2-upload-signer native R2 harness', () => {
   });
 
   it('moves an uploaded object through authenticated same-owner scope', async () => {
+    const sourceKey = `temp/audio/owner-a/${FIXED_NONCE}-harness-move.txt`;
+    const destKey = `audio/owner-a/${FIXED_NONCE}-harness-move.txt`;
     await env.R2_BUCKET.put(
-      'temp/audio/owner-a/harness-move.txt',
+      sourceKey,
       new Uint8Array(),
       { httpMetadata: { contentType: 'application/octet-stream' } },
     );
@@ -180,16 +197,104 @@ describe('r2-upload-signer native R2 harness', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sourceKey: 'temp/audio/owner-a/harness-move.txt',
-        destKey: 'audio/owner-a/harness-move.txt',
+        sourceKey,
+        destKey,
       }),
     });
 
     expect(moveResponse.status).toBe(200);
     const moveBody = await moveResponse.json();
     expect(moveBody.success).toBe(true);
-    expect(await env.R2_BUCKET.get('temp/audio/owner-a/harness-move.txt')).toBeNull();
-    expect(await env.R2_BUCKET.get('audio/owner-a/harness-move.txt')).not.toBeNull();
+    expect(await env.R2_BUCKET.get(sourceKey)).toBeNull();
+    expect(await env.R2_BUCKET.get(destKey)).not.toBeNull();
+  });
+
+  it('rejects invalid path requests before any R2 access', async () => {
+    const calls = [];
+    const worker = createUploadWorker({
+      nonceGenerator: () => FIXED_NONCE,
+      firebaseVerifier: createFirebaseVerifier({
+        verifyToken: async () => ({ valid: true, uid: 'owner-a' }),
+      }),
+    });
+    const fakeEnv = {
+      ...testEnv(),
+      R2_BUCKET: {
+        get: async (...args) => calls.push(['get', ...args]),
+        put: async (...args) => calls.push(['put', ...args]),
+        delete: async (...args) => calls.push(['delete', ...args]),
+      },
+    };
+
+    const response = await worker.fetch(
+      new Request(
+        `${BASE_URL}/?operationKind=test_audio_temp&fileName=${encodeURIComponent('../private.mp3')}`,
+        { method: 'POST', headers: bearer('valid-owner-a-token') },
+      ),
+      fakeEnv,
+    );
+
+    expect(response.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('rejects cross-prefix and noncanonical movement before R2 access', async () => {
+    const calls = [];
+    const worker = createUploadWorker({
+      nonceGenerator: () => FIXED_NONCE,
+      firebaseVerifier: createFirebaseVerifier({
+        verifyToken: async () => ({ valid: true, uid: 'owner-a' }),
+      }),
+    });
+    const fakeEnv = {
+      ...testEnv(),
+      R2_BUCKET: {
+        get: async (...args) => calls.push(['get', ...args]),
+        put: async (...args) => calls.push(['put', ...args]),
+        delete: async (...args) => calls.push(['delete', ...args]),
+      },
+    };
+    const sourceKey = `temp/audio/owner-a/${FIXED_NONCE}-move.mp3`;
+
+    const response = await worker.fetch(
+      new Request(`${BASE_URL}/move`, {
+        method: 'POST',
+        headers: {
+          ...bearer('valid-owner-a-token'),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceKey,
+          destKey: `images/owner-a/${FIXED_NONCE}-move.mp3`,
+        }),
+      }),
+      fakeEnv,
+    );
+
+    expect(response.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('rejects existing move destination without overwriting or deleting source', async () => {
+    const sourceKey = `temp/images/owner-a/${FIXED_NONCE}-existing.png`;
+    const destKey = `images/owner-a/${FIXED_NONCE}-existing.png`;
+    await env.R2_BUCKET.put(sourceKey, 'source');
+    await env.R2_BUCKET.put(destKey, 'existing-destination');
+
+    const response = await fetchWorker('/move', {
+      method: 'POST',
+      headers: {
+        ...bearer('valid-owner-a-token'),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sourceKey, destKey }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await (await env.R2_BUCKET.get(sourceKey)).text()).toBe('source');
+    expect(await (await env.R2_BUCKET.get(destKey)).text()).toBe(
+      'existing-destination',
+    );
   });
 
   it('exposes an injectable Firebase verification seam for later auth tests', async () => {

@@ -3028,3 +3028,144 @@ Full raw-key non-authority becomes satisfied only when Task 2.7 server-derived c
 3. Existing negative tests, final acceptance, deploy, rollback, browser, and independent-review gates remain required.
 4. Parent Task 2.0 and Tasks 2.6 through 2.15 remain unchecked.
 5. No Worker, test, browser adapter, Firebase, R2 lifecycle, Listening, Reading V2, deployment, rollback, or Cloudflare remote-state behavior changed in this reconciliation.
+
+## Packet 2F Task 2.7 Prefix And Canonical Path Authority - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.7 only.
+
+Task 2.7 verdict: PASS for allowlisted prefix families, server-derived canonical path structure, traversal/encoding/separator/control-character rejection, forbidden/unlisted prefix rejection, canonical same-family temp-to-durable movement, cross-prefix denial, and existing-destination overwrite denial.
+
+Task 2.6 remains unchecked under the approved checkpoint exception. This packet does not implement Task 2.8 CORS replacement, Task 2.9 opaque grants/expiry/replay/rate/size controls, Task 2.10+ hardening closure, deployment, rollback, version pin, Cloudflare remote-state mutation, browser adapter changes, Firebase rules, R2 lifecycle, cleanup, registry, heartbeat, private delivery, Listening, Reading V2, or `src/services/r2Storage.ts`.
+
+### Claims Proven
+
+1. Canonical upload authorization derives keys server-side from `operationKind`, verified Firebase `uid`, Web Crypto nonce, and sanitized basename.
+2. Allowed operation mappings are exactly:
+   - `listening_audio_temp` -> `temp/listening-audio/{uid}/{nonce}-{sanitizedFileName}`;
+   - `test_audio_temp` -> `temp/audio/{uid}/{nonce}-{sanitizedFileName}`;
+   - `test_image_temp` -> `temp/images/{uid}/{nonce}-{sanitizedFileName}`;
+   - `avatar_permanent` -> `avatars/{uid}/avatar`;
+   - `announcement_attachment_permanent` -> `announcements/{uid}/{nonce}-{sanitizedFileName}`;
+   - `book_cover_permanent` -> `book-covers/{uid}/{nonce}-{sanitizedFileName}`.
+3. Legacy `filename` inputs are compatibility hints only: allowed prefix plus basename can infer operation kind, but verified UID and generated nonce still derive the returned canonical key.
+4. Unknown operation kinds, empty names, traversal, encoded traversal, separators, duplicate separators, URLs, absolute paths, control characters, forbidden prefixes, unlisted prefixes, and noncanonical keys fail before any R2 read/write/delete.
+5. PUT is constrained to canonical Task 2.7 upload structures. Direct durable upload is rejected except `avatars/{uid}/avatar`, the approved owner-scoped avatar singleton replacement.
+6. Move is constrained to exact server-derived destination by removing leading `temp/` from a canonical same-owner, same-family source:
+   - `temp/listening-audio/{uid}/...` -> `listening-audio/{uid}/...`;
+   - `temp/audio/{uid}/...` -> `audio/{uid}/...`;
+   - `temp/images/{uid}/...` -> `images/{uid}/...`.
+7. Cross-owner, cross-prefix, non-temp source, and noncanonical destination movement fail before R2 access.
+8. Existing move destination returns `409` and preserves both source object and existing destination object.
+9. Task 2.4 insecure-baseline fixture, manifest, runner, and RED accounting remain unchanged.
+10. Worker logging no longer serializes arbitrary thrown error objects; generic route exceptions log only `Worker request failed`.
+
+### Files And Declared Touch Regions
+
+1. `cloudflare/src/upload-worker/path-authority.js`: new bounded Task 2.7 path-authority module only.
+2. `cloudflare/__tests__/path-authority.test.js`: new focused Task 2.7 path-authority unit tests only.
+3. `cloudflare/worker.js`: route delegation to path authority, canonical authorize/PUT/move constraints, overwrite checks, and sanitized generic error logging only.
+4. `cloudflare/__tests__/upload-worker-harness.test.js`: focused route integration tests for canonical path authority, invalid-before-R2, cross-prefix denial, existing-destination overwrite denial, and legacy-hint canonicalization only.
+5. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.7 only.
+6. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+7. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2F evidence only.
+
+Protected paths not touched: `src/**`, `src/services/r2Storage.ts`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, Listening, Reading V2, deployment, rollback, version-pin, Cloudflare remote state, insecure fixture, insecure-baseline manifest, insecure-baseline runner, and RED security test file.
+
+### Lines Before -> After And Responsibility Delta
+
+1. `cloudflare/worker.js`: 174 -> 189 lines. Responsibility changes from authenticated owner-scoped route with inline owner/path helpers to thin route plus path-authority delegation. It remains under the 200-line target and 250-line ceiling.
+2. `cloudflare/src/upload-worker/path-authority.js`: absent -> 260 lines. New bounded module owns operation allowlist, basename sanitization, Web Crypto nonce generation, canonical upload key derivation, legacy hint validation, canonical upload-key validation, and canonical move derivation.
+3. `cloudflare/__tests__/path-authority.test.js`: absent -> 169 lines. New focused Task 2.7 unit tests.
+4. `cloudflare/__tests__/upload-worker-harness.test.js`: 204 -> 309 lines. Responsibility expands with focused Task 2.7 route integration tests while preserving Task 2.3/2.5/2.6 harness coverage.
+5. `cloudflare/test/upload-worker-security.test.js`: 346 -> 346 lines. No test-title or baseline-contract change.
+6. `cloudflare/test/insecure-baseline-manifest.js`: 24 -> 24 lines. No expected RED case was hidden.
+7. `cloudflare/scripts/run-insecure-baseline.mjs`: 87 -> 87 lines. No runner accounting change.
+
+Created seam: `cloudflare/src/upload-worker/path-authority.js` isolates path algorithms from `cloudflare/worker.js` so future Task 2.9 grant authority can bind canonical source/destination without growing the router. Preserved seam: Task 2.4 insecure fixture/manifest/runner remain isolated and unchanged.
+
+Traceability row IDs: `EV-0056`, `FR-020I`, `DATA-83`, `DATA-85`, `DATA-95`, `DECISION-OQ-3`, `DECISION-048`, and Task 2.7.
+
+### Characterization And RED
+
+Initial focused RED command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/path-authority.test.js __tests__/upload-worker-harness.test.js --reporter=verbose
+```
+
+Initial RED result: two test files failed. `__tests__/path-authority.test.js` failed to import missing `../src/upload-worker/path-authority.js`. `__tests__/upload-worker-harness.test.js` had three expected Task 2.7 failures: canonical authorize returned `400` instead of `200`, cross-prefix move returned `200` instead of `400`, and existing destination move returned `200` instead of `409`.
+
+Compatibility RED after current caller-shape audit: same focused command failed two tests. `accepts a legacy temp hint without owner and injects no browser identity` threw `noncanonical_legacy_hint`, and `canonicalizes a legacy temp hint with verified uid and generated nonce` returned `400` instead of `200`. The fix accepted only allowed-prefix-plus-basename legacy hints and still injected verified UID plus generated nonce server-side.
+
+### GREEN And Mutation Proof
+
+Focused GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/path-authority.test.js __tests__/upload-worker-harness.test.js --reporter=verbose
+```
+
+Focused GREEN result: two files passed, 46 tests passed.
+
+Mutation proof: temporarily weakened the central traversal guard in `cloudflare/src/upload-worker/path-authority.js` by changing `if (decoded.includes('..')) fail('path_traversal');` to `if (false && decoded.includes('..')) fail('path_traversal');`. Focused tests failed one file with three failures: `"../private.mp3"`, `"%2e%2e%2fprivate.mp3"`, and `"%252e%252e%252fprivate.mp3"` no longer produced the required `path_traversal` reason. Restored the guard, reran the focused suite, and it passed.
+
+Default GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run
+```
+
+Default GREEN result: three files passed, 51 tests passed.
+
+Task 2.4 RED-baseline command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'scripts/run-insecure-baseline.mjs'
+```
+
+Task 2.4 RED-baseline result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+### Clean-Copy Proof
+
+Clean temporary-copy command used bundled x64 Node `v24.14.0` to launch system npm CLI `10.9.2`, with bundled-node `bin` prepended to `PATH` so lifecycle scripts use the x64 runtime. The copy contained `cloudflare/` files without `node_modules`.
+
+Clean temporary-copy result:
+
+1. `npm ci`: 82 packages added, 83 audited, zero vulnerabilities.
+2. `npm test`: three files passed, 51 tests passed.
+3. `node scripts/run-insecure-baseline.mjs`: fixture hash matched and 18 expected RED failures plus four already-safe passes matched.
+4. Temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd-0056-task-2-7-5c49b2285288464f9c1e548a455e8a26` was verified under the OS temp directory and removed. An earlier clean-copy run had already passed install/tests/baseline but exited `1` because `workerd.exe` was transiently locked during cleanup; no `workerd.exe` process remained, that temp path was removed, and the passing rerun exited `0`.
+
+### Static, Boundary, And Deferred Evidence
+
+1. `git diff --check`: PASS before evidence updates; final rerun required after this append-only findings/task/traceability update.
+2. Static scan before evidence updates: `Math.random` absent from Worker path-authority code; nonce generation uses Web Crypto `crypto.getRandomValues`.
+3. Static scan before evidence updates: no standalone DELETE behavior was added.
+4. Protected-path scan before evidence updates showed only `cloudflare/worker.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, new `cloudflare/src/upload-worker/path-authority.js`, and new `cloudflare/__tests__/path-authority.test.js` changed in runtime/test code.
+5. Browser/deploy artifacts: not applicable. Task 2.7 explicitly forbids browser adapter changes, deployment, rollback, version-pin, and Cloudflare remote mutation.
+
+Residual risks and deferred items: Task 2.7 constrains canonical structures but does not claim full raw-key non-authority. Browser-visible `key`, `sourceKey`, and `destKey` remain temporary raw-key compatibility inputs until Task 2.9 opaque upload/move grants bind UID, operation, canonical paths, content type, size, expiry, nonce, replay, and rate/size controls. CORS hardening remains Task 2.8. Task 2.6 remains unchecked until integrated Task 2.6/2.7/2.9 proof.
+
+Verifier and verification outcome: Task 2.7 is checked because focused RED/GREEN, compatibility RED/GREEN, traversal-guard mutation proof, default GREEN, unchanged insecure-baseline runner, clean temporary-copy proof, append-only findings, and `EV-0056` update are complete. Next task ready by checkpoint order is Task 2.8 only; Task 2.9 is not started.
+
+### Final Post-Evidence Verification Addendum
+
+After appending Packet 2F findings, updating `EV-0056`, and checking Task 2.7 only:
+
+1. Bundled-x64 `& $node 'node_modules/vitest/vitest.mjs' run`: PASS, three files and 51 tests.
+2. Bundled-x64 `& $node 'scripts/run-insecure-baseline.mjs'`: PASS, fixture hash matched and manifest remained 18 expected RED failures plus four already-safe passes.
+3. `npm run check:utf8 -- cloudflare\worker.js cloudflare\src\upload-worker\path-authority.js cloudflare\__tests__\path-authority.test.js cloudflare\__tests__\upload-worker-harness.test.js tasks\tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS, seven text files.
+4. `git diff --check`: PASS.
+5. Protected-path scan: PASS, changed paths are only Task 2.7 Worker/module/tests plus tasklist/findings/traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, insecure-baseline runner, or RED security test file changed.
+6. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Tasks 2.8 through 2.15 unchecked.
+7. Static route scan: PASS, no `Math.random`, standalone DELETE route, delete object route, or delete method branch was added. The only `env.R2_BUCKET.delete(...)` in changed Worker code remains the pre-existing move-source deletion pattern after successful same-family move.

@@ -1,4 +1,13 @@
 import { createFirebaseVerifier } from './src/upload-worker/firebase-verification.js';
+import {
+  PathAuthorityError,
+  createCanonicalUploadPath,
+  deriveCanonicalMove,
+  generateNonce,
+  parseLegacyUploadHint,
+  sanitizeFileName,
+  validateCanonicalUploadKey,
+} from './src/upload-worker/path-authority.js';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -24,41 +33,6 @@ const jsonResponse = (body, init = {}) =>
 const textResponse = (body, init = {}) =>
   new Response(body, { ...init, headers: { ...corsHeaders, ...init.headers } });
 
-const ownerIndexForKey = (key) => {
-  const parts = key.split('/');
-
-  if (parts[0] === 'temp') return parts.length >= 4 ? 2 : -1;
-  if (parts.length >= 3) return 1;
-
-  return -1;
-};
-
-const validateOwnerScope = (key, uid) => {
-  const ownerIndex = ownerIndexForKey(key);
-  if (ownerIndex < 0) {
-    return { valid: false };
-  }
-
-  return { valid: key.split('/')[ownerIndex] === uid };
-};
-
-const deriveUploadKey = (filename, uid) => {
-  const parts = filename.split('/');
-  const ownerIndex = ownerIndexForKey(filename);
-
-  if (ownerIndex >= 0) {
-    return validateOwnerScope(filename, uid).valid
-      ? { valid: true, key: filename }
-      : { valid: false };
-  }
-
-  if (parts[0] === 'temp' && parts.length >= 3) {
-    return { valid: true, key: ['temp', parts[1], uid, ...parts.slice(2)].join('/') };
-  }
-
-  return { valid: false };
-};
-
 const authenticate = async (request, env, firebaseVerifier) => {
   const authResult = await firebaseVerifier.verifyAuthorizationHeader(
     request.headers.get('Authorization'),
@@ -76,6 +50,7 @@ const authenticate = async (request, env, firebaseVerifier) => {
 
 export function createUploadWorker({
   firebaseVerifier = createFirebaseVerifier(),
+  nonceGenerator = generateNonce,
 } = {}) {
   return {
     async fetch(request, env) {
@@ -97,44 +72,74 @@ export function createUploadWorker({
             return jsonResponse({ error: 'sourceKey and destKey required' }, { status: 400 });
           }
 
-          const sourceScope = validateOwnerScope(sourceKey, uid);
-          const destScope = validateOwnerScope(destKey, uid);
-          if (!sourceScope.valid || !destScope.valid) {
-            return jsonResponse({ error: 'Forbidden' }, { status: 403 });
+          const move = deriveCanonicalMove({ sourceKey, destKey, uid });
+          const existingDestination = await env.R2_BUCKET.get(move.destKey);
+          if (existingDestination) {
+            return jsonResponse({ error: 'Destination already exists' }, { status: 409 });
           }
 
-          const sourceObject = await env.R2_BUCKET.get(sourceKey);
+          const sourceObject = await env.R2_BUCKET.get(move.sourceKey);
 
           if (!sourceObject) {
             return jsonResponse({ error: 'Source file not found' }, { status: 404 });
           }
 
-          await env.R2_BUCKET.put(destKey, sourceObject.body, {
+          await env.R2_BUCKET.put(move.destKey, sourceObject.body, {
             httpMetadata: sourceObject.httpMetadata,
             customMetadata: sourceObject.customMetadata,
           });
 
-          await env.R2_BUCKET.delete(sourceKey);
+          await env.R2_BUCKET.delete(move.sourceKey);
 
           return jsonResponse({
             success: true,
-            message: `Moved ${sourceKey} to ${destKey}`,
+            message: `Moved ${move.sourceKey} to ${move.destKey}`,
           });
         }
 
         if (request.method === 'POST') {
-          const filename = url.searchParams.get('filename');
+          const operationKindHint = url.searchParams.get('operationKind');
+          const fileNameHint = url.searchParams.get('fileName');
+          const legacyFilenameHint = url.searchParams.get('filename');
+          let operationKind = operationKindHint;
+          let fileName = fileNameHint;
 
-          if (!filename) {
-            return jsonResponse({ error: 'Filename required' }, { status: 400 });
+          if (legacyFilenameHint) {
+            if (legacyFilenameHint.includes('/')) {
+              const legacy = parseLegacyUploadHint({
+                filename: legacyFilenameHint,
+                uid,
+              });
+              if (operationKind && operationKind !== legacy.operationKind) {
+                throw new PathAuthorityError('legacy_hint_mismatch');
+              }
+              if (
+                fileName &&
+                sanitizeFileName(fileName) !== sanitizeFileName(legacy.fileName)
+              ) {
+                throw new PathAuthorityError('legacy_hint_mismatch');
+              }
+              operationKind ??= legacy.operationKind;
+              fileName ??= legacy.fileName;
+            } else {
+              fileName ??= legacyFilenameHint;
+            }
           }
 
-          const uploadKey = deriveUploadKey(filename, uid);
-          if (!uploadKey.valid) {
-            return jsonResponse({ error: 'Forbidden' }, { status: 403 });
+          if (!operationKind || !fileName) {
+            return jsonResponse(
+              { error: 'operationKind and fileName required' },
+              { status: 400 },
+            );
           }
 
-          const key = uploadKey.key;
+          const canonical = createCanonicalUploadPath({
+            operationKind,
+            uid,
+            fileName,
+            nonce: operationKind === 'avatar_permanent' ? undefined : nonceGenerator(),
+          });
+          const key = canonical.key;
           const uploadUrl = `${url.origin}?key=${encodeURIComponent(key)}`;
 
           return jsonResponse({ key, uploadUrl });
@@ -147,25 +152,35 @@ export function createUploadWorker({
             return textResponse('Key required', { status: 400 });
           }
 
-          if (!validateOwnerScope(key, uid).valid) {
-            return jsonResponse({ error: 'Forbidden' }, { status: 403 });
+          const canonical = validateCanonicalUploadKey({ key, uid });
+          if (!canonical.valid) {
+            const status = canonical.reason === 'owner_mismatch' ? 403 : 400;
+            return jsonResponse({ error: canonical.reason }, { status });
+          }
+
+          const existingObject = await env.R2_BUCKET.get(canonical.key);
+          if (existingObject && !canonical.allowsOverwrite) {
+            return jsonResponse({ error: 'Destination already exists' }, { status: 409 });
           }
 
           const contentType = request.headers.get('Content-Type') || 'application/octet-stream';
 
-          await env.R2_BUCKET.put(key, request.body, {
+          await env.R2_BUCKET.put(canonical.key, request.body, {
             httpMetadata: { contentType },
           });
 
-          const publicUrl = `${env.PUBLIC_URL}/${key}`;
+          const publicUrl = `${env.PUBLIC_URL}/${canonical.key}`;
 
-          return jsonResponse({ success: true, url: publicUrl, key });
+          return jsonResponse({ success: true, url: publicUrl, key: canonical.key });
         }
 
         return textResponse('Method not allowed', { status: 405 });
       } catch (error) {
-        console.error('Worker error:', error);
-        return jsonResponse({ error: error.message }, { status: 500 });
+        if (error instanceof PathAuthorityError) {
+          return jsonResponse({ error: error.reason }, { status: error.status });
+        }
+        console.error('Worker request failed');
+        return jsonResponse({ error: 'Internal server error' }, { status: 500 });
       }
     },
   };
