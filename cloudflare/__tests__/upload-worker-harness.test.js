@@ -4,6 +4,14 @@ import { createUploadWorker } from '../worker.js';
 import { createFirebaseVerifier } from '../src/upload-worker/firebase-verification.js';
 
 const BASE_URL = 'https://r2-upload-signer.test';
+const APPROVED_ORIGINS = [
+  'https://kahut1.web.app',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+const UNAPPROVED_ORIGIN = 'https://attacker.example';
+const ALLOWED_CORS_METHODS = 'OPTIONS, POST, PUT';
+const ALLOWED_CORS_HEADERS = 'Authorization, Content-Type, Content-Length';
 
 const tokenUidMap = {
   'valid-owner-a-token': 'owner-a',
@@ -35,6 +43,16 @@ const fetchWorker = (path, init = {}) =>
   createTestWorker().fetch(new Request(`${BASE_URL}${path}`, init), testEnv());
 
 const bearer = (token) => ({ Authorization: `Bearer ${token}` });
+
+const preflight = (origin, method = 'POST', headers = ALLOWED_CORS_HEADERS) =>
+  fetchWorker('/upload/authorize', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: origin,
+      'Access-Control-Request-Method': method,
+      'Access-Control-Request-Headers': headers,
+    },
+  });
 
 describe('r2-upload-signer native R2 harness', () => {
   it('injects the test-only upload grant secret', () => {
@@ -74,6 +92,140 @@ describe('r2-upload-signer native R2 harness', () => {
     expect(await env.R2_BUCKET.get(missingUploadKey)).toBeNull();
     expect(await env.R2_BUCKET.get(sourceKey)).not.toBeNull();
     expect(await env.R2_BUCKET.get(destKey)).toBeNull();
+  });
+
+  it('never returns wildcard CORS on representative responses', async () => {
+    const responses = [
+      await preflight(APPROVED_ORIGINS[0]),
+      await preflight(UNAPPROVED_ORIGIN),
+      await fetchWorker('/?operationKind=test_audio_temp&fileName=no-auth.txt', {
+        method: 'POST',
+        headers: { Origin: APPROVED_ORIGINS[1] },
+      }),
+      await fetchWorker('/?operationKind=test_audio_temp&fileName=cli.txt', {
+        method: 'POST',
+        headers: bearer('valid-owner-a-token'),
+      }),
+    ];
+
+    for (const response of responses) {
+      expect(response.headers.get('Access-Control-Allow-Origin')).not.toBe('*');
+    }
+  });
+
+  it.each(APPROVED_ORIGINS)('echoes approved origin %s exactly', async (origin) => {
+    const response = await preflight(origin);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+    expect(response.headers.get('Access-Control-Allow-Methods')).toBe(
+      ALLOWED_CORS_METHODS,
+    );
+    expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
+      ALLOWED_CORS_HEADERS,
+    );
+  });
+
+  it('denies unapproved origin preflight', async () => {
+    const response = await preflight(UNAPPROVED_ORIGIN);
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('denies unsupported preflight methods fail closed', async () => {
+    const response = await preflight(APPROVED_ORIGINS[1], 'DELETE');
+
+    expect([403, 405]).toContain(response.status);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('denies unapproved actual POST before auth and R2 access', async () => {
+    const calls = [];
+    const worker = createUploadWorker({
+      nonceGenerator: () => FIXED_NONCE,
+      firebaseVerifier: createFirebaseVerifier({
+        verifyToken: async () => {
+          calls.push(['auth']);
+          return { valid: true, uid: 'owner-a' };
+        },
+      }),
+    });
+    const fakeEnv = {
+      ...testEnv(),
+      R2_BUCKET: {
+        get: async (...args) => calls.push(['get', ...args]),
+        put: async (...args) => calls.push(['put', ...args]),
+        delete: async (...args) => calls.push(['delete', ...args]),
+      },
+    };
+
+    const response = await worker.fetch(
+      new Request(`${BASE_URL}/?operationKind=test_audio_temp&fileName=blocked.txt`, {
+        method: 'POST',
+        headers: {
+          ...bearer('valid-owner-a-token'),
+          Origin: UNAPPROVED_ORIGIN,
+        },
+      }),
+      fakeEnv,
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it('denies unapproved actual PUT before auth and R2 access', async () => {
+    const calls = [];
+    const worker = createUploadWorker({
+      nonceGenerator: () => FIXED_NONCE,
+      firebaseVerifier: createFirebaseVerifier({
+        verifyToken: async () => {
+          calls.push(['auth']);
+          return { valid: true, uid: 'owner-a' };
+        },
+      }),
+    });
+    const fakeEnv = {
+      ...testEnv(),
+      R2_BUCKET: {
+        get: async (...args) => calls.push(['get', ...args]),
+        put: async (...args) => calls.push(['put', ...args]),
+        delete: async (...args) => calls.push(['delete', ...args]),
+      },
+    };
+
+    const response = await worker.fetch(
+      new Request(
+        `${BASE_URL}/?key=${encodeURIComponent(
+          `temp/audio/owner-a/${FIXED_NONCE}-blocked.txt`,
+        )}`,
+        {
+          method: 'PUT',
+          headers: {
+            ...bearer('valid-owner-a-token'),
+            Origin: UNAPPROVED_ORIGIN,
+          },
+          body: new Uint8Array(),
+        },
+      ),
+      fakeEnv,
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it('preserves no-Origin non-browser compatibility without wildcard CORS', async () => {
+    const response = await fetchWorker('/?operationKind=test_audio_temp&fileName=cli.txt', {
+      method: 'POST',
+      headers: bearer('valid-owner-a-token'),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
   it.each([

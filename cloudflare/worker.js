@@ -1,5 +1,10 @@
 import { createFirebaseVerifier } from './src/upload-worker/firebase-verification.js';
 import {
+  corsResponseHeaders,
+  handleCorsPreflight,
+  rejectDisallowedActualOrigin,
+} from './src/upload-worker/cors-policy.js';
+import {
   PathAuthorityError,
   createCanonicalUploadPath,
   deriveCanonicalMove,
@@ -18,22 +23,21 @@ import {
  * - Proper CORS handling
  */
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {
     ...init,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...init.headers },
+    headers: { 'Content-Type': 'application/json', ...init.headers },
   });
 
 const textResponse = (body, init = {}) =>
-  new Response(body, { ...init, headers: { ...corsHeaders, ...init.headers } });
+  new Response(body, { ...init, headers: { ...init.headers } });
 
-const authenticate = async (request, env, firebaseVerifier) => {
+const withHeaders = (init, headers) => ({
+  ...init,
+  headers: { ...headers, ...init.headers },
+});
+
+const authenticate = async (request, env, firebaseVerifier, responseHeaders = {}) => {
   const authResult = await firebaseVerifier.verifyAuthorizationHeader(
     request.headers.get('Authorization'),
     env,
@@ -41,7 +45,10 @@ const authenticate = async (request, env, firebaseVerifier) => {
 
   if (!authResult.valid) {
     return {
-      response: jsonResponse({ error: 'Unauthorized' }, { status: 401 }),
+      response: jsonResponse(
+        { error: 'Unauthorized' },
+        { status: 401, headers: responseHeaders },
+      ),
     };
   }
 
@@ -55,13 +62,19 @@ export function createUploadWorker({
   return {
     async fetch(request, env) {
       if (request.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
+        return handleCorsPreflight(request);
       }
 
+      const corsRejection = rejectDisallowedActualOrigin(request);
+      if (corsRejection) return corsRejection;
+
       const url = new URL(request.url);
+      const corsHeaders = corsResponseHeaders(request);
+      const json = (body, init = {}) => jsonResponse(body, withHeaders(init, corsHeaders));
+      const text = (body, init = {}) => textResponse(body, withHeaders(init, corsHeaders));
 
       try {
-        const auth = await authenticate(request, env, firebaseVerifier);
+        const auth = await authenticate(request, env, firebaseVerifier, corsHeaders);
         if (auth.response) return auth.response;
         const { uid } = auth;
 
@@ -69,19 +82,19 @@ export function createUploadWorker({
           const { sourceKey, destKey } = await request.json();
 
           if (!sourceKey || !destKey) {
-            return jsonResponse({ error: 'sourceKey and destKey required' }, { status: 400 });
+            return json({ error: 'sourceKey and destKey required' }, { status: 400 });
           }
 
           const move = deriveCanonicalMove({ sourceKey, destKey, uid });
           const existingDestination = await env.R2_BUCKET.get(move.destKey);
           if (existingDestination) {
-            return jsonResponse({ error: 'Destination already exists' }, { status: 409 });
+            return json({ error: 'Destination already exists' }, { status: 409 });
           }
 
           const sourceObject = await env.R2_BUCKET.get(move.sourceKey);
 
           if (!sourceObject) {
-            return jsonResponse({ error: 'Source file not found' }, { status: 404 });
+            return json({ error: 'Source file not found' }, { status: 404 });
           }
 
           await env.R2_BUCKET.put(move.destKey, sourceObject.body, {
@@ -91,7 +104,7 @@ export function createUploadWorker({
 
           await env.R2_BUCKET.delete(move.sourceKey);
 
-          return jsonResponse({
+          return json({
             success: true,
             message: `Moved ${move.sourceKey} to ${move.destKey}`,
           });
@@ -127,10 +140,7 @@ export function createUploadWorker({
           }
 
           if (!operationKind || !fileName) {
-            return jsonResponse(
-              { error: 'operationKind and fileName required' },
-              { status: 400 },
-            );
+            return json({ error: 'operationKind and fileName required' }, { status: 400 });
           }
 
           const canonical = createCanonicalUploadPath({
@@ -142,25 +152,25 @@ export function createUploadWorker({
           const key = canonical.key;
           const uploadUrl = `${url.origin}?key=${encodeURIComponent(key)}`;
 
-          return jsonResponse({ key, uploadUrl });
+          return json({ key, uploadUrl });
         }
 
         if (request.method === 'PUT') {
           const key = url.searchParams.get('key');
 
           if (!key) {
-            return textResponse('Key required', { status: 400 });
+            return text('Key required', { status: 400 });
           }
 
           const canonical = validateCanonicalUploadKey({ key, uid });
           if (!canonical.valid) {
             const status = canonical.reason === 'owner_mismatch' ? 403 : 400;
-            return jsonResponse({ error: canonical.reason }, { status });
+            return json({ error: canonical.reason }, { status });
           }
 
           const existingObject = await env.R2_BUCKET.get(canonical.key);
           if (existingObject && !canonical.allowsOverwrite) {
-            return jsonResponse({ error: 'Destination already exists' }, { status: 409 });
+            return json({ error: 'Destination already exists' }, { status: 409 });
           }
 
           const contentType = request.headers.get('Content-Type') || 'application/octet-stream';
@@ -171,16 +181,16 @@ export function createUploadWorker({
 
           const publicUrl = `${env.PUBLIC_URL}/${canonical.key}`;
 
-          return jsonResponse({ success: true, url: publicUrl, key: canonical.key });
+          return json({ success: true, url: publicUrl, key: canonical.key });
         }
 
-        return textResponse('Method not allowed', { status: 405 });
+        return text('Method not allowed', { status: 405 });
       } catch (error) {
         if (error instanceof PathAuthorityError) {
-          return jsonResponse({ error: error.reason }, { status: error.status });
+          return json({ error: error.reason }, { status: error.status });
         }
         console.error('Worker request failed');
-        return jsonResponse({ error: 'Internal server error' }, { status: 500 });
+        return json({ error: 'Internal server error' }, { status: 500 });
       }
     },
   };

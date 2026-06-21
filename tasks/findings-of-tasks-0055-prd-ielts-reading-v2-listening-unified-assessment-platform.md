@@ -3169,3 +3169,133 @@ After appending Packet 2F findings, updating `EV-0056`, and checking Task 2.7 on
 5. Protected-path scan: PASS, changed paths are only Task 2.7 Worker/module/tests plus tasklist/findings/traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, insecure-baseline runner, or RED security test file changed.
 6. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Tasks 2.8 through 2.15 unchecked.
 7. Static route scan: PASS, no `Math.random`, standalone DELETE route, delete object route, or delete method branch was added. The only `env.R2_BUCKET.delete(...)` in changed Worker code remains the pre-existing move-source deletion pattern after successful same-family move.
+
+## Packet 2G Task 2.8 Exact-Origin CORS - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.8 only.
+
+Task 2.8 verdict: PASS for replacing wildcard CORS with exact approved origins, echoing allowed request origins, returning correct preflight headers only to allowed origins, denying unapproved preflight origins, failing closed on unsupported preflight methods, and denying unapproved actual POST/PUT before authentication or R2 access.
+
+Task 2.6 remains unchecked under the approved checkpoint exception. This packet does not implement Task 2.9 opaque grants, expiry, replay, rate controls, 50 MB controls, Task 2.10+ hardening closure, deployment, rollback, version pin, Cloudflare remote-state mutation, browser adapter changes, Firebase rules, R2 lifecycle, cleanup, registry, heartbeat, private delivery, Listening, Reading V2, or `src/services/r2Storage.ts`.
+
+### Claims Proven
+
+1. `Access-Control-Allow-Origin` is never `*` in focused representative Worker responses.
+2. Allowed origins are exactly `https://kahut1.web.app`, `http://localhost:5173`, and `http://localhost:5174`.
+3. Allowed-origin preflight returns `204` and echoes the request origin exactly.
+4. Preflight advertises only `OPTIONS, POST, PUT`.
+5. Preflight advertises only `Authorization, Content-Type, Content-Length`.
+6. Unapproved-origin preflight returns `403` without `Access-Control-Allow-Origin`.
+7. Unsupported preflight method returns `405` without `Access-Control-Allow-Origin`.
+8. Unapproved actual POST and PUT return `403` before Firebase verification and before any R2 `get`, `put`, or `delete`.
+9. Requests without `Origin` remain allowed for non-browser/test/CLI compatibility and return no CORS origin header.
+10. Existing auth, owner, path, upload, move, insecure-baseline fixture, manifest, and runner behavior remain intact.
+
+### Files And Declared Touch Regions
+
+1. `cloudflare/src/upload-worker/cors-policy.js`: new bounded Task 2.8 CORS allowlist, preflight, response-header, and actual-origin rejection policy.
+2. `cloudflare/worker.js`: import and delegate to CORS policy, reject unapproved actual origins before auth/R2, and attach allowed CORS response headers to existing route responses.
+3. `cloudflare/__tests__/upload-worker-harness.test.js`: focused Task 2.8 CORS route tests only.
+4. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.8 only.
+5. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+6. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2G evidence only.
+
+Protected paths not touched: `src/**`, `src/services/r2Storage.ts`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, Listening, Reading V2, deployment, rollback, version-pin, Cloudflare remote state, insecure fixture, insecure-baseline manifest, insecure-baseline runner, and RED security test file.
+
+### Lines Before -> After And Responsibility Delta
+
+1. `cloudflare/worker.js`: 189 -> 199 lines. Responsibility remains thin request routing plus existing auth/path/R2 delegation; CORS algorithm moved into bounded module. It remains under the 200-line target and 250-line ceiling.
+2. `cloudflare/src/upload-worker/cors-policy.js`: absent -> 67 lines. New bounded module owns approved-origin list, allowed method/header preflight validation, response CORS headers, and fail-closed actual-origin rejection.
+3. `cloudflare/__tests__/upload-worker-harness.test.js`: 309 -> 461 lines. Responsibility expands with focused Task 2.8 CORS route integration tests while preserving Task 2.3/2.5/2.6/2.7 harness coverage.
+4. `cloudflare/test/upload-worker-security.test.js`: 346 -> 346 lines. No test-title or baseline-contract change.
+5. `cloudflare/test/insecure-baseline-manifest.js`: 24 -> 24 lines. No expected RED case was hidden.
+6. `cloudflare/scripts/run-insecure-baseline.mjs`: 87 -> 87 lines. No runner accounting change.
+
+Created seam: `cloudflare/src/upload-worker/cors-policy.js` isolates CORS policy from `cloudflare/worker.js` so Task 2.9 grant/rate/size work can proceed without growing the router. Preserved seam: Task 2.4 insecure fixture/manifest/runner remain isolated and unchanged.
+
+Traceability row IDs: `EV-0056`, `FR-020I`, `DATA-18`, `DATA-88`, `DATA-95`, `DECISION-OQ-3`, `DECISION-053`, and Task 2.8.
+
+### Characterization And RED
+
+Initial focused RED command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/upload-worker-harness.test.js --reporter=verbose
+```
+
+Initial RED result: one test file failed with nine expected CORS failures. Failures: wildcard still returned; the three approved-origin preflights returned `200` instead of `204`; unapproved-origin preflight returned `200` instead of `403`; unsupported preflight method returned `200`; unapproved actual POST returned `200` instead of `403`; unapproved actual PUT returned `409` instead of `403`; no-Origin compatibility still returned wildcard instead of no CORS origin header. Fourteen existing tests passed.
+
+### GREEN And Mutation Proof
+
+Focused GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run __tests__/upload-worker-harness.test.js --reporter=verbose
+```
+
+Focused GREEN result: one file passed, 23 tests passed.
+
+Mutation proof: temporarily weakened `cloudflare/src/upload-worker/cors-policy.js` by changing allowed-origin response header emission from `Access-Control-Allow-Origin: origin` to `Access-Control-Allow-Origin: '*'`. Focused tests failed one file with four expected failures: wildcard was detected and the three approved-origin echo assertions received `*` instead of the exact origin. Restored exact-origin echo and reran the focused suite; one file passed, 23 tests passed. After the final router line-count shrink, reran focused default reporter again; one file passed, 23 tests passed.
+
+Default GREEN command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'node_modules/vitest/vitest.mjs' run
+```
+
+Default GREEN result: three files passed, 60 tests passed.
+
+Task 2.4 RED-baseline command:
+
+```powershell
+cd cloudflare
+$node='C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node 'scripts/run-insecure-baseline.mjs'
+```
+
+Task 2.4 RED-baseline result: fixture SHA-256 matched `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+
+### Clean-Copy Proof
+
+Clean temporary-copy command used bundled x64 Node `v24.14.0` to launch system npm CLI `10.9.2`, with bundled-node `bin` prepended to `PATH` so lifecycle scripts use the x64 runtime. The copy contained `cloudflare/` files without `node_modules`.
+
+Clean temporary-copy result:
+
+1. `npm ci`: 82 packages added, 83 audited, zero vulnerabilities.
+2. `node_modules/vitest/vitest.mjs run`: three files passed, 60 tests passed.
+3. `node scripts/run-insecure-baseline.mjs`: fixture hash matched and 18 expected RED failures plus four already-safe passes matched.
+4. Temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd-0056-task-2-8-ee08a4925fe8494baa7b8340b714b380` was verified under the OS temp directory and removed. An earlier clean-copy run passed install/tests/baseline but exited `1` because `workerd.exe` was transiently locked during cleanup; the temp path was removed successfully on retry.
+
+### Static, Boundary, And Deferred Evidence
+
+1. `git diff --check`: final rerun required after this append-only findings/task/traceability update.
+2. UTF-8 check: final rerun required after this append-only findings/task/traceability update.
+3. Static CORS scan before evidence updates: no wildcard CORS remains in `cloudflare/worker.js`, `cloudflare/src/upload-worker/cors-policy.js`, or `cloudflare/__tests__/upload-worker-harness.test.js`; wildcard remains only in the immutable insecure baseline fixture and security baseline assertions.
+4. Protected-path scan before evidence updates showed only `cloudflare/worker.js`, `cloudflare/src/upload-worker/cors-policy.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, tasklist, findings, and traceability changed.
+5. Browser/deploy artifacts: not applicable. Task 2.8 explicitly forbids browser adapter changes, deployment, rollback, version-pin, and Cloudflare remote mutation.
+
+Residual risks and deferred items: Task 2.8 removes wildcard CORS and fails unapproved browser origins closed, but does not claim full S0 closure. Browser-visible `key`, `sourceKey`, and `destKey` remain temporary raw-key compatibility inputs until Task 2.9 opaque upload/move grants bind UID, operation, canonical paths, content type, size, expiry, nonce, replay, and rate/size controls. Task 2.6 remains unchecked until integrated Task 2.6/2.7/2.9 proof. Task 2.9 is ready next by the approved checkpoint order, but not started here.
+
+Verifier and verification outcome: Task 2.8 is checked because focused RED/GREEN, wildcard mutation proof, restored focused GREEN, default Worker GREEN, unchanged insecure-baseline runner, clean temporary-copy proof, append-only findings, and `EV-0056` update are complete. Parent Task 2.0, Task 2.6, and Tasks 2.9 through 2.15 remain unchecked.
+
+### Final Post-Evidence Verification Addendum
+
+After appending Packet 2G findings, updating `EV-0056`, and checking Task 2.8 only:
+
+1. Bundled-x64 `& $node 'node_modules/vitest/vitest.mjs' run`: PASS, three files and 60 tests.
+2. Bundled-x64 `& $node 'scripts/run-insecure-baseline.mjs'`: PASS, fixture hash matched and manifest remained 18 expected RED failures plus four already-safe passes.
+3. Clean temporary copy with bundled-x64 Node and bundled-node `PATH` precedence: PASS, `npm ci` installed 82 packages with zero vulnerabilities, three files and 60 tests passed, fixture hash matched, and the 18-RED/four-safe manifest matched; temporary copy was removed.
+4. `npm run check:utf8 -- cloudflare\worker.js cloudflare\src\upload-worker\cors-policy.js cloudflare\__tests__\upload-worker-harness.test.js tasks\tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks\traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS, six text files.
+5. `git diff --check`: PASS.
+6. Protected-path scan: PASS, changed paths are only `cloudflare/worker.js`, `cloudflare/src/upload-worker/cors-policy.js`, `cloudflare/__tests__/upload-worker-harness.test.js`, tasklist, findings, and traceability; no `src/**`, Firebase rules/config, `r2-backup-worker/**`, SOP, upload-storage authority doc, R2 lifecycle, deployment, rollback, version-pin, Cloudflare remote-state, insecure fixture, insecure-baseline manifest, insecure-baseline runner, or RED security test file changed.
+7. Taskbox scan: PASS, parent Task 2.0 unchecked; Task 2.6 unchecked; Task 2.7 checked; Task 2.8 checked; Tasks 2.9 through 2.15 unchecked.
+8. Static CORS scan: PASS, production Worker/CORS policy contains no wildcard CORS, no advertised GET/DELETE CORS methods, and exact allowed methods/headers; wildcard remains only in immutable insecure-baseline fixture and RED baseline assertions.
+9. Line-count scan: PASS, `cloudflare/worker.js` is 199 lines, under the 200-line target and 250-line ceiling; `cloudflare/src/upload-worker/cors-policy.js` is 67 lines; `cloudflare/__tests__/upload-worker-harness.test.js` is 461 lines, under the 500-line ceiling.
