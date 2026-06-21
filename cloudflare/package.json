@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:security:red": "node scripts/run-insecure-baseline.mjs",
     "check": "wrangler deploy --dry-run",
     "local": "wrangler dev",
     "dev": "wrangler dev",

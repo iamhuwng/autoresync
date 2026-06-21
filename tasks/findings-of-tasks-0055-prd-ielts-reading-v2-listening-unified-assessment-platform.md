@@ -2666,3 +2666,103 @@ Original review findings:
 6. Placeholder scan: `rg -n "example\.invalid|test-project" cloudflare` returned no hits.
 7. Secret-file scan: no `.env*` or `.dev.vars*` file is tracked; ignore-rule probes matched root and Worker-local variants.
 8. Task scan: Task 2.3 checked; parent 2.0 and Tasks 2.4 through 2.15 unchecked.
+
+## Packet 2C Task 2.4 Insecure-Baseline Negative Contract - 2026-06-21
+
+### Scope And Verdict
+
+Task 2.4 verdict: PASS. This packet adds only test infrastructure, the immutable insecure-current fixture, negative contract tests, explicit RED accounting, and evidence/docs updates. It does not harden `cloudflare/worker.js`, deploy, roll back, version-pin, call Cloudflare APIs, mutate Cloudflare state, change Firebase rules, change R2 lifecycle, or touch Listening, Reading V2, `src/services/r2Storage.ts`, or application runtime code.
+
+Task 2.3 was committed first as `779e8045` (`test(cloudflare): add native R2 harness`). Task 2.4 began from a clean worktree.
+
+### Claims Proven
+
+1. `cloudflare/test/fixtures/insecure-current-worker.js` is the exact JavaScript source block from `documentation/SOP/R2_WORKER_UPDATE_GUIDE.md`, which Packet 2A proved matches deployed version `20dd8429-5be1-4105-baed-f6dc5af68098`.
+2. Normalization converts CRLF to LF and removes at most one terminal LF. The fixture's normalized byte length is 4051 and SHA-256 is `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`.
+3. `cloudflare/test/upload-worker-security.test.js` contains all 22 PRD-0056 section 13 negative contracts.
+4. `cloudflare/test/insecure-baseline-manifest.js` explicitly distinguishes expected insecure RED failures from behavior already safe in the deployed/SOP baseline.
+5. `cloudflare/scripts/run-insecure-baseline.mjs` verifies fixture hash, executes the suite, compares every test outcome to the manifest, rejects missing/unregistered tests, and exits zero only when the expected baseline is reproduced.
+6. Default `npm --prefix cloudflare test` remains GREEN and excludes the intentional RED suite.
+
+The suite uses `.js` rather than the child PRD's proposed `.ts` extension because the current Worker package has a JavaScript harness/config, no `tsconfig.json`, and no TypeScript test setup. Adding TypeScript configuration is unnecessary Task 2.4 scope; the child-PRD path is otherwise preserved as `cloudflare/test/upload-worker-security.test.js`.
+
+### Per-Test Insecure-Baseline Manifest
+
+Expected RED failures, 18:
+
+1. missing auth denied;
+2. invalid auth denied;
+3. expired Firebase token denied;
+4. wrong Firebase audience denied;
+5. cross-owner upload denied;
+6. cross-owner move denied;
+7. raw `sourceKey`/`destKey` cannot move arbitrary object;
+8. forbidden prefix upload denied;
+9. forbidden prefix move denied;
+10. path traversal denied;
+11. encoded traversal denied;
+12. wildcard/unapproved CORS origin denied;
+13. approved CORS origin accepted without wildcard;
+14. upload over 50 MB denied;
+15. missing `Content-Length` denied;
+16. replayed upload grant denied;
+17. expired upload grant denied;
+18. replayed move grant cannot move a different object.
+
+Expected already-safe passes, 4:
+
+1. unsupported method denied;
+2. `GET` denied even if baseline advertises `GET`;
+3. `DELETE` denied even if baseline advertises `DELETE`;
+4. logs exclude token, grant, URL, secret, key, UID, and audio body.
+
+Assertions were not weakened to manufacture failures. The baseline already returns `405` for unsupported methods, `GET`, and `DELETE`, and successful tested requests emit no logs, so those contracts remain expected passes.
+
+### Deploy-Secret Name Guard
+
+`cloudflare/wrangler.jsonc` was not modified. Wrangler 4.103.0's JSONC schema has no supported field that declares a required secret name without storing a value. Packet 2B-R removed the nonstandard `secrets.required` field because Wrangler warned and did not enforce it. Restoring that invalid field would create false deploy confidence. Task 2.4 also forbids remote Cloudflare mutation, so it cannot provision or validate account secret state.
+
+`UPLOAD_GRANT_SECRET` remains an explicit test-only binding named in `cloudflare/vitest.config.mjs` and `cloudflare/vitest.security.config.mjs`, with sentinel `TEST_ONLY_NOT_A_SECRET`. No real secret is checked in. Before any hardening/deploy path, the later approved pre-deploy gate must verify `UPLOAD_GRANT_SECRET` by exact name through Wrangler secret state; deployment remains blocked until that evidence exists.
+
+### Files And Responsibility Delta
+
+1. `cloudflare/package.json`: add separate `test:security:red` command.
+2. `cloudflare/test/fixtures/insecure-current-worker.js`: absent -> 121 lines; immutable deployed/SOP fixture only.
+3. `cloudflare/test/upload-worker-security.test.js`: absent -> 346 lines; 22 negative contracts, below 400-line target and 500-line ceiling.
+4. `cloudflare/test/insecure-baseline-manifest.js`: absent -> 24 lines; expected RED/already-safe outcomes.
+5. `cloudflare/scripts/run-insecure-baseline.mjs`: absent -> 87 lines; fixture-hash and expected-outcome accounting.
+6. `cloudflare/vitest.security.config.mjs`: absent -> 18 lines; intentional RED suite isolation with local sentinel.
+7. `cloudflare/worker.js`: 107 -> 107 lines; untouched, no responsibility change.
+8. Parent tasklist: Task 2.4 only checked.
+9. Traceability: `EV-0056` only updated.
+10. Findings: append-only Packet 2C evidence.
+
+Created seams are fixture, contract suite, manifest, and runner. Existing native-R2 harness and production Worker boundary are preserved.
+
+### RED, GREEN, Mutation, And Clean-Copy Evidence
+
+Local commands used bundled Windows x64 Node because local `workerd` cannot run under the host's default arm64 Node.
+
+1. Default GREEN: `npm --prefix cloudflare test` passed one file and five tests.
+2. Intentional RED accounting: `npm --prefix cloudflare run test:security:red` passed its meta-contract and reported fixture SHA-256 plus `18 expected RED failures, 4 already-safe passes`.
+3. Runner mutation proof: temporarily changed `unsupported method denied` from expected `pass` to expected `fail`. Runner exited 1 with `unsupported method denied: expected fail, received pass`. Manifest was restored, then the RED command returned to GREEN.
+4. Clean temporary copy: copied `cloudflare/` without `node_modules`, ran `npm ci` (81 packages, 0 vulnerabilities), `npm test` (one file, five tests), and `npm run test:security:red` (18 expected RED, four already-safe); all passed. Verified temp path was removed.
+
+### Static, Boundary, And Deferred Evidence
+
+1. Required final `git diff --check`, UTF-8 check, restored RED runner, default GREEN, and Task-state scan are recorded in final Packet 2C verification below.
+2. Protected-path audit: no Firebase rule, R2 lifecycle, Listening, Reading V2, app runtime, `src/services/r2Storage.ts`, or `cloudflare/worker.js` change.
+3. Browser/deploy artifacts: not applicable; explicitly prohibited for Task 2.4.
+4. Hardening remains Task 2.5+ scope. Parent Task 2.0 and Tasks 2.5 through 2.15 remain unchecked.
+
+### Final Packet 2C Verification
+
+1. Bundled-x64 `npm --prefix cloudflare test`: PASS, one file and five tests.
+2. Bundled-x64 `npm --prefix cloudflare run test:security:red`: PASS, fixture hash matched; 18 expected RED failures and four already-safe passes matched manifest.
+3. Clean temporary copy: `npm ci`, `npm test`, and `npm run test:security:red`: PASS; 81 packages installed, zero vulnerabilities, one file/five default tests passed, and 18-RED/four-safe manifest matched.
+4. Runner-accounting mutation: PASS; one temporarily inverted expected outcome caused exit 1 with exact mismatch, then manifest restoration returned the RED command to PASS.
+5. `git diff --check`: PASS.
+6. `npm run check:utf8 -- <all nine touched text files>`: PASS.
+7. Task-state scan: PASS; diff changes only Task 2.4 from unchecked to checked. Parent Task 2.0 and Tasks 2.5 through 2.15 remain unchecked.
+8. Protected-path scan: PASS; no `src/**`, Firebase rule/config, `r2-backup-worker/**`, SOP, or `cloudflare/worker.js` change.
+9. No hardening, deployment, rollback, version pin, Cloudflare remote-state mutation, app runtime change, Firebase-rule change, Listening change, Reading V2 change, or R2-lifecycle change occurred.
