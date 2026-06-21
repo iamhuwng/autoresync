@@ -11,6 +11,14 @@
       "bucket_name": "kahoot-media"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "class_name": "UploadGrantReplayLedger"
+      }
+    ]
+  },
   "ratelimits": [
     {
       "name": "UPLOAD_RATE_LIMITER",
@@ -19,6 +27,14 @@
         "limit": 30,
         "period": 60
       }
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1-upload-grant-replay-ledger",
+      "new_sqlite_classes": [
+        "UploadGrantReplayLedger"
+      ]
     }
   ],
   "vars": {

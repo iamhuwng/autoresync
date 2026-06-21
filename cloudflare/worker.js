@@ -1,3 +1,4 @@
+import { UploadGrantReplayLedger } from './src/upload-worker/upload-grant-replay-ledger.js';
 import { createFirebaseVerifier } from './src/upload-worker/firebase-verification.js';
 import {
   corsResponseHeaders,
@@ -132,5 +133,7 @@ export function createUploadWorker({
     },
   };
 }
+
+export { UploadGrantReplayLedger };
 
 export default createUploadWorker();

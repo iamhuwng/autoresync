@@ -3739,3 +3739,93 @@ Task 2.10 remains checked only because the corrected proof below passed. Task 2.
 - Corrected hardened test `cloudflare/__tests__/hardened-negative-contract.test.js`: `2a46c3a85483e5f7c7637082634e462d5db805650fe7a4f2d46c8a3c2a70a27e`.
 
 Final changed-path scope remains exactly six paths: `cloudflare/package.json`, `cloudflare/__tests__/hardened-negative-contract.test.js`, `cloudflare/scripts/run-hardened-negative-suite.mjs`, parent tasklist, findings ledger, and traceability registry. No production code remains changed. No commit, push, deploy, rollback, version pin, browser work, or Cloudflare remote mutation occurred.
+
+## Packet 2K Pre-Task-2.11 Replay Ledger Prerequisite - 2026-06-21
+
+### Approval And Scope
+
+Subtask: pre-Task-2.11 replay-ledger prerequisite only.
+
+Exact contextual approval recorded: User response: "approve".
+
+Approved architecture:
+
+1. SQLite-backed Durable Object class: `UploadGrantReplayLedger`.
+2. Binding: `UPLOAD_GRANT_REPLAY_LEDGER`.
+3. One Durable Object instance per full grant replay key.
+4. Atomic `consume({ key, expiresAt })` before R2 access.
+5. Retain consumed state at least 15 minutes.
+6. Alarm-based storage cleanup.
+7. Fail closed on binding, RPC, or storage failure.
+
+Scope boundaries: no deploy, secret mutation, namespace provisioning, rollback, version pin, push, remote mutation, deployed probe, browser adapter work, Firebase rule/config change, `r2-backup-worker/**` change, lifecycle change, or Task 2.11 checkbox change occurred.
+
+### Current-Source And Cloudflare Documentation Inputs
+
+Required local inputs read before code changes: `AGENTS.md`, `documentation/rules/infrastructure.md`, PRD-0056 sections 11 and 14-16, current `cloudflare/worker.js`, `cloudflare/src/upload-worker/replay-authority.js`, `cloudflare/src/upload-worker/grant-authority.js`, `cloudflare/src/upload-worker/request-handlers.js`, `cloudflare/wrangler.jsonc`, `cloudflare/vitest.config.mjs`, and current Worker test files.
+
+Current Cloudflare docs retrieved:
+
+1. Durable Object namespace/RPC docs: `getByName()` obtains a stub for invoking Durable Object methods.
+2. Durable Object migrations docs: new SQLite-backed classes use `new_sqlite_classes`, and the class name must be exported by the deployed Worker.
+3. SQLite storage docs and changelog: for compatibility dates before `2026-02-24`, `deleteAll()` does not delete alarms, so `deleteAlarm()` is required separately.
+4. Durable Object testing docs: `runInDurableObject()` and `runDurableObjectAlarm()` are supported by the Workers Vitest integration.
+5. Wrangler config docs and local schema: `durable_objects.bindings` plus `migrations` are the config authority for the new binding.
+
+### Files And Responsibility
+
+1. `cloudflare/worker.js`: 120 -> 122 lines. Exports `UploadGrantReplayLedger` from the Worker entry module and keeps the router thin.
+2. `cloudflare/src/upload-worker/replay-authority.js`: 13 -> 47 lines. Derives full replay keys, resolves one Durable Object stub through `getByName()`, preserves isolated test-double compatibility, and fails closed on unavailable binding/stub/RPC.
+3. `cloudflare/src/upload-worker/upload-grant-replay-ledger.js`: absent -> 42 lines. New SQLite-backed Durable Object RPC target with persisted consumed state, atomic storage transaction, retention-aligned alarm, explicit `deleteAlarm()`, and `deleteAll()` cleanup.
+4. `cloudflare/wrangler.jsonc`: adds `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object binding and first `new_sqlite_classes` migration.
+5. `cloudflare/__tests__/replay-ledger.test.js`: absent -> 273 lines. Focused Packet 2K tests for DO semantics, failure modes, config binding, and Worker R2 ordering.
+6. `tasks/0056-prd-listening-upload-worker-security-gate-s0.md`: replaces pending replay-store language with the approved SQLite Durable Object decision and adds binding/regression checklist entries.
+7. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: leaves Task 2.11 unchecked and records Packet 2K as a local-only pre-deploy prerequisite.
+8. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: updates `EV-0056` only.
+9. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: appends this Packet 2K evidence.
+
+### Local RED/GREEN And Mutation Evidence
+
+Focused RED before implementation: `npm test -- __tests__/replay-ledger.test.js` failed because `UploadGrantReplayLedger` was not exported, `env.UPLOAD_GRANT_REPLAY_LEDGER` was undefined, and Worker consumption still returned `500` in the new ordering tests.
+
+Restored focused GREEN: `npm test -- __tests__/replay-ledger.test.js` returned one file and 9/9 tests.
+
+Mutation 1 temporarily bypassed Durable Object consumption in `replay-authority.js`; focused replay tests failed 3 cases: missing namespace no longer failed closed, upload did not call `consume`, and move did not call `consume`.
+
+Mutation 2 temporarily replaced durable consumed state with instance memory; focused replay tests failed 2 cases: persisted state was absent and cleanup metadata was absent.
+
+Mutation 3 temporarily removed the consumed-state guard from the storage transaction; focused replay tests failed 2 cases: sequential replay returned consumed true, and concurrent same-key calls produced three winners instead of one.
+
+Mutation 4 temporarily removed the config binding and migration from `wrangler.jsonc`; focused replay tests failed 4 cases because `env.UPLOAD_GRANT_REPLAY_LEDGER` was undefined, and dry-run omitted the replay ledger binding from its binding list.
+
+Post-mutation restored SHA-256 values:
+
+- `cloudflare/worker.js`: `915CF6E76D6949C21C845F6CED40F5CAC38F5A34ABE85B3EF63556DF922DAC4A`.
+- `cloudflare/src/upload-worker/replay-authority.js`: `BE7643F265BDB06FBF04F08D0919C5599A919C7266B5FFBEE91AFA7BC5A4AB8E`.
+- `cloudflare/src/upload-worker/upload-grant-replay-ledger.js`: `DD3545CBD2D587A88999B72EA8AA5FD05B3B9DFBE23DEECB9877C4BFD8FD336F`.
+- `cloudflare/wrangler.jsonc`: `2DBBB819605355D383929C16E0066E41443C29BFB8D7F9704D18EAFC9829D798`.
+- `cloudflare/__tests__/replay-ledger.test.js`: `5ACFABED1E4D380CF3222746A06B85BB395F4A3EE69B038557BE0ABBF4D2BCD2`.
+
+### Final Verification
+
+Local bundled-x64 verification:
+
+1. Hardened runner: 22/22.
+2. Full Worker suite: seven files, 129/129 tests.
+3. Insecure baseline: normalized fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+4. Wrangler dry-run listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET`, `UPLOAD_RATE_LIMITER`, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID`, then exited with `--dry-run`.
+
+Clean temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd0055-task2k-replay-ledger-440709e600bf4c5daae97d31027f5e0a` excluded `node_modules`, `.wrangler`, and `.git`; bundled Windows x64 Node drove system npm CLI with x64/win32 settings and bundled-node PATH precedence.
+
+Clean-copy proof:
+
+1. `npm ci`: 82 packages installed, 83 audited, zero vulnerabilities.
+2. Full Worker suite: seven files, 129/129 tests.
+3. Hardened runner: 22/22.
+4. Insecure baseline: exact normalized fixture SHA; 18 expected RED failures and four already-safe passes.
+5. Wrangler dry-run listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET`, `UPLOAD_RATE_LIMITER`, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID`, then exited with `--dry-run`.
+6. Temp copy was safety-checked under the OS temp root and removed; removal verification returned `True`.
+
+Taskbox state after Packet 2K: parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked. Task 2.11 was not started.
+
+Residuals and next gates: production Durable Object namespace provisioning, deployed binding/secrets proof, deployed negative probes, authorized deployed upload/move proof, rollback/version-pin proof, sections 15-16 remote evidence, and final S0 acceptance remain Task 2.11+ work. No Cloudflare remote state was mutated in Packet 2K.

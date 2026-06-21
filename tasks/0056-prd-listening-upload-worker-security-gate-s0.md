@@ -390,14 +390,18 @@ Replay and expiry:
 5. Reusing an upload grant after a successful upload returns a replay/duplicate failure.
 6. Reusing a move grant after successful move is idempotent only when the server-derived destination already exists and the source is absent; it must not copy or delete a different object.
 
-Proposed, pending architecture/security approval - replay nonce store:
+Approved replay ledger decision - 2026-06-21:
 
-1. S0 must name an atomic nonce ledger before implementation. Recommended option: a Cloudflare Durable Object bound to the upload Worker, keyed by UID plus grant nonce, with a TTL at least 15 minutes so it exceeds the 10-minute grant lifetime plus clock skew.
-2. Alternative option: a transactional Firebase RTDB nonce ledger owned by trusted backend code. This expands backend dependencies and needs explicit infrastructure approval before use.
-3. Cloudflare KV or in-memory Worker state is not sufficient for replay prevention unless architecture/security review proves atomic create-before-use semantics for the selected deployment model.
-4. Upload handling must reserve the nonce atomically before `R2_BUCKET.put`; if reservation fails or is already used, no R2 write may occur.
-5. Move handling must reserve or verify the move nonce atomically before copy/delete; idempotent replay is allowed only for the exact same server-derived destination state.
-6. The grant format, HMAC coverage, nonce ledger, TTL, and replay behavior require cryptographic review before deploy approval.
+Approval record: User response: "approve".
+
+1. S0 uses a SQLite-backed Cloudflare Durable Object class named `UploadGrantReplayLedger`.
+2. The upload Worker binds it as `UPLOAD_GRANT_REPLAY_LEDGER`.
+3. The Worker derives one Durable Object instance per full grant replay key via `getByName()`.
+4. Upload and move handling must atomically consume the replay key before any `R2_BUCKET` read, write, copy, or delete.
+5. Consumed state must persist in Durable Object storage for at least 15 minutes after consume.
+6. Cleanup uses Durable Object alarms; because the current `compatibility_date` predates `deleteAll()` alarm auto-removal, `alarm()` must explicitly call `deleteAlarm()` before deleting all storage.
+7. Binding, RPC, storage, malformed input, expired input, or cleanup failures fail closed. They must not expose replay key, UID, nonce, grant, or secret values in logs, errors, response bodies, or findings.
+8. Test doubles may be preserved only when clearly isolated from production namespace handling.
 
 Size:
 
@@ -511,6 +515,14 @@ compatibility_date = "2026-01-20"
 binding = "R2_BUCKET"
 # The bucket_name value is required in the implementation config, but this PRD records binding names only.
 
+[[durable_objects.bindings]]
+name = "UPLOAD_GRANT_REPLAY_LEDGER"
+class_name = "UploadGrantReplayLedger"
+
+[[migrations]]
+tag = "v1-upload-grant-replay-ledger"
+new_sqlite_classes = [ "UploadGrantReplayLedger" ]
+
 [vars]
 # FIREBASE_PROJECT_ID and PUBLIC_URL values are required in implementation config, but this PRD records variable names only.
 
@@ -537,6 +549,7 @@ Required binding names:
 - `PUBLIC_URL`
 - `FIREBASE_PROJECT_ID`
 - `UPLOAD_RATE_LIMITER`
+- `UPLOAD_GRANT_REPLAY_LEDGER`
 
 Required secret names:
 
@@ -742,6 +755,9 @@ Stop rollout immediately for:
 - [ ] Over-50 MB upload denied.
 - [ ] Expired grant denied.
 - [ ] Replayed grant denied.
+- [ ] `UPLOAD_GRANT_REPLAY_LEDGER` binding and SQLite Durable Object migration are present in checked-in Wrangler config.
+- [ ] Replay consumes through `UploadGrantReplayLedger` before any R2 access.
+- [ ] Replay consumed state survives Durable Object instance restart and cleans up by alarm after the approved retention window.
 - [ ] Authorized Listening upload works.
 - [ ] Authorized move works.
 - [ ] Public delivery still returns current style URLs.
