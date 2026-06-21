@@ -3631,3 +3631,111 @@ Mutation 2 temporarily let raw query `key` override `grantPayload.key` during up
 4. Insecure fixture, manifest, and runner have no diff from `HEAD`; baseline hash/accounting remains exact.
 5. Taskbox scan: parent Task 2.0 unchecked; Task 2.6 checked; Tasks 2.7, 2.8, and 2.9 checked; Tasks 2.10 through 2.15 unchecked.
 6. Task 2.10 was not started. No commit, push, deploy, rollback, version pin, or Cloudflare remote mutation occurred.
+
+## Packet 2J Task 2.10 Hardened Negative Contract - 2026-06-21
+
+### Scope And Verdict
+
+Subtask: Task 2.10 only.
+
+Task 2.10 verdict: PASS. Hardened Worker passes the exact 22 titles from `cloudflare/test/insecure-baseline-manifest.js`. Strict runner executes only the hardened contract through Vitest JSON, requires exact title equality and 22 passing outcomes, exits nonzero for missing, extra, failed, or unreadable results, removes temporary JSON output, and emits no forbidden sentinel values.
+
+Scope boundaries: no production Worker module, insecure fixture, insecure manifest, insecure runner, Firebase rule/config, `r2-backup-worker/**`, SOP, browser adapter, deployment, rollback, version pin, or Cloudflare remote state changed. Task 2.11 was not started. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 are checked; Tasks 2.11 through 2.15 remain unchecked.
+
+### Files And Responsibility
+
+1. `cloudflare/__tests__/hardened-negative-contract.test.js`: new 425-line, exact-title 22-case hardened contract using injected Firebase, rate-limit, replay, and R2 doubles.
+2. `cloudflare/scripts/run-hardened-negative-suite.mjs`: new 72-line strict JSON accounting runner with temporary-output cleanup and sentinel-safe output.
+3. `cloudflare/package.json`: add `test:security:green` only.
+4. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: check Task 2.10 only and record Packet 2J closure.
+5. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: update `EV-0056` only.
+6. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append Packet 2J evidence only.
+
+### Hardened Contract And R2 Evidence
+
+1. Missing, invalid, expired, and wrong-audience auth cases return `401` with zero R2 access.
+2. Cross-owner upload/move, raw-key move, forbidden-prefix upload/move, traversal, and encoded traversal fail with zero R2 access.
+3. Unapproved preflight returns `403` without wildcard; approved exact-origin preflight returns `204` and exact origin without wildcard.
+4. Unsupported method, `GET`, and `DELETE` return `405` with zero R2 mutation.
+5. Over-50-MB authorization returns `413`; missing `Content-Length` returns `411`; both perform zero R2 mutation.
+6. Replayed upload returns `409 replay_detected`, expired upload grant returns `403`, and replayed move grant cannot select a different source/destination. Rejected replay/expiry cases perform zero R2 access after call-list reset.
+7. Log capture excludes token, grant, signed URL, secret, raw key, raw UID, and body sentinels; runner output contains only aggregate outcome counts.
+8. Existing full suite preserves authorized upload/move controls and all prior Task 2.3 through 2.9 contracts.
+
+### Mutation Proof And Exact Restoration
+
+Pre/post SHA-256 values matched exactly:
+
+- `cloudflare/worker.js`: `0af516d8ef2add3ed85bafd35af9c14ee2f74f1753ce87f55fe461de69e540de`.
+- `cloudflare/test/insecure-baseline-manifest.js`: `f1ebbe0ca124f7b7043a96f264697ec92c184875d6295d827c421ac2e6bce061`.
+- `cloudflare/scripts/run-insecure-baseline.mjs`: `9709391de3b725028fbc391ddb1386ce8b54c147b275a0e3c9c80e13c088bc8d`.
+- `cloudflare/scripts/run-hardened-negative-suite.mjs`: `119c25ea7c9c65e2286c61d48f29f6b4b41896b6f17725f6c7cdb8325bf56411`.
+- `cloudflare/__tests__/hardened-negative-contract.test.js`: `362a1e85e551331dbc3aa33dc90d8b5d7a766e4fd967c06fa179f7215bf8cb57`.
+
+Mutation 1 temporarily renamed `missing auth denied` in the hardened test. Runner exited `1` with `missing=1`, `extra=1`, `failed=0`. Exact test, manifest, and runner bytes were restored.
+
+Mutation 2 temporarily weakened `cloudflare/worker.js` authentication rejection. Runner exited `1` with `missing=0`, `extra=0`, `failed=4`. Exact production Worker bytes were restored. Restored runner returned 22/22.
+
+### GREEN, Baseline, And Clean-Copy Evidence
+
+1. Local bundled-x64 `test:security:green`: 22/22.
+2. Local full Worker suite: six files, 120/120, comprising 98 existing plus 22 Packet 2J tests.
+3. Local insecure baseline: normalized fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+4. Clean temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd0055-task210-8aa33612c94e46fbbc06b3d54c28c843` excluded `node_modules`; bundled x64 Node drove system npm CLI with x64/win32 settings and bundled-node PATH precedence.
+5. Clean-copy `npm ci`: 82 packages installed, 83 audited, zero vulnerabilities.
+6. Clean-copy hardened runner: 22/22; full suite: six files, 120/120; insecure baseline: exact fixture SHA, 18 expected RED failures, four already-safe passes.
+7. Temp path was verified under the OS temp root and removed after the transient Vitest `workerd.exe` lock released.
+
+### Final Packet 2J Verification
+
+1. UTF-8 check targets exactly the six final changed text files.
+2. `git diff --check` passes.
+3. Protected-path scan contains exactly the six allowed paths.
+4. Insecure fixture, manifest, and runner remain unchanged from `HEAD`; normalized fixture SHA and baseline accounting remain exact.
+5. Taskbox scan: parent Task 2.0 unchecked; Tasks 2.6 through 2.10 checked; Tasks 2.11 through 2.15 unchecked.
+6. No commit, push, deploy, rollback, version pin, browser work, or Cloudflare remote mutation occurred. Task 2.11 was not started.
+
+## Packet 2J-R Task 2.10 Corrective Hardened Log Contract - 2026-06-21
+
+### Supersession And Verdict
+
+Packet 2J-R verdict: PASS. This corrective packet supersedes only the original Packet 2J case-22 log-secrecy proof. The original case sent sentinel values with an invalid Firebase token, returned `401`, and therefore never created real grants or URLs, used the configured grant secret, verified a UID, consumed the audio body, or reached grant verification/R2. Original Packet 2J's other 21 hardened cases and strict title/accounting runner remain valid.
+
+Task 2.10 remains checked only because the corrected proof below passed. Task 2.11 remains unchecked and was not started.
+
+### Corrected Case 22
+
+1. `console.log`, `console.warn`, and `console.error` spies are installed before any request.
+2. Test context accepts actual sentinel Firebase token `firebase-token-log-sentinel` as actual verified UID `verified-uid-log-sentinel` and sets the real `UPLOAD_GRANT_SECRET` binding to a secret sentinel.
+3. Authorization succeeds with sentinel filename, content type, and audio-body size metadata.
+4. Test captures the actual issued upload grant, move grant, upload URL, public URL, canonical key, and separately supplies a non-authoritative raw-key sentinel.
+5. Authorized upload uses the issued upload grant, valid sentinel token, matching content type/length, and sentinel audio body. A controlled R2 `get` failure occurs only after grant verification, canonical-key validation, and replay consumption; response is `500` and the sole R2 call contains the grant-derived canonical key.
+6. Captured logs must exclude the actual token, upload grant, move grant, upload URL, public URL, secret binding, canonical key, raw key, verified UID, and audio body.
+
+### Targeted Mutation And Restoration
+
+1. Production `cloudflare/worker.js` was temporarily changed only in its unexpected-error path to log `request.url`, the `Authorization` header, and `env.UPLOAD_GRANT_SECRET`.
+2. Strict hardened runner exited `1` with `missing=0`, `extra=0`, `failed=1`; corrected case 22 detected the leak after reaching the controlled R2 boundary.
+3. Mutation was reverted in the same operation. Restored `cloudflare/worker.js` SHA-256 is `0af516d8ef2add3ed85bafd35af9c14ee2f74f1753ce87f55fe461de69e540de`, and `git diff --exit-code HEAD -- cloudflare/worker.js` returned zero.
+4. Restored hardened runner returned 22/22.
+
+### Local, Baseline, And Clean-Copy Evidence
+
+1. Local hardened runner: 22/22.
+2. Local full Worker suite: six files, 120/120.
+3. Local insecure baseline: normalized fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+4. Clean copy `C:\Users\The Lord\AppData\Local\Temp\prd0055-task210-corrective-c351e070508b469893f02d0262ef4d20` excluded `node_modules` and `.wrangler`; bundled Windows x64 Node drove the system npm CLI with x64/win32 settings and bundled-node PATH precedence.
+5. Clean-copy `npm ci`: 82 packages installed, 83 audited, zero vulnerabilities.
+6. Clean-copy hardened runner: 22/22; full suite: six files, 120/120; insecure baseline: exact normalized fixture SHA, 18 expected RED failures, four already-safe passes.
+7. Temp copy was safety-checked under the OS temp root and removed; removal verification returned `True`.
+
+### Restored Hashes And Scope
+
+- Production `cloudflare/worker.js`: `0af516d8ef2add3ed85bafd35af9c14ee2f74f1753ce87f55fe461de69e540de`.
+- Insecure fixture `cloudflare/test/fixtures/insecure-current-worker.js`: raw SHA-256 `b0c45afad89e0a95f96a395dea6b6bc4f3549535c04b352631cbb5f8241347f1`; normalized baseline SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`.
+- Insecure manifest `cloudflare/test/insecure-baseline-manifest.js`: `f1ebbe0ca124f7b7043a96f264697ec92c184875d6295d827c421ac2e6bce061`.
+- Insecure runner `cloudflare/scripts/run-insecure-baseline.mjs`: `9709391de3b725028fbc391ddb1386ce8b54c147b275a0e3c9c80e13c088bc8d`.
+- Hardened runner `cloudflare/scripts/run-hardened-negative-suite.mjs`: `119c25ea7c9c65e2286c61d48f29f6b4b41896b6f17725f6c7cdb8325bf56411`.
+- Corrected hardened test `cloudflare/__tests__/hardened-negative-contract.test.js`: `2a46c3a85483e5f7c7637082634e462d5db805650fe7a4f2d46c8a3c2a70a27e`.
+
+Final changed-path scope remains exactly six paths: `cloudflare/package.json`, `cloudflare/__tests__/hardened-negative-contract.test.js`, `cloudflare/scripts/run-hardened-negative-suite.mjs`, parent tasklist, findings ledger, and traceability registry. No production code remains changed. No commit, push, deploy, rollback, version pin, browser work, or Cloudflare remote mutation occurred.
