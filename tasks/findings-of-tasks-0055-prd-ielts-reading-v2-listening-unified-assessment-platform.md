@@ -3922,3 +3922,41 @@ After exact-file TypeScript checking exposed and corrected a test-only literal-r
 Parent Task 2.0 remains unchecked. Tasks 2.6 through 2.10 remain checked. Tasks 2.11 through 2.15 remain unchecked. Task 2.11 was not started.
 
 No provisioning, secret mutation, deploy, traffic change, push, rollback, browser production build, R2 mutation, remote operation, commit, or task checkbox change occurred. Production browser and production Worker remain unchanged.
+
+## Packet 2M Task 2.11 Phase A Canary Provisioning - 2026-06-22
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.11 Phase A canary provisioning only: Cloudflare remote mutation is allowed only for r2-upload-signer-s0-canary prerequisites/deploy and required secret/binding/rate-limit verification. No production Worker deploy, no production traffic change, no rollback, no R2 object mutation, no browser upload/move probe, no push."`
+
+### Phase A Result
+
+Verdict: PASS for canary provisioning only.
+
+1. Canary Worker `r2-upload-signer-s0-canary` was absent before deploy. `wrangler deployments status --name r2-upload-signer-s0-canary --json` and `wrangler versions list --name r2-upload-signer-s0-canary --json` both returned Cloudflare API code `10007` (`This Worker does not exist on your account.`).
+2. Initial canary deploy attempt with the checked-in semantic rate namespace `prd0056-upload-worker-s0` was rejected by Cloudflare validation before deployment: `binding UPLOAD_RATE_LIMITER of type ratelimit must have valid namespace_id [code: 10021]`.
+3. Current Cloudflare Rate Limiting binding docs require `namespace_id` to be a positive integer string. `cloudflare/wrangler.canary.jsonc` was changed only for the canary config from `prd0056-upload-worker-s0` to `205511`; production `cloudflare/wrangler.jsonc` remains unchanged.
+4. A new `UPLOAD_GRANT_SECRET` was generated locally with cryptographic randomness, passed to Wrangler through a temporary JSON `--secrets-file`, and the temporary file was removed in `finally`. No secret value was printed or written into the repo.
+5. Canary deploy succeeded at `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`.
+
+### Local Pre-Deploy Proof
+
+1. Bundled Windows x64 Node was required; ambient Node failed Wrangler with `Unsupported platform: win32 arm64 LE`.
+2. `wrangler deploy --config wrangler.canary.jsonc --dry-run` after the canary namespace fix listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET`, `UPLOAD_RATE_LIMITER`, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID`, then exited at `--dry-run`.
+3. Full Worker suite: seven files, 129/129 tests.
+4. Hardened negative runner: 22/22.
+5. Insecure baseline: fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+
+### Remote Verification
+
+1. Wrangler account: `iamhuwng@gmail.com`, account ID `e41db829dabe9993f03674afdfd56510`.
+2. Canary deployment status: deployment ID `0e2561d1-e868-49d6-9609-2c03f3b83993`, source `wrangler`, strategy `percentage`, version `627f7503-8324-45d1-8e23-cdd02828111c` at 100%, created `2026-06-22T05:18:03.514345Z`.
+3. Canary version list: version number 1, source `wrangler`, message `PRD-0055 Task 2.11 Phase A canary provisioning`, preview disabled.
+4. Canary version view: script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`; handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`; migration tag `v1-upload-grant-replay-ledger`; compatibility date `2026-01-20`.
+5. Canary binding proof: `FIREBASE_PROJECT_ID=temp-a1437`, `PUBLIC_URL`, `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object namespace `bea9a2921503419cae45222576464679`, `UPLOAD_GRANT_SECRET` as `secret_text`, and `UPLOAD_RATE_LIMITER` namespace `205511` with simple limit 30 and period 60.
+6. Canary secret proof: `wrangler secret list --config wrangler.canary.jsonc --format json` returned `UPLOAD_GRANT_SECRET` with type `secret_text`.
+7. Production Worker verification stayed read-only: `r2-upload-signer` deployment ID `92e01212-afd4-4aae-9d72-a548f063008b`, source `quick_editor`, version `20dd8429-5be1-4105-baed-f6dc5af68098` at 100%, created `2026-01-26T17:27:56.516701Z`. Production version list still ends at version number 6 / ID `20dd8429-5be1-4105-baed-f6dc5af68098`.
+
+### Scope And Task State
+
+No production Worker deploy, production traffic change, rollback, R2 object mutation, browser upload/move probe, version pin, push, production browser build, Firebase rule/config change, `r2-backup-worker/**` change, or task checkbox change occurred.
+
+Parent Task 2.0 remains unchecked. Tasks 2.6 through 2.10 remain checked. Task 2.11 remains unchecked because authorized upload/move deployed proof, browser/canary build proof, rollback drill, version-pin proof, final S0 acceptance, and independent review remain later work.

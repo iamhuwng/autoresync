@@ -94,7 +94,7 @@ FR-023. The Worker must enforce a 50 MB maximum per upload request/file.
 
 FR-024. The Worker must not enforce the 10-audio-files-per-test product rule. That rule requires test-level state and belongs to later application/storage work.
 
-FR-025. The Worker must use a Wrangler rate-limit binding named `UPLOAD_RATE_LIMITER` with namespace ID `prd0056-upload-worker-s0`, simple limit `30`, period `60`, and rate keys that include verified UID plus client IP class.
+FR-025. The Worker must use a Wrangler rate-limit binding named `UPLOAD_RATE_LIMITER` with an account-scoped positive-integer namespace ID, simple limit `30`, period `60`, and rate keys that include verified UID plus client IP class. Packet 2M assigns canary namespace ID `205511`; production config must be reconciled to a Cloudflare-valid integer before any production deploy.
 
 FR-026. If rate-limit binding setup cannot be proven locally and after deploy, S0 implementation stops before rollout.
 
@@ -368,8 +368,8 @@ CORS:
 
 Rate:
 
-1. `wrangler.toml` must bind `UPLOAD_RATE_LIMITER`.
-2. Rate namespace ID must be `prd0056-upload-worker-s0`.
+1. Checked-in Wrangler config must bind `UPLOAD_RATE_LIMITER`.
+2. Rate namespace ID must be an account-scoped positive integer. Packet 2M canary uses `205511`; production selection remains a later deploy gate.
 3. Simple limit must be 30 operations per 60 seconds.
 4. Rate keys must include UID and client IP class.
 5. Rate-limit denial returns `429` with no secret or key in body.
@@ -528,20 +528,15 @@ new_sqlite_classes = [ "UploadGrantReplayLedger" ]
 
 [[ratelimits]]
 name = "UPLOAD_RATE_LIMITER"
-namespace_id = "prd0056-upload-worker-s0"
+namespace_id = "<positive-integer-namespace-id>"
 simple = { limit = 30, period = 60 }
 ```
 
 Rate-limit namespace creation and verification:
 
-1. Implementation must include a pre-deploy subtask to create or confirm the Cloudflare rate-limit namespace `prd0056-upload-worker-s0` before deploy.
-2. Required verification command when supported by the installed Wrangler version:
-
-```powershell
-wrangler ratelimits list --name r2-upload-signer --json
-```
-
-3. If that Wrangler command is unavailable in the implementation environment, implementation stops until an equivalent Cloudflare API or dashboard evidence artifact is recorded in findings, with the namespace ID and binding name matching checked-in `cloudflare/wrangler.toml`.
+1. Implementation must include a pre-deploy subtask to confirm a Cloudflare-valid positive-integer rate-limit namespace before deploy. Packet 2M canary uses `205511`.
+2. Do not invent a `wrangler ratelimits` command when the installed Wrangler version does not expose one.
+3. Required evidence is deploy output plus remote version-view/API or dashboard evidence showing the binding name, namespace ID, limit, and period match checked-in Wrangler config.
 
 Required binding names:
 
@@ -894,3 +889,24 @@ Canary config and proof boundary:
 1. `cloudflare/wrangler.canary.jsonc` differs in Worker name and keeps the production config binding shape for dry-run validation.
 2. Production and canary Wrangler commands were `deploy --dry-run` only. No deploy, provisioning, secret mutation, traffic change, rollback, push, production browser build, or R2 mutation occurred.
 3. Task 2.11 remains unchecked. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
+
+## 28. Packet 2M Task 2.11 Phase A Canary Provisioning - 2026-06-22
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.11 Phase A canary provisioning only: Cloudflare remote mutation is allowed only for r2-upload-signer-s0-canary prerequisites/deploy and required secret/binding/rate-limit verification. No production Worker deploy, no production traffic change, no rollback, no R2 object mutation, no browser upload/move probe, no push."`
+
+This section supersedes only Packet 2L's dry-run-only remote-state snapshot; Packet 2L local adapter and canary-readiness evidence remains current.
+
+Phase A canary provisioning result:
+
+1. Canary Worker `r2-upload-signer-s0-canary` is deployed at `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`.
+2. Current canary version is `627f7503-8324-45d1-8e23-cdd02828111c`, deployment ID `0e2561d1-e868-49d6-9609-2c03f3b83993`, source `wrangler`, 100% of canary traffic only.
+3. The production Worker `r2-upload-signer` remains on deployment ID `92e01212-afd4-4aae-9d72-a548f063008b`, version `20dd8429-5be1-4105-baed-f6dc5af68098`, source `quick_editor`, 100%.
+4. Canary secret verification lists `UPLOAD_GRANT_SECRET` as `secret_text`; no secret value is recorded.
+5. Canary version-view binding proof lists `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object namespace `bea9a2921503419cae45222576464679`, `UPLOAD_RATE_LIMITER` namespace `205511` with limit 30 / period 60, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID=temp-a1437`.
+6. `cloudflare/wrangler.canary.jsonc` uses integer rate-limit namespace `205511` because Cloudflare rejected the prior semantic namespace `prd0056-upload-worker-s0` with API validation code `10021`; current Cloudflare docs require `namespace_id` to be a positive integer string.
+7. Production `cloudflare/wrangler.jsonc` is unchanged and still requires a later production deploy-readiness reconciliation before any production deploy.
+
+Scope boundary:
+
+1. No production Worker deploy, production traffic change, rollback, R2 object mutation, browser upload/move probe, version pin, push, production browser build, Firebase rule/config change, `r2-backup-worker/**` change, or task checkbox change occurred.
+2. Task 2.11 remains unchecked. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
