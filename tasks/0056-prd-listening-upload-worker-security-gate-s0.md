@@ -910,3 +910,75 @@ Scope boundary:
 
 1. No production Worker deploy, production traffic change, rollback, R2 object mutation, browser upload/move probe, version pin, push, production browser build, Firebase rule/config change, `r2-backup-worker/**` change, or task checkbox change occurred.
 2. Task 2.11 remains unchecked. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
+
+## 29. Packet 2O Task 2.11 Phase C Readiness Audit - 2026-06-23
+
+Read-only readiness verdict: BLOCKED. This section records Phase C audit evidence only. It does not approve or perform production config prep, secret mutation, deploy, traffic change, rollback, version pin, R2 mutation, Firebase Hosting mutation, push, or Task 2.11 completion.
+
+Re-verified production facts:
+
+1. Production `r2-upload-signer` remains on deployment `92e01212-afd4-4aae-9d72-a548f063008b`, version `20dd8429-5be1-4105-baed-f6dc5af68098`, source `quick_editor`, at 100%.
+2. `PRE_S0_VERSION_ID=20dd8429-5be1-4105-baed-f6dc5af68098`.
+3. Production remote bindings remain only `PUBLIC_URL` and `R2_BUCKET=kahoot-media`; production remote secrets list is empty.
+4. Production version detail has no `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, `FIREBASE_PROJECT_ID`, or `script_runtime.migration_tag`.
+5. Production `cloudflare/wrangler.jsonc` still has `UPLOAD_RATE_LIMITER.namespace_id` set to `prd0056-upload-worker-s0`; this remains a blocker because the canary deploy proved the rate-limit namespace must be an integer string.
+
+Re-verified canary facts:
+
+1. Canary `r2-upload-signer-s0-canary` remains on deployment `0e2561d1-e868-49d6-9609-2c03f3b83993`, version `627f7503-8324-45d1-8e23-cdd02828111c`, source `wrangler`, at 100%.
+2. Canary binding proof still lists `FIREBASE_PROJECT_ID=temp-a1437`, `PUBLIC_URL`, `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `bea9a2921503419cae45222576464679`, `UPLOAD_GRANT_SECRET` as `secret_text`, and `UPLOAD_RATE_LIMITER` namespace `205511` limit 30 / period 60.
+3. Canary version detail still has migration tag `v1-upload-grant-replay-ledger`.
+
+Re-verified Firebase Hosting facts:
+
+1. Live `kahut1` Hosting channel remains at version `2ca9c185ac62dd7b`, release `1780366034643000`, status `FINALIZED`, deployed `2026-06-02T02:07:14.643Z`.
+2. `PRE_S0_HOSTING_VERSION_ID=2ca9c185ac62dd7b`; this remains the verified Firebase Hosting rollback target.
+3. Live `https://kahut1.web.app/` referenced `/assets/index-ClAUP6nO.js`; that entry plus 75 referenced JS chunks had zero occurrences of `/upload/authorize`, `moveGrant`, `VITE_R2_UPLOAD_WORKER_URL`, `r2-upload-signer-s0-canary`, and `r2-upload-signer.iamhuwng.workers.dev`. Live Hosting is not serving the Task 2.11 authenticated grant client.
+
+Exact blockers before Phase C production rollout:
+
+1. Fix production `cloudflare/wrangler.jsonc` rate-limit namespace under a separate config-prep approval.
+2. Provision production `UPLOAD_GRANT_SECRET` under separate secret-mutation approval.
+3. Deploy production Worker and Firebase Hosting together under the approved Option A order, then prove deployed negative cases and one authorized production upload/move path.
+4. Preserve rollback to Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` and Firebase Hosting version `2ca9c185ac62dd7b`.
+5. Complete rollback/version-pin proof, final S0 acceptance, and independent review before checking Task 2.11.
+
+Approved later text must be exact. Production config prep approval:
+
+```text
+Approve PRD-0055 Task 2.11 Phase C production config prep only: edit cloudflare/wrangler.jsonc to replace UPLOAD_RATE_LIMITER.namespace_id with the approved production integer namespace, run local/dry-run verification, and record evidence. No production deploy, no traffic change, no secret mutation, no R2 mutation, no Firebase Hosting mutation, no rollback, no version pin, no push, and no Task 2.11 checkbox change.
+```
+
+Production rollout approval:
+
+```text
+Approve PRD-0055 Task 2.11 Phase C production rollout only: allow production r2-upload-signer secret provisioning, Wrangler deploy, Firebase Hosting deploy, deployed negative probes, and one authorized production upload/move proof under the recorded Option A order. No unrelated code/config edits, no existing R2 object mutation, no rollback unless a stop condition triggers, no version pin except the recorded rollback plan, no push, and no Task 2.11 checkbox change until all required proof passes.
+```
+
+Rollback/version-pin approval:
+
+```text
+Approve PRD-0055 Task 2.11 rollback/version-pin only: if a recorded stop condition triggers, roll back r2-upload-signer to PRE_S0_VERSION_ID 20dd8429-5be1-4105-baed-f6dc5af68098, restore Firebase Hosting live to version 2ca9c185ac62dd7b, verify both versions and no R2 object loss, and record evidence. No new deploy beyond the rollback/version-pin actions, no secret mutation, no unrelated R2 mutation, no push, and no Task 2.11 checkbox change.
+```
+
+Later mutation commands, redacted and not run:
+
+```powershell
+# After config-prep approval only: edit cloudflare/wrangler.jsonc so
+# UPLOAD_RATE_LIMITER.namespace_id = "<PRODUCTION_INTEGER_NAMESPACE_ID>"
+
+wrangler deployments status --name r2-upload-signer --json
+wrangler versions list --name r2-upload-signer --json
+wrangler versions view 20dd8429-5be1-4105-baed-f6dc5af68098 --name r2-upload-signer --json
+node node_modules/firebase-tools/lib/bin/firebase.js hosting:sites:list --project temp-a1437 --json
+
+"<UPLOAD_GRANT_SECRET_REDACTED>" | wrangler secret put UPLOAD_GRANT_SECRET --name r2-upload-signer --config cloudflare/wrangler.jsonc
+wrangler deploy --config cloudflare/wrangler.jsonc --message "PRD-0055 Task 2.11 Phase C production rollout"
+npm run build
+node node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting:kahut1 --project temp-a1437
+wrangler rollback 20dd8429-5be1-4105-baed-f6dc5af68098 --name r2-upload-signer --message "Rollback PRD-0056 S0 upload-worker hardening" --yes
+wrangler versions deploy 20dd8429-5be1-4105-baed-f6dc5af68098@100% --name r2-upload-signer --message "Pin PRD-0056 rollback to pre-S0 version" --yes
+node node_modules/firebase-tools/lib/bin/firebase.js hosting:clone kahut1@2ca9c185ac62dd7b kahut1:live --project temp-a1437
+```
+
+Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.

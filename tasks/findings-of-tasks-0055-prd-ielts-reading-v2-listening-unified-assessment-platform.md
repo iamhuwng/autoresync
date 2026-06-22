@@ -4067,3 +4067,128 @@ Parsed `report.json` evidence:
 - Object cleanup evidence: exactly two server-returned keys were tracked (temporary key hash `939846a9802361b4d6d761a82ce713cb14896a7929309abcc4ab4db463becd6a`; durable key hash `fa3220181cde8bc5fc688223b01c86f259965a0f3333c35d79083977bcba9ff2`; raw keys omitted). Both were deleted/checked through Wrangler `4.103.0` remote R2 commands; parsed attachment recorded `remoteAbsent: true` and public HTTP `404` for both. No existing object was listed, read, written, moved, or deleted.
 - Cleanup after capture: temporary spec, `report.json`, generated `test-results` artifacts, and the Playwright-managed Vite server were removed/stopped; port `5173` had no listener. No temporary proxy or separate server file was created.
 - Scope guard: no deploy, traffic change, secret mutation, rollback, version pin, push, production Worker request, taskbox change, or Phase C work occurred. Task 2.11 remains unchecked.
+
+## Packet 2O Task 2.11 Phase C Readiness Audit - 2026-06-23
+
+### Findings First And Verdict
+
+Verdict: BLOCKED for Phase C production readiness.
+
+1. Production `r2-upload-signer` still serves pre-S0 version `20dd8429-5be1-4105-baed-f6dc5af68098` at 100% from deployment `92e01212-afd4-4aae-9d72-a548f063008b`; deployment source remains `quick_editor`. `PRE_S0_VERSION_ID` is therefore `20dd8429-5be1-4105-baed-f6dc5af68098`.
+2. Production remote bindings still list only `PUBLIC_URL` and `R2_BUCKET=kahoot-media`; production has no remote `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, `FIREBASE_PROJECT_ID`, or deployed migration tag.
+3. Production `cloudflare/wrangler.jsonc` still contains invalid semantic rate-limit namespace `prd0056-upload-worker-s0`; the proven canary namespace is the integer string `205511`, but production config was not edited in this packet.
+4. Live Firebase Hosting `kahut1` still serves live channel version `2ca9c185ac62dd7b`, release `1780366034643000`, deployed `2026-06-02T02:07:14.643Z`. All scanned live JS chunks lack the Task 2.11 grant-client strings `/upload/authorize`, `moveGrant`, `VITE_R2_UPLOAD_WORKER_URL`, `r2-upload-signer-s0-canary`, and `r2-upload-signer.iamhuwng.workers.dev`; live Hosting is not serving the Task 2.11 authenticated grant client. The rollback target/version is still verified as `2ca9c185ac62dd7b`.
+5. Canary `r2-upload-signer-s0-canary` still serves version `627f7503-8324-45d1-8e23-cdd02828111c` at 100%, source `wrangler`, with required bindings: `FIREBASE_PROJECT_ID=temp-a1437`, `PUBLIC_URL`, `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `bea9a2921503419cae45222576464679`, `UPLOAD_GRANT_SECRET` as `secret_text`, `UPLOAD_RATE_LIMITER` namespace `205511` limit 30 / period 60, and migration tag `v1-upload-grant-replay-ledger`.
+6. No mutation occurred: no code/config edit outside these docs, no `cloudflare/wrangler.jsonc` edit, no remote mutation, no deploy, no secret mutation, no traffic change, no rollback/version-pin, no R2 mutation, no Firebase Hosting mutation, no commit, and no Task 2.11 checkbox change.
+
+### Read-Only Evidence Re-Run
+
+Start state:
+
+1. Required HEAD verified: `73e2ef7e22112eb091456cd87370eab1c62aafc2`.
+2. Required clean git status verified: branch `codex/prd-0055-task-2a-s0-worker-truth`, clean.
+3. `rtk` version verified as `0.42.4`; subsequent shell commands used `rtk` after RTK instructions were loaded.
+
+Cloudflare read-only evidence:
+
+1. Cloudflare API `GET /accounts/{account_id}/workers/scripts/r2-upload-signer/deployments` returned the latest production deployment with source `quick_editor`, strategy `percentage`, version `20dd8429-5be1-4105-baed-f6dc5af68098` at `100`, created `2026-01-26T17:27:56.516701Z`.
+2. Cloudflare API `GET /accounts/{account_id}/workers/scripts/r2-upload-signer/settings` returned exactly two production bindings: `PUBLIC_URL` and `R2_BUCKET`.
+3. Cloudflare API `GET /accounts/{account_id}/workers/scripts/r2-upload-signer/secrets` returned an empty list.
+4. Cloudflare API version detail for `20dd8429-5be1-4105-baed-f6dc5af68098` returned `resources.script.last_deployed_from: quick_editor`, bindings only `PUBLIC_URL` and `R2_BUCKET`, and no `script_runtime.migration_tag`.
+5. Cloudflare API `GET /accounts/{account_id}/workers/scripts/r2-upload-signer-s0-canary/deployments` returned canary deployment `0e2561d1-e868-49d6-9609-2c03f3b83993`, source `wrangler`, version `627f7503-8324-45d1-8e23-cdd02828111c` at `100`, created `2026-06-22T05:18:03.514345Z`.
+6. Canary version detail returned `resources.script_runtime.migration_tag: v1-upload-grant-replay-ledger`, handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`, plus all required bindings listed in the verdict.
+
+Firebase Hosting read-only evidence:
+
+1. `.firebaserc` maps default project to `temp-a1437`; `firebase.json` maps Hosting target `kahut1` to public directory `dist`.
+2. Firebase CLI `hosting:sites:list --project temp-a1437 --json` returned `kahut1` with default URL `https://kahut1.web.app`.
+3. Firebase CLI internal read-only Hosting API `getChannel("-", "kahut1", "live")` returned live version `projects/171016256749/sites/kahut1/versions/2ca9c185ac62dd7b`, status `FINALIZED`, create time `2026-06-02T02:07:05.722777Z`, release type `DEPLOY`, and release time `2026-06-02T02:07:14.643Z`.
+4. Live page `https://kahut1.web.app/` referenced entry `/assets/index-ClAUP6nO.js`; scanning that entry plus 75 referenced JS chunks found zero occurrences of `/upload/authorize`, `moveGrant`, `VITE_R2_UPLOAD_WORKER_URL`, `r2-upload-signer-s0-canary`, `r2-upload-signer.iamhuwng.workers.dev`, `?filename=`, `sourceKey`, `destKey`, `Upload authorization failed; retry`, or `Unsupported temporary R2 upload folder`.
+
+Local config evidence:
+
+1. `cloudflare/wrangler.jsonc` still names production Worker `r2-upload-signer`, has `UPLOAD_RATE_LIMITER.namespace_id` set to `prd0056-upload-worker-s0`, has the `UPLOAD_GRANT_REPLAY_LEDGER` binding, and has migration tag `v1-upload-grant-replay-ledger`.
+2. `cloudflare/wrangler.canary.jsonc` still names canary Worker `r2-upload-signer-s0-canary`, uses `UPLOAD_RATE_LIMITER.namespace_id` `205511`, and has the same replay-ledger migration tag.
+3. `cloudflare/package.json` still records production commands `deploy`, `deployed-status`, `version-list`, `version-pin`, and `rollback`.
+
+### Exact Blockers
+
+1. Production Worker lacks required remote prerequisites: `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, `FIREBASE_PROJECT_ID`, and migration tag `v1-upload-grant-replay-ledger`.
+2. Production `cloudflare/wrangler.jsonc` cannot be deployed safely as-is because `UPLOAD_RATE_LIMITER.namespace_id` is still the semantic string `prd0056-upload-worker-s0`; canary already proved Cloudflare requires a positive integer string.
+3. Live Firebase Hosting still serves the pre-Task-2.11 browser artifact; it is not serving the authenticated grant client. A production Worker-only switch would strand live browser clients on the wrong contract.
+4. Production rollout and rollback commands are only recorded for later approval; no production deploy, production browser build, version-pin, rollback drill, or final S0 acceptance proof has run.
+
+### Option A Production Rollout Order
+
+This order is recorded for later approval only and was not executed.
+
+1. Record pre-change guards: `PRE_S0_VERSION_ID=20dd8429-5be1-4105-baed-f6dc5af68098`; `PRE_S0_HOSTING_VERSION_ID=2ca9c185ac62dd7b`; confirm production Worker and Hosting still match those IDs immediately before mutation.
+2. Production config prep gate: edit `cloudflare/wrangler.jsonc` only after explicit approval to replace `UPLOAD_RATE_LIMITER.namespace_id` with the production integer namespace; keep `R2_BUCKET`, `PUBLIC_URL`, `FIREBASE_PROJECT_ID`, `UPLOAD_GRANT_REPLAY_LEDGER`, and migration tag aligned with the canary-proven shape.
+3. Run local and dry-run proof using bundled Windows x64 Node; do not proceed unless production dry-run lists all required bindings and the Worker/hardened/baseline suites stay green.
+4. Provision production `UPLOAD_GRANT_SECRET` only after explicit secret-mutation approval; do not print or store the secret value.
+5. Deploy the production Worker from checked-in Wrangler config in the approved window.
+6. Deploy the production Firebase Hosting build that serves the Task 2.11 authenticated grant client.
+7. Immediately run deployed negative probes and one authorized production upload/move proof without logging tokens, grants, signed URLs, raw keys, or audio bytes.
+8. If any denial, upload/move, log-secrecy, binding, Hosting, or browser proof fails, roll back Worker to `PRE_S0_VERSION_ID` and Hosting to `PRE_S0_HOSTING_VERSION_ID`, then verify both versions and no R2 object loss.
+9. Only after deployed proof, rollback proof, version-pin proof, final S0 acceptance, and independent review pass may Task 2.11 be considered for checking.
+
+### Exact Later Approval Texts
+
+Production config prep approval:
+
+```text
+Approve PRD-0055 Task 2.11 Phase C production config prep only: edit cloudflare/wrangler.jsonc to replace UPLOAD_RATE_LIMITER.namespace_id with the approved production integer namespace, run local/dry-run verification, and record evidence. No production deploy, no traffic change, no secret mutation, no R2 mutation, no Firebase Hosting mutation, no rollback, no version pin, no push, and no Task 2.11 checkbox change.
+```
+
+Production rollout approval:
+
+```text
+Approve PRD-0055 Task 2.11 Phase C production rollout only: allow production r2-upload-signer secret provisioning, Wrangler deploy, Firebase Hosting deploy, deployed negative probes, and one authorized production upload/move proof under the recorded Option A order. No unrelated code/config edits, no existing R2 object mutation, no rollback unless a stop condition triggers, no version pin except the recorded rollback plan, no push, and no Task 2.11 checkbox change until all required proof passes.
+```
+
+Rollback/version-pin approval:
+
+```text
+Approve PRD-0055 Task 2.11 rollback/version-pin only: if a recorded stop condition triggers, roll back r2-upload-signer to PRE_S0_VERSION_ID 20dd8429-5be1-4105-baed-f6dc5af68098, restore Firebase Hosting live to version 2ca9c185ac62dd7b, verify both versions and no R2 object loss, and record evidence. No new deploy beyond the rollback/version-pin actions, no secret mutation, no unrelated R2 mutation, no push, and no Task 2.11 checkbox change.
+```
+
+### Exact Later Mutation Commands (Redacted, Not Run)
+
+These command shapes are for the later approved packet only. Secret value, grant, token, signed URL, and raw object key values remain redacted.
+
+```powershell
+# Production config prep, after approval only:
+# edit cloudflare/wrangler.jsonc:
+#   UPLOAD_RATE_LIMITER.namespace_id = "<PRODUCTION_INTEGER_NAMESPACE_ID>"
+
+# Production read-only guard, immediately before mutation:
+wrangler deployments status --name r2-upload-signer --json
+wrangler versions list --name r2-upload-signer --json
+wrangler versions view 20dd8429-5be1-4105-baed-f6dc5af68098 --name r2-upload-signer --json
+node node_modules/firebase-tools/lib/bin/firebase.js hosting:sites:list --project temp-a1437 --json
+
+# Production secret mutation, after explicit secret approval only:
+"<UPLOAD_GRANT_SECRET_REDACTED>" | wrangler secret put UPLOAD_GRANT_SECRET --name r2-upload-signer --config cloudflare/wrangler.jsonc
+
+# Production Worker deploy, after explicit rollout approval only:
+wrangler deploy --config cloudflare/wrangler.jsonc --message "PRD-0055 Task 2.11 Phase C production rollout"
+
+# Production Firebase Hosting deploy, after explicit rollout approval only:
+npm run build
+node node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting:kahut1 --project temp-a1437
+
+# Worker rollback, after stop-condition approval or pre-approved stop trigger only:
+wrangler rollback 20dd8429-5be1-4105-baed-f6dc5af68098 --name r2-upload-signer --message "Rollback PRD-0056 S0 upload-worker hardening" --yes
+
+# Worker version pin, after rollback/version-pin approval only:
+wrangler versions deploy 20dd8429-5be1-4105-baed-f6dc5af68098@100% --name r2-upload-signer --message "Pin PRD-0056 rollback to pre-S0 version" --yes
+
+# Firebase Hosting rollback, after rollback approval only:
+node node_modules/firebase-tools/lib/bin/firebase.js hosting:clone kahut1@2ca9c185ac62dd7b kahut1:live --project temp-a1437
+```
+
+### Scope And Task State
+
+No mutation occurred in this packet. The only intended changes are docs-only evidence updates in the parent findings ledger, child PRD, parent tasklist text, and traceability registry.
+
+Taskboxes unchanged: parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked. Task 2.11 is not checked.
