@@ -864,3 +864,33 @@ DAG-80->DAG-81
 | `DAG-20` PRD-0056 / Task 2 S0 | `DAG-00` Task 1 planning approval complete; child-specific authorization still required | Canonical secured upload/move Worker, deploy/rollback/harness, and deployed/current proof | `DAG-21` PRD-0056A only |
 
 PRD-0056 may run only in a separately approved implementation packet and may then parallelize with separately approved Task 3 neutral presentation or PRD-0060 authority-contract test preparation. PRD-0056 does not directly unblock PRD-0058: `DAG-21` PRD-0056A must consume deployed/current S0 proof before `DAG-40`. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.
+
+## 27. Packet 2L Option A Local Adapter And Canary Readiness - 2026-06-22
+
+Approvals are recorded separately from the same contextual response:
+
+1. Product-owner approval: User response: `"approve all"`.
+2. Architecture/security approval: User response: `"approve all"`.
+
+Approved Option A remains bounded to local readiness:
+
+1. Canary Worker name: `r2-upload-signer-s0-canary`.
+2. `VITE_R2_UPLOAD_WORKER_URL` selects the internal/canary endpoint; absence keeps `https://r2-upload-signer.iamhuwng.workers.dev` as the production default.
+3. Production browser and production `r2-upload-signer` remain unchanged.
+4. Planned rollback is to restore the canary build endpoint to the current production Worker.
+5. Stop rollout for auth failure, browser raw-key authority, wrong upload URL, upload/move failure, or caller regression.
+
+Local adapter contract:
+
+1. `src/services/r2Storage.ts` is a thin compatibility facade. It preserves `UploadResult`, `MoveResult`, progress callbacks, public URLs, and current method signatures while mapping current caller families to approved operation kinds.
+2. `src/services/r2UploadClient.ts` owns Firebase ID-token retrieval, authenticated `POST /upload/authorize`, authenticated grant `PUT`, authenticated `POST /move`, same-endpoint upload URL validation, and in-memory canonical key to `moveGrant`/`expiresAt` association.
+3. Authorize sends only operation intent plus basename, content type, and size. Move sends only `moveGrant`; no raw source/destination key is sent as authority.
+4. Existing image, audio, and book-cover replacement requests select approved operation intent and accept server-derived replacement keys. Only `avatar_permanent` preserves server-authorized singleton overwrite.
+5. Missing user/token, Worker `401`, missing move grant, and expired move grant surface recoverable errors. No unauthenticated or raw-key fallback exists.
+6. Tokens, grants, and keys are not written to `localStorage`, `sessionStorage`, IndexedDB, or console logs.
+
+Canary config and proof boundary:
+
+1. `cloudflare/wrangler.canary.jsonc` differs in Worker name and keeps the production config binding shape for dry-run validation.
+2. Production and canary Wrangler commands were `deploy --dry-run` only. No deploy, provisioning, secret mutation, traffic change, rollback, push, production browser build, or R2 mutation occurred.
+3. Task 2.11 remains unchecked. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.

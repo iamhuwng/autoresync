@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "r2-upload-signer-s0-canary",
+  "main": "worker.js",
+  "compatibility_date": "2026-01-20",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "kahoot-media"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "class_name": "UploadGrantReplayLedger"
+      }
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "UPLOAD_RATE_LIMITER",
+      "namespace_id": "prd0056-upload-worker-s0",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1-upload-grant-replay-ledger",
+      "new_sqlite_classes": [
+        "UploadGrantReplayLedger"
+      ]
+    }
+  ],
+  "vars": {
+    "PUBLIC_URL": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
+    "FIREBASE_PROJECT_ID": "temp-a1437"
+  }
+}

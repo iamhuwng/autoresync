@@ -3829,3 +3829,96 @@ Clean-copy proof:
 Taskbox state after Packet 2K: parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked. Task 2.11 was not started.
 
 Residuals and next gates: production Durable Object namespace provisioning, deployed binding/secrets proof, deployed negative probes, authorized deployed upload/move proof, rollback/version-pin proof, sections 15-16 remote evidence, and final S0 acceptance remain Task 2.11+ work. No Cloudflare remote state was mutated in Packet 2K.
+
+## Packet 2L Option A Local Adapter And Canary Readiness - 2026-06-22
+
+### Findings First And Verdict
+
+1. Packet 2L local adapter/canary readiness verdict: PASS within local-only scope.
+2. Full app Vitest sweep is not globally GREEN: it exited `1` with unrelated existing assertion/time-out failures and Firebase emulator tests that lack host/port configuration. Examples include `AccessDeniedPage`, mobile exam mode, Reading V2 operational matrix, Listening parser, and PRD-0040 emulator tests. Packet-focused service tests and every mapped caller test pass independently and in clean copy.
+3. Full repo `tsc --noEmit` is also not globally GREEN because of existing errors across unrelated Academic Record, legacy Mantine, student navigation, Reading V2, results, and other files. No error was attributed to the four touched service/test files by focused Vitest compilation.
+4. Fresh root `npm ci` reports 38 existing audit findings: 2 low, 20 moderate, 14 high, and 2 critical. Packet 2L changes no package manifest or lockfile. Fresh Cloudflare `npm ci` reports zero vulnerabilities.
+5. No stop condition occurred in the adapter, mapped-caller, Worker, hardened, baseline, dry-run, mutation, or clean-copy proof.
+
+### Separate Approvals And Option A
+
+Product-owner approval: User response: `"approve all"`.
+
+Architecture/security approval: User response: `"approve all"`.
+
+Approved local-only shape:
+
+1. Canary Worker: `r2-upload-signer-s0-canary`.
+2. Internal/canary browser build only; production browser and `r2-upload-signer` unchanged.
+3. Planned rollback: restore canary build endpoint to current production Worker.
+4. Stop for auth failure, raw-key authority, wrong upload URL, upload/move failure, or caller regression.
+
+### Files, Lines, And Responsibility
+
+1. `src/services/r2Storage.ts`: 446 -> 140 lines. Legacy network/auth/raw-key implementation removed; file now maps existing method/folder/key hints to approved operation intent, delegates to the client, and preserves URL/temp helpers plus public API types.
+2. `src/services/r2Storage.test.ts`: 85 -> 118 lines. Facade tests map six caller families, progress, avatar singleton intent, server-derived replacement keys, exact move output, and URL/temp compatibility.
+3. `src/services/r2UploadClient.ts`: absent -> 360 lines. Owns endpoint selection, Firebase token retrieval, authorize/PUT/move HTTP flow, response validation, recoverable errors, and in-memory move-grant expiry association. It remains below the 400-line production-module target.
+4. `src/services/r2UploadClient.test.ts`: absent -> 344 lines. Covers auth headers, all operation kinds, basename/content type/size, exact output, real Vite endpoint override, production default, missing/expired credentials/grants, wrong URL, raw-key absence, and storage/log secrecy.
+5. `cloudflare/wrangler.canary.jsonc`: absent -> 44 lines. Uses Worker name `r2-upload-signer-s0-canary`; otherwise preserves production binding/config shape for local dry-run.
+6. Child PRD, parent tasklist, `EV-0056`, and this append-only findings ledger record Packet 2L only.
+
+`cloudflare/worker.js`, production `cloudflare/wrangler.jsonc`, Worker modules/tests/runners, insecure fixture/manifest, Firebase rules/config, `r2-backup-worker/**`, SOP, lifecycle, callers, and production build files remain unchanged.
+
+### Adapter Contract Evidence
+
+1. `VITE_R2_UPLOAD_WORKER_URL` is trimmed and trailing slashes normalized; missing/blank override selects `https://r2-upload-signer.iamhuwng.workers.dev`.
+2. `getAuth().currentUser.getIdToken()` is called for authorize, PUT, and move. Each request sends `Authorization: Bearer <token>`.
+3. Authorize body contains only `operationKind`, basename-only `fileName`, `contentType`, and `sizeBytes`; it contains no `key`, legacy `filename`, `sourceKey`, or `destKey` authority.
+4. PUT accepts only the Worker-returned same-endpoint `/upload?grant=...` URL and stops on a different origin/path. Returned canonical key and public URL must agree between authorize and PUT.
+5. Move body is exactly `{ moveGrant }`. Missing or expired in-memory grant fails before network and never falls back to raw source/destination keys.
+6. Listening audio temp, test audio temp, test image temp, avatar permanent, announcement attachment permanent, and book-cover permanent map to the six Worker allowlisted operation kinds.
+7. Existing audio/image/book-cover replacement hints never reach the client as storage authority; Worker-derived replacement key/URL wins. Avatar retains `avatar_permanent` singleton intent.
+8. No token, grant, or key is written to local/session storage, IndexedDB, or console by the client.
+
+### RED, GREEN, And Mutation Proof
+
+Initial focused RED: client test import failed because `r2UploadClient.ts` was absent; 12 of 13 new facade tests failed against legacy network/raw-key behavior. This proved the new contract was not pre-existing.
+
+Restored focused GREEN: two files, 32/32 tests.
+
+Targeted mutations:
+
+1. Removed PUT `Authorization`; `sends Authorization on authorize, PUT, and move without raw move keys` failed because the header was `undefined`.
+2. Added raw `sourceKey`/`destKey` to move body; the same exact-body test failed and displayed both forbidden fields.
+3. Ignored real `VITE_R2_UPLOAD_WORKER_URL`; `uses configured canary endpoint for authorize, PUT, and move` failed with `invalid_upload_url`.
+4. Permitted missing/expired grant raw-key fallback; both `fails expired move grant without any raw-key fallback request` and `fails missing move grant association without network or raw-key fallback` failed.
+
+After every production mutation, exact bytes were restored. `git hash-object src/services/r2UploadClient.ts` returned `a88d27cd5a7b8f2f125483afa6c863b5a36a4f7c`; final focused GREEN returned 32/32.
+
+### Local Verification
+
+1. Focused adapter/client: two files, 32/32.
+2. Mapped current callers, run sequentially with 20-second per-test ceiling: six files, 29/29. Initial parallel run passed 27 and timed out two 5-second UI cases; sequential rerun proved both cases and the full mapped set GREEN without code changes.
+3. Full Worker: seven files, 129/129.
+4. Hardened runner: 22/22.
+5. Insecure baseline: fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+6. Production Wrangler config: `deploy --dry-run` only; five required bindings listed.
+7. Canary Wrangler config: `deploy --config wrangler.canary.jsonc --dry-run` only; same five required bindings listed.
+8. No production browser build was run.
+
+### Clean-Copy Proof
+
+Temporary copy `C:\Users\The Lord\AppData\Local\Temp\prd0056-packet2l-3f09ee002c624537b16a500e3572e2b7` was verified under the OS temp root. It excluded existing root and Cloudflare `node_modules`, Cloudflare `.wrangler`, and repository metadata. Bundled Windows x64 Node `v24.14.0` drove both fresh installs and all proof commands.
+
+1. Fresh root `npm ci`: 1,320 packages installed; audit findings recorded above.
+2. Clean adapter/client: 32/32.
+3. Clean mapped callers: 29/29.
+4. Fresh Cloudflare `npm ci`: 82 packages installed, 83 audited, zero vulnerabilities.
+5. Clean full Worker: 129/129.
+6. Clean hardened runner: 22/22.
+7. Clean baseline: exact fixture SHA; 18 expected RED failures and four safe passes.
+8. Clean production and canary Wrangler dry-runs: both list the five required bindings and exit at `--dry-run`.
+9. Temp removal verification returned `True`.
+
+After exact-file TypeScript checking exposed and corrected a test-only literal-return inference, final root test bytes were re-proven in `C:\Users\The Lord\AppData\Local\Temp\prd0056-packet2l-final-1950a2e2d39249db82b1962b26afeb2b`: fresh `npm ci`, exact-file `tsc --noEmit`, and adapter/client 32/32 all passed; final temp removal returned `True`. Production client hash and all Cloudflare files remained unchanged, so the earlier clean mapped-caller and Cloudflare proof remains exact for those paths.
+
+### Scope And Task State
+
+Parent Task 2.0 remains unchecked. Tasks 2.6 through 2.10 remain checked. Tasks 2.11 through 2.15 remain unchecked. Task 2.11 was not started.
+
+No provisioning, secret mutation, deploy, traffic change, push, rollback, browser production build, R2 mutation, remote operation, commit, or task checkbox change occurred. Production browser and production Worker remain unchanged.
