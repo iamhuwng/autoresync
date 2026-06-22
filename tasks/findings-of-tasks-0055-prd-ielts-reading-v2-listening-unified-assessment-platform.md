@@ -3960,3 +3960,19 @@ Verdict: PASS for canary provisioning only.
 No production Worker deploy, production traffic change, rollback, R2 object mutation, browser upload/move probe, version pin, push, production browser build, Firebase rule/config change, `r2-backup-worker/**` change, or task checkbox change occurred.
 
 Parent Task 2.0 remains unchecked. Tasks 2.6 through 2.10 remain checked. Task 2.11 remains unchecked because authorized upload/move deployed proof, browser/canary build proof, rollback drill, version-pin proof, final S0 acceptance, and independent review remain later work.
+
+## Packet 2N Task 2.11 Phase B Canary Proof Approval - 2026-06-22
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.11 Phase B canary proof only. Allow authenticated localhost browser testing against r2-upload-signer-s0-canary and creation, move, verification, and cleanup of uniquely named canary test objects only. No existing R2 object may be changed or deleted. No production Worker deploy, production traffic change, secret mutation, rollback, version pin, push, or Task 2.11 checkbox change."`
+
+This approval record was appended before any Phase B browser request or R2 object mutation. Task 2.11 remains unchecked.
+
+Phase B canary proof evidence:
+- Start state: HEAD `37d927f525d45a5f8d89d6a1eb355e7bd6e517a1`; `git status --short` was clean before Phase B evidence work.
+- Browser path: authenticated localhost teacher session at `http://localhost:5173` exercised `r2-upload-signer-s0-canary` through a temporary same-origin localhost proxy because direct browser navigation/fetch to `workers.dev` was blocked by `net::ERR_BLOCKED_BY_CLIENT`. The proxy and harness were removed after proof capture.
+- Upload/move proof: a uniquely named `test_audio_temp` canary object was uploaded, moved, and byte-verified through the canary-provided public R2 URL. Payload length was 63 bytes. Temp key SHA-256 was `6fe0468585e9215aeb167e02f66c1ba8a805f2e47fa748f81a23ebe2600e040e`; durable key SHA-256 was `a0eeafe16b8cfb1e692571daa8b10992fc957fb1783da886b3a5a68c206265ce`. Raw keys are intentionally omitted.
+- Browser client caveat: the default browser `R2UploadClient` call path failed with `Upload authorization failed; retry`; the proof completed only when the harness injected `fetch: async (...args) => window.fetch(...args)`. This remains a follow-up implementation finding and is why Task 2.11 stays unchecked.
+- Cleanup proof: delayed recheck showed both unique temp and durable public URLs returned `404`; Cloudflare R2 REST exact-prefix list returned `count: 0` and `targetSeen: false` for both key hashes; Cloudflare R2 REST delete probe for the durable key returned JSON `success:false`, error code `10007`, message `The specified key does not exist.`
+- Wrangler/R2 REST caveat: `wrangler r2 object delete ... --remote --force` printed `Delete complete` because the R2 API returned HTTP `200`, but direct JSON inspection showed `success:false`. A slash-path R2 REST/Wrangler GET also returned 63 bytes while public URL, exact-prefix list, and delete probe all showed the unique canary keys absent; cleanup truth is therefore based on public URL/list/delete JSON, not dry-run or Wrangler success text.
+- Remote version guard: read-only `wrangler deployments status` after Phase B showed canary `r2-upload-signer-s0-canary` still at version `627f7503-8324-45d1-8e23-cdd02828111c` and production `r2-upload-signer` still at version `20dd8429-5be1-4105-baed-f6dc5af68098`.
+- No production Worker deploy, production traffic change, secret mutation, rollback, version pin, push, existing R2 object mutation, or Task 2.11 checkbox change occurred. Task 2.11 Phase C/final acceptance was not started.
