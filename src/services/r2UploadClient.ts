@@ -117,6 +117,14 @@ const defaultGetIdToken = async (): Promise<string> => {
     return token;
 };
 
+// Browser `fetch` must be invoked with the global object as its receiver. Storing a bare
+// `fetch` reference and later calling it as `this.fetchImpl(...)` uses the client instance
+// as the receiver, which makes real browsers throw "Illegal invocation"; the catch in
+// authorize() then surfaces it as the recoverable "Upload authorization failed; retry".
+// Routing the default through `globalThis.fetch(...)` keeps the global receiver while still
+// letting tests inject their own fetch via options.
+const defaultFetch: typeof fetch = (...args) => globalThis.fetch(...args);
+
 export class R2UploadClient implements R2UploadClientContract {
     private readonly endpoint: string;
     private readonly fetchImpl: typeof fetch;
@@ -127,7 +135,7 @@ export class R2UploadClient implements R2UploadClientContract {
 
     constructor(options: R2UploadClientOptions = {}) {
         this.endpoint = (options.endpoint?.trim() || configuredEndpoint()).replace(/\/+$/, '');
-        this.fetchImpl = options.fetch ?? fetch;
+        this.fetchImpl = options.fetch ?? defaultFetch;
         this.getIdToken = options.getIdToken ?? defaultGetIdToken;
         this.xhrFactory = options.xhrFactory ?? (() => new XMLHttpRequest());
         this.now = options.now ?? (() => Date.now());

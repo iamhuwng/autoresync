@@ -342,3 +342,55 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(error.message).not.toContain('token-sentinel');
     });
 });
+
+describe('R2UploadClient default browser fetch binding', () => {
+    it('invokes the default global fetch with the global receiver on authorize and move', async () => {
+        vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', '');
+        const endpoint = DEFAULT_R2_UPLOAD_WORKER_URL;
+        const receivers: unknown[] = [];
+        // Mirror the native browser fetch contract: it must be invoked with the global
+        // object as its `this` receiver, otherwise a real browser throws an
+        // "Illegal invocation" TypeError. The default client previously stored a bare
+        // `fetch` reference, so `this.fetchImpl(...)` invoked it with the client instance
+        // as the receiver and the browser rejected every authorize with the recoverable
+        // "Upload authorization failed; retry" error.
+        function browserFetch(this: unknown, input: RequestInfo | URL): Promise<Response> {
+            receivers.push(this);
+            if (this !== globalThis) {
+                return Promise.reject(
+                    new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation"),
+                );
+            }
+            const url = String(input);
+            if (url === `${endpoint}/upload/authorize`) {
+                return Promise.resolve(jsonResponse(authorization(endpoint)));
+            }
+            if (url === `${endpoint}/move`) {
+                return Promise.resolve(jsonResponse({
+                    success: true,
+                    newKey: 'audio/owner-a/0123456789abcdef0123456789abcdef-lesson.mp3',
+                    newUrl: 'https://pub.example/audio/owner-a/0123456789abcdef0123456789abcdef-lesson.mp3',
+                }));
+            }
+            return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
+        }
+        vi.stubGlobal('fetch', browserFetch);
+        const client = new R2UploadClient({
+            getIdToken: vi.fn().mockResolvedValue('firebase-token-sentinel'),
+            xhrFactory: () => new FakeXMLHttpRequest() as unknown as XMLHttpRequest,
+            now: () => 1_000,
+        });
+        FakeXMLHttpRequest.responses.push({ status: 200, body: uploadResponse });
+
+        const uploaded = await client.upload(
+            new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }),
+            'test_audio_temp',
+        );
+        await client.move(uploaded.key);
+
+        expect(receivers).toHaveLength(2);
+        for (const receiver of receivers) {
+            expect(receiver).toBe(globalThis);
+        }
+    });
+});

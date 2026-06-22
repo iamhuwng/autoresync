@@ -3976,3 +3976,94 @@ Phase B canary proof evidence:
 - Wrangler/R2 REST caveat: `wrangler r2 object delete ... --remote --force` printed `Delete complete` because the R2 API returned HTTP `200`, but direct JSON inspection showed `success:false`. A slash-path R2 REST/Wrangler GET also returned 63 bytes while public URL, exact-prefix list, and delete probe all showed the unique canary keys absent; cleanup truth is therefore based on public URL/list/delete JSON, not dry-run or Wrangler success text.
 - Remote version guard: read-only `wrangler deployments status` after Phase B showed canary `r2-upload-signer-s0-canary` still at version `627f7503-8324-45d1-8e23-cdd02828111c` and production `r2-upload-signer` still at version `20dd8429-5be1-4105-baed-f6dc5af68098`.
 - No production Worker deploy, production traffic change, secret mutation, rollback, version pin, push, existing R2 object mutation, or Task 2.11 checkbox change occurred. Task 2.11 Phase C/final acceptance was not started.
+
+## Packet 2N-R Task 2.11 Browser Client Corrective Fix - 2026-06-22
+
+Corrective scope: This packet supersedes only the Packet 2N "Browser client caveat" line. Packet 2N completed the canary upload/move/cleanup but recorded that the default browser `R2UploadClient` failed with `Upload authorization failed; retry` and that the proof passed only when the harness injected `fetch: async (...args) => window.fetch(...args)`. This packet fixes the default browser client path locally, proves it by RED/GREEN/mutation regression, and re-confirms the unchanged Worker/hardened/baseline suites. The live default-client canary browser rerun is recorded separately below.
+
+### Start State
+
+- Required HEAD `c31b4a21f4856a9c4c4843a7ad2b36e816980c41`; `git status --porcelain` clean before edits.
+- Branch `codex/prd-0055-task-2a-s0-worker-truth`.
+
+### Root Cause
+
+`src/services/r2UploadClient.ts` constructor stored a bare global `fetch` reference (`this.fetchImpl = options.fetch ?? fetch`). Calling it later as `this.fetchImpl(...)` uses the `R2UploadClient` instance as the `this` receiver. Real browsers require `fetch` to be invoked with the global object as receiver and throw a `TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation`. The `authorize()` try/catch then surfaces that as the recoverable `R2UploadClientError('network_error', 'Upload authorization failed; retry', true)`, which is the exact Packet 2N caveat symptom. Node/undici `fetch` is lenient about the receiver, so the prior unit tests (which always injected `fetch`) never exercised the default path and never caught this.
+
+### Fix (Default Browser Client Path Only)
+
+- Added module helper `const defaultFetch: typeof fetch = (...args) => globalThis.fetch(...args);` and changed the constructor default to `this.fetchImpl = options.fetch ?? defaultFetch;`. This routes the default through `globalThis.fetch(...)` (global receiver) and is the production equivalent of the proven Packet 2N harness workaround. The injectable `options.fetch` still wins for tests.
+- Preserved invariants unchanged: bearer Authorization on authorize/PUT/move, no raw-key move fallback (move requires a stored opaque `moveGrant`), same-endpoint `assertUploadUrl` check, and moveGrant-only association. No security logic was touched.
+
+### Changed Files
+
+- `src/services/r2UploadClient.ts` (+10/-1): `defaultFetch` helper plus the one-line default binding change.
+- `src/services/r2UploadClient.test.ts` (+52): focused regression `R2UploadClient default browser fetch binding > invokes the default global fetch with the global receiver on authorize and move`. It stubs `globalThis.fetch` with a native-style `browserFetch` that records its `this` receiver and rejects any non-global receiver with an "Illegal invocation" `TypeError`, constructs the client with no injected `fetch`, and asserts both the authorize and move calls were invoked with `globalThis` as receiver.
+
+### Local RED / GREEN / Mutation Proof
+
+All runs used ambient arm64 Node `v22.17.1` with `npx vitest run` from the repo root (jsdom env per `vitest.config.ts`).
+
+1. RED (pre-fix): `npx vitest run src/services/r2UploadClient.test.ts` -> 1 failed | 19 passed. The new test failed with `R2UploadClientError: Upload authorization failed; retry` thrown from `R2UploadClient.authorize` at `r2UploadClient.ts:249`, faithfully reproducing the Packet 2N browser symptom.
+2. Applied the `defaultFetch` fix.
+3. GREEN: `npx vitest run src/services/r2UploadClient.test.ts src/services/r2Storage.test.ts` -> 2 files, 33/33 (client 20/20 including the new regression; facade 13/13). Mapped-caller facade `r2Storage.test.ts` uses a mocked client and is unaffected.
+4. Mutation: reverting the constructor default to the exact original bug `options.fetch ?? fetch` reproduced the deterministic RED (`Upload authorization failed; retry` from `authorize`), 1 failed | 19 passed. Restoring `options.fetch ?? defaultFetch` returned 33/33 GREEN. The exact fix bytes are in place (`defaultFetch` helper; `?? defaultFetch`).
+
+### Unchanged Worker / Hardened / Baseline Suites
+
+`cloudflare/` was not modified; these re-confirm no regression. Run with bundled Windows x64 Node `v24.14.0` at `C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe` (ambient arm64 Node cannot run local `workerd`):
+
+1. Full Worker suite (`node_modules/vitest/vitest.mjs run` in `cloudflare/`): seven files, 129/129.
+2. Hardened negative runner (`scripts/run-hardened-negative-suite.mjs`): 22/22.
+3. Insecure baseline (`scripts/run-insecure-baseline.mjs`): fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+
+### TypeScript
+
+`npx tsc --noEmit -p tsconfig.json` reports no errors in `r2UploadClient.ts` or `r2Storage.test.ts`/`r2Storage.ts`. The project has pre-existing, unrelated type errors in Mantine/component files (the Vite app does not gate builds on `tsc`); none are introduced or affected by this change.
+
+### Remote Version Guard (Read-Only)
+
+Read-only `wrangler deployments status` (bundled x64 Node) after the local fix:
+
+1. Canary `r2-upload-signer-s0-canary`: deployment `0e2561d1-e868-49d6-9609-2c03f3b83993`, version `627f7503-8324-45d1-8e23-cdd02828111c` at 100%, created `2026-06-22T05:18:03.514345Z`. Unchanged.
+2. Production `r2-upload-signer`: deployment `92e01212-afd4-4aae-9d72-a548f063008b`, version `20dd8429-5be1-4105-baed-f6dc5af68098` at 100%, created `2026-01-26T17:27:56.516701Z`. Unchanged.
+
+### Live Default-Client Canary Browser Rerun (Completed 2026-06-22)
+
+Completed in this session under the existing Phase B approval limits (authenticated localhost browser testing against `r2-upload-signer-s0-canary`; creation, move, verification, and cleanup of uniquely named canary test objects only; no existing R2 object change; no production deploy/traffic/secret/rollback/version-pin/push; no Task 2.11 checkbox change). Canary URL `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`; production URL `https://r2-upload-signer.iamhuwng.workers.dev`. Raw object keys are intentionally omitted.
+
+Harness (temporary, removed after capture — analogous to the Packet 2N proxy/harness): a Playwright (Chromium v1208, bundled, extension-free) run drove the real Vite dev server started with `VITE_R2_UPLOAD_WORKER_URL` pointed at the canary, so the default upload endpoint resolved to the canary. The browser logged in through the app's real Firebase dev quick-login (`teacher@test.com`); the console confirmed `projectId: temp-a1437` (the canary Worker's verified project). After login, the test dynamically imported the real `/src/services/r2UploadClient.ts` and constructed `new R2UploadClient()` with ZERO options — exercising the default endpoint resolution, the default browser `fetch` (the fixed `defaultFetch` → `globalThis.fetch`), and the default `getIdToken` (real Firebase `currentUser`). No `fetch` was injected; no same-origin proxy was needed because the canary CORS policy already approves `http://localhost:5173` and a clean (extension-free) Chromium did not reproduce the Packet 2N `net::ERR_BLOCKED_BY_CLIENT` ad-block symptom.
+
+Default-client path proof (this is the corrective result vs. the Packet 2N caveat): the captured network trace shows all three default-client calls reached the canary Worker origin and succeeded — `POST https://r2-upload-signer-s0-canary.iamhuwng.workers.dev/upload/authorize`, `PUT .../upload?grant=<opaque grant>`, and `POST .../move`. The `/upload/authorize` call is the exact request that failed in Packet 2N with `Upload authorization failed; retry` when the default client used a bare `fetch`; with the fix it succeeded (HTTP 200, not the recoverable `network_error`) in a real browser with no injected fetch. The browser-side `upload()` + `move()` returned `ok: true`.
+
+Upload/move/content verification: a uniquely named `test_audio_temp` canary object (server-issued nonce `6054761e18729395e45aec72580272fb`, 60-byte UTF-8 payload, `audio/mpeg`) was authorized, uploaded through the Worker `/upload` endpoint, and then moved. Host-side (Node `fetch`, no browser CORS) verification of the canary-provided public R2 URL returned HTTP `200` with a byte-exact content match of the uploaded payload for the durable (moved) object. The temp source object was confirmed gone after the move (Worker deletes the source): `wrangler r2 object get` returned `The specified key does not exist.`
+
+Cleanup proof: the durable (moved) object and the temp key were both deleted via `wrangler r2 object delete kahoot-media/<key> --remote` (`Delete complete`). Absence was then confirmed two ways for both keys — authoritative `wrangler r2 object get ... --remote` returned `The specified key does not exist.`, and a public-URL recheck returned HTTP `404`. No pre-existing R2 object was read, written, or deleted; the canary and production share bucket `kahoot-media`, and only the two uniquely nonce-named objects created by this proof were created and removed. Cleanup authority was verified before any proof object was created via an isolated `put`/`delete`/`get-not-found` probe under a throwaway `packet2nr-cleanup-authority-probe/` key, which was also removed.
+
+Playwright result: `expected: 1, unexpected: 0, flaky: 0, skipped: 0` (one passing test). Remote version guard re-confirmed read-only after the rerun: canary `r2-upload-signer-s0-canary` still at version `627f7503-8324-45d1-8e23-cdd02828111c` (100%, created `2026-06-22T05:18:03.514Z`) and production `r2-upload-signer` still at version `20dd8429-5be1-4105-baed-f6dc5af68098` (100%, created `2026-01-26T17:27:56.516Z`) — both unchanged; no deploy, traffic change, secret mutation, rollback, or version pin occurred. The temporary Playwright harness and its report/evidence artifacts were removed after capture; the final changed-path set remains the three files listed above.
+
+### Scope And Task State
+
+No commit, push, production Worker deploy, canary deploy, production traffic change, secret mutation, rollback, version pin, or task checkbox change occurred during the local fix. Parent Task 2.0 remains unchecked. Tasks 2.6 through 2.10 remain checked. Tasks 2.11 through 2.15 remain unchecked. Task 2.11 was not checked.
+
+### Playwright JSON Reporter Evidence Correction - 2026-06-23
+
+Surviving-evidence gate: no app terminal was attached; PowerShell `ConsoleHost_history.txt` contained no Packet 2N-R Playwright command; and the surviving prior-thread record contained only the reported Playwright counts, not a terminal command/output proving `--reporter=json > report.json`. The exact required mechanism therefore could not be proven from surviving evidence, so the default-client canary proof was rerun under the existing Phase B approval.
+
+Exact redacted PowerShell command (no credential, token, grant, signed URL, or raw object key was present):
+
+```powershell
+$env:VITE_R2_UPLOAD_WORKER_URL='https://r2-upload-signer-s0-canary.iamhuwng.workers.dev'
+npx playwright test e2e/.tmp-packet2nr-default-client-canary.spec.ts --reporter=json > report.json
+```
+
+Parsed `report.json` evidence:
+
+- Process exit code: `0`.
+- Playwright stats: `expected: 1`, `unexpected: 0`, `flaky: 0`, `skipped: 0`; the one test result was `passed`.
+- The browser dynamically imported the real `/src/services/r2UploadClient.ts` and executed the literal zero-option construction `new R2UploadClient()`. Parsed redacted attachment: `optionsCount: 0`, endpoint `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`, `injectedFetch: false`, `proxy: false`.
+- Direct network evidence, with query/grant data omitted: `POST /upload/authorize` HTTP `200`, `PUT /upload` HTTP `200`, and `POST /move` HTTP `200`, all on the canary Worker origin. No route interception, injected `fetch`, or same-origin proxy was used.
+- Upload/move/content evidence: temporary upload returned successfully, move returned successfully, and host-side fetch of the moved public object returned HTTP `200` with a byte-exact match to the unique 80-byte UTF-8 payload (payload SHA-256 `ac02098a49e8b7c75a260619188dc78edd3159b8b49986305e4313d1362e4c1d`).
+- Object cleanup evidence: exactly two server-returned keys were tracked (temporary key hash `939846a9802361b4d6d761a82ce713cb14896a7929309abcc4ab4db463becd6a`; durable key hash `fa3220181cde8bc5fc688223b01c86f259965a0f3333c35d79083977bcba9ff2`; raw keys omitted). Both were deleted/checked through Wrangler `4.103.0` remote R2 commands; parsed attachment recorded `remoteAbsent: true` and public HTTP `404` for both. No existing object was listed, read, written, moved, or deleted.
+- Cleanup after capture: temporary spec, `report.json`, generated `test-results` artifacts, and the Playwright-managed Vite server were removed/stopped; port `5173` had no listener. No temporary proxy or separate server file was created.
+- Scope guard: no deploy, traffic change, secret mutation, rollback, version pin, push, production Worker request, taskbox change, or Phase C work occurred. Task 2.11 remains unchecked.
