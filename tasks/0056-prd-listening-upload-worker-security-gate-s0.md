@@ -982,3 +982,24 @@ node node_modules/firebase-tools/lib/bin/firebase.js hosting:clone kahut1@2ca9c1
 ```
 
 Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
+
+## 30. Packet 2P Task 2.11 Phase C Production Config Prep - 2026-06-23
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.11 Phase C production config prep only: set cloudflare/wrangler.jsonc UPLOAD_RATE_LIMITER.namespace_id to dedicated production integer 205512, run local and dry-run verification, and record evidence. No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, or Task 2.11 checkbox change."`
+
+Config-prep verdict: PASS.
+
+1. Production `cloudflare/wrangler.jsonc` changed only `UPLOAD_RATE_LIMITER.namespace_id` from semantic string `prd0056-upload-worker-s0` to dedicated production integer string `205512`.
+2. Worker name remains `r2-upload-signer`; rate policy remains 30 requests per 60 seconds.
+3. Bundled Windows x64 Node `v24.14.0` and Wrangler `4.103.0` performed all Worker/config proof.
+4. Static config assertion parsed `wrangler.jsonc` and returned worker `r2-upload-signer`, binding `UPLOAD_RATE_LIMITER`, namespace `205512`, limit `30`, period `60`.
+5. Full local Worker suite passed seven files, 129/129 tests.
+6. Hardened negative runner passed 22/22.
+7. Immutable insecure baseline retained fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c` and matched 18 expected RED failures plus four already-safe passes.
+8. Production `wrangler deploy --dry-run` exited at `--dry-run` and listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests/60s, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID=temp-a1437`.
+
+Scope boundary:
+
+1. No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, or remote-state mutation occurred.
+2. Production `UPLOAD_GRANT_SECRET` provisioning, coordinated Worker/Hosting rollout, deployed negative and authorized upload/move proof, rollback/version-pin proof, final S0 acceptance, and independent review remain separately gated.
+3. Task state is unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.

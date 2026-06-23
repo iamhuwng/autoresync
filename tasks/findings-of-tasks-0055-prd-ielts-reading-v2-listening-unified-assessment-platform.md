@@ -4192,3 +4192,29 @@ node node_modules/firebase-tools/lib/bin/firebase.js hosting:clone kahut1@2ca9c1
 No mutation occurred in this packet. The only intended changes are docs-only evidence updates in the parent findings ledger, child PRD, parent tasklist text, and traceability registry.
 
 Taskboxes unchanged: parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked. Task 2.11 is not checked.
+
+## Packet 2P Task 2.11 Phase C Production Config Prep - 2026-06-23
+
+### Approval And Verdict
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.11 Phase C production config prep only: set cloudflare/wrangler.jsonc UPLOAD_RATE_LIMITER.namespace_id to dedicated production integer 205512, run local and dry-run verification, and record evidence. No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, or Task 2.11 checkbox change."`
+
+Verdict: PASS for production config prep only.
+
+Start state was clean at HEAD `7a134da0e31e8ec5fc34ba97d51c5a6c81ed9124` on branch `codex/prd-0055-task-2a-s0-worker-truth`. Production config changed only `UPLOAD_RATE_LIMITER.namespace_id` from `prd0056-upload-worker-s0` to dedicated positive integer string `205512`. Worker name `r2-upload-signer` and rate policy 30 requests per 60 seconds remain unchanged.
+
+### Local And Dry-Run Evidence
+
+All Cloudflare commands used bundled Windows x64 Node `v24.14.0`; Wrangler version was `4.103.0`.
+
+1. Static config assertion parsed `cloudflare/wrangler.jsonc`, selected binding `UPLOAD_RATE_LIMITER`, required exact namespace `205512`, required a positive digits-only string, and returned `{"worker":"r2-upload-signer","binding":"UPLOAD_RATE_LIMITER","namespace_id":"205512","limit":30,"period":60}`.
+2. Full Worker suite: seven files, 129/129 tests.
+3. Hardened negative runner: 22/22.
+4. Insecure baseline: exact fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; 18 expected RED failures and four already-safe passes.
+5. Production `wrangler deploy --dry-run`: total upload 76.71 KiB / gzip 17.75 KiB; listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests/60s, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID=temp-a1437`; then printed `--dry-run: exiting now.` and exited zero.
+
+### Scope And Remaining Gates
+
+No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, remote-state mutation, or Task 2.11 checkbox change occurred.
+
+Production secret provisioning and coordinated Worker/Hosting rollout remain separately gated. Deployed negative probes, one authorized production upload/move proof, rollback/version-pin proof, final S0 acceptance, and independent review remain incomplete. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
