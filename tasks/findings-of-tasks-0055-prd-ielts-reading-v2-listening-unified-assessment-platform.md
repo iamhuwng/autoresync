@@ -4218,3 +4218,34 @@ All Cloudflare commands used bundled Windows x64 Node `v24.14.0`; Wrangler versi
 No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, remote-state mutation, or Task 2.11 checkbox change occurred.
 
 Production secret provisioning and coordinated Worker/Hosting rollout remain separately gated. Deployed negative probes, one authorized production upload/move proof, rollback/version-pin proof, final S0 acceptance, and independent review remain incomplete. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
+
+## Packet 2Q Task 2.11 Phase C Bridge Rollout Closure - 2026-06-23
+
+Findings-first verdict: PASS.
+
+Start gates passed: HEAD was exact `15cd3bb6c3f0e9430106a518cfff8b2e74aaddb4`, `git status --short --branch` was clean before docs edits, and closure performed no deploy, push, rollback, version pin, traffic change, secret mutation, R2 object mutation, or browser/R2 proof rerun.
+
+Firebase OAuth token exposure containment passed. The prior Firebase CLI `login:list --json` output is treated as credential exposure. `firebase logout iamhuwng@gmail.com` returned `Logged out from iamhuwng@gmail.com`; `firebase login:list` then returned `No authorized accounts, run "firebase login"`; and `firebase projects:list` failed with `Failed to authenticate, have you run firebase login?`. No token values are recorded.
+
+Read-only closure evidence passed:
+
+1. Production Worker active deployment is `ac27c148-3c36-4bd2-a4f9-69608d27768e`.
+2. Production Worker active version is `11af545a-479b-4063-a899-d475dd57d2b5` at 100%.
+3. Version view lists `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as `secret_text`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, `UPLOAD_RATE_LIMITER` namespace `205512` with limit 30 / period 60, and migration tag `v1-upload-grant-replay-ledger`.
+4. Production Hosting live version is recorded from rollout evidence as `05cb152a2932b261`.
+5. Live asset fetch from `https://kahut1.web.app/assets/r2Storage-CKACZQeH.js` returned HTTP 200, contained `https://r2-upload-signer.iamhuwng.workers.dev`, and did not contain `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`.
+6. Rollback targets remain Worker `20dd8429-5be1-4105-baed-f6dc5af68098`, Hosting pre-S0 `2ca9c185ac62dd7b`, and safe canary Hosting `485aefde01ee7133`.
+
+Prior rollout proof accepted for closure:
+
+1. Live Hosting was first bridged to proven canary Worker and captured `SAFE_CANARY_HOSTING_VERSION_ID=485aefde01ee7133`.
+2. Canary authorized browser upload/move/content proof passed and cleanup verified source/destination 404.
+3. Production `UPLOAD_GRANT_SECRET` was set by name only; secret value was not printed or recorded.
+4. Non-versioned production Worker deploy applied migration `v1-upload-grant-replay-ledger` with rate namespace `205512`.
+5. Live Hosting was redeployed to the production Worker endpoint.
+6. Deployed negative probes passed: evil-origin preflight 403, no-auth authorize 401, invalid-grant upload 403.
+7. Authorized production browser upload/move/content proof passed from live Hosting to `https://r2-upload-signer.iamhuwng.workers.dev`; proof ID `prd0055-phase-c-prod-1782210318093-68018af50b77cc42`; authorize/upload/move/public-content all 200; content SHA-256 `9e82ef3494053b8d0c7b01f952b30cbe6273141d6812a29bd973a0a76101a009` matched.
+8. Cleanup deleted only the unique production proof object and verified source/destination 404.
+9. Rollback was not triggered.
+
+Verifier and verification outcome: Task 2.11 is checked because Phase C bridge rollout reached live canary proof, production Worker binding/migration proof, production Hosting proof, deployed negative probes, authorized production browser upload/move/content proof, proof-object cleanup, rollback target capture, and Firebase token-exposure containment. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 are checked; Tasks 2.12 through 2.15 remain unchecked.

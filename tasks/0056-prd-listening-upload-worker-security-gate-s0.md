@@ -1003,3 +1003,34 @@ Scope boundary:
 1. No production deploy, traffic change, secret mutation, R2 mutation, Firebase Hosting mutation, rollback, version pin, push, or remote-state mutation occurred.
 2. Production `UPLOAD_GRANT_SECRET` provisioning, coordinated Worker/Hosting rollout, deployed negative and authorized upload/move proof, rollback/version-pin proof, final S0 acceptance, and independent review remain separately gated.
 3. Task state is unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.10 remain checked; Tasks 2.11 through 2.15 remain unchecked.
+
+## 31. Packet 2Q Task 2.11 Phase C Bridge Rollout Closure - 2026-06-23
+
+Findings-first verdict: PASS for Task 2.11 Phase C bridge rollout closure.
+
+Hard-gate start state: `git rev-parse HEAD` returned `15cd3bb6c3f0e9430106a518cfff8b2e74aaddb4`; `git status --short --branch` was clean on `codex/prd-0055-task-2a-s0-worker-truth` before docs edits. Closure packet performed no deploy, push, rollback, version pin, secret mutation, R2 object mutation, traffic change, or browser/R2 proof rerun.
+
+Prior Firebase OAuth token exposure was contained. `firebase logout iamhuwng@gmail.com` returned `Logged out from iamhuwng@gmail.com`; `firebase login:list` returned `No authorized accounts, run "firebase login"`; `firebase projects:list` failed with `Failed to authenticate, have you run firebase login?`. No token value is recorded.
+
+Read-only closure evidence:
+
+1. Production Worker `r2-upload-signer` active deployment is `ac27c148-3c36-4bd2-a4f9-69608d27768e`.
+2. Active production Worker version is `11af545a-479b-4063-a899-d475dd57d2b5` at 100%.
+3. Version view for `11af545a-479b-4063-a899-d475dd57d2b5` lists `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as `secret_text`, `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object namespace `6653df5f663d4648992dc26bd099b489`, `UPLOAD_RATE_LIMITER` namespace `205512` with limit 30 / period 60, and migration tag `v1-upload-grant-replay-ledger`.
+4. Production Hosting live version from rollout evidence is `05cb152a2932b261`.
+5. Read-only live asset fetch from `https://kahut1.web.app/assets/r2Storage-CKACZQeH.js` returned HTTP 200, contained `https://r2-upload-signer.iamhuwng.workers.dev`, and did not contain `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`.
+6. Rollback targets are recorded as Worker `20dd8429-5be1-4105-baed-f6dc5af68098`, Hosting pre-S0 `2ca9c185ac62dd7b`, and safe canary Hosting `485aefde01ee7133`.
+
+Prior rollout proof accepted for closure:
+
+1. Live Hosting was first bridged to proven canary Worker and captured `SAFE_CANARY_HOSTING_VERSION_ID=485aefde01ee7133`.
+2. Canary authorized browser upload/move/content proof passed and cleanup verified source/destination 404.
+3. Production `UPLOAD_GRANT_SECRET` was set by name only; secret value was not printed or recorded.
+4. Non-versioned production Worker deploy applied migration `v1-upload-grant-replay-ledger` with rate namespace `205512`.
+5. Live Hosting was redeployed to the production Worker endpoint.
+6. Deployed negative probes passed: evil-origin preflight 403, no-auth authorize 401, invalid-grant upload 403.
+7. Authorized production browser upload/move/content proof passed from live Hosting to `https://r2-upload-signer.iamhuwng.workers.dev`; proof ID `prd0055-phase-c-prod-1782210318093-68018af50b77cc42`; authorize/upload/move/public-content all 200; content SHA-256 `9e82ef3494053b8d0c7b01f952b30cbe6273141d6812a29bd973a0a76101a009` matched.
+8. Cleanup deleted only the unique production proof object and verified source/destination 404.
+9. Rollback was not triggered.
+
+Task state: Task 2.11 is checked by this closure packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 are checked; Tasks 2.12 through 2.15 remain unchecked.
