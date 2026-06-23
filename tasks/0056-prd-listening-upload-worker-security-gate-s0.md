@@ -593,7 +593,7 @@ The deploy is not complete until deployed negative probes prove missing auth, ra
 
 ## 16. Rollback And Version-Pin Procedure
 
-Rollback must use the exact pre-S0 version captured before deploy.
+Rollback must use the exact recovery version captured for the current Worker resource shape. The original pre-S0 Worker version is valid only while its Cloudflare resource and Durable Object migration shape remains deployable. After a Durable Object migration is applied, Task 2.12 must prove the selected recovery version can be activated without crossing an invalid migration boundary.
 
 Rollback command:
 
@@ -614,7 +614,7 @@ wrangler deployments status --name r2-upload-signer --json
 wrangler versions view <PRE_S0_VERSION_ID> --name r2-upload-signer --json
 ```
 
-Rollback must not delete, move, or rewrite any R2 object. It changes only active Worker version traffic.
+Rollback must not delete, move, or rewrite any R2 object. It changes only active Worker version traffic. Firebase Hosting rollback targets remain separate from Worker rollback targets and do not solve a Worker Durable Object migration incompatibility.
 
 ## 17. Logging And Observability
 
@@ -918,7 +918,7 @@ Read-only readiness verdict: BLOCKED. This section records Phase C audit evidenc
 Re-verified production facts:
 
 1. Production `r2-upload-signer` remains on deployment `92e01212-afd4-4aae-9d72-a548f063008b`, version `20dd8429-5be1-4105-baed-f6dc5af68098`, source `quick_editor`, at 100%.
-2. `PRE_S0_VERSION_ID=20dd8429-5be1-4105-baed-f6dc5af68098`.
+2. Historical pre-migration `PRE_S0_VERSION_ID=20dd8429-5be1-4105-baed-f6dc5af68098`; Packet 2R later proves this Worker version invalid as a current rollback target after migration `v1-upload-grant-replay-ledger`.
 3. Production remote bindings remain only `PUBLIC_URL` and `R2_BUCKET=kahoot-media`; production remote secrets list is empty.
 4. Production version detail has no `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, `FIREBASE_PROJECT_ID`, or `script_runtime.migration_tag`.
 5. Production `cloudflare/wrangler.jsonc` still has `UPLOAD_RATE_LIMITER.namespace_id` set to `prd0056-upload-worker-s0`; this remains a blocker because the canary deploy proved the rate-limit namespace must be an integer string.
@@ -1019,7 +1019,7 @@ Read-only closure evidence:
 3. Version view for `11af545a-479b-4063-a899-d475dd57d2b5` lists `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as `secret_text`, `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object namespace `6653df5f663d4648992dc26bd099b489`, `UPLOAD_RATE_LIMITER` namespace `205512` with limit 30 / period 60, and migration tag `v1-upload-grant-replay-ledger`.
 4. Production Hosting live version from rollout evidence is `05cb152a2932b261`.
 5. Read-only live asset fetch from `https://kahut1.web.app/assets/r2Storage-CKACZQeH.js` returned HTTP 200, contained `https://r2-upload-signer.iamhuwng.workers.dev`, and did not contain `https://r2-upload-signer-s0-canary.iamhuwng.workers.dev`.
-6. Rollback targets are recorded as Worker `20dd8429-5be1-4105-baed-f6dc5af68098`, Hosting pre-S0 `2ca9c185ac62dd7b`, and safe canary Hosting `485aefde01ee7133`.
+6. Rollback targets were recorded as Worker `20dd8429-5be1-4105-baed-f6dc5af68098`, Hosting pre-S0 `2ca9c185ac62dd7b`, and safe canary Hosting `485aefde01ee7133`. Packet 2R later supersedes the Worker target as invalid after the S0 Durable Object migration; the Hosting rollback targets remain separately recorded but do not solve Worker DO migration rollback.
 
 Prior rollout proof accepted for closure:
 
@@ -1034,3 +1034,32 @@ Prior rollout proof accepted for closure:
 9. Rollback was not triggered.
 
 Task state: Task 2.11 is checked by this closure packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 are checked; Tasks 2.12 through 2.15 remain unchecked.
+
+## 32. Packet 2R Task 2.12 Corrective Rollback Blocker - 2026-06-23
+
+Findings-first verdict: BLOCKED for Task 2.12 rollback/version-pin drill.
+
+Scope boundary: corrective docs-only packet. No deploy, push, rollback, version-pin, secret mutation, R2 object mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this corrective packet.
+
+Rollback drill evidence from the approved Task 2.12 attempt:
+
+1. Pre-check production Worker active deployment was `ac27c148-3c36-4bd2-a4f9-69608d27768e`.
+2. Pre-check production Worker active version was `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+3. Attempted rollback target was the recorded pre-S0 Worker version `20dd8429-5be1-4105-baed-f6dc5af68098`.
+4. Cloudflare rejected the rollback with API code `10210`: the target cannot be deployed because its Durable Object migration resource state is empty while the current deployment uses migration `v1-upload-grant-replay-ledger`.
+5. Exact Cloudflare error meaning: Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` crosses an invalid Durable Object migration boundary after S0; it is no longer a valid current Worker rollback/version-pin target.
+6. Post-failure production Worker active deployment remained `ac27c148-3c36-4bd2-a4f9-69608d27768e`.
+7. Post-failure production Worker active version remained `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+
+Rollback target correction:
+
+1. Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` remains historical pre-S0 evidence only and must not be presented as a valid current Worker rollback target after migration `v1-upload-grant-replay-ledger`.
+2. Firebase Hosting rollback targets remain separately recorded: pre-S0 Hosting `2ca9c185ac62dd7b` and safe canary Hosting `485aefde01ee7133`.
+3. Hosting rollback does not solve Worker rollback when Cloudflare rejects the Worker target for Durable Object migration incompatibility.
+
+Required next architecture decision before Task 2.12 can pass:
+
+1. Define a rollback-compatible S0 Worker recovery strategy that stays within the current Durable Object migration shape.
+2. Candidate strategy to evaluate next, not implement in this packet: create a rollback-compatible recovery Worker version from current S0 code/config with the same Durable Object migration shape; prove it can be deployed/activated and restored without crossing the DO migration boundary; then use that version as the post-migration rollback target.
+
+Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
