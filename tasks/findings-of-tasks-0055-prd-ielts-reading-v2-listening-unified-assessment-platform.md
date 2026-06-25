@@ -4389,3 +4389,39 @@ Approval scope: User response: `"Execute PRD-0055 Task 2.12 rollback/version-pin
 9. No-object-loss proof is by mutation surface for this approved drill: only `wrangler deployments status`, `wrangler versions view`, and `wrangler versions deploy <version>@100%` were executed against Cloudflare. No Worker code deploy, Firebase Hosting deploy, secret mutation command, R2 object command, upload/move/delete browser proof, Firebase auth command, or push occurred. The Worker route that can upload/move objects was not invoked during the drill, and Wrangler reported no non-versioned settings sync during both traffic changes.
 
 Task state: Task 2.12 is checked by this recovery drill. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.12 are checked; Tasks 2.13 through 2.15 remain unchecked.
+
+## Packet 2V Task 2.13 Deployed Behavior Documentation Closeout - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 2.13 documentation-only closeout.
+
+Scope boundary: Task 2.13 only. No independent review was started. No Worker code deploy, Worker version traffic change, Firebase Hosting deploy, secret mutation, R2 object command, Firebase auth mutation, source/config edit, push, Task 2.14, or Task 2.15 work occurred.
+
+Read-only remote truth used:
+
+1. Hard gates passed before docs edits: `git rev-parse HEAD` returned `57d3f42aa7dee62b52d9932f568df4630b397b5e`; `git status --short` was clean.
+2. Wrangler ran read-only through bundled Windows x64 Node after ambient `npx wrangler` and ARM Node failed on local tool resolution/platform. `wrangler --version` returned `4.103.0`.
+3. `wrangler deployments status` returned current production deployment created `2026-06-25T14:09:27.953Z`, author `iamhuwng@gmail.com`, source `Unknown (deployment)`, message `PRD-0055 Task 2.12 restore hardened production version`, and version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+4. `wrangler deployments list` showed the Task 2.12 recovery activation immediately before restore: deployment created `2026-06-25T14:09:07.172Z`, message `PRD-0055 Task 2.12 activate rollback-compatible recovery version`, version `959065cd-8399-4000-b479-d8303a2f18ad` at `100%`; then restore deployment created `2026-06-25T14:09:27.953Z`, version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+5. `wrangler versions view 11af545a-479b-4063-a899-d475dd57d2b5` confirmed handlers `fetch`, compatibility date `2026-01-20`, secret binding `UPLOAD_GRANT_SECRET`, Durable Object binding `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests / 60 seconds, `FIREBASE_PROJECT_ID=temp-a1437`, and `PUBLIC_URL`.
+6. `wrangler versions view 959065cd-8399-4000-b479-d8303a2f18ad` confirmed the same required S0 binding shape as the active hardened version.
+7. `wrangler versions view 20dd8429-5be1-4105-baed-f6dc5af68098` confirmed the historical pre-S0 version has only `R2_BUCKET=kahoot-media` and `PUBLIC_URL`; it lacks `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, and `FIREBASE_PROJECT_ID`, so it remains invalid as a current Worker rollback target after Durable Object migration `v1-upload-grant-replay-ledger`.
+
+### Documentation Updates
+
+1. `documentation/architecture/upload-storage-authority.md` now separates proven deployed S0 upload/move authorization from remaining lifecycle work. It records active version `11af545a-479b-4063-a899-d475dd57d2b5`, recovery version `959065cd-8399-4000-b479-d8303a2f18ad`, invalid pre-S0 rollback target `20dd8429-5be1-4105-baed-f6dc5af68098`, required active bindings, and remaining registry/delete/lifecycle gaps.
+2. `documentation/ielts-reading-v2-listening-unification-implementation-log.md` now has a Task 2.13 addendum linking the shared-assessment history to the current upload-worker docs closeout without changing historical patch records.
+3. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now records Packet 2V under `EV-0056` and updates status wording while preserving the 503/503 matrix and 14-node/21-edge DAG claims.
+4. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now checks Task 2.13 only. Parent Task 2.0 remains unchecked; Tasks 2.14 and 2.15 remain unchecked.
+5. This findings packet appends the Task 2.13 evidence and does not rewrite Packets 2R through 2U.
+
+### Remaining Lifecycle Gaps
+
+1. Registry-backed asset commit/reference tracking, `pending-delete`, retained-reference rechecks, durable cleanup batching, rollback grace rules, and orphan metrics remain future PRD-0058 / Task 4 work.
+2. Trusted delete/cleanup authority remains unimplemented and must not grant browser code raw key deletion authority.
+3. Checked-in prefix-scoped R2 temp lifecycle configuration remains unimplemented.
+4. Backup/restore coverage, cleanup reconciliation, and deployed proof for lifecycle behavior remain future gates.
+5. Independent review Task 2.14 and parent acceptance Task 2.15 remain pending; parent Task 2.0 remains unchecked.
+
+Task state: Task 2.13 is checked by this docs-only packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.13 are checked; Tasks 2.14 and 2.15 remain unchecked.

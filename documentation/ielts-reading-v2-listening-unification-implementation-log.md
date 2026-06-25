@@ -2,6 +2,18 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 2.13 upload-worker deployment truth addendum
+
+Task 2.13 records documentation-only closeout for the PRD-0055 S0 upload-worker deployment and rollback drill. It does not change shared UI primitives or runtime behavior.
+
+Current deployment truth recorded on 2026-06-25:
+
+- Task 2.11 hardened production Worker version `11af545a-479b-4063-a899-d475dd57d2b5` is the active `r2-upload-signer` version at `100%`.
+- Task 2.12 proved rollback-compatible recovery version `959065cd-8399-4000-b479-d8303a2f18ad`, restored hardened version `11af545a-479b-4063-a899-d475dd57d2b5`, and kept pre-S0 version `20dd8429-5be1-4105-baed-f6dc5af68098` historical only after Durable Object migration `v1-upload-grant-replay-ledger`.
+- Remaining storage lifecycle work stays in later PRD-0058/Task 4 gates: registry-backed commit/reference tracking, trusted cleanup/delete authority, checked-in temp lifecycle configuration, reconciliation, backup/restore coverage, metrics, and independent review.
+
+Task state after this addendum: parent Task 2.0 remains unchecked; Tasks 2.6 through 2.13 are checked; Tasks 2.14 and 2.15 remain unchecked.
+
 ## Patch 1: Neutral assessment status state primitive
 
 ### Changed files

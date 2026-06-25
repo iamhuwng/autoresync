@@ -1,7 +1,7 @@
 # Upload And Storage Authority
 
 Status: Active
-Last Updated: 2026-06-20
+Last Updated: 2026-06-25
 Owner: Frontend Platform
 
 ## Decision
@@ -25,28 +25,46 @@ Listening authoring uploads audio through `r2StorageService.uploadAudioReplaceme
 
 No active UI import of `src/services/googleDrive.js` was found during the 2026-06-19 source audit.
 
-### Current Implementation Gaps
+### Deployed Upload Worker Truth
+
+PRD-0055 Task 2.11 deployed the hardened S0 upload Worker to production, and Task 2.12 proved the current post-migration rollback/version-pin path.
+
+Current read-only production truth verified on 2026-06-25:
+
+- Worker: `r2-upload-signer`.
+- Active version: `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+- Active deployment message: `PRD-0055 Task 2.12 restore hardened production version`.
+- Hardened version message: `PRD-0055 Task 2.11 Phase C production Worker deploy`.
+- Recovery version proven compatible during Task 2.12: `959065cd-8399-4000-b479-d8303a2f18ad`.
+- Pre-S0 version `20dd8429-5be1-4105-baed-f6dc5af68098` is historical evidence only and is not a valid current Worker rollback target after Durable Object migration `v1-upload-grant-replay-ledger`.
+- Required active bindings are present by name and shape: `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests / 60 seconds, `FIREBASE_PROJECT_ID=temp-a1437`, and `PUBLIC_URL`.
+- The deployed S0 contract requires Firebase-authenticated upload/move authorization, verified owner identity, exact CORS origins, canonical prefix/path authority, opaque HMAC grants, replay protection, rate limiting, and the 50 MB per-request/per-file ceiling.
+
+Task 2.13 is documentation-only. It records deployed behavior but does not start independent review, parent Task 2.0 acceptance, registry cleanup, delete authority, private delivery, or any R2 lifecycle mutation.
+
+### Remaining Lifecycle Gaps
 
 Current code does not yet satisfy the retention contract below:
 
-- checked-in `cloudflare/worker.js` appears to allow unauthenticated browser upload/move operations with client-provided raw keys, wildcard CORS, and source deletion during `/move`; deployed-worker parity is not yet verified;
 - `uploadAudioReplacement(...)` can overwrite a committed object key before the surrounding test save succeeds;
 - failed temp-to-permanent movement can leave a saved record using an expiring temp URL;
 - Listening test deletion removes the RTDB record but does not remove its R2 audio;
 - abandoned/cancelled uploads depend on temp lifecycle expiry rather than immediate best-effort deletion;
 - no Listening-specific trusted delete endpoint or durable asset reference registry currently exists;
 - the one-day `temp/` lifecycle rule is documented but not represented in checked-in R2 configuration.
+- registry-backed `pending-delete`, retained-reference rechecks, durable cleanup batching, rollback grace rules, backup/restore coverage, and orphan metrics remain unimplemented.
 
 Treat these as implementation gaps for a later storage workstream, not as approved behavior.
 
-The worker authorization gap is a security gate. Before adding any cleanup or standalone delete capability:
+Before adding any cleanup or standalone delete capability:
 
-1. verify deployed worker behavior against checked-in source;
-2. require authenticated teacher/service identity;
-3. validate owner, upload session, asset ID, allowed prefix, and operation;
+1. preserve the deployed S0 upload/move security contract;
+2. require authenticated teacher/service identity for lifecycle operations;
+3. validate owner, upload session, asset ID, retained references, allowed prefix, and operation;
 4. reject arbitrary client-provided destination/delete keys;
 5. scope CORS to approved application origins;
-6. add negative tests proving cross-owner upload, move, overwrite, and delete are denied.
+6. add negative tests proving cross-owner upload, move, overwrite, cleanup, and delete are denied;
+7. prove cleanup cannot delete referenced audio and can recover safely after rollback/version-pin events.
 
 ## Listening Audio Retention Contract
 
@@ -203,7 +221,7 @@ Lifecycle expiration is a safety net for temp objects. It is not sufficient for 
 - trusted backend validates owner and canonical asset ID before move/delete;
 - delete operations accept asset IDs, not arbitrary client-provided R2 keys;
 - upload and move operations also require authentication, ownership validation, and prefix allowlists;
-- lifecycle cleanup must not ship until current worker authorization is verified and hardened;
+- lifecycle cleanup must preserve the deployed S0 upload/move authorization boundary and add separate trusted delete/cleanup authority;
 - cleanup logs must not contain signed URLs, secrets, or raw file contents;
 - metrics must include temp object age, commit failures, orphan candidates, deletion failures, reclaimed bytes, and assets blocked by live references.
 
