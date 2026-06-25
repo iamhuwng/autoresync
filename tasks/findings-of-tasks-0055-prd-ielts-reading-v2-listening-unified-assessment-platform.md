@@ -4425,3 +4425,45 @@ Read-only remote truth used:
 5. Independent review Task 2.14 and parent acceptance Task 2.15 remain pending; parent Task 2.0 remains unchecked.
 
 Task state: Task 2.13 is checked by this docs-only packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.13 are checked; Tasks 2.14 and 2.15 remain unchecked.
+
+## Packet 2W Task 2.14 Fresh-Context Independent Verification - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 2.14 mandatory fresh-context independent verification.
+
+Findings: none.
+
+Scope boundary: Task 2.14 only. No deploy, Worker traffic mutation, secret mutation, R2 object command, Firebase Hosting mutation, Firebase auth mutation, source/config edit, push, Task 2.15 work, or parent Task 2.0 acceptance occurred.
+
+### Hard Gates
+
+1. `git rev-parse HEAD` returned `3d5d06cd4552769f423ba24d4aec7e24fd5b1fb9`.
+2. `git status --short` was clean before review.
+3. Task 2.14 review used read-only local inspection plus local test execution only.
+
+### Independent Review Coverage
+
+Independent reviewer result: CLEAN.
+
+1. S0 child-PRD coverage: reviewer inspected the parent tasklist and traceability state and confirmed Task 2.13 was docs-only while Tasks 2.14 and 2.15 were still open before this packet.
+2. Worker diff after Task 2.13: `git show --stat --name-only --oneline --no-renames HEAD` and `git diff --name-only HEAD^ HEAD` showed only the five Task 2.13 documentation files, with no `cloudflare/**` runtime changes in Task 2.13.
+3. Authorization boundaries and raw-key non-authority: reviewer inspected `cloudflare/worker.js`, `cloudflare/src/upload-worker/request-handlers.js`, and `cloudflare/src/upload-worker/path-authority.js`; upload and move go through verified UID, opaque grant, and canonical key, while raw `key`, `sourceKey`, and `destKey` are only non-authoritative assertions.
+4. CORS: reviewer inspected integrated and harness tests proving exact approved origins and no wildcard CORS.
+5. Grants, replay ledger, and rate limits: reviewer inspected `grant-authority.js`, `replay-authority.js`, `upload-grant-replay-ledger.js`, and S0 PRD rate-limit requirements; grants bind UID, operation kind, key, size, content type, expiry, and nonce; replay protection fails closed; rate key uses verified UID plus client IP class.
+6. Deployed proof, rollback drill, and Task 2.13 docs truth: reviewer inspected Packet 2V findings, upload-storage authority, and implementation log; active version remains `11af545a-479b-4063-a899-d475dd57d2b5`, recovery version remains `959065cd-8399-4000-b479-d8303a2f18ad`, and pre-S0 version `20dd8429-5be1-4105-baed-f6dc5af68098` remains historical only after Durable Object migration `v1-upload-grant-replay-ledger`.
+7. Remaining lifecycle gaps: reviewer confirmed registry-backed cleanup, trusted delete authority, temp lifecycle config, backup/restore coverage, cleanup reconciliation, and metrics remain future PRD-0058 / Task 4 work, not S0 Task 2.14 findings.
+
+### Main-Thread Verification
+
+1. Ambient ARM64 Worker proof reproduced the expected platform failure: `npm test` under `cloudflare/` failed with `Unsupported platform: win32 arm64 LE` from `workerd`.
+2. Bundled Windows x64 Node rerun passed `npm test` under `cloudflare/`: 7 files, 129 tests passed.
+3. Bundled Windows x64 Node rerun passed `npm run test:security:green` under `cloudflare/`: hardened negative suite 22/22.
+4. Bundled Windows x64 Node rerun passed `npm run test:security:red` under `cloudflare/`: fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`; insecure baseline matched manifest with 18 expected RED failures and four already-safe passes.
+5. Focused browser-adapter proof passed with ambient ARM64 Node: `npx vitest run src/services/r2UploadClient.test.ts src/services/r2Storage.test.ts` returned 2 files and 33 tests passed.
+6. Static scan confirmed `src/services/r2UploadClient.ts` sends `Authorization` on authorize, upload, and move; move body sends only `moveGrant`; no browser raw `sourceKey` or `destKey` is sent.
+7. Config scan confirmed production and canary Wrangler configs keep `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER`, `FIREBASE_PROJECT_ID`, migration `v1-upload-grant-replay-ledger`, production rate namespace `205512`, and canary rate namespace `205511`.
+
+### Task State
+
+Task state: Task 2.14 is checked by this independent review packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.14 are checked; Task 2.15 remains unchecked.
