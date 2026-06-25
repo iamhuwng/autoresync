@@ -1063,3 +1063,38 @@ Required next architecture decision before Task 2.12 can pass:
 2. Candidate strategy to evaluate next, not implement in this packet: create a rollback-compatible recovery Worker version from current S0 code/config with the same Durable Object migration shape; prove it can be deployed/activated and restored without crossing the DO migration boundary; then use that version as the post-migration rollback target.
 
 Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
+
+## 33. Packet 2S Task 2.12 Post-Migration Recovery Strategy Design - 2026-06-25
+
+Findings-first verdict: DESIGN RECORDED; Task 2.12 remains unchecked.
+
+Read-only production truth for the design packet:
+
+1. Production Worker `r2-upload-signer` remains active on deployment `ac27c148-3c36-4bd2-a4f9-69608d27768e`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+2. Active S0 version detail has source `wrangler`, script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, handler `UploadGrantReplayLedger`, `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as secret binding, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, and `UPLOAD_RATE_LIMITER` namespace `205512` at 30 requests / 60 seconds.
+3. Pre-S0 Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` remains invalid as a current Worker rollback target after Durable Object migration `v1-upload-grant-replay-ledger`.
+4. Firebase Hosting rollback targets remain separate from Worker recovery and do not solve Worker Durable Object migration rollback.
+
+Design decision:
+
+1. Task 2.12 must use a post-migration S0 recovery Worker version as the current rollback target.
+2. The recovery Worker version must keep the same Worker name, Durable Object migration tag, Durable Object namespace binding, R2 bucket binding, rate-limit namespace/policy, Firebase project variable, public URL variable, secret binding name, and S0 security contract as active production S0.
+3. The recovery version may be a no-op recovery build from the same approved S0 source/config or a narrowly documented operational recovery patch. It must not change storage authority, data shape, bindings, Durable Object migration, or browser contract.
+4. The drill must activate the recovery S0 version to 100%, verify it, restore `11af545a-479b-4063-a899-d475dd57d2b5` to 100%, verify it, and record no-object-loss proof before Task 2.12 can be checked.
+
+Later approval text is recorded in the findings ledger for recovery-version creation, recovery drill, and optional deployed behavior proof. No deploy, push, rollback, version-pin, secret mutation, R2 mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this packet.
+
+## 34. Packet 2T Task 2.12 Recovery-Version Creation - 2026-06-25
+
+Findings-first verdict: PASS for recovery-version creation only; Task 2.12 remains unchecked.
+
+Recovery version:
+
+1. Wrangler `versions upload` created non-active Worker version `959065cd-8399-4000-b479-d8303a2f18ad`.
+2. Version view proves it has the same rollback-compatible S0 resource shape as active production S0: source `wrangler`, script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`, `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as secret binding, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, and `UPLOAD_RATE_LIMITER` namespace `205512` at 30 requests / 60 seconds.
+3. Post-creation active production deployment remained `ac27c148-3c36-4bd2-a4f9-69608d27768e`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+4. Version `959065cd-8399-4000-b479-d8303a2f18ad` is the approved candidate for the later Task 2.12 post-migration recovery drill. It is not yet activated.
+
+Remaining gate: Task 2.12 cannot be checked until a later approved drill activates `959065cd-8399-4000-b479-d8303a2f18ad` to `100%`, verifies it, restores `11af545a-479b-4063-a899-d475dd57d2b5` to `100%`, verifies it, and records no-object-loss proof.
+
+Scope boundary: no deploy, push, rollback, version-pin activation, secret mutation, R2 object mutation, Firebase Hosting mutation, source/config edit, or Task 2.12 checkbox change occurred in this packet.

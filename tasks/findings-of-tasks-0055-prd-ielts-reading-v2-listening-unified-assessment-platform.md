@@ -4271,3 +4271,101 @@ Start gates passed: HEAD was exact `24a575fff000c315958383d6859097245db50551`; `
 No deploy, push, rollback, version-pin, secret mutation, R2 object mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this corrective packet.
 
 Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
+
+## Packet 2T Task 2.12 Recovery-Version Creation - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: PASS for recovery-version creation only; Task 2.12 remains unchecked because no recovery activation/restoration drill has run.
+
+Approval scope: User response: `"Approve PRD-0055 Task 2.12 recovery-version creation only: create or identify a rollback-compatible S0 Worker recovery version for r2-upload-signer using the same S0 code/config contract, Durable Object migration tag v1-upload-grant-replay-ledger, and required bindings as the current production S0 Worker. Allow only non-traffic-changing Cloudflare Worker version creation/inspection if needed. No traffic change, rollback, version-pin activation, secret value mutation, R2 object mutation, Firebase Hosting mutation, push, source/config edit beyond the explicitly reviewed recovery packet, or Task 2.12 checkbox change."`
+
+1. Pre-action repo state had HEAD `0406403b433014e12d9864a24321659b8b590183`; dirty paths were docs-only Packet 2S files. No source/config files were dirty or edited.
+2. Pre-action read-only production status listed active deployment `ac27c148-3c36-4bd2-a4f9-69608d27768e`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+3. Pre-action `wrangler versions list --name r2-upload-signer --json` listed versions 1 through 8 only; no existing separate post-migration recovery version was available beyond the active S0 version.
+4. Dry-run command `wrangler versions upload --config wrangler.jsonc --message "PRD-0055 Task 2.12 rollback-compatible S0 recovery version" --dry-run` exited zero, uploaded nothing, and listed `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests / 60 seconds, `PUBLIC_URL`, and `FIREBASE_PROJECT_ID=temp-a1437`.
+5. Non-traffic-changing version creation command `wrangler versions upload --config wrangler.jsonc --message "PRD-0055 Task 2.12 rollback-compatible S0 recovery version"` created Worker version `959065cd-8399-4000-b479-d8303a2f18ad`.
+6. Version view for `959065cd-8399-4000-b479-d8303a2f18ad` proves it is rollback-compatible with current S0: number `9`, source `wrangler`, message `PRD-0055 Task 2.12 rollback-compatible S0 recovery version`, trigger `version_upload`, script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`, plus bindings `FIREBASE_PROJECT_ID=temp-a1437`, `PUBLIC_URL`, `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, `UPLOAD_GRANT_SECRET` as `secret_text`, and `UPLOAD_RATE_LIMITER` namespace `205512` at 30 requests / 60 seconds.
+7. Post-action `wrangler deployments status --name r2-upload-signer --json` still listed active deployment `ac27c148-3c36-4bd2-a4f9-69608d27768e`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic. Version `959065cd-8399-4000-b479-d8303a2f18ad` is not active.
+8. Post-action `wrangler versions list --name r2-upload-signer --json` lists version `959065cd-8399-4000-b479-d8303a2f18ad` as version number `9`.
+
+### Remaining Gate
+
+Task 2.12 cannot be checked until a later approved recovery drill activates `959065cd-8399-4000-b479-d8303a2f18ad` to `100%`, verifies active deployment/version, restores `11af545a-479b-4063-a899-d475dd57d2b5` to `100%`, verifies active deployment/version, and records no-object-loss proof.
+
+Next approval text:
+
+```text
+Approve PRD-0055 Task 2.12 post-migration recovery drill only: activate rollback-compatible S0 recovery Worker version 959065cd-8399-4000-b479-d8303a2f18ad for r2-upload-signer to 100% traffic, verify active deployment/version, then restore hardened S0 production Worker version 11af545a-479b-4063-a899-d475dd57d2b5 to 100% traffic and verify active deployment/version. Do not deploy new code, mutate secrets, mutate R2 objects, mutate Firebase Hosting, push, use pre-S0 Worker version 20dd8429-5be1-4105-baed-f6dc5af68098, or check Task 2.12 unless both activation and restoration verify and required no-object-loss proof is recorded.
+```
+
+Scope boundary: no deploy, push, rollback, version-pin activation, secret mutation, R2 object mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this packet.
+
+Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
+
+## Packet 2S Task 2.12 Post-Migration Recovery Strategy Design - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: DESIGN RECORDED; Task 2.12 remains BLOCKED until the strategy is implemented and drilled under later explicit approval.
+
+1. Current valid base was verified before docs edits: HEAD `0406403b433014e12d9864a24321659b8b590183`; `git status --short` clean.
+2. Read-only production Worker status re-confirmed `r2-upload-signer` active deployment `ac27c148-3c36-4bd2-a4f9-69608d27768e`, active version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+3. Read-only version view for `11af545a-479b-4063-a899-d475dd57d2b5` confirmed source `wrangler`, script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, named handler `UploadGrantReplayLedger`, `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as `secret_text`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, and `UPLOAD_RATE_LIMITER` namespace `205512` with limit 30 / period 60.
+4. Cloudflare rollback documentation matches the observed `10210` blocker: rollback is not allowed when a Durable Object migration occurred between the active version and selected target. Therefore pre-S0 Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` is invalid after migration `v1-upload-grant-replay-ledger` and remains historical evidence only.
+5. Firebase Hosting rollback targets stay separate: pre-S0 Hosting `2ca9c185ac62dd7b` and safe canary Hosting `485aefde01ee7133` may be relevant to browser artifact recovery, but they cannot repair Worker Durable Object migration incompatibility.
+
+### Design Decision
+
+Decision: Task 2.12 must use a post-migration S0 recovery Worker version, not the pre-S0 Worker version, as the current rollback target.
+
+Required recovery-version shape:
+
+1. Same Worker name: `r2-upload-signer`.
+2. Same Durable Object migration shape: migration tag `v1-upload-grant-replay-ledger`; no migration removal, rename, rollback, or new class migration in the recovery target.
+3. Same required resource bindings by name and shape: `R2_BUCKET=kahoot-media`, `PUBLIC_URL`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as secret binding, `UPLOAD_GRANT_REPLAY_LEDGER` Durable Object namespace, and `UPLOAD_RATE_LIMITER` namespace `205512` at 30 requests / 60 seconds.
+4. Same S0 security contract: Firebase auth, exact CORS, canonical path authority, HMAC grants, replay ledger, rate limit, size/content checks, and no browser raw-key authority.
+5. Difference from active S0 must be intentionally minimal and reviewable. Preferred difference is a no-op recovery build from the same approved S0 source/config or a narrowly documented operational recovery patch that does not change storage authority, data shape, bindings, Durable Object migration, or browser contract.
+
+Required drill proof before Task 2.12 can be checked:
+
+1. Create or identify a deployable recovery S0 Worker version whose `versions view` proves the same Durable Object migration/resource shape as active S0.
+2. Activate the recovery S0 version to `100%` using Wrangler version deployment or rollback only after explicit approval.
+3. Verify active deployment/version is the recovery S0 version at `100%`.
+4. Restore active traffic to the known-good current S0 version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+5. Verify active deployment/version is again `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+6. Run deployed negative probes and one authorized upload/move proof only if separately approved for the drill window; otherwise record that traffic activation proof is incomplete.
+7. Prove no R2 object loss, no Firebase Hosting mutation, no secret value exposure, and no crossing of the pre-S0 Durable Object migration boundary.
+
+Non-options:
+
+1. Do not use Worker version `20dd8429-5be1-4105-baed-f6dc5af68098` as a current rollback target after migration `v1-upload-grant-replay-ledger`.
+2. Do not treat Firebase Hosting rollback as a Worker rollback.
+3. Do not remove or downgrade the Durable Object migration to make the pre-S0 target deployable.
+4. Do not check Task 2.12 until both recovery activation and restoration to the current S0 version verify.
+
+### Exact Later Approval Text
+
+Recovery-version creation approval:
+
+```text
+Approve PRD-0055 Task 2.12 recovery-version creation only: create or identify a rollback-compatible S0 Worker recovery version for r2-upload-signer using the same S0 code/config contract, Durable Object migration tag v1-upload-grant-replay-ledger, and required bindings as the current production S0 Worker. Allow only non-traffic-changing Cloudflare Worker version creation/inspection if needed. No traffic change, rollback, version-pin activation, secret value mutation, R2 object mutation, Firebase Hosting mutation, push, source/config edit beyond the explicitly reviewed recovery packet, or Task 2.12 checkbox change.
+```
+
+Recovery drill approval:
+
+```text
+Approve PRD-0055 Task 2.12 post-migration recovery drill only: activate the approved rollback-compatible S0 recovery Worker version for r2-upload-signer to 100% traffic, verify active deployment/version, then restore hardened S0 production Worker version 11af545a-479b-4063-a899-d475dd57d2b5 to 100% traffic and verify active deployment/version. Do not deploy new code, mutate secrets, mutate R2 objects, mutate Firebase Hosting, push, use pre-S0 Worker version 20dd8429-5be1-4105-baed-f6dc5af68098, or check Task 2.12 unless both activation and restoration verify and required no-object-loss proof is recorded.
+```
+
+Optional deployed behavior proof approval:
+
+```text
+Approve PRD-0055 Task 2.12 deployed behavior proof only: after the post-migration recovery drill restores hardened S0 version 11af545a-479b-4063-a899-d475dd57d2b5 to 100% traffic, run deployed negative probes and one authorized upload/move proof against r2-upload-signer to confirm the restored S0 security contract. Use unique proof objects only, clean them up, verify 404 after cleanup, do not mutate existing R2 objects, do not mutate secrets, do not mutate Firebase Hosting, do not push, and do not check Task 2.12 unless all recovery and behavior proof passes.
+```
+
+### Scope And Task State
+
+No deploy, push, rollback, version-pin, secret mutation, R2 mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this packet.
+
+Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
