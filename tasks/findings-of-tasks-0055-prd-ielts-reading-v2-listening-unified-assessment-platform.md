@@ -4467,3 +4467,93 @@ Independent reviewer result: CLEAN.
 ### Task State
 
 Task state: Task 2.14 is checked by this independent review packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.14 are checked; Task 2.15 remains unchecked.
+
+## Packet 3A Task 3.1-3.4 Shared-Authoring Foundation And Guardrail - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.1 through Task 3.4 only.
+
+Findings: none blocking for Task 3.1 through Task 3.4.
+
+Scope boundary: Task 3 presentation/shared-authoring only. No Task 4+, Worker code, Cloudflare config, R2 object, Firebase rule, Firebase Hosting, Firebase auth, secret, production traffic, storage lifecycle, upload session, registry, cleanup/delete, private delivery, authoring write model, solo runtime, live runtime, or Reading V2 runtime work occurred.
+
+### Hard Gates
+
+1. `git status --short --branch` before work returned clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. Starting `HEAD` was `3293dfc1c7a7ac7547715f24bae826756dd3f191`.
+3. AGENTS.md, `C:\Users\The Lord\.codex\RTK.md`, DESIGN.md, UI/codebase/react/observability/mobile-portability rules, tasklist, traceability, findings, canonical unification architecture, and implementation log were read before edits.
+4. Taskbox pre-scan confirmed parent Task 2.0 and Tasks 2.6 through 2.15 checked; Task 3.0 through 3.17 unchecked; Task 4+ unchecked.
+
+### Task 3.1 Reconciliation
+
+Current tracked foundation:
+
+1. `AssessmentAuthoringSection`: tracked source/CSS/test under `src/features/assessment/shared/components/`; Reading V2 adoption in `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`; Listening adoption in `src/skills/listening/builders/ListeningTestBuilder.tsx`.
+2. `AssessmentStatusState`: tracked source/CSS/test under `src/features/assessment/shared/components/`; Reading V2 adoption in `src/pages/ReadingV2StudioPage.tsx`; Listening adoption in `src/skills/listening/builders/ListeningTestBuilder.tsx`.
+3. `AssessmentValidationSummary`: tracked source/CSS/test under `src/features/assessment/shared/components/`; Reading V2 adoption in `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`; no Listening adoption.
+4. Drift recorded, not copied: stale implementation-log references to `src/hooks/useMasterAudioState.ts` and `src/hooks/useAudioSync.ts`; current hook owners are under `src/hooks/audio/`. Historical duplicate Patch 2/Patch 3 headings remain documentation drift.
+
+### Task 3.2 Focused Proof
+
+1. `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs` RED before script existed: failed with `ERR_MODULE_NOT_FOUND`.
+2. `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs`: PASS, 11/11, including prohibited side-effect imports, rename-aware changed-file discovery, full push-range discovery, untracked-file discovery, and exact 400-line boundary coverage.
+3. `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 5 files, 16 tests.
+4. Shared-boundary grep for Reading V2/Listening/audio/runtime/storage/parser/published-payload authority under `src/features/assessment/shared`: exit 1 with no matches.
+5. Mantine scan for touched files returned no matches. Wider candidate scan still shows known existing `src/skills/listening/builders/ListeningTestBuilder.tsx:8` `AppShell` import from `@mantine/core`; that file was not edited in this packet.
+
+### Task 3.3 Tracked Foundation
+
+`git ls-files` confirmed the shared primitive files and current Reading V2/Listening adopter files are tracked:
+
+1. `src/features/assessment/shared/components/AssessmentAuthoringSection.tsx`
+2. `src/features/assessment/shared/components/AssessmentAuthoringSection.css`
+3. `src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx`
+4. `src/features/assessment/shared/components/AssessmentStatusState.tsx`
+5. `src/features/assessment/shared/components/AssessmentStatusState.css`
+6. `src/features/assessment/shared/components/AssessmentStatusState.test.tsx`
+7. `src/features/assessment/shared/components/AssessmentValidationSummary.tsx`
+8. `src/features/assessment/shared/components/AssessmentValidationSummary.css`
+9. `src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx`
+10. `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`
+11. `src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx`
+12. `src/pages/ReadingV2StudioPage.tsx`
+13. `src/skills/listening/builders/ListeningTestBuilder.tsx`
+14. `src/skills/listening/builders/ListeningTestBuilder.test.tsx`
+
+No new shared primitive or adopter was added in this packet.
+
+### Task 3.4 Guardrail
+
+New guardrail files:
+
+1. `.github/workflows/assessment-unification-guardrails.yml`
+2. `scripts/check-assessment-unification-guardrails.mjs`
+3. `scripts/__tests__/check-assessment-unification-guardrails.test.mjs`
+
+Guardrail behavior:
+
+1. Fails prohibited Reading V2/Listening/runtime/storage imports and authority symbols under `src/features/assessment/shared/`.
+2. Enforces `src/features/assessment/listening/**` dependency direction when that bounded tree exists: Listening may not import Reading V2 internals or cycle-prone `ListeningTestBuilder`, `listeningTestStorage`, or `r2Storage` roots.
+3. Reports changed human-maintained assessment production files over the 400-line soft budget and fails without findings justification/approval.
+4. Annotates protected live/storage paths for reviewer attention without treating annotation as child-PRD approval.
+5. Workflow runs the guardrail unit test, guardrail script, and focused shared/adopter Vitest suites.
+6. Independent review findings were fixed before commit: prohibited bare side-effect imports are detected, renamed changed files are included with `--diff-filter=ACMR`, full push ranges are scanned through `github.event.before`, untracked files are included in local changed-file discovery, protected paths are included in workflow filters, and the 400-line budget uses logical line counting.
+
+Mutation proof:
+
+1. Temporary mutation inserted a prohibited Reading V2 runtime import into `src/features/assessment/shared/components/AssessmentStatusState.tsx`.
+2. `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentStatusState.tsx` failed with `shared-boundary`.
+3. The mutation was removed.
+4. Restored run `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files .github/workflows/assessment-unification-guardrails.yml,scripts/__tests__/check-assessment-unification-guardrails.test.mjs,scripts/check-assessment-unification-guardrails.mjs` passed with `OK`.
+
+### Deferred Or Blocked Task 3 Work
+
+1. Task 3.5 through Task 3.10 remain unchecked because no next neutral primitive currently has two proven same-PR or explicitly adjacent-PR consumers.
+2. Task 3.11 remains unchecked because `AssessmentValidationSummary` still has no exact Listening branch with matching heading, ready/blocked status, issue count, copy, and behavior.
+3. Task 3.12 remains unchecked as a standing rule for future shared component changes; this packet preserved module-supplied copy and added no shared copy.
+4. Task 3.13 remains unchecked; shared answer inputs still require a later approved child PRD and two identical contracts.
+5. Task 3.14 remains unchecked; Listening Mantine `AppShell` removal remains a dedicated authoring-shell patch after primitive stability.
+6. Task 3.15 through Task 3.17 remain unchecked because parent Task 3 is not complete and no new primitive/adoption patch was added.
+
+Task state: Tasks 3.1 through 3.4 are checked by this packet. Parent Task 3.0 remains unchecked; Tasks 3.5 through 3.17 remain unchecked; Task 4+ remain unchecked.

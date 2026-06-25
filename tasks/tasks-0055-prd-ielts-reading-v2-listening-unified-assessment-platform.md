@@ -336,16 +336,16 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
   - [x] 2.15 Parent acceptance: local and deployed cross-owner/raw-key/CORS tests pass, authorized existing upload/move still works, no lifecycle behavior changed, independent verification passes, and S0 is independently revertible. Packet 2X records final acceptance: hard gates passed at HEAD `1c988cdb12b3e733875b82ad74ae34b51b66d97d`; local Worker proof passed 129/129, hardened negative proof passed 22/22, insecure baseline stayed exact at fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c` with 18 expected RED failures and four already-safe passes, and browser adapter proof passed 33/33. Read-only production Worker proof kept `r2-upload-signer` on deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic, with required S0 bindings/migration; recovery version `959065cd-8399-4000-b479-d8303a2f18ad` remains same-shape and independently revertible. Deployed proof ID `prd0055-task215-prod-1782401801998-f1c47dc9eed2` returned no-auth authorize `401`, evil-origin preflight `403`, allowed localhost preflight `204`, valid-token cross-owner upload `403`, raw-key-only move `400`, authorize/upload/move/public content `200`, matching content SHA-256 `f7ea8ae7cb25e72717555eef78234d00f1e98a3c1c868d4036d9009614288b71`, destination cleanup `200`, public/API source and destination rechecks `404`, and zero remaining Task 2.15 proof objects. No lifecycle behavior, Worker code, Worker traffic, secret, Firebase Hosting, Firebase auth, existing R2 object, push, or Task 3 state changed.
 
 - [ ] 3.0 Complete neutral shared assessment authoring primitives and safe cross-module visual adoption
-  - [ ] 3.1 Reconcile existing uncommitted/tracked foundation against implementation log:
+  - [x] 3.1 Reconcile existing uncommitted/tracked foundation against implementation log:
     - `AssessmentStatusState`;
     - `AssessmentValidationSummary`;
     - `AssessmentAuthoringSection`;
     - Reading V2 Studio/Settings adoptions;
     - Listening Questions/empty-state adoptions.
     - Treat current source/tasklist paths as authoritative where the implementation log has drift. Record, but do not copy, stale `src/hooks/useMasterAudioState.ts` / `src/hooks/useAudioSync.ts` references; current owners are under `src/hooks/audio/`. Record duplicate Patch 2/Patch 3 headings as documentation drift.
-  - [ ] 3.2 Run existing focused tests and boundary grep before marking any foundation subtask complete. Record failures or drift rather than recreating components.
-  - [ ] 3.3 Track/commit the existing shared primitives and current Reading/Listening adoptions in a focused green patch before adding another primitive. Do not build new shared work on an uncommitted or failing foundation.
-  - [ ] 3.4 Add a low-cost CI guardrail before additional shared extraction:
+  - [x] 3.2 Run existing focused tests and boundary grep before marking any foundation subtask complete. Record failures or drift rather than recreating components.
+  - [x] 3.3 Track/commit the existing shared primitives and current Reading/Listening adoptions in a focused green patch before adding another primitive. Do not build new shared work on an uncommitted or failing foundation.
+  - [x] 3.4 Add a low-cost CI guardrail before additional shared extraction:
     - create `.github/workflows/assessment-unification-guardrails.yml`;
     - fail on prohibited Reading V2/Listening imports or module-specific authority symbols under `src/features/assessment/shared/`;
     - enforce new `src/features/assessment/listening/**` dependency direction: Listening may import neutral shared contracts, never Reading V2 internals, and never create a cycle through `ListeningTestBuilder.tsx`, `listeningTestStorage.ts`, or `r2Storage.ts`;

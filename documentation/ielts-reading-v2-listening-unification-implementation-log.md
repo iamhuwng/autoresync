@@ -2,6 +2,31 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.1-3.4 shared-authoring foundation and guardrail addendum
+
+Task 3A records the first Task 3 checkpoint after S0 parent acceptance. It reconciles the existing neutral shared assessment foundation and adds a CI/local guardrail before any additional shared extraction.
+
+Current shared-authoring truth recorded on 2026-06-25:
+
+- `AssessmentAuthoringSection`, `AssessmentStatusState`, and `AssessmentValidationSummary` are tracked under `src/features/assessment/shared/components/`.
+- Reading V2 current adoptions remain `ReadingV2SettingsPanel` for `AssessmentAuthoringSection` and `AssessmentValidationSummary`, plus `ReadingV2StudioPage` for `AssessmentStatusState`.
+- Listening current adoptions remain `ListeningTestBuilder` Step 4 for `AssessmentAuthoringSection` and `AssessmentStatusState`.
+- `AssessmentValidationSummary` has no Listening adoption. That remains current migration state, not permission to force a non-equivalent branch.
+- Known drift remains recorded: stale implementation-log hook paths use old `src/hooks/useMasterAudioState.ts` / `src/hooks/useAudioSync.ts` names while current owners are under `src/hooks/audio/`; duplicate historical Patch 2/Patch 3 headings remain historical drift; `ListeningTestBuilder.tsx` still has known Mantine `AppShell` residue for a later dedicated authoring-shell patch.
+- New guardrail files are `.github/workflows/assessment-unification-guardrails.yml`, `scripts/check-assessment-unification-guardrails.mjs`, and `scripts/__tests__/check-assessment-unification-guardrails.test.mjs`.
+- The guardrail fails prohibited Reading V2/Listening/runtime/storage imports and module-specific authority symbols under shared assessment code, enforces `src/features/assessment/listening/**` dependency direction when that tree exists, checks the 400-line soft budget for changed assessment production files, and annotates protected live/storage paths for reviewer attention without treating annotation as approval.
+
+Verification:
+
+- TDD RED: `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs` failed with `ERR_MODULE_NOT_FOUND` before `scripts/check-assessment-unification-guardrails.mjs` existed.
+- GREEN: `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs` passed 11/11, including prohibited side-effect imports, rename-aware changed-file discovery, full push-range discovery, untracked-file discovery, and exact 400-line boundary coverage.
+- Focused shared/adopter proof: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 5 files and 16 tests.
+- Boundary grep for shared Reading V2/Listening/audio/runtime/storage authority returned exit 1 with no matches.
+- Guardrail local equivalent: `rtk node scripts/check-assessment-unification-guardrails.mjs` and the explicit `--changed-files` run both passed with 7 changed files and `OK`.
+- Mutation proof: a temporary prohibited Reading V2 runtime import inserted into `AssessmentStatusState.tsx` made the guardrail fail on `shared-boundary`; the mutation was removed and the guardrail passed again.
+
+Task state after this addendum: Task 3.1 through Task 3.4 are checked. Parent Task 3.0 remains unchecked. Task 3.5 and later remain unchecked because no next neutral primitive has two proven same-PR or explicitly adjacent-PR consumers.
+
 ## PRD-0055 Task 2.15 upload-worker S0 parent acceptance addendum
 
 Task 2.15 records final S0 parent acceptance for the PRD-0055 upload-worker security gate. It does not change shared UI primitives or runtime behavior.

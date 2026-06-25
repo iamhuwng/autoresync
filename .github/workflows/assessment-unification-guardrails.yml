@@ -1,0 +1,105 @@
+name: Assessment Unification Guardrails
+
+on:
+  pull_request:
+    paths:
+      - 'src/features/assessment/**'
+      - 'src/components/reading-v2/studio/**'
+      - 'src/skills/listening/builders/**'
+      - 'cloudflare/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - 'storage.rules'
+      - 'database.rules.json'
+      - 'firestore.rules'
+      - 'src/services/r2Storage.ts'
+      - 'src/services/listeningTestStorage.ts'
+      - 'src/services/reading-v2/**'
+      - 'src/components/reading-v2/runtime/**'
+      - 'src/skills/listening/components/AudioPlayer.tsx'
+      - 'src/skills/listening/components/ListeningTestPage.tsx'
+      - 'src/components/practice/ListeningPracticeView.tsx'
+      - 'src/components/test/AudioProgressPanel.tsx'
+      - 'src/pages/TeacherTestMonitorPage.tsx'
+      - 'src/hooks/audio/**'
+      - 'src/hooks/monitor/useMonitorControls.ts'
+      - 'src/hooks/monitor/useMonitorControls.tsx'
+      - 'r2-backup-worker/**'
+      - 'tasks/**0055*'
+      - 'documentation/architecture/ielts-reading-v2-listening-unification.md'
+      - 'documentation/ielts-reading-v2-listening-unification-implementation-log.md'
+      - 'scripts/check-assessment-unification-guardrails.mjs'
+      - 'scripts/__tests__/check-assessment-unification-guardrails.test.mjs'
+      - '.github/workflows/assessment-unification-guardrails.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/features/assessment/**'
+      - 'src/components/reading-v2/studio/**'
+      - 'src/skills/listening/builders/**'
+      - 'cloudflare/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - 'storage.rules'
+      - 'database.rules.json'
+      - 'firestore.rules'
+      - 'src/services/r2Storage.ts'
+      - 'src/services/listeningTestStorage.ts'
+      - 'src/services/reading-v2/**'
+      - 'src/components/reading-v2/runtime/**'
+      - 'src/skills/listening/components/AudioPlayer.tsx'
+      - 'src/skills/listening/components/ListeningTestPage.tsx'
+      - 'src/components/practice/ListeningPracticeView.tsx'
+      - 'src/components/test/AudioProgressPanel.tsx'
+      - 'src/pages/TeacherTestMonitorPage.tsx'
+      - 'src/hooks/audio/**'
+      - 'src/hooks/monitor/useMonitorControls.ts'
+      - 'src/hooks/monitor/useMonitorControls.tsx'
+      - 'r2-backup-worker/**'
+      - 'tasks/**0055*'
+      - 'documentation/architecture/ielts-reading-v2-listening-unification.md'
+      - 'documentation/ielts-reading-v2-listening-unification-implementation-log.md'
+      - 'scripts/check-assessment-unification-guardrails.mjs'
+      - 'scripts/__tests__/check-assessment-unification-guardrails.test.mjs'
+      - '.github/workflows/assessment-unification-guardrails.yml'
+
+jobs:
+  guardrails:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch PR base
+        if: github.event_name == 'pull_request'
+        run: git fetch origin "${{ github.base_ref }}" --depth=1
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run assessment guardrail unit tests
+        run: node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs
+
+      - name: Enforce assessment unification boundaries
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: node scripts/check-assessment-unification-guardrails.mjs
+
+      - name: Run focused shared assessment suites
+        run: >
+          npx vitest run
+          src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx
+          src/features/assessment/shared/components/AssessmentStatusState.test.tsx
+          src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx
+          src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx
+          src/skills/listening/builders/ListeningTestBuilder.test.tsx
+          --reporter=basic
