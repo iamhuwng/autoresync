@@ -1,6 +1,6 @@
 # PRD 0056: Listening Upload Worker Security Gate S0
 
-Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending a child-specific approved implementation packet, product-owner plus architecture/security review, and all S0 proof gates
+Status: S0 accepted - Task 2.15 parent acceptance is complete; later upload-session, registry, lifecycle, cleanup, private-delivery, and Task 3 work remain separately gated
 Created: 2026-06-20
 Task number: 0056
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -1115,3 +1115,25 @@ Drill evidence:
 8. No-object-loss proof is constrained to the approved drill surface: only Worker deployment status, version view, and version traffic deployment commands were run. No Worker code deploy, Firebase Hosting deploy, secret mutation, R2 object command, upload/move/delete browser proof, Firebase auth mutation, source/config edit, push, or pre-S0 Worker version activation occurred. The drill did not invoke any Worker upload/move route and both traffic changes reported no non-versioned settings sync.
 
 Task state: Task 2.12 is checked by this packet. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.12 are checked; Tasks 2.13 through 2.15 remain unchecked.
+
+## 36. Packet 2X Task 2.15 Parent Acceptance - 2026-06-25
+
+Findings-first verdict: PASS for Task 2.15 parent acceptance and parent Task 2.0 S0 acceptance.
+
+Acceptance evidence:
+
+1. Hard gates passed before proof and docs edits: HEAD was `1c988cdb12b3e733875b82ad74ae34b51b66d97d`; `git status --short` was clean.
+2. Local Worker proof passed with bundled Windows x64 Node: `npm test` under `cloudflare/` returned 7 files and 129 tests passed.
+3. Hardened negative proof passed: `npm run test:security:green` under `cloudflare/` returned 22/22.
+4. Insecure baseline remained exact: `npm run test:security:red` returned fixture SHA-256 `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, and four already-safe passes.
+5. Browser adapter proof passed with ambient Node: `npx vitest run src/services/r2UploadClient.test.ts src/services/r2Storage.test.ts` returned 2 files and 33 tests passed.
+6. Read-only production Worker status remained deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+7. Read-only version view for hardened version `11af545a-479b-4063-a899-d475dd57d2b5` and recovery version `959065cd-8399-4000-b479-d8303a2f18ad` confirmed the same source ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`, `R2_BUCKET=kahoot-media`, `FIREBASE_PROJECT_ID=temp-a1437`, `UPLOAD_GRANT_SECRET` as secret binding, `UPLOAD_GRANT_REPLAY_LEDGER`, `UPLOAD_RATE_LIMITER` namespace `205512` at 30 requests / 60 seconds, and `PUBLIC_URL`.
+8. Deployed negative and authorized proof ID `prd0055-task215-prod-1782401801998-f1c47dc9eed2` passed: no-auth authorize `401`, evil-origin preflight `403`, allowed localhost preflight `204`, valid-token cross-owner upload `403`, raw-key-only move `400`, authorize/upload/move/public content `200`, and content SHA-256 `f7ea8ae7cb25e72717555eef78234d00f1e98a3c1c868d4036d9009614288b71` matched the public content.
+9. Cleanup touched only Task 2.15 proof objects: destination cleanup returned `200` success; the temp source had already been deleted by the successful move, so its cleanup returned Cloudflare API `success:false` and rechecked as not found. Source and destination public URLs returned `404`; source and destination Cloudflare API rechecks returned `404` with code `10007`; exact-prefix proof-object scan returned zero remaining `prd0055-task215-prod-*` objects under the teacher temp/durable prefixes.
+10. Lifecycle behavior did not change. Remaining registry-backed asset tracking, trusted delete/cleanup authority, checked-in temp lifecycle config, backup/restore coverage, cleanup reconciliation, and metrics remain future PRD-0058 / Task 4 work.
+11. Task 2.14 independent review remains clean. No new findings were introduced by Task 2.15 proof.
+
+Scope boundary: no Worker code deploy, Worker traffic mutation, secret mutation, Firebase Hosting deploy, Firebase auth mutation, existing R2 object mutation, source/config edit, push, or Task 3 work occurred. The only R2 writes/deletes were uniquely named Task 2.15 proof objects and cleanup of those proof objects.
+
+Task state: Task 2.15 is checked by this packet. Parent Task 2.0 is checked because Tasks 2.6 through 2.15 are checked and evidence is complete. Task 3 remains unchecked and unstarted.

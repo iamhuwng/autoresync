@@ -27,7 +27,7 @@ No active UI import of `src/services/googleDrive.js` was found during the 2026-0
 
 ### Deployed Upload Worker Truth
 
-PRD-0055 Task 2.11 deployed the hardened S0 upload Worker to production, and Task 2.12 proved the current post-migration rollback/version-pin path.
+PRD-0055 Task 2.11 deployed the hardened S0 upload Worker to production, Task 2.12 proved the current post-migration rollback/version-pin path, and Task 2.15 completed parent acceptance.
 
 Current read-only production truth verified on 2026-06-25:
 
@@ -40,7 +40,7 @@ Current read-only production truth verified on 2026-06-25:
 - Required active bindings are present by name and shape: `UPLOAD_GRANT_SECRET`, `UPLOAD_GRANT_REPLAY_LEDGER`, `R2_BUCKET=kahoot-media`, `UPLOAD_RATE_LIMITER` at 30 requests / 60 seconds, `FIREBASE_PROJECT_ID=temp-a1437`, and `PUBLIC_URL`.
 - The deployed S0 contract requires Firebase-authenticated upload/move authorization, verified owner identity, exact CORS origins, canonical prefix/path authority, opaque HMAC grants, replay protection, rate limiting, and the 50 MB per-request/per-file ceiling.
 
-Task 2.13 is documentation-only. It records deployed behavior but does not start independent review, parent Task 2.0 acceptance, registry cleanup, delete authority, private delivery, or any R2 lifecycle mutation.
+Task 2.15 parent acceptance re-ran local proof, read-only deployed Worker version/binding checks, deployed negative probes, one unique authorized upload/move/content proof, cleanup, and 404/API absence checks. It did not change lifecycle behavior, Worker code, Worker traffic, secrets, Firebase Hosting, Firebase auth, existing R2 objects, or Task 3 state.
 
 ### Remaining Lifecycle Gaps
 
