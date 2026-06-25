@@ -4369,3 +4369,23 @@ Approve PRD-0055 Task 2.12 deployed behavior proof only: after the post-migratio
 No deploy, push, rollback, version-pin, secret mutation, R2 mutation, Firebase Hosting mutation, traffic change, source/config edit, or Task 2.12 checkbox change occurred in this packet.
 
 Task state: unchanged. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.11 remain checked; Task 2.12 remains unchecked; Tasks 2.13 through 2.15 remain unchecked.
+
+## Packet 2U Task 2.12 Post-Migration Recovery Drill - 2026-06-25
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 2.12 rollback/version-pin drill.
+
+Approval scope: User response: `"Execute PRD-0055 Task 2.12 rollback/version-pin drill and checkpoint in one run. Approved mutation: Activate recovery Worker version 959065cd-8399-4000-b479-d8303a2f18ad at 100% for r2-upload-signer. Verify active version and required bindings. Restore hardened production Worker version 11af545a-479b-4063-a899-d475dd57d2b5 at 100%. Verify active version and required bindings. Do not deploy new Worker code. Do not deploy Firebase Hosting. Do not mutate secrets. Do not mutate R2 objects. Do not change Firebase auth. Do not push."`
+
+1. Hard gates passed before mutation: `git rev-parse HEAD` returned `a463a02ec6fd82e0e6af32999598c919d5929d39`; `git status --short` was clean.
+2. Wrangler was run through bundled Windows x64 Node; `wrangler --version` returned `4.103.0`.
+3. Active version before drill was deployment `ac27c148-3c36-4bd2-a4f9-69608d27768e`, Worker version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+4. Pre-drill version views for `959065cd-8399-4000-b479-d8303a2f18ad` and `11af545a-479b-4063-a899-d475dd57d2b5` both proved the required S0 shape: source `wrangler`, script ETag `1917ab1452372e37dec12a27e91043244237971c9aaf2b0366d13ae86dca972e`, migration tag `v1-upload-grant-replay-ledger`, handlers `fetch`, `UploadGrantReplayLedger`, and `createUploadWorker`, `FIREBASE_PROJECT_ID=temp-a1437`, `PUBLIC_URL`, `R2_BUCKET=kahoot-media`, `UPLOAD_GRANT_REPLAY_LEDGER` namespace `6653df5f663d4648992dc26bd099b489`, `UPLOAD_GRANT_SECRET` as `secret_text`, and `UPLOAD_RATE_LIMITER` namespace `205512` with limit 30 / period 60.
+5. Recovery activation command `wrangler versions deploy 959065cd-8399-4000-b479-d8303a2f18ad@100% --name r2-upload-signer --message "PRD-0055 Task 2.12 activate rollback-compatible recovery version" --yes` exited zero. Wrangler reported `No non-versioned settings to sync. Skipping...` and deployed version `959065cd-8399-4000-b479-d8303a2f18ad` at `100%`.
+6. Recovery verification returned active deployment `5678c2c5-eaf0-4851-a01a-8e8481f9a72a`, Worker version `959065cd-8399-4000-b479-d8303a2f18ad`, `100%` traffic, and the same required bindings/migration listed above.
+7. Restore command `wrangler versions deploy 11af545a-479b-4063-a899-d475dd57d2b5@100% --name r2-upload-signer --message "PRD-0055 Task 2.12 restore hardened production version" --yes` exited zero. Wrangler reported `No non-versioned settings to sync. Skipping...` and deployed version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`.
+8. Final restore verification returned active deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9`, Worker version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic, and the same required bindings/migration listed above.
+9. No-object-loss proof is by mutation surface for this approved drill: only `wrangler deployments status`, `wrangler versions view`, and `wrangler versions deploy <version>@100%` were executed against Cloudflare. No Worker code deploy, Firebase Hosting deploy, secret mutation command, R2 object command, upload/move/delete browser proof, Firebase auth command, or push occurred. The Worker route that can upload/move objects was not invoked during the drill, and Wrangler reported no non-versioned settings sync during both traffic changes.
+
+Task state: Task 2.12 is checked by this recovery drill. Parent Task 2.0 remains unchecked; Tasks 2.6 through 2.12 are checked; Tasks 2.13 through 2.15 remain unchecked.
