@@ -83,7 +83,7 @@ Exact current adoptions:
 
 Current non-adoptions:
 
-- no Reading V2 authoring adoption
+- no additional Reading V2 authoring adoption beyond the display-only `ReadingV2SettingsPanel` guidance block
 - no Listening runtime adoption
 
 ### `AssessmentStatusState`
@@ -189,6 +189,7 @@ Safe now:
 - neutral validation summaries
 - shell-local status copy and generic actions
 - shared assessment card/header/section presentation when no protected Listening behavior leaks through
+- neutral authoring header presentation when modules supply title, copy, status, action children, handlers, and accessible labels
 
 Unsafe now:
 
@@ -208,6 +209,7 @@ Current status is partial, presentation-only migration:
 - `AssessmentAuthoringSection` is adopted by one Listening authoring branch and one Reading V2 authoring display section
 - `AssessmentStatusState` is adopted by Reading V2 Studio and one Listening authoring branch
 - `AssessmentValidationSummary` is adopted by Reading V2 only
+- PRD-0055 Task 3.5/3.6 selected `authoring header` as the next neutral primitive candidate for later Task 3.7+ implementation, with Reading V2 and Listening adopters required in the same PR or explicitly adjacent PRs
 - no Listening runtime, live-session, audio, headphone, monitor, or mobile-navigation contract moved into neutral shared layer
 - no Reading V2 runtime-host contract moved into Listening
 
@@ -216,6 +218,7 @@ Current status is partial, presentation-only migration:
 - `src/skills/listening/builders/ListeningTestBuilder.tsx` still carries legacy Mantine `AppShell` residue. This is known drift, not shared-layer authority.
 - `AssessmentValidationSummary` has no Listening adoption today; this is current migration state, not permission to force an incompatible adoption.
 - `AssessmentAuthoringSection` now has a Reading V2 adoption in the display-only `ReadingV2SettingsPanel` advisories block; further adoption still requires matching heading, spacing, and ownership semantics rather than symmetry for its own sake.
+- `authoring card`, action-row, metadata-display, review/publish wrapper, question-card, and mobile-layout primitives remain deferred until two modules prove an identical neutral display contract; question-card and mobile-layout deferrals stay tied to their named runtime child PRD gates when they touch runtime behavior.
 - Listening dual live audio authority paths (`audioCommand` plus `masterAudioState`) remain protected current behavior, not neutral-layer drift.
 - Listening solo/homework and live runtimes intentionally remain separate authorities even when they share visual components.
 - Google Drive upload/playback/validation references remain in source and historical docs as obsolete residue. Current product upload authority is R2-only.

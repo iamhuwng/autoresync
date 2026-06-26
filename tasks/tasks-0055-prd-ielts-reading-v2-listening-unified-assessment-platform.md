@@ -369,7 +369,7 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - run focused Vitest suites for `src/features/assessment/shared/**`;
     - optionally annotate changes to protected live/storage files for reviewer attention without pretending annotation replaces child-PRD gates;
     - document exact local equivalents and prove CI fails under one temporary prohibited-import/test mutation, then restore and prove green.
-  - [ ] 3.5 Define one small next neutral primitive only when Reading V2 and Listening both have immediate same-PR or explicitly adjacent-PR consumers. Candidate order:
+  - [x] 3.5 Define one small next neutral primitive only when Reading V2 and Listening both have immediate same-PR or explicitly adjacent-PR consumers. Candidate order:
     - authoring card;
     - authoring header;
     - action row;
@@ -377,7 +377,8 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
     - review/publish display wrapper;
     - question-card wrapper;
     - mobile layout primitive for neutral spacing, stacking, and touch-target sizing.
-  - [ ] 3.6 For each candidate, document both concrete adopters, existing semantics, heading structure, action placement, mobile behavior, and tests before creating the shared component. If a question-card/mobile primitive lacks two identical neutral contracts, explicitly defer it in the traceability matrix to the named Reading V2/Listening runtime child PRD; do not silently omit or speculatively extract it.
+    - Task 3.5/3.6 candidate-selection packet selected `authoring header` as the first safe next neutral primitive candidate after rejecting `authoring card` as too broad or behavior-coupled in current Reading V2 and Listening surfaces. Selected adjacent adopters are Reading V2 Studio mounted panel headers and one non-Step-4 Listening builder step header; title/copy/status/action values remain module-owned. No shared component implementation or adopter patch occurred in this packet.
+  - [x] 3.6 For each candidate, document both concrete adopters, existing semantics, heading structure, action placement, mobile behavior, and tests before creating the shared component. If a question-card/mobile primitive lacks two identical neutral contracts, explicitly defer it in the traceability matrix to the named Reading V2/Listening runtime child PRD; do not silently omit or speculatively extract it. Task 3.5/3.6 candidate-selection evidence is recorded in the findings, traceability matrix, implementation log, and architecture note; candidate 3.7+ implementation remains unstarted.
   - [ ] 3.7 Write component tests first for children, title/description, heading level, status/action slots, accessible region naming, neutral layout props, and absence of module behavior.
   - [ ] 3.8 Implement the primitive under `src/features/assessment/shared/components/` using local CSS and no new Mantine dependency.
   - [ ] 3.9 Adopt in one Listening authoring display-only surface without moving parser, validation calculation, audio, persistence, or event handlers.

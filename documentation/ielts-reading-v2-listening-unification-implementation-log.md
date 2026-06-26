@@ -2,6 +2,36 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.5/3.6 candidate-selection addendum
+
+This packet selects the next small neutral primitive candidate only. It does not create or edit a shared component, does not adopt a new primitive, and does not change runtime, live-session, storage, parser, publish, preview, or audio behavior.
+
+Selected candidate:
+
+- `authoring header`
+- Contract: module-supplied heading level, title, optional eyebrow or description, optional status slot, optional action slot, accessible labelling, and responsive header stacking.
+- Neutral/display-only reason: the shared layer may render header structure and slots only; modules still calculate status, own copy, pass actions as children, and keep handlers plus data/workflow authority.
+
+Candidate inventory outcome:
+
+- `authoring card`: deferred. Reading V2 card-like surfaces mix editable form/readiness ownership or question-card edit/navigation/delete behavior; Listening card-like surfaces include whole-wizard, mode-selection, audio/image upload, editable review, or save/navigation behavior.
+- `authoring header`: selected. Reading V2 mounted panels repeat eyebrow/title/status/action headers in `ReadingV2MetadataPanel`, `ReadingV2SettingsPanel`, `ReadingV2ImportReviewPanel`, and `ReadingV2BuildWorkspace`. Listening repeats display-only step headers in mode, audio, AI parse, image upload, and review steps. Candidate implementation must pick one Reading V2 adopter and one Listening adopter in the same PR or explicitly adjacent PRs.
+- `action row`: deferred. Current action rows carry navigation, parser, save, publish, destructive, or toggle semantics that must remain module-owned until a narrower display-only placement contract is proven.
+- `metadata display panel`: deferred. Reading V2 has display-only metadata islands, but the main Reading V2 and Listening metadata surfaces are editable and workflow-owned.
+- `review/publish display wrapper`: deferred. Reading V2 already has `AssessmentValidationSummary`; Listening review mixes editable metadata, audio summary, save error, and save orchestration.
+- `question-card wrapper`: deferred to later child-PRD evidence. Reading V2 question cards own edit/navigation/delete/review behavior; Listening rows diverge between image answer-only and text question/edit/delete modes.
+- `mobile layout primitive`: deferred to later child-PRD evidence. Current responsive behavior is shell- or builder-coupled rather than one proven neutral primitive.
+
+Required next implementation proof for Task 3.7+:
+
+- component tests first for heading level, title/description/eyebrow, status/action slots, accessible labelling, mobile stacking, children, and absence of module behavior;
+- one Reading V2 authoring display-only adopter and one Listening authoring display-only adopter in the same PR or explicitly adjacent PRs;
+- focused adopter tests proving copy, status, actions, and route/workflow behavior remain module-owned;
+- boundary grep proving no Reading V2, Listening, audio, parser, storage, runtime, live, publish, or preview behavior moved into shared code;
+- Mantine scan proving no new `@mantine/*` use and no touched Mantine region without explicit deferral.
+
+Task state after this addendum: Task 3.5 and Task 3.6 are checked. Parent Task 3.0 remains unchecked. Tasks 3.7 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.4 guardrail corrective addendum
 
 Packet 3B corrects guardrail defects only. No shared primitive, adopter, runtime, live-session, storage behavior, deployment, or Task 3.5+ work changed.

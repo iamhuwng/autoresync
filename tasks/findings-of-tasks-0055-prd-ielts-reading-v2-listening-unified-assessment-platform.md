@@ -4618,6 +4618,96 @@ Changed scope is limited to the Task 3.4 guardrail script, its test, workflow, a
 
 Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
 
+## Task 3.5/3.6 Candidate Selection - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.5 and Task 3.6 only.
+
+Findings: none blocking for candidate selection.
+
+Scope boundary: PRD-0055 Task 3 shared-authoring candidate selection only. No shared component implementation, new adopter patch, runtime, live-session, storage, parser, publish, preview, audio, Worker, Firebase, R2, deploy, push, or remote-state mutation occurred.
+
+### Hard Gates
+
+1. `git status --short --branch` before work returned clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. `git status --short --untracked-files=all` before work returned no dirty or untracked paths.
+3. Starting `HEAD` was `c564d955882ff24e7123aa99b95bd23a1e87fe95`.
+4. Required reads completed: `AGENTS.md`, `C:\Users\The Lord\.codex\RTK.md`, `C:\Users\The Lord\.codex\skills\orchestrated-implementation-review\SKILL.md`, Task 3.0 through 3.17, traceability, findings, implementation log, canonical unification architecture, root `DESIGN.md`, UI design standards, codebase hygiene, current shared primitives, Reading V2 candidate surfaces, and Listening candidate surfaces.
+5. Subagent model note: `gpt-5.4-mini` with high reasoning was requested first for Reading and Listening exploration, but both spawns failed with model-capacity errors. Each explorer was re-spawned with `gpt-5.4` high reasoning as the lowest available escalation inside the user-approved range.
+
+### Candidate Inventory
+
+1. `authoring card`: deferred.
+   - Reading V2: `ReadingV2MetadataPanel.tsx:50-159` and `ReadingV2SettingsPanel.tsx:23-98` contain editable form/readiness ownership; `ReadingV2BuildWorkspace.tsx:4691-4845` question-card surfaces own edit, navigation, delete, issue-chip, and task-editor composition behavior.
+   - Listening: `ListeningTestBuilder.tsx:749-751` wraps the entire wizard; `ListeningTestBuilder.tsx:762-842` mode cards own selection state; `ListeningTestBuilder.tsx:1502-1541` image section cards are tied to upload/image behavior; `ListeningTestBuilder.tsx:2155-2265` review mixes editable metadata, audio summary, save errors, and save orchestration.
+   - Decision: not a real neutral display-only contract yet.
+2. `authoring header`: selected.
+   - Reading V2 concrete adopters: mounted authoring headers in `ReadingV2MetadataPanel.tsx:50-59`, `ReadingV2SettingsPanel.tsx:23-32`, `ReadingV2ImportReviewPanel.tsx:77-86`, and `ReadingV2BuildWorkspace.tsx:5641-5674`.
+   - Listening concrete adopters: display-only step headers in `ListeningTestBuilder.tsx:755-760`, `ListeningTestBuilder.tsx:869-874`, `ListeningTestBuilder.tsx:1365-1370`, `ListeningTestBuilder.tsx:1463-1468`, and `ListeningTestBuilder.tsx:2158-2160`; existing Step 4 already proves the title/action shape at `ListeningTestBuilder.tsx:1985-1995`.
+   - Neutral contract: heading level, title, optional eyebrow or description, optional status slot, optional action slot, accessible labelling, children boundary, and mobile stacking.
+   - Display-only reason: shared code renders header structure only. Module code keeps title text, description copy, status calculation, action labels, action handlers, routing, parser, validation, audio, storage, publish, preview, runtime, and live behavior.
+3. `action row`: deferred.
+   - Reading V2 action rows differ across topbar commands, question actions, import actions, destructive confirmations, and publish-disabled semantics.
+   - Listening action rows carry `handleNext`, `handleBack`, `handleParseQuestions`, and `handleSaveTest` behavior at `ListeningTestBuilder.tsx:361-420`, `ListeningTestBuilder.tsx:476-529`, `ListeningTestBuilder.tsx:1438-1455`, and `ListeningTestBuilder.tsx:2268-2295`.
+4. `metadata display panel`: deferred.
+   - Reading V2 has display-only islands such as `ReadingV2MetadataPanel.tsx:149-158` and `ReadingV2StudioShell.tsx:3442-3457`, but the main metadata surfaces are editable.
+   - Listening review metadata remains editable at `ListeningTestBuilder.tsx:2163-2240`.
+5. `review/publish display wrapper`: deferred.
+   - Reading V2 already uses `AssessmentValidationSummary` for one neutral summary. Interactive review and publish workflows remain Reading-owned.
+   - Listening review mixes editable metadata, audio summary, save error state, and save trigger behavior.
+6. `question-card wrapper`: deferred.
+   - Reading V2 question cards own edit/navigation/delete/review behavior.
+   - Listening rows diverge between image answer-only and text question/edit/delete modes at `ListeningTestBuilder.tsx:2054-2149`.
+7. `mobile layout primitive`: deferred.
+   - Reading V2 responsive behavior is shell-coupled in `ReadingV2StudioShell.css`.
+   - Listening currently has progress-pill wrapping plus fixed grids; no stable two-module neutral layout contract exists.
+
+### Selected Candidate
+
+Selected next primitive candidate: `authoring header`.
+
+Required adopters for the later implementation packet:
+
+1. One mounted Reading V2 authoring header, preferably `ReadingV2MetadataPanel`, `ReadingV2SettingsPanel`, `ReadingV2ImportReviewPanel`, or a small `ReadingV2BuildWorkspace` header slice with existing focused coverage.
+2. One Listening authoring display-only step header outside the existing Step 4 adoption, preferably mode, AI parse, image upload, or review header, with focused builder coverage.
+
+Must stay module-owned:
+
+1. Reading V2 metadata edits, validation issue calculation, publish gating, preview launch, import review actions, task-group navigation, and runtime/projection behavior.
+2. Listening display-mode state, upload/audio validation, parser calls, question edits, save behavior, R2/storage calls, navigation, alerts/announcements, and all runtime/live/audio authority.
+3. All product copy and labels unless passed from module code into neutral slots.
+
+### Required Next Tests For Task 3.7+
+
+1. Shared component tests for heading level, title, eyebrow/description slot, status/action slots, accessible region or header labelling, children, and responsive stacking.
+2. Reading V2 adopter test proving unchanged heading/copy/status/action placement and unchanged module behavior.
+3. Listening adopter test proving unchanged heading/copy/action behavior and no parser/audio/save/storage movement.
+4. Boundary grep proving shared code has no Reading V2, Listening, audio, parser, storage, runtime, live, publish, or preview authority.
+5. Mantine scan proving no new `@mantine/*` import and no touched Mantine region without explicit deferral.
+
+### Independent Review
+
+1. Reading V2 explorer returned PASS and independently selected `authoring header` as the first viable Reading-side candidate, rejecting `authoring card` as mixed editable or question-card behavior.
+2. Listening explorer returned PASS and independently selected `authoring header` as the first viable Listening-side candidate, rejecting `authoring card` as too broad and behavior-coupled.
+3. Main orchestrator challenged both outputs against local source scans and accepted the shared conclusion.
+
+### Verification
+
+Documentation/planning-only packet:
+
+- RED/GREEN/mutation proof: not applicable - non-behavioral candidate selection.
+- Boundary grep: selected plan explicitly keeps Reading V2/Listening/audio/parser/storage/runtime/live behavior module-owned; no source code changed.
+- Mantine scan: current touched docs add no Mantine. Planned code paths were scanned; existing known `@mantine/core` residue remains `src/skills/listening/builders/ListeningTestBuilder.tsx:8` and is not touched.
+- Protected path scan: no runtime/live/storage files changed.
+- Taskbox state: Task 3.5 and Task 3.6 checked; parent Task 3.0 unchecked; Tasks 3.7 through 3.17 unchecked; Task 4+ unchanged.
+
+### Scope And Task State
+
+Changed scope is limited to Task 3.5/3.6 docs/evidence. No runtime/live/storage production behavior changed. No deploy, push, Firebase/R2 mutation, production traffic change, or remote-state mutation occurred.
+
+Task 3.5 and Task 3.6 are checked. Parent Task 3.0 remains unchecked. Tasks 3.7 through 3.17 remain unchecked.
+
 ## Packet 3C Task 3.4 Final Guardrail Correction - 2026-06-26
 
 ### Findings First And Verdict
