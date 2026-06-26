@@ -15,6 +15,7 @@ import type { ParsedQuestion } from '../../../types/document.types';
 import { listeningRouter } from '../../../services/parser/listening.router';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigation } from '../../../hooks/useNavigation';
+import { AssessmentAuthoringHeader } from '../../../features/assessment/shared/components/AssessmentAuthoringHeader';
 import { AssessmentAuthoringSection } from '../../../features/assessment/shared/components/AssessmentAuthoringSection';
 import { AssessmentStatusState } from '../../../features/assessment/shared/components/AssessmentStatusState';
 
@@ -752,12 +753,12 @@ const ListeningTestBuilder: React.FC = () => {
             {/* STEP 0: Mode Selection */}
             {currentStep === 'mode-select' && (
               <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Choose Display Mode
-                </h2>
-                <p style={{ color: '#64748b', marginBottom: '2rem' }}>
-                  Select how your listening test questions will be displayed to students
-                </p>
+                <div style={{ marginBottom: '2rem' }}>
+                  <AssessmentAuthoringHeader
+                    title="Choose Display Mode"
+                    description="Select how your listening test questions will be displayed to students"
+                  />
+                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                   {/* Text Mode Option */}

@@ -19,6 +19,7 @@ describe('AssessmentAuthoringHeader', () => {
     render(
       <AssessmentAuthoringHeader
         title="Material setup"
+        eyebrow="Draft"
         description="Configure the visible assessment details."
       />,
     );
@@ -26,6 +27,7 @@ describe('AssessmentAuthoringHeader', () => {
     const region = screen.getByRole('region', { name: 'Material setup' });
 
     expect(region).toContainElement(screen.getByRole('heading', { name: 'Material setup' }));
+    expect(region).toHaveTextContent('Draft');
     expect(region).toHaveTextContent('Configure the visible assessment details.');
     expect(region).not.toHaveTextContent(/Reading|Listening|audio|parser|storage|runtime|live/i);
   });
@@ -55,6 +57,7 @@ describe('AssessmentAuthoringHeader', () => {
     render(
       <AssessmentAuthoringHeader
         title="Counts"
+        eyebrow={0}
         description={0}
         status={0}
         action={0}
@@ -68,6 +71,7 @@ describe('AssessmentAuthoringHeader', () => {
     expect(region.querySelector('.assessment-authoring-header__description')).toHaveTextContent(
       '0',
     );
+    expect(region.querySelector('.assessment-authoring-header__eyebrow')).toHaveTextContent('0');
     expect(region.querySelector('.assessment-authoring-header__status')).toHaveTextContent('0');
     expect(region.querySelector('.assessment-authoring-header__action')).toHaveTextContent('0');
     expect(region.querySelector('.assessment-authoring-header__content')).toHaveTextContent('0');

@@ -4618,6 +4618,84 @@ Changed scope is limited to the Task 3.4 guardrail script, its test, workflow, a
 
 Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
 
+## Task 3.9/3.10 Neutral Authoring Header Adoption - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.9 and Task 3.10 only.
+
+Findings: none blocking for the selected primitive adoption.
+
+Scope boundary: PRD-0055 Task 3.9/3.10 shared authoring-header adoption only. No Task 3.11+ work, runtime, live-session, storage, parser, audio, import normalization, projection, publish workflow, review navigation, Worker, Firebase, R2, deploy, push, or remote-state mutation occurred.
+
+### Preconditions And Contract
+
+1. Start state was clean: `rtk git status --short --branch` reported branch `codex/prd-0055-task-2a-s0-worker-truth` and clean tree; `rtk git status --short --untracked-files=all` reported `ok`; starting `HEAD` was `2809daf49e9551b91477ba6c9c2a74bb9819fe50`.
+2. Task 3.7 and Task 3.8 were checked and committed in `2809daf4 feat(assessment): add neutral authoring header`; `git show --stat HEAD` listed the shared primitive source, CSS, tests, and Task 3.7/3.8 evidence docs.
+3. Task 3.5/3.6 selected the `authoring header` primitive. Contract: display-only heading level, title, optional eyebrow/description content, optional status slot, optional action slot, accessible labelling, children boundary, and mobile stacking. Modules keep copy, status calculation, action handlers, routing, parser, validation, audio, storage, publish, preview, runtime, and live behavior.
+4. Selected Listening adopter: `ListeningTestBuilder` mode-select display header. Before edit it rendered `Choose Display Mode` plus display-mode helper copy and no status/action slot; mode cards kept display-mode state and click handlers; parser/audio/storage/save behavior lived elsewhere.
+5. Selected Reading V2 adopter: `ReadingV2SettingsPanel` Settings header. Before edit it rendered `Publishing`, `Settings`, and `Ready`/`Blocked` from `publishBlocked`; metadata edits, validation summary, import normalization, projection, publish workflow, review navigation, and runtime behavior remained outside the header.
+6. Tiny primitive fix: `AssessmentAuthoringHeader` now accepts optional `eyebrow` display content so the selected contract and Reading V2 `Publishing` eyebrow remain module-supplied and display-only.
+
+### TDD And Implementation
+
+1. RED: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic` failed before adoption because the new adopter tests could not find `AssessmentAuthoringHeader` regions named `Choose Display Mode` and `Settings`.
+2. Listening adoption: `src/skills/listening/builders/ListeningTestBuilder.tsx` replaces only the mode-select `h2`/helper paragraph with `AssessmentAuthoringHeader`. Parser calls, audio validation/upload, save/persistence, navigation, and event handlers were not moved.
+3. Reading V2 adoption: `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx` replaces only the Settings panel heading row with `AssessmentAuthoringHeader`. `publishBlocked` status calculation remains local; metadata edits, validation summary, import normalization, projection, publish workflow, review navigation, and runtime behavior were not moved.
+4. GREEN: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic` passed 3 files and 12 tests.
+
+### Changed Files
+
+1. `src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx`: optional display-only `eyebrow` slot.
+2. `src/features/assessment/shared/components/AssessmentAuthoringHeader.css`: neutral eyebrow styling.
+3. `src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx`: eyebrow and falsy-eyebrow coverage.
+4. `src/skills/listening/builders/ListeningTestBuilder.tsx`: one Listening mode-select header adoption.
+5. `src/skills/listening/builders/ListeningTestBuilder.test.tsx`: Listening adopter preservation test.
+6. `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`: one Reading V2 Settings header adoption.
+7. `src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx`: Reading V2 adopter preservation test.
+8. Tasklist, traceability, findings, and implementation log record Task 3.9/3.10 evidence only.
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 2305
+responsibilities: legacy Listening authoring wizard step orchestration with display-mode header composition; existing audio upload validation parser save review and storage integration boundaries retained outside this header-only patch
+split-alternatives: extract the mode-select step into a new bounded Listening component before header adoption; defer Listening header adoption until the dedicated Task 3.14 shell and Mantine cleanup packet
+rejection-reason: extract the mode-select step into a new bounded Listening component before header adoption => this would exceed Task 3.9 display-only adoption by creating a new Listening component boundary and moving step JSX during a header proof packet; defer Listening header adoption until the dedicated Task 3.14 shell and Mantine cleanup packet => this would leave Task 3.9 incomplete even though the mode-select header is an already documented display-only adopter
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+### Independent Review
+
+1. Reading V2 explorer returned PASS and independently selected `ReadingV2SettingsPanel` as the narrowest Reading V2 adopter. Main accepted this after local source and test inspection.
+2. Listening explorer returned PASS after the local patch was already present and reported mode-select as already adopted; it recommended `Review & Save` only as a remaining unadopted seam. Main rejected adding a second Listening adoption because Task 3.9 requires exactly one Listening surface in this packet.
+3. Main orchestrator reviewed the diff, challenged the primitive `eyebrow` addition as a tiny display-only adoption fix, and kept it because the prior selected contract included eyebrow/description content and Reading V2 supplied `Publishing` as module-owned display copy.
+4. Independent reviewer returned PASS before commit: reviewed current uncommitted diff, taskbox/traceability, and focused tests; found exactly one Listening adoption, exactly one Reading V2 adoption, no Task 3.11+ drift, no new Mantine, and no protected runtime/storage/live drift.
+
+### Verification
+
+1. Focused Listening adopter proof: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` included in the combined GREEN command; the test proves the mode header region/copy/class and still proves no parser, answer-key parser, save, audio validation, or R2 upload calls occurred while reaching the existing Questions step.
+2. Focused Reading V2 adopter proof: `rtk npx vitest run src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic` included in the combined GREEN command; the test proves Settings title, `Publishing` eyebrow, `Ready` status, and neutral header class while existing tests preserve material-only ownership and publish-readiness behavior.
+3. Existing primitive proof: `AssessmentAuthoringHeader.test.tsx` stayed GREEN with 7 tests after adding eyebrow coverage.
+4. Boundary grep over shared primitive production source/CSS returned no Reading V2, Listening, audio, parser, storage, runtime, live, publish, preview, Firebase, R2, Cloudflare, passage, teacher, `audioCommand`, `masterAudioState`, `listeningRouter`, `listeningTestStorage`, or `r2Storage` matches.
+5. Mantine scan over touched source/CSS found only existing deferred residue: `src/skills/listening/builders/ListeningTestBuilder.tsx:8` imports `AppShell` from `@mantine/core`. No new Mantine usage was added; Task 3.14 shell removal remains deferred.
+6. Adopter import/authority scan showed existing protected Listening imports and handlers remained in `ListeningTestBuilder`; Reading V2 Settings still has only Settings-local status/copy and existing validation summary calls.
+7. Protected-path scan: changed files were limited to shared primitive, one Listening authoring adopter/test, one Reading V2 authoring adopter/test, and Task 3 evidence docs. No runtime/live/storage files changed.
+8. Taskbox scan: only Task 3.9 and Task 3.10 were checked in this packet. Parent Task 3.0 remains unchecked; Tasks 3.11 through 3.17 remain unchecked.
+9. Focused GREEN commands passed individually after implementation:
+   - `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 1 file, 1 test.
+   - `rtk npx vitest run src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic`: PASS, 1 file, 4 tests.
+   - `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx --reporter=basic`: PASS, 1 file, 7 tests.
+10. Combined shared/adopter proof passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 6 files, 24 tests.
+11. Guardrail proof passed with explicit changed production files: `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx,src/features/assessment/shared/components/AssessmentAuthoringHeader.css,src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx,src/skills/listening/builders/ListeningTestBuilder.tsx`: PASS, 4 changed files, `OK`.
+12. UTF-8 proof passed: `rtk npm run check:utf8 -- src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx src/features/assessment/shared/components/AssessmentAuthoringHeader.css src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/skills/listening/builders/ListeningTestBuilder.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 11 text files.
+13. Whitespace proof passed: `rtk git diff --check`.
+
+### Scope And Task State
+
+Task 3.9 and Task 3.10 are checked. Parent Task 3.0 remains unchecked. Tasks 3.11 through 3.17 remain unchecked. Task 3.14 Mantine shell removal remains deferred; existing Listening `AppShell` residue is untouched.
+
 ## Task 3.7/3.8 Neutral Authoring Header Primitive - 2026-06-26
 
 ### Findings First And Verdict

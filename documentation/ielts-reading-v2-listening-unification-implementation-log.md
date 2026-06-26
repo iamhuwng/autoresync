@@ -2,6 +2,28 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.9/3.10 authoring-header adoption addendum
+
+This packet adopts the selected neutral `AssessmentAuthoringHeader` primitive in exactly one Listening authoring display-only surface and exactly one Reading V2 authoring display-only surface. It does not change parser, validation calculation, audio, persistence, import normalization, projection, publish workflow, review navigation, runtime, live-session, storage, Firebase, R2, Cloudflare, deploy, push, or production configuration.
+
+Adopter contract:
+
+- Selected primitive: `AssessmentAuthoringHeader`.
+- Neutral contract: heading level, title, optional eyebrow/description content, optional status slot, optional action slot, accessible labelling, children boundary, and mobile stacking.
+- Listening adopter: `ListeningTestBuilder` mode-select display header. Listening keeps display-mode state, navigation, parser calls, audio validation/upload, persistence, save behavior, R2/storage calls, and runtime/live/audio authority.
+- Reading V2 adopter: `ReadingV2SettingsPanel` Settings header. Reading V2 keeps Settings copy/status calculation, metadata edits, validation summary, import normalization, projection, publish workflow, review navigation, and runtime behavior.
+- Tiny primitive fix: optional `eyebrow` slot preserves the selected candidate contract and the Reading V2 `Publishing` eyebrow as display-only module-supplied content.
+
+Proof:
+
+- RED: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic` failed before adoption because both new adopter tests could not find neutral header regions.
+- GREEN: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx --reporter=basic` passed 3 files and 12 tests.
+- Existing shared/adopter proof still passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 24 tests.
+- Guardrail and text hygiene passed: explicit changed-production guardrail returned `OK`; UTF-8 passed for 11 touched text files; `rtk git diff --check` passed.
+- Independent reviewer returned PASS before commit: exact two adopter surfaces, no Task 3.11+ drift, no new Mantine, and no protected runtime/storage/live drift.
+
+Task state after this addendum: Task 3.9 and Task 3.10 are checked. Parent Task 3.0 remains unchecked. Tasks 3.11 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.7/3.8 authoring-header primitive addendum
 
 This packet implements only the selected neutral `authoring header` primitive from Task 3.5/3.6. It does not adopt the primitive in Reading V2 or Listening, and it does not change runtime, live-session, storage, parser, publish, preview, audio, Firebase, R2, Cloudflare, or production configuration.

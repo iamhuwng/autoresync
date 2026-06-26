@@ -18,6 +18,26 @@ const metadata: ReadingV2StudioMetadata = {
 };
 
 describe('ReadingV2SettingsPanel', () => {
+  it('uses the neutral authoring header for Settings copy and readiness status', () => {
+    render(
+      <ReadingV2SettingsPanel
+        metadata={metadata}
+        validationIssues={[]}
+        publishBlocked={false}
+        onMetadataChange={vi.fn()}
+      />,
+    );
+
+    const settingsHeader = screen.getByRole('region', { name: 'Settings' });
+
+    expect(settingsHeader).toContainElement(
+      screen.getByRole('heading', { level: 2, name: 'Settings' }),
+    );
+    expect(settingsHeader).toHaveTextContent('Publishing');
+    expect(settingsHeader).toHaveTextContent('Ready');
+    expect(settingsHeader).toHaveClass('assessment-authoring-header');
+  });
+
   it('limits Settings to material-level ownership boundaries', () => {
     render(
       <ReadingV2SettingsPanel

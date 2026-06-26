@@ -22,6 +22,15 @@
   line-height: 1.25;
 }
 
+.assessment-authoring-header__eyebrow {
+  margin: 0 0 0.25rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .assessment-authoring-header__description {
   margin-top: 0.375rem;
   color: #64748b;

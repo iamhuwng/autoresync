@@ -110,6 +110,16 @@ describe('ListeningTestBuilder', () => {
     const user = userEvent.setup();
     render(<ListeningTestBuilder />);
 
+    const modeHeader = screen.getByRole('region', { name: 'Choose Display Mode' });
+
+    expect(modeHeader).toContainElement(
+      screen.getByRole('heading', { name: 'Choose Display Mode' }),
+    );
+    expect(modeHeader).toHaveTextContent(
+      'Select how your listening test questions will be displayed to students',
+    );
+    expect(modeHeader).toHaveClass('assessment-authoring-header');
+
     await user.click(screen.getByRole('button', { name: 'Next →' }));
     expect(screen.getByRole('heading', { name: 'Audio Configuration' })).toBeInTheDocument();
 

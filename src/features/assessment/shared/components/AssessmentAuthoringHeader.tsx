@@ -7,6 +7,7 @@ type AssessmentAuthoringHeaderStackAt = 'mobile' | 'always';
 
 export interface AssessmentAuthoringHeaderProps {
   readonly title: ReactNode;
+  readonly eyebrow?: ReactNode;
   readonly description?: ReactNode;
   readonly status?: ReactNode;
   readonly action?: ReactNode;
@@ -19,6 +20,7 @@ export interface AssessmentAuthoringHeaderProps {
 
 export function AssessmentAuthoringHeader({
   title,
+  eyebrow,
   description,
   status,
   action,
@@ -41,6 +43,9 @@ export function AssessmentAuthoringHeader({
     <section className={classNames} {...labellingProps}>
       <div className="assessment-authoring-header__row">
         <div className="assessment-authoring-header__heading">
+          {eyebrow !== undefined && eyebrow !== null ? (
+            <div className="assessment-authoring-header__eyebrow">{eyebrow}</div>
+          ) : null}
           <HeadingElement id={titleId} className="assessment-authoring-header__title">
             {title}
           </HeadingElement>
