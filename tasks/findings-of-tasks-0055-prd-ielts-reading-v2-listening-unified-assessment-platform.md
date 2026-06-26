@@ -4983,3 +4983,76 @@ Corrected defects:
 Changed scope is limited to the Task 3.4 guardrail script, its test, workflow, and Task 3 evidence/status docs. No runtime/live/storage production behavior changed. No deploy, push, or commit occurred.
 
 Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
+
+## PRD-0055 Task 3.12 Shared-Copy Ownership Confirmation - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.12 docs-only confirmation.
+
+Findings: none blocking. Current shared assessment primitives keep product copy module-supplied and contain no forbidden module-specific wording or conditions in production source/CSS.
+
+Scope boundary: PRD-0055 Task 3.12 only. No source code, tests, shared component contracts, adopter code, runtime, live-session, storage, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, or remote-state mutation changed. Parent Task 3.0 remains unchecked. Tasks 3.13 through 3.17 remain unchecked.
+
+### Preconditions
+
+1. `rtk git status --short --branch`: clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. `rtk git status --short --untracked-files=all`: `ok`.
+3. `rtk git rev-parse HEAD`: `3329822fe9cb143d36c2ddf88ef0869843a703da`.
+4. Taskbox scan showed Task 3.11 checked, Task 3.12 unchecked before this packet, parent Task 3.0 unchecked, and Tasks 3.13 through 3.17 unchecked.
+
+### Shared-Copy Ownership Rule
+
+Shared primitives may own neutral presentation structure, layout classes, default ARIA semantics, and generic overrideable labels. Modules own visible product copy, status text, status calculations, validation calculations, action labels, action handlers, workflow conditions, parser behavior, audio behavior, storage behavior, runtime behavior, and live-session behavior.
+
+### Primitive Inventory
+
+1. `AssessmentAuthoringHeader`: module-supplied copy/slots are `title`, `eyebrow`, `description`, `status`, `action`, and `children`; shared-owned neutral defaults are `headingLevel`, `ariaLabel` fallback, `stackAt`, and local layout classes. Forbidden wording/conditions: none in production source/CSS.
+2. `AssessmentAuthoringSection`: module-supplied copy/slots are `title`, `description`, `status`, `action`, and `children`; shared-owned neutral defaults are `headingLevel`, `ariaLabel` fallback, and local section layout. Forbidden wording/conditions: none in production source/CSS.
+3. `AssessmentStatusState`: module-supplied copy/slots are `title`, `message`, action labels/handlers, and secondary action labels/handlers; shared-owned neutral defaults are `loading`/`error`/`empty` variants, default role mapping, loading busy state, alignment, and button chrome. Forbidden wording/conditions: none in production source/CSS.
+4. `AssessmentValidationSummary`: module-supplied copy/slots are `title`, `status`, `summary`, `messages`, `issueCount`, optional `issueLabel`, `ariaLabel`, `role`, and validation calculation; shared-owned neutral default is overrideable `issueLabel = 'Issues'` plus summary layout. Forbidden wording/conditions: none in production source/CSS.
+
+### Evidence Schema
+
+Subtask: Task 3.12 verify shared copy remains module-supplied.
+
+Claims proven:
+
+1. Shared-copy ownership rule was restated.
+2. All current shared assessment primitives were inventoried.
+3. Module-specific copy remains in adopters, not shared primitives.
+4. Shared primitive production source/CSS has no forbidden Reading V2, Reading, Listening, audio, passage, parser, storage, teacher, live-session, runtime/live authority wording or conditions.
+5. No source/test/runtime/live/storage behavior changed.
+6. Task 3.12 only is checked; parent Task 3.0 and Tasks 3.13 through 3.17 remain unchecked.
+
+Files and declared touch regions:
+
+1. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 3.12 checkbox/evidence text only.
+2. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: EV-T3 Task 3.12 evidence bullet only.
+3. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only Task 3.12 evidence.
+4. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: Task 3.12 addendum only.
+
+Lines before -> after and responsibility delta:
+
+1. No production source line count changed.
+2. Shared primitive contracts are unchanged.
+3. Reading V2 and Listening adopter ownership is unchanged.
+
+### Verification
+
+1. Focused shared/adopter proof: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 6 files, 24 tests.
+2. Boundary grep over shared production source/CSS: `rtk rg -n "Reading V2|Reading|Listening|audio|passage|parser|storage|teacher|live-session|live session|runtime|live|audioCommand|masterAudioState|listeningRouter|listeningTestStorage|r2Storage" src/features/assessment/shared/components -g "*.tsx" -g "*.css" -g "!*.test.tsx"` returned no matches.
+3. Copy scan: `rtk rg -n "title=|description=|eyebrow=|status=|summary=|messages=|issueLabel=|action=|ariaLabel=|message=" src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx src/pages/ReadingV2StudioPage.tsx src/skills/listening/builders/ListeningTestBuilder.tsx` showed Reading V2 and Listening product copy supplied by adopters.
+4. Mantine scan: `rtk rg -n "@mantine|AppShell" -- src/features/assessment/shared/components src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx src/skills/listening/builders/ListeningTestBuilder.tsx` returned only existing deferred `ListeningTestBuilder.tsx` residue at lines 8, 702, and 2301. No new Mantine usage exists in the diff.
+5. Guardrail proof: `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx,src/features/assessment/shared/components/AssessmentAuthoringSection.tsx,src/features/assessment/shared/components/AssessmentStatusState.tsx,src/features/assessment/shared/components/AssessmentValidationSummary.tsx,src/features/assessment/shared/components/AssessmentAuthoringHeader.css,src/features/assessment/shared/components/AssessmentAuthoringSection.css,src/features/assessment/shared/components/AssessmentStatusState.css,src/features/assessment/shared/components/AssessmentValidationSummary.css`: PASS, 8 changed files, `OK`.
+6. Protected-path scan: `rtk git diff --name-only -- src cloudflare r2-backup-worker database.rules.json firebase.json .firebaserc functions package.json package-lock.json` returned no changed source, runtime, live, storage, Worker, R2 backup, rule, Firebase config, function, or package paths.
+7. Taskbox scan: `rtk rg -n "\[[ x]\] 3\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` showed parent Task 3.0 unchecked, Tasks 3.1 through 3.12 checked, and Tasks 3.13 through 3.17 unchecked.
+
+### Independent Review
+
+1. Read-only exploration subagent returned PASS after inspecting shared primitives, CSS, tests, and narrow adopter call sites. It found the same ownership split and no forbidden wording in shared `.tsx` source.
+2. Main orchestrator independently inspected source/tests/CSS, reran scans, challenged the overrideable `Issues` default as a possible shared-owned label, and accepted it as neutral because it is generic and overrideable.
+
+### Scope And Task State
+
+Task 3.12 is checked as docs-only confirmation. Parent Task 3.0 remains unchecked. Tasks 3.13 through 3.17 remain unchecked. Task 3.14 Mantine shell removal remains deferred; existing Listening `AppShell` residue is untouched.

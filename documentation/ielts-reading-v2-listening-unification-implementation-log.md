@@ -2,6 +2,34 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.12 shared-copy ownership addendum
+
+This packet confirms the existing shared assessment primitives keep copy module-supplied. No source, tests, shared component contract, Reading V2 source, Listening source, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, runtime, live-session, storage, Firebase, R2, Cloudflare, deploy, push, or production configuration changed.
+
+Shared-copy ownership rule:
+
+- shared primitives may own neutral presentation structure, semantics, default ARIA roles, layout classes, and generic overrideable labels;
+- modules own product copy, headings, descriptions, status labels, validation calculations, action labels, action handlers, workflow conditions, routing, parser behavior, audio behavior, storage behavior, runtime behavior, and live-session behavior.
+
+Current primitive inventory:
+
+- `AssessmentAuthoringHeader`: module-supplied `title`, `eyebrow`, `description`, `status`, `action`, and `children`; shared-owned neutral `headingLevel`, `ariaLabel` fallback, `stackAt`, and local layout classes.
+- `AssessmentAuthoringSection`: module-supplied `title`, `description`, `status`, `action`, and `children`; shared-owned neutral `headingLevel`, `ariaLabel` fallback, and local section layout.
+- `AssessmentStatusState`: module-supplied `title`, `message`, action labels, action handlers, secondary action labels, and secondary action handlers; shared-owned neutral `loading`/`error`/`empty` variants, default roles, loading busy state, alignment, and button chrome.
+- `AssessmentValidationSummary`: module-supplied `title`, `status`, `summary`, `messages`, `issueCount`, optional `issueLabel`, `ariaLabel`, `role`, and validation calculation; shared-owned neutral summary layout and overrideable default `issueLabel = 'Issues'`.
+
+Proof:
+
+- No new code test applies because this was a docs-only confirmation of existing component contracts.
+- Existing shared/adopter focused proof passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 24 tests.
+- Boundary grep over shared production source/CSS returned no Reading V2, Reading, Listening, audio, passage, parser, storage, teacher, live-session, live session, runtime, live authority, `audioCommand`, `masterAudioState`, `listeningRouter`, `listeningTestStorage`, or `r2Storage` matches.
+- Copy scan showed module-specific copy remains at adopter call sites in `ReadingV2StudioPage`, `ReadingV2SettingsPanel`, and `ListeningTestBuilder`, not in shared primitives.
+- Mantine scan showed no shared Mantine usage and only existing deferred `ListeningTestBuilder` `AppShell` residue; Task 3.14 remains future work.
+- Guardrail script passed over the eight shared production source/CSS files.
+- Protected-path scan returned no changed `src`, runtime, live, storage, Worker, Firebase, R2 backup, rules, or config paths.
+
+Task state after this addendum: Task 3.12 is checked as docs-only confirmation. Parent Task 3.0 remains unchecked. Tasks 3.13 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.11 validation-summary reassessment addendum
 
 This packet reassesses `AssessmentValidationSummary` for one Listening authoring branch and records a narrow deferral. No shared primitive, Listening production source, Reading V2 source, parser, audio, storage, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, deploy, push, or production configuration changed.
