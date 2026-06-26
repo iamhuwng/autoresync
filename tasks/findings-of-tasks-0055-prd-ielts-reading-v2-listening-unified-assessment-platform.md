@@ -5056,3 +5056,85 @@ Lines before -> after and responsibility delta:
 ### Scope And Task State
 
 Task 3.12 is checked as docs-only confirmation. Parent Task 3.0 remains unchecked. Tasks 3.13 through 3.17 remain unchecked. Task 3.14 Mantine shell removal remains deferred; existing Listening `AppShell` residue is untouched.
+
+## PRD-0055 Task 3.13 Shared-Answer-Input Deferral Confirmation - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.13 docs-only deferral confirmation.
+
+Findings: none blocking. Current shared assessment primitives remain display-only/status-only and contain no shared answer input primitive or answer-control ownership. Shared answer inputs remain deferred until a later approved child PRD proves two modules have identical semantic, validation, accessibility, and persistence contracts.
+
+Scope boundary: PRD-0055 Task 3.13 only. No source code, tests, shared component contracts, adopter code, runtime, live-session, storage, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, or remote-state mutation changed. Parent Task 3.0 remains unchecked. Tasks 3.14 through 3.17 remain unchecked.
+
+### Preconditions
+
+1. `rtk git status --short --branch`: clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. `rtk git status --short --untracked-files=all`: `ok`.
+3. `rtk git rev-parse HEAD`: `51ccb0d879f10058821ab6f44e9f0177e67bcfa7`.
+4. Taskbox scan before this packet showed Task 3.12 checked, Task 3.13 unchecked, parent Task 3.0 unchecked, and Tasks 3.14 through 3.17 unchecked.
+
+### Shared-Answer-Input Rule
+
+Do not create a shared answer input until two modules prove identical semantic, validation, accessibility, and persistence contracts in a later approved child PRD. Until that gate exists, answer text, choice, selection, edit controls, answer validation ownership, and answer persistence ownership stay module-specific.
+
+### Primitive Inventory
+
+1. `AssessmentAuthoringHeader`: display-only authoring header with module-supplied title/eyebrow/description/status/action/children slots. No input, answer parser, answer validation, or answer persistence ownership.
+2. `AssessmentAuthoringSection`: display-only section wrapper with module-supplied title/description/status/action/children slots. No input, answer parser, answer validation, or answer persistence ownership.
+3. `AssessmentStatusState`: loading/error/empty presentation with optional generic action buttons. No answer text, choice, selection, or edit controls.
+4. `AssessmentValidationSummary`: ready/blocked validation-summary presentation. Modules supply status, messages, issue count, labels, and validation calculation; shared code does not calculate or persist answers.
+
+### Reading V2 And Listening Ownership
+
+1. Reading V2 authoring answer-rule/edit controls remain in `src/components/reading-v2/studio/ReadingV2AnswerRuleEditor.tsx` and `src/components/reading-v2/studio/ReadingV2TableCompletionBuilder.tsx`.
+2. Reading V2 draft save/autosave/publish ownership remains in `src/pages/ReadingV2StudioPage.tsx`.
+3. Reading V2 runtime answer state and local persistence remain in `src/components/reading-v2/runtime/ReadingV2RuntimeShell.tsx`.
+4. Listening answer-key/edit controls remain in `src/skills/listening/builders/ListeningTestBuilder.tsx`.
+5. Listening runtime answer state remains in `src/skills/listening/components/ListeningTestPage.tsx`.
+6. Listening mobile answer-sheet text inputs remain in `src/components/test/mobile/MobileListeningAnswerSheet.tsx`.
+7. Listening save ownership remains through `saveListeningTestToFirebase`; no neutral shared answer-input contract exists today.
+
+### Evidence Schema
+
+Subtask: Task 3.13 confirm shared answer inputs remain deferred.
+
+Claims proven:
+
+1. Task 3.13 rule was restated.
+2. Current shared assessment primitives were inventoried and none is a shared answer input primitive.
+3. Reading V2 and Listening answer/input ownership remains outside `src/features/assessment/shared/`.
+4. Static shared scan found no answer-control ownership under shared production source/CSS.
+5. No new code test applies because this was a docs-only deferral confirmation of existing ownership and no source/component contract changed.
+6. Task 3.13 only is checked; parent Task 3.0 and Tasks 3.14 through 3.17 remain unchecked.
+
+Files and declared touch regions:
+
+1. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 3.13 checkbox/evidence text only.
+2. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: EV-T3 Task 3.13 evidence bullet only.
+3. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only Task 3.13 evidence.
+4. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: Task 3.13 addendum only.
+
+Lines before -> after and responsibility delta:
+
+1. No production source line count changed.
+2. Shared primitive contracts are unchanged.
+3. Reading V2 and Listening answer/input ownership is unchanged.
+
+### Verification
+
+1. Focused shared/adopter proof: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 6 files, 24 tests.
+2. Shared answer-control scan: `rtk rg -n '(<input|<textarea|<select|type="radio"|type="checkbox"|\bonChange\b|\bchecked\b|\bvalue=|answer parser|answer persistence|answer validation|parseAnswer|saveAnswer|persistAnswer|validateAnswer|acceptableAnswers|scoringRule|onAnswerChange)' src/features/assessment/shared/components -g '*.tsx' -g '*.css' -g '!*.test.tsx'`: exit 1, no matches.
+3. Source/adopter scan: `rtk rg -n "Correct answers|Acceptable answers|Answer Key|Correct answers for|saveReadingV2StudioDraft|publishReadingV2StudioDraft|onDraftChange|saveListeningTestToFirebase|handleBulkParseAnswers|updateQuestion\(idx, 'answer'|onAnswerChange|answer-input" src/components/reading-v2/studio/ReadingV2AnswerRuleEditor.tsx src/components/reading-v2/studio/ReadingV2TableCompletionBuilder.tsx src/pages/ReadingV2StudioPage.tsx src/skills/listening/builders/ListeningTestBuilder.tsx src/skills/listening/components/ListeningTestPage.tsx src/components/test/mobile/MobileListeningAnswerSheet.tsx`: confirms answer controls/persistence owners remain in Reading V2 and Listening paths, not shared primitives.
+4. Mantine scan: `rtk rg -n '@mantine|AppShell' src/features/assessment/shared/components src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx src/pages/ReadingV2StudioPage.tsx src/skills/listening/builders/ListeningTestBuilder.tsx` returned only existing deferred `ListeningTestBuilder.tsx` residue at lines 8, 702, and 2301. No new Mantine usage exists in the diff.
+5. Protected-path scan: `rtk git diff --name-only -- src cloudflare r2-backup-worker database.rules.json firebase.json .firebaserc functions package.json package-lock.json` returned no changed source, runtime, live, storage, Worker, R2 backup, rule, Firebase config, function, or package paths.
+6. Taskbox scan: `rtk rg -n '\[[ x]\] 3\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)' tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` showed parent Task 3.0 unchecked, Tasks 3.1 through 3.13 checked, and Tasks 3.14 through 3.17 unchecked.
+
+### Independent Review
+
+1. Read-only exploration/review used the required `gpt-5.4-mini` high configuration request and bounded Task 3.13 scope.
+2. Main orchestrator independently inspected the shared primitives, answer-input owner files, taskbox state, protected paths, and final diff before commit.
+
+### Scope And Task State
+
+Task 3.13 is checked as docs-only deferral confirmation. Parent Task 3.0 remains unchecked. Tasks 3.14 through 3.17 remain unchecked. Task 3.14 Mantine shell removal remains deferred; existing Listening `AppShell` residue is untouched.

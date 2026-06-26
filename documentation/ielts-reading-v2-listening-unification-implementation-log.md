@@ -2,6 +2,36 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.13 shared-answer-input deferral confirmation
+
+This packet confirms shared answer inputs remain deferred. Do not create a shared answer input until two modules prove identical semantic, validation, accessibility, and persistence contracts in a later approved child PRD.
+
+No source, tests, shared component contract, adopter code, runtime, live-session, storage, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, deploy, push, or production configuration changed.
+
+Current primitive inventory:
+
+- `AssessmentAuthoringHeader`: display-only authoring header; slots for title, eyebrow, description, status, action, and children.
+- `AssessmentAuthoringSection`: display-only section layout; slots for title, description, status, action, and children.
+- `AssessmentStatusState`: loading/error/empty presentation with optional generic action buttons; not an answer input/control.
+- `AssessmentValidationSummary`: ready/blocked validation-summary presentation; modules supply validation state and issue data.
+
+Answer-input ownership inventory:
+
+- Reading V2 answer-rule/edit controls remain in Reading V2 Studio owners such as `ReadingV2AnswerRuleEditor` and `ReadingV2TableCompletionBuilder`; save/autosave/publish ownership remains in `ReadingV2StudioPage`; runtime answer state and local persistence remain in `ReadingV2RuntimeShell`.
+- Listening answer-key/edit controls remain in `ListeningTestBuilder`; runtime answer state remains in `ListeningTestPage`; mobile answer-sheet text inputs remain in `MobileListeningAnswerSheet`; save ownership remains through `saveListeningTestToFirebase`.
+- No neutral shared answer-input contract exists under `src/features/assessment/shared/` today.
+
+Proof:
+
+- No new code test applies because this was a docs-only deferral confirmation of existing source ownership, with no source or component contract change.
+- Existing shared/adopter focused proof passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 24 tests.
+- Static shared scan found no answer-input primitive/control ownership under shared production source/CSS. Matches were limited to neutral `AssessmentValidationSummary` naming and tests.
+- Source/adopter scan confirmed Reading V2 and Listening answer controls remain outside `src/features/assessment/shared/`.
+- Mantine scan showed no shared Mantine usage and only existing deferred `ListeningTestBuilder` `AppShell` residue; Task 3.14 remains future work.
+- Protected-path scan returned no changed `src`, runtime, live, storage, Worker, Firebase, R2 backup, rules, config, function, or package paths.
+
+Task state after this addendum: Task 3.13 is checked as docs-only deferral confirmation. Parent Task 3.0 remains unchecked. Tasks 3.14 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.12 shared-copy ownership addendum
 
 This packet confirms the existing shared assessment primitives keep copy module-supplied. No source, tests, shared component contract, Reading V2 source, Listening source, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, runtime, live-session, storage, Firebase, R2, Cloudflare, deploy, push, or production configuration changed.
