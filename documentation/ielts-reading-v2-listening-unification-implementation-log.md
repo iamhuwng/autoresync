@@ -2,6 +2,24 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.14 Listening Mantine authoring-shell removal
+
+This packet removes the dedicated Listening authoring-shell Mantine residue after primitive stability. `ListeningTestBuilder` no longer imports `@mantine/core` or renders `AppShell`; the outer wrapper is a native `<main>` preserving the existing authoring background, min-height, and page padding.
+
+No shared primitive contract changed. Existing `AssessmentAuthoringHeader`, `AssessmentAuthoringSection`, and `AssessmentStatusState` adoptions in `ListeningTestBuilder` remain unchanged.
+
+Scope boundary: no parser, audio, save, persistence, storage, runtime/live, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, or remote-state mutation changed. No shared answer inputs or new shared primitives were created.
+
+Proof:
+
+- Focused builder proof passed: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 1 file and 1 test.
+- Existing Task 3 shared/adopter focused suite passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 24 tests.
+- Mantine target scan returned no matches: `rtk rg -n "@mantine|AppShell" src/skills/listening/builders/ListeningTestBuilder.tsx`.
+- Shared-boundary scan returned no matches for Reading V2, Listening, audio, passage, parser, storage, runtime, live, `audioCommand`, `masterAudioState`, `listeningRouter`, `listeningTestStorage`, `r2Storage`, Firebase, R2, or Cloudflare authority under shared production source/CSS.
+- Protected-path diff returned no changed runtime/live/storage/Worker/Firebase/package paths.
+
+Task state after this addendum: Task 3.14 is checked as a dedicated authoring-shell patch. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.13 shared-answer-input deferral confirmation
 
 This packet confirms shared answer inputs remain deferred. Do not create a shared answer input until two modules prove identical semantic, validation, accessibility, and persistence contracts in a later approved child PRD.

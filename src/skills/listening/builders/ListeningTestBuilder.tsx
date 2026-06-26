@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { AppShell } from '@mantine/core';
 import { Card, CardBody, Button } from '../../../components/modern';
 import { saveListeningTestToFirebase, AUDIO_CONTROLS_PRESETS } from '../../../services/listeningTestStorage';
 import type { AudioSection as StorageAudioSection, ListeningDisplayMode, QuestionImage, AudioControlsConfig } from '../../../services/listeningTestStorage';
@@ -699,13 +698,12 @@ const ListeningTestBuilder: React.FC = () => {
   }, [currentStep, metadata.sections]);
 
   return (
-    <AppShell
-      padding="md"
-      styles={{
-        main: {
-          background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
-          minHeight: '100vh',
-        },
+    <main
+      style={{
+        background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
+        boxSizing: 'border-box',
+        minHeight: '100vh',
+        padding: '1rem',
       }}
     >
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
@@ -2298,7 +2296,7 @@ Write NO MORE THAN TWO WORDS for each answer.
           </CardBody>
         </Card>
       </div>
-    </AppShell >
+    </main>
   );
 };
 

@@ -5138,3 +5138,57 @@ Lines before -> after and responsibility delta:
 ### Scope And Task State
 
 Task 3.13 is checked as docs-only deferral confirmation. Parent Task 3.0 remains unchecked. Tasks 3.14 through 3.17 remain unchecked. Task 3.14 Mantine shell removal remains deferred; existing Listening `AppShell` residue is untouched.
+## PRD-0055 Task 3.14 Listening Mantine authoring-shell removal
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.14 dedicated authoring-shell patch.
+
+Findings: none blocking. `ListeningTestBuilder` no longer imports `@mantine/core` or renders Mantine `AppShell`; the replacement is a native `<main>` wrapper preserving the existing authoring background, min-height, and effective page padding. Existing shared primitive adoptions remain unchanged.
+
+Scope boundary: PRD-0055 Task 3.14 only. No parser, audio, save, persistence, storage, runtime/live, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, remote-state mutation, shared answer input, or new shared primitive changed. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked.
+
+### Mantine Inventory
+
+1. Before patch, `src/skills/listening/builders/ListeningTestBuilder.tsx` imported `AppShell` from `@mantine/core` and rendered the wrapper around the full authoring flow.
+2. After patch, `rtk rg -n "@mantine|AppShell" src/skills/listening/builders/ListeningTestBuilder.tsx` returned no matches.
+3. No `@mantine/*` import was added.
+
+### Evidence Schema
+
+Subtask: Task 3.14 remove Listening builder Mantine `AppShell` residue only.
+
+Claims proven:
+
+1. `AppShell` import/usage was removed from `ListeningTestBuilder`.
+2. Native authoring shell preserves layout/background behavior.
+3. Existing shared assessment primitive adoptions stayed unchanged.
+4. Shared components still contain no Reading/Listening/audio/parser/storage/runtime/live authority.
+5. Protected runtime/live/storage paths were not changed.
+6. Task 3.14 only is checked; parent Task 3.0 and Tasks 3.15 through 3.17 remain unchecked.
+
+Files and declared touch regions:
+
+1. `src/skills/listening/builders/ListeningTestBuilder.tsx`: import line and outer shell wrapper only.
+2. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 3.14 checkbox/evidence text only.
+3. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: EV-T3 Task 3.14 evidence plus FR-023/DECISION-073 status only.
+4. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only Task 3.14 evidence.
+5. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: Task 3.14 addendum only.
+6. `documentation/architecture/ielts-reading-v2-listening-unification.md`: current drift/status sentence only.
+7. `DESIGN.md`: removed stale `ListeningTestBuilder` Known Drift row after source-grounded verification.
+
+### Verification
+
+1. Focused builder proof: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 1 file, 1 test.
+2. Existing Task 3 shared/adopter proof: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 6 files, 24 tests.
+3. Mantine target scan: `rtk rg -n "@mantine|AppShell" src/skills/listening/builders/ListeningTestBuilder.tsx`: exit 1, no matches.
+4. Shared-boundary scan: `rtk rg -n "Reading V2|ReadingV2|Listening|audio|passage|parser|storage|runtime|live|audioCommand|masterAudioState|listeningRouter|listeningTestStorage|r2Storage|Firebase|R2|Cloudflare" src/features/assessment/shared/components -g "*.tsx" -g "*.css" -g "!*.test.tsx"`: exit 1, no matches.
+5. Protected-path scan: `rtk git diff --name-only -- src/skills/listening/components src/components/test/AudioProgressPanel.tsx src/components/practice/ListeningPracticeView.tsx src/skills/listening/components/AudioPlayer.tsx src/pages/TeacherTestMonitorPage.tsx src/hooks/audio src/services/listeningTestStorage.ts src/services/r2Storage.ts src/services/parser src/components/reading-v2/runtime cloudflare r2-backup-worker database.rules.json firebase.json .firebaserc functions package.json package-lock.json`: no output.
+
+### Independent Review
+
+Independent review must complete before commit. Main orchestrator will inspect the final diff, taskbox state, protected-path scan, and reviewer findings before staging.
+
+### Scope And Task State
+
+Task 3.14 is checked as a dedicated authoring-shell patch. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked. Task 3.15+ is not started.

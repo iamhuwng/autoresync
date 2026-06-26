@@ -215,7 +215,7 @@ Current status is partial, presentation-only migration:
 
 ## Known State And Drift
 
-- `src/skills/listening/builders/ListeningTestBuilder.tsx` still carries legacy Mantine `AppShell` residue. This is known drift, not shared-layer authority.
+- Task 3.14 removed legacy Mantine `AppShell` residue from `src/skills/listening/builders/ListeningTestBuilder.tsx`. The builder now uses a native authoring shell while preserving Listening-specific parser, audio, save, persistence, and runtime ownership.
 - `AssessmentValidationSummary` has no Listening adoption today; this is current migration state, not permission to force an incompatible adoption.
 - `AssessmentAuthoringSection` now has a Reading V2 adoption in the display-only `ReadingV2SettingsPanel` advisories block; further adoption still requires matching heading, spacing, and ownership semantics rather than symmetry for its own sake.
 - `authoring card`, action-row, metadata-display, review/publish wrapper, question-card, and mobile-layout primitives remain deferred until two modules prove an identical neutral display contract; question-card and mobile-layout deferrals stay tied to their named runtime child PRD gates when they touch runtime behavior.
