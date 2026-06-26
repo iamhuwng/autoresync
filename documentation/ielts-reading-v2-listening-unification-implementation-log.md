@@ -2,6 +2,55 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.4 guardrail corrective addendum
+
+Packet 3B corrects guardrail defects only. No shared primitive, adopter, runtime, live-session, storage behavior, deployment, or Task 3.5+ work changed.
+
+Current guardrail truth recorded on 2026-06-26:
+
+- JS/TS/JSX/TSX production source is parsed with the direct `typescript` dependency's compiler API. Static imports, side-effect imports, export-from declarations, dynamic imports, `require` calls, and multiline forms are checked as whole-file module specifiers. Source read/parse errors fail closed.
+- Prohibited authority identifiers are rejected in normal code plus imported/exported alias positions, and non-literal dynamic `import()` / `require()` specifiers fail closed because dependency targets cannot be proven structurally.
+- Listening dependency direction applies to current `src/skills/listening/builders/**` adopters and future `src/features/assessment/listening/**`; future feature modules also retain cycle checks for `ListeningTestBuilder`, `listeningTestStorage`, and `r2Storage`.
+- Shared local CSS under `src/features/assessment/shared/**` is scanned for prohibited `@import` / `url()` dependency roots plus authority selectors, properties, and custom properties, while comments and quoted prose stay ignored where practical.
+- Git changed-file discovery uses validated refs plus `execFileSync('git', args)` with NUL-delimited name-status output for added, copied, deleted, modified, and renamed paths. Successful tracked probes are unioned so branch/push range files and dirty tracked files are both represented; optional missing range probes fall back to later probes, while all tracked probes failing remains fatal. Both rename paths are represented. Deleted paths remain eligible for protected-path annotation and skip content line counting when the file no longer exists.
+- Shared authority checks scan production source and shared local CSS rather than tests or comments/prose and include `audioSections`, `teacherSessionState`, `publishPayload`, `storagePath`, and the existing audio/runtime/parser/storage/published-payload terms.
+- A line-budget exception is accepted only from one exact `assessment-line-budget-exception` findings block for that exact path and current logical line count, with structured `responsibilities`, `split-alternatives`, matching `rejection-reason` entries, named approver identity, reviewer-labeled role text, and exact `status: approved`. The guardrail validates complete structured evidence mechanically; human review still owns reviewer authenticity, technical truth, and approval. Partial, unrelated, stale-count, weak approver, weak role, or loose keyword evidence fails.
+- CI uses `npm ci`, then runs guardrail unit tests, the guardrail, and focused shared/adopter Vitest suites.
+
+Verification:
+
+- TDD RED cycle 1: the prior Packet 3B corrective run of `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs` returned 7 passes and 10 expected failures across 17 tests before the first corrective implementation.
+- TDD RED cycle 2: this second corrective run of the same Node command returned 20 passes and 6 expected failures across 26 tests before production edits.
+- GREEN: the same Node command passed 26/26.
+- Guardrail: `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files .github/workflows/assessment-unification-guardrails.yml,scripts/__tests__/check-assessment-unification-guardrails.test.mjs,scripts/check-assessment-unification-guardrails.mjs` passed with three changed files and `OK`.
+- Focused shared/adopter proof passed five files and 16 tests.
+- Mutation proof used temporary auto-cleaned fixtures. Aliased authority imports/exports, non-literal dynamic import/require in shared and Listening files, prohibited shared CSS roots/selectors/properties, a current Listening builder Reading V2 import, malformed source, unsafe Git refs/failures, and weak or stale line-budget evidence were all rejected.
+
+Task state after this correction: Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
+
+## PRD-0055 Task 3.4 guardrail final correction addendum
+
+Packet 3C records the final green correction after Packet 3B. Packet 3B history remains preserved, including both historical RED cycles.
+
+Current guardrail truth recorded on 2026-06-26:
+
+- An oversized target path now requires exactly one matching `assessment-line-budget-exception` block. A valid block plus any duplicate same-path block fails, including duplicate valid, stale-count, or partial blocks when `path` is present.
+- Cohesive file support now accepts one structured responsibility while still requiring at least two split alternatives and matched rejection reasons.
+- Deterministic generated artifacts and declarative fixtures are excluded from 400-line enforcement only when the explicit path or top-of-file header matches the narrow allowlist. Deep-content markers do not bypass the check.
+- Exact local equivalent documentation now uses either explicit `--changed-files` or branch-aware `GITHUB_BASE_REF`; the local default remains working-tree/last-commit convenience only.
+- TypeScript `ImportTypeNode` string-literal module specifiers now resolve in shared and Listening scans, closing the `import("...")` bypass into Reading V2, Listening, runtime, and storage roots.
+
+Verification:
+
+- `rtk run node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs`: PASS, 34/34.
+- `rtk run node scripts/check-assessment-unification-guardrails.mjs`: PASS, 7 changed files, `OK`.
+- `rtk run node scripts/check-assessment-unification-guardrails.mjs --changed-files .github/workflows/assessment-unification-guardrails.yml,scripts/check-assessment-unification-guardrails.mjs,scripts/__tests__/check-assessment-unification-guardrails.test.mjs,tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md,tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md,tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md,documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 7 changed files, `OK`.
+- `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 5 files, 16 tests.
+- `rtk git diff --check`: PASS.
+- `rtk npm run check:utf8 -- .github/workflows/assessment-unification-guardrails.yml scripts/check-assessment-unification-guardrails.mjs scripts/__tests__/check-assessment-unification-guardrails.test.mjs tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 7 files.
+
+Task state after this addendum: Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.1-3.4 shared-authoring foundation and guardrail addendum
 
 Task 3A records the first Task 3 checkpoint after S0 parent acceptance. It reconciles the existing neutral shared assessment foundation and adds a CI/local guardrail before any additional shared extraction.

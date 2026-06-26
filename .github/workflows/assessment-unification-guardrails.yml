@@ -84,7 +84,7 @@ jobs:
         run: git fetch origin "${{ github.base_ref }}" --depth=1
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Run assessment guardrail unit tests
         run: node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs

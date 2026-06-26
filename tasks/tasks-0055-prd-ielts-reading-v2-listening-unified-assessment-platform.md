@@ -347,9 +347,25 @@ Anti-goal: do not recreate the Reading V2 large-file pattern represented by `Rea
   - [x] 3.3 Track/commit the existing shared primitives and current Reading/Listening adoptions in a focused green patch before adding another primitive. Do not build new shared work on an uncommitted or failing foundation.
   - [x] 3.4 Add a low-cost CI guardrail before additional shared extraction:
     - create `.github/workflows/assessment-unification-guardrails.yml`;
-    - fail on prohibited Reading V2/Listening imports or module-specific authority symbols under `src/features/assessment/shared/`;
+    - fail on prohibited Reading V2/Listening imports or module-specific authority symbols under `src/features/assessment/shared/` production source and local CSS;
     - enforce new `src/features/assessment/listening/**` dependency direction: Listening may import neutral shared contracts, never Reading V2 internals, and never create a cycle through `ListeningTestBuilder.tsx`, `listeningTestStorage.ts`, or `r2Storage.ts`;
-    - report new/changed human-maintained assessment production files over the 400-line soft budget and fail when required findings justification/approval is absent;
+    - report new/changed human-maintained assessment production files over the 400-line soft budget and fail when required structured findings evidence is absent;
+    - require each 400-line exception to use this exact per-file findings record; `line-count` must equal the current measured logical line count and `status` must be exactly `approved`:
+      ```text
+      <!-- assessment-line-budget-exception
+      path: src/exact/production-file.ts
+      line-count: 401
+      responsibilities: exact responsibility one; exact responsibility two
+      split-alternatives: exact split option one; exact split option two
+      rejection-reason: exact split option one => why that split is rejected; exact split option two => why that split is rejected
+      approver: Approver Name
+      approver-role: Independent Architecture Reviewer
+      status: approved
+      -->
+      ```
+    - guardrail validates the exact structured record mechanically; human review still owns reviewer authenticity, technical truth, and approval;
+    - exclude deterministic generated artifacts and declarative fixtures from 400-line enforcement only when the explicit path or top-of-file header matches the narrow allowlist (`/fixtures/`, `/__fixtures__/`, `.generated.` filename, or a standard generated/do-not-edit header near file start); markers deep in file content do not bypass the check and human review still owns focused ownership for every file;
+    - document the exact local equivalent as either an explicit `--changed-files` list or the branch-aware `GITHUB_BASE_REF` path; the local default remains working-tree/last-commit convenience only and does not claim arbitrary multi-commit branch coverage;
     - run focused Vitest suites for `src/features/assessment/shared/**`;
     - optionally annotate changes to protected live/storage files for reviewer attention without pretending annotation replaces child-PRD gates;
     - document exact local equivalents and prove CI fails under one temporary prohibited-import/test mutation, then restore and prove green.
