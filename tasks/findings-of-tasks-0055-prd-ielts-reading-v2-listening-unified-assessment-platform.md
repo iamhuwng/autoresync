@@ -4618,6 +4618,122 @@ Changed scope is limited to the Task 3.4 guardrail script, its test, workflow, a
 
 Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
 
+## PRD-0055 Task 3.11 AssessmentValidationSummary Listening Deferral - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.11 docs-only reassessment/deferral.
+
+Findings: no exact Listening authoring branch currently matches the `AssessmentValidationSummary` contract. Adoption is deferred rather than forced.
+
+Scope boundary: PRD-0055 Task 3.11 only. No source code, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, or remote-state mutation changed. Parent Task 3.0 remains unchecked. Tasks 3.12 through 3.17 remain unchecked.
+
+### Preconditions
+
+1. `rtk git status --short --branch`: clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. `rtk git status --short --untracked-files=all`: `ok`.
+3. `rtk git rev-parse HEAD`: `ac913124d7131b277ef96b208174bcb8d5206a03`.
+4. Task 3.9 and Task 3.10 were already checked in the tasklist at starting HEAD; Task 3.11 was unchecked before this packet.
+
+### AssessmentValidationSummary Contract
+
+1. `title`: module-supplied heading/accessible label default.
+2. `status`: exact neutral ready/blocked status.
+3. `summary`: module-supplied primary validation copy.
+4. `messages`: optional module-supplied additional validation messages.
+5. `issueCount`: required numeric validation issue count.
+6. `issueLabel`: optional neutral count label, default `Issues`.
+7. `headingLevel`: optional `2 | 3 | 4`, default `3`.
+8. `ariaLabel`: optional accessible region label, default title.
+9. `role`: optional ARIA role, default polite `status`, explicit `alert` opt-in for urgent consumers.
+10. `className`: optional neutral class extension.
+11. Modules own validation calculation, copy, issue list, issue count, gating, navigation, actions, and workflow behavior.
+
+### Candidate Inventory
+
+1. Audio setup ready/help display at `src/skills/listening/builders/ListeningTestBuilder.tsx:890-897`: success/help copy, no issue count, no existing blocked state.
+2. Auth/audio section error displays at `src/skills/listening/builders/ListeningTestBuilder.tsx:901-912` and `:1118-1121`: raw error strings, section-specific, no heading/status/count contract.
+3. Upload progress/complete displays at `src/skills/listening/builders/ListeningTestBuilder.tsx:1029-1075`: progress/success state, no validation issue count.
+4. Parser error/loading branch at `src/skills/listening/builders/ListeningTestBuilder.tsx:1403-1420`: parser workflow state tied to `listeningRouter.parseListening`, no issue count.
+5. Image-mode no-audio branch at `src/skills/listening/builders/ListeningTestBuilder.tsx:1487-1501`: missing prerequisite message, not an existing ready/blocked validation summary.
+6. Image configured success display at `src/skills/listening/builders/ListeningTestBuilder.tsx:1968-1978`: success message, no heading/status/count; prior implementation log already noted adoption would alter output.
+7. Step 4 empty question branch at `src/skills/listening/builders/ListeningTestBuilder.tsx:2046-2053`: empty state already owned by `AssessmentStatusState`, not ready/blocked validation.
+8. Review & Save audio-section display at `src/skills/listening/builders/ListeningTestBuilder.tsx:2244-2250`: narrowest candidate, but mismatches exact contract. Existing heading is `Audio Sections`; copy is per-section `Configured`/`Missing`; no aggregate ready/blocked status exists; no issue count exists; branch sits inside editable metadata/save workflow ownership.
+9. Save error display at `src/skills/listening/builders/ListeningTestBuilder.tsx:2253-2262`: persistence result error, no ready/blocked validation summary and no issue count.
+
+### Decision
+
+No exact branch exists. Adoption is deferred for Task 3.11. Forcing adoption into the Review & Save audio-section display would change heading semantics, introduce a new aggregate ready/blocked status, invent an issue count, and imply validation summary ownership in a branch that currently displays per-section save-review state only.
+
+Existing Mantine residue remains deferred: `src/skills/listening/builders/ListeningTestBuilder.tsx:8` imports `AppShell` from `@mantine/core`. Task 3.14 owns shell removal; this packet adds no Mantine usage.
+
+### Evidence Schema
+
+Subtask: Task 3.11 reassess `AssessmentValidationSummary` for one Listening branch.
+
+Claims proven:
+1. `AssessmentValidationSummary` contract is restated from source.
+2. Listening authoring validation/display branches were inventoried.
+3. The narrowest candidate, Review & Save audio-section display, is not an exact match.
+4. No source adoption occurred because no exact branch exists.
+5. Task 3.11 only is checked; parent Task 3.0 and Tasks 3.12+ remain unchecked.
+
+Files and declared touch regions:
+1. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 3.11 checkbox/evidence text only.
+2. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: EV-T3 Task 3.11 evidence bullet only.
+3. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only Task 3.11 evidence.
+4. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: Task 3.11 addendum only.
+
+Lines before -> after and responsibility delta:
+1. No production source line count changed.
+2. `ListeningTestBuilder.tsx` remains 2305 lines and keeps parser/audio/save/storage/review behavior ownership.
+3. `AssessmentValidationSummary.tsx` contract is unchanged.
+
+Created/preserved decomposition seams:
+1. Preserved: feature-specific state -> feature adapter props -> neutral primitive.
+2. Preserved: Listening validation calculation/audio/parser/storage/runtime/live ownership remains outside shared layer.
+3. Preserved: Task 3.14 Mantine shell removal remains separate.
+
+Traceability row IDs:
+1. EV-T3 evidence updated.
+2. DECISION-066, DECISION-067, REG-01 through REG-05, AC-14, and DECISION-073 remain governed by Task 3 evidence.
+
+Characterization/baseline:
+1. Existing `AssessmentValidationSummary` tests characterize neutral title/status/summary/messages/count/heading/role contract.
+2. Existing `ListeningTestBuilder` test characterizes current Step 4 shared-state adoption and proves parser/save/audio validation/upload are not called on that focused path.
+
+RED command and result:
+1. Not applicable - docs-only deferral. No adoption-specific behavior should fail before adoption because no exact candidate exists.
+
+GREEN command and result:
+1. `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 1 file, 1 test.
+2. `rtk npx vitest run src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx --reporter=basic`: PASS, 1 file, 4 tests.
+3. `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`: PASS, 6 files, 24 tests.
+
+Mutation proof and restoration evidence:
+1. Not applicable - non-behavioral docs-only deferral. No production behavior changed.
+
+Static/boundary/diff checks:
+1. Boundary grep: `rtk rg -n "Reading|Listening|audio|parser|storage|runtime|live|Firebase|R2|Cloudflare|passage|teacher|audioCommand|masterAudioState|listeningRouter|listeningTestStorage|r2Storage|publish|preview" src/features/assessment/shared/components/AssessmentValidationSummary.tsx src/features/assessment/shared/components/AssessmentValidationSummary.css` returned exit 1 with no matches.
+2. Adopter/source diff scan: `rtk git diff --name-only -- src cloudflare r2-backup-worker database.rules.json firebase.json` returned no changed source, runtime, live, storage, Worker, R2 backup, rule, or Firebase config paths.
+3. Mantine scan: `rtk rg -n "@mantine|AppShell" src/skills/listening/builders/ListeningTestBuilder.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.tsx src/features/assessment/shared/components/AssessmentValidationSummary.css` returned only existing deferred `ListeningTestBuilder.tsx` residue at lines 8, 702, and 2301. No new Mantine usage exists in the diff.
+4. Taskbox scan: `rtk rg -n "3\\.0 Complete|3\\.9 Adopt|3\\.10 Adopt|3\\.11 Reassess|3\\.12 Keep|3\\.13 Do not|3\\.14 Handle|3\\.15 Run|3\\.16 Update|3\\.17 Parent" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` showed parent Task 3.0 unchecked, Tasks 3.9/3.10/3.11 checked, and Tasks 3.12 through 3.17 unchecked.
+5. Touched-file scan: `rtk git diff --name-only` returned exactly four changed docs: implementation log, findings, tasklist, and traceability.
+6. UTF-8: `rtk npm run check:utf8 -- tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 4 text files.
+7. Whitespace: `rtk git diff --check`: PASS.
+
+Browser/deploy artifacts:
+1. Not applicable - no browser, deploy, production, Firebase, R2, Cloudflare, or remote-state mutation.
+
+Residual risks or deferred items:
+1. `AssessmentValidationSummary` remains Reading V2-only until a Listening branch has exact heading/status/count/copy/behavior equivalence.
+2. Existing `ListeningTestBuilder.tsx` Mantine `AppShell` residue remains deferred to Task 3.14.
+
+Verifier and verification outcome:
+1. Main orchestrator inspected source/docs and challenged candidate branches.
+2. Exploration subagent returned no adoptable match and confirmed deferral; main rejected its `BLOCKED` label as task status because Task 3.11 explicitly permits deferral when no exact branch exists.
+3. Independent diff review required before commit.
+
 ## Task 3.9/3.10 Neutral Authoring Header Adoption - 2026-06-26
 
 ### Findings First And Verdict

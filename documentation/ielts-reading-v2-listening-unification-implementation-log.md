@@ -2,6 +2,39 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.11 validation-summary reassessment addendum
+
+This packet reassesses `AssessmentValidationSummary` for one Listening authoring branch and records a narrow deferral. No shared primitive, Listening production source, Reading V2 source, parser, audio, storage, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, deploy, push, or production configuration changed.
+
+Current `AssessmentValidationSummary` contract:
+
+- display-only ready/blocked validation summary;
+- props are `title`, `status`, `summary`, optional `messages`, `issueCount`, optional `issueLabel`, optional `headingLevel`, optional `ariaLabel`, optional `role`, and optional `className`;
+- default `role` is polite `status`, with explicit `alert` opt-in for urgent consumers;
+- modules own validation calculation, copy, issue list, issue count, gating, navigation, actions, and workflow behavior.
+
+Listening branch inventory:
+
+- Audio setup ready/help and upload-complete displays: success/progress/instruction copy, not validation summaries and no issue count.
+- Audio section URL errors: section-specific error strings produced by `validateAudioUrls`, no shared heading, no aggregate ready/blocked status, and tied to audio URL validation behavior.
+- Parser errors/loading: parser workflow state, no issue count, and tied to `listeningRouter.parseListening`.
+- Image-mode no-audio and image-configured displays: missing/success branch copy, no exact heading/status/count contract.
+- Step 4 empty questions: already uses `AssessmentStatusState`; empty state, not ready/blocked validation.
+- Review & Save audio-section display: narrowest candidate, but not exact. Existing heading is `Audio Sections`, copy is per-section `Configured` / `Missing`, there is no aggregate ready/blocked status, there is no issue count, and the branch sits inside editable metadata/save workflow ownership.
+- Save error display: post-save error branch tied to persistence result and save workflow, no ready/blocked validation contract and no issue count.
+
+Decision:
+
+`AssessmentValidationSummary` adoption is deferred for Listening. Forcing it into the Review & Save audio-section display would change existing heading semantics, add an aggregate ready/blocked status that does not exist, invent an issue count, and risk implying validation ownership in a branch that currently only displays per-section save-review state. Existing Mantine `AppShell` residue in `ListeningTestBuilder.tsx` remains deferred to Task 3.14; no new Mantine usage was added.
+
+Proof:
+
+- No code test applies as adoption was deferred docs-only; focused regression and shared tests still run as closeout proof.
+- Boundary scan over `AssessmentValidationSummary` source/CSS remains required to prove the shared primitive still has no Reading V2, Listening, audio, parser, storage, runtime, or live authority terms.
+- Protected-path scan remains required to prove no runtime/live/storage files changed.
+
+Task state after this addendum: Task 3.11 is checked as docs-only deferral. Parent Task 3.0 remains unchecked. Tasks 3.12 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.9/3.10 authoring-header adoption addendum
 
 This packet adopts the selected neutral `AssessmentAuthoringHeader` primitive in exactly one Listening authoring display-only surface and exactly one Reading V2 authoring display-only surface. It does not change parser, validation calculation, audio, persistence, import normalization, projection, publish workflow, review navigation, runtime, live-session, storage, Firebase, R2, Cloudflare, deploy, push, or production configuration.
