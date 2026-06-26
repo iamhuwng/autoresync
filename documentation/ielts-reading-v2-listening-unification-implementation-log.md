@@ -2,6 +2,27 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 3.7/3.8 authoring-header primitive addendum
+
+This packet implements only the selected neutral `authoring header` primitive from Task 3.5/3.6. It does not adopt the primitive in Reading V2 or Listening, and it does not change runtime, live-session, storage, parser, publish, preview, audio, Firebase, R2, Cloudflare, or production configuration.
+
+Selected primitive contract:
+
+- `AssessmentAuthoringHeader` renders display-only authoring header structure under `src/features/assessment/shared/components/`.
+- Props: `title`, optional `description`, optional `status`, optional `action`, optional `headingLevel`, optional `children`, optional `ariaLabel`, optional neutral `stackAt`, and optional `className`.
+- Accessible name: the region is labelled by its title by default, or by module-supplied `ariaLabel` when a surface already owns a different region name.
+- Layout: default mobile stacking plus optional always-stacked mode. CSS is local to the shared component.
+- Ownership boundary: modules keep all visible copy, status calculation, action labels, action handlers, routing, parser, validation, audio, storage, publish, preview, runtime, and live behavior.
+
+TDD and verification:
+
+- RED: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx --reporter=basic` failed before implementation because `./AssessmentAuthoringHeader` did not exist.
+- GREEN: the same focused command passed 1 file and 7 tests after implementation and reviewer-requested falsy-slot coverage.
+- Existing shared/adopter focused proof still passed, and the combined new plus existing focused proof passed 6 files and 23 tests:
+  `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic`.
+
+Task state after this addendum: Task 3.7 and Task 3.8 are checked. Parent Task 3.0 remains unchecked. Tasks 3.9 through 3.17 remain unchecked.
+
 ## PRD-0055 Task 3.5/3.6 candidate-selection addendum
 
 This packet selects the next small neutral primitive candidate only. It does not create or edit a shared component, does not adopt a new primitive, and does not change runtime, live-session, storage, parser, publish, preview, or audio behavior.

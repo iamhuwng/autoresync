@@ -4618,6 +4618,56 @@ Changed scope is limited to the Task 3.4 guardrail script, its test, workflow, a
 
 Task 3.4 remains checked. Parent Task 3.0 remains unchecked. Tasks 3.5 through 3.17 remain unchecked.
 
+## Task 3.7/3.8 Neutral Authoring Header Primitive - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 3.7 and Task 3.8 only.
+
+Findings: none blocking for the selected primitive implementation.
+
+Scope boundary: PRD-0055 Task 3.7/3.8 shared primitive implementation only. No Reading V2 adopter, Listening adopter, runtime, live-session, storage, parser, publish, preview, audio, Worker, Firebase, R2, deploy, push, or remote-state mutation occurred.
+
+### Preconditions
+
+1. `git status --short --branch` before work returned clean branch `codex/prd-0055-task-2a-s0-worker-truth`.
+2. `git status --short --untracked-files=all` before work returned no dirty or untracked paths.
+3. Starting `HEAD` was `bdbb9010bc6508b84c868a7c96a08dbbc7e877bb`.
+4. Commit `bdbb9010 docs(assessment): select next neutral primitive` contained the checked Task 3.5/3.6 candidate-selection packet.
+
+### Restated Selected Contract
+
+Task 3.5/3.6 selected `authoring header` as the first safe next neutral primitive after rejecting `authoring card` as too broad or behavior-coupled. The neutral contract is display-only: heading level, title, optional eyebrow/description content, optional status slot, optional action slot, accessible labelling, children boundary, and mobile stacking. Modules keep all copy, status calculation, action handlers, routing, parser, validation, audio, storage, publish, preview, runtime, and live behavior.
+
+### Exact Props
+
+1. `title`: module-supplied heading content.
+2. `description`: optional module-supplied explanatory content; no shared default copy.
+3. `headingLevel`: optional `2 | 3 | 4`, default `2`.
+4. `status`: optional module-supplied status slot.
+5. `action`: optional module-supplied action slot.
+6. `ariaLabel`: optional explicit accessible region label; title labels the region by default.
+7. `children`: optional module-supplied neutral header content below the title row.
+8. `stackAt`: optional neutral layout prop, `mobile` default or `always`, justified by the Task 3.5/3.6 mobile-stacking contract.
+9. `className`: optional neutral class extension matching existing shared component patterns.
+
+### TDD Proof
+
+1. RED: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx --reporter=basic` failed before implementation with `Failed to resolve import "./AssessmentAuthoringHeader"` and no tests collected.
+2. GREEN: the same focused command passed after implementation and reviewer-requested falsy-slot coverage: 1 file, 7 tests.
+3. Existing shared/adopter proof stayed green, and combined new plus existing proof passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 23 tests.
+
+### Changed Files
+
+1. `src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx`: new component tests for children, title/description, heading level, status/action slots, accessible naming, neutral layout classes, falsy `ReactNode` slots, and absence of module-specific copy.
+2. `src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx`: new display-only primitive.
+3. `src/features/assessment/shared/components/AssessmentAuthoringHeader.css`: local neutral layout/styling, including mobile and always-stacked modes.
+4. Tasklist, traceability, findings, and implementation log record Task 3.7/3.8 evidence only.
+
+### Scope And Task State
+
+Task 3.7 and Task 3.8 are checked. Parent Task 3.0 remains unchecked. Tasks 3.9 through 3.17 remain unchecked. Task 3.9 Listening adoption and Task 3.10 Reading V2 adoption remain future work.
+
 ## Task 3.5/3.6 Candidate Selection - 2026-06-26
 
 ### Findings First And Verdict

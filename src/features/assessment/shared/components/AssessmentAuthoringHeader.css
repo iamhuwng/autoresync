@@ -1,0 +1,59 @@
+.assessment-authoring-header {
+  min-width: 0;
+}
+
+.assessment-authoring-header__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.assessment-authoring-header__heading {
+  min-width: 0;
+}
+
+.assessment-authoring-header__title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.assessment-authoring-header__description {
+  margin-top: 0.375rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.assessment-authoring-header__aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.assessment-authoring-header__content {
+  margin-top: 0.75rem;
+}
+
+.assessment-authoring-header--stack-always .assessment-authoring-header__row {
+  flex-direction: column;
+}
+
+.assessment-authoring-header--stack-always .assessment-authoring-header__aside {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 40rem) {
+  .assessment-authoring-header--stack-mobile .assessment-authoring-header__row {
+    flex-direction: column;
+  }
+
+  .assessment-authoring-header--stack-mobile .assessment-authoring-header__aside {
+    flex-wrap: wrap;
+  }
+}
