@@ -2,9 +2,56 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## PRD-0055 Task 4.1 planning-only sign-off and PRD-0058 scaffold reconciliation
+
+This packet closes Task 4.1 only. It records product-owner authority, records architecture/security review authority, reconciles the parent Task 4 scaffold against PRD-0058 and PRD-0056A split ownership, and keeps Task 4.2+ implementation blocked.
+
+Recorded authority:
+
+- Product-owner sign-off source: current Codex thread on 2026-06-26; the user selected "Yes, I am the product owner."
+- Architecture/security reviewer source: current Codex thread on 2026-06-26; the user selected "Codex AI reviewer for Task 4.1 planning-only boundary."
+- PRD-0056A proof decision: current Codex thread on 2026-06-26; the user selected that PRD-0056A deployed/current proof is not required to check Task 4.1 if Task 4.2+ remains blocked until that proof exists.
+
+Task 4.1 accepted state:
+
+- PRD-0056A owns backend-issued upload-session and asset identity bootstrap.
+- PRD-0058 consumes those identities for lifecycle, registry, commit, references, cleanup, reconciliation, backup/restore, metrics, and delivery.
+- Task 4.2 cannot start until deployed/current PRD-0056A bridge proof is accepted after S0, child-specific review passes, PRD-0058/traceability/upload-storage-authority/implementation-log dependencies are current, and explicit Task 4.2 implementation authorization exists.
+- No registry, upload-session, commit, cleanup, heartbeat, metrics, rules, lifecycle config, backup/restore, storage behavior, Firebase/R2/Cloudflare mutation, deployment, push, or live/runtime behavior changed.
+
+Task state after this addendum: Task 4.1 is checked. Task 4.0 remains unchecked. Task 4.2 through Task 4.19 remain unchecked and unstarted.
+
+## PRD-0055 Task 3.15-3.17 Task 3 parent closure
+
+This packet closes Task 3 presentation-only shared assessment work after rerunning focused shared/adopter tests, boundary grep, guardrails, protected-path scans, and authority-surface reconciliation. It does not start Task 4 and does not change runtime, live-session, storage, Firebase, R2, Cloudflare, deploy, push, production configuration, parser, audio, save, persistence, or remote state behavior.
+
+Task 3 accepted state:
+
+- Current neutral shared primitives are `AssessmentAuthoringHeader`, `AssessmentAuthoringSection`, `AssessmentStatusState`, and `AssessmentValidationSummary`.
+- `AssessmentAuthoringHeader` has two real authoring display consumers: `ReadingV2SettingsPanel` and `ListeningTestBuilder`.
+- `AssessmentAuthoringSection` remains adopted by one Reading V2 display block and one Listening authoring branch.
+- `AssessmentStatusState` remains adopted by Reading V2 Studio states and one Listening authoring empty-state branch.
+- `AssessmentValidationSummary` remains Reading V2-only; Listening adoption stays deferred because current Listening branches do not match its neutral ready/blocked validation contract.
+- Deferred candidate families remain explicit: `authoring card`, action-row, metadata-display panel, review/publish wrapper, question-card wrapper, mobile layout primitive, and shared answer inputs.
+
+Proof:
+
+- Focused shared/adopter suite passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 26 tests.
+- Explicit changed-files guardrail passed: `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx,src/features/assessment/shared/components/AssessmentAuthoringHeader.css,src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx,src/skills/listening/builders/ListeningTestBuilder.tsx` returned `[assessment-guardrails] OK`.
+- Current dirty-tree guardrail passed: `rtk node scripts/check-assessment-unification-guardrails.mjs` returned `[assessment-guardrails] changed files: 10` and `OK`.
+- Guardrail unit proof passed: `rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs` passed 34 tests.
+- Shared-boundary grep returned no matches for Reading V2 internals, Listening internals, `audioCommand`, `masterAudioState`, parser, storage, passage, published/payload behavior, runtime/live behavior, Firebase, R2, Cloudflare, Mantine, or `AppShell` in shared production source/CSS.
+- Mantine drift scan over shared, `ReadingV2SettingsPanel`, and `ListeningTestBuilder` returned no `@mantine` or `AppShell` matches.
+- Protected-path scan returned no runtime/live/storage/Firebase/R2/Cloudflare/package path matches.
+- Taskbox scan showed Task 3.0 through 3.17 checked and Task 4.0 through 4.19 unchecked.
+- UTF-8 proof passed for the nine dirty text files, and `rtk git diff --check` passed.
+- Final design audit correction added a named `Display mode options` button group, changed the touched mode-option layout from fixed two-column grid to `repeat(auto-fit, minmax(16rem, 1fr))`, and replaced the touched mode-option emoji glyphs with decorative Tabler icons, preserving desktop pairing while allowing narrow layouts to stack without a separate runtime/mobile primitive.
+
+Task state after this addendum: Task 3.15, Task 3.16, Task 3.17, and parent Task 3.0 are checked. Task 4 remains unchecked and unstarted.
+
 ## PRD-0055 Task 3.14 Listening Mantine authoring-shell removal
 
-This packet removes the dedicated Listening authoring-shell Mantine residue after primitive stability. `ListeningTestBuilder` no longer imports `@mantine/core` or renders `AppShell`; the outer wrapper is a native `<main>` preserving the existing authoring background, min-height, and page padding.
+This packet removes the dedicated Listening authoring-shell Mantine residue after primitive stability. `ListeningTestBuilder` no longer imports `@mantine/core` or renders `AppShell`; the outer wrapper is a native `<main>`, the touched authoring chrome now uses a neutral white-card frame instead of the older gradient/glass treatment, and the mode-select tiles render native `aria-pressed` buttons with phrasing-safe content and scoped transitions.
 
 No shared primitive contract changed. Existing `AssessmentAuthoringHeader`, `AssessmentAuthoringSection`, and `AssessmentStatusState` adoptions in `ListeningTestBuilder` remain unchanged.
 
@@ -12,11 +59,19 @@ Scope boundary: no parser, audio, save, persistence, storage, runtime/live, teac
 
 Proof:
 
-- Focused builder proof passed: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 1 file and 1 test.
-- Existing Task 3 shared/adopter focused suite passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 24 tests.
+- Focused builder proof passed: `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 1 file and 3 tests.
+- Existing Task 3 shared/adopter focused suite passed: `rtk npx vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 6 files and 26 tests.
 - Mantine target scan returned no matches: `rtk rg -n "@mantine|AppShell" src/skills/listening/builders/ListeningTestBuilder.tsx`.
 - Shared-boundary scan returned no matches for Reading V2, Listening, audio, passage, parser, storage, runtime, live, `audioCommand`, `masterAudioState`, `listeningRouter`, `listeningTestStorage`, `r2Storage`, Firebase, R2, or Cloudflare authority under shared production source/CSS.
 - Protected-path diff returned no changed runtime/live/storage/Worker/Firebase/package paths.
+
+Current correction note:
+
+- Live `ListeningTestBuilder.tsx` logical line count is 2354 when counted without the trailing final newline.
+- Mode-select tiles currently render native `<button>` controls with `aria-pressed`, phrasing-safe inner markup, and scoped transitions for the `text` and `image` states.
+- Current authoring shell removes the older glass variant and uses a white card frame with border, restrained shadow, and `backdropFilter: none`; `@mantine/core` and `AppShell` are absent.
+- When `ListeningTestBuilder.tsx` is in the changed-file set, guardrail proof should use the explicit `--changed-files` run plus the live `assessment-line-budget-exception` record in the findings ledger.
+- Current proof rerun passed focused builder tests at 1 file / 3 tests, the shared/adopter suite at 6 files / 26 tests, guardrail script proof, guardrail unit proof at 34 tests, UTF-8, and `git diff --check`.
 
 Task state after this addendum: Task 3.14 is checked as a dedicated authoring-shell patch. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked.
 

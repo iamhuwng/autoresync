@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { IconFileText, IconPhoto } from '@tabler/icons-react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardBody, Button } from '../../../components/modern';
 import { saveListeningTestToFirebase, AUDIO_CONTROLS_PRESETS } from '../../../services/listeningTestStorage';
@@ -700,7 +701,7 @@ const ListeningTestBuilder: React.FC = () => {
   return (
     <main
       style={{
-        background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
+        background: '#f8fafc',
         boxSizing: 'border-box',
         minHeight: '100vh',
         padding: '1rem',
@@ -731,10 +732,11 @@ const ListeningTestBuilder: React.FC = () => {
               style={{
                 padding: '0.5rem 1rem',
                 background: currentStep === step.key
-                  ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-                  : 'rgba(255, 255, 255, 0.7)',
+                  ? '#2563eb'
+                  : '#ffffff',
                 color: currentStep === step.key ? 'white' : '#64748b',
                 borderRadius: '0.5rem',
+                border: currentStep === step.key ? '1px solid #1d4ed8' : '1px solid #dbe4ee',
                 fontWeight: 600,
                 fontSize: '0.875rem',
                 opacity: currentStep === step.key ? 1 : 0.6,
@@ -746,8 +748,17 @@ const ListeningTestBuilder: React.FC = () => {
         </div>
 
         {/* Step Content */}
-        <Card variant="glass">
-          <CardBody style={{ padding: '2rem' }}>
+        <Card
+          hover={false}
+          style={{
+            background: '#ffffff',
+            border: '1px solid #dbe4ee',
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+          }}
+        >
+          <CardBody style={{ padding: '1.5rem' }}>
             {/* STEP 0: Mode Selection */}
             {currentStep === 'mode-select' && (
               <div>
@@ -758,102 +769,142 @@ const ListeningTestBuilder: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div
+                  role="group"
+                  aria-label="Display mode options"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
+                    gap: '1.5rem',
+                  }}
+                >
                   {/* Text Mode Option */}
-                  <div
+                  <button
+                    type="button"
+                    aria-pressed={displayMode === 'text'}
+                    aria-label="IELTS Text Format"
                     onClick={() => setDisplayMode('text')}
                     style={{
+                      appearance: 'none',
+                      width: '100%',
                       padding: '2rem',
-                      background: displayMode === 'text'
-                        ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
-                        : 'white',
-                      border: displayMode === 'text' ? 'none' : '2px solid #e2e8f0',
-                      borderRadius: '1rem',
+                      background: displayMode === 'text' ? '#2563eb' : '#ffffff',
+                      border: displayMode === 'text' ? '1px solid #1d4ed8' : '1px solid #dbe4ee',
+                      borderRadius: '0.75rem',
                       cursor: 'pointer',
-                      transition: 'all 0.3s',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                       textAlign: 'center',
+                      boxShadow: displayMode === 'text' ? '0 14px 32px rgba(37, 99, 235, 0.18)' : '0 8px 18px rgba(15, 23, 42, 0.05)',
                     }}
                   >
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
-                    <h3 style={{
+                    <IconFileText
+                      aria-hidden="true"
+                      stroke={1.8}
+                      style={{
+                        display: 'block',
+                        width: '3rem',
+                        height: '3rem',
+                        margin: '0 auto 1rem',
+                      }}
+                    />
+                    <span style={{
+                      display: 'block',
                       fontSize: '1.25rem',
                       fontWeight: '700',
                       color: displayMode === 'text' ? 'white' : '#1e293b',
                       marginBottom: '0.5rem'
                     }}>
                       IELTS Text Format
-                    </h3>
-                    <p style={{
+                    </span>
+                    <span style={{
+                      display: 'block',
                       fontSize: '0.875rem',
                       color: displayMode === 'text' ? 'rgba(255,255,255,0.9)' : '#64748b',
                       marginBottom: '1rem'
                     }}>
                       Full-width authentic IELTS display with text questions
-                    </p>
-                    <ul style={{
+                    </span>
+                    <span style={{
+                      display: 'block',
                       textAlign: 'left',
                       fontSize: '0.8125rem',
                       color: displayMode === 'text' ? 'rgba(255,255,255,0.85)' : '#64748b',
                       lineHeight: 1.8,
                       paddingLeft: '1.25rem',
                     }}>
-                      <li>Paste question text for AI parsing</li>
-                      <li>Task instructions with word limits</li>
-                      <li>Options boxes for matching questions</li>
-                      <li>Context display for completion types</li>
-                    </ul>
+                      <span style={{ display: 'block' }}>- Paste question text for AI parsing</span>
+                      <span style={{ display: 'block' }}>- Task instructions with word limits</span>
+                      <span style={{ display: 'block' }}>- Options boxes for matching questions</span>
+                      <span style={{ display: 'block' }}>- Context display for completion types</span>
+                    </span>
                     {displayMode === 'text' && (
-                      <div style={{ marginTop: '1rem', fontSize: '1.25rem' }}>✓ Selected</div>
+                      <span style={{ display: 'block', marginTop: '1rem', fontSize: '1.25rem' }}>✓ Selected</span>
                     )}
-                  </div>
+                  </button>
 
                   {/* Image Mode Option */}
-                  <div
+                  <button
+                    type="button"
+                    aria-pressed={displayMode === 'image'}
+                    aria-label="Image Mode"
                     onClick={() => setDisplayMode('image')}
                     style={{
+                      appearance: 'none',
+                      width: '100%',
                       padding: '2rem',
-                      background: displayMode === 'image'
-                        ? 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'
-                        : 'white',
-                      border: displayMode === 'image' ? 'none' : '2px solid #e2e8f0',
-                      borderRadius: '1rem',
+                      background: displayMode === 'image' ? '#4f46e5' : '#ffffff',
+                      border: displayMode === 'image' ? '1px solid #4338ca' : '1px solid #dbe4ee',
+                      borderRadius: '0.75rem',
                       cursor: 'pointer',
-                      transition: 'all 0.3s',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                       textAlign: 'center',
+                      boxShadow: displayMode === 'image' ? '0 14px 32px rgba(79, 70, 229, 0.18)' : '0 8px 18px rgba(15, 23, 42, 0.05)',
                     }}
                   >
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🖼️</div>
-                    <h3 style={{
+                    <IconPhoto
+                      aria-hidden="true"
+                      stroke={1.8}
+                      style={{
+                        display: 'block',
+                        width: '3rem',
+                        height: '3rem',
+                        margin: '0 auto 1rem',
+                      }}
+                    />
+                    <span style={{
+                      display: 'block',
                       fontSize: '1.25rem',
                       fontWeight: '700',
                       color: displayMode === 'image' ? 'white' : '#1e293b',
                       marginBottom: '0.5rem'
                     }}>
                       Image Mode
-                    </h3>
-                    <p style={{
+                    </span>
+                    <span style={{
+                      display: 'block',
                       fontSize: '0.875rem',
                       color: displayMode === 'image' ? 'rgba(255,255,255,0.9)' : '#64748b',
                       marginBottom: '1rem'
                     }}>
                       Two-column layout with question images
-                    </p>
-                    <ul style={{
+                    </span>
+                    <span style={{
+                      display: 'block',
                       textAlign: 'left',
                       fontSize: '0.8125rem',
                       color: displayMode === 'image' ? 'rgba(255,255,255,0.85)' : '#64748b',
                       lineHeight: 1.8,
                       paddingLeft: '1.25rem',
                     }}>
-                      <li>Upload question page images/PDFs</li>
-                      <li>Left: Zoomable question images</li>
-                      <li>Right: Numbered answer inputs</li>
-                      <li>Works with any question format</li>
-                    </ul>
+                      <span style={{ display: 'block' }}>- Upload question page images/PDFs</span>
+                      <span style={{ display: 'block' }}>- Left: Zoomable question images</span>
+                      <span style={{ display: 'block' }}>- Right: Numbered answer inputs</span>
+                      <span style={{ display: 'block' }}>- Works with any question format</span>
+                    </span>
                     {displayMode === 'image' && (
-                      <div style={{ marginTop: '1rem', fontSize: '1.25rem' }}>✓ Selected</div>
+                      <span style={{ display: 'block', marginTop: '1rem', fontSize: '1.25rem' }}>✓ Selected</span>
                     )}
-                  </div>
+                  </button>
                 </div>
 
               </div>
@@ -958,7 +1009,7 @@ const ListeningTestBuilder: React.FC = () => {
                               display: 'flex',
                               alignItems: 'center',
                               gap: '0.25rem',
-                              transition: 'all 0.2s',
+                              transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
@@ -1160,7 +1211,7 @@ const ListeningTestBuilder: React.FC = () => {
                       fontSize: '1rem',
                       fontWeight: '600',
                       color: '#64748b',
-                      transition: 'all 0.2s',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = '#8b5cf6';
@@ -1213,7 +1264,7 @@ const ListeningTestBuilder: React.FC = () => {
                           color: !audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? '#3b82f6' : '#64748b',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          transition: 'all 0.2s',
+                          transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                         }}
                       >
                         📋 IELTS Standard
@@ -1234,7 +1285,7 @@ const ListeningTestBuilder: React.FC = () => {
                           color: audioControls.showPlayPause && audioControls.showSpeedControl ? '#10b981' : '#64748b',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          transition: 'all 0.2s',
+                          transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                         }}
                       >
                         🎓 Practice Mode
@@ -1254,7 +1305,7 @@ const ListeningTestBuilder: React.FC = () => {
                           color: audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? '#8b5cf6' : '#64748b',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          transition: 'all 0.2s',
+                          transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                         }}
                       >
                         😌 Relaxed Mode
@@ -1616,7 +1667,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '0.5rem',
-                                  transition: 'all 0.2s',
+                                  transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                                 }}
                                 onMouseEnter={(e) => {
                                   e.currentTarget.style.background = '#f8fafc';

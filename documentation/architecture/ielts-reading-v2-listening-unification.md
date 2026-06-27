@@ -67,8 +67,26 @@ Do not preserve or extend that residue during Reading V2 / Listening unification
 Current neutral primitives live under:
 
 - `src/features/assessment/shared/components/AssessmentAuthoringSection.tsx`
+- `src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx`
 - `src/features/assessment/shared/components/AssessmentStatusState.tsx`
 - `src/features/assessment/shared/components/AssessmentValidationSummary.tsx`
+
+### `AssessmentAuthoringHeader`
+
+Purpose: shared display-only authoring header layout with neutral title, optional eyebrow or description, status, action, children, heading-level, accessible labelling, and responsive stacking props.
+
+Exact current adoptions:
+
+- `src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx`
+  - Settings panel header
+- `src/skills/listening/builders/ListeningTestBuilder.tsx`
+  - mode-select display header
+
+Current non-adoptions:
+
+- no Listening runtime adoption
+- no Reading V2 runtime adoption
+- no storage, parser, publish, preview, or live-session adoption
 
 ### `AssessmentAuthoringSection`
 
@@ -207,15 +225,16 @@ Current status is partial, presentation-only migration:
 
 - neutral shared assessment layer exists
 - `AssessmentAuthoringSection` is adopted by one Listening authoring branch and one Reading V2 authoring display section
+- `AssessmentAuthoringHeader` is adopted by one Listening authoring display header and one Reading V2 authoring display header
 - `AssessmentStatusState` is adopted by Reading V2 Studio and one Listening authoring branch
 - `AssessmentValidationSummary` is adopted by Reading V2 only
-- PRD-0055 Task 3.5/3.6 selected `authoring header` as the next neutral primitive candidate for later Task 3.7+ implementation, with Reading V2 and Listening adopters required in the same PR or explicitly adjacent PRs
+- PRD-0055 Task 3.5/3.6 selected `authoring header`; Tasks 3.7 through 3.10 implemented and adopted it in one Reading V2 display-only authoring header and one Listening display-only authoring header
 - no Listening runtime, live-session, audio, headphone, monitor, or mobile-navigation contract moved into neutral shared layer
 - no Reading V2 runtime-host contract moved into Listening
 
 ## Known State And Drift
 
-- Task 3.14 removed legacy Mantine `AppShell` residue from `src/skills/listening/builders/ListeningTestBuilder.tsx`. The builder now uses a native authoring shell while preserving Listening-specific parser, audio, save, persistence, and runtime ownership.
+- Task 3.14 removed legacy Mantine `AppShell` residue from `src/skills/listening/builders/ListeningTestBuilder.tsx`. The builder now uses a native authoring shell, neutral touched authoring chrome, and native `aria-pressed` mode-select buttons while preserving Listening-specific parser, audio, save, persistence, and runtime ownership.
 - `AssessmentValidationSummary` has no Listening adoption today; this is current migration state, not permission to force an incompatible adoption.
 - `AssessmentAuthoringSection` now has a Reading V2 adoption in the display-only `ReadingV2SettingsPanel` advisories block; further adoption still requires matching heading, spacing, and ownership semantics rather than symmetry for its own sake.
 - `authoring card`, action-row, metadata-display, review/publish wrapper, question-card, and mobile-layout primitives remain deferred until two modules prove an identical neutral display contract; question-card and mobile-layout deferrals stay tied to their named runtime child PRD gates when they touch runtime behavior.

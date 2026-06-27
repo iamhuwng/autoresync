@@ -144,4 +144,45 @@ describe('ListeningTestBuilder', () => {
     expect(mocks.validateAudioLink).not.toHaveBeenCalled();
     expect(mocks.uploadAudioReplacement).not.toHaveBeenCalled();
   });
+
+  it('renders display mode options as keyboard-reachable buttons with pressed state', async () => {
+    const user = userEvent.setup();
+    render(<ListeningTestBuilder />);
+
+    const textMode = screen.getByRole('button', { name: 'IELTS Text Format' });
+    const imageMode = screen.getByRole('button', { name: 'Image Mode' });
+
+    expect(textMode).toHaveAttribute('aria-pressed', 'true');
+    expect(imageMode).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('group', { name: 'Display mode options' })).toBeInTheDocument();
+    expect(textMode.style.background).toBe('rgb(37, 99, 235)');
+    expect(imageMode.style.background).toBe('rgb(255, 255, 255)');
+
+    await user.tab();
+    expect(textMode).toHaveFocus();
+
+    await user.keyboard('{Tab}');
+    expect(imageMode).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+
+    expect(imageMode).toHaveAttribute('aria-pressed', 'true');
+    expect(textMode).toHaveAttribute('aria-pressed', 'false');
+    expect(imageMode.style.background).toBe('rgb(79, 70, 229)');
+    expect(textMode.style.background).toBe('rgb(255, 255, 255)');
+  });
+
+  it('keeps display mode buttons semantically valid and scoped to explicit transitions', () => {
+    render(<ListeningTestBuilder />);
+
+    const textMode = screen.getByRole('button', { name: 'IELTS Text Format' });
+    const imageMode = screen.getByRole('button', { name: 'Image Mode' });
+
+    expect(textMode.querySelector('div,h3,p,ul,li')).toBeNull();
+    expect(imageMode.querySelector('div,h3,p,ul,li')).toBeNull();
+    expect(textMode.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    expect(imageMode.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    expect(textMode.style.transition).not.toContain('all');
+    expect(imageMode.style.transition).not.toContain('all');
+  });
 });
