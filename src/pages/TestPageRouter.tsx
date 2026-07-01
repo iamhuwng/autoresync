@@ -143,6 +143,32 @@ const inferIeltsSkillFromTestId = (testId: string): CanonicalIeltsSkill | null =
   return null;
 };
 
+const resolveLiveSessionPayloadSkill = (payload: unknown, testId: string): CanonicalIeltsSkill | null => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const candidate = payload as {
+    testId?: unknown;
+    testData?: {
+      skill?: unknown;
+      skillType?: unknown;
+    };
+  };
+
+  if (candidate.testId !== testId) {
+    return null;
+  }
+
+  return normalizeIeltsSkill(candidate.testData?.skill)
+    ?? normalizeIeltsSkill(candidate.testData?.skillType)
+    ?? inferIeltsSkillFromTestId(testId);
+};
+
+const getErrorMessage = (error: unknown): string => (
+  error instanceof Error ? error.message : String(error)
+);
+
 const TestPageRouter: React.FC<TestPageRouterProps> = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const { navigateTo } = useNavigation('student');
@@ -249,10 +275,48 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         }
 
         const testId = testIdSnapshot.val();
-        const sessionReadingV2Snapshot = await get(ref(database, `game_sessions/${sessionCode}/readingV2`));
-        const sessionReadingV2Metadata = sessionReadingV2Snapshot.exists()
-          ? sessionReadingV2Snapshot.val()
-          : null;
+        const routeFromLiveSessionPayload = async (reason: string): Promise<boolean> => {
+          let payloadSkill: CanonicalIeltsSkill | null = null;
+          try {
+            const payloadSnapshot = await get(ref(database, `session_test_payloads/${sessionCode}`));
+            payloadSkill = payloadSnapshot.exists()
+              ? resolveLiveSessionPayloadSkill(payloadSnapshot.val(), testId)
+              : null;
+          } catch (payloadError) {
+            console.warn('[TestPageRouter] Session-safe payload fallback read failed', {
+              reason,
+              sessionCode,
+              testId,
+              message: getErrorMessage(payloadError),
+            });
+            return false;
+          }
+
+          if (payloadSkill !== 'Listening') {
+            return false;
+          }
+
+          console.warn('[TestPageRouter] Routed live Listening from session-safe payload', {
+            reason,
+            sessionCode,
+            testId,
+          });
+          setSkill(payloadSkill);
+          setLoading(false);
+          return true;
+        };
+        let sessionReadingV2Metadata: unknown = null;
+        try {
+          const sessionReadingV2Snapshot = await get(ref(database, `game_sessions/${sessionCode}/readingV2`));
+          sessionReadingV2Metadata = sessionReadingV2Snapshot.exists()
+            ? sessionReadingV2Snapshot.val()
+            : null;
+        } catch (readingV2SessionMetadataError) {
+          if (await routeFromLiveSessionPayload('reading-v2-session-metadata-read-failed')) {
+            return;
+          }
+          throw readingV2SessionMetadataError;
+        }
 
         let readingV2Metadata = isReadingV2LaunchCandidate(sessionReadingV2Metadata)
           ? sessionReadingV2Metadata
@@ -264,8 +328,21 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
             materialId: testId,
             sessionCode,
           });
-          const metadataSnap = await get(ref(database, metadataReadPlan.metadataPath));
-          readingV2Metadata = metadataSnap.exists() ? metadataSnap.val() : null;
+          try {
+            const metadataSnap = await get(ref(database, metadataReadPlan.metadataPath));
+            readingV2Metadata = metadataSnap.exists() ? metadataSnap.val() : null;
+          } catch (readingV2MetadataError) {
+            if (await routeFromLiveSessionPayload('reading-v2-metadata-read-failed')) {
+              return;
+            }
+            console.warn('[TestPageRouter] Optional Reading V2 live metadata probe failed', {
+              sessionCode,
+              testId,
+              metadataPath: metadataReadPlan.metadataPath,
+              message: getErrorMessage(readingV2MetadataError),
+            });
+            throw readingV2MetadataError;
+          }
         }
 
         if (isReadingV2LaunchCandidate(readingV2Metadata)) {
@@ -338,31 +415,49 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         }
 
         // PERF FIX: First read only testType to decide routing quickly
-        const testTypeRef = ref(database, `tests/${testId}/testType`);
-        const testTypeSnapshot = await get(testTypeRef);
-        const t2 = performance.now();
-        console.log(`⏱ [TestPageRouter] Test type fetch: ${Math.round(t2 - t1)}ms`);
+        let testTypeSnapshot;
+        let testType: unknown;
+        let t2 = t1;
+        try {
+          const testTypeRef = ref(database, `tests/${testId}/testType`);
+          testTypeSnapshot = await get(testTypeRef);
+          t2 = performance.now();
+          console.log(`⏱ [TestPageRouter] Test type fetch: ${Math.round(t2 - t1)}ms`);
 
-        const testType = testTypeSnapshot.val();
-        const markerEntries = await Promise.all(
-          READING_V2_ENGINE_FIELDS.map(async (field) => {
-            const markerSnapshot = await get(ref(database, `tests/${testId}/${field}`));
-            return [
-              field,
-              markerSnapshot.exists() ? markerSnapshot.val() : undefined,
-            ] as const;
-          }),
-        );
+          testType = testTypeSnapshot.val();
+          const markerEntries = await Promise.all(
+            READING_V2_ENGINE_FIELDS.map(async (field) => {
+              const markerSnapshot = await get(ref(database, `tests/${testId}/${field}`));
+              return [
+                field,
+                markerSnapshot.exists() ? markerSnapshot.val() : undefined,
+              ] as const;
+            }),
+          );
 
-        if (isReadingV2Payload(Object.fromEntries(markerEntries))) {
-          setError(READING_V2_RUNTIME_GUARD_MESSAGE);
-          setLoading(false);
-          return;
+          if (isReadingV2Payload(Object.fromEntries(markerEntries))) {
+            setError(READING_V2_RUNTIME_GUARD_MESSAGE);
+            setLoading(false);
+            return;
+          }
+        } catch (testMetadataError) {
+          if (await routeFromLiveSessionPayload('test-metadata-read-failed')) {
+            return;
+          }
+          throw testMetadataError;
         }
 
         const loadNonThcsSkill = async (fallbackSkill: string | null = null) => {
-          const skillRef = ref(database, `tests/${testId}/skill`);
-          const skillSnapshot = await get(skillRef);
+          let skillSnapshot;
+          try {
+            const skillRef = ref(database, `tests/${testId}/skill`);
+            skillSnapshot = await get(skillRef);
+          } catch (skillReadError) {
+            if (await routeFromLiveSessionPayload('skill-read-failed')) {
+              return;
+            }
+            throw skillReadError;
+          }
           const rawSkill = skillSnapshot.exists() ? skillSnapshot.val() : fallbackSkill;
           const testSkill = normalizeIeltsSkill(rawSkill)
             ?? inferIeltsSkillFromTestId(testId)

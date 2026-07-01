@@ -1,0 +1,15 @@
+C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\workerd\lib\main.js:59
+    throw new Error(`Unsupported platform: ${platformKey}`);
+    ^
+Error: Unsupported platform: win32 arm64 LE
+    at pkgAndSubpathForCurrentPlatform (C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\workerd\lib\main.js:59:11)
+    at generateBinPath (C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\workerd\lib\main.js:84:28)
+    at Object.<anonymous> (C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\workerd\lib\main.js:152:19)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Module._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1487:12)
+Node.js v22.17.1

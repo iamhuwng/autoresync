@@ -1,0 +1,122 @@
+{
+  "createdAt": "2026-07-01T19:14:47.6175220+07:00",
+  "verdict": "LOCALHOST_ONLY_TARGET_PACKET_PASS",
+  "scope": "PRD-0055 post-Task-8.17 localhost-only parent/task/docs reconciliation attempt",
+  "taskboxesChecked": [
+    "8.14",
+    "8.15",
+    "8.16",
+    "8.17",
+    "8.18",
+    "9.0",
+    "9.1",
+    "9.2",
+    "9.3",
+    "9.4",
+    "9.5",
+    "9.6",
+    "9.7",
+    "9.8",
+    "9.9",
+    "9.10",
+    "9.11",
+    "9.12",
+    "9.13",
+    "9.14",
+    "9.15"
+  ],
+  "commands": [
+    {
+      "command": "rtk npm run build",
+      "exitCode": 0,
+      "result": "PASS; Vite production build and bundle budget passed"
+    },
+    {
+      "command": "rtk npm run check:utf8:all",
+      "exitCode": 1,
+      "result": "FAIL; tracked repo UTF-8 check found pre-existing non-UTF-8 files outside the current PRD-0055 docs/status/output scope"
+    },
+    {
+      "command": "rtk node scripts/check-utf8.mjs documentation/architecture/ielts-reading-v2-listening-unification.md documentation/ielts-reading-v2-listening-unification-implementation-log.md tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs output/prd0055-task9-live-readback/prd0055-rollout-current-status.json output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs output/prd0055-task9-live-readback/prd0055-canonical-closure-audit-report.json output/prd0055-task9-local-readiness/prd0055-pauli-task817-local-independent-pass-summary.json output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit-report.json",
+      "exitCode": 0,
+      "result": "PASS; touched PRD docs/status/output files are valid UTF-8"
+    },
+    {
+      "command": "rtk npx vitest run [final local audio/runtime suite] --reporter=json --outputFile=output/prd0055-task9-local-readiness/task9-final-local-audio-runtime-vitest-report.json",
+      "exitCode": 0,
+      "result": "PASS; 30 suites, 91 tests, 0 failed"
+    },
+    {
+      "command": "rtk npx vitest run [final local security suite] --reporter=json --outputFile=output/prd0055-task9-local-readiness/task9-final-local-security-vitest-report.json",
+      "exitCode": 0,
+      "result": "PASS; 24 suites, 74 tests, 59 passed, 0 failed, 15 pending/skipped"
+    },
+    {
+      "command": "rtk node output/prd0055-task9-local-readiness/boundary-static-readiness-scanner.cjs",
+      "exitCode": 0,
+      "result": "PASS; zero shared-authority, import-direction, protected-pattern, or remaining target taskbox hits"
+    },
+    {
+      "command": "rtk node output/prd0055-task9-local-readiness/task9-compatibility-readiness.cjs",
+      "exitCode": 0,
+      "result": "PASS; 26 suites, 144 tests, 8 coverage items, zero Google Drive named changed paths"
+    },
+    {
+      "command": "rtk node output/prd0055-task9-local-readiness/task9-deferred-residue-review.cjs",
+      "exitCode": 0,
+      "result": "PASS_NOT_CLOSURE; zero missing deferral/residue evidence"
+    },
+    {
+      "command": "rtk node output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit.cjs",
+      "exitCode": 0,
+      "result": "PASS; 85 rows, 77 current-local, 8 future-deferred, 0 local blockers"
+    },
+    {
+      "command": "rtk git diff --check",
+      "exitCode": 0,
+      "result": "PASS"
+    }
+  ],
+  "repoWideUtf8Failures": [
+    "artifacts/e2e-prd-0052-0054/firebase-archive-index-shallow.json",
+    "artifacts/e2e-prd-0052-0054/firebase-audit-events-shallow.json",
+    "artifacts/e2e-prd-0052-0054/firebase-known-restore-audit.json",
+    "build_output.txt",
+    "conductor/product.md",
+    "documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md",
+    "log.txt",
+    "old-dashboard.jsx",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_material_metadata_studio-material-mpxd0gg1-passage-1.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_projections_review_studio-material-mpxd0gg1-passage-1_snapshot-studio-material-mpxd0gg1-mpxd7tor.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_projections_student_safe_tests_studio-material-mpxd0gg1-passage-1_snapshot-studio-material-mpxd0gg1-mpxd7tor.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_published_snapshots_studio-material-mpxd0gg1-passage-1.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_published_snapshots_studio-material-mpxd0gg1-passage-2.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_published_snapshots_studio-material-mpxd0gg1-passage-3.json",
+    "output/firebase-data-backups/20260603-104227-prd0052-passage-snapshot-repair/reading_v2_published_snapshots_studio-material-mpxd0gg1.json",
+    "output/firebase-rule-backups/20260603-080413/postdeploy-remote-deployed-database.rules.json",
+    "output/firebase-rule-backups/20260603-080413/predeploy-remote-deployed-database.rules.json",
+    "output/reading-v2-auto-v4-cam10-test01/cam10-test01-live-console-rerun.txt",
+    "scripts/cleanup_backup_2026_01_27/temp_test_data.json",
+    "scripts/test-list-output.txt",
+    "test_out.txt",
+    "test_results.json",
+    "test_results.txt",
+    "tmp/classManager-test-output.txt",
+    "tmp/stitch-tools-live.json"
+  ],
+  "ownerScopedUtf8Approval": {
+    "approvedAt": "2026-07-01T19:25:00+07:00",
+    "source": "User: \"pass, no rollout to live server anytime soon\"",
+    "meaning": "Scoped UTF-8 over touched PRD-0055 docs/status/output artifacts is sufficient for this localhost-only packet. Repo-wide pre-existing non-UTF-8 files remain out of scope and must not trigger cleanup/delete in this packet."
+  },
+  "currentBlockers": [],
+  "nonActions": [
+    "No live-domain browser test.",
+    "No production deploy.",
+    "No selected-user rollout.",
+    "No percentage rollout.",
+    "No full rollout.",
+    "No cleanup/delete.",
+    "No commit/push/merge."
+  ]
+}

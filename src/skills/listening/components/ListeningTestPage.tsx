@@ -43,6 +43,7 @@ import {
   type ListeningCompatContext,
 } from '../../../components/test/mobile/mobileListeningState';
 import { AudioPlayer } from './AudioPlayer';
+import type { AuthorizedDeliveryConfig } from './AudioPlayer';
 
 // Listening-specific components
 import { WaitTimePopup } from './WaitTimePopup';
@@ -82,6 +83,16 @@ import { useFullscreenMode } from '../../../hooks/test/useFullscreenMode';
 import type { SavedMobileState } from '../../../types/practice.types';
 import { toast } from '../../../components/modern/ToastNotification';
 import { listeningDiagnostics } from '../../../utils/listeningDiagnostics';
+import { evaluateAudioCommandAgainstCanonical } from '../../../features/assessment/listening/live-session/authority/audioCommandCompatibility';
+import { resolveLiveAudioHydration } from '../../../features/assessment/listening/live-session/authority/liveAudioRuntimeHydration';
+import {
+  readListeningLiveVersionId,
+  refreshListeningLiveAudioDelivery,
+  resolveListeningLiveAudioSection,
+  type ListeningLiveAudioResolution,
+} from '../../../features/assessment/listening/live-session/delivery/listeningLiveDeliveryAdapter';
+import { createListeningLiveDeliveryIssuer } from '../../../features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient';
+import type { ListeningDeliveryIssuedUrl } from '../../../features/assessment/listening/storage/listeningAssetDelivery.service';
 
 // Services
 import { sessionService } from '../../../services/sessionService';
@@ -95,6 +106,8 @@ interface AudioSection {
   name: string;
   audioUrl: string;
   streamUrl?: string;
+  assetId?: string;
+  versionId?: string;
   startQuestion: number;
   endQuestion: number;
   waitTimeBefore?: number;
@@ -208,8 +221,10 @@ const ListeningTestPageContent: React.FC = () => {
   const [volume, setVolume] = useState(0.8);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0); // Speed control - can be changed by teacher
   const [audioError, setAudioError] = useState<string | null>(null); // Track generic audio errors
+  const [liveDeliveryError, setLiveDeliveryError] = useState<string | null>(null);
   const [teacherPausedAudio, setTeacherPausedAudio] = useState(false); // Track if teacher paused audio
   const [teacherSeekPosition, setTeacherSeekPosition] = useState<number | null>(null); // Seek position from teacher
+  const effectiveAudioError = audioError || liveDeliveryError;
 
   // Wait time popup state
   const [showWaitPopup, setShowWaitPopup] = useState(false);
@@ -414,7 +429,7 @@ const ListeningTestPageContent: React.FC = () => {
   // 2. Prevents manual pausing (it will immediately unpause) - Simulating exam conditions
   // BUT: Respects teacher audio pause command (teacherPausedAudio)
   useEffect(() => {
-    if (sessionStatus === 'in-progress' && !testSubmitted && !isPaused && !audioError && !teacherPausedAudio) {
+    if (sessionStatus === 'in-progress' && !testSubmitted && !isPaused && !effectiveAudioError && !teacherPausedAudio) {
       // Check if current audio index hasn't been marked complete
       const isAudioComplete = audioIndicesCompleted.includes(currentAudioIndex);
 
@@ -425,7 +440,7 @@ const ListeningTestPageContent: React.FC = () => {
       // Pause audio if teacher pauses test, session ends, or teacher broadcast audio pause
       setIsPlaying(false);
     }
-  }, [sessionStatus, testSubmitted, isPaused, currentAudioIndex, audioIndicesCompleted, isPlaying, audioError, teacherPausedAudio]);
+  }, [sessionStatus, testSubmitted, isPaused, currentAudioIndex, audioIndicesCompleted, isPlaying, effectiveAudioError, teacherPausedAudio]);
 
   // ═══════════════════════════════════════════════════════════════
   // TEACHER AUDIO COMMAND LISTENER
@@ -433,6 +448,7 @@ const ListeningTestPageContent: React.FC = () => {
 
   // Track last processed command to avoid re-processing
   const lastProcessedCommandRef = useRef<number>(0);
+  const acceptedCanonicalRevisionRef = useRef<number>(0);
   // Track when student joined to ignore stale commands
   const studentJoinTimeRef = useRef<number>(Date.now());
 
@@ -445,6 +461,16 @@ const ListeningTestPageContent: React.FC = () => {
     // This prevents stale pause commands from blocking audio on join
     if (audioCommand.timestamp < studentJoinTimeRef.current) {
       listeningDiagnostics.log('🔇 [ListeningTest] Ignoring stale audio command from before join:', audioCommand);
+      lastProcessedCommandRef.current = audioCommand.timestamp;
+      return;
+    }
+
+    const commandDecision = evaluateAudioCommandAgainstCanonical(audioCommand as any, {
+      acceptedCanonicalRevision: acceptedCanonicalRevisionRef.current,
+      clientAcceptedV2Canonical: acceptedCanonicalRevisionRef.current > 0,
+    });
+    if (!commandDecision.applyState) {
+      listeningDiagnostics.log('[ListeningTest] audioCommand compatibility decision:', commandDecision);
       lastProcessedCommandRef.current = audioCommand.timestamp;
       return;
     }
@@ -595,7 +621,7 @@ const ListeningTestPageContent: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
 
   // Get audio sections from test data or use defaults
-  const audioSections: AudioSection[] = useMemo(() => {
+  const sourceAudioSections: AudioSection[] = useMemo(() => {
     // Check if testData has audioSections (Listening tests)
     if (testData && 'audioSections' in testData && Array.isArray((testData as any).audioSections)) {
       return (testData as any).audioSections;
@@ -609,11 +635,142 @@ const ListeningTestPageContent: React.FC = () => {
       { number: 4, name: 'Section 4', audioUrl: '', startQuestion: 31, endQuestion: 40, waitTimeBefore: 30 },
     ];
   }, [testData]);
+  const liveTestId = typeof testData?.id === 'string' && testData.id.trim()
+    ? testData.id.trim()
+    : undefined;
+  const liveVersionId = useMemo(() => readListeningLiveVersionId(testData), [testData]);
+  const resolvedLiveDeliveryIssuer = useMemo(() => createListeningLiveDeliveryIssuer(), []);
+  const liveClassId = typeof (session as any)?.classId === 'string' && (session as any).classId.trim()
+    ? (session as any).classId.trim()
+    : undefined;
+  const liveDeliveryRef = useRef<Record<number, ListeningDeliveryIssuedUrl>>({});
+  const [liveAudioResolutions, setLiveAudioResolutions] = useState<Record<number, ListeningLiveAudioResolution>>({});
+
+  useEffect(() => {
+    if (!testData || sourceAudioSections.length === 0) {
+      setLiveAudioResolutions({});
+      setLiveDeliveryError(null);
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(sourceAudioSections.map(async (section) => {
+      const resolution = await resolveListeningLiveAudioSection({
+        sessionCode,
+        testId: liveTestId,
+        materialVersionId: liveVersionId,
+        studentId: listeningStudentId,
+        classId: liveClassId,
+        now: Date.now(),
+        section,
+        deliveryIssuer: resolvedLiveDeliveryIssuer,
+      });
+      return [section.number, resolution] as const;
+    }))
+      .then((entries) => {
+        if (cancelled) return;
+        setLiveAudioResolutions(Object.fromEntries(entries));
+        setLiveDeliveryError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLiveAudioResolutions({});
+        setLiveDeliveryError(err instanceof Error ? err.message : 'listening_live_delivery_failed');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    liveClassId,
+    liveTestId,
+    liveVersionId,
+    listeningStudentId,
+    resolvedLiveDeliveryIssuer,
+    sessionCode,
+    sourceAudioSections,
+  ]);
+
+  const audioSections: AudioSection[] = useMemo(() => (
+    sourceAudioSections.map((section) => {
+      const resolution = liveAudioResolutions[section.number];
+      if (resolution) {
+        return {
+          ...section,
+          audioUrl: resolution.audioUrl,
+          streamUrl: resolution.kind === 'legacy-public-r2' ? resolution.streamUrl : undefined,
+        };
+      }
+      if (section.assetId) {
+        return {
+          ...section,
+          audioUrl: '',
+          streamUrl: undefined,
+        };
+      }
+      return section;
+    })
+  ), [liveAudioResolutions, sourceAudioSections]);
+
+  useEffect(() => {
+    const next: Record<number, ListeningDeliveryIssuedUrl> = {};
+    Object.values(liveAudioResolutions).forEach((resolution) => {
+      if (resolution.kind === 'authorized-asset-delivery') {
+        next[resolution.sectionNumber] = resolution.delivery;
+      }
+    });
+    liveDeliveryRef.current = next;
+  }, [liveAudioResolutions]);
 
   // Get current audio section by INDEX (not by section number) to support multiple audios per section
   const currentAudioSection = audioSections[currentAudioIndex] || audioSections[0];
   // For backward compatibility, derive currentSection from the audio section's number
   const currentSection = currentAudioSection?.number || 1;
+  const currentLiveAuthorizedDelivery = useMemo<AuthorizedDeliveryConfig | undefined>(() => {
+    const sectionNumber = currentAudioSection?.number;
+    if (!sectionNumber) return undefined;
+
+    const resolution = liveAudioResolutions[sectionNumber];
+    if (!resolution || resolution.kind !== 'authorized-asset-delivery') {
+      return undefined;
+    }
+
+    return {
+      expiresAt: resolution.delivery.expiresAt,
+      refreshAfter: resolution.delivery.refreshAfter,
+      refreshSource: async () => {
+        const previous = liveDeliveryRef.current[sectionNumber] ?? resolution.delivery;
+        const refreshed = await refreshListeningLiveAudioDelivery({
+          previous,
+          sessionCode,
+          testId: liveTestId,
+          materialVersionId: resolution.versionId,
+          studentId: listeningStudentId,
+          classId: liveClassId,
+          sectionNumber,
+          now: Date.now(),
+          deliveryIssuer: resolvedLiveDeliveryIssuer,
+        });
+        liveDeliveryRef.current = {
+          ...liveDeliveryRef.current,
+          [sectionNumber]: refreshed,
+        };
+        return {
+          url: refreshed.url,
+          expiresAt: refreshed.expiresAt,
+          refreshAfter: refreshed.refreshAfter,
+        };
+      },
+    };
+  }, [
+    currentAudioSection?.number,
+    liveAudioResolutions,
+    liveClassId,
+    listeningStudentId,
+    resolvedLiveDeliveryIssuer,
+    sessionCode,
+    liveTestId,
+  ]);
   const findSectionNumberForQuestion = useCallback((questionNumber?: number | null) => {
     if (typeof questionNumber !== 'number' || !Number.isFinite(questionNumber)) {
       return undefined;
@@ -702,6 +859,65 @@ const ListeningTestPageContent: React.FC = () => {
       setLivePlayerProgressHydrated(true);
     });
   }, [sessionCode, audioSections]);
+
+  useEffect(() => {
+    if (!masterAudioState || isSoloMode || audioSections.length === 0) {
+      return;
+    }
+
+    const hydration = resolveLiveAudioHydration({
+      masterState: masterAudioState as any,
+      audioSections,
+      now: Date.now(),
+      localAudioIndex: currentAudioIndex,
+    });
+
+    if (!hydration) {
+      return;
+    }
+
+    acceptedCanonicalRevisionRef.current = hydration.revision;
+
+    if (hydration.audioIndex !== currentAudioIndex) {
+      setCurrentAudioIndex(hydration.audioIndex);
+    }
+    if (playbackSpeed !== hydration.playbackSpeed) {
+      setPlaybackSpeed(hydration.playbackSpeed);
+    }
+
+    setTeacherPausedAudio(!hydration.isPlaying);
+    if (!hydration.isPlaying && isPlaying) {
+      setIsPlaying(false);
+    } else if (
+      hydration.isPlaying
+      && sessionStatus === 'in-progress'
+      && !testSubmitted
+      && !isPaused
+      && !effectiveAudioError
+    ) {
+      setIsPlaying(true);
+    }
+
+    if (
+      masterAudioState.updateKind !== 'heartbeat'
+      && (masterAudioState.lastAction === 'seek'
+        || masterAudioState.lastAction === 'section'
+        || masterAudioState.lastAction === 'pause')
+    ) {
+      setTeacherSeekPosition(hydration.expectedPosition);
+    }
+  }, [
+    masterAudioState,
+    isSoloMode,
+    audioSections,
+    currentAudioIndex,
+    playbackSpeed,
+    isPlaying,
+    sessionStatus,
+    testSubmitted,
+    isPaused,
+    effectiveAudioError,
+  ]);
 
   // Save currentAudioIndex, currentQuestionNumber, and audio settings to Firebase when they change
   useEffect(() => {
@@ -1669,6 +1885,7 @@ const ListeningTestPageContent: React.FC = () => {
                   masterAudioState={isSoloMode ? undefined : masterAudioState}
                   headphoneRequest={isSoloMode ? undefined : headphoneRequest}
                   onRequestHeadphones={isSoloMode ? undefined : handleRequestHeadphones}
+                  authorizedDelivery={currentLiveAuthorizedDelivery}
                   minimal
                   mobileLayout
                 />
@@ -1945,7 +2162,7 @@ const ListeningTestPageContent: React.FC = () => {
       )}
 
       {/* Audio Error Notification */}
-      {audioError && (
+      {effectiveAudioError && (
         <div style={{
           position: 'fixed',
           top: '80px',
@@ -1968,12 +2185,13 @@ const ListeningTestPageContent: React.FC = () => {
               Audio Error
             </div>
             <div style={{ fontSize: '0.8125rem', color: '#991b1b' }}>
-              {audioError}
+              {effectiveAudioError}
             </div>
           </div>
           <button
             onClick={() => {
               setAudioError(null);
+              setLiveDeliveryError(null);
               setIsPlaying(true);
             }}
             style={{
@@ -2029,6 +2247,7 @@ const ListeningTestPageContent: React.FC = () => {
         masterAudioState={isSoloMode ? undefined : masterAudioState}
         headphoneRequest={isSoloMode ? undefined : headphoneRequest}
         onRequestHeadphones={isSoloMode ? undefined : handleRequestHeadphones}
+        authorizedDelivery={currentLiveAuthorizedDelivery}
       />
 
       {/* PRD-0019: Extra Time Banner */}

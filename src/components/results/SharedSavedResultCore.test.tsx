@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
@@ -24,10 +24,12 @@ import React from 'react';
 const {
   mockGetHistoricalScores,
   mockGetClassTestScores,
+  mockDefaultDeliveryIssue,
 } = vi.hoisted(() => {
   const mockGetHistoricalScores = vi.fn();
   const mockGetClassTestScores = vi.fn();
-  return { mockGetHistoricalScores, mockGetClassTestScores };
+  const mockDefaultDeliveryIssue = vi.fn();
+  return { mockGetHistoricalScores, mockGetClassTestScores, mockDefaultDeliveryIssue };
 });
 
 // ─── Mock firebase ──────────────────────────────────────────────────────────
@@ -50,6 +52,12 @@ vi.mock('../../services/testResults.service', () => ({
   getHistoricalScores: mockGetHistoricalScores,
   getClassTestScores: mockGetClassTestScores,
   TestResultRecord: {},
+}));
+
+vi.mock('../../features/assessment/listening/adapters/listeningResultReviewDeliveryClient', () => ({
+  createListeningResultReviewDeliveryIssuer: () => ({
+    issue: mockDefaultDeliveryIssue,
+  }),
 }));
 
 // ─── Mock formative feedback service ────────────────────────────────────────
@@ -197,6 +205,7 @@ const MOCK_READING_V2_RESULT: any = {
 describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDefaultDeliveryIssue.mockReset();
     mockGetHistoricalScores.mockResolvedValue([]);
     mockGetClassTestScores.mockResolvedValue([]);
   });
@@ -226,6 +235,152 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     );
     // ReviewTab renders incorrect banner for results with incorrect questions
     expect(screen.getByTestId('rv-incorrect-banner')).toBeInTheDocument();
+  });
+
+  it('renders legacy Listening result-review audio through the public resolver without delivery issuance', async () => {
+    const deliveryIssuer = {
+      issue: vi.fn(),
+    };
+
+    render(
+      <SharedSavedResultCore
+        result={{
+          ...MOCK_RESULT,
+          resultId: 'listening-result-legacy',
+          testSkill: 'listening',
+          testType: 'listening',
+          listeningResultReviewAudio: {
+            audioUrl: 'https://pub.example.r2.dev/listening-audio/legacy.mp3',
+            streamUrl: 'https://pub.example.r2.dev/listening-audio/legacy.mp3',
+          },
+        }}
+        variant="modal"
+        listeningResultReviewDeliveryIssuer={deliveryIssuer}
+      />,
+    );
+
+    const audio = await screen.findByTestId('ssrc-listening-review-audio');
+    expect(audio).toHaveAttribute('src', 'https://pub.example.r2.dev/listening-audio/legacy.mp3');
+    expect(audio).toHaveAttribute('data-delivery-mode', 'public-r2');
+    expect(deliveryIssuer.issue).not.toHaveBeenCalled();
+  });
+
+  it('resolves new Listening asset-ID result-review audio through authorized delivery', async () => {
+    const deliveryIssuer = {
+      issue: vi.fn(async (input) => ({
+        assetId: input.assetId,
+        url: 'https://authorized.example/asset-1',
+        tokenId: 'token-1',
+        issuedAt: input.now,
+        expiresAt: input.now + 60 * 60 * 1000,
+        refreshAfter: input.now + 50 * 60 * 1000,
+        ttlMs: 60 * 60 * 1000,
+        deliveryReady: true as const,
+        range: {
+          requestRange: 'bytes=0-0',
+          status: 206 as const,
+          acceptRanges: 'bytes' as const,
+          contentLength: 1,
+          contentRange: 'bytes 0-0/4096',
+        },
+      })),
+    };
+
+    render(
+      <SharedSavedResultCore
+        result={{
+          ...MOCK_RESULT,
+          resultId: 'listening-result-new',
+          testSkill: 'listening',
+          testType: 'listening',
+          studentId: 'student-1',
+          listeningResultReviewAudio: {
+            audioUrl: 'https://pub.example.r2.dev/assessment-assets/listening/teacher-1/asset-1/audio.mp3',
+            streamUrl: 'https://pub.example.r2.dev/assessment-assets/listening/teacher-1/asset-1/audio.mp3',
+            assetId: 'asset-1',
+            versionId: 'version-1',
+          },
+        }}
+        variant="modal"
+        listeningResultReviewDeliveryIssuer={deliveryIssuer}
+        listeningResultReviewNow={1_700_000_000_000}
+      />,
+    );
+
+    const audio = await screen.findByTestId('ssrc-listening-review-audio');
+    expect(audio).toHaveAttribute('src', 'https://authorized.example/asset-1');
+    expect(audio).toHaveAttribute('data-delivery-mode', 'authorized');
+    await waitFor(() => {
+      expect(deliveryIssuer.issue).toHaveBeenCalledWith({
+        assetId: 'asset-1',
+        context: {
+          runtime: 'trusted-server',
+          callerUserId: 'student-1',
+        },
+        now: 1_700_000_000_000,
+        resultScope: {
+          resultId: 'listening-result-new',
+          versionId: 'version-1',
+        },
+      });
+    });
+  });
+
+  it('uses the production result-review delivery issuer when shells do not inject one', async () => {
+    mockDefaultDeliveryIssue.mockResolvedValue({
+      assetId: 'asset-default',
+      url: 'https://authorized.example/default-asset',
+      tokenId: 'token-default',
+      issuedAt: 1_700_000_000_000,
+      expiresAt: 1_700_003_600_000,
+      refreshAfter: 1_700_003_000_000,
+      ttlMs: 60 * 60 * 1000,
+      deliveryReady: true,
+      range: {
+        requestRange: 'bytes=0-0',
+        status: 206,
+        acceptRanges: 'bytes',
+        contentLength: 1,
+        contentRange: 'bytes 0-0/4096',
+      },
+    });
+
+    render(
+      <SharedSavedResultCore
+        result={{
+          ...MOCK_RESULT,
+          resultId: 'listening-result-default',
+          testSkill: 'listening',
+          testType: 'listening',
+          studentId: 'student-1',
+          listeningResultReviewAudio: {
+            audioUrl: 'https://pub.example.r2.dev/assessment-assets/listening/teacher-1/asset-default/audio.mp3',
+            assetId: 'asset-default',
+            versionId: 'version-default',
+          },
+        }}
+        variant="modal"
+        listeningResultReviewNow={1_700_000_000_000}
+      />,
+    );
+
+    const audio = await screen.findByTestId('ssrc-listening-review-audio');
+    expect(audio).toHaveAttribute('src', 'https://authorized.example/default-asset');
+    expect(audio).toHaveAttribute('data-delivery-mode', 'authorized');
+    await waitFor(() => {
+      expect(mockDefaultDeliveryIssue).toHaveBeenCalledWith({
+        assetId: 'asset-default',
+        context: {
+          runtime: 'trusted-server',
+          callerUserId: 'student-1',
+        },
+        now: 1_700_000_000_000,
+        resultScope: {
+          resultId: 'listening-result-default',
+          versionId: 'version-default',
+        },
+      });
+    });
   });
 
   it('routes Reading V2 saved results to the grouped review adapter instead of legacy ReviewTab', () => {

@@ -1,0 +1,1213 @@
+{
+  "createdAt": "2026-07-01T13:05:21.434Z",
+  "verdict": "SECTION27_LOCALHOST_ROW_AUDIT_PASS",
+  "scope": "PRD-0055 Section 27 REG-01..REG-85 localhost-only evidence audit",
+  "branchHead": "dfe02060bf473fb4d60fbb601eba23aaecf534cf",
+  "operationalBoundary": {
+    "currentScope": "localhost-only",
+    "teacherTarget": "http://localhost:5173",
+    "studentTarget": "http://localhost:5174",
+    "liveDomainProof": "deferred; do not use as current unlock path"
+  },
+  "totals": {
+    "expectedRows": 85,
+    "actualRows": 85,
+    "statusCounts": {
+      "current_local_evidence_present": 77,
+      "approved_deferred_future": 8
+    },
+    "localBlockingCount": 0,
+    "deferredFutureCount": 8,
+    "currentLocalEvidenceCount": 77
+  },
+  "localArtifacts": [
+    {
+      "path": "output/prd0055-task8-local-unblock/playwright-task8-final-rerun-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-human-audible-confirmed.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/audio-progress-panel-duration-fix-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/boundary-static-readiness-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/task9-worker-auth-negative-after-result-review-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/task9-rtdb-rules-predeploy-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/task9-observability-live-regression-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/assessment-guardrails-shared-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-storage-grace-vitest-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-live-delivery-client-endpoint-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/section27-reg79-local-private-webkit-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/reg79-audio-progress-panel-refresh-fallback-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task9-local-readiness/reg79-local-private-webkit/reg79-local-private-webkit-proof.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+      "exists": true
+    },
+    {
+      "path": "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+      "exists": true
+    }
+  ],
+  "localPlaywrightStats": {
+    "finalRerun": {
+      "startTime": "2026-06-30T11:25:17.475Z",
+      "duration": 88670.231,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "expanded": {
+      "startTime": "2026-06-30T08:52:05.017Z",
+      "duration": 99006.839,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "section27BaselineVitest": {
+    "reportPath": "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json",
+    "evidenceAccepted": true,
+    "expectedFiles": [
+      "src/config/readingV2FeatureFlags.test.ts",
+      "src/routes/teacherRoutes.test.tsx",
+      "src/pages/ReadingV2StudioPage.test.tsx",
+      "src/pages/ReadingV2StudioSmokePage.test.tsx",
+      "src/components/reading-v2/studio/ReadingV2MetadataPanel.test.tsx",
+      "src/components/reading-v2/studio/ReadingV2PreviewOverlay.test.tsx",
+      "src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx",
+      "src/components/reading-v2/studio/ReadingV2StudioModalAdapter.test.tsx",
+      "src/components/reading-v2/studio/ReadingV2StudioShell.test.tsx",
+      "src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx",
+      "src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx",
+      "src/features/assessment/shared/components/AssessmentStatusState.test.tsx",
+      "src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx"
+    ],
+    "missingFiles": [],
+    "stats": {
+      "numTotalTestSuites": 26,
+      "numPassedTestSuites": 26,
+      "numFailedTestSuites": 0,
+      "numTotalTests": 86,
+      "numPassedTests": 86,
+      "numFailedTests": 0
+    }
+  },
+  "section27ListeningUploadPreviewVitest": {
+    "reportPath": "output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json",
+    "evidenceAccepted": true,
+    "expectedFiles": [
+      "src/services/r2Storage.test.ts",
+      "src/services/r2UploadClient.test.ts",
+      "src/skills/listening/builders/ListeningTestBuilder.test.tsx",
+      "src/skills/listening/components/AudioPlayer.test.tsx"
+    ],
+    "missingFiles": [],
+    "stats": {
+      "numTotalTestSuites": 9,
+      "numPassedTestSuites": 9,
+      "numFailedTestSuites": 0,
+      "numTotalTests": 71,
+      "numPassedTests": 71,
+      "numFailedTests": 0
+    }
+  },
+  "section27MonitorUiVitest": {
+    "reportPath": "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json",
+    "evidenceAccepted": true,
+    "expectedFiles": [
+      "src/pages/TeacherTestMonitorPage.test.tsx",
+      "src/components/test/AudioProgressPanel.test.tsx",
+      "src/components/test/HeadphoneRequestPanel.test.tsx",
+      "src/components/test/StudentProgressCard.test.tsx",
+      "src/components/test/TeacherTestControlBar.test.tsx",
+      "src/hooks/audio/useAudioSync.test.tsx",
+      "src/hooks/monitor/useMonitorControls.test.ts"
+    ],
+    "missingFiles": [],
+    "stats": {
+      "numTotalTestSuites": 14,
+      "numPassedTestSuites": 14,
+      "numFailedTestSuites": 0,
+      "numTotalTests": 34,
+      "numPassedTests": 34,
+      "numFailedTests": 0
+    }
+  },
+  "section27StorageGraceVitest": {
+    "reportPath": "output/prd0055-task9-local-readiness/section27-storage-grace-vitest-report.json",
+    "evidenceAccepted": true,
+    "expectedFiles": [
+      "src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts",
+      "src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts"
+    ],
+    "missingFiles": [],
+    "stats": {
+      "numTotalTestSuites": 4,
+      "numPassedTestSuites": 4,
+      "numFailedTestSuites": 0,
+      "numTotalTests": 32,
+      "numPassedTests": 32,
+      "numFailedTests": 0
+    }
+  },
+  "section27LiveLoadDriftVitest": {
+    "reportPath": "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json",
+    "evidenceAccepted": true,
+    "expectedFiles": [
+      "src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts",
+      "src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts",
+      "src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts",
+      "src/features/assessment/listening/live-session/tests/load/listening-live/loadTestHarness.test.ts"
+    ],
+    "missingFiles": [],
+    "stats": {
+      "numTotalTestSuites": 8,
+      "numPassedTestSuites": 8,
+      "numFailedTestSuites": 0,
+      "numTotalTests": 16,
+      "numPassedTests": 16,
+      "numFailedTests": 0
+    }
+  },
+  "task8LocalMatrixEvidence": {
+    "reportPath": "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+    "supplementPath": "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+    "specPath": "e2e/prd0055-task8-live-local.spec.ts",
+    "evidenceAccepted": true,
+    "stats": {
+      "startTime": "2026-06-30T08:52:05.017Z",
+      "duration": 99006.839,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "localBlockingRows": [],
+  "deferredFutureRows": [
+    {
+      "id": "REG-17",
+      "summary": "Projection validation still rejects invalid payloads.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-18",
+      "summary": "Passage rendering still works.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-19",
+      "summary": "Question rendering still works.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-20",
+      "summary": "Answer state still works.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-21",
+      "summary": "Submit/review still works.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-22",
+      "summary": "Anti-cheat/trusted-submit integration remains host-owned.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-23",
+      "summary": "Mobile/desktop layout remains stable.",
+      "deferral": "DEF-READ-RUNTIME",
+      "evidence": "Planned after approved gate: EV-0061"
+    },
+    {
+      "id": "REG-26",
+      "summary": "No patch derived from this PRD adds, extends, removes, or changes Google Drive behavior; existing Google Drive code/tests remain untouched for the separate cleanup/deletion task.",
+      "deferral": "DEF-GDRIVE",
+      "evidence": "Planned after approved gate: EV-GDRIVE"
+    }
+  ],
+  "currentLocalEvidenceRows": [
+    {
+      "id": "REG-01",
+      "summary": "Shared component has no Reading V2 imports.",
+      "evidence": "Existing baseline: EV-T3. Current local Task 9 rescan: EV-FINAL-A reports zero Reading-to-Listening and zero Listening-to-Reading import-direction violations and zero shared-authority hits.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-02",
+      "summary": "Shared component has no Listening imports.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local shared-boundary scan and assessment guardrail prove shared assessment files have no Listening imports.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/boundary-static-readiness-report.json",
+          "output/prd0055-task9-local-readiness/assessment-guardrails-shared-report.json"
+        ]
+      }
+    },
+    {
+      "id": "REG-03",
+      "summary": "Shared component has no audio/passages/parser/storage/session props.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local shared-boundary scan and assessment guardrail prove shared assessment files have no audio/passages/parser/storage/session authority hits.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/boundary-static-readiness-report.json",
+          "output/prd0055-task9-local-readiness/assessment-guardrails-shared-report.json"
+        ]
+      }
+    },
+    {
+      "id": "REG-04",
+      "summary": "Shared component tests cover roles, headings, actions, and children.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local focused Vitest suite proves shared component tests cover roles, headings, actions, status slots, validation states, and children.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-05",
+      "summary": "Boundary grep passes.",
+      "evidence": "Existing baseline: EV-T3. Current local Task 9 boundary/static rescan: EV-FINAL-A reports zero shared-authority hits, zero import-direction violations, zero added protected source patterns, and guardrail OK over the 12 shared files.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-06",
+      "summary": "Create route still opens.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioPage and teacher route tests prove the create route still resolves into Studio.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-07",
+      "summary": "Import route still opens.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioPage tests prove import route hydration still opens Studio.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-08",
+      "summary": "Draft resume still opens.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioPage tests prove draft route resolution still opens Studio.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-09",
+      "summary": "Revision route still opens.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioPage and modal adapter tests prove revision route/workflow still opens Studio.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-10",
+      "summary": "Metadata remains editable.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2MetadataPanel and Studio shell tests prove metadata remains editable and publish-compatible.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-11",
+      "summary": "Passages remain editable.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioShell tests prove passages remain editable across selector/add/remove/edit flows.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-12",
+      "summary": "Task groups remain editable.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioShell tests prove task groups remain editable and duplicable in the selected passage.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-13",
+      "summary": "Validation remains Reading V2-owned.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2SettingsPanel, metadata, and Studio shell tests prove validation remains Reading V2-owned.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-14",
+      "summary": "Draft save still works.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioShell tests prove incomplete drafts still save while publish stays blocked.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-15",
+      "summary": "Publish gating still works.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2StudioShell, metadata, and page tests prove publish gating and successful publish navigation.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-16",
+      "summary": "Preview still works.",
+      "evidence": "Existing baseline + planned: EV-T3",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local ReadingV2PreviewOverlay and Studio shell tests prove preview still opens from the current publishable draft.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 26,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 86,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-24",
+      "summary": "Metadata/setup still works.",
+      "evidence": "Current evidence: EV-0057; builder coverage exercises metadata/setup flow. Concurrent proof timed out once; standalone rerun passed 14/14.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-25",
+      "summary": "Audio upload still works.",
+      "evidence": "Existing source/baseline evidence: EV-0057. Current local automated proof: EV-FINAL-V accepts `output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json`, 9 suites / 71 tests passed, proving builder upload, R2 upload/storage mappings, progress callbacks, stale upload protection, and sanitized failure behavior. Browser plugin did not expose `setInputFiles`, so no fresh browser file-picker upload proof is claimed.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local focused Vitest suite proves Listening builder upload uses canonical authority, R2 upload/storage mappings, progress callbacks, stale upload protection, and sanitized failure behavior.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 9,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 71,
+          "numFailedTests": 0
+        },
+        "limitation": "Browser plugin did not expose setInputFiles in this runtime; this is current automated local proof, not a fresh browser file-picker proof."
+      }
+    },
+    {
+      "id": "REG-27",
+      "summary": "Audio preview still works.",
+      "evidence": "Existing compatibility evidence: EV-0057. Current local automated proof: EV-FINAL-V accepts `output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json`, 9 suites / 71 tests passed, proving Listening preview/player behavior, progress UI, source changes, authorized URL refresh, mobile playback, and error/recovery controls. Browser plugin did not expose `setInputFiles`, so no fresh browser file-picker preview proof is claimed.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local focused Vitest suite proves Listening preview/player behavior, including progress UI, source changes, authorized URL refresh, mobile playback, and error/recovery controls.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 9,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 71,
+          "numFailedTests": 0
+        },
+        "limitation": "Browser plugin did not expose setInputFiles in this runtime; this is current automated local proof, not a fresh browser file-picker proof."
+      }
+    },
+    {
+      "id": "REG-28",
+      "summary": "UI says `Up to 10 audio files, 50 MB each.`",
+      "evidence": "Current evidence: EV-0057-C; exact-copy builder test passes.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-29",
+      "summary": "Audio limit is labeled `audio files` and is not confused with the existing `Questions (0/10)` heading.",
+      "evidence": "Current evidence: EV-0057-C; guidance labels audio counters as audio files and test proves no merge with question counter copy.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-30",
+      "summary": "UI recommends MP3 or M4A.",
+      "evidence": "Current evidence: EV-0057; bounded guidance renders `MP3 or M4A recommended.` and focused coverage asserts exact copy.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-31",
+      "summary": "Eleventh active audio file is rejected before upload.",
+      "evidence": "Current evidence: EV-0057-C covers exact upload guidance copy. Enforcement beyond existing builder/storage validation remains future upload-validation proof.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-32",
+      "summary": "File above 50 MB is rejected before upload.",
+      "evidence": "Current evidence: EV-0057-C covers exact upload guidance copy. Enforcement beyond existing builder/storage validation remains future upload-validation proof.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-33",
+      "summary": "Unsupported format is rejected before upload.",
+      "evidence": "Current evidence: EV-0057-C covers exact MP3/M4A recommendation copy. Enforcement beyond existing builder/storage validation remains future upload-validation proof.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-34",
+      "summary": "Audio sections save correctly.",
+      "evidence": "Current evidence: EV-0057; fresh storage/authoring proof passed, while the broader RTDB rules gate remains blocked.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-35",
+      "summary": "Parser path still works.",
+      "evidence": "Current evidence: matching instructions no longer create a false second section; numbered `PART` / `SECTION` headers remain recognized; parser baseline passes 8/8. Natural-route browser proof remains Task 5.20.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-36",
+      "summary": "Parser skip/manual path still works.",
+      "evidence": "Current evidence: EV-0057; manual-path tests execute; standalone focused rerun passed after one concurrent timeout elsewhere in the file.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-37",
+      "summary": "Empty question state still shows Add Question.",
+      "evidence": "Current evidence: EV-0057; the exact empty-Step-4 test timed out at 5.315 seconds during concurrent proof, then passed standalone at 3.974 seconds.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-38",
+      "summary": "Before the authoring split, missing audio still blocks the existing single save/publish operation.",
+      "evidence": "Current evidence: EV-0057; fresh storage/facade suite passed and preserves the legacy hard block separately from the new draft-warning path.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-39",
+      "summary": "After the authoring split, missing audio may save in a draft with warnings but blocks Publish, per FR-023F and Edge Case 12.",
+      "evidence": "Current evidence: EV-0057-C; focused test proves draft warning plus Publish blocking and no legacy persistence.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-40",
+      "summary": "Save/publish no longer use legacy `saveListeningTestToFirebase(...)` from `ListeningTestBuilder`; the public storage facade remains for compatibility exports.",
+      "evidence": "Current evidence: EV-0057-C; builder Save draft / Publish call trusted workflow, source has no production `saveListeningTestToFirebase` match, and focused tests prove no legacy persistence call.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-41",
+      "summary": "Existing Listening tests remain compatible.",
+      "evidence": "Current evidence: EV-0057-D and EV-0058; existing storage/public-reader support proof passed, and legacy compatibility save/read behavior remains preserved. Browser proof remains Task 5.20.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-42",
+      "summary": "First edit of a legacy published R2 test freezes version 1 and creates a revision draft.",
+      "evidence": "Current evidence: EV-0057-B; first-edit legacy test creates immutable version 1 and revision draft idempotently.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-43",
+      "summary": "Existing assignments/results remain pinned to legacy version 1.",
+      "evidence": "Current evidence: EV-0057-B; retained pins preserve assignments, sessions, attempts, and results on legacy version 1; explorer inventory confirms existing legacy readers remain pinned.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-44",
+      "summary": "Legacy R2 raw-URL test/result audio resolves through the read adapter.",
+      "evidence": "Current evidence: EV-0057-B; resolver returns read-only normalized raw-R2 playback references without registry identity or side effects.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-45",
+      "summary": "Saved draft/test references never point at `temp/`.",
+      "evidence": "Current evidence: EV-0058; fail-closed temp URL preflight, durable-object reverify, registry-backed save, and storage/facade proof prevent saved draft/test references from retaining `temp/` URLs.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-46",
+      "summary": "Cancelled/failed/never-saved uploads are cleanup candidates.",
+      "evidence": "Current evidence: EV-0058; lifecycle tests cover explicit remove, builder cancel, navigation, logout, auth loss, failed save/publish, replacement cancellation, and detected abandonment as cleanup candidates without granting durable delete authority.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-47",
+      "summary": "Explicit Save draft or Publish is the only promotion event.",
+      "evidence": "Current evidence: EV-0058 plus EV-0057-C; durable references are created only by commit service after explicit save/publish adapter paths, and Save draft / Publish call the trusted authoring workflow.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-48",
+      "summary": "Heartbeat runs only for the same authenticated, open, connected tab.",
+      "evidence": "Current evidence: EV-0058; heartbeat and same-owner/same-draft lease tests prove owner-scoped tab identity, connected/open eligibility, and no retained reference or draft creation from heartbeat alone.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-49",
+      "summary": "Heartbeat is stale after 3 minutes and stops at 8 hours.",
+      "evidence": "Current evidence: EV-0058; tests prove 60-second next due, 3-minute stale, equality at the 8-hour active limit, expiry after 8 hours, and cleanup eligibility after the ceiling.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-50",
+      "summary": "Surviving uncommitted temp assets are deleted no later than 24 hours after upload.",
+      "evidence": "Current evidence: EV-0058; checked-in `temp/` R2 lifecycle config verifier proves 86400-second expiration for uncommitted temp prefixes and excludes durable prefixes. No remote lifecycle state is claimed.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-51",
+      "summary": "Closing one of multiple valid editor tabs does not delete audio leased by another valid same-draft tab.",
+      "evidence": "Current evidence: EV-0058; lifecycle tests prove same-owner/same-draft lease aggregation preserves assets while a fresh lease remains, rejects different-draft retention, and queues cleanup only when leases are stale/absent.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-52",
+      "summary": "Replacement does not overwrite saved audio before save success.",
+      "evidence": "Current evidence: EV-0058; replacement tests prove a new asset ID, old reference authority until save success, reference swap only after success, and old playback preservation after failed/cancelled replacement.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-53",
+      "summary": "A second replacement cannot start while the prior replacement commit is unresolved.",
+      "evidence": "Current evidence: EV-0058; replacement tests and mutation proof block a second replacement while the first commit is unresolved and allow later replacement only after terminal resolution.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-54",
+      "summary": "Old durable audio remains while any retained reference exists.",
+      "evidence": "Current evidence: EV-0058; reference-removal and deletion-governance tests prove retained references block delete, rollback preserves references, and backup/restore uncertainty fails closed.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-55",
+      "summary": "Zero-reference durable audio observes grace period before delete.",
+      "evidence": "Current evidence: EV-0058; zero-reference assets enter `pending-delete`, preserve original `pendingDeleteAt`/`deleteAfter` on retry, and deletion-governance proof enforces seven-day grace plus same-tick zero-reference recheck before any future audited delete.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local storage lifecycle/deletion governance tests prove zero-reference durable audio enters pending-delete only after retained references reach zero and deletion is denied until the seven-day grace plus immediate recheck succeeds.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-storage-grace-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 4,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 32,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-56",
+      "summary": "Audio loads.",
+      "evidence": "Current evidence: EV-0059; Batch D proves legacy public and asset-ID authorized solo audio loads across desktop/mobile/WebKit projects.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-57",
+      "summary": "Playback works.",
+      "evidence": "Current evidence: EV-0059; Batch D covers public/private playback, long-playback checkpoint, byte-range, seek, and refresh delegation; Batch E blocks legacy playback regression.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-58",
+      "summary": "Resume works.",
+      "evidence": "Current evidence: EV-0059; Batch D resume checkpoint proof plus Batch E rollout stop-condition coverage.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-59",
+      "summary": "Autosave works.",
+      "evidence": "Current evidence: EV-0059; `useSoloAutoSave` focused proof covers scoped Listening playback payloads, in-flight wait, final flush, and attempt/operation identity.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-60",
+      "summary": "Timer works.",
+      "evidence": "Current evidence: EV-0059; `useSoloTimer` baseline and host time-up submit sequencing remain green; Batch D browser proof covers one time-up submit.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-61",
+      "summary": "Mobile state hydrates.",
+      "evidence": "Current evidence: EV-0059; mobile state tests and `ListeningPracticeView` host tests cover compatible playback state serialization/hydration and viewport switch preservation.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-62",
+      "summary": "Section navigation follows current contract.",
+      "evidence": "Current evidence: EV-0059; `ListeningPracticeView` host proof preserves viewed part/current audio index and mobile scaffold state; Batch D delivery resolves per-section audio before `AudioPlayer`.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-63",
+      "summary": "Submit/review works.",
+      "evidence": "Current evidence: EV-0059; `useSoloSubmission`, `testResults.service`, `ListeningPracticeView`, and saved-result review proof cover idempotent submit and review compatibility.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-64",
+      "summary": "Teacher can pause.",
+      "evidence": "Current evidence: EV-0060 Batch B; pause writes canonical authority transaction and compatibility projection.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-65",
+      "summary": "Student reflects pause.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves student pause reflection and buffered/stalled audio during teacher pause stays paused/time-pinned.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local Task 8 Playwright matrix proves student buffering/loading during teacher pause stays paused and time-pinned before resume.",
+        "artifacts": [
+          "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+          "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+          "e2e/prd0055-task8-live-local.spec.ts"
+        ],
+        "stats": {
+          "startTime": "2026-06-30T08:52:05.017Z",
+          "duration": 99006.839,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      }
+    },
+    {
+      "id": "REG-66",
+      "summary": "Teacher can resume.",
+      "evidence": "Current evidence: EV-0060 Batch B; resume writes canonical authority transaction and compatibility projection.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-67",
+      "summary": "Student reflects resume.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves pause/resume sync and recovery through newer canonical revision after conflict.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local Task 8 Playwright matrix source and green JSON prove Resume All Audio writes canonical resume state before continuing the matrix.",
+        "artifacts": [
+          "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+          "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+          "e2e/prd0055-task8-live-local.spec.ts"
+        ],
+        "stats": {
+          "startTime": "2026-06-30T08:52:05.017Z",
+          "duration": 99006.839,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      }
+    },
+    {
+      "id": "REG-68",
+      "summary": "Teacher can skip section.",
+      "evidence": "Current evidence: EV-0060 Batch B; skip writes canonical section/action revision without default overwrite.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-69",
+      "summary": "Student follows skip.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves skip/section changes are reflected by student clients from `masterAudioState`.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local Task 8 Playwright matrix source and green JSON prove Next Section writes canonical skipToSection state and the student remains on the canonical section after reload.",
+        "artifacts": [
+          "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+          "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+          "e2e/prd0055-task8-live-local.spec.ts"
+        ],
+        "stats": {
+          "startTime": "2026-06-30T08:52:05.017Z",
+          "duration": 99006.839,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      }
+    },
+    {
+      "id": "REG-70",
+      "summary": "Teacher can seek/speed change where supported.",
+      "evidence": "Current evidence: EV-0060 Batch B; seek/speed actions route through the canonical authority writer.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-71",
+      "summary": "Audio progress remains accurate.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060A/EV-0060B; Browser plugin proof shows ended-clip restart resets progress to 0 and advances from real media time, and local tests cover unified progress display/stale timeupdate correction.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local AudioProgressPanel tests prove progress display follows media time, loaded duration, canonical reload position, seek slider, and manual time edits.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-72",
+      "summary": "Headphone readiness remains correct.",
+      "evidence": "Current evidence: EV-0060 Batch B; pending/approved/denied teacher states pass focused tests.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local HeadphoneRequestPanel tests prove pending, approved, and denied headphone requests remain visible to the teacher.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-73",
+      "summary": "Student reload resyncs.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves student desktop reload resyncs from canonical authority.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local live audio runtime hydration tests prove reload uses canonical section and position instead of local playback authority.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 8,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 16,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-74",
+      "summary": "Late join handles current authority.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves student mobile late join at 375 px and 320 px hydrates from current authority.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local live audio runtime hydration tests prove late joiners hydrate from canonical authority and account elapsed trusted time.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 8,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 16,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-75",
+      "summary": "`audioCommand` and `masterAudioState` behavior is unchanged unless explicitly tested.",
+      "evidence": "Current evidence: EV-0060 Batch B; compatibility behavior changes are bounded to tested canonical-v2 projection/rejection paths.",
+      "localAuditSupplement": null
+    },
+    {
+      "id": "REG-76",
+      "summary": "Newer canonical revision wins over stale compatibility traffic.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves stale `audioCommand` rejection and equal-revision competing `masterAudioState` rejection before recovery at canonical revision 7.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local useAudioSync tests prove stale/interrupted authority does not override newer canonical authority.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-77",
+      "summary": "500 ms soft and 2-second hard correction baselines are measured, not treated as final constants.",
+      "evidence": "Current evidence: EV-0060 Batch B; policy/tests label 500 ms and 2 seconds as local baselines, not final product thresholds.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local live audio sync policy tests prove 500 ms soft correction and 2-second hard seek are named test baselines.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 8,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 16,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-78",
+      "summary": "Authorized URL refresh and range requests do not interrupt playback.",
+      "evidence": "Current evidence: EV-0060 Batch D proves old-source retention until replacement readiness, bounded retry, no parent-error pause on refresh failure, and redacted warnings. EV-0060B proves AbortError handoff corrections. Live private delivery/range cutover remains open.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local AudioProgressPanel and TeacherTestMonitorPage tests prove private audio refresh/range delivery preserves position, speed, play intent, and authorized source state.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-79",
+      "summary": "iOS Safari signed/private delivery supports byte ranges, seeking, and long-session refresh.",
+      "evidence": "Current local evidence: EV-FINAL-V records localhost endpoint fallback proof in `section27-live-delivery-client-endpoint-report.json`, Safari refresh fallback unit proof in `reg79-audio-progress-panel-refresh-fallback-report.json`, local iOS Safari/WebKit browser proof in `section27-reg79-local-private-webkit-report.json`, and `reg79-local-private-webkit-proof.json` with private refresh issuance, `206` byte-range content fetch, `RIFF` bytes, and canonical seek authority at section 1 / position 4.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current localhost iOS Safari/WebKit proof validates private live delivery refresh, explicit byte-range content fetch, and canonical seek authority after Safari preload refusal is treated as non-decisive.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-live-delivery-client-endpoint-report.json",
+          "output/prd0055-task9-local-readiness/reg79-audio-progress-panel-refresh-fallback-report.json",
+          "output/prd0055-task9-local-readiness/section27-reg79-local-private-webkit-report.json",
+          "output/prd0055-task9-local-readiness/reg79-local-private-webkit/reg79-local-private-webkit-proof.json",
+          "e2e/prd0055-task9-local-private-delivery-webkit.spec.ts",
+          "src/components/test/AudioProgressPanel.tsx"
+        ],
+        "stats": {
+          "endpointPassedTests": 5,
+          "refreshFallbackPassedTests": 12,
+          "webkit": {
+            "startTime": "2026-07-01T11:32:26.170Z",
+            "duration": 23494.79,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "rangeProbe": {
+            "status": 206,
+            "acceptRanges": "bytes",
+            "contentLength": "16",
+            "contentRange": "bytes 0-15/128044",
+            "riff": "RIFF"
+          },
+          "finalAuthority": {
+            "actionId": "seek-2-1782905567340",
+            "isPlaying": false,
+            "lastAction": "seek",
+            "lastActionRevision": 2,
+            "lastActionTimestamp": 1782905567177,
+            "position": 4,
+            "revision": 2,
+            "schemaVersion": 2,
+            "section": 1,
+            "speed": 1,
+            "timestamp": 1782905567177,
+            "updateKind": "command",
+            "writerClientId": "teacher-monitor-R794QW",
+            "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+          }
+        }
+      }
+    },
+    {
+      "id": "REG-80",
+      "summary": "Teacher monitor reload restores canonical state without emitting default section/position/speed.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; local matrix proves teacher desktop reload hydration while command helpers require hydrated snapshots and avoid default section/position/speed emissions.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local TeacherTestMonitorPage tests prove teacher monitor reload restores canonical section, play state, speed, and position without defaulting.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-81",
+      "summary": "100 students/session and 20 concurrent sessions meet the approved performance target.",
+      "evidence": "Current evidence: EV-0060 Batch C; `loadTestHarness.test.ts` proves deterministic 20-session / 2,000-student scenario generation, local synthetic teacher/student clients, network profiles, metrics, thresholds, reports, and production/remote guardrails.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local load harness tests prove the 20-session / 2,000-student dry-run methodology, metrics thresholds, network conditions, and report output.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 8,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 16,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-82",
+      "summary": "`AudioProgressPanel` appears only for in-progress Listening with audio sections.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; monitor characterization and focused panel/control-bar tests reran after Task 8.14 progress and gesture-policy correction.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local TeacherTestMonitorPage tests prove AudioProgressPanel renders only for in-progress Listening sessions with audio sections and stays absent for non-Listening, completed Listening, and missing-audio-section cases.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-83",
+      "summary": "`HeadphoneRequestPanel` behavior remains intact.",
+      "evidence": "Current evidence: EV-0060 Batch B; focused tests cover pending, approved, and denied states.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local HeadphoneRequestPanel tests prove headphone request panel behavior for pending, approved, and denied states remains intact.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-84",
+      "summary": "`TeacherTestControlBar` calls correct monitor callbacks.",
+      "evidence": "Current evidence: EV-0060 Batch B plus EV-0060B; control bar remains callback-owned, routes monitor writes through canonical authority, and dispatches the local teacher-monitor resume gesture before async canonical resume.",
+      "localAuditSupplement": {
+        "status": "current_local_evidence_present",
+        "reason": "Current local TeacherTestControlBar tests prove named touch-sized live audio controls and resume gesture ordering before monitor callback writes.",
+        "artifacts": [
+          "output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json"
+        ],
+        "stats": {
+          "numPassedTestSuites": 14,
+          "numFailedTestSuites": 0,
+          "numPassedTests": 34,
+          "numFailedTests": 0
+        }
+      }
+    },
+    {
+      "id": "REG-85",
+      "summary": "`useMonitorControls` write paths remain expected.",
+      "evidence": "Current evidence: EV-0060 Batch B; tests prove root canonical authority transaction updates and compatibility-only `audioCommand`.",
+      "localAuditSupplement": null
+    }
+  ],
+  "explicitNonActions": [
+    "No live-domain browser proof.",
+    "No production deploy.",
+    "No selected-user rollout.",
+    "No percentage rollout.",
+    "No full rollout.",
+    "No cleanup/delete.",
+    "No commit/push/merge.",
+    "No taskbox closure."
+  ]
+}

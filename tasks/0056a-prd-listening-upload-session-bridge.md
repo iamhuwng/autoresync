@@ -1,6 +1,6 @@
 # PRD 0056A: Listening Upload Session Bridge
 
-Status: Approved child planning contract - Task 1 planning is complete; implementation remains blocked pending an approved implementation packet and deployed/current PRD-0056 S0 proof
+Status: Spark-safe Worker-only bridge deployed/current proof PASS; Task 4.2 foundation unblocked, but Task 4.2 implementation remains unstarted pending its own scope packet
 Created: 2026-06-20
 Task number: 0056A
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -50,7 +50,7 @@ Approved Option B keeps PRD-0056 S0 severable:
 
 ## 4. API Contract
 
-Session/identity authority is a Firebase HTTPS backend because it can use Firebase Admin SDK for trusted RTDB writes. R2 byte upload remains the checked-in Wrangler-managed `r2-upload-signer` package selected by PRD-0056.
+Session/identity authority is the checked-in Wrangler-managed Cloudflare Worker `r2-upload-signer`. The Worker verifies Firebase ID tokens directly, writes owner-scoped bootstrap records through Firebase RTDB REST using a service-account OAuth bearer, and issues short-lived signed `assetGrant` values. R2 byte upload remains on the same Worker selected by PRD-0056.
 
 ### Create Session
 
@@ -170,7 +170,7 @@ media_asset_upload_sessions/{ownerId}: creationRequestIdHash, status, expiresAt,
 
 ## 6. RTDB Rules Ownership
 
-A dedicated PRD-0056A rules packet owns the first `database.rules.json` rules for `media_asset_upload_sessions/**`.
+A dedicated PRD-0056A rules packet owns the first `database.rules.json` rules for `media_asset_upload_sessions/**`, plus the minimal root `.write` narrowing required to keep browser writes from mutating that subtree when RTDB ancestor-write inheritance would otherwise bypass child `.write: false`.
 
 Required rule behavior:
 
@@ -178,75 +178,70 @@ Required rule behavior:
 2. Browser clients cannot choose another owner branch.
 3. Bootstrap create requires `ownerId`, `uploadSessionId`, `purpose`, `status`, `createdAt`, `expiresAt`, `maxEligibilityExpiresAt`, and `bridgeVersion`.
 4. Path owner and record owner must equal authenticated UID.
-5. Browser writes are denied. Firebase Admin SDK writes the bootstrap record after the HTTPS handler verifies the Firebase ID token and request contract.
+5. Browser writes are denied. The trusted Worker writes the bootstrap record through Firebase RTDB REST after it verifies the Firebase ID token and request contract.
 6. Super-admin access follows existing explicit super-admin policy and receives emulator coverage.
-7. Delete is denied to browser clients.
-8. Rule tests use the emulator-backed pattern from `src/__tests__/security/prd0040-security.emulator.test.ts`.
+7. Because RTDB ancestor `.write` rules cannot be revoked by child `.write: false`, the rules packet may minimally narrow the existing root super-admin `.write` behavior only enough to require `media_asset_upload_sessions` to remain unchanged during browser writes.
+8. Delete is denied to browser clients.
+9. Rule tests use the emulator-backed pattern from `src/__tests__/security/prd0040-security.emulator.test.ts`.
 
 ## 7. Module Home And Dependency Direction
 
 Coherent domain home:
 
 ```text
-functions/src/listening-upload-session/**
+cloudflare/src/upload-worker/listening-upload-session*.ts
 ```
 
 Required seams:
 
-1. `sessionIds.ts` - cryptographically secure session/asset ID issuance.
-2. `sessionSchema.ts` - request, response, and bootstrap record validation.
-3. `sessionRepository.ts` - Firebase Admin SDK owner-scoped RTDB bootstrap transaction.
-4. `sessionHandlers.ts` - authenticated create-session and issue-asset HTTPS handlers.
-5. `tempKey.ts` - canonical Listening temp-key derivation.
-6. `assetGrant.ts` - short-lived signed owner/session/asset/key grant creation.
+1. `listening-upload-session.ts` - request validation, opaque session/asset ID issuance, canonical temp-key derivation, grant creation, and injected create-session / issue-asset handlers.
+2. `listening-upload-session-repository.ts` - Worker-local Firebase RTDB REST repository with service-account OAuth bearer acquisition and owner/session compare-and-set retries.
+3. `listening-upload-session-types.ts` - bootstrap record and repository interfaces.
+4. `listening-upload-session-grant.ts` - signed `assetGrant` verification, replay consume, and canonical R2 write.
+5. `worker.js` - thin route wiring only.
+6. `src/services/r2Storage.ts` - browser compatibility facade wiring only.
 
-`LISTENING_UPLOAD_SESSION_GRANT_SECRET` is provisioned as a Firebase Functions secret and a Wrangler secret with the same value. The value is never checked in, printed, or copied into findings. Deployment proof uses one function-issued grant against the deployed Worker; it does not reveal the secret.
-
-Cloudflare adapter seam:
-
-```text
-cloudflare/src/upload-worker/listening-upload-session-grant.ts
-```
-
-The adapter verifies `LISTENING_UPLOAD_SESSION_GRANT_SECRET`, expiry, verified Firebase UID, and the exact owner/session/asset/key tuple. It contains no RTDB repository or lifecycle logic.
+`LISTENING_UPLOAD_SESSION_GRANT_SECRET` is provisioned as an `r2-upload-signer` secret only. `GOOGLE_SA_KEY` is the Worker secret for Firebase RTDB REST writes, and `FIREBASE_DB_URL` is the checked-in non-secret Worker var. Secrets are never checked in, printed, or copied into findings. Deployment proof uses one Worker-issued grant against the deployed Worker and does not reveal the secrets.
 
 Dependency direction:
 
 ```text
 src/services/r2Storage.ts
-  -> Firebase HTTPS bridge
-  -> functions/src/listening-upload-session/**
-  -> Firebase Admin SDK owner-scoped RTDB bootstrap
+  -> Cloudflare Worker create-session / issue-asset routes
   -> signed assetGrant
   -> cloudflare/worker.js
+  -> cloudflare/src/upload-worker/listening-upload-session.ts
+  -> cloudflare/src/upload-worker/listening-upload-session-repository.ts
   -> cloudflare/src/upload-worker/listening-upload-session-grant.ts
+  -> Firebase RTDB REST owner-scoped bootstrap
   -> env.R2_BUCKET
 ```
 
-No bridge module may import application UI, Listening authoring/runtime, neutral shared assessment, Reading V2, or `r2-backup-worker` code.
+No bridge module may import application UI, Listening authoring/runtime, neutral shared assessment, Reading V2, or `r2-backup-worker` code. Reuse from `r2-backup-worker` is by local copy/adaptation only.
 
 ## 8. Exact Owned And Protected Files
 
 Owned implementation files:
 
-1. `functions/src/listening-upload-session/**`.
-2. `functions/src/index.ts` - thin exports for `createListeningUploadSession` and `issueListeningUploadAsset` only.
-3. `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts`.
-4. `cloudflare/worker.js` - thin asset-grant verifier wiring only.
-5. `cloudflare/src/upload-worker/listening-upload-session-grant.ts`.
+1. `cloudflare/src/upload-worker/listening-upload-session.ts`.
+2. `cloudflare/src/upload-worker/listening-upload-session-repository.ts`.
+3. `cloudflare/src/upload-worker/listening-upload-session-types.ts`.
+4. `cloudflare/src/upload-worker/listening-upload-session-grant.ts`.
+5. `cloudflare/worker.js` - thin route wiring only.
 6. `cloudflare/test/listening-upload-session-bridge.test.ts`.
-7. `cloudflare/wrangler.toml` - bind `LISTENING_UPLOAD_SESSION_GRANT_SECRET` by secret reference only.
-8. `src/services/r2Storage.ts` - browser compatibility facade wiring only.
-9. `src/services/r2Storage.test.ts`.
-10. `database.rules.json` - only `media_asset_upload_sessions/**` owner-read/client-write-denial rules.
-11. `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`.
-12. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
+7. `cloudflare/wrangler.jsonc` - checked-in non-secret Worker vars only; secrets remain external.
+8. `cloudflare/src/upload-worker/cors-policy.js` - exact header allowlist only.
+9. `src/services/r2Storage.ts` - browser compatibility facade wiring only.
+10. `src/services/r2Storage.test.ts`.
+11. `database.rules.json` - exact `media_asset_upload_sessions/**` owner-read/client-write-denial rules plus the minimal root `.write` narrowing required to preserve that subtree denial against ancestor inheritance.
+12. `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`.
+13. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`.
 
 Allowed changes:
 
-1. Add the two authenticated bridge HTTPS exports and bounded function modules.
-2. Add owner-read/client-write-denial rules for the exact session bootstrap path.
-3. Add Worker verification for the function-issued asset grant.
+1. Add the two authenticated Worker routes and bounded Worker-local bridge modules.
+2. Add owner-read/client-write-denial rules for the exact session bootstrap path, including the minimal root `.write` narrowing required to prevent ancestor-rule bypass of that subtree.
+3. Add Worker verification for the Worker-issued asset grant.
 4. Add facade calls and response adaptation in `r2Storage.ts`.
 5. Add tests, non-secret binding names, and rollout/rollback evidence required by this PRD.
 
@@ -274,7 +269,7 @@ Protected files and routes:
 12. `reading_v2/**`.
 13. `r2-backup-worker/**`, including `POST /api/reading-v2/submit` and `POST /api/homework/assignments`.
 14. Google Drive services, data, and behavior.
-15. Existing `functions/src/index.ts` exports and `functions/src/readingV2SubmitCore.ts`; only the two bridge exports may be added to the index.
+15. Existing `functions/src/index.ts` exports and `functions/src/readingV2SubmitCore.ts`; no new bridge modules or exports may be added there.
 
 If implementation requires a protected file or route, stop and obtain a controlling PRD amendment before editing.
 
@@ -282,8 +277,8 @@ If implementation requires a protected file or route, stop and obtain a controll
 
 1. `cloudflare/worker.js` remains within the PRD-0056 200-line target and 250-line ceiling.
 2. Each new human-maintained production module targets 400 lines or fewer and may not exceed 500 lines without architecture/security approval.
-3. Packet 1J baselines are `functions/src/index.ts` 268 lines, `cloudflare/worker.js` 117 lines, `src/services/r2Storage.ts` 446 lines, and `src/services/r2Storage.test.ts` 85 lines.
-4. `functions/src/index.ts` remains an export/router surface. Target: at most 300 lines after bridge exports. Ceiling: 350 lines.
+3. Packet 1J baselines are `cloudflare/worker.js` 117 lines, `src/services/r2Storage.ts` 446 lines, and `src/services/r2Storage.test.ts` 85 lines.
+4. `cloudflare/worker.js` remains a thin router surface. Target: at most 200 lines after route wiring. Ceiling: 250 lines.
 5. `src/services/r2Storage.ts` remains a facade and gains no session-authority algorithm.
 6. Before and after every implementation packet, findings record line counts, responsibility deltas, created/preserved seams, and justification for each facade increase.
 7. Missing line evidence or inline bridge authority added to a facade blocks completion.
@@ -304,7 +299,7 @@ Automated tests:
 10. Logs contain no token, raw UID, raw idempotency key, signed grant, signed URL, secret, raw key, or audio bytes.
 11. Existing PRD-0056 upload/move security tests remain green.
 12. Boundary diff proves no `r2-backup-worker/**` or Reading V2 route change.
-13. `functions/src/readingV2SubmitCore.test.ts` remains green after the thin `functions/src/index.ts` export change.
+13. Existing Worker harness/security suites and `functions/src/readingV2SubmitCore` compile/test surfaces remain green after leaving Cloud Functions bridge-free.
 
 Human-assisted browser proof:
 
@@ -349,16 +344,15 @@ Stop rollout immediately for any cross-owner access, browser-authoritative key a
 Rollout:
 
 1. PRD-0056 S0 must be deployed and proven first.
-2. Provision matching `LISTENING_UPLOAD_SESSION_GRANT_SECRET` values in Firebase Functions and `r2-upload-signer`; record names only.
+2. Provision `LISTENING_UPLOAD_SESSION_GRANT_SECRET` and `GOOGLE_SA_KEY` as `r2-upload-signer` Worker secrets, and set `FIREBASE_DB_URL` in `cloudflare/wrangler.jsonc`; record secret names only.
 3. Capture `PRE_0056A_VERSION_ID`.
-4. Deploy authenticated bridge HTTPS handlers with rollout disabled for normal clients.
-5. Deploy Worker asset-grant verification.
-6. Enable internal teacher/browser fixtures.
-7. Prove new `temp/listening/...` keys and owner-scoped session records.
-8. Enable selected teachers.
-9. Keep `temp/listening-audio/{uid}/...` available only for non-bridge compatibility callers during rollout.
-10. Disable the old prefix for new Listening uploads only after all active Listening upload callers use the bridge.
-11. Existing old-prefix temp objects are not migrated; they expire through temp lifecycle cleanup.
+4. Deploy Worker create-session / issue-asset routes plus asset-grant verification with rollout disabled for normal clients.
+5. Enable internal teacher/browser fixtures.
+6. Prove new `temp/listening/...` keys and owner-scoped session records.
+7. Enable selected teachers.
+8. Keep `temp/listening-audio/{uid}/...` available only for non-bridge compatibility callers during rollout.
+9. Disable the old prefix for new Listening uploads only after all active Listening upload callers use the bridge.
+10. Existing old-prefix temp objects are not migrated; they expire through temp lifecycle cleanup.
 
 Rollback:
 
@@ -373,7 +367,7 @@ Rollback must:
 3. Preserve existing temp objects and session rows for expiry/reconciliation.
 4. Never delete, move, or rewrite R2 objects as part of Worker version rollback.
 5. Leave PRD-0058 durable registry/cleanup disabled.
-6. Function endpoints may remain deployed but cannot advance an upload because the rolled-back Worker rejects bridge asset grants; session bootstrap rows remain non-durable and expire.
+6. No separate Function bridge exists in this Spark-safe design; one Worker rollback restores S0-only behavior while leaving bootstrap rows non-durable so they can expire.
 
 ## 13. Acceptance And Stop Conditions
 
@@ -385,6 +379,31 @@ This planning bridge is complete when:
 4. No implementation, Worker, rules, source, config, deployment, or traceability work has started.
 
 Task 1 planning is complete. Implementation remains blocked until an approved implementation packet and fresh deployed/current S0 evidence exist.
+
+Current local packet status, 2026-06-26:
+
+1. A local-only implementation candidate exists for Worker-local session/asset authority, owner-scoped bootstrap, Worker-issued bridge grants, Worker bridge verification, facade seam, and `media_asset_upload_sessions/**` rules with the minimal root `.write` narrowing required to preserve subtree browser write denial.
+2. Executable RTDB emulator proof now runs locally with a temporary process-local JDK and passes for `media_asset_upload_sessions/**` owner/super-admin read plus browser write-denial coverage. The emulator RED cycle found and fixed an ancestor-rule inheritance gap where root super-admin browser writes could mutate the bridge subtree despite child `.write: false`.
+3. Follow-up local hardening rejects browser-supplied lifecycle/session-record fields and zero-byte media contracts, preserves the Worker bridge `missing_size` 411 path when `Content-Length` is absent, preserves the existing owner/idempotency-HMAC session if a concurrent create wins between query and write, and keeps exact approved Worker bridge origins at `https://kahut1.web.app`, `http://localhost:5173`, and `http://localhost:5174`.
+4. A compliant independent review on 2026-06-27 found three real blockers in the then-current candidate: dead `VITE_LISTENING_UPLOAD_SESSION_FUNCTIONS_URL` fallback in `src/services/r2Storage.ts`, dead focused Worker bridge coverage because `cloudflare/vitest.config.mjs` excluded `cloudflare/test/**/*.test.ts`, and PRD/doc authority drift around the root `.write` narrowing required for subtree browser write denial.
+5. The main thread corrected those blockers and reran focused proof: `src/services/r2Storage.test.ts` now passes 15/15 with explicit Worker-only endpoint resolution coverage, and `cloudflare/test/listening-upload-session-bridge.test.ts` now runs through the active Cloudflare Vitest config and passes 9/9 under bundled Windows x64 Node.
+6. Broader local rerun after the correction passed: `src/services/r2Storage.test.ts` plus `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts` -> 16 passed / 1 skipped, executable RTDB emulator -> 2/2, Cloudflare Worker suite -> 8 files / 138 tests, hardened negatives -> 22/22, insecure baseline -> 18 expected RED plus four already-safe passes, Wrangler dry-run -> pass, and `npm run build` -> pass.
+7. Local prerequisite closure is accepted for local-only readiness. Two compliant independent re-reviews on 2026-06-27 passed after the correction: spec/doc/rules boundary PASS and runtime/test-discovery PASS.
+8. The earlier Function-oriented deployed/current preflight is historical only and is superseded by this Spark-safe Worker-only bridge design.
+9. Read-only Cloudflare pre-version capture still confirms deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9`, active version `11af545a-479b-4063-a899-d475dd57d2b5`, and rollback-compatible recovery version `959065cd-8399-4000-b479-d8303a2f18ad`; no Worker deployment, secret provisioning, R2 mutation, traffic change, or recovery rehearsal occurred.
+10. No deployed/current PRD-0056A proof, remote browser proof, secret provisioning, Worker deployment, rollback execution, remote write, cleanup, or Task 4.2 readiness is claimed.
+11. Historical planning text above remains historical; this status note is the current source-truth addendum.
+
+Current deployed/current proof status, 2026-06-27:
+
+1. `r2-upload-signer` is deployed at 100% to Worker version `3687d2e0-4718-4c0b-9c84-7f81749c31fb`, deployment `b0bb984c-e666-4535-9af0-85c354d75993`, message `PRD-0056A recovery rehearsal: restore split bridge`.
+2. Version detail confirms `FIREBASE_DB_URL=https://temp-a1437-default-rtdb.firebaseio.com`, `FIREBASE_PROJECT_ID=temp-a1437`, `R2_BUCKET=kahoot-media`, Durable Object migration `v1-upload-grant-replay-ledger`, rate-limit namespace `205512`, and secret bindings by name for `GOOGLE_SA_KEY`, `LISTENING_UPLOAD_SESSION_GRANT_SECRET`, and `UPLOAD_GRANT_SECRET`.
+3. Firebase RTDB rules for `temp-a1437-default-rtdb` are deployed with `media_asset_upload_sessions/**` owner-read/browser-write-denial rules plus the minimal root `.write` narrowing required to prevent ancestor-rule bypass.
+4. Full deployed/current bridge proof passed against `https://r2-upload-signer.iamhuwng.workers.dev`: no-auth create returned 401; evil-origin preflight exposed no allowed origin; authenticated teacher create returned backend-issued `uploadSessionId`; issue-asset returned backend-issued `assetId`, canonical `temp/listening/{ownerId}/{uploadSessionId}/{assetId}-proof-audio.mp3`, and signed `assetGrant`; cross-owner issue returned 404; cross-owner upload returned 403; owner upload returned 200; owner RTDB session read returned 200; browser RTDB mutation returned permission denied; public R2 read matched SHA-256 `8cb78897dbf5328c6a78c31684ac7c097aa4f7afd6707be70d659fce7cb29015`; proof object cleanup returned 404.
+5. Non-destructive recovery rehearsal passed after the final split deploy: activated S0 recovery version `959065cd-8399-4000-b479-d8303a2f18ad` at 100%, then restored PRD-0056A split bridge version `3687d2e0-4718-4c0b-9c84-7f81749c31fb` at 100%; post-restore create-session smoke returned 200.
+6. Runtime corrections made during deployed proof: the Worker REST repository now wraps default `globalThis.fetch` so Cloudflare does not call unbound fetch as a repository method; issue-asset treats missing RTDB empty maps as empty because Firebase RTDB does not persist `{}`; the bridge contract helpers are split into `listening-upload-session-contract.ts` so all PRD-0056A production modules remain under the file-size ceiling.
+7. Verification after final split deploy passed: Cloudflare Vitest 8 files / 141 tests; focused root proof 16 passed / 1 skipped; executable RTDB emulator 2/2; hardened negatives 22/22; insecure baseline fixture `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c` with 18 expected RED and four already-safe passes; Wrangler dry-run PASS; `npm run build` PASS; functions TypeScript no-emit PASS; UTF-8 check PASS; `git diff --check`, `git diff --cached --check`, and `rtk git diff --check` PASS with only the known `cloudflare/wrangler.jsonc` line-ending warning and RTK no-hook notice.
+8. Task 4.2 foundation is unblocked by deployed/current PRD-0056A proof. Task 4.2 implementation remains unstarted in this packet; PRD-0058 lifecycle, registry, commit, cleanup, reconciliation, backup/restore, metrics, and delivery work are still out of scope until the Task 4.2 packet begins.
 
 ## 14. Source References
 

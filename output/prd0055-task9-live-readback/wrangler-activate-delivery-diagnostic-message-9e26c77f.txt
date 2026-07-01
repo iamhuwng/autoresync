@@ -1,0 +1,35 @@
+
+ ⛅️ wrangler 4.103.0 (update available 4.105.0)
+───────────────────────────────────────────────
+╭ Deploy Worker Versions by splitting traffic between multiple versions
+│
+├ Fetching latest deployment
+│
+├ Your current deployment has 1 version(s):
+│
+│ (100%) 165c307b-16f8-46c0-90a9-79910bbebf5a
+│       Created:  2026-06-30T15:48:52.642548Z
+│           Tag:  prd0055-delivery-diagnostics-20260630
+│       Message:  PRD-0055 delivery diagnostic logging
+│
+├ Fetching versions
+│
+├ Which version(s) do you want to deploy?
+├ 1 Worker Version(s) selected
+│
+├     Worker Version 1:  9e26c77f-d4c2-4eff-b340-d15bda96e73c
+│              Created:  2026-06-30T15:51:22.427202Z
+│                  Tag:  prd0055-delivery-diagnostic-message-20260630
+│              Message:  PRD-0055 delivery diagnostic message
+│
+├ What percentage of traffic should Worker Version 1 receive?
+├ 100% of traffic
+├
+├ Add a deployment message
+│ Deployment message PRD-0055 activate delivery diagnostic message
+│
+├ Deploying 1 version(s)
+│
+│ No non-versioned settings to sync. Skipping...
+│
+╰  SUCCESS  Deployed r2-upload-signer version 9e26c77f-d4c2-4eff-b340-d15bda96e73c at 100% (0.82 sec)

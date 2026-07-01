@@ -1,0 +1,147 @@
+{
+  "createdAt": "2026-06-30T17:49:29.678Z",
+  "message": "PRD-0055 active-equivalent percentage rollout candidate",
+  "tag": "prd0055-active-equivalent-1782841754348",
+  "activeVersionId": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+  "candidateVersionId": "f217034a-4a21-48be-85d1-5b629ebd70b8",
+  "dryRun": {
+    "ok": true,
+    "artifact": "output\\prd0055-task9-live-readback\\wrangler-equivalent-candidate-dry-run-upload.txt"
+  },
+  "upload": {
+    "ok": true,
+    "artifact": "output\\prd0055-task9-live-readback\\wrangler-equivalent-candidate-upload.txt"
+  },
+  "activeViewArtifact": "output\\prd0055-task9-live-readback\\wrangler-equivalent-candidate-active-view.json",
+  "candidateViewArtifact": "output\\prd0055-task9-live-readback\\wrangler-equivalent-candidate-candidate-view.json",
+  "activeComparable": {
+    "etag": "08f042d44f204b7403822031a893b886f7b750d8bff595e3420947777deb38f0",
+    "migration_tag": "v1-upload-grant-replay-ledger",
+    "compatibility_date": "2026-01-20",
+    "compatibility_flags": [
+      "nodejs_compat"
+    ],
+    "bindings": [
+      {
+        "name": "FIREBASE_DB_URL",
+        "type": "plain_text",
+        "text": "https://temp-a1437-default-rtdb.firebaseio.com"
+      },
+      {
+        "name": "FIREBASE_PROJECT_ID",
+        "type": "plain_text",
+        "text": "temp-a1437"
+      },
+      {
+        "name": "GOOGLE_SA_KEY",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_AUTHORING_IDEMPOTENCY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_DELIVERY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "PUBLIC_URL",
+        "type": "plain_text",
+        "text": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev"
+      },
+      {
+        "name": "R2_BUCKET",
+        "type": "r2_bucket",
+        "bucket_name": "kahoot-media"
+      },
+      {
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "type": "durable_object_namespace",
+        "class_name": "UploadGrantReplayLedger",
+        "namespace_id": "6653df5f663d4648992dc26bd099b489"
+      },
+      {
+        "name": "UPLOAD_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "UPLOAD_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "205512"
+      }
+    ]
+  },
+  "candidateComparable": {
+    "etag": "08f042d44f204b7403822031a893b886f7b750d8bff595e3420947777deb38f0",
+    "migration_tag": "v1-upload-grant-replay-ledger",
+    "compatibility_date": "2026-01-20",
+    "compatibility_flags": [
+      "nodejs_compat"
+    ],
+    "bindings": [
+      {
+        "name": "FIREBASE_DB_URL",
+        "type": "plain_text",
+        "text": "https://temp-a1437-default-rtdb.firebaseio.com"
+      },
+      {
+        "name": "FIREBASE_PROJECT_ID",
+        "type": "plain_text",
+        "text": "temp-a1437"
+      },
+      {
+        "name": "GOOGLE_SA_KEY",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_AUTHORING_IDEMPOTENCY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_DELIVERY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "PUBLIC_URL",
+        "type": "plain_text",
+        "text": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev"
+      },
+      {
+        "name": "R2_BUCKET",
+        "type": "r2_bucket",
+        "bucket_name": "kahoot-media"
+      },
+      {
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "type": "durable_object_namespace",
+        "class_name": "UploadGrantReplayLedger",
+        "namespace_id": "6653df5f663d4648992dc26bd099b489"
+      },
+      {
+        "name": "UPLOAD_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "UPLOAD_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "205512"
+      }
+    ]
+  },
+  "equivalent": true,
+  "safeForTrafficSplit": true,
+  "explicitNonActions": [
+    "No traffic split was performed by this script.",
+    "No rollback was performed by this script.",
+    "No cleanup/delete was performed by this script.",
+    "No commit/push/merge was performed by this script."
+  ]
+}

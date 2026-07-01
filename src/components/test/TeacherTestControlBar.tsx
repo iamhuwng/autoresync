@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../modern';
 import { SessionStartConfigModal } from './SessionStartConfigModal';
+import { dispatchTeacherMonitorAudioResumeRequest } from './teacherMonitorAudioEvents';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 
 interface TestSession {
@@ -47,6 +48,7 @@ interface TeacherTestControlBarProps {
   onSkipToSection?: (sectionNumber: number) => Promise<void>;
   onSetPlaybackSpeed?: (speed: number) => Promise<void>;
   currentAudioSection?: number;
+  currentPlaybackSpeed?: number;
   accommodatedCount?: number; // PRD-0019
 }
 
@@ -63,6 +65,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
   onSkipToSection,
   onSetPlaybackSpeed,
   currentAudioSection = 1,
+  currentPlaybackSpeed = 1.0,
   accommodatedCount = 0, // PRD-0019
 }) => {
   const navigate = useNavigate();
@@ -70,8 +73,12 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showTimeMenu, setShowTimeMenu] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [currentSpeed, setCurrentSpeed] = useState(1.0);
+  const [currentSpeed, setCurrentSpeed] = useState(currentPlaybackSpeed);
   const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
+
+  useEffect(() => {
+    setCurrentSpeed(currentPlaybackSpeed);
+  }, [currentPlaybackSpeed]);
 
   // Timer Logic
   useEffect(() => {
@@ -112,6 +119,17 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
   const statusColor = session?.status === 'in-progress'
     ? (session.isPaused ? '#ef4444' : (session.baseTimeExpired ? '#f59e0b' : '#10b981')) // PRD-0019: Amber for extra time
     : '#f59e0b';
+  const compactIconButtonStyle: React.CSSProperties = {
+    minWidth: '44px',
+    minHeight: '44px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    borderRadius: '4px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
 
   return (
     <div style={{
@@ -203,18 +221,25 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
             }}>
               {onPauseAllAudio && (
                 <button
+                  type="button"
                   onClick={() => handleAction(onPauseAllAudio)}
                   title="Pause All Audio"
-                  style={{ padding: '0.4rem', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: '4px', color: '#ef4444' }}
+                  aria-label="Pause All Audio"
+                  style={{ ...compactIconButtonStyle, color: '#ef4444' }}
                 >
                   ⏸️
                 </button>
               )}
               {onResumeAllAudio && (
                 <button
-                  onClick={() => handleAction(onResumeAllAudio)}
+                  type="button"
+                  onClick={() => {
+                    dispatchTeacherMonitorAudioResumeRequest();
+                    handleAction(onResumeAllAudio);
+                  }}
                   title="Resume All Audio"
-                  style={{ padding: '0.4rem', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: '4px', color: '#10b981' }}
+                  aria-label="Resume All Audio"
+                  style={{ ...compactIconButtonStyle, color: '#10b981' }}
                 >
                   ▶️
                 </button>
@@ -223,6 +248,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                 <>
                   {/* Previous Section */}
                   <button
+                    type="button"
                     onClick={() => {
                       const sections = testData.audioSections;
                       if (!sections) return;
@@ -233,12 +259,10 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                     }}
                     disabled={currentAudioSection === testData?.audioSections?.[0]?.number}
                     title="Previous Section"
+                    aria-label="Previous Section"
                     style={{
-                      padding: '0.4rem',
-                      border: 'none',
-                      background: 'transparent',
+                      ...compactIconButtonStyle,
                       cursor: (currentAudioSection === testData?.audioSections?.[0]?.number) ? 'not-allowed' : 'pointer',
-                      borderRadius: '4px',
                       color: (currentAudioSection === testData?.audioSections?.[0]?.number) ? '#cbd5e1' : '#64748b',
                       fontSize: '0.75rem'
                     }}
@@ -250,6 +274,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                   <select
                     value={currentAudioSection}
                     onChange={(e) => handleAction(() => onSkipToSection(parseInt(e.target.value)))}
+                    aria-label="Current audio section"
                     style={{
                       border: 'none',
                       background: 'transparent',
@@ -258,6 +283,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                       color: '#64748b',
                       outline: 'none',
                       cursor: 'pointer',
+                      minHeight: '44px',
                       maxWidth: '70px'
                     }}
                   >
@@ -266,6 +292,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
 
                   {/* Next Section */}
                   <button
+                    type="button"
                     onClick={() => {
                       const sections = testData.audioSections;
                       if (!sections) return;
@@ -276,12 +303,10 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                     }}
                     disabled={currentAudioSection === testData?.audioSections?.[(testData.audioSections?.length || 0) - 1]?.number}
                     title="Next Section"
+                    aria-label="Next Section"
                     style={{
-                      padding: '0.4rem',
-                      border: 'none',
-                      background: 'transparent',
+                      ...compactIconButtonStyle,
                       cursor: (currentAudioSection === testData?.audioSections?.[(testData.audioSections?.length || 0) - 1]?.number) ? 'not-allowed' : 'pointer',
-                      borderRadius: '4px',
                       color: (currentAudioSection === testData?.audioSections?.[(testData.audioSections?.length || 0) - 1]?.number) ? '#cbd5e1' : '#64748b',
                       fontSize: '0.75rem'
                     }}
@@ -300,6 +325,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                     handleAction(() => onSetPlaybackSpeed(speed));
                   }}
                   title="Playback Speed (All Students)"
+                  aria-label="Playback speed for all students"
                   style={{
                     border: 'none',
                     background: 'transparent',
@@ -308,6 +334,7 @@ export const TeacherTestControlBar: React.FC<TeacherTestControlBarProps> = ({
                     color: '#64748b',
                     outline: 'none',
                     cursor: 'pointer',
+                    minHeight: '44px',
                     minWidth: '50px'
                   }}
                 >

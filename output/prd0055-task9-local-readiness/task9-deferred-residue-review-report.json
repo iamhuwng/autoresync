@@ -1,0 +1,312 @@
+{
+  "generatedAt": "2026-07-01T13:03:15.237Z",
+  "verdict": "LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE",
+  "scope": "PRD-0055 Task 9.14 local deferred-residue classification only",
+  "closureBoundary": [
+    "Task 9.14 remains unchecked until final dirty-tree, deployed/live/private proof, rollout, and parent acceptance gates are complete.",
+    "No cleanup/delete, deploy, selected-user rollout, percentage rollout, commit, push, or production mutation is claimed."
+  ],
+  "counts": {
+    "deferralsReviewed": 9,
+    "task914EvidenceItems": 8,
+    "largeFileMaps": 4,
+    "largeFileMapsWithLineCounts": 4,
+    "largeFileMapsWithResponsibilityBoundaries": 4,
+    "largeFileMapsWithFutureSeams": 4,
+    "missingEvidence": 0
+  },
+  "task914Evidence": [
+    {
+      "label": "Task 9.14 Google Drive bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 836,
+      "excerpt": "- Google Drive cleanup/deletion remains a separate named task;",
+      "found": true
+    },
+    {
+      "label": "Task 9.14 runtime abstraction bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 837,
+      "excerpt": "- deep runtime abstraction remains a separate named PRD;",
+      "found": true
+    },
+    {
+      "label": "Task 9.14 Reading V2 runtime bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 838,
+      "excerpt": "- Reading V2 runtime visual alignment remains explicitly deferred to its dedicated child PRD until authoring stability and Reading V2 runtime tests satisfy FR-027;",
+      "found": true
+    },
+    {
+      "label": "Task 9.14 primitive bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 839,
+      "excerpt": "- deferred question-card/mobile shared primitives remain mapped to named child PRDs if Task 3 could not prove two neutral consumers;",
+      "found": true
+    },
+    {
+      "label": "Task 9.14 large-file map bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 840,
+      "excerpt": "- large-file comprehension maps list future decomposition seams and responsibility boundaries for every touched monolith so later refactor PRDs start from verified maps;",
+      "found": true
+    },
+    {
+      "label": "Task 9.14 traceability bullet",
+      "file": "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+      "line": 841,
+      "excerpt": "- no deferred requirement may be omitted from the traceability matrix or hidden as completion.",
+      "found": true
+    },
+    {
+      "label": "architecture primitive deferral",
+      "file": "documentation/architecture/ielts-reading-v2-listening-unification.md",
+      "line": 256,
+      "excerpt": "- `authoring card`, action-row, metadata-display, review/publish wrapper, question-card, and mobile-layout primitives remain deferred until two modules prove an identical neutral display contract; question-card and mobile-layout deferrals stay tied to their named runtime child PRD gates when they touch runtime behavior.",
+      "found": true
+    },
+    {
+      "label": "architecture Google Drive residue",
+      "file": "documentation/architecture/ielts-reading-v2-listening-unification.md",
+      "line": 259,
+      "excerpt": "- Google Drive upload/playback/validation references remain in source and historical docs as obsolete residue. Current product upload authority is R2-only.",
+      "found": true
+    }
+  ],
+  "deferrals": [
+    {
+      "id": "DEF-GDRIVE",
+      "classification": "approved_deferral",
+      "closureImpact": "separate cleanup/deletion task required; no PRD-0055 cleanup/delete claimed",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "traceability row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 231,
+          "excerpt": "| FR-020A | Approved binding decision OQ-1: no new feature may add or extend Google Drive upload, import, streaming, playback, or validation. Existing Google Drive code and Google Drive-backed tests remain unchanged by this PRD. There is no Google Drive migration, current playback removal, or new Google Drive-specific error state. Removal of Google Drive upload code and deletion/disposition of Google Drive-backed tests belong to a separate cleanup/deletion task. | §4, line 157 | Task 9.4 / Task 9.14 | Approved future task: Google Drive upload-code cleanup and Google Drive-backed-test disposition (entry gate: separate product-owner-approved packet; approval: PRD-0055-PACKET-1B-OQ-APPROVAL-2026-06-19) | PRD-0055 §29 DECISION-OQ-1 and DECISION-093; Task 9.14 | approved deferral | approved combination (test + browser + diff audit) | Planned after approved gate: EV-GDRIVE | DEF-GDRIVE | DEP-GDRIVE |",
+          "found": true
+        },
+        {
+          "label": "upload authority",
+          "file": "documentation/architecture/upload-storage-authority.md",
+          "line": 11,
+          "excerpt": "Google Drive is obsolete across all product features. It is not an approved upload, import, streaming, playback, validation, or compatibility path.",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-READ-RUNTIME",
+      "classification": "approved_deferral",
+      "closureImpact": "PRD-0061 remains required before Reading V2 runtime visual alignment can close",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "traceability row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 278,
+          "excerpt": "| FR-027 | Runtime visual alignment is not part of early authoring unification. It must wait until shared authoring primitives are stable and dedicated runtime tests exist. | §4, line 253 | Task 3.6 deferral / Task 9.14 | tasks/0061-prd-reading-v2-runtime-visual-alignment.md | PRD-0061 §4 FR-001-FR-076; §§7-22; §§25-26 | approved deferral | approved combination (RED/GREEN + mutation + browser + parity) | Planned after approved gate: EV-0061 | DEF-READ-RUNTIME | DEP-0061 |",
+          "found": true
+        },
+        {
+          "label": "dependency DAG",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 193,
+          "excerpt": "| `DAG-90` | PRD-0061 Reading V2 runtime | `DAG-03` | Projection-bound Reading V2 runtime visual alignment and phase-local cohort acceptance | `DAG-99` | Independent from Listening storage/solo/live after shared-authoring stability | Task 3 shared-authoring stability and dedicated Reading V2 runtime characterization/tests | Product-owner plus architecture approval | Code-only presentation rollback; no projection/result/data migration | `DAG-99` |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-R2-MIGRATION",
+      "classification": "approved_deferral",
+      "closureImpact": "future migration PRD required; on-read migration remains prohibited",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "legacy R2 row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 265,
+          "excerpt": "| FR-023K | Legacy R2 Listening records must be supported by a read adapter. Migration here refers only to legacy R2 Listening records moving to the registry-backed model. It requires inventory, backup, dry run, an explicit migration PRD, and post-migration proof. On-read migration is prohibited. There is no Google Drive migration under this PRD. | section 4, line 227 | Task 5.9 | src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts; src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts | PRD-0057 sections 11, 12, 21, 25, 27, 33 | implemented locally for compatibility reads and first-edit freeze; migration remains deferred | RED/GREEN + producer-consumer grep | Current evidence: EV-0057-B; resolver returns read-only normalized legacy raw-R2 output without registry side effects; first-edit transition snapshots the unchanged legacy document as immutable version 1 and creates revision draft. On-read migration and broad R2 migration remain prohibited/deferred. | DEF-R2-MIGRATION-PARTIAL | DEP-B2; DEP-R2MIG |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-R2-MIGRATION-PARTIAL",
+      "classification": "approved_partial_deferral",
+      "closureImpact": "legacy read adapter is local compatibility only; broad migration remains future",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "legacy R2 row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 265,
+          "excerpt": "| FR-023K | Legacy R2 Listening records must be supported by a read adapter. Migration here refers only to legacy R2 Listening records moving to the registry-backed model. It requires inventory, backup, dry run, an explicit migration PRD, and post-migration proof. On-read migration is prohibited. There is no Google Drive migration under this PRD. | section 4, line 227 | Task 5.9 | src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts; src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts | PRD-0057 sections 11, 12, 21, 25, 27, 33 | implemented locally for compatibility reads and first-edit freeze; migration remains deferred | RED/GREEN + producer-consumer grep | Current evidence: EV-0057-B; resolver returns read-only normalized legacy raw-R2 output without registry side effects; first-edit transition snapshots the unchanged legacy document as immutable version 1 and creates revision draft. On-read migration and broad R2 migration remain prohibited/deferred. | DEF-R2-MIGRATION-PARTIAL | DEP-B2; DEP-R2MIG |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-DEDUP",
+      "classification": "approved_conditional_deferral",
+      "closureImpact": "checksum metadata exists; content dedup waits for future product/privacy review",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "traceability row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 397,
+          "excerpt": "| DATA-31 | Record checksum metadata for integrity and future analysis, but do not merge or deduplicate assets in the first lifecycle implementation. | §19, line 1116 | Task 4.2-4.19 / Task 6.1-6.13 | tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md | PRD-0058 §4 FR-001-FR-072; §§8-33; §§37-38 | planning contract complete; implementation not started | approved combination (RED/GREEN + mutation + emulator + restore drill + deploy + browser) | Planned evidence only: EV-0058 | DEF-DEDUP | DEP-0058 |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-CROSS-TEST-REUSE",
+      "classification": "approved_deferral",
+      "closureImpact": "implicit reuse remains forbidden; future trusted registry-reference operation required",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "traceability row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 400,
+          "excerpt": "| DATA-34 | Cross-test reuse is allowed only through an explicit trusted registry-reference operation. Matching URL or filename must never imply shared ownership. | §19, line 1119 | Task 4.14 | src/features/assessment/listening/storage/listeningAssetLifecycle.ts | PRD-0058 §4 FR-026-FR-027 | approved deferral for implementing reuse now; implicit reuse prohibition implemented locally | approved combination (RED/GREEN + mutation + emulator + restore drill + deploy + browser) | Accepted local Task 4.14 evidence: EV-0058 `LISTENING_CROSS_TEST_REUSE_POLICY` records product-owner-approved deferral and tests deny filename, URL, key, checksum, and byte-content implicit reuse while allowing only future trusted registry-reference operation token | DEF-CROSS-TEST-REUSE | DEP-0058 |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-MALWARE",
+      "classification": "approved_conditional_deferral",
+      "closureImpact": "strict audio validation remains in scope; general malware scanning waits for risk review",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "traceability row",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 458,
+          "excerpt": "| DATA-92 | Strict audio validation is required. General malware scanning is deferred unless a separate risk review requires it. | §19, line 1210 | Task 4.2-4.19 / Task 6.1-6.13 | tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md | PRD-0058 §4 FR-001-FR-072; §§8-33; §§37-38 | planning contract complete; implementation not started | approved combination (RED/GREEN + mutation + emulator + restore drill + deploy + browser) | Planned evidence only: EV-0058 | DEF-MALWARE | DEP-0058 |",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEF-SHARED-ANSWER",
+      "classification": "approved_conditional_deferral",
+      "closureImpact": "shared answer-input extraction waits for two identical neutral consumers",
+      "evidence": [
+        {
+          "label": "deferral registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        },
+        {
+          "label": "current evidence registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 54,
+          "excerpt": "- Task 3.13 confirms shared answer inputs remain deferred. Current shared primitives are `AssessmentAuthoringHeader`, `AssessmentAuthoringSection`, `AssessmentStatusState`, and `AssessmentValidationSummary`; none is an answer text, choice, selection, edit, parser, validation-owner, or persistence-owner primitive. `AssessmentStatusState` contains only generic action buttons, not answer controls. Reading V2 answer-rule/edit controls remain in Reading V2 Studio components such as `ReadingV2AnswerRuleEditor` and `ReadingV2TableCompletionBuilder`, with draft save/autosave/publish ownership in `ReadingV2StudioPage` and runtime answer persistence in `ReadingV2RuntimeShell`. At Task 3.13 time, Listening answer-key and runtime controls remained in Listening-owned paths such as `ListeningTestBuilder`, `ListeningTestPage`, and `MobileListeningAnswerSheet`, and builder save ownership still used `saveListeningTestToFirebase`; current Batch C authority supersedes only that save statement because builder Save draft / Publish now use `createListeningAuthoringWorkflow()` while the legacy service remains a compatibility facade. Static shared scans found no `input`, `textarea`, `select`, `radio`, `checkbox`, answer parser, answer persistence, or answer validation ownership under `src/features/assessment/shared/` production source except neutral validation-summary naming. Existing Mantine `AppShell` residue in `ListeningTestBuilder` remains untouched and deferred to Task 3.14. No source, shared component contract, adopter, runtime, live, storage, parser, audio, persistence, projection, publish workflow, trusted submit, teacher monitor, Firebase, R2, Cloudflare, deploy, push, or remote-state mutation changed. Task 3.13 is checked as docs-only deferral confirmation; parent Task 3.0 remains unchecked; Tasks 3.14 through 3.17 remain unchecked.",
+          "found": true
+        }
+      ]
+    },
+    {
+      "id": "DEP-BUCKET-C",
+      "classification": "unimplemented_bucket_residue",
+      "closureImpact": "Bucket C N1/N2/N3/N4 remain unimplemented and cannot be counted as parent completion",
+      "evidence": [
+        {
+          "label": "coverage contract",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 43,
+          "excerpt": "6. Bucket C N1-N4 remain unimplemented. N3 non-audio residue is not a parent requirement row and receives no completion claim.",
+          "found": true
+        },
+        {
+          "label": "dependency registry",
+          "file": "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+          "line": 91,
+          "excerpt": "- `EV-FINAL-C`: Partial local Task 9.14 deferred-residue readiness evidence only. `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence. Reviewed entries are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`. This does not close Task 9.14, final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent Task 9, PRD acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.",
+          "found": true
+        }
+      ]
+    }
+  ],
+  "largeMaps": [
+    {
+      "file": "tasks/large-file-maps-0055/src-components-practice-listening-practice-view-tsx.md",
+      "lines": 59,
+      "hasLineCount": true,
+      "hasResponsibilityBoundary": true,
+      "hasFutureSeam": true
+    },
+    {
+      "file": "tasks/large-file-maps-0055/src-components-test-audioprogresspanel-tsx.md",
+      "lines": 161,
+      "hasLineCount": true,
+      "hasResponsibilityBoundary": true,
+      "hasFutureSeam": true
+    },
+    {
+      "file": "tasks/large-file-maps-0055/src-services-listening-test-storage-ts.md",
+      "lines": 66,
+      "hasLineCount": true,
+      "hasResponsibilityBoundary": true,
+      "hasFutureSeam": true
+    },
+    {
+      "file": "tasks/large-file-maps-0055/src-skills-listening-builders-listening-test-builder-tsx.md",
+      "lines": 85,
+      "hasLineCount": true,
+      "hasResponsibilityBoundary": true,
+      "hasFutureSeam": true
+    }
+  ],
+  "missingEvidence": []
+}

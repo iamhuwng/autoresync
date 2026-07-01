@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MantineProvider } from '@mantine/core';
 import { BrowserRouter } from 'react-router-dom';
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockGenerateReadingV2AutoImportCandidate = vi.hoisted(() => vi.fn());
@@ -61,6 +60,27 @@ vi.mock('../../config/readingV2FeatureFlags', async () => {
 vi.mock('../../services/reading-v2/readingV2AutoImport.service', () => ({
     generateReadingV2AutoImportCandidate: mockGenerateReadingV2AutoImportCandidate,
 }));
+vi.mock('../../skills/listening/builders/ListeningTestBuilder', () => ({
+    default: (props: {
+        presentation?: string;
+        initialDisplayMode?: string;
+        initialStep?: string;
+        onExit?: () => void;
+        onPublished?: () => void;
+        onDirtyChange?: (dirty: boolean) => void;
+    }) => (
+        <div
+            data-testid="listening-builder"
+            data-presentation={props.presentation}
+            data-mode={props.initialDisplayMode}
+            data-step={props.initialStep}
+        >
+            <button type="button" onClick={() => props.onDirtyChange?.(true)}>Mark Listening Dirty</button>
+            <button type="button" onClick={props.onExit}>Back to Listening Mode</button>
+            <button type="button" onClick={props.onPublished}>Publish Listening</button>
+        </div>
+    ),
+}));
 import TestCreationModal from './TestCreationModal';
 import { testDraftService } from '../../services/draftCloudService';
 import testCreationService from '../../services/test-creation';
@@ -81,9 +101,7 @@ const renderModal = (props: Partial<Parameters<typeof TestCreationModal>[0]> = {
 
     return render(
         <BrowserRouter>
-            <MantineProvider>
-                <TestCreationModal {...defaultProps} {...props} />
-            </MantineProvider>
+            <TestCreationModal {...defaultProps} {...props} />
         </BrowserRouter>
     );
 };
@@ -322,6 +340,64 @@ describe('TestCreationModal', () => {
                 expect(mockNavigate).not.toHaveBeenCalled();
                 expect(screen.getByText('Advanced Settings')).toBeInTheDocument();
             });
+        });
+
+        it('collects Listening metadata and mode before opening the builder', async () => {
+            const onClose = vi.fn();
+            const onAction = vi.fn();
+            renderModal({ onClose, onAction });
+
+            fireEvent.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Listening')).toBeInTheDocument();
+            });
+
+            fireEvent.click(screen.getByText('Listening'));
+
+            const titleInput = await screen.findByDisplayValue(/IELTS Listening Test/i);
+            const durationSelect = screen.getAllByRole('combobox')[0];
+            expect(durationSelect).toHaveValue('30');
+            fireEvent.change(titleInput, { target: { value: 'Listening Modal Test' } });
+
+            expect(onClose).not.toHaveBeenCalled();
+            expect(mockNavigate).not.toHaveBeenCalled();
+            expect(onAction).toHaveBeenCalledWith('selectListeningSkill', { testType: 'IELTS' });
+
+            fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+
+            await waitFor(() => {
+                expect(screen.getByText('Listening setup ready')).toBeInTheDocument();
+                expect(screen.getByRole('button', { name: /Use Text/i })).toBeInTheDocument();
+                expect(screen.getByRole('button', { name: /Use Image/i })).toBeInTheDocument();
+            });
+
+            fireEvent.click(screen.getByRole('button', { name: /Use Image/i }));
+
+            const builder = await screen.findByTestId('listening-builder');
+            expect(onClose).not.toHaveBeenCalled();
+            expect(builder).toHaveAttribute('data-presentation', 'embedded');
+            expect(builder).toHaveAttribute('data-mode', 'image');
+            expect(builder).toHaveAttribute('data-step', 'audio');
+            expect(onAction).toHaveBeenCalledWith('startListeningCreationMode', expect.objectContaining({
+                source: 'test_creation_modal',
+                testType: 'IELTS',
+                displayMode: 'image',
+                titleLength: 'Listening Modal Test'.length,
+            }));
+            expect(mockNavigate).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', { name: /Back to Listening Mode/i }));
+
+            expect(screen.getByText('Listening setup ready')).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', { name: /Use Text/i }));
+
+            expect(await screen.findByTestId('listening-builder')).toHaveAttribute('data-mode', 'text');
+
+            fireEvent.click(screen.getByRole('button', { name: /Publish Listening/i }));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
         });
 
         it('collects Reading V2 metadata before showing paste or blank choices', async () => {
@@ -819,6 +895,93 @@ describe('TestCreationModal', () => {
             expect(onClose).toHaveBeenCalled();
         });
 
+        it('calls onClose when Cancel is clicked on the skill step', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Skill')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+            expect(screen.queryByText(/Discard Changes\?/i)).not.toBeInTheDocument();
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        it('calls onClose when Cancel is clicked on the metadata step before edits', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Reading')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByText('Reading'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+            expect(screen.queryByText(/Discard Changes\?/i)).not.toBeInTheDocument();
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        it('calls onClose when Cancel is clicked on Listening metadata before edits', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Listening')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByText('Listening'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+            expect(screen.queryByText(/Discard Changes\?/i)).not.toBeInTheDocument();
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        it('does not warn when generated Listening metadata has only default values', async () => {
+            const onClose = vi.fn();
+            const user = userEvent.setup();
+            renderModal({ onClose });
+
+            await user.click(screen.getByText('IELTS'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Listening')).toBeInTheDocument();
+            });
+
+            await user.click(screen.getByText('Listening'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            });
+
+            fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: '30' } });
+            await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+            expect(screen.queryByText(/Discard Changes\?/i)).not.toBeInTheDocument();
+            expect(onClose).toHaveBeenCalled();
+        });
+
         it('calls onClose when X button is clicked', async () => {
             const onClose = vi.fn();
             const user = userEvent.setup();
@@ -834,12 +997,22 @@ describe('TestCreationModal', () => {
             const user = userEvent.setup();
             renderModal();
 
-            // Navigate to skill step to create "changes"
+            // Navigate to metadata, where user-entered draft details may exist.
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Skill')).toBeInTheDocument();
+                expect(screen.getByText('Reading')).toBeInTheDocument();
             });
+
+            await user.click(screen.getByText('Reading'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            });
+
+            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            await user.clear(titleInput);
+            await user.type(titleInput, 'Edited Reading Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });
@@ -856,12 +1029,22 @@ describe('TestCreationModal', () => {
             const user = userEvent.setup();
             renderModal({ onClose });
 
-            // Navigate to create changes
+            // Navigate to metadata, where user-entered draft details may exist.
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Skill')).toBeInTheDocument();
+                expect(screen.getByText('Reading')).toBeInTheDocument();
             }, { timeout: 3000 });
+
+            await user.click(screen.getByText('Reading'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            }, { timeout: 3000 });
+
+            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            await user.clear(titleInput);
+            await user.type(titleInput, 'Edited Reading Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });
@@ -886,12 +1069,22 @@ describe('TestCreationModal', () => {
             const user = userEvent.setup();
             renderModal({ onClose });
 
-            // Navigate to create changes
+            // Navigate to metadata, where user-entered draft details may exist.
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Skill')).toBeInTheDocument();
+                expect(screen.getByText('Reading')).toBeInTheDocument();
             }, { timeout: 3000 });
+
+            await user.click(screen.getByText('Reading'));
+
+            await waitFor(() => {
+                expect(screen.getByText('Details')).toBeInTheDocument();
+            }, { timeout: 3000 });
+
+            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            await user.clear(titleInput);
+            await user.type(titleInput, 'Edited Reading Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });

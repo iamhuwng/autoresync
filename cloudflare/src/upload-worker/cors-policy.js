@@ -5,7 +5,13 @@ const APPROVED_ORIGINS = new Set([
 ]);
 
 const ALLOWED_METHODS = new Set(['OPTIONS', 'POST', 'PUT']);
-const ALLOWED_HEADERS = ['Authorization', 'Content-Type', 'Content-Length'];
+const ALLOWED_HEADERS = [
+  'Authorization',
+  'Content-Type',
+  'Content-Length',
+  'Idempotency-Key',
+  'X-Upload-Size',
+];
 
 const headerList = (value) =>
   value

@@ -222,7 +222,10 @@ vi.mock('../../skills/listening/components/AudioPlayer', () => ({
       data-is-playing={String(Boolean(props.isPlaying))}
       data-volume={String(props.volume)}
       data-speed={String(props.playbackSpeed)}
+      data-seek-position={String(props.seekPosition)}
+      data-audio-url={props.audioUrl || ''}
       data-mobile-layout={String(Boolean(props.mobileLayout))}
+      data-authorized-delivery={String(Boolean(props.authorizedDelivery))}
     >
       <button type="button" onClick={props.onSectionComplete}>
         Complete Audio Section
@@ -236,12 +239,48 @@ vi.mock('../../skills/listening/components/ListeningQuestionDisplay', () => ({
     <div
       data-testid="mock-question-display"
       data-disabled={String(Boolean(props.disabled))}
-    />
+    >
+      <button type="button" onClick={() => props.onAnswerChange?.(1, 'student answer')}>
+        Answer Question 1
+      </button>
+    </div>
   ),
 }));
 
 vi.mock('../../skills/listening/components/SectionRubricBlock', () => ({
   SectionRubricBlock: () => <div data-testid="mock-rubric-block" />,
+}));
+
+vi.mock('../../skills/listening/components/ListeningHeader', () => ({
+  ListeningHeader: (props: any) => (
+    <div
+      data-testid="mock-listening-header"
+      data-section={String(props.sectionNumber)}
+      data-is-playing={String(Boolean(props.isPlaying))}
+      data-time-remaining={String(props.timeRemaining)}
+      data-audio-url={props.audioUrl || ''}
+      data-has-audio={String(Boolean(props.hasAudio))}
+      data-authorized-delivery={String(Boolean(props.authorizedDelivery))}
+    />
+  ),
+}));
+
+vi.mock('../../skills/listening/components/ListeningNavArrows', () => ({
+  ListeningNavArrows: () => <div data-testid="mock-listening-nav-arrows" />,
+}));
+
+vi.mock('../../skills/listening/components/ListeningQuestionNav', () => ({
+  ListeningQuestionNav: (props: any) => (
+    <div
+      data-testid="mock-listening-question-nav"
+      data-current-section={String(props.currentSection)}
+      data-current-question={String(props.currentQuestion)}
+    />
+  ),
+}));
+
+vi.mock('../../skills/listening/components/ListeningImageModeDisplay', () => ({
+  ListeningImageModeDisplay: () => <div data-testid="mock-listening-image-mode-display" />,
 }));
 
 vi.mock('../test/mobile/MobileListeningImageCanvas', () => ({
@@ -352,6 +391,8 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
       status: 'idle',
       lastSaved: null,
       error: null,
+      flushNow: vi.fn(async () => ({ outcome: 'saved', savedAt: Date.now(), error: null })),
+      waitForAcceptedSave: vi.fn(async () => undefined),
     } as any);
     vi.mocked(useAntiCopyPaste).mockReturnValue(undefined as never);
     vi.mocked(useFullscreenMode).mockReturnValue(undefined as never);
@@ -384,6 +425,124 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     expect(handleSubmitMock).not.toHaveBeenCalled();
   });
 
+  it('renders loading through the shared assessment status state', () => {
+    vi.mocked(useSoloTestData).mockReturnValue({
+      testData: null,
+      loading: true,
+      error: null,
+      questionsWithAnswersRef: { current: [] },
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    const status = screen.getByRole('status', { name: /loading listening test/i });
+    expect(status.className).toContain('assessment-status-state');
+    expect(status.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('renders load failures through the shared assessment status state', () => {
+    vi.mocked(useSoloTestData).mockReturnValue({
+      testData: null,
+      loading: false,
+      error: 'Network failed',
+      questionsWithAnswersRef: { current: [] },
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    const alert = screen.getByRole('alert', { name: /failed to load listening test/i });
+    expect(alert.className).toContain('assessment-status-state');
+    expect(screen.getByText('Network failed')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Go Back' })).toBeTruthy();
+  });
+
+  it('resolves asset-ID solo audio through authorized delivery before rendering AudioPlayer', async () => {
+    const deliveryNow = 1_700_000_000_000;
+    const issue = vi.fn(async () => ({
+      assetId: 'asset-1',
+      url: 'https://authorized.example/solo/asset-1.mp3',
+      tokenId: 'token-1',
+      issuedAt: deliveryNow,
+      expiresAt: deliveryNow + 60 * 60 * 1000,
+      refreshAfter: deliveryNow + 50 * 60 * 1000,
+      ttlMs: 60 * 60 * 1000,
+      deliveryReady: true,
+      range: {
+        requestRange: 'bytes=0-0',
+        status: 206,
+        acceptRanges: 'bytes',
+        contentLength: 1,
+        contentRange: 'bytes 0-0/4096',
+      },
+    }));
+    vi.mocked(useSoloTestData).mockReturnValue({
+      testData: {
+        ...mockTestData,
+        authoringVersioning: {
+          frozen: true,
+          versionId: 'version-1',
+        },
+        audioSections: [
+          {
+            ...mockTestData.audioSections[0],
+            audioUrl: 'https://public.example/legacy-asset-1.mp3',
+            assetId: 'asset-1',
+          },
+        ],
+      },
+      loading: false,
+      error: null,
+      questionsWithAnswersRef: { current: mockTestData.questions },
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+        soloDeliveryIssuer={{ issue }}
+        getDeliveryNow={() => deliveryNow}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(issue).toHaveBeenCalledWith({
+        assetId: 'asset-1',
+        context: {
+          runtime: 'trusted-server',
+          callerUserId: 'student-1',
+        },
+        now: deliveryNow,
+        soloScope: {
+          testId: 'listening-material',
+          versionId: 'version-1',
+          studentId: 'student-1',
+          mode: 'self_study',
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-audio-url')).toBe('https://authorized.example/solo/asset-1.mp3');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-authorized-delivery')).toBe('true');
+    });
+
+    const latestAutoSave = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+    expect(JSON.stringify(latestAutoSave.mobileState)).not.toContain('authorized.example');
+  });
+
   // ── 5.10.2: Confirm submit triggers the actual submission ──
 
   it('confirm submit calls through submitTestRef', async () => {
@@ -414,6 +573,59 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
 
     // handleSubmit should have been called (through submitTestRef → handleSubmit)
     expect(handleSubmitMock).toHaveBeenCalled();
+  });
+
+  it('waits for accepted autosave and final flush before one time-up submit', async () => {
+    const events: string[] = [];
+    const waitForAcceptedSave = vi.fn(async () => {
+      events.push('wait-save');
+    });
+    const flushNow = vi.fn(async () => {
+      events.push('flush-save');
+      return { outcome: 'saved', savedAt: 123, error: null };
+    });
+    const submit = vi.fn(async () => {
+      events.push('submit');
+    });
+
+    vi.mocked(useSoloAutoSave).mockReturnValue({
+      status: 'saving',
+      lastSaved: null,
+      error: null,
+      flushNow,
+      waitForAcceptedSave,
+    } as any);
+    vi.mocked(useSoloSubmission).mockReturnValue({
+      isSubmitting: false,
+      testSubmitted: false,
+      testResults: null,
+      handleSubmit: submit,
+      isLocked: false,
+    } as any);
+
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('mock-listening-scaffold');
+
+    const timerOptions = vi.mocked(useSoloTimer).mock.calls.at(-1)?.[0] as any;
+    await act(async () => {
+      await timerOptions.onTimeUp();
+      await timerOptions.onTimeUp();
+    });
+
+    expect(events).toEqual(['wait-save', 'flush-save', 'submit']);
+    expect(waitForAcceptedSave).toHaveBeenCalledTimes(1);
+    expect(flushNow).toHaveBeenCalledTimes(1);
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit).toHaveBeenCalledWith(true, expect.objectContaining({
+      autosaveFlush: expect.objectContaining({ outcome: 'saved' }),
+    }));
   });
 
   // ── 5.10.3: Overlay precedence — pause closes transient surfaces ──
@@ -747,6 +959,135 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     expect(questionDisplay.getAttribute('data-disabled')).toBe('true');
   });
 
+  it('keeps answers and playback state owned by the host autosave payload', async () => {
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('mock-listening-scaffold');
+
+    await waitFor(() => {
+      const latestCall = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+      expect(latestCall.mobileState?.playback).toEqual({
+        currentAudioIndex: 0,
+        audioPositionSeconds: 0,
+        volume: 1,
+        playbackSpeed: 1,
+        audioIndicesCompleted: [],
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Answer Question 1' }));
+
+    await waitFor(() => {
+      const latestCall = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+      expect(latestCall.answers).toEqual({ 1: 'student answer' });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Audio Section' }));
+
+    await waitFor(() => {
+      const latestCall = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+      expect(latestCall.mobileState?.viewedPartNumber).toBe(2);
+      expect(latestCall.mobileState?.currentQuestionNumber).toBe(11);
+      expect(latestCall.mobileState?.playback?.currentAudioIndex).toBe(1);
+      expect(latestCall.mobileState?.playback?.audioIndicesCompleted).toEqual([0]);
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
+    });
+  });
+
+  it('keeps answers, timer, and playback owned by the same host across viewport switches', async () => {
+    let isMobileExamMode = true;
+    vi.mocked(useMobileExamMode).mockImplementation(() => ({ isMobileExamMode } as any));
+
+    vi.mocked(useSoloTimer).mockReturnValue({
+      timeRemaining: 1234,
+      formatTime: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`,
+      isPaused: false,
+      togglePause: vi.fn(),
+      showTimeUpOverlay: false,
+      gracePeriodRemaining: 0,
+      hasTimer: true,
+    } as any);
+
+    const view = render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('mock-listening-scaffold');
+    expect(screen.getByTestId('listening-practice-mobile-shell')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Answer Question 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Part 2' }));
+
+    await waitFor(() => {
+      const latestCall = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+      expect(latestCall.answers).toEqual({ 1: 'student answer' });
+      expect(latestCall.timeElapsed).toBe(566);
+      expect(latestCall.mobileState?.viewedPartNumber).toBe(2);
+      expect(latestCall.mobileState?.playback?.currentAudioIndex).toBe(1);
+    });
+
+    isMobileExamMode = false;
+    view.rerender(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('listening-practice-desktop-shell');
+    expect(screen.getByTestId('mock-listening-header').getAttribute('data-section')).toBe('2');
+    expect(screen.getByTestId('mock-listening-header').getAttribute('data-time-remaining')).toBe('1234');
+
+    isMobileExamMode = true;
+    view.rerender(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    await screen.findByTestId('listening-practice-mobile-shell');
+    expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('2');
+    expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('2');
+
+    await waitFor(() => {
+      const latestCall = vi.mocked(useSoloAutoSave).mock.calls.at(-1)?.[0] as any;
+      expect(latestCall.answers).toEqual({ 1: 'student answer' });
+      expect(latestCall.timeElapsed).toBe(566);
+      expect(latestCall.mobileState?.playback?.currentAudioIndex).toBe(1);
+    });
+  });
+
+  it('renders direct-question mobile content in a keyboard-safe question card', async () => {
+    render(
+      <ListeningPracticeView
+        materialId="listening-material"
+        resolvedSettings={{ timerMinutes: 30, allowPause: true } as any}
+        practiceContext={{ type: 'self_study' }}
+      />,
+    );
+
+    const questionCard = await screen.findByTestId('listening-practice-question-card');
+    const answerScroll = screen.getByTestId('mobile-listening-answer-scroll');
+
+    expect(questionCard.getAttribute('data-surface')).toBe('question-card');
+    expect(answerScroll.getAttribute('data-keyboard-safe-bottom')).toBe('calc(16rem + env(safe-area-inset-bottom, 0px))');
+    expect(answerScroll.getAttribute('data-scroll-safe-bottom')).toBe('calc(17rem + env(safe-area-inset-bottom, 0px))');
+    expect(answerScroll.getAttribute('style')).toContain('safe-area-inset-bottom');
+  });
+
   it('pushes updated mobile state to autosave when audio auto-advances', async () => {
     render(
       <ListeningPracticeView
@@ -765,6 +1106,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
       expect(latestCall.mobileState?.viewedPartNumber).toBe(2);
       expect(latestCall.mobileState?.currentQuestionNumber).toBe(11);
       expect(latestCall.mobileState?.playback?.currentAudioIndex).toBe(1);
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
     });
   });
 
@@ -800,6 +1142,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
       expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('2');
       expect(screen.getByTestId('mock-image-canvas').getAttribute('data-current-question')).toBe('11');
       expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('2');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
     });
   });
 
@@ -820,6 +1163,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
       />,
     );
 
+    expect(await screen.findByTestId('listening-practice-review-shell')).toBeTruthy();
     expect(await screen.findByTestId('mock-results-screen')).toBeTruthy();
     expect(screen.getByTestId('results-title').textContent).toContain('30/40');
   });
@@ -909,6 +1253,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('3');
     expect(screen.getByTestId('mock-audio-player').getAttribute('data-volume')).toBe('0.6');
     expect(screen.getByTestId('mock-audio-player').getAttribute('data-speed')).toBe('1.25');
+    expect(screen.getByTestId('mock-audio-player').getAttribute('data-seek-position')).toBe('45.5');
     expect(screen.getByTestId('mock-audio-player').getAttribute('data-mobile-layout')).toBe('true');
   });
 
@@ -1120,6 +1465,7 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('mock-audio-player').getAttribute('data-section')).toBe('3');
+      expect(screen.getByTestId('mock-audio-player').getAttribute('data-is-playing')).toBe('true');
     });
 
     expect(screen.getByTestId('mock-listening-state').getAttribute('data-active-part')).toBe('3');

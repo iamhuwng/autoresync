@@ -1,0 +1,157 @@
+[
+  {
+    "id": "9566b47e-5452-4540-ad11-e888612d8b95",
+    "number": 19,
+    "metadata": {
+      "created_on": "2026-06-29T09:51:45.575628Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/triggered_by": "secret"
+    }
+  },
+  {
+    "id": "5627523c-fa83-419c-8caf-eb65499f71b1",
+    "number": 20,
+    "metadata": {
+      "created_on": "2026-06-29T09:51:56.928592Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 Spark Worker authoring selected-teacher proof",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "f1ce51d5-cc72-498a-9ad7-0fd9fb35fd7b",
+    "number": 21,
+    "metadata": {
+      "created_on": "2026-06-29T10:02:17.41947Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 legacy authoring diagnostic",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+    "number": 22,
+    "metadata": {
+      "created_on": "2026-06-29T10:08:26.559222Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 scoped legacy authoring Worker fix",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "d219c36f-0e0f-489c-a10b-a843ed339bf2",
+    "number": 23,
+    "metadata": {
+      "created_on": "2026-06-30T12:32:42.131375Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 current-authoring rollback-compatible recovery candidate",
+      "workers/tag": "prd0055-current-authoring-recovery-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "3218a244-1bca-4e97-8bba-bdb95a84f419",
+    "number": 24,
+    "metadata": {
+      "created_on": "2026-06-30T15:09:55.99802Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 add listening delivery secret",
+      "workers/tag": "prd0055-listening-delivery-secret-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "571385f1-f6f2-4db9-bff8-38739d3e9f08",
+    "number": 25,
+    "metadata": {
+      "created_on": "2026-06-30T15:10:14.285129Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 live private delivery Worker",
+      "workers/tag": "prd0055-live-private-delivery-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "165c307b-16f8-46c0-90a9-79910bbebf5a",
+    "number": 26,
+    "metadata": {
+      "created_on": "2026-06-30T15:48:52.642548Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 delivery diagnostic logging",
+      "workers/tag": "prd0055-delivery-diagnostics-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "9e26c77f-d4c2-4eff-b340-d15bda96e73c",
+    "number": 27,
+    "metadata": {
+      "created_on": "2026-06-30T15:51:22.427202Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 delivery diagnostic message",
+      "workers/tag": "prd0055-delivery-diagnostic-message-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+    "number": 28,
+    "metadata": {
+      "created_on": "2026-06-30T15:54:26.232253Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 bind delivery RTDB fetch",
+      "workers/tag": "prd0055-bind-delivery-rtdb-fetch-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  }
+]

@@ -207,7 +207,8 @@ export const HeadphoneRequestPanel: React.FC<HeadphoneRequestPanelProps> = ({
     // Group requests by status
     const pendingRequests = requests.filter(r => r.status === 'pending');
     const approvedRequests = requests.filter(r => r.status === 'approved');
-    const allDisplayRequests = [...pendingRequests, ...approvedRequests];
+    const deniedRequests = requests.filter(r => r.status === 'denied');
+    const allDisplayRequests = [...pendingRequests, ...approvedRequests, ...deniedRequests];
 
     return (
         <div style={styles.container} className={className}>

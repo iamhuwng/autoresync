@@ -143,6 +143,10 @@ export interface SoloSessionProgress {
     materialId: string;
     studentId: string;
     scopeContext?: SoloProgressScopeContext;
+    attemptId?: string;
+    submissionOperationId?: string;
+    acceptedResultId?: string;
+    submitPhase?: 'active' | 'submitting' | 'submitted' | 'recoverable-error';
     answers: Record<number, any>;
     currentQuestion: number;
     timeElapsed: number;  // seconds already spent

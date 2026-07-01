@@ -99,6 +99,8 @@ const sheetBodyStyle: React.CSSProperties = {
   overflowY: 'auto',
   WebkitOverflowScrolling: 'touch',
   padding: '0.75rem',
+  paddingBottom: 'calc(16rem + env(safe-area-inset-bottom, 0px))',
+  scrollPaddingBottom: 'calc(17rem + env(safe-area-inset-bottom, 0px))',
 };
 
 const closeButtonStyle: React.CSSProperties = {
@@ -162,6 +164,7 @@ const inputStyle: React.CSSProperties = {
 
 const footerStyle: React.CSSProperties = {
   padding: '0.5rem 1rem',
+  paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
   background: '#f8fafc',
   borderTop: '1px solid #e2e8f0',
   fontSize: '0.75rem',
@@ -284,6 +287,8 @@ export const MobileListeningAnswerSheet: React.FC<MobileListeningAnswerSheetProp
           style={sheetBodyStyle}
           onScroll={handleScroll}
           data-testid="mobile-listening-answer-sheet-body"
+          data-keyboard-safe-bottom="calc(16rem + env(safe-area-inset-bottom, 0px))"
+          data-scroll-safe-bottom="calc(17rem + env(safe-area-inset-bottom, 0px))"
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {questions.map(question => {
@@ -334,7 +339,11 @@ export const MobileListeningAnswerSheet: React.FC<MobileListeningAnswerSheetProp
         </div>
 
         {/* Footer summary */}
-        <div style={footerStyle} data-testid="mobile-listening-answer-sheet-footer">
+        <div
+          style={footerStyle}
+          data-testid="mobile-listening-answer-sheet-footer"
+          data-keyboard-safe-bottom="calc(0.5rem + env(safe-area-inset-bottom, 0px))"
+        >
           {answeredInPart} of {questions.length} answered
         </div>
       </div>

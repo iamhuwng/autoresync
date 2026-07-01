@@ -1,0 +1,18 @@
+PRD-0055 Task 9.6 RTDB emulator proof attempt - 2026-06-30
+
+Command:
+rtk powershell -NoProfile -Command "& npx firebase emulators:exec --only database 'npx vitest run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts --reporter=json --outputFile output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json'; exit `$LASTEXITCODE"
+
+Result:
+BLOCKED before emulator startup.
+
+Error:
+Error: Could not spawn `java -version`. Please make sure Java is installed and on your system PATH.
+
+Follow-up checks:
+- `Get-Command java` returned no command on PATH.
+- `C:\Users\The Lord\AppData\Local\Temp\codex-temurin-jdk-21\jdk-21.0.11+10\bin\java.exe` was not present.
+- `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\tools\java\temurin-21-jre\jdk-21.0.11+10-jre\bin\java.exe` was not present.
+
+Boundary:
+Static RTDB rule contract tests passed in `task9-rtdb-rules-negative-report.json`, but emulator-backed negative behavior remains unproven in this local run.

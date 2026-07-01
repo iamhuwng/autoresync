@@ -219,6 +219,19 @@ describe('MobileListeningAnswerSheet', () => {
       fireEvent.scroll(body);
       expect(onScrollChange).toHaveBeenCalledWith(1, expect.any(Number));
     });
+
+    it('keeps answer controls above the mobile keyboard and safe area', () => {
+      render(<MobileListeningAnswerSheet {...defaultProps} />);
+
+      const body = screen.getByTestId('mobile-listening-answer-sheet-body');
+      const footer = screen.getByTestId('mobile-listening-answer-sheet-footer');
+
+      expect(body.getAttribute('data-keyboard-safe-bottom')).toBe('calc(16rem + env(safe-area-inset-bottom, 0px))');
+      expect(body.getAttribute('data-scroll-safe-bottom')).toBe('calc(17rem + env(safe-area-inset-bottom, 0px))');
+      expect(footer.getAttribute('data-keyboard-safe-bottom')).toBe('calc(0.5rem + env(safe-area-inset-bottom, 0px))');
+      expect(body.getAttribute('style')).toContain('safe-area-inset-bottom');
+      expect(footer.getAttribute('style')).toContain('safe-area-inset-bottom');
+    });
   });
 
   // ── Accessibility ─────────────────────────────────────────────────────

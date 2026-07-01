@@ -5,13 +5,13 @@
  * All 3 shells delegate their content rendering to this single component.
  *
  * CONTRACT:
- *   - Never loads data, never checks ownership, never decides access.
- *   - Receives a loaded TestResultRecord and rendering callbacks via props.
+ *   - Never loads result records, never checks ownership, never decides access.
+ *   - Receives a loaded TestResultRecord, rendering callbacks, and optional delivery boundaries via props.
  *   - Shells own chrome, data loading, ownership, open/close.
  *   - See documentation/architecture/prd0040-preflight-ledger.md §SharedSavedResultCore Contract
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { TestResultRecord } from '../../services/testResults.service';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { OverviewTab } from './OverviewTab';
@@ -22,6 +22,14 @@ import {
   type ReadingV2ReviewContentVariant,
 } from './ReadingV2ReviewContentAdapter';
 import { isReadingV2SavedResult } from '../../services/reading-v2/readingV2ResultAdapter.service';
+import {
+  resolveListeningResultReviewAudio,
+  type ListeningResultReviewAudioDeliveryIssuer,
+  type ListeningResultReviewAudioResolution,
+} from '../../features/assessment/listening/adapters/listeningResultReviewAudioResolver';
+import {
+  createListeningResultReviewDeliveryIssuer,
+} from '../../features/assessment/listening/adapters/listeningResultReviewDeliveryClient';
 import { WritingSpeakingPlaceholder } from '../test/WritingSpeakingPlaceholder';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -69,6 +77,12 @@ export interface SharedSavedResultCoreProps {
 
   /** Viewer role for Reading V2 grouped review content inside existing shells. */
   reviewVariant?: ReadingV2ReviewContentVariant;
+
+  /** Trusted result-review delivery boundary for registry-backed Listening audio. */
+  listeningResultReviewDeliveryIssuer?: ListeningResultReviewAudioDeliveryIssuer;
+
+  /** Deterministic clock override for delivery tests. */
+  listeningResultReviewNow?: number;
 }
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -82,6 +96,15 @@ const DEFAULT_SECTIONS: Required<SharedSavedResultCoreSections> = {
   teacherFeedback: false,
   writingPlaceholder: false,
 };
+
+interface ListeningResultReviewAudioRecord {
+  readonly audioUrl: string;
+  readonly streamUrl?: string;
+  readonly assetId?: string;
+  readonly versionId?: string;
+}
+
+const defaultListeningResultReviewDeliveryIssuer = createListeningResultReviewDeliveryIssuer();
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -101,6 +124,38 @@ function getFeedbackTeacherName(result: TestResultRecord): string {
   return (result as any).feedbackUpdatedByTeacherName
     || (result as any).feedbackUpdatedBy
     || 'Your Teacher';
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function isListeningSavedResult(result: TestResultRecord): boolean {
+  return String(result.testSkill || '').toLowerCase() === 'listening'
+    || String(result.testType || '').toLowerCase() === 'listening';
+}
+
+function getListeningResultReviewAudioRecord(
+  result: TestResultRecord,
+): ListeningResultReviewAudioRecord | null {
+  if (!isListeningSavedResult(result)) return null;
+  const record = (result as any).listeningResultReviewAudio;
+  const audioUrl = optionalString(record?.audioUrl);
+  if (!audioUrl) return null;
+  return {
+    audioUrl,
+    streamUrl: optionalString(record?.streamUrl),
+    assetId: optionalString(record?.assetId),
+    versionId: optionalString(record?.versionId),
+  };
+}
+
+function getListeningResultReviewSource(
+  resolution: ListeningResultReviewAudioResolution,
+): string {
+  return resolution.deliveryMode === 'authorized'
+    ? resolution.delivery.url
+    : (resolution.streamUrl || resolution.audioUrl);
 }
 
 /* ─── Sub-components (vanilla, no Mantine) ───────────────────────────────── */
@@ -152,6 +207,8 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   feedbackTiming = 'after_completion',
   canNavigateToReview = true,
   reviewVariant = 'teacher',
+  listeningResultReviewDeliveryIssuer,
+  listeningResultReviewNow,
 }) => {
   const sections = useMemo(
     () => ({ ...DEFAULT_SECTIONS, ...sectionsProp }),
@@ -185,6 +242,50 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   const showDetailedFeedback = feedbackTiming !== 'never';
   const showQuestionReview = sections.questionReview && showDetailedFeedback;
   const isReadingV2Result = isReadingV2SavedResult(result);
+  const listeningReviewAudio = useMemo(
+    () => getListeningResultReviewAudioRecord(result),
+    [result],
+  );
+  const [listeningAudioResolution, setListeningAudioResolution] =
+    useState<ListeningResultReviewAudioResolution | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showQuestionReview || !listeningReviewAudio) {
+      setListeningAudioResolution(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    resolveListeningResultReviewAudio({
+      resultId: result.resultId,
+      viewerUserId: result.studentId,
+      now: listeningResultReviewNow ?? Date.now(),
+      audio: listeningReviewAudio,
+      deliveryIssuer: listeningResultReviewDeliveryIssuer ?? defaultListeningResultReviewDeliveryIssuer,
+    })
+      .then((resolution) => {
+        if (cancelled) return;
+        setListeningAudioResolution(resolution);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setListeningAudioResolution(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    listeningResultReviewDeliveryIssuer,
+    listeningResultReviewNow,
+    listeningReviewAudio,
+    result.resultId,
+    result.studentId,
+    showQuestionReview,
+  ]);
 
   // Variant-specific spacing
   const gapSize = variant === 'full-page' ? '2rem' : variant === 'modal' ? '1.5rem' : '0';
@@ -222,6 +323,19 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
             teacherName={getFeedbackTeacherName(result)}
             updatedAt={(result as any).feedbackUpdatedAt || Date.now()}
             isOverall
+          />
+        </div>
+      )}
+
+      {showQuestionReview && listeningAudioResolution && (
+        <div data-testid="ssrc-listening-review-audio-region">
+          <audio
+            aria-label="Result review audio"
+            controls
+            data-delivery-mode={listeningAudioResolution.deliveryMode}
+            data-testid="ssrc-listening-review-audio"
+            preload="metadata"
+            src={getListeningResultReviewSource(listeningAudioResolution)}
           />
         </div>
       )}

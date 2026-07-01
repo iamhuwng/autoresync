@@ -1,0 +1,104 @@
+{
+  "id": "571385f1-f6f2-4db9-bff8-38739d3e9f08",
+  "number": 25,
+  "metadata": {
+    "created_on": "2026-06-30T15:10:14.285129Z",
+    "source": "wrangler",
+    "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+    "author_email": "iamhuwng@gmail.com",
+    "has_preview": false
+  },
+  "annotations": {
+    "workers/message": "PRD-0055 live private delivery Worker",
+    "workers/tag": "prd0055-live-private-delivery-20260630",
+    "workers/triggered_by": "version_upload"
+  },
+  "resources": {
+    "script": {
+      "etag": "d787bbc05da2508844370b395cb7c7c2d8398b9203879dc499453797e78878cc",
+      "handlers": [
+        "fetch"
+      ],
+      "named_handlers": [
+        {
+          "name": "UploadGrantReplayLedger",
+          "handlers": [
+            "class"
+          ]
+        },
+        {
+          "name": "createUploadWorker",
+          "handlers": [
+            "class"
+          ]
+        }
+      ],
+      "last_deployed_from": "wrangler"
+    },
+    "script_runtime": {
+      "migration_tag": "v1-upload-grant-replay-ledger",
+      "compatibility_date": "2026-01-20",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "usage_model": "standard"
+    },
+    "bindings": [
+      {
+        "name": "FIREBASE_DB_URL",
+        "text": "https://temp-a1437-default-rtdb.firebaseio.com",
+        "type": "plain_text"
+      },
+      {
+        "name": "FIREBASE_PROJECT_ID",
+        "text": "temp-a1437",
+        "type": "plain_text"
+      },
+      {
+        "name": "GOOGLE_SA_KEY",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_AUTHORING_IDEMPOTENCY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_DELIVERY_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "PUBLIC_URL",
+        "text": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
+        "type": "plain_text"
+      },
+      {
+        "bucket_name": "kahoot-media",
+        "name": "R2_BUCKET",
+        "type": "r2_bucket"
+      },
+      {
+        "class_name": "UploadGrantReplayLedger",
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "namespace_id": "6653df5f663d4648992dc26bd099b489",
+        "type": "durable_object_namespace"
+      },
+      {
+        "name": "UPLOAD_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "UPLOAD_RATE_LIMITER",
+        "namespace_id": "205512",
+        "simple": {
+          "limit": 30,
+          "period": 60
+        },
+        "type": "ratelimit"
+      }
+    ]
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "generatedAt": 1782918118359,
+  "generatedAtIso": "2026-07-01T15:01:58.359Z",
+  "project": "temp-a1437",
+  "instance": "temp-a1437-default-rtdb",
+  "count": 27,
+  "summary": [
+    {
+      "code": "R794QW",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    },
+    {
+      "code": "R797Q7",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    },
+    {
+      "code": "R79CWX",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    },
+    {
+      "code": "T80VWY",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782839029713-class"
+    },
+    {
+      "code": "T82R2Y",
+      "status": "waiting",
+      "testId": false,
+      "players": 2,
+      "classId": null
+    },
+    {
+      "code": "T83ADF",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782844967984-class"
+    },
+    {
+      "code": "T843A5",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782839559853-class"
+    },
+    {
+      "code": "T8581O",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-final-live-private-1782846869676-class"
+    },
+    {
+      "code": "T8C45B",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782838829802-class"
+    },
+    {
+      "code": "T8D116",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": null
+    },
+    {
+      "code": "T8DAFG",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-final-live-private-1782846621153-class"
+    },
+    {
+      "code": "T8E60V",
+      "status": "waiting",
+      "testId": false,
+      "players": 2,
+      "classId": "prd0055-final-live-private-1782848559399-class"
+    },
+    {
+      "code": "T8G297",
+      "status": "waiting",
+      "testId": false,
+      "players": 2,
+      "classId": null
+    },
+    {
+      "code": "T8HVWE",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782841830774-class"
+    },
+    {
+      "code": "T8LCVW",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782838912381-class"
+    },
+    {
+      "code": "T8MDGR",
+      "status": "waiting",
+      "testId": false,
+      "players": 2,
+      "classId": null
+    },
+    {
+      "code": "T8P06L",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    },
+    {
+      "code": "T8P9J2",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    },
+    {
+      "code": "T8QYZU",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782841911531-class"
+    },
+    {
+      "code": "T8R3V0",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-final-live-private-1782847095012-class"
+    },
+    {
+      "code": "T8REP0",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782838735815-class"
+    },
+    {
+      "code": "T8TDAS",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782841132794-class"
+    },
+    {
+      "code": "T8UJQK",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-final-live-private-1782845974456-class"
+    },
+    {
+      "code": "T8UKMD",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-final-live-private-1782847865572-class"
+    },
+    {
+      "code": "T8WOUF",
+      "status": "in-progress",
+      "testId": true,
+      "players": 1,
+      "classId": "prd0055-selected-class-live-1782845064650-class"
+    },
+    {
+      "code": "T8XIZM",
+      "status": "waiting",
+      "testId": false,
+      "players": 2,
+      "classId": "prd0055-final-live-private-1782847310086-class"
+    },
+    {
+      "code": "T8Z642",
+      "status": "in-progress",
+      "testId": true,
+      "players": 0,
+      "classId": null
+    }
+  ]
+}

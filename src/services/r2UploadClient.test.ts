@@ -12,6 +12,7 @@ import {
     DEFAULT_R2_UPLOAD_WORKER_URL,
     R2UploadClient,
     R2UploadClientError,
+    resolveR2UploadEndpoint,
     type UploadOperationKind,
 } from './r2UploadClient';
 
@@ -136,6 +137,7 @@ describe('R2UploadClient authenticated grant flow', () => {
         const xhr = FakeXMLHttpRequest.instances[0];
         expect(xhr.method).toBe('PUT');
         expect(xhr.headers.get('Authorization')).toBe('Bearer firebase-token-sentinel');
+        expect(xhr.headers.get('X-Upload-Size')).toBe(String(file.size));
         expect(fetchImpl).toHaveBeenNthCalledWith(2, `${endpoint}/move`, expect.objectContaining({
             method: 'POST',
             headers: expect.objectContaining({ Authorization: 'Bearer firebase-token-sentinel' }),
@@ -212,6 +214,67 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(progress).toHaveBeenCalledWith(100, file.size, file.size);
     });
 
+    it('uploads a canonical Listening asset with the signed bridge grant and exact response checks', async () => {
+        const endpoint = 'https://canary.example.test';
+        const key = 'temp/listening/owner-a/session-a/asset-a-lesson.mp3';
+        const publicUrl = `https://pub.example/${key}`;
+        const progress = vi.fn();
+        const getIdToken = vi.fn().mockResolvedValue('firebase-token-sentinel');
+        const client = makeClient({ endpoint, getIdToken });
+        const file = new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' });
+        FakeXMLHttpRequest.responses.push({
+            status: 200,
+            body: { success: true, key, url: publicUrl },
+        });
+
+        await expect(client.uploadWithAssetGrant(file, {
+            assetGrant: 'asset-grant-sentinel',
+            key,
+            publicUrl,
+            contentType: 'audio/mpeg',
+        }, progress)).resolves.toEqual({
+            url: publicUrl,
+            streamUrl: publicUrl,
+            directUrl: publicUrl,
+            fileName: 'lesson.mp3',
+            key,
+            isTemp: true,
+        });
+
+        const xhr = FakeXMLHttpRequest.instances[0];
+        expect(xhr.url).toBe(`${endpoint}/upload?assetGrant=asset-grant-sentinel`);
+        expect(xhr.headers.get('Authorization')).toBe('Bearer firebase-token-sentinel');
+        expect(xhr.headers.get('Content-Type')).toBe('audio/mpeg');
+        expect(xhr.headers.get('X-Upload-Size')).toBe(String(file.size));
+        expect(progress).toHaveBeenCalledWith(100, file.size, file.size);
+        expect(getIdToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a bridge upload response that does not match the issued asset key', async () => {
+        const endpoint = 'https://canary.example.test';
+        const key = 'temp/listening/owner-a/session-a/asset-a-lesson.mp3';
+        const publicUrl = `https://pub.example/${key}`;
+        const client = makeClient({ endpoint });
+        FakeXMLHttpRequest.responses.push({
+            status: 200,
+            body: {
+                success: true,
+                key: `${key}-wrong`,
+                url: publicUrl,
+            },
+        });
+
+        await expect(client.uploadWithAssetGrant(
+            new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }),
+            {
+                assetGrant: 'asset-grant-sentinel',
+                key,
+                publicUrl,
+                contentType: 'audio/mpeg',
+            },
+        )).rejects.toMatchObject({ code: 'invalid_upload_response' });
+    });
+
     it('uses configured canary endpoint for authorize, PUT, and move', async () => {
         const endpoint = 'https://canary.example.test/base/';
         const normalizedEndpoint = 'https://canary.example.test/base';
@@ -235,8 +298,9 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(fetchImpl.mock.calls[1][0]).toBe(`${normalizedEndpoint}/move`);
     });
 
-    it('uses production endpoint when VITE_R2_UPLOAD_WORKER_URL is absent', async () => {
+    it('uses production endpoint when VITE_R2_UPLOAD_WORKER_URL is absent outside local development', async () => {
         vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', '');
+        vi.stubGlobal('location', { hostname: 'teacher.example.com' });
         const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(authorization(DEFAULT_R2_UPLOAD_WORKER_URL)));
         const client = new R2UploadClient({
             fetch: fetchImpl as typeof fetch,
@@ -248,6 +312,36 @@ describe('R2UploadClient authenticated grant flow', () => {
         await client.upload(new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }), 'test_audio_temp');
 
         expect(fetchImpl.mock.calls[0][0]).toBe(`${DEFAULT_R2_UPLOAD_WORKER_URL}/upload/authorize`);
+    });
+
+    it('uses the local Worker fallback only in Vite local development', () => {
+        expect(resolveR2UploadEndpoint({ DEV: true }, 'localhost')).toBe('http://localhost:8787');
+        expect(resolveR2UploadEndpoint({ DEV: true }, '127.0.0.1')).toBe('http://localhost:8787');
+        expect(resolveR2UploadEndpoint({ DEV: false }, 'localhost')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+        expect(resolveR2UploadEndpoint({ DEV: true }, 'teacher.example.com')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+    });
+
+    it('prefers an explicit upload Worker over the local development fallback', () => {
+        expect(resolveR2UploadEndpoint({
+            DEV: true,
+            VITE_R2_UPLOAD_WORKER_URL: ' https://canary.example.test/base/// ',
+        }, 'localhost')).toBe('https://canary.example.test/base');
+    });
+
+    it('requests the browser-visible upload transport only for localhost development', async () => {
+        const endpoint = 'http://localhost:8787';
+        vi.stubGlobal('location', {
+            hostname: 'localhost',
+            origin: 'http://localhost:5173',
+        });
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(authorization(endpoint)));
+        const client = makeClient({ endpoint, fetchImpl });
+        FakeXMLHttpRequest.responses.push({ status: 200, body: uploadResponse });
+
+        await client.upload(new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }), 'test_audio_temp');
+
+        const requestBody = JSON.parse(String((fetchImpl.mock.calls[0][1] as RequestInit).body));
+        expect(requestBody.uploadTransportOrigin).toBe(endpoint);
     });
 
     it.each([
@@ -310,6 +404,26 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(FakeXMLHttpRequest.instances).toHaveLength(0);
     });
 
+    it('surfaces sanitized Worker PUT rejection diagnostics', async () => {
+        const endpoint = 'https://canary.example.test';
+        const client = makeClient({ endpoint });
+        FakeXMLHttpRequest.responses.push({
+            status: 411,
+            body: { error: 'missing_size' },
+        });
+
+        const error = await client.upload(
+            new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }),
+            'test_audio_temp',
+        ).catch((reason) => reason);
+
+        expect(error).toMatchObject({
+            code: 'upload_failed',
+            status: 411,
+            workerError: 'missing_size',
+        });
+    });
+
     it('does not write or log tokens, grants, or keys', async () => {
         const endpoint = 'https://canary.example.test';
         const client = makeClient({ endpoint });
@@ -346,6 +460,7 @@ describe('R2UploadClient authenticated grant flow', () => {
 describe('R2UploadClient default browser fetch binding', () => {
     it('invokes the default global fetch with the global receiver on authorize and move', async () => {
         vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', '');
+        vi.stubGlobal('location', { hostname: 'teacher.example.com' });
         const endpoint = DEFAULT_R2_UPLOAD_WORKER_URL;
         const receivers: unknown[] = [];
         // Mirror the native browser fetch contract: it must be invoked with the global

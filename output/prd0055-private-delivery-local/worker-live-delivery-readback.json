@@ -1,0 +1,91 @@
+{
+  "createdAt": "2026-06-30T14:56:17.182Z",
+  "fixture": {
+    "sessionCode": "T8P06L",
+    "testId": "prd0055_private_local_1782831133187",
+    "versionId": "prd0055_private_version_1782831133187",
+    "teacherUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentUid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "asset1": "prd0055-private-asset-1-1782831133187",
+    "asset2": "prd0055-private-asset-2-1782831133187",
+    "teacherUrl": "http://localhost:5173/teacher-test/T8P06L",
+    "studentUrl": "http://localhost:5174/student-test/T8P06L"
+  },
+  "teacherIssue": {
+    "callerLabel": "teacher",
+    "status": 200,
+    "ok": true,
+    "url": "http://localhost:8787/listening-delivery/content?token=[redacted]",
+    "expiresAt": 1782834977026,
+    "refreshAfter": 1782834377026,
+    "body": {
+      "assetId": "prd0055-private-asset-1-1782831133187",
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]",
+      "tokenId": "bvYuCxCjnrRmfGCBAqF3vQ",
+      "issuedAt": 1782831377026,
+      "expiresAt": 1782834977026,
+      "refreshAfter": 1782834377026,
+      "ttlMs": 3600000,
+      "deliveryReady": true,
+      "range": {
+        "requestRange": "bytes=0-0",
+        "status": 206,
+        "acceptRanges": "bytes",
+        "contentLength": 1,
+        "contentRange": "bytes 0-0/320044"
+      }
+    }
+  },
+  "studentIssue": {
+    "callerLabel": "student",
+    "status": 200,
+    "ok": true,
+    "url": "http://localhost:8787/listening-delivery/content?token=[redacted]",
+    "expiresAt": 1782834977071,
+    "refreshAfter": 1782834377071,
+    "body": {
+      "assetId": "prd0055-private-asset-1-1782831133187",
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]",
+      "tokenId": "zHwNDFkhWw5erdsc9Wd0LQ",
+      "issuedAt": 1782831377071,
+      "expiresAt": 1782834977071,
+      "refreshAfter": 1782834377071,
+      "ttlMs": 3600000,
+      "deliveryReady": true,
+      "range": {
+        "requestRange": "bytes=0-0",
+        "status": 206,
+        "acceptRanges": "bytes",
+        "contentLength": 1,
+        "contentRange": "bytes 0-0/320044"
+      }
+    }
+  },
+  "wrongIssue": {
+    "callerLabel": "student-wrong-section",
+    "status": 403,
+    "ok": false,
+    "code": "delivery_live_asset_mismatch",
+    "body": {
+      "code": "delivery_live_asset_mismatch"
+    }
+  },
+  "teacherRange": {
+    "status": 206,
+    "contentRange": "bytes 0-15/320044",
+    "acceptRanges": "bytes",
+    "contentType": "audio/wav",
+    "length": 16,
+    "riff": "RIFF",
+    "wave": "WAVE"
+  },
+  "studentRange": {
+    "status": 206,
+    "contentRange": "bytes 0-15/320044",
+    "acceptRanges": "bytes",
+    "contentType": "audio/wav",
+    "length": 16,
+    "riff": "RIFF",
+    "wave": "WAVE"
+  }
+}

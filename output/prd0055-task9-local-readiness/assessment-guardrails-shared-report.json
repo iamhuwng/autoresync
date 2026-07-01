@@ -1,0 +1,18 @@
+{
+  "changedFiles": [
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.css",
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.css",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.tsx",
+    "src/features/assessment/shared/components/AssessmentStatusState.css",
+    "src/features/assessment/shared/components/AssessmentStatusState.test.tsx",
+    "src/features/assessment/shared/components/AssessmentStatusState.tsx",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.css",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.tsx"
+  ],
+  "violations": [],
+  "protectedPathChanges": []
+}

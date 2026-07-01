@@ -1,6 +1,6 @@
 # PRD 0055: IELTS Reading V2 And Listening Unified Assessment Platform
 
-Status: Approved parent PRD - Task 1 planning completed on 2026-06-20 after explicit product-owner and architecture/security reviewer approval; implementation remains gated by child-specific approval, entry gates, and explicit authorization
+Status: Approved parent PRD - Task 1 planning completed on 2026-06-20 after explicit product-owner and architecture/security reviewer approval; implementation remains gated by child-specific approval, entry gates, and explicit authorization. Current 2026-06-30 remaining closure scope is local-only and BLOCKED/DEFERRED, not PASS; deployed/current truth, selected-user rollout, percentage rollout, final production rollout, production-current documentation truth, rollback/recovery production proof, and final production acceptance are deferred to named future PRD-0062 Listening Deployed Truth And Production Rollout Closure.
 Created: 2026-06-19
 Task number: 0055
 Primary rule source: `documentation/tasks/create-prd.md`
@@ -517,12 +517,12 @@ Current behavior:
 
 - `TestBuilderRouter` maps `skill=Listening` to `ListeningTestBuilder`.
 - `ListeningTestBuilder` owns metadata/setup, audio upload/import, question setup, parser/manual flow, review, and save/publish.
-- `listeningTestStorage.ts` owns audio-section validation, current URL-based temp-to-permanent R2 movement, `audioUrl` / `streamUrl` formatting, question section mapping, audio controls config, and save behavior.
-- Current Listening save is also publish: `saveListeningTestToFirebase()` hardcodes `isPublished: true`, creates a new record, and has no draft lifecycle.
-- Current save hard-blocks missing section audio before persistence.
-- Save draft, separate Publish, immutable published versions, revision drafts, optimistic concurrency, and first-edit legacy freezing are net-new authoring behavior. They are not behavior preserved by early visual alignment.
-- The storage child PRD replaces the current URL-based movement internals with registry-backed asset commit while keeping `listeningTestStorage.ts` as the Listening persistence owner.
-- Missing audio sections block save.
+- The legacy compatibility path in `listeningTestStorage.ts` still owns its original single-save validation/formatting behavior; its baseline hard-blocks missing section audio and writes `isPublished: true`.
+- Local Task 5.1-5.15 candidates add separate lenient Save draft and strict Publish, immutable versions, revision drafts, optimistic concurrency, first-edit legacy freezing, bounded Save/Publish UI, exact upload guidance, and shared announcements.
+- `ListeningTestBuilder` now delegates Save draft / Publish through the trusted Listening authoring workflow; `listeningTestStorage.ts` remains a thin public compatibility facade.
+- New audio-bearing draft/version writes use Task 4 registry-backed asset commit/reference contracts and preserve derived `audioUrl` / `streamUrl` compatibility fields.
+- Missing audio may be saved in the new draft path with warnings but blocks Publish; the legacy compatibility save still hard-blocks missing audio.
+- Superseding 2026-06-29 local status: Task 5.1-5.23 and parent Task 5.0 are authority-closed for local Batch A-E scope after the executable RTDB emulator proof passed 5/5 with the process-local Temurin JDK, Batch D proof passed focused frontend/authoring, backend authoring, storage/public-reader, URL-redaction, and implementation-review gates, and Batch E passed teacher desktop/tablet browser/a11y, internal-fixture rollout proof, final independent verification, and parent acceptance sync. The earlier `database.rules.json:649:28` compile failure and concurrent `ListeningTestBuilder.test.tsx:187` timeout are historical proof-risk notes only. Selected-teacher production traffic remains unclaimed without separate explicit authorization.
 
 ### Listening Solo/Homework Runtime
 
@@ -1129,9 +1129,9 @@ Protected behavior:
 
 34. Approved binding decision OQ-2: legacy R2 test/result raw URLs resolve directly through the legacy read adapter and do not require registry identity during read.
 
-> Obsolete proposal history - approved 2026-06-19 under `PRD-0055-PACKET-1B-OQ-APPROVAL-2026-06-19`: 35. Proposed under OQ-1: Google Drive media behavior is unchanged and out of scope. There is no Google Drive migration or new Google Drive-specific error state in this PRD.
+> Obsolete proposal history - approved 2026-06-19 under `PRD-0055-PACKET-1B-OQ-APPROVAL-2026-06-19`: OQ-1 originally used preservation-oriented wording for Google Drive media. Superseding current authority treats all Google Drive media handling as obsolete unsupported residue, with no PRD-0055 use, extension, validation, supported-baseline execution, migration, removal, playback change, or Google Drive-specific error state.
 
-35. Approved binding decision OQ-1: Google Drive media behavior is unchanged and out of scope. There is no new Google Drive behavior, migration, current playback removal, or Google Drive-specific error state in this PRD.
+35. Approved binding decision OQ-1: Google Drive media handling is out of scope. Superseding current authority: Google Drive is obsolete, unsupported implementation residue across this app; PRD-0055 must not use, extend, validate, execute as a supported baseline, migrate, or remove it. Physical removal and Google Drive-backed-test disposition belong to the separately approved cleanup/deletion task. This PRD introduces no new Google Drive behavior, migration, playback removal, or Google Drive-specific error state.
 
 ### R2 Audio Asset Lifecycle
 
@@ -1544,6 +1544,8 @@ Required child-PRD order around this sequence:
 
 The live-session child PRD must define the load-test harness and methodology for 100 students per session and 20 concurrent sessions, including client simulation fidelity, network conditions, Firebase/worker limits, measured sync drift, playback failures, and pass/fail thresholds.
 
+Current implementation note, 2026-06-30: Task 8.11 now adds the local/dry-run harness package under `src/features/assessment/listening/live-session/tests/load/listening-live/` for deterministic methodology, synthetic clients, metrics, thresholds, reports, and remote/production guardrails. This does not claim remote protocol load, browser/media fidelity, deployed human proof, live private source handoff, rollout, rollback, parent Task 8 acceptance, or Task 9.
+
 ## 25. Success Metrics
 
 1. Shared primitives are used by both Reading V2 and Listening authoring without module-specific props.
@@ -1653,7 +1655,7 @@ Listening authoring:
 - [ ] Empty question state still shows Add Question.
 - [ ] Before the authoring split, missing audio still blocks the existing single save/publish operation.
 - [ ] After the authoring split, missing audio may save in a draft with warnings but blocks Publish, per FR-023F and Edge Case 12.
-- [ ] Save/publish still uses `listeningTestStorage.ts`.
+- [ ] Save draft / Publish use the trusted Listening authoring workflow; `listeningTestStorage.ts` remains a compatibility facade only.
 - [ ] Existing Listening tests remain compatible.
 - [ ] First edit of a legacy published R2 test freezes version 1 and creates a revision draft.
 - [ ] Existing assignments/results remain pinned to legacy version 1.

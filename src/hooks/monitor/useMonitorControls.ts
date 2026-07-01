@@ -9,12 +9,18 @@
  * @module hooks/monitor/useMonitorControls
  */
 
-import { get, ref, update } from 'firebase/database';
+import { get, ref, serverTimestamp, update } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file without type declarations
 import { database } from '../../services/firebase';
 import { useNavigation } from '../useNavigation';
 import { TestSession, TestData } from './useMonitorSession'; // Import from local definition
 import type { MasterAudioState } from '../../types/audio.types';
+import {
+  buildLiveAudioAuthorityTransaction,
+  createInitialMasterAudioState,
+  normalizeMasterAudioState,
+  type LiveAudioAuthoritySnapshot,
+} from '../../features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import { autoSubmitDisconnectedStudents, identifyDisconnectedStudents, identifyUnsubmittedStudents, autoSubmitAllUnsubmittedStudents } from '../../utils/monitor';
 import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
@@ -139,15 +145,15 @@ export interface MonitorControlsResult {
   endTest: () => Promise<void>;
   extendTime: (minutes: number) => Promise<void>;
   /** Listening test: broadcast pause all audio to students */
-  pauseAllAudio: () => Promise<void>;
+  pauseAllAudio: (snapshot?: LiveAudioAuthoritySnapshot) => Promise<void>;
   /** Listening test: broadcast resume all audio to students */
-  resumeAllAudio: () => Promise<void>;
+  resumeAllAudio: (snapshot?: LiveAudioAuthoritySnapshot) => Promise<void>;
   /** Listening test: broadcast skip to section for all students */
-  skipToSection: (sectionNumber: number) => Promise<void>;
+  skipToSection: (sectionNumber: number, snapshot?: LiveAudioAuthoritySnapshot) => Promise<void>;
   /** Listening test: broadcast seek to position for all students */
-  seekToPosition: (sectionNumber: number, position: number) => Promise<void>;
+  seekToPosition: (sectionNumber: number, position: number, snapshot?: LiveAudioAuthoritySnapshot) => Promise<void>;
   /** Listening test: broadcast playback speed change to all students */
-  setPlaybackSpeed: (speed: number) => Promise<void>;
+  setPlaybackSpeed: (speed: number, snapshot?: LiveAudioAuthoritySnapshot) => Promise<void>;
   /** Set accommodation for a specific student */
   setStudentAccommodation: (studentId: string, accommodation: StudentAccommodationInput) => Promise<void>;
   /** Clear accommodation for a specific student */
@@ -234,6 +240,79 @@ export function useMonitorControls(
     };
   };
 
+  const liveAudioWriterClientId = sessionCode
+    ? `teacher-monitor-${sessionCode}`
+    : 'teacher-monitor';
+
+  const resolveLiveAudioTeacherUid = (): string => {
+    const teacherUid = resolveCanonicalSessionTeacherId(session);
+    if (!teacherUid) {
+      throw new Error('Listening live audio authority requires a canonical teacher id');
+    }
+    return teacherUid;
+  };
+
+  const buildInitialLiveAudioState = (): { masterAudioState?: unknown } => {
+    if (
+      testData?.skill !== 'Listening'
+      || !Array.isArray((testData as any).audioSections)
+      || (testData as any).audioSections.length === 0
+      || (session as any)?.masterAudioState
+    ) {
+      return {};
+    }
+
+    const initialState = createInitialMasterAudioState({
+      teacherUid: resolveLiveAudioTeacherUid(),
+      writerClientId: liveAudioWriterClientId,
+      now: Date.now(),
+      section: (testData as any).audioSections[0]?.number || 1,
+    });
+
+    return {
+      masterAudioState: {
+        ...initialState,
+        timestamp: serverTimestamp(),
+        lastActionTimestamp: serverTimestamp(),
+      },
+    };
+  };
+
+  const writeLiveAudioAuthorityCommand = async (
+    action: Exclude<NonNullable<MasterAudioState['lastAction']>, 'initialize'>,
+    snapshot: LiveAudioAuthoritySnapshot = {},
+  ): Promise<void> => {
+    if (!sessionCode) {
+      console.error('[Controls] No session code provided');
+      return;
+    }
+
+    const teacherUid = resolveLiveAudioTeacherUid();
+    const previousState = normalizeMasterAudioState((session as any)?.masterAudioState, {
+      teacherUid,
+      writerClientId: liveAudioWriterClientId,
+    });
+
+    if (!previousState) {
+      throw new Error('Listening live audio authority is not hydrated');
+    }
+
+    const transaction = buildLiveAudioAuthorityTransaction({
+      sessionCode,
+      previousState,
+      intent: {
+        ...snapshot,
+        action,
+      },
+      teacherUid,
+      writerClientId: liveAudioWriterClientId,
+      now: Date.now(),
+      serverTimestampValue: serverTimestamp(),
+    });
+
+    await update(ref(database), transaction.updates);
+  };
+
   /**
    * Starts the test by updating session status and setting start time.
    * This triggers students to begin the test.
@@ -259,6 +338,7 @@ export function useMonitorControls(
         startTime: Date.now(),
         isPaused: false,
         antiCheatConfig: antiCheatConfig || null,
+        ...buildInitialLiveAudioState(),
       });
       console.log('✅ [Controls] Test started successfully');
 
@@ -850,40 +930,13 @@ export function useMonitorControls(
    * 
    * PRD-0018: Now also updates masterAudioState for unified audio architecture.
    */
-  const pauseAllAudio = async (currentSection: number = 1, currentPosition: number = 0, currentSpeed: number = 1.0) => {
-    if (!sessionCode) {
-      console.error('❌ [Controls] No session code provided');
-      return;
-    }
-
+  const pauseAllAudio = async (snapshot?: LiveAudioAuthoritySnapshot) => {
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const now = Date.now();
-
-      // Build masterAudioState update (PRD-0018)
-      const masterAudioState: Partial<MasterAudioState> = {
-        section: currentSection,
-        position: currentPosition,
-        isPlaying: false,
-        speed: currentSpeed,
-        timestamp: now,
-        lastAction: 'pause',
-        lastActionTimestamp: now,
-      };
-
-      await update(sessionRef, {
-        // Legacy audioCommand (for backwards compatibility)
-        audioCommand: {
-          type: 'pause',
-          timestamp: now,
-        },
-        // New masterAudioState (PRD-0018)
-        masterAudioState,
-      });
-      console.log('✅ [Controls] Pause all audio command broadcast (legacy + masterAudioState)');
+      await writeLiveAudioAuthorityCommand('pause', snapshot);
+      console.log('[Controls] Pause all audio command broadcast from canonical authority');
     } catch (error) {
-      console.error('❌ [Controls] Error broadcasting pause audio:', error);
-      alert('Failed to pause audio. Please try again.');
+      console.error('[Controls] Error broadcasting pause audio:', error);
+      throw error;
     }
   };
 
@@ -893,40 +946,13 @@ export function useMonitorControls(
    * 
    * PRD-0018: Now also updates masterAudioState for unified audio architecture.
    */
-  const resumeAllAudio = async (currentSection: number = 1, currentPosition: number = 0, currentSpeed: number = 1.0) => {
-    if (!sessionCode) {
-      console.error('❌ [Controls] No session code provided');
-      return;
-    }
-
+  const resumeAllAudio = async (snapshot?: LiveAudioAuthoritySnapshot) => {
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const now = Date.now();
-
-      // Build masterAudioState update (PRD-0018)
-      const masterAudioState: Partial<MasterAudioState> = {
-        section: currentSection,
-        position: currentPosition,
-        isPlaying: true,
-        speed: currentSpeed,
-        timestamp: now,
-        lastAction: 'resume',
-        lastActionTimestamp: now,
-      };
-
-      await update(sessionRef, {
-        // Legacy audioCommand (for backwards compatibility)
-        audioCommand: {
-          type: 'resume',
-          timestamp: now,
-        },
-        // New masterAudioState (PRD-0018)
-        masterAudioState,
-      });
-      console.log('✅ [Controls] Resume all audio command broadcast (legacy + masterAudioState)');
+      await writeLiveAudioAuthorityCommand('resume', snapshot);
+      console.log('[Controls] Resume all audio command broadcast from canonical authority');
     } catch (error) {
-      console.error('❌ [Controls] Error broadcasting resume audio:', error);
-      alert('Failed to resume audio. Please try again.');
+      console.error('[Controls] Error broadcasting resume audio:', error);
+      throw error;
     }
   };
 
@@ -940,50 +966,17 @@ export function useMonitorControls(
    * @param currentSpeed - Current playback speed
    * @param isPlaying - Whether audio is currently playing
    */
-  const skipToSection = async (sectionNumber: number, currentSpeed: number = 1.0, isPlaying: boolean = false) => {
-    if (!sessionCode) {
-      console.error('❌ [Controls] No session code provided');
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Skip all students to Section ${sectionNumber}? This will interrupt their current audio.`
-    );
-
-    if (!confirmed) {
-      console.log('ℹ️ [Controls] Skip to section cancelled by user');
-      return;
-    }
-
+  const skipToSection = async (sectionNumber: number, snapshot?: LiveAudioAuthoritySnapshot) => {
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const now = Date.now();
-
-      // Build masterAudioState update (PRD-0018)
-      const masterAudioState: Partial<MasterAudioState> = {
+      await writeLiveAudioAuthorityCommand('section', {
+        ...snapshot,
         section: sectionNumber,
-        position: 0, // Start from beginning of new section
-        isPlaying,
-        speed: currentSpeed,
-        timestamp: now,
-        lastAction: 'section',
-        lastActionTimestamp: now,
-      };
-
-      await update(sessionRef, {
-        // Legacy audioCommand (for backwards compatibility)
-        audioCommand: {
-          type: 'skipToSection',
-          sectionNumber,
-          timestamp: now,
-        },
-        // New masterAudioState (PRD-0018)
-        masterAudioState,
+        position: snapshot?.position ?? 0,
       });
-      console.log(`✅ [Controls] Skip to section ${sectionNumber} command broadcast (legacy + masterAudioState)`);
+      console.log(`[Controls] Skip to section ${sectionNumber} command broadcast from canonical authority`);
     } catch (error) {
-      console.error('❌ [Controls] Error broadcasting skip to section:', error);
-      alert('Failed to skip section. Please try again.');
+      console.error('[Controls] Error broadcasting skip to section:', error);
+      throw error;
     }
   };
 
@@ -998,41 +991,16 @@ export function useMonitorControls(
    * @param currentPosition - Current position in seconds
    * @param isPlaying - Whether audio is currently playing
    */
-  const setPlaybackSpeed = async (speed: number, currentSection: number = 1, currentPosition: number = 0, isPlaying: boolean = false) => {
-    if (!sessionCode) {
-      console.error('❌ [Controls] No session code provided');
-      return;
-    }
-
+  const setPlaybackSpeed = async (speed: number, snapshot?: LiveAudioAuthoritySnapshot) => {
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const now = Date.now();
-
-      // Build masterAudioState update (PRD-0018)
-      const masterAudioState: Partial<MasterAudioState> = {
-        section: currentSection,
-        position: currentPosition,
-        isPlaying,
+      await writeLiveAudioAuthorityCommand('speed', {
+        ...snapshot,
         speed,
-        timestamp: now,
-        lastAction: 'speed',
-        lastActionTimestamp: now,
-      };
-
-      await update(sessionRef, {
-        // Legacy audioCommand (for backwards compatibility)
-        audioCommand: {
-          type: 'setSpeed',
-          speed,
-          timestamp: now,
-        },
-        // New masterAudioState (PRD-0018)
-        masterAudioState,
       });
-      console.log(`✅ [Controls] Playback speed ${speed}x command broadcast (legacy + masterAudioState)`);
+      console.log(`[Controls] Playback speed ${speed}x command broadcast from canonical authority`);
     } catch (error) {
-      console.error('❌ [Controls] Error broadcasting playback speed:', error);
-      alert('Failed to set playback speed. Please try again.');
+      console.error('[Controls] Error broadcasting playback speed:', error);
+      throw error;
     }
   };
 
@@ -1073,41 +1041,21 @@ export function useMonitorControls(
    * @param currentSpeed - Current playback speed
    * @param isPlaying - Whether audio is currently playing
    */
-  const seekToPosition = async (sectionNumber: number, position: number, currentSpeed: number = 1.0, isPlaying: boolean = false) => {
-    if (!sessionCode) {
-      console.error('❌ [Controls] No session code provided');
-      return;
-    }
-
+  const seekToPosition = async (
+    sectionNumber: number,
+    position: number,
+    snapshot?: LiveAudioAuthoritySnapshot,
+  ) => {
     try {
-      const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-      const now = Date.now();
-
-      // Build masterAudioState update (PRD-0018)
-      const masterAudioState: Partial<MasterAudioState> = {
+      await writeLiveAudioAuthorityCommand('seek', {
+        ...snapshot,
         section: sectionNumber,
         position,
-        isPlaying,
-        speed: currentSpeed,
-        timestamp: now,
-        lastAction: 'seek',
-        lastActionTimestamp: now,
-      };
-
-      await update(sessionRef, {
-        // Legacy audioCommand (for backwards compatibility)
-        audioCommand: {
-          type: 'seekToPosition',
-          sectionNumber,
-          position, // Position in seconds
-          timestamp: now,
-        },
-        // New masterAudioState (PRD-0018)
-        masterAudioState,
       });
-      console.log(`✅ [Controls] Seek to section ${sectionNumber} at ${position}s command broadcast (legacy + masterAudioState)`);
+      console.log(`[Controls] Seek to section ${sectionNumber} at ${position}s command broadcast from canonical authority`);
     } catch (error) {
-      console.error('❌ [Controls] Error broadcasting seek position:', error);
+      console.error('[Controls] Error broadcasting seek position:', error);
+      throw error;
     }
   };
 

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, screen } from '@testing-library/react';
 import { MobileListeningSubmitSheet } from './MobileListeningSubmitSheet';
 import type { ListeningPartInfo } from './MobileListeningSubmitSheet';
 
@@ -56,6 +56,16 @@ describe('MobileListeningSubmitSheet', () => {
     expect(getByTestId('submit-warning').textContent).toContain('30 unanswered questions');
   });
 
+  it('exposes the unanswered warning as validation semantics for screen readers', () => {
+    const { getByTestId } = render(<MobileListeningSubmitSheet {...defaultProps()} />);
+    const sheet = getByTestId('mobile-listening-submit-sheet');
+    const warning = screen.getByRole('alert');
+
+    expect(warning).toBe(getByTestId('submit-warning'));
+    expect(warning.textContent).toContain('30 unanswered questions');
+    expect(sheet.getAttribute('aria-describedby')).toBe('listening-submit-warning');
+  });
+
   it('hides warning when all questions answered', () => {
     const allAnswered = makeAnswers(Array.from({ length: 40 }, (_, i) => i + 1));
     const { queryByTestId } = render(
@@ -92,6 +102,34 @@ describe('MobileListeningSubmitSheet', () => {
     const btn = getByTestId('submit-confirm-btn') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(btn.textContent).toBe('Submitting...');
+  });
+
+  it('announces pending submit state without relying on color only', () => {
+    render(
+      <MobileListeningSubmitSheet {...defaultProps()} isSubmitting={true} />,
+    );
+    const btn = screen.getByTestId('submit-confirm-btn');
+
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    expect(btn).toHaveTextContent('Submitting...');
+  });
+
+  it('keeps visible action controls at or above the 44px mobile floor', () => {
+    render(<MobileListeningSubmitSheet {...defaultProps()} />);
+
+    expect(screen.getByTestId('submit-confirm-btn')).toHaveStyle({ minHeight: '48px' });
+    expect(screen.getByTestId('submit-cancel-btn')).toHaveStyle({ minHeight: '48px' });
+  });
+
+  it('keeps the submit sheet keyboard reachable', () => {
+    render(<MobileListeningSubmitSheet {...defaultProps()} />);
+
+    const confirmButton = screen.getByTestId('submit-confirm-btn');
+    const cancelButton = screen.getByTestId('submit-cancel-btn');
+    confirmButton.focus();
+    expect(document.activeElement).toBe(confirmButton);
+    cancelButton.focus();
+    expect(document.activeElement).toBe(cancelButton);
   });
 
   it('treats empty strings as unanswered', () => {

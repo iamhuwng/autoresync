@@ -1,0 +1,80 @@
+{
+  "task": "PRD-0055 Task 5.21 local rollout",
+  "mode": "internal-fixtures-only",
+  "selectedTeachersAuthorized": false,
+  "selectedTeacherRollout": "not-run-no-explicit-authorization",
+  "sampleWindow": {
+    "kind": "single local synthetic fixture window",
+    "startedAt": "2026-06-29T06:11:40.685Z",
+    "completedAt": "2026-06-29T06:13:04.660Z"
+  },
+  "commands": [
+    {
+      "cwd": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased",
+      "command": "rtk npx vitest run --root functions src/listening-authoring/publish.service.test.ts src/listening-authoring/lifecycle.service.test.ts --reporter=json > output/prd0055-task5-batch-e/local-rollout-authoring-report.json",
+      "exitCode": 0,
+      "result": "27/27 authoring lifecycle tests passed"
+    },
+    {
+      "cwd": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased",
+      "command": "rtk npx vitest run src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetCommit.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts --reporter=json > output/prd0055-task5-batch-e/local-rollout-storage-report.json",
+      "exitCode": 0,
+      "result": "40/40 storage metrics/commit/lifecycle tests passed"
+    }
+  ],
+  "metrics": {
+    "draftCreation": {
+      "observed": "passed",
+      "evidence": [
+        "publish.service: integrates create reload autosave conflict publish revision discard restore and archive",
+        "save/publish tests create and reload authoring drafts"
+      ]
+    },
+    "publish": {
+      "observed": "passed",
+      "evidence": [
+        "publish.service: creates one immutable version and advances source draft token atomically",
+        "publish.service: chains revision-draft publishes to latest immutable version",
+        "publish.service: exact idempotent retry creates no duplicate version"
+      ]
+    },
+    "discard": {
+      "observed": "passed",
+      "evidence": [
+        "lifecycle.service: discard marks a draft soft-deleted without hard deleting it",
+        "publish.service integration: discard revision then restore"
+      ]
+    },
+    "commitFailure": {
+      "observedCount": 0,
+      "threshold": 0,
+      "fixtureStopAction": "disable new registry writes for Task 5.21; stop Task 9.9 rollout on unresolved commit failure",
+      "evidence": [
+        "listeningAssetMetrics.test: commit-failure event schema and stop action",
+        "storage report passed with no actual commit failures"
+      ]
+    },
+    "orphanGrowth": {
+      "newUntrackedDraftAudioCount": 0,
+      "newUntrackedDraftAudioBytes": 0,
+      "threshold": 0,
+      "knownUntrackedPermanentAudio": "accepted historical risk only; no new untracked draft audio allowed",
+      "evidence": [
+        "listeningAssetMetrics.test: deterministic local baseline has zero new untracked draft audio",
+        "storage report passed with no unexplained permanent-object growth"
+      ]
+    }
+  },
+  "stopConditions": {
+    "unexplainedPermanentObjectGrowth": false,
+    "failedCleanup": false,
+    "wrongAudio": false,
+    "legacyIncompatibility": false,
+    "remoteMutation": false,
+    "productionData": false
+  },
+  "artifacts": [
+    "output/prd0055-task5-batch-e/local-rollout-authoring-report.json",
+    "output/prd0055-task5-batch-e/local-rollout-storage-report.json"
+  ]
+}

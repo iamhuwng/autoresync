@@ -21,6 +21,35 @@ const parseJsonBody = async (request) =>
     ? request.json()
     : {};
 
+const LOCAL_UPLOAD_TRANSPORT_ORIGIN = 'http://localhost:8787';
+const LOCAL_APP_ORIGINS = new Set([
+  'http://localhost:5173',
+  'http://localhost:5174',
+]);
+
+const resolveUploadTransportOrigin = ({ body, request, url }) => {
+  if (body.uploadTransportOrigin === undefined) return url.origin;
+  if (
+    body.uploadTransportOrigin !== LOCAL_UPLOAD_TRANSPORT_ORIGIN
+    || !LOCAL_APP_ORIGINS.has(request.headers.get('Origin'))
+  ) {
+    throw new PathAuthorityError('invalid_upload_transport_origin');
+  }
+  return LOCAL_UPLOAD_TRANSPORT_ORIGIN;
+};
+
+const resolveUploadRequestSize = ({ grantPayload, request }) => {
+  const contentLength = request.headers.get('Content-Length');
+  if (contentLength !== null) return contentLength;
+  if (
+    grantPayload.uploadTransportOrigin === LOCAL_UPLOAD_TRANSPORT_ORIGIN
+    && LOCAL_APP_ORIGINS.has(request.headers.get('Origin'))
+  ) {
+    return request.headers.get('X-Upload-Size');
+  }
+  return null;
+};
+
 export const handleAuthorizeUpload = async ({
   request,
   env,
@@ -72,6 +101,7 @@ export const handleAuthorizeUpload = async ({
   });
   const key = canonical.key;
   const expiresAt = now() + UPLOAD_GRANT_TTL_MS;
+  const uploadTransportOrigin = resolveUploadTransportOrigin({ body, request, url });
   const uploadGrant = await issueGrant({
     env,
     payload: {
@@ -83,9 +113,12 @@ export const handleAuthorizeUpload = async ({
       sizeBytes,
       expiresAt,
       nonce: operationNonce,
+      ...(uploadTransportOrigin === LOCAL_UPLOAD_TRANSPORT_ORIGIN
+        ? { uploadTransportOrigin }
+        : {}),
     },
   });
-  const uploadUrl = `${url.origin}/upload?grant=${encodeURIComponent(uploadGrant)}`;
+  const uploadUrl = `${uploadTransportOrigin}/upload?grant=${encodeURIComponent(uploadGrant)}`;
   let moveGrant;
   if (key.startsWith('temp/')) {
     const move = deriveCanonicalMove({
@@ -128,7 +161,7 @@ export const handleGrantUpload = async ({ request, env, url, uid, now }) => {
   assertUploadGrantMatchesRequest({
     payload: grantPayload,
     contentType: request.headers.get('Content-Type'),
-    sizeBytes: request.headers.get('Content-Length'),
+    sizeBytes: resolveUploadRequestSize({ grantPayload, request }),
   });
 
   const canonical = validateCanonicalUploadKey({ key: grantPayload.key, uid });

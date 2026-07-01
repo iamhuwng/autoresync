@@ -1,0 +1,285 @@
+{
+  "createdAt": "2026-07-01T13:05:21.617Z",
+  "scope": "PRD-0055 Task 9.5/9.11 local boundary/static closure under localhost-only scope; no rollout, deploy, cleanup, commit, or push",
+  "command": "rtk node output/prd0055-task9-local-readiness/boundary-static-readiness-scanner.cjs",
+  "counts": {
+    "sharedFiles": 12,
+    "readingFiles": 55,
+    "listeningFiles": 98,
+    "sharedAuthorityHits": 0,
+    "listeningImportsReading": 0,
+    "readingImportsListening": 0,
+    "addedProtectedPatterns": 0,
+    "remainingTaskboxes": 0
+  },
+  "sharedFiles": [
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.css",
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.css",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx",
+    "src/features/assessment/shared/components/AssessmentAuthoringSection.tsx",
+    "src/features/assessment/shared/components/AssessmentStatusState.css",
+    "src/features/assessment/shared/components/AssessmentStatusState.test.tsx",
+    "src/features/assessment/shared/components/AssessmentStatusState.tsx",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.css",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx",
+    "src/features/assessment/shared/components/AssessmentValidationSummary.tsx"
+  ],
+  "readingFiles": [
+    "src/components/reading-v2/master/ReadingV2MasterEditModal.css",
+    "src/components/reading-v2/master/ReadingV2MasterEditModal.test.tsx",
+    "src/components/reading-v2/master/ReadingV2MasterEditModal.tsx",
+    "src/components/reading-v2/master/ReadingV2MasterPassagePicker.test.tsx",
+    "src/components/reading-v2/master/ReadingV2MasterPassagePicker.tsx",
+    "src/components/reading-v2/master/ReadingV2MasterRepairPanel.test.tsx",
+    "src/components/reading-v2/master/ReadingV2MasterRepairPanel.tsx",
+    "src/components/reading-v2/master/ReadingV2UpdateReferencesModal.test.tsx",
+    "src/components/reading-v2/master/ReadingV2UpdateReferencesModal.tsx",
+    "src/components/reading-v2/runtime/ReadingV2MobileUtilities.test.tsx",
+    "src/components/reading-v2/runtime/ReadingV2MobileUtilities.tsx",
+    "src/components/reading-v2/runtime/ReadingV2RuntimeShell.css",
+    "src/components/reading-v2/runtime/ReadingV2RuntimeShell.mobile-css.test.ts",
+    "src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx",
+    "src/components/reading-v2/runtime/ReadingV2RuntimeShell.tsx",
+    "src/components/reading-v2/runtime/task-type-components/ReadingV2TaskTypeComponents.tsx",
+    "src/components/reading-v2/shared/ReadingV2FormattedText.test.tsx",
+    "src/components/reading-v2/shared/ReadingV2FormattedText.tsx",
+    "src/components/reading-v2/shared/ReadingV2InstructionText.tsx",
+    "src/components/reading-v2/studio/ReadingV2AnswerRuleEditor.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2AnswerRuleEditor.tsx",
+    "src/components/reading-v2/studio/ReadingV2BuildWorkspace.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx",
+    "src/components/reading-v2/studio/ReadingV2DeveloperDetailsModal.tsx",
+    "src/components/reading-v2/studio/ReadingV2DuplicateWarningPanel.css",
+    "src/components/reading-v2/studio/ReadingV2DuplicateWarningPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2DuplicateWarningPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2ImportReviewPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2ImportReviewPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2MetadataPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2MetadataPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2PassageAssetPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2PassageAssetPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2PassageEditor.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2PassageEditor.tsx",
+    "src/components/reading-v2/studio/ReadingV2PreviewOverlay.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2PreviewOverlay.tsx",
+    "src/components/reading-v2/studio/ReadingV2ReviewIssuesPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2ReviewIssuesPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx",
+    "src/components/reading-v2/studio/ReadingV2StimulusEditor.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2StimulusEditor.tsx",
+    "src/components/reading-v2/studio/ReadingV2StudioModalAdapter.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2StudioModalAdapter.tsx",
+    "src/components/reading-v2/studio/ReadingV2StudioOperationalStates.test.ts",
+    "src/components/reading-v2/studio/ReadingV2StudioOperationalStates.ts",
+    "src/components/reading-v2/studio/ReadingV2StudioShell.css",
+    "src/components/reading-v2/studio/ReadingV2StudioShell.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2StudioShell.tsx",
+    "src/components/reading-v2/studio/ReadingV2TableCompletionBuilder.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2TableCompletionBuilder.tsx",
+    "src/components/reading-v2/studio/ReadingV2TaskGroupEditor.test.tsx",
+    "src/components/reading-v2/studio/ReadingV2TaskGroupEditor.tsx",
+    "src/components/reading-v2/studio/ReadingV2TeacherStudioPanels.tsx"
+  ],
+  "listeningFiles": [
+    "src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts",
+    "src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts",
+    "src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.ts",
+    "src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts",
+    "src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.ts",
+    "src/features/assessment/listening/authoring/listeningAuthoringAnnouncements.ts",
+    "src/features/assessment/listening/authoring/listeningAuthoringValidation.test.ts",
+    "src/features/assessment/listening/authoring/listeningAuthoringValidation.ts",
+    "src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts",
+    "src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts",
+    "src/features/assessment/listening/authoring/ListeningDraftStatus.tsx",
+    "src/features/assessment/listening/authoring/ListeningLifecycleActions.test.tsx",
+    "src/features/assessment/listening/authoring/ListeningLifecycleActions.tsx",
+    "src/features/assessment/listening/authoring/listeningPublishReadiness.test.ts",
+    "src/features/assessment/listening/authoring/listeningPublishReadiness.ts",
+    "src/features/assessment/listening/authoring/ListeningPublishReadinessPanel.tsx",
+    "src/features/assessment/listening/authoring/ListeningSavePublishBar.tsx",
+    "src/features/assessment/listening/authoring/ListeningUploadGuidance.tsx",
+    "src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts",
+    "src/features/assessment/listening/live-session/authority/audioCommandCompatibility.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts",
+    "src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.ts",
+    "src/features/assessment/listening/live-session/authority/liveAuthorityFutureGaps.test.ts",
+    "src/features/assessment/listening/live-session/authority/masterAudioState.types.ts",
+    "src/features/assessment/listening/live-session/authority/masterAudioState.validation.test.ts",
+    "src/features/assessment/listening/live-session/authority/masterAudioState.validation.ts",
+    "src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryAdapter.test.ts",
+    "src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryAdapter.ts",
+    "src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient.test.ts",
+    "src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/config.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/loadTestHarness.test.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/metrics.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/report.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/scenarios.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/virtualStudent.ts",
+    "src/features/assessment/listening/live-session/tests/load/listening-live/virtualTeacher.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.test.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.test.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.test.ts",
+    "src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.ts",
+    "src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts",
+    "src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.ts",
+    "src/features/assessment/listening/storage/listeningAssetCommit.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetCommit.ts",
+    "src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetDeletionGovernance.ts",
+    "src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetDelivery.service.ts",
+    "src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetLifecycle.ts",
+    "src/features/assessment/listening/storage/listeningAssetMetrics.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetMetrics.ts",
+    "src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.ts",
+    "src/features/assessment/listening/storage/listeningAssetRegistry.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetRegistry.ts",
+    "src/features/assessment/listening/storage/listeningAssetReplacement.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetReplacement.ts",
+    "src/features/assessment/listening/storage/listeningAssetRollback.test.ts",
+    "src/features/assessment/listening/storage/listeningAssetRollback.ts",
+    "src/features/assessment/listening/storage/listeningAuthoringDeletionGovernance.ts",
+    "src/features/assessment/listening/storage/listeningAuthoringStore.ts",
+    "src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.test.ts",
+    "src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.ts",
+    "src/features/assessment/listening/storage/listeningTask6LocalRollout.test.ts",
+    "src/features/assessment/listening/storage/listeningTask6LocalRollout.ts",
+    "src/features/assessment/listening/storage/listeningUploadSessionApi.ts",
+    "src/features/assessment/listening/types/listeningAuthoring.types.ts",
+    "src/skills/listening/builders/ListeningTestBuilder.test.tsx",
+    "src/skills/listening/builders/ListeningTestBuilder.tsx",
+    "src/skills/listening/components/AudioControls.tsx",
+    "src/skills/listening/components/AudioPlayer.css",
+    "src/skills/listening/components/AudioPlayer.test.tsx",
+    "src/skills/listening/components/AudioPlayer.tsx",
+    "src/skills/listening/components/index.ts",
+    "src/skills/listening/components/InlineFormCompletion.tsx",
+    "src/skills/listening/components/ListeningHeader.tsx",
+    "src/skills/listening/components/ListeningImageModeDisplay.tsx",
+    "src/skills/listening/components/ListeningInstructions.tsx",
+    "src/skills/listening/components/ListeningNavArrows.tsx",
+    "src/skills/listening/components/ListeningQuestionDisplay.test.tsx",
+    "src/skills/listening/components/ListeningQuestionDisplay.tsx",
+    "src/skills/listening/components/ListeningQuestionNav.tsx",
+    "src/skills/listening/components/ListeningTestPage.tsx",
+    "src/skills/listening/components/ListeningTestPage_clean.tsx",
+    "src/skills/listening/components/SectionRubricBlock.tsx",
+    "src/skills/listening/components/WaitTimePopup.tsx",
+    "src/skills/listening/index.ts",
+    "src/skills/listening/services/index.ts",
+    "src/skills/listening/services/listeningScoring.ts",
+    "src/skills/listening/types/index.ts"
+  ],
+  "findings": {
+    "sharedAuthorityHits": [],
+    "listeningImportsReading": [],
+    "readingImportsListening": [],
+    "addedProtectedPatterns": []
+  },
+  "checkedTargetTaskboxes": [
+    {
+      "lineNumber": 738,
+      "line": "  - [x] 8.14 Human-assisted pre-cutover gate: run automated integration/a11y tests plus teacher/student private-delivery browser proof in separate contexts before switching live traffic. Every Playwright run uses `npx playwright test <optional-spec> --reporter=json > report.json`:"
+    },
+    {
+      "lineNumber": 751,
+      "line": "  - [x] 8.15 Record Task-8 live rollout deferral for the current localhost-only packet; do not perform live-server rollout until a future deploy/rollout PRD explicitly reopens it:"
+    },
+    {
+      "lineNumber": 759,
+      "line": "  - [x] 8.16 Record network writes, canonical durable DB state, screenshots/traces, `report.json`, measured drift, delivery refresh/warning, accessibility evidence, rollout cohort, and recovery evidence. Unit tests alone cannot close this task."
+    },
+    {
+      "lineNumber": 763,
+      "line": "  - [x] 8.17 Run the mandatory fresh-context independent verification pass from the Verification Standard. Reviewer must inspect all triggered live large-file maps/touch regions, verify protected authority paths and undeclared hunks, rerun authority/delivery/accessibility mutation proofs, challenge load-test evidence, and recheck solo regressions from shared `AudioPlayer` edits; resolve all findings and obtain clean re-review."
+    },
+    {
+      "lineNumber": 769,
+      "line": "  - [x] 8.18 Parent acceptance: teacher authority remains canonical, monitor controls agree, solo state remains separate, `AudioPlayer` changes pass both solo/live suites, monitor warning/accessibility requirements pass, load target passes approved methodology, every touched monolith has before/after line counts, unchanged responsibility boundaries, and future decomposition seams recorded, independent verification passes, and selected live traffic survives reload/conflict/private-delivery refresh."
+    },
+    {
+      "lineNumber": 776,
+      "line": "- [x] 9.0 Complete compatibility verification, staged rollout, observability, documentation, and final acceptance"
+    },
+    {
+      "lineNumber": 786,
+      "line": "  - [x] 9.1 Verify every prior parent task has focused tests, findings evidence, rollback notes, documentation updates, all approved independently reviewable/revertible packets merged and traceable, and its required internal/selected-user rollout evidence before final rollout."
+    },
+    {
+      "lineNumber": 789,
+      "line": "  - [x] 9.2 Verify existing Reading V2 create/import/draft/revision/publish/projection/runtime/result flows remain unchanged by shared presentation work."
+    },
+    {
+      "lineNumber": 791,
+      "line": "  - [x] 9.3 Verify existing R2-backed Listening tests remain readable through legacy adapters, new writes use approved contracts, and a past result with raw public R2 URL still plays after private-delivery switch."
+    },
+    {
+      "lineNumber": 793,
+      "line": "  - [x] 9.4 Verify this tasklist made no Google Drive behavior change. Separate cleanup/deletion task remains independently scoped."
+    },
+    {
+      "lineNumber": 795,
+      "line": "  - [x] 9.5 Verify all shared-layer import/API boundary greps pass and no Reading/Listening cross-import exists."
+    },
+    {
+      "lineNumber": 797,
+      "line": "  - [x] 9.6 Verify every new Firebase/worker write/read path has authorization and negative tests."
+    },
+    {
+      "lineNumber": 799,
+      "line": "  - [x] 9.7 Verify every visible Save draft, Publish, discard, retry, conflict, archive/delete, headphone, and live-control action has feature-registry/observability coverage and shared announcement behavior where applicable."
+    },
+    {
+      "lineNumber": 802,
+      "line": "  - [x] 9.8 Complete final rollout rather than initiating the first real-user rollout:"
+    },
+    {
+      "lineNumber": 810,
+      "line": "  - [x] 9.9 Stop rollout immediately for data loss, wrong audio, cross-owner access, legacy incompatibility, live authority drift, or mid-test interruption."
+    },
+    {
+      "lineNumber": 812,
+      "line": "  - [x] 9.10 Update canonical architecture docs, upload-storage authority, implementation log, PRD/tasklist status, and findings so documentation matches deployed truth."
+    },
+    {
+      "lineNumber": 815,
+      "line": "  - [x] 9.11 Run final focused and cross-system test suites named by child PRDs, UTF-8 checks, boundary scans, `git diff --check`, and build only where source/CSS changed."
+    },
+    {
+      "lineNumber": 819,
+      "line": "  - [x] 9.12 Execute every section 27 regression-checklist item as written and attach evidence per row in the traceability matrix:"
+    },
+    {
+      "lineNumber": 830,
+      "line": "  - [x] 9.13 Human-assisted final browser proof: record exact URLs, roles, viewports, fixture IDs, expected/actual behavior, network evidence, durable DB evidence, screenshots/traces, and JSON report artifact. Every Playwright run uses `--reporter=json > report.json`."
+    },
+    {
+      "lineNumber": 835,
+      "line": "  - [x] 9.14 Review all deferred residue:"
+    },
+    {
+      "lineNumber": 843,
+      "line": "  - [x] 9.15 Parent acceptance: traceability remains 100 percent with zero orphans, all approved child PRDs are complete or explicitly named/approved deferrals, all success metrics and every regression-checklist row pass, file-architecture line/responsibility/seam evidence is complete for every touched monolith, docs match current localhost-only scope, rollback paths remain available for future rollout PRD, and PRD-0055 can be marked implemented for this local-only packet."
+    }
+  ],
+  "remainingTaskboxes": [],
+  "verdict": "LOCAL_STATIC_PASS",
+  "blockers": [],
+  "scopedNonActions": [
+    "Live-domain/deployed proof, selected-user rollout, percentage rollout, full rollout, and human production acceptance are future-deferred non-gates.",
+    "No production deploy, remote mutation, cleanup/delete, commit, or push is claimed."
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task9-final-production.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-final-production-chromium",
+        "name": "prd0055-final-production-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task9-final-production-browser\\.spec\\.ts/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task9-final-production-browser.spec.ts",
+      "file": "prd0055-task9-final-production-browser.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 final deployed live private delivery browser matrix",
+          "file": "prd0055-task9-final-production-browser.spec.ts",
+          "line": 343,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected students pass deployed private live authority matrix",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-final-production-chromium",
+                  "projectName": "prd0055-final-production-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 83386,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Complete the note|Question 1|Section 1/i).first()\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Complete the note|Question 1|Section 1/i).first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Complete the note|Question 1|Section 1/i).first()\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Complete the note|Question 1|Section 1/i).first()\u001b[22m\n\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:415:102",
+                        "location": {
+                          "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                          "column": 102,
+                          "line": 415
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 413 |\u001b[39m       \u001b[36mawait\u001b[39m studentDesktop\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mgoto(\u001b[32m`${STUDENT_ORIGIN}/student-wait/${PROOF.fixture.sessionCode}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 414 |\u001b[39m       \u001b[36mawait\u001b[39m expect(studentDesktop\u001b[33m.\u001b[39mpage)\u001b[33m.\u001b[39mtoHaveURL(\u001b[36mnew\u001b[39m \u001b[33mRegExp\u001b[39m(\u001b[32m`/student-test/${PROOF.fixture.sessionCode}`\u001b[39m)\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m60\u001b[39m_000 })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 415 |\u001b[39m       \u001b[36mawait\u001b[39m expect(studentDesktop\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mgetByText(\u001b[35m/Complete the note|Question 1|Section 1/i\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m60\u001b[39m_000 })\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                                                                                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 416 |\u001b[39m       \u001b[36mawait\u001b[39m expect(studentDesktop\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mgetByText(\u001b[35m/Audio Error/i\u001b[39m))\u001b[33m.\u001b[39mtoHaveCount(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 417 |\u001b[39m       \u001b[36mawait\u001b[39m expectPrivateAudioReady(studentDesktop\u001b[33m.\u001b[39mpage)\u001b[33m;\u001b[39m\n \u001b[90m 418 |\u001b[39m       \u001b[36mconst\u001b[39m pausedAudio \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m readAudioState(studentDesktop\u001b[33m.\u001b[39mpage)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                            "column": 102,
+                            "line": 415
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Complete the note|Question 1|Section 1/i).first()\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Complete the note|Question 1|Section 1/i).first()\u001b[22m\n\n\n  413 |       await studentDesktop.page.goto(`${STUDENT_ORIGIN}/student-wait/${PROOF.fixture.sessionCode}`);\n  414 |       await expect(studentDesktop.page).toHaveURL(new RegExp(`/student-test/${PROOF.fixture.sessionCode}`), { timeout: 60_000 });\n> 415 |       await expect(studentDesktop.page.getByText(/Complete the note|Question 1|Section 1/i).first()).toBeVisible({ timeout: 60_000 });\n      |                                                                                                      ^\n  416 |       await expect(studentDesktop.page.getByText(/Audio Error/i)).toHaveCount(0);\n  417 |       await expectPrivateAudioReady(studentDesktop.page);\n  418 |       const pausedAudio = await readAudioState(studentDesktop.page);\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:415:102"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-30T20:07:43.669Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-2.png"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                        "column": 102,
+                        "line": 415
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "2231576afb6f433b9e61-e324200125660bc3e9a9",
+              "file": "prd0055-task9-final-production-browser.spec.ts",
+              "line": 344,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T20:07:41.543Z",
+    "duration": 88266.558,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

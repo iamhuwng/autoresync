@@ -1,0 +1,71 @@
+{
+  "createdAt": "2026-06-30T17:35:22.675Z",
+  "node": "C:\\Users\\THELOR~1\\CACHE~1\\CODEX-~1\\CODEX-~2\\DEPEND~1\\node\\bin\\node.exe",
+  "wranglerBin": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\cloudflare\\node_modules\\wrangler\\bin\\wrangler.js",
+  "commands": [
+    {
+      "name": "version",
+      "ok": true,
+      "args": [
+        "--version"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-version.json",
+      "bytes": 8
+    },
+    {
+      "name": "whoami",
+      "ok": true,
+      "args": [
+        "whoami"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-whoami.json",
+      "bytes": 1543
+    },
+    {
+      "name": "deployments-status",
+      "ok": true,
+      "args": [
+        "deployments",
+        "status",
+        "--json"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-deployments-status.json",
+      "bytes": 448
+    },
+    {
+      "name": "versions-list",
+      "ok": true,
+      "args": [
+        "versions",
+        "list",
+        "--json"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-versions-list.json",
+      "bytes": 4837
+    },
+    {
+      "name": "version-d219c36f",
+      "ok": true,
+      "args": [
+        "versions",
+        "view",
+        "d219c36f-0e0f-489c-a10b-a843ed339bf2",
+        "--json"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-version-d219c36f.json",
+      "bytes": 2549
+    },
+    {
+      "name": "version-993acdc9",
+      "ok": true,
+      "args": [
+        "versions",
+        "view",
+        "993acdc9-dd93-4ee8-8764-15847146ac3a",
+        "--json"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-readonly-version-993acdc9.json",
+      "bytes": 2607
+    }
+  ]
+}

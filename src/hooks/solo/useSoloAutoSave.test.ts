@@ -36,6 +36,29 @@ const sampleMobileState: SavedMobileState = {
   textSize: 17,
 };
 
+const listeningMobileState: SavedMobileState = {
+  kind: 'listening',
+  version: 1,
+  compat: {
+    materialId: 'listening-material',
+    scopeKey: 'hw_hw-1_sub-1',
+    partCount: 4,
+    questionLayoutSignature: '1:1,2,3,4,5,6,7,8,9,10|2:11,12,13,14,15,16,17,18,19,20|3:21,22,23,24,25,26,27,28,29,30|4:31,32,33,34,35,36,37,38,39,40',
+  },
+  viewedPartNumber: 2,
+  currentQuestionNumber: 11,
+  textSize: 18,
+  answerSheetScrollByPart: { '2': 96 },
+  imageZoomByPart: { '2': { scale: 1.2, offsetX: 4, offsetY: 8 } },
+  playback: {
+    currentAudioIndex: 1,
+    audioPositionSeconds: 37.5,
+    volume: 0.7,
+    playbackSpeed: 1.25,
+    audioIndicesCompleted: [0],
+  },
+};
+
 describe('useSoloAutoSave', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -91,6 +114,167 @@ describe('useSoloAutoSave', () => {
     expect(result.current.status).toBe('saved');
     expect(result.current.error).toBeNull();
     expect(result.current.lastSaved).not.toBeNull();
+    unmount();
+  });
+
+  it('stores homework-scoped listening playback state through the storage abstraction', async () => {
+    const scopeContext = {
+      mode: 'homework' as const,
+      homeworkId: 'hw-1',
+      submissionId: 'sub-1',
+    };
+    const { unmount } = renderHook(() =>
+      useSoloAutoSave({
+        materialId: 'listening-material',
+        studentId: 'student-1',
+        scopeContext,
+        answers: { 11: 'station' },
+        currentQuestion: 11,
+        timeElapsed: 245,
+        mobileState: listeningMobileState,
+        enabled: true,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(30000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockStorageSet).toHaveBeenCalledWith(
+      buildSoloProgressStorageKey({
+        materialId: 'listening-material',
+        studentId: 'student-1',
+        scopeContext,
+      }),
+      expect.objectContaining({
+        scopeContext,
+        answers: { 11: 'station' },
+        currentQuestion: 11,
+        timeElapsed: 245,
+        mobileState: listeningMobileState,
+      }),
+    );
+
+    unmount();
+  });
+
+  it('exposes an awaitable flush that persists attempt and submit operation identity', async () => {
+    const { result, unmount } = renderHook(() =>
+      useSoloAutoSave({
+        materialId: 'listening-material',
+        studentId: 'student-1',
+        scopeContext: {
+          mode: 'homework',
+          homeworkId: 'hw-1',
+          submissionId: 'sub-1',
+        },
+        answers: { 11: 'station' },
+        currentQuestion: 11,
+        timeElapsed: 245,
+        mobileState: listeningMobileState,
+        attemptId: 'homework__student-1__listening-material__hw-1__sub-1',
+        submissionOperationId: 'homework__student-1__listening-material__hw-1__sub-1__submit',
+        enabled: true,
+      }),
+    );
+
+    let flushOutcome: Awaited<ReturnType<typeof result.current.flushNow>>;
+    await act(async () => {
+      flushOutcome = await result.current.flushNow();
+    });
+
+    expect(flushOutcome!).toEqual(
+      expect.objectContaining({
+        outcome: 'saved',
+        error: null,
+      }),
+    );
+    expect(mockStorageSet).toHaveBeenCalledWith(
+      buildSoloProgressStorageKey({
+        materialId: 'listening-material',
+        studentId: 'student-1',
+        scopeContext: {
+          mode: 'homework',
+          homeworkId: 'hw-1',
+          submissionId: 'sub-1',
+        },
+      }),
+      expect.objectContaining({
+        attemptId: 'homework__student-1__listening-material__hw-1__sub-1',
+        submissionOperationId: 'homework__student-1__listening-material__hw-1__sub-1__submit',
+      }),
+    );
+
+    unmount();
+  });
+
+  it('joins an accepted in-flight save when submit asks to wait before final flush', async () => {
+    let releaseSave!: () => void;
+    const pendingWrite = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    mockStorageSet.mockReturnValueOnce(pendingWrite);
+
+    const { result, unmount } = renderHook(() =>
+      useSoloAutoSave({
+        materialId: 'material-1',
+        studentId: 'student-1',
+        answers: { 1: 'A' },
+        currentQuestion: 4,
+        timeElapsed: 125,
+        mobileState: sampleMobileState,
+        enabled: true,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(30000);
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toBe('saving');
+    const waitPromise = result.current.waitForAcceptedSave();
+    expect(mockStorageSet).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseSave();
+      await waitPromise;
+    });
+
+    expect(result.current.status).toBe('saved');
+    expect(mockStorageSet).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('returns a failed flush outcome while preserving a recoverable autosave error state', async () => {
+    mockStorageSet.mockRejectedValueOnce(new Error('disk full'));
+
+    const { result, unmount } = renderHook(() =>
+      useSoloAutoSave({
+        materialId: 'material-1',
+        studentId: 'student-1',
+        answers: { 1: 'A' },
+        currentQuestion: 4,
+        timeElapsed: 125,
+        mobileState: sampleMobileState,
+        enabled: true,
+      }),
+    );
+
+    let flushOutcome: Awaited<ReturnType<typeof result.current.flushNow>>;
+    await act(async () => {
+      flushOutcome = await result.current.flushNow();
+    });
+
+    expect(flushOutcome!).toEqual({
+      outcome: 'failed',
+      savedAt: null,
+      error: 'disk full',
+    });
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('disk full');
     unmount();
   });
 

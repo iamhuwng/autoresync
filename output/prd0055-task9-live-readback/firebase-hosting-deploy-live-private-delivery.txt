@@ -1,0 +1,19 @@
+
+=== Deploying to 'temp-a1437'...
+
+i  deploying hosting
+i  hosting[kahut1]: beginning deploy...
+i  hosting[kahut1]: found 415 files in dist
+i  hosting: uploading new files [0/264] (0%)
+i  hosting: uploading new files [49/264] (18%)
+i  hosting: upload complete
++  hosting[kahut1]: file upload complete
+i  hosting[kahut1]: finalizing version...
++  hosting[kahut1]: version finalized
+i  hosting[kahut1]: releasing new version...
++  hosting[kahut1]: release complete
+
++  Deploy complete!
+
+Project Console: https://console.firebase.google.com/project/temp-a1437/overview
+Hosting URL: https://kahut1.web.app

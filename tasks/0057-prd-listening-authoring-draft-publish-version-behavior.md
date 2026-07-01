@@ -1,6 +1,6 @@
 # PRD 0057: Listening Authoring Draft, Publish, And Version Behavior
 
-Status: Draft child PRD - B2 Option B data contract and Task 1 planning approved; implementation remains blocked pending Task 3 shared-presentation stability, minimum PRD-0058 foundation, child-specific review, and explicit implementation authorization
+Status: Active child PRD - B2 Option B data contract and Task 1 planning approved; Task 5.1-5.23 and parent Task 5.0 are accepted locally after the 2026-06-29 Batch E verification and parent-acceptance packet; a single selected-teacher Worker HTTP proof passed on 2026-06-29 after separate authorization, while natural browser UI write proof and wider rollout remain unclaimed
 Created: 2026-06-20
 Task number: 0057
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -8,11 +8,15 @@ Execution task: Task 1.7 child-PRD portion only
 
 ## 1. Introduction / Overview
 
-Current Listening authoring has one save operation. That operation is effectively publish-like: it rejects missing audio, writes one final test record under the existing `tests/{testId}` path, and sets `isPublished: true`.
+Historical baseline before Task 5 had one save operation. That operation was effectively publish-like: it rejected missing audio, wrote one final test record under the existing `tests/{testId}` path, and set `isPublished: true`.
+
+Current local candidate behavior splits lenient Save draft from strict Publish, adds immutable versions and revision drafts, keeps the legacy single-save path as a compatibility baseline, and adds Batch D publish-time audio readiness/observability coverage plus Batch E teacher desktop/tablet keyboard and accessibility-tree proof. The earlier local service proof under `functions/src/listening-authoring/**` remains reusable authoring core/test evidence only; it is not the production deploy authority while Firebase project `temp-a1437` stays Spark-tier. Production trusted authoring mutations must route through the approved Spark-safe Cloudflare Worker + Firebase RTDB REST pattern defined below. The earlier 2026-06-29 authority-unblock gate found `database.rules.json:649:28` invalid because `!` was applied to a non-boolean value; the superseding proof reran the executable PRD-0057 RTDB emulator with a process-local Temurin JDK and passed 5/5, including frozen legacy browser-write denial. Batch E mutation probes killed stale-conflict acceptance, duplicate idempotent version creation, temp-URL durable persistence, failed byte-range readiness acceptance, and legacy frozen-content mutation. The inherited `ListeningTestBuilder` timing sensitivity remains a proof-risk note for broader/concurrent runs, but the focused authoring/browser proof passed for this packet.
+
+Superseding 2026-06-29 selected-teacher Worker proof: deployed Worker version `34970bd6-feb7-4520-87f1-fa6341dc0ba0` passed direct selected-teacher HTTP proof for Save draft, stale-conflict denial, Publish, idempotent retry, cross-owner/browser canonical write denial, legacy first-edit freeze, write-flag disable, and post-disable blocked write. Artifact: `output/prd0055-task5-selected-teacher-worker-proof/selected-teacher-worker-proof.json`. This proof created production authoring sample rows for Task 6.3 dependency use; it is not a claim that the natural browser UI route performed the writes.
 
 This child PRD defines the future Listening authoring behavior split into lenient Save draft, strict Publish, immutable published versions, and revision drafts. It records the approved OQ-2 legacy transition: the first edit of a legacy mutable published R2 test freezes that record as immutable version 1, creates a revision draft, keeps existing assignments, sessions, attempts, and results pinned to version 1, and resolves legacy raw R2 URLs through a Listening-owned read adapter without requiring registry identity during read.
 
-This PRD is planning only. It does not authorize runtime, source, worker, Firebase rule, R2 lifecycle, registry, reconciliation, cleanup, delivery, solo/homework, live-session, Reading V2, parser, scoring, or Google Drive implementation.
+This PRD was originally planning-only. Later explicit Task 5 packets authorized the bounded local implementation and proof now described above; this document alone still does not authorize additional runtime, worker, R2 lifecycle, reconciliation, cleanup, delivery, solo/homework, live-session, Reading V2, parser, scoring, Google Drive, deployment, staging, commit, or push work beyond the accepted Task 5.1-5.23 local source/test/docs/proof candidate.
 
 ## 2. Goals
 
@@ -115,7 +119,7 @@ FR-037. New human-maintained production files must target 400 lines or fewer.
 
 FR-038. Before touching `ListeningTestBuilder.tsx` or `listeningTestStorage.ts`, implementation must create large-file maps and before/after line-count evidence.
 
-FR-039. Google Drive behavior must remain unchanged.
+FR-039. Google Drive is obsolete, unsupported implementation residue. This PRD must not use, extend, validate, or test it as supported behavior; the residue remains physically untouched until the separately approved cleanup/deletion task removes it.
 
 FR-040. S0 upload-worker hardening is a dependency but not part of this child PRD.
 
@@ -131,8 +135,8 @@ FR-044. Current source paths are authority where older implementation logs have 
 
 1. Implementing any runtime or application code in this packet.
 2. Modifying `src/services/r2Storage.ts` except future dependency-contract references.
-3. Modifying `cloudflare/**`.
-4. Modifying Worker source, Worker deployment, Worker bindings, or Worker rollback.
+3. Modifying `cloudflare/**` except in the separately approved Spark-safe production backend packet for Listening authoring mutations.
+4. Modifying Worker source, Worker deployment, Worker bindings, or Worker rollback except in the separately approved Spark-safe production backend packet for Listening authoring mutations.
 5. Modifying Firebase rules.
 6. Creating or changing R2 lifecycle configuration.
 7. Creating asset registry, heartbeat, reconciliation, cleanup, or private delivery.
@@ -651,7 +655,7 @@ Integration and boundary tests:
 3. No live-session runtime file changes are required.
 4. No `AudioPlayer` internal changes are required.
 5. No Reading V2 internal changes are required.
-6. No Cloudflare Worker changes are required.
+6. Superseding correction 2026-06-29: the earlier local UI/service proof did not require Cloudflare Worker changes, but Spark-tier production authoring authority now has a local Worker implementation. `cloudflare/src/upload-worker/listening-authoring.ts` is thin export wiring; `cloudflare/src/upload-worker/listening-authoring/worker.ts` owns HTTP/auth/gate mapping; `cloudflare/src/upload-worker/listening-authoring/repository.ts` owns Firebase RTDB REST transactions.
 7. No Firebase rules changes are included unless a later implementation packet explicitly approves them after the exact path contract exists.
 8. Boundary grep confirms no Listening authoring module imports Reading V2 internals.
 9. Boundary grep confirms shared assessment modules do not import Listening internals.
@@ -778,7 +782,7 @@ Implementation blockers that must be resolved before future code changes:
 4. Product owner plus architecture/security reviewer must approve this child PRD before implementation.
 5. If a future implementation needs runtime, live-session, solo/homework, private delivery, Firebase rule, Worker, R2 lifecycle, parser schema, Reading V2, or Google Drive changes, stop and create or use the correct child PRD instead.
 
-## 31. Definition Of Done
+## 31. Planning-Packet Definition Of Done (Historical)
 
 This child PRD is done when:
 
@@ -797,7 +801,7 @@ This child PRD is done when:
 13. Findings are appended with Packet 1D evidence.
 14. Validation scans and `git diff --check` pass or record exact non-owned warnings.
 15. Task 1.7 remains incomplete because four other child PRDs still remain.
-16. No implementation has started.
+16. At planning-packet closure, no implementation had started.
 
 ## 32. Packet 1I Data-Path Completeness Blocker
 
@@ -1084,33 +1088,48 @@ listening_authoring/operations: ownerId, operationType, targetId, idempotencyKey
 
 The earlier protected-file listing for `database.rules.json` remains binding for every UI/workflow packet. It is superseded only for the dedicated, separately reviewed PRD-0057 data-contract/rules packet.
 
+### Spark-Tier Backend Routing Matrix
+
+Firebase project `temp-a1437` intentionally remains Spark-tier. Blaze-dependent Firebase Functions, Cloud Functions, Firebase Secret Manager, or scheduled backend ownership are not the production target for this repo unless the product owner explicitly reverses that constraint.
+
+| Need | Spark-safe route | Blaze/Firebase Functions route |
+| --- | --- | --- |
+| Firebase Auth identity | Browser gets Firebase ID token; trusted backend verifies token. | Not required. |
+| RTDB browser reads/writes | Allowed only where RTDB rules explicitly permit owner-scoped browser access. | Not required. |
+| Trusted canonical mutations | Cloudflare Worker verifies Firebase ID token and writes through Firebase RTDB REST with Worker-held service credentials. | Do not use for production while Spark-tier is intentional. |
+| Backend secrets | Cloudflare Worker secrets/bindings. | Do not use Firebase Secret Manager while Spark-tier is intentional. |
+| Object storage | Cloudflare R2. | Not applicable. |
+| Scheduled/reconciliation work | Cloudflare Worker scheduled/cron-style owner or approved local planner until separately deployed. | Do not use Cloud Functions scheduled jobs while Spark-tier is intentional. |
+
 ### Trusted Mutation Owner And Dependency Direction
 
-Canonical mutation owner:
+Production canonical mutation owner:
 
 ```text
-functions/src/listening-authoring/**
+cloudflare/src/upload-worker/listening-authoring/**
 ```
 
-Required HTTPS handlers:
+Required Worker HTTP endpoints:
 
 ```text
-saveListeningDraft
-publishListeningDraft
-mutateListeningAuthoringLifecycle
+POST /listening-authoring/save-draft
+POST /listening-authoring/publish
+POST /listening-authoring/lifecycle
 ```
 
 Rules:
 
-1. Every handler verifies Firebase ID token, derives `ownerId` from token `sub`, validates the full request schema, and rejects browser-provided owner authority.
-2. Firebase Admin SDK performs canonical multi-path RTDB transactions.
-3. `saveListeningDraft` owns initial draft create and conflict-checked update.
-4. `publishListeningDraft` owns immutable version creation, monotonic `versionNumber`, operation idempotency, legacy version-1 freeze, and source-draft conflict transition.
-5. `mutateListeningAuthoringLifecycle` owns soft delete, restore, archive, and discard.
+1. Every Worker endpoint verifies Firebase ID token, derives `ownerId` from token `sub`, validates the full request schema, and rejects browser-provided owner authority.
+2. The Worker performs canonical RTDB mutations through Firebase RTDB REST with Worker-held service credentials and conditional/idempotent transaction logic.
+3. `/listening-authoring/save-draft` owns initial draft create and conflict-checked update.
+4. `/listening-authoring/publish` owns immutable version creation, monotonic `versionNumber`, operation idempotency, legacy version-1 freeze, and source-draft conflict transition.
+5. `/listening-authoring/lifecycle` owns soft delete, restore, archive, and discard.
 6. The backend validates `requestHash`, HMAC idempotency hash, expected conflict token, document hash, allowed state transition, and immutable fields before write.
 7. `src/features/assessment/listening/storage/listeningAuthoringStorageFacade.ts` is the browser-facing facade and contains no authority, schema bypass, version allocation, or direct canonical RTDB write.
 
-`LISTENING_AUTHORING_IDEMPOTENCY_SECRET` is a Firebase Functions secret used only for HMAC-SHA-256 idempotency hashes. The value is never checked in, returned to clients, logged, or copied into findings.
+`LISTENING_AUTHORING_IDEMPOTENCY_SECRET` is a Cloudflare Worker secret/binding used only for HMAC-SHA-256 idempotency hashes. The value is never checked in, returned to clients, logged, or copied into findings. Firebase Secret Manager is not used for this secret while Spark-tier is intentional.
+
+`functions/src/listening-authoring/**`, if retained, is reusable local/shared authoring core and test evidence only. It must not be treated as the production deploy surface, exported Cloud Functions target, or required Firebase Functions secret consumer under the current Spark-tier constraint.
 
 Dependency direction:
 
@@ -1118,20 +1137,21 @@ Dependency direction:
 ListeningTestBuilder.tsx
   -> src/features/assessment/listening/authoring/**
   -> listeningAuthoringStorageFacade.ts
-  -> authenticated PRD-0057 HTTPS handlers
-  -> functions/src/listening-authoring/**
+  -> authenticated PRD-0057 Worker endpoints
+  -> cloudflare/src/upload-worker/listening-authoring/**
   -> listening_authoring/** + PRD-0058 asset commit contract
 ```
 
-Additional owned files for the dedicated backend/data-contract packet:
+Additional owned files for the dedicated Spark-safe backend/data-contract packet:
 
-1. `functions/src/listening-authoring/**`.
-2. `functions/src/index.ts` - thin exports for the three handlers only.
-3. `functions/src/listening-authoring/listeningAuthoringBackend.test.ts`.
+1. `cloudflare/src/upload-worker/listening-authoring/**`.
+2. `cloudflare/worker.js` - thin route wiring for the three authoring endpoints only.
+3. `cloudflare/test/listening-authoring*.test.ts`.
 4. `database.rules.json` - only `listening_authoring/**`.
 5. `src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts`.
 6. `scripts/set-listening-authoring-rollout.mjs` - audited super-admin write control for `system_flags/listening_authoring_writes_enabled`.
 7. `r2-backup-worker/**` only in a separate PRD-0057 DR integration packet for `listening_authoring/**` backup/restore coverage.
+8. Optional `functions/src/listening-authoring/**` reusable core/tests only when explicitly kept out of production exports and Firebase Functions deploy paths.
 
 Allowed changes:
 
@@ -1141,26 +1161,45 @@ Allowed changes:
 
 Prohibited changes:
 
-1. PRD-0058 asset lifecycle internals, Worker implementation, R2 cleanup, or delivery implementation.
+1. PRD-0058 asset lifecycle internals, R2 cleanup, or delivery implementation.
 2. Solo/homework, live-session, teacher-monitor, `AudioPlayer`, Reading V2, parser schema, scoring, or Google Drive behavior.
 3. Direct browser canonical writes to `listening_authoring/**`.
 4. Mutation of frozen legacy `tests/{testId}` after first-edit version-1 transition.
+5. Firebase Functions, Cloud Functions, Firebase Secret Manager, or Blaze-only scheduled/backend deployment for PRD-0057 production authoring while Spark-tier is intentional.
 
 Protected backend contracts:
 
 1. `functions/src/readingV2SubmitCore.ts` and its tests.
-2. Existing non-Listening exports in `functions/src/index.ts`.
+2. Existing non-Listening exports in `functions/src/index.ts`; do not add PRD-0057 production Cloud Function exports under the Spark-tier constraint.
 3. `r2-backup-worker/**`, including Reading V2 trusted submit and homework routes.
 
 The protected `r2-backup-worker/**` rule is superseded only for the named DR integration packet. Any such packet must preserve Reading V2 submit, homework assignment, existing backup/restore, retention, cron, auth, and routing behavior and run their regression suites.
 
 Size and evidence:
 
-1. Packet 1J baseline for `functions/src/index.ts` is 268 lines.
-2. `functions/src/index.ts` remains an export/router surface; target at most 310 lines and ceiling 350 lines after PRD-0057 exports.
-3. New backend production modules target 400 lines or fewer and may not exceed 500 lines without architecture/security approval.
-4. Findings record before/after lines, responsibility deltas, and created/preserved seams for every touched facade or backend router.
-5. Existing `functions/src/readingV2SubmitCore.test.ts` must remain green after index export changes.
+1. New Worker backend production modules target 400 lines or fewer and may not exceed 500 lines without architecture/security approval.
+2. `cloudflare/worker.js` remains thin route wiring; large authoring behavior belongs in bounded modules under `cloudflare/src/upload-worker/listening-authoring/**`.
+3. Findings record before/after lines, responsibility deltas, and created/preserved seams for every touched facade or backend router.
+4. Existing upload Worker, PRD-0056 S0, and PRD-0056A bridge tests must remain green after route additions.
+5. Existing `functions/src/readingV2SubmitCore.test.ts` remains protected if reusable local core work touches `functions/**`.
+
+Implementation correction evidence 2026-06-29:
+
+1. Worker endpoints are locally implemented: `POST /listening-authoring/save-draft`, `POST /listening-authoring/publish`, and `POST /listening-authoring/lifecycle`.
+2. Browser facade now resolves only explicit Worker endpoints (`VITE_LISTENING_AUTHORING_WORKER_URL` or `VITE_R2_UPLOAD_WORKER_URL`) and fails closed instead of deriving Firebase Functions URLs.
+3. Firebase Functions authoring exports are removed from `functions/src/index.ts`; `functions/src/listening-authoring/**` remains reusable shared/local core only.
+4. Proof run locally: Cloudflare Worker suite 10 files / 147 tests passed under bundled x64 Node, including a legacy first-edit freeze/version/revision regression; `wrangler deploy --dry-run` bundled successfully with `FIREBASE_DB_URL`, focused workflow/builder tests passed 22/22, and `functions` TypeScript build passed.
+5. No deploy, remote mutation, selected-teacher rollout, Task 6.3 implementation, staging, commit, or push occurred.
+
+Selected-teacher Worker proof evidence 2026-06-29:
+
+1. Cloudflare Worker secret `LISTENING_AUTHORING_IDEMPOTENCY_SECRET` is configured by binding name only; secret value is not recorded.
+2. Production Worker deploy `34970bd6-feb7-4520-87f1-fa6341dc0ba0` is the selected-teacher proof version; rollback reference is `3687d2e0-4718-4c0b-9c84-7f81749c31fb`.
+3. Firebase RTDB rules were deployed for project `temp-a1437` before final proof because remote owner-read proof needed the current `listening_authoring/drafts` index.
+4. Live legacy first-edit proof exposed RTDB's maximum single-request write size for whole-root CAS. The Worker repository now scopes CAS writes to `listening_authoring` plus `tests/{legacyTestId}`.
+5. Direct selected-teacher Worker HTTP proof passed under proof ID `prd0055-selected-teacher-1782727843357`: incomplete Save draft returned warning without version/test write, stale conflict returned `409` without title mutation, Publish plus idempotent retry returned the same `versionId`, cross-owner/browser writes were denied, legacy first-edit froze metadata without changing content fields, the write flag was disabled, and a post-disable write returned `503` / `writes-disabled`.
+6. The proof artifact is `output/prd0055-task5-selected-teacher-worker-proof/selected-teacher-worker-proof.json`. It intentionally leaves production proof rows in place; no cleanup or deletion was run.
+7. No Firebase Functions deploy, Firebase Hosting deploy, Task 6.3 implementation, Task 6.4+ work, staging, commit, push, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
 
 ### Browser Proof And Rollback
 
@@ -1181,7 +1220,7 @@ Rules:
 Required teacher browser proof:
 
 1. Use teacher quick login at `http://localhost:5173` and the natural Listening authoring route.
-2. Save an incomplete draft and prove warning UI, `saveListeningDraft` network success, one `listening_authoring/drafts/{draftId}` record, and no version/test write.
+2. Save an incomplete draft and prove warning UI, `POST /listening-authoring/save-draft` network success, one `listening_authoring/drafts/{draftId}` record, and no version/test write.
 3. Publish a complete draft and prove one immutable version, one succeeded operation record, and the expected conflict-token increment.
 4. Retry the same publish idempotency key and prove the same `versionId` returns.
 5. Submit a stale conflict token and prove no draft/version mutation.
@@ -1276,4 +1315,4 @@ DAG-80->DAG-81
 | `DAG-50` PRD-0057 / Task 5 authoring write model | `DAG-03` shared-presentation stability and `DAG-40` minimum storage; approved B2 is authority | Save draft/Publish/version/revision stability with every audio-bearing save on tracked storage | `DAG-51`, `DAG-70`, `DAG-81` |
 | `DAG-51` Task 5.21 selected-teacher traffic | `DAG-50` phase-local acceptance | Production-shaped authoring/reconciliation sample | `DAG-60`; Task 6 reconciliation conclusions cannot precede it |
 
-Minimum `DAG-40` includes commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, and orphan metrics. Audio-bearing Save draft cannot ship before it. Rollback preserves immutable/version/reference data and compatibility readers. Historical Packet 1I/1J status wording above remains historical. Task 1.12 approval is recorded, but no implementation completion or child-specific authorization is claimed.
+Minimum `DAG-40` includes commit, references, immediate discard cleanup, fallback cleanup, backup/restore coverage, and orphan metrics. Audio-bearing Save draft cannot ship before it. Rollback preserves immutable/version/reference data and compatibility readers. Historical Packet 1I/1J status wording above remains historical. At Task 1.10 synchronization time, Task 1.12 approval was recorded but no implementation completion or child-specific authorization was claimed. Later explicitly authorized Task 5 packets supersede that historical implementation-status statement. Current local Task 5.1-5.23 candidates and parent Task 5.0 are accepted locally after independent verification. Batch E rollout evidence used internal fixtures only with zero new untracked draft audio and zero observed commit failures. Superseding 2026-06-29 selected-teacher Worker HTTP proof produced the single production-shaped authoring sample for `DAG-51` / Task 6.3 dependency use; natural browser UI write proof and wider cohort rollout remain separate unclaimed gates.

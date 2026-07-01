@@ -1,0 +1,51 @@
+{
+  "createdAt": "2026-07-01T00:00:00.000Z",
+  "cwd": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased",
+  "scope": "PRD-0055 Task 9 regression/static/security sidecar refresh only",
+  "commands": [
+    {
+      "command": "rtk git diff --check",
+      "exitCode": 0,
+      "result": "clean"
+    },
+    {
+      "command": "rtk npm run check:utf8:all",
+      "exitCode": 1,
+      "result": "failed",
+      "blocker": "tracked-file UTF-8 scan found existing non-UTF-8 files outside the Task 9 output scope"
+    },
+    {
+      "command": "rtk vitest run src/hooks/audio/useAudioSync.test.tsx src/pages/TeacherTestMonitorPage.test.tsx src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryAdapter.test.ts src/features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient.test.ts src/skills/listening/components/AudioPlayer.test.tsx src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.test.ts src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.test.ts src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.test.ts src/components/results/SharedSavedResultCore.test.tsx src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts",
+      "exitCode": 0,
+      "result": "PASS (88) FAIL (0)"
+    },
+    {
+      "command": "rtk vitest run src/__tests__/security/routeAccess.test.ts src/__tests__/security/ownership.test.ts src/__tests__/security/prd0055-live-session-rules.emulator.test.ts src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts",
+      "exitCode": 0,
+      "result": "PASS (59) FAIL (0) skipped (15)"
+    }
+  ],
+  "existingArtifactsRead": [
+    "output/prd0055-task9-local-readiness/prd0055-final-independent-gate-audit-summary.json",
+    "output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit-report.json",
+    "output/prd0055-task9-local-readiness/task9-observability-live-regression-report.json",
+    "output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json",
+    "output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json",
+    "output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json",
+    "output/prd0055-task9-local-readiness/prd0055-requirements-evidence-matrix-report.json",
+    "output/prd0055-task9-local-readiness/boundary-static-readiness-report.json"
+  ],
+  "exactGaps": {
+    "task9_11": [
+      "final focused and cross-system suites still need to run after the last source/doc edit if the tree changes again",
+      "UTF-8 scan is currently blocked by existing tracked non-UTF-8 files outside the Task 9 scope",
+      "Task 9.11 also still expects boundary scans and git diff --check in the final closure packet"
+    ],
+    "task9_6": [
+      "the local authorization/negative path suites passed, but the matrix still marks deployed/current rule truth as open",
+      "final all-path review remains incomplete for every Firebase/worker read/write path in the closure packet",
+      "Task 9.6 is still not closable from local-only evidence"
+    ]
+  },
+  "status": "PASS_NOT_CLOSURE"
+}

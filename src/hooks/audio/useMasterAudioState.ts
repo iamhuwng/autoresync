@@ -1,41 +1,24 @@
 /**
  * useMasterAudioState Hook
- * 
- * Manages the unified audio state for listening tests.
- * - Teacher role: Broadcasts state to Firebase with event-driven + heartbeat pattern
- * - Student role: Listens to state changes and provides sync data
- * 
- * @see PRD-0018: Unified Audio Architecture
+ *
+ * Reads canonical live listening audio authority and provides guarded teacher
+ * writer helpers for legacy callers. New monitor UI writes through
+ * useMonitorControls.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 // @ts-ignore - Firebase is a .js file
 import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
-import { ref, onValue, update, serverTimestamp, get } from 'firebase/database';
-import type { MasterAudioState, MasterAudioAction } from '../../types/audio.types';
+import { onValue, ref, serverTimestamp, update } from 'firebase/database';
+import type { MasterAudioAction, MasterAudioState } from '../../types/audio.types';
+import {
+    buildLiveAudioAuthorityTransaction,
+    buildLiveAudioHeartbeatState,
+    normalizeMasterAudioState,
+} from '../../features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction';
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-/** Heartbeat interval in milliseconds (2 seconds as per PRD) */
-const HEARTBEAT_INTERVAL_MS = 2000;
-
-/** Default initial state */
-const DEFAULT_MASTER_STATE: MasterAudioState = {
-    section: 1,
-    position: 0,
-    isPlaying: false,
-    speed: 1.0,
-    timestamp: 0,
-    lastAction: 'pause',
-    lastActionTimestamp: 0,
-};
-
-// ============================================================
-// TYPES
-// ============================================================
+const HEARTBEAT_INTERVAL_MS = 2_000;
 
 export interface UseMasterAudioStateOptions {
     /** Session code for Firebase path */
@@ -46,6 +29,12 @@ export interface UseMasterAudioStateOptions {
 
     /** Whether the hook is enabled (set false to disable all listeners) */
     enabled?: boolean;
+
+    /** Required for teacher writes */
+    teacherUid?: string;
+
+    /** Stable writer id for this teacher client */
+    writerClientId?: string;
 }
 
 export interface UseMasterAudioStateReturn {
@@ -58,7 +47,6 @@ export interface UseMasterAudioStateReturn {
     /** Last update timestamp (for staleness detection) */
     lastUpdateTime: number;
 
-    // Teacher-only functions (no-op for students)
     /** Update state with a new action (teacher only) */
     updateState: (update: Partial<MasterAudioState> & { lastAction: MasterAudioAction }) => Promise<void>;
 
@@ -87,85 +75,71 @@ export interface UseMasterAudioStateReturn {
     stopHeartbeat: () => void;
 }
 
-// ============================================================
-// HOOK IMPLEMENTATION
-// ============================================================
-
 export function useMasterAudioState({
     sessionCode,
     role,
     enabled = true,
+    teacherUid,
+    writerClientId = 'teacher-audio-state',
 }: UseMasterAudioStateOptions): UseMasterAudioStateReturn {
     const [masterState, setMasterState] = useState<MasterAudioState | null>(null);
     const [isConnected, setIsConnected] = useState(true);
     const [lastUpdateTime, setLastUpdateTime] = useState(0);
 
-    // Refs for heartbeat management
     const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const currentPositionRef = useRef<number>(0);
     const currentSectionRef = useRef<number>(1);
     const isPlayingRef = useRef<boolean>(false);
-    const speedRef = useRef<number>(1.0);
+    const speedRef = useRef<number>(1);
+    const masterStateRef = useRef<MasterAudioState | null>(null);
 
-    // Firebase path for master audio state
     const getStatePath = useCallback(() => {
         if (!sessionCode) return null;
         return `game_sessions/${sessionCode}/masterAudioState`;
     }, [sessionCode]);
 
-    // ============================================================
-    // TEACHER: Broadcast state updates
-    // ============================================================
-
     const updateState = useCallback(async (
-        stateUpdate: Partial<MasterAudioState> & { lastAction: MasterAudioAction }
+        stateUpdate: Partial<MasterAudioState> & { lastAction: MasterAudioAction },
     ): Promise<void> => {
         if (role !== 'teacher' || !sessionCode) {
             console.warn('[MasterAudioState] updateState called but not teacher or no session');
             return;
         }
 
-        const path = getStatePath();
-        if (!path) return;
-
-        const stateRef = ref(database, path);
-        const now = Date.now();
-
-        const fullUpdate: Partial<MasterAudioState> = {
-            ...stateUpdate,
-            timestamp: now, // Will be replaced by serverTimestamp() in actual write
-            lastActionTimestamp: now,
-        };
-
-        try {
-            // Use serverTimestamp for the timestamp field
-            await update(stateRef, {
-                ...fullUpdate,
-                timestamp: serverTimestamp(),
-            });
-
-            console.log(`🎵 [MasterAudioState] Broadcast ${stateUpdate.lastAction}:`, fullUpdate);
-
-            // Update refs for heartbeat
-            if (stateUpdate.position !== undefined) {
-                currentPositionRef.current = stateUpdate.position;
-            }
-            if (stateUpdate.section !== undefined) {
-                currentSectionRef.current = stateUpdate.section;
-            }
-            if (stateUpdate.isPlaying !== undefined) {
-                isPlayingRef.current = stateUpdate.isPlaying;
-            }
-            if (stateUpdate.speed !== undefined) {
-                speedRef.current = stateUpdate.speed;
-            }
-        } catch (error) {
-            console.error('[MasterAudioState] Failed to broadcast state:', error);
-            throw error;
+        if (!teacherUid) {
+            throw new Error('teacherUid is required for live audio authority writes');
         }
-    }, [role, sessionCode, getStatePath]);
 
-    // Convenience methods for common actions
+        const previousState = normalizeMasterAudioState(masterStateRef.current as any, {
+            teacherUid,
+            writerClientId,
+        });
+        const transaction = buildLiveAudioAuthorityTransaction({
+            sessionCode,
+            previousState,
+            intent: {
+                action: stateUpdate.lastAction,
+                section: stateUpdate.section,
+                position: stateUpdate.position,
+                speed: stateUpdate.speed,
+                isPlaying: stateUpdate.isPlaying,
+            },
+            teacherUid,
+            writerClientId,
+            now: Date.now(),
+            serverTimestampValue: serverTimestamp(),
+        });
+
+        await update(ref(database), transaction.updates);
+
+        currentPositionRef.current = transaction.state.position;
+        currentSectionRef.current = transaction.state.section;
+        isPlayingRef.current = transaction.state.isPlaying;
+        speedRef.current = transaction.state.speed;
+
+        console.log(`[MasterAudioState] Broadcast ${stateUpdate.lastAction}:`, transaction.state);
+    }, [role, sessionCode, teacherUid, writerClientId]);
+
     const play = useCallback(async (section: number, position: number): Promise<void> => {
         await updateState({
             section,
@@ -207,7 +181,6 @@ export function useMasterAudioState({
     }, [updateState]);
 
     const changeSpeed = useCallback(async (speed: number, section: number, position: number): Promise<void> => {
-        speedRef.current = speed;
         await updateState({
             section,
             position,
@@ -227,138 +200,89 @@ export function useMasterAudioState({
         });
     }, [updateState]);
 
-    // ============================================================
-    // TEACHER: Heartbeat management
-    // ============================================================
-
     const startHeartbeat = useCallback(() => {
         if (role !== 'teacher') return;
 
-        // Clear any existing heartbeat
         if (heartbeatIntervalRef.current) {
             clearInterval(heartbeatIntervalRef.current);
         }
 
-        console.log('💓 [MasterAudioState] Starting heartbeat');
-
         heartbeatIntervalRef.current = setInterval(async () => {
-            // Only send heartbeat if playing
             if (!isPlayingRef.current) return;
 
             const path = getStatePath();
-            if (!path) return;
-
-            const stateRef = ref(database, path);
+            if (!path || !teacherUid) return;
 
             try {
-                // Increment position based on elapsed time and speed
-                const elapsedSeconds = HEARTBEAT_INTERVAL_MS / 1000;
-                currentPositionRef.current += elapsedSeconds * speedRef.current;
-
-                await update(stateRef, {
+                currentPositionRef.current += (HEARTBEAT_INTERVAL_MS / 1000) * speedRef.current;
+                const heartbeatState = buildLiveAudioHeartbeatState({
+                    previousState: masterStateRef.current as any,
                     position: currentPositionRef.current,
-                    timestamp: serverTimestamp(),
+                    now: Date.now(),
+                    teacherUid,
+                    writerClientId,
                 });
 
-                console.log(`💓 [MasterAudioState] Heartbeat: position=${currentPositionRef.current.toFixed(1)}s`);
+                await update(ref(database, path), {
+                    ...heartbeatState,
+                    timestamp: serverTimestamp(),
+                });
             } catch (error) {
                 console.error('[MasterAudioState] Heartbeat failed:', error);
             }
         }, HEARTBEAT_INTERVAL_MS);
-    }, [role, getStatePath]);
+    }, [role, getStatePath, teacherUid, writerClientId]);
 
     const stopHeartbeat = useCallback(() => {
         if (heartbeatIntervalRef.current) {
             clearInterval(heartbeatIntervalRef.current);
             heartbeatIntervalRef.current = null;
-            console.log('💔 [MasterAudioState] Stopped heartbeat');
         }
     }, []);
 
-    // Cleanup heartbeat on unmount
     useEffect(() => {
         return () => {
             stopHeartbeat();
         };
     }, [stopHeartbeat]);
 
-    // ============================================================
-    // STUDENT & TEACHER: Listen to state changes
-    // ============================================================
-
     useEffect(() => {
         if (!sessionCode || !enabled) {
             setMasterState(null);
+            masterStateRef.current = null;
             return;
         }
 
         const path = getStatePath();
         if (!path) return;
 
-        const stateRef = ref(database, path);
-
-        console.log(`👂 [MasterAudioState] Listening to ${path} as ${role}`);
-
-        const unsubscribe = onValue(stateRef, (snapshot) => {
+        const unsubscribe = onValue(ref(database, path), (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val() as MasterAudioState;
                 setMasterState(data);
+                masterStateRef.current = data;
                 setLastUpdateTime(Date.now());
 
-                // Update refs for teacher (in case of external changes)
-                if (role === 'teacher') {
-                    currentPositionRef.current = data.position;
-                    currentSectionRef.current = data.section;
-                    isPlayingRef.current = data.isPlaying;
-                    speedRef.current = data.speed;
-                }
-
-                console.log(`📡 [MasterAudioState] Received state:`, {
-                    section: data.section,
-                    position: data.position?.toFixed(1),
-                    isPlaying: data.isPlaying,
-                    speed: data.speed,
-                    lastAction: data.lastAction,
-                });
+                currentPositionRef.current = data.position;
+                currentSectionRef.current = data.section;
+                isPlayingRef.current = data.isPlaying;
+                speedRef.current = data.speed;
             } else {
-                // Initialize with default state if teacher
-                if (role === 'teacher') {
-                    console.log('[MasterAudioState] No state exists, initializing...');
-                    update(stateRef, {
-                        ...DEFAULT_MASTER_STATE,
-                        timestamp: serverTimestamp(),
-                        lastActionTimestamp: Date.now(),
-                    }).catch(console.error);
-                }
                 setMasterState(null);
+                masterStateRef.current = null;
             }
         }, (error) => {
             console.error('[MasterAudioState] Firebase listener error:', error);
         });
 
-        return () => {
-            console.log(`🔇 [MasterAudioState] Stopped listening to ${path}`);
-            unsubscribe();
-        };
-    }, [sessionCode, role, enabled, getStatePath]);
-
-    // ============================================================
-    // CONNECTION MONITORING
-    // ============================================================
+        return () => unsubscribe();
+    }, [sessionCode, enabled, getStatePath]);
 
     useEffect(() => {
         if (!sessionCode || !enabled) return;
 
-        const connectionRef = ref(database, '.info/connected');
-        const unsubscribe = onValue(connectionRef, (snapshot) => {
-            const connected = snapshot.val() === true;
-            setIsConnected(connected);
-
-            if (!connected) {
-                console.warn('[MasterAudioState] Firebase connection lost');
-            } else {
-                console.log('[MasterAudioState] Firebase connected');
-            }
+        const unsubscribe = onValue(ref(database, '.info/connected'), (snapshot) => {
+            setIsConnected(snapshot.val() === true);
         });
 
         return () => unsubscribe();

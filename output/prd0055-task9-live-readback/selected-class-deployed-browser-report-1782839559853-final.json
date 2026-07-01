@@ -1,0 +1,116 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task8-selected-deployed.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-selected-class-deployed-chromium",
+        "name": "prd0055-selected-class-deployed-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task8-selected-class-deployed\\.spec\\.ts/"
+        ],
+        "timeout": 180000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task8-selected-class-deployed.spec.ts",
+      "file": "prd0055-task8-selected-class-deployed.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 selected-class deployed live private delivery",
+          "file": "prd0055-task8-selected-class-deployed.spec.ts",
+          "line": 107,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected student load deployed private audio from selected class fixture",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-selected-class-deployed-chromium",
+                  "projectName": "prd0055-selected-class-deployed-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 43167,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-30T17:18:23.259Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f9c5622ca3fb8e49a380-55d658a746a4c5e8355b",
+              "file": "prd0055-task8-selected-class-deployed.spec.ts",
+              "line": 108,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T17:18:21.568Z",
+    "duration": 45340.312999999995,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

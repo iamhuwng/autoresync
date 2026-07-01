@@ -145,9 +145,25 @@ G. Volleyball
         optionsBoxLength: result.sections[0]?.optionsBox?.length,
       });
       
+      expect(result.sections).toHaveLength(1);
       expect(result.sections[0].type).toBe('matching');
       expect(result.sections[0].optionsBox).toBeDefined();
       expect(result.sections[0].optionsBox?.length).toBeGreaterThan(0);
+    });
+
+    it('should detect numbered PART headers without matching instructional prose', async () => {
+      const result = await listeningParser.parseListeningText(`
+PART 1 Questions 1-2
+
+Complete the notes below.
+
+1. First answer __________
+2. Second answer __________
+      `);
+
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].questionRange).toEqual({ start: 1, end: 2 });
+      expect(result.questions).toHaveLength(2);
     });
     
     it('should validate IELTS structure', async () => {

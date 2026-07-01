@@ -1,0 +1,84 @@
+- generic [ref=e3] [box=0,0,1430,1027]:
+  - generic [ref=e5] [box=24,12,1382,54]:
+    - generic [ref=e6] [box=24,22,149,34]:
+      - button "←" [ref=e7] [cursor=pointer] [box=24,22,32,34]:
+        - generic [ref=e8] [box=33,28,14,22]: ←
+      - generic [ref=e9] [box=72,28,101,23]: "Session: T8KXWH"
+    - generic [ref=e10] [box=625,22,179,34]:
+      - generic [ref=e13] [box=649,25,59,28]: 0:00
+      - button "Pause" [ref=e14] [cursor=pointer] [box=725,22,80,34]:
+        - generic [ref=e15] [box=744,28,41,22]: Pause
+    - generic [ref=e16] [box=981,12,425,54]:
+      - generic [ref=e17] [box=981,12,285,54]:
+        - button "Pause All Audio" [ref=e18] [cursor=pointer] [box=986,17,44,44]: ⏸️
+        - button "Resume All Audio" [ref=e19] [cursor=pointer] [box=1030,17,44,44]: ▶️
+        - button "Previous Section" [disabled] [ref=e20] [box=1074,17,44,44]: ⏮️
+        - combobox "Current audio section" [ref=e21] [cursor=pointer] [box=1118,17,49,44]:
+          - option "Sec 1" [selected] [box=0,0,0,0]
+          - option "Sec 2" [box=0,0,0,0]
+        - button "Next Section" [ref=e22] [cursor=pointer] [box=1167,17,44,44]: ⏭️
+        - combobox "Playback speed for all students" [ref=e23] [cursor=pointer] [box=1211,17,50,44]:
+          - option "0.75x" [box=0,0,0,0]
+          - option "1x" [selected] [box=0,0,0,0]
+          - option "1.25x" [box=0,0,0,0]
+          - option "1.5x" [box=0,0,0,0]
+          - option "2x" [box=0,0,0,0]
+      - button "⏱️ +" [ref=e25] [cursor=pointer] [box=1278,22,58,34]:
+        - generic [ref=e26] [box=1291,28,32,22]: ⏱️ +
+      - button "End" [ref=e27] [cursor=pointer] [box=1348,22,58,34]:
+        - generic [ref=e28] [box=1364,28,26,22]: End
+  - generic [ref=e31] [box=72,120,1286,196]:
+    - generic [ref=e32] [box=88,136,1254,52]:
+      - generic [ref=e33] [box=88,142,241,40]:
+        - generic [ref=e34] [box=88,146,27,31]: 🎵
+        - generic [ref=e35] [box=127,142,201,40]:
+          - generic [ref=e36] [box=127,142,201,22]: Audio Control Panel🌐 Online
+          - generic [ref=e37] [box=127,164,201,19]: Section 1 of 2 • Part 1
+      - generic [ref=e38] [box=1050,136,292,52]:
+        - generic [ref=e39] [box=1050,136,129,52]:
+          - generic [ref=e40] [box=1058,151,19,22]: 🔊
+          - slider "Teacher monitor volume" [ref=e41] [cursor=pointer] [box=1083,140,88,44]: "0.8"
+        - button "Edit current audio time, 0:00 of 0:20" [ref=e42] [cursor=pointer] [box=1187,146,103,32]:
+          - generic [ref=e43] [box=1196,154,85,17]: 0:00 / 0:20
+        - button "Resume All Audio" [ref=e44] [cursor=pointer] [box=1298,140,44,44]: ▶
+    - generic [ref=e45] [box=88,200,1254,44]:
+      - 'generic "Section 1: Part 1" [ref=e46] [box=88,200,627,44]':
+        - slider "Seek section 1" [ref=e47] [box=88,200,625,44]: "0"
+        - generic [box=88,200,625,44]:
+          - generic [box=370,211,61,22]: Section 1
+      - 'generic "Section 2: Part 2" [ref=e48] [box=715,200,627,44]':
+        - button "Jump to section 2, upcoming" [ref=e49] [cursor=pointer] [box=715,200,627,44]:
+          - generic [ref=e50] [box=1025,213,7,19]: "2"
+    - generic [ref=e51] [box=88,256,1254,44]:
+      - button "Jump to section 1, current, Part 1" [pressed] [ref=e52] [cursor=pointer] [box=605,256,104,44]:
+        - generic [ref=e54] [box=633,269,29,19]: Sec 1
+        - generic [ref=e55] [box=668,270,26,16]: Part 1
+      - button "Jump to section 2, upcoming, Part 2" [ref=e56] [cursor=pointer] [box=724,256,101,44]:
+        - generic [ref=e58] [box=751,269,29,19]: Sec 2
+        - generic [ref=e59] [box=786,270,26,16]: Part 2
+  - generic [ref=e60] [box=0,357,1430,670]:
+    - generic [ref=e61] [box=32,389,1366,194]:
+      - button "Refresh Logs" [ref=e63] [cursor=pointer] [box=1275,389,123,34]:
+        - generic [ref=e64] [box=1292,395,89,22]: Refresh Logs
+      - generic [ref=e65] [box=32,439,1366,144]:
+        - generic [ref=e67] [box=57,464,625,94]:
+          - generic [ref=e68] [box=73,480,401,62]
+          - generic [ref=e72] [box=498,493,168,36]
+        - generic [ref=e82] [box=723,439,675,144]:
+          - generic [ref=e84] [box=748,464,110,71]
+          - generic [ref=e88] [box=920,464,110,71]
+          - generic [ref=e92] [box=1092,464,110,71]
+          - generic [ref=e96] [box=1263,464,110,71]
+    - button "Open details for student" [ref=e101] [cursor=pointer] [box=32,615,324,380]:
+      - generic [ref=e103] [box=57,640,274,330]:
+        - generic [ref=e104] [box=77,660,234,55]:
+          - generic [ref=e105] [box=77,664,48,48]: S
+          - generic [ref=e106] [box=141,660,170,55]
+        - generic [ref=e112] [box=77,731,234,22]:
+          - generic [ref=e113] [box=77,733,47,19]: Progress
+          - generic [ref=e114] [box=290,731,20,22]: 0%
+        - generic [ref=e116] [box=77,785,234,76]:
+          - generic [ref=e117] [box=77,785,111,76]
+          - generic [ref=e120] [box=200,785,111,76]
+        - button "Force Submit" [ref=e124] [box=77,874,90,29]
+        - generic [ref=e125] [box=77,918,234,32]: Click to view details →

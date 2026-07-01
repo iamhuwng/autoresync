@@ -112,6 +112,20 @@ export const MobileListeningHeader: React.FC<MobileListeningHeaderProps> = ({
   // Submit disabled when: paused, waiting, submitting, or already submitted (PRD FR-33..36)
   const submitDisabled = isPaused || isWaiting || isSubmitting || testSubmitted;
   const submitLabel = testSubmitted ? 'Submitted' : isSubmitting ? 'Submitting' : 'Submit';
+  const visibleTimerText = testSubmitted
+    ? 'Done'
+    : isPaused
+      ? 'Paused'
+      : isUntimed
+        ? 'Untimed'
+        : formatTime(timeRemaining);
+  const timerAriaLabel = testSubmitted
+    ? 'Time remaining: Done'
+    : isPaused
+      ? 'Time remaining: Paused'
+      : isUntimed
+        ? 'Time remaining: untimed'
+        : `Time remaining: ${formatTime(timeRemaining)}${isTimeLow ? '. Less than 5 minutes left' : ''}`;
 
   return (
     <header
@@ -122,6 +136,9 @@ export const MobileListeningHeader: React.FC<MobileListeningHeaderProps> = ({
       {/* Timer — Left */}
       <div
         data-testid="mobile-listening-header-timer"
+        role="status"
+        aria-live="polite"
+        aria-label={timerAriaLabel}
         style={{
           ...timerStyle,
           color: isPaused
@@ -136,13 +153,7 @@ export const MobileListeningHeader: React.FC<MobileListeningHeaderProps> = ({
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
           <path d="M8 4v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        {testSubmitted
-          ? 'Done'
-          : isPaused
-            ? 'Paused'
-            : isUntimed
-              ? '∞'
-              : formatTime(timeRemaining)}
+        {visibleTimerText}
       </div>
 
       {/* Submit CTA — Center */}

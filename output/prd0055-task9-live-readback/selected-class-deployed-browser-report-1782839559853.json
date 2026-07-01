@@ -1,0 +1,65 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task8-selected-deployed.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "prd0055-selected-class-deployed-chromium",
+        "name": "prd0055-selected-class-deployed-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task8-selected-class-deployed\\.spec\\.ts/"
+        ],
+        "timeout": 180000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [],
+  "errors": [
+    {
+      "message": "Error: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments.",
+      "stack": "Error: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments."
+    }
+  ],
+  "stats": {
+    "startTime": "2026-06-30T17:14:09.830Z",
+    "duration": 17.778999999999996,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

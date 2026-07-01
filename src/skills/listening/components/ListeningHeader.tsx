@@ -12,6 +12,7 @@
 
 import React from 'react';
 import { AudioPlayer } from './AudioPlayer';
+import type { AuthorizedDeliveryConfig } from './AudioPlayer';
 import type { MasterAudioState, AudioMode, HeadphoneRequest, AudioPlayerMode } from '../../../types/audio.types';
 
 /** Audio controls configuration from teacher settings */
@@ -57,6 +58,8 @@ interface ListeningHeaderProps {
     seekPosition?: number | null;
     /** Callback when seek is consumed */
     onSeekConsumed?: () => void;
+    /** Optional private delivery refresh handoff */
+    authorizedDelivery?: AuthorizedDeliveryConfig;
 
     // PRD-0018: Unified Audio Architecture props
     /** Player mode: 'session' for live class, 'solo' for self-study */
@@ -94,6 +97,7 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
     onSkipSection,
     seekPosition,
     onSeekConsumed,
+    authorizedDelivery,
     // PRD-0018: Unified Audio Architecture
     playerMode = 'session',
     audioMode,
@@ -223,6 +227,7 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
                             onSkipSection={onSkipSection}
                             seekPosition={seekPosition}
                             onSeekConsumed={onSeekConsumed}
+                            authorizedDelivery={authorizedDelivery}
                             minimal={true}
                             // PRD-0018: Unified Audio Architecture
                             playerMode={playerMode}

@@ -1,0 +1,85 @@
+{
+  "audio": {
+    "currentTime": 0,
+    "duration": 20,
+    "ended": false,
+    "errorCode": null,
+    "muted": false,
+    "paused": true,
+    "readyState": 4
+  },
+  "bodyTextHead": "←\nSession: T8KXWH\n0:00\nPause\n⏸️\n▶️\n⏮️\nSec 1\nSec 2\n⏭️\n0.75x\n1x\n1.25x\n1.5x\n2x\n⏱️ +\nEnd\n🎵\nAudio Control Panel🌐 Online\nSection 1 of 2 • Part 1\n🔊\n0:00 / 0:20\n▶\nSection 1\n2\nSec 1\nPart 1\nSec 2\nPart 2\nRefresh Logs\nACTIVE TEST\nPRD-0055 Task 8.14 Local Listening Fixture\nIELTS • Listening\n5m\nTIME\n4\nQ'S\n1\nSTUDENTS\n0\nDone\n0\nWorking\n1\nOffline\n0%\nAvg\nS\nstudent\n⚠\nDisconnected\nProgress\n0%\nQuestions\n0/4\nTime\n48s\nForce Submit\nClick to view details →",
+  "bodyTextLength": 437,
+  "buttons": [
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "←"
+    },
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "Pause"
+    },
+    {
+      "aria": "Pause All Audio",
+      "disabled": false,
+      "text": "⏸️"
+    },
+    {
+      "aria": "Resume All Audio",
+      "disabled": false,
+      "text": "▶️"
+    },
+    {
+      "aria": "Previous Section",
+      "disabled": true,
+      "text": "⏮️"
+    },
+    {
+      "aria": "Next Section",
+      "disabled": false,
+      "text": "⏭️"
+    },
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "⏱️ +"
+    },
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "End"
+    },
+    {
+      "aria": "Resume All Audio",
+      "disabled": false,
+      "text": "▶"
+    },
+    {
+      "aria": "Jump to section 1, current, Part 1",
+      "disabled": false,
+      "text": "Sec 1Part 1"
+    },
+    {
+      "aria": "Jump to section 2, upcoming, Part 2",
+      "disabled": false,
+      "text": "Sec 2Part 2"
+    },
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "Refresh Logs"
+    },
+    {
+      "aria": "",
+      "disabled": false,
+      "text": "Force Submit"
+    }
+  ],
+  "hasAudioPanel": true,
+  "hasResumeAllAudio": true,
+  "rootHtmlLength": 444702,
+  "title": "MySTUdent Workspace",
+  "url": "http://localhost:5173/teacher-test/T8KXWH"
+}

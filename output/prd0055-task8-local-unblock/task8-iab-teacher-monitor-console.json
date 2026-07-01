@@ -1,0 +1,62 @@
+[
+  {
+    "level": "info",
+    "message": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": "2026-06-30T10:15:49.728Z",
+    "url": "http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=7ac753b7"
+  },
+  {
+    "level": "log",
+    "message": "[Firebase] Initializing Firebase...",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "[Firebase] Config check:",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "   - apiKey: present",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "   - authDomain: present",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "   - databaseURL: https://temp-a1437-default-rtdb.firebaseio.com",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "   - projectId: temp-a1437",
+    "timestamp": "2026-06-30T10:15:49.748Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "[Firebase] App initialized: [DEFAULT]",
+    "timestamp": "2026-06-30T10:15:49.749Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "[Firebase] Database instance created",
+    "timestamp": "2026-06-30T10:15:49.750Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  },
+  {
+    "level": "log",
+    "message": "[Firebase] Disconnected from Realtime Database",
+    "timestamp": "2026-06-30T10:15:49.754Z",
+    "url": "http://localhost:5173/src/services/firebaseCore.js"
+  }
+]

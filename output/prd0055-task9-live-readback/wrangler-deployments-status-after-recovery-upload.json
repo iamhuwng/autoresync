@@ -1,0 +1,17 @@
+{
+  "id": "070b0ae2-b5f0-46f8-a40b-3857c4489a66",
+  "source": "wrangler",
+  "strategy": "percentage",
+  "author_email": "iamhuwng@gmail.com",
+  "annotations": {
+    "workers/message": "PRD-0057 scoped legacy authoring Worker fix",
+    "workers/triggered_by": "deployment"
+  },
+  "versions": [
+    {
+      "version_id": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+      "percentage": 100
+    }
+  ],
+  "created_on": "2026-06-29T10:08:27.154755Z"
+}

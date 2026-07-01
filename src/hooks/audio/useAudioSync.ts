@@ -1,38 +1,28 @@
 /**
  * useAudioSync Hook
- * 
- * Calculates drift between student's audio position and teacher's master state.
- * Triggers automatic sync corrections when drift exceeds threshold (1 second).
- * 
- * @see PRD-0018: Unified Audio Architecture - Online Mode Student Sync
+ *
+ * Keeps student audio aligned to the canonical teacher masterAudioState.
+ * The 500 ms soft correction and 2 second hard seek values are test baselines,
+ * not final product thresholds.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { MasterAudioState } from '../../types/audio.types';
+import {
+    LIVE_AUDIO_DRIFT_CHECK_INTERVAL_MS,
+    LIVE_AUDIO_HARD_SEEK_BASELINE_SECONDS,
+    LIVE_AUDIO_SOFT_CORRECTION_MAX_DURATION_MS,
+    calculateExpectedLiveAudioPosition,
+    calculateSoftCorrectionPlaybackRate,
+    classifyLiveAudioDrift,
+    shouldFreezeForTeacherDisconnect,
+} from '../../features/assessment/listening/live-session/authority/liveAudioSyncPolicy';
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-/** Maximum acceptable drift in seconds before triggering sync */
-const DRIFT_THRESHOLD_SECONDS = 1.0;
-
-/** Duration to show "Syncing..." indicator after correction */
 const SYNC_INDICATOR_DURATION_MS = 500;
-
-/** Interval for checking drift (in milliseconds) */
-const DRIFT_CHECK_INTERVAL_MS = 500;
-
-/** Time without master updates before considering teacher disconnected */
-const TEACHER_DISCONNECT_THRESHOLD_MS = 10000;
-
-// ============================================================
-// TYPES
-// ============================================================
 
 export interface UseAudioSyncOptions {
     /** Reference to the audio element */
-    audioRef: React.RefObject<HTMLAudioElement>;
+    audioRef: RefObject<HTMLAudioElement>;
 
     /** Current master audio state from teacher */
     masterState: MasterAudioState | null;
@@ -57,7 +47,7 @@ export interface UseAudioSyncReturn {
     /** Timestamp of last successful sync */
     lastSyncTime: number;
 
-    /** Whether teacher appears disconnected (no updates for 10+ seconds) */
+    /** Whether teacher appears disconnected after bounded grace */
     isTeacherDisconnected: boolean;
 
     /** Calculate expected position based on master state */
@@ -66,10 +56,6 @@ export interface UseAudioSyncReturn {
     /** Manually trigger a sync to master position */
     forceSync: () => void;
 }
-
-// ============================================================
-// HOOK IMPLEMENTATION
-// ============================================================
 
 export function useAudioSync({
     audioRef,
@@ -83,71 +69,105 @@ export function useAudioSync({
     const [lastSyncTime, setLastSyncTime] = useState(0);
     const [isTeacherDisconnected, setIsTeacherDisconnected] = useState(false);
 
-    // Track last master state update for disconnect detection
     const lastMasterUpdateRef = useRef<number>(0);
     const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const softCorrectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    /**
-     * Calculate expected position based on master state and elapsed time.
-     * Uses the master's position + time elapsed since broadcast * speed.
-     */
     const calculateExpectedPosition = useCallback((): number | null => {
-        if (!masterState || !masterState.isPlaying) {
-            return masterState?.position ?? null;
+        if (!masterState) {
+            return null;
         }
 
-        const now = Date.now();
-        const elapsedMs = now - masterState.timestamp;
-        const elapsedSeconds = elapsedMs / 1000;
-
-        // Expected position = master position + (elapsed time * speed)
-        const expectedPosition = masterState.position + (elapsedSeconds * masterState.speed);
-
-        return expectedPosition;
+        return calculateExpectedLiveAudioPosition({
+            position: masterState.position,
+            speed: masterState.speed,
+            isPlaying: masterState.isPlaying,
+            timestamp: masterState.timestamp,
+            now: Date.now(),
+        });
     }, [masterState]);
 
-    /**
-     * Perform sync correction - seek audio to expected position.
-     */
+    const handlePlayRejection = useCallback((error: unknown) => {
+        const errorName = typeof error === 'object' && error !== null && 'name' in error
+            ? String((error as { name?: unknown }).name)
+            : null;
+        if (errorName === 'AbortError') {
+            console.info('[AudioSync] Ignored interrupted play request during canonical handoff', {
+                actionId: masterState?.actionId ?? null,
+                lastAction: masterState?.lastAction ?? null,
+                revision: masterState?.revision ?? null,
+                section: masterState?.section ?? null,
+            });
+            return;
+        }
+
+        console.error('[AudioSync] Playback request failed:', error);
+    }, [
+        masterState?.actionId,
+        masterState?.lastAction,
+        masterState?.revision,
+        masterState?.section,
+    ]);
+
+    const clearSoftCorrection = useCallback(() => {
+        if (softCorrectionTimeoutRef.current) {
+            clearTimeout(softCorrectionTimeoutRef.current);
+            softCorrectionTimeoutRef.current = null;
+        }
+    }, []);
+
     const performSync = useCallback((expectedPosition: number) => {
         const audio = audioRef.current;
         if (!audio) return;
 
         const currentPosition = audio.currentTime;
+        console.log(`[AudioSync] Hard sync from ${currentPosition.toFixed(1)}s to ${expectedPosition.toFixed(1)}s`);
 
-        console.log(`🔄 [AudioSync] Syncing from ${currentPosition.toFixed(1)}s to ${expectedPosition.toFixed(1)}s`);
-
+        clearSoftCorrection();
         setIsSyncing(true);
-
-        // Seek to expected position
         audio.currentTime = expectedPosition;
+        if (masterState?.speed) {
+            audio.playbackRate = masterState.speed;
+        }
         setLastSyncTime(Date.now());
-
-        // Call callback
         onSync?.(currentPosition, expectedPosition);
 
-        // Clear syncing indicator after delay
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current);
         }
         syncTimeoutRef.current = setTimeout(() => {
             setIsSyncing(false);
         }, SYNC_INDICATOR_DURATION_MS);
-    }, [audioRef, onSync]);
+    }, [audioRef, clearSoftCorrection, masterState?.speed, onSync]);
 
-    /**
-     * Force sync to current master position.
-     */
+    const applySoftCorrection = useCallback((expectedPosition: number) => {
+        const audio = audioRef.current;
+        if (!audio || !masterState?.isPlaying) return;
+
+        const currentPosition = audio.currentTime;
+        audio.playbackRate = calculateSoftCorrectionPlaybackRate({
+            currentPosition,
+            expectedPosition,
+            canonicalSpeed: masterState.speed,
+        });
+        setLastSyncTime(Date.now());
+        onSync?.(currentPosition, expectedPosition);
+
+        clearSoftCorrection();
+        softCorrectionTimeoutRef.current = setTimeout(() => {
+            const currentAudio = audioRef.current;
+            if (currentAudio) {
+                currentAudio.playbackRate = masterState.speed;
+            }
+        }, LIVE_AUDIO_SOFT_CORRECTION_MAX_DURATION_MS);
+    }, [audioRef, clearSoftCorrection, masterState?.isPlaying, masterState?.speed, onSync]);
+
     const forceSync = useCallback(() => {
         const expectedPosition = calculateExpectedPosition();
         if (expectedPosition !== null) {
             performSync(expectedPosition);
         }
     }, [calculateExpectedPosition, performSync]);
-
-    // ============================================================
-    // DRIFT DETECTION & AUTO-CORRECTION
-    // ============================================================
 
     useEffect(() => {
         if (!isOnlineMode || !enabled || !masterState) {
@@ -158,37 +178,34 @@ export function useAudioSync({
         const audio = audioRef.current;
         if (!audio) return;
 
-        // Check drift periodically
         const checkDrift = () => {
             const expectedPosition = calculateExpectedPosition();
             if (expectedPosition === null) return;
 
             const currentPosition = audio.currentTime;
             const currentDrift = Math.abs(currentPosition - expectedPosition);
-
             setDrift(currentDrift);
 
-            // Trigger sync if drift exceeds threshold
-            if (currentDrift > DRIFT_THRESHOLD_SECONDS && masterState.isPlaying && !isSyncing) {
-                console.log(`⚠️ [AudioSync] Drift detected: ${currentDrift.toFixed(2)}s > ${DRIFT_THRESHOLD_SECONDS}s threshold`);
+            if (!masterState.isPlaying || isSyncing) {
+                return;
+            }
+
+            const action = classifyLiveAudioDrift(currentPosition, expectedPosition);
+            if (action === 'hard-seek') {
+                console.log(`[AudioSync] Hard drift ${currentDrift.toFixed(2)}s >= ${LIVE_AUDIO_HARD_SEEK_BASELINE_SECONDS}s baseline`);
                 performSync(expectedPosition);
+            } else if (action === 'soft-correction') {
+                applySoftCorrection(expectedPosition);
             }
         };
 
-        // Initial check
         checkDrift();
-
-        // Periodic drift checking
-        const intervalId = setInterval(checkDrift, DRIFT_CHECK_INTERVAL_MS);
+        const intervalId = setInterval(checkDrift, LIVE_AUDIO_DRIFT_CHECK_INTERVAL_MS);
 
         return () => {
             clearInterval(intervalId);
         };
-    }, [masterState, isOnlineMode, enabled, audioRef, calculateExpectedPosition, performSync, isSyncing]);
-
-    // ============================================================
-    // MASTER STATE CHANGE HANDLING
-    // ============================================================
+    }, [masterState, isOnlineMode, enabled, audioRef, calculateExpectedPosition, performSync, applySoftCorrection, isSyncing]);
 
     useEffect(() => {
         if (!masterState || !isOnlineMode || !enabled) return;
@@ -196,60 +213,57 @@ export function useAudioSync({
         const audio = audioRef.current;
         if (!audio) return;
 
-        // Track update time for disconnect detection
         lastMasterUpdateRef.current = Date.now();
         setIsTeacherDisconnected(false);
+        clearSoftCorrection();
 
-        // Handle different actions
         switch (masterState.lastAction) {
             case 'play':
-                // Sync to master position and play
-                const playExpected = calculateExpectedPosition();
-                if (playExpected !== null) {
-                    audio.currentTime = playExpected;
+            case 'resume': {
+                const expected = calculateExpectedPosition();
+                if (expected !== null) {
+                    audio.currentTime = expected;
                 }
                 audio.playbackRate = masterState.speed;
-                audio.play().catch(console.error);
+                void audio.play().catch(handlePlayRejection);
                 break;
+            }
 
             case 'pause':
                 audio.pause();
                 audio.currentTime = masterState.position;
+                audio.playbackRate = masterState.speed;
                 break;
 
             case 'seek':
-                audio.currentTime = masterState.position;
-                break;
-
             case 'speed':
-                // Speed change: apply new speed and reset sync baseline
-                audio.playbackRate = masterState.speed;
-                audio.currentTime = masterState.position;
-                console.log(`⚡ [AudioSync] Speed changed to ${masterState.speed}x, position reset to ${masterState.position}s`);
-                break;
-
-            case 'resume':
-                // Resume after long pause or reconnection
-                const resumeExpected = calculateExpectedPosition();
-                if (resumeExpected !== null) {
-                    audio.currentTime = resumeExpected;
-                }
-                audio.playbackRate = masterState.speed;
-                audio.play().catch(console.error);
-                console.log('▶️ [AudioSync] Resumed from master');
-                break;
-
             case 'section':
-                // Section change - handled by parent component
-                // Just ensure we're at the right position
                 audio.currentTime = masterState.position;
+                audio.playbackRate = masterState.speed;
+                if (masterState.isPlaying) {
+                    void audio.play().catch(handlePlayRejection);
+                } else {
+                    audio.pause();
+                }
+                break;
+
+            case 'initialize':
+                audio.currentTime = masterState.position;
+                audio.playbackRate = masterState.speed;
                 break;
         }
-    }, [masterState?.lastAction, masterState?.lastActionTimestamp, audioRef, isOnlineMode, enabled, calculateExpectedPosition]);
-
-    // ============================================================
-    // TEACHER DISCONNECT DETECTION
-    // ============================================================
+    }, [
+        masterState?.revision,
+        masterState?.lastAction,
+        masterState?.lastActionTimestamp,
+        masterState?.timestamp,
+        audioRef,
+        isOnlineMode,
+        enabled,
+        calculateExpectedPosition,
+        clearSoftCorrection,
+        handlePlayRejection,
+    ]);
 
     useEffect(() => {
         if (!isOnlineMode || !enabled || !masterState?.isPlaying) {
@@ -261,29 +275,37 @@ export function useAudioSync({
             const now = Date.now();
             const timeSinceUpdate = now - lastMasterUpdateRef.current;
 
-            if (timeSinceUpdate > TEACHER_DISCONNECT_THRESHOLD_MS) {
+            if (shouldFreezeForTeacherDisconnect({
+                lastCanonicalUpdateAt: lastMasterUpdateRef.current,
+                now,
+            })) {
                 if (!isTeacherDisconnected) {
-                    console.warn(`📡 [AudioSync] Teacher appears disconnected (no updates for ${(timeSinceUpdate / 1000).toFixed(1)}s)`);
+                    console.warn(`[AudioSync] Teacher disconnected after ${(timeSinceUpdate / 1000).toFixed(1)}s without canonical updates`);
                     setIsTeacherDisconnected(true);
+                }
+                const audio = audioRef.current;
+                if (audio && !audio.paused) {
+                    audio.pause();
                 }
             } else {
                 setIsTeacherDisconnected(false);
             }
         };
 
-        // Check periodically while playing
-        const intervalId = setInterval(checkDisconnect, 2000);
+        const intervalId = setInterval(checkDisconnect, 2_000);
 
         return () => {
             clearInterval(intervalId);
         };
-    }, [masterState?.isPlaying, isOnlineMode, enabled, isTeacherDisconnected]);
+    }, [masterState?.isPlaying, isOnlineMode, enabled, isTeacherDisconnected, audioRef]);
 
-    // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
             if (syncTimeoutRef.current) {
                 clearTimeout(syncTimeoutRef.current);
+            }
+            if (softCorrectionTimeoutRef.current) {
+                clearTimeout(softCorrectionTimeoutRef.current);
             }
         };
     }, []);

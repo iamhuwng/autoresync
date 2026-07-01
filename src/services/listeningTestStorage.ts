@@ -10,8 +10,39 @@
 import { ref, set, get } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
-import r2StorageService from './r2Storage';
+import r2StorageService, { R2_PUBLIC_URL } from './r2Storage';
 import type { ParsedQuestion } from '../types/document.types';
+import type {
+  ListeningAssetCommitInput,
+  ListeningAssetCommitResult,
+} from '../features/assessment/listening/storage/listeningAssetCommit';
+export {
+  createListeningAuthoringWorkflow,
+} from '../features/assessment/listening/authoring/listeningAuthoringWorkflow';
+export type {
+  PublishListeningDraftRequest as PublishListeningDraftInput,
+  PublishListeningDraftResult,
+  SaveListeningDraftRequest as SaveListeningDraftInput,
+  SaveListeningDraftResult,
+} from '../features/assessment/listening/authoring/listeningAuthoringWorkflow';
+export {
+  createInMemoryListeningAuthoringStore,
+} from '../features/assessment/listening/storage/listeningAuthoringStore';
+export {
+  archiveListeningPublishedVersion,
+  softDeleteListeningDraft,
+} from '../features/assessment/listening/storage/listeningAuthoringDeletionGovernance';
+export {
+  resolveListeningLegacyAudioReference,
+} from '../features/assessment/listening/adapters/listeningLegacyAudioResolver';
+export type {
+  CreateListeningRevisionDraftInput,
+  CreateListeningRevisionDraftResult,
+  ListeningAuthoringDocumentV1,
+  ListeningAuthoringDraftRecord,
+  ListeningAuthoringIssue,
+  ListeningPublishedVersionRecord,
+} from '../features/assessment/listening/types/listeningAuthoring.types';
 
 // ============================================================
 // LISTENING-SPECIFIC TYPES
@@ -34,11 +65,33 @@ export interface AudioSection {
   name: string;
   audioUrl: string;
   streamUrl?: string; // Direct stream URL for audio player
+  assetId?: string;
+  uploadSessionId?: string;
+  tempKey?: string;
+  checksum?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  fileName?: string;
   startQuestion: number;
   endQuestion: number;
   playLimit?: number; // How many times can replay (undefined = unlimited)
   waitTimeBefore?: number; // Seconds of wait time before section
 }
+
+export interface ListeningAssetCommitter {
+  (input: ListeningAssetCommitInput): Promise<ListeningAssetCommitResult>;
+}
+
+const hasCanonicalCommitMetadata = (section: AudioSection): boolean =>
+  Boolean(
+    section.assetId
+    && section.uploadSessionId
+    && section.tempKey
+    && section.checksum
+    && section.contentType
+    && section.sizeBytes
+    && section.fileName
+  );
 
 /**
  * Display mode for Listening tests:
@@ -240,7 +293,8 @@ export const saveListeningTestToFirebase = async (
   isPublic: boolean = false,
   audioControlsConfig?: AudioControlsConfig,
   allowReplay: boolean = false,
-  maxReplays: number = 1
+  maxReplays: number = 1,
+  assetCommitter?: ListeningAssetCommitter
 ): Promise<{ success: boolean; testId?: string; error?: string }> => {
   try {
     const testId = generateListeningTestId();
@@ -255,46 +309,59 @@ export const saveListeningTestToFirebase = async (
       };
     }
 
-    // ============================================
-    // SMART CLEANUP: Move temp files to permanent storage
-    // ============================================
-    // Check if any audio URLs are in temp/ folder and move them
+    for (const section of audioSections) {
+      const hasCanonicalAsset = hasCanonicalCommitMetadata(section);
+      if (hasCanonicalAsset && !assetCommitter) {
+        throw new Error(`Section ${section.number} audio requires registry commit adapter before save`);
+      }
+      if (
+        !hasCanonicalAsset
+        && (
+          r2StorageService.isTempFile(section.audioUrl)
+          || (section.streamUrl ? r2StorageService.isTempFile(section.streamUrl) : false)
+        )
+      ) {
+        throw new Error(`Section ${section.number} audio requires registry commit metadata before save`);
+      }
+    }
+
     const updatedAudioSections = await Promise.all(
       audioSections.map(async (section) => {
         let updatedSection = { ...section };
+        const hasCanonicalAsset = hasCanonicalCommitMetadata(section);
 
-        // Check and move audioUrl if it's a temp file
-        if (section.audioUrl && r2StorageService.isTempFile(section.audioUrl)) {
-          const key = r2StorageService.getKeyFromUrl(section.audioUrl);
-          if (key) {
-            try {
-              const moveResult = await r2StorageService.moveToPermanent(key);
-              updatedSection.audioUrl = moveResult.newUrl;
-              if (section.streamUrl === section.audioUrl) {
-                updatedSection.streamUrl = moveResult.newUrl;
-              }
-              console.log(`✅ Moved audio for section ${section.number} to permanent storage`);
-            } catch (error) {
-              console.warn(`⚠️ Failed to move audio for section ${section.number} to permanent:`, error);
-              // Continue with temp URL if move fails - file will still work
-            }
+        if (hasCanonicalAsset) {
+          if (!assetCommitter) {
+            throw new Error(`Section ${section.number} audio requires registry commit adapter before save`);
           }
+          const commitResult = await assetCommitter!({
+            ownerId: ownerId || createdBy,
+            uploadSessionId: section.uploadSessionId!,
+            assetId: section.assetId!,
+            fileName: section.fileName!,
+            declaredMimeType: section.contentType!,
+            expectedChecksum: section.checksum!,
+            activeAudioFileCount: audioSections.length,
+            reference: {
+              kind: 'tests',
+              id: testId,
+              sourcePath: `tests/${testId}/audioSections/${section.number}`,
+            },
+            now,
+            publicBaseUrl: R2_PUBLIC_URL,
+          });
+          updatedSection.audioUrl = commitResult.audioUrl;
+          updatedSection.streamUrl = commitResult.streamUrl;
+          updatedSection.assetId = commitResult.assetId;
+          return updatedSection;
         }
 
-        // Check and move streamUrl if it's different and also temp
-        if (section.streamUrl && section.streamUrl !== section.audioUrl && r2StorageService.isTempFile(section.streamUrl)) {
-          const key = r2StorageService.getKeyFromUrl(section.streamUrl);
-          if (key) {
-            try {
-              const moveResult = await r2StorageService.moveToPermanent(key);
-              updatedSection.streamUrl = moveResult.newUrl;
-              console.log(`✅ Moved stream URL for section ${section.number} to permanent storage`);
-            } catch (error) {
-              console.warn(`⚠️ Failed to move stream URL for section ${section.number}:`, error);
-            }
-          }
+        if (
+          r2StorageService.isTempFile(section.audioUrl)
+          || (section.streamUrl ? r2StorageService.isTempFile(section.streamUrl) : false)
+        ) {
+          throw new Error(`Section ${section.number} audio requires registry commit metadata before save`);
         }
-
         return updatedSection;
       })
     );
@@ -313,6 +380,9 @@ export const saveListeningTestToFirebase = async (
       // Only include optional fields if they have actual values (Firebase rejects undefined)
       if (section.streamUrl !== undefined) {
         formatted.streamUrl = section.streamUrl;
+      }
+      if (section.assetId !== undefined) {
+        formatted.assetId = section.assetId;
       }
       if (section.playLimit !== undefined) {
         formatted.playLimit = section.playLimit;
@@ -360,7 +430,7 @@ export const saveListeningTestToFirebase = async (
     const isComplete = missingAnswerCount === 0;
 
     if (!isComplete) {
-      console.log(`⚠️ Test has ${missingAnswerCount}/${questions.length} questions without answer keys`);
+      console.log(`Test has ${missingAnswerCount}/${questions.length} questions without answer keys`);
     }
 
     // Build Listening test data structure
@@ -437,7 +507,7 @@ export const saveListeningTestToFirebase = async (
     const testRef = ref(database, `tests/${testId}`);
     await set(testRef, testData);
 
-    console.log('✅ Listening test saved to Firebase:', testId);
+    console.log('Listening test saved to Firebase:', testId);
 
     return {
       success: true,
@@ -445,7 +515,7 @@ export const saveListeningTestToFirebase = async (
     };
 
   } catch (error) {
-    console.error('❌ Error saving Listening test to Firebase:', error);
+    console.error('Error saving Listening test to Firebase:', error);
 
     let errorMessage = 'Failed to save Listening test';
     if (error instanceof Error) {
@@ -501,7 +571,7 @@ export const getListeningTestFromFirebase = async (
       };
     }
   } catch (error) {
-    console.error('❌ Error getting Listening test from Firebase:', error);
+    console.error('Error getting Listening test from Firebase:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get Listening test',
@@ -543,7 +613,7 @@ export const getAllListeningTestsFromFirebase = async (): Promise<{
       };
     }
   } catch (error) {
-    console.error('❌ Error getting Listening tests from Firebase:', error);
+    console.error('Error getting Listening tests from Firebase:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get Listening tests',
@@ -582,13 +652,13 @@ export const updateListeningTestInFirebase = async (
 
     await set(testRef, updatedData);
 
-    console.log('✅ Listening test updated in Firebase:', testId);
+    console.log('Listening test updated in Firebase:', testId);
 
     return {
       success: true,
     };
   } catch (error) {
-    console.error('❌ Error updating Listening test in Firebase:', error);
+    console.error('Error updating Listening test in Firebase:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update Listening test',
@@ -606,29 +676,9 @@ export const updateListeningTestInFirebase = async (
 export const deleteListeningTestFromFirebase = async (
   testId: string
 ): Promise<{ success: boolean; error?: string }> => {
-  try {
-    // Verify it's a Listening test before deleting
-    const existing = await getListeningTestFromFirebase(testId);
-    if (!existing.success) {
-      return {
-        success: false,
-        error: existing.error || 'Test not found',
-      };
-    }
-
-    const testRef = ref(database, `tests/${testId}`);
-    await set(testRef, null);
-
-    console.log('✅ Listening test deleted from Firebase:', testId);
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.error('❌ Error deleting Listening test from Firebase:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete Listening test',
-    };
-  }
+  void testId;
+  return {
+    success: false,
+    error: 'Published Listening test physical deletion is blocked until the approved Task 6 audited deletion operation exists.',
+  };
 };

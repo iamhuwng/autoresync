@@ -1,0 +1,141 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 5,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true
+    }
+  },
+  "suites": [
+    {
+      "title": "prd0055-task9-local-progress-visual.spec.ts",
+      "file": "prd0055-task9-local-progress-visual.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "localhost teacher monitor progress bar hydrates canonical live position after reload",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 29725,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Test timeout of 30000ms exceeded",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Test timeout of 30000ms exceeded\n    at expectPrivateAudioReady (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts:127:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts:169:3",
+                    "location": {
+                      "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts",
+                      "column": 3,
+                      "line": 127
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 125 |\u001b[39m\n \u001b[90m 126 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m expectPrivateAudioReady(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 127 |\u001b[39m   \u001b[36mawait\u001b[39m expect\u001b[33m.\u001b[39mpoll(\u001b[36masync\u001b[39m () \u001b[33m=>\u001b[39m {\n \u001b[90m     |\u001b[39m   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 128 |\u001b[39m     \u001b[36mconst\u001b[39m state \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m readAudioState(page)\u001b[33m;\u001b[39m\n \u001b[90m 129 |\u001b[39m     \u001b[36mreturn\u001b[39m {\n \u001b[90m 130 |\u001b[39m       hasPrivateContentUrl\u001b[33m:\u001b[39m state\u001b[33m.\u001b[39msrc\u001b[33m.\u001b[39mincludes(\u001b[32m'/listening-delivery/content?token='\u001b[39m)\u001b[33m,\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts",
+                        "column": 3,
+                        "line": 127
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Test timeout of 30000ms exceeded\n\n  125 |\n  126 | async function expectPrivateAudioReady(page: Page) {\n> 127 |   await expect.poll(async () => {\n      |   ^\n  128 |     const state = await readAudioState(page);\n  129 |     return {\n  130 |       hasPrivateContentUrl: state.src.includes('/listening-delivery/content?token='),\n    at expectPrivateAudioReady (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts:127:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts:169:3"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-30T19:45:17.561Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-local-progre-5c3d9--live-position-after-reload-chromium\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-local-progress-visual.spec.ts",
+                    "column": 3,
+                    "line": 127
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "d582169fdd647f30b961-c4fb5158d733ba6d65c4",
+          "file": "prd0055-task9-local-progress-visual.spec.ts",
+          "line": 141,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T19:45:15.343Z",
+    "duration": 32748.298000000003,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

@@ -9,9 +9,11 @@ const {
   mockUseHeadphonePermission,
   mockUsePagination,
   mockUseTimerExpiry,
-  mockNotificationsShow,
+  mockToastShow,
   mockCalculateSessionStatistics,
   mockTrackAction,
+  mockLiveIssue,
+  mockLiveRefresh,
 } = vi.hoisted(() => ({
   mockUseMonitorSession: vi.fn(),
   mockUseMonitorControls: vi.fn(),
@@ -19,20 +21,11 @@ const {
   mockUseHeadphonePermission: vi.fn(),
   mockUsePagination: vi.fn(),
   mockUseTimerExpiry: vi.fn(),
-  mockNotificationsShow: vi.fn(),
+  mockToastShow: vi.fn(),
   mockCalculateSessionStatistics: vi.fn(),
   mockTrackAction: vi.fn(),
-}));
-
-vi.mock('@mantine/core', () => ({
-  Center: ({ children }: any) => <div>{children}</div>,
-  Loader: () => <div>Loading...</div>,
-}));
-
-vi.mock('@mantine/notifications', () => ({
-  notifications: {
-    show: (...args: any[]) => mockNotificationsShow(...args),
-  },
+  mockLiveIssue: vi.fn(),
+  mockLiveRefresh: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -46,11 +39,15 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../components/modern', () => ({
   Card: ({ children }: any) => <div>{children}</div>,
   CardBody: ({ children }: any) => <div>{children}</div>,
+  VanillaLoader: () => <div>Loading...</div>,
   Button: ({ children, onClick, disabled }: any) => (
     <button onClick={onClick} disabled={disabled}>
       {children}
     </button>
   ),
+  toast: {
+    show: (...args: any[]) => mockToastShow(...args),
+  },
 }));
 
 vi.mock('../components/test/StudentProgressCard', () => ({
@@ -76,7 +73,26 @@ vi.mock('../components/test/StudentDetailModal', () => ({
 }));
 
 vi.mock('../components/test/AudioProgressPanel', () => ({
-  AudioProgressPanel: () => null,
+  AudioProgressPanel: (props: any) => (
+    <div
+      data-testid="audio-progress-panel"
+      data-current-section={props.currentSection}
+      data-is-playing={String(props.isPlaying)}
+      data-is-paused={String(props.isPaused)}
+      data-playback-speed={String(props.playbackSpeed)}
+      data-audio-url={props.audioSections?.[0]?.audioUrl}
+      data-authorized-delivery={String(Boolean(props.authorizedDelivery))}
+      data-master-revision={String(props.masterRevision)}
+      data-canonical-position={String(props.canonicalPosition)}
+    />
+  ),
+}));
+
+vi.mock('../features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient', () => ({
+  createListeningLiveDeliveryIssuer: () => ({
+    issue: (...args: any[]) => mockLiveIssue(...args),
+    refresh: (...args: any[]) => mockLiveRefresh(...args),
+  }),
 }));
 
 vi.mock('../components/test/HeadphoneRequestPanel', () => ({
@@ -288,7 +304,7 @@ describe('TeacherTestMonitorPage release controls', () => {
       expect(mockSetReviewReleaseState).toHaveBeenCalledWith('review-released');
     });
 
-    expect(mockNotificationsShow).toHaveBeenCalledWith(
+    expect(mockToastShow).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Review Access: Review',
       }),
@@ -301,7 +317,198 @@ describe('TeacherTestMonitorPage release controls', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Locked/i }));
 
     expect(mockSetReviewReleaseState).not.toHaveBeenCalled();
-    expect(mockNotificationsShow).not.toHaveBeenCalled();
+    expect(mockToastShow).not.toHaveBeenCalled();
+  });
+
+  it('does not render the audio progress panel for non-Listening sessions', async () => {
+    render(<TeacherTestMonitorPage />);
+
+    expect(await screen.findByText('Student Review Access')).toBeInTheDocument();
+    expect(screen.queryByTestId('audio-progress-panel')).not.toBeInTheDocument();
+  });
+
+  it('renders the audio progress panel only for in-progress Listening sessions with audio sections', async () => {
+    mockUseMonitorSession.mockReturnValue({
+      session: {
+        ...buildMonitorSession(),
+        status: 'completed',
+      },
+      students: STUDENTS,
+      testData: {
+        questionCount: 10,
+        duration: 30,
+        type: 'exam',
+        title: 'Listening Completed',
+        skill: 'Listening',
+        audioSections: [{ sectionNumber: 1, audioUrl: 'https://cdn.example.com/1.mp3' }],
+      },
+      fullTestData: {
+        questions: [],
+        sections: [],
+      },
+      loading: false,
+      error: null,
+    });
+
+    const { rerender } = render(<TeacherTestMonitorPage />);
+
+    expect(await screen.findByText('Student Review Access')).toBeInTheDocument();
+    expect(screen.queryByTestId('audio-progress-panel')).not.toBeInTheDocument();
+
+    mockUseMonitorSession.mockReturnValue({
+      session: buildMonitorSession(),
+      students: STUDENTS,
+      testData: {
+        questionCount: 10,
+        duration: 30,
+        type: 'exam',
+        title: 'Listening Without Audio',
+        skill: 'Listening',
+        audioSections: [],
+      },
+      fullTestData: {
+        questions: [],
+        sections: [],
+      },
+      loading: false,
+      error: null,
+    });
+
+    rerender(<TeacherTestMonitorPage />);
+
+    expect(screen.queryByTestId('audio-progress-panel')).not.toBeInTheDocument();
+  });
+
+  it('hydrates listening monitor audio controls from canonical masterAudioState on reload', async () => {
+    mockUseMonitorSession.mockReturnValue({
+      session: {
+        ...buildMonitorSession(),
+        masterAudioState: {
+          schemaVersion: 2,
+          revision: 12,
+          section: 3,
+          position: 42,
+          isPlaying: false,
+          speed: 1.25,
+          timestamp: 10000,
+          updateKind: 'command',
+          lastAction: 'pause',
+          lastActionRevision: 12,
+          lastActionTimestamp: 10000,
+          actionId: 'pause-12',
+          writerUid: 'teacher-1',
+          writerClientId: 'monitor-1',
+        },
+      },
+      students: STUDENTS,
+      testData: {
+        questionCount: 10,
+        duration: 30,
+        type: 'exam',
+        title: 'Listening Mock',
+        skill: 'Listening',
+        audioSections: [
+          { sectionNumber: 1, audioUrl: 'https://cdn.example.com/1.mp3' },
+          { sectionNumber: 2, audioUrl: 'https://cdn.example.com/2.mp3' },
+          { sectionNumber: 3, audioUrl: 'https://cdn.example.com/3.mp3' },
+        ],
+      },
+      fullTestData: {
+        questions: [],
+        sections: [],
+      },
+      loading: false,
+      error: null,
+    });
+
+    render(<TeacherTestMonitorPage />);
+
+    const panel = await screen.findByTestId('audio-progress-panel');
+    await waitFor(() => {
+      expect(panel).toHaveAttribute('data-current-section', '3');
+      expect(panel).toHaveAttribute('data-is-playing', 'false');
+      expect(panel).toHaveAttribute('data-is-paused', 'true');
+      expect(panel).toHaveAttribute('data-playback-speed', '1.25');
+      expect(panel).toHaveAttribute('data-canonical-position', '42');
+    });
+  });
+
+  it('resolves asset-ID monitor audio through private delivery before playback', async () => {
+    const issued = {
+      assetId: 'asset-1',
+      url: 'https://delivery.example/private.wav',
+      tokenId: 'token-1',
+      issuedAt: 1_700_000_000_000,
+      expiresAt: 1_700_003_600_000,
+      refreshAfter: 1_700_003_000_000,
+      ttlMs: 3_600_000,
+      deliveryReady: true,
+      range: {
+        requestRange: 'bytes=0-0',
+        status: 206,
+        acceptRanges: 'bytes',
+        contentLength: 1,
+        contentRange: 'bytes 0-0/4096',
+      },
+    };
+    mockLiveIssue.mockResolvedValue(issued);
+    mockUseMonitorSession.mockReturnValue({
+      session: {
+        ...buildMonitorSession(),
+        teacherId: 'legacy-session-teacher-1',
+        createdByUserId: 'teacher-1',
+        masterAudioState: {
+          revision: 9,
+          section: 1,
+          isPlaying: false,
+          speed: 1,
+        },
+      },
+      students: STUDENTS,
+      testData: {
+        questionCount: 10,
+        duration: 30,
+        type: 'exam',
+        title: 'Listening Private',
+        skill: 'Listening',
+        audioSections: [{
+          number: 1,
+          name: 'Part 1',
+          audioUrl: 'https://public.example/legacy.wav',
+          assetId: 'asset-1',
+        }],
+      },
+      fullTestData: {
+        id: 'test-1',
+        authoringVersioning: {
+          frozen: true,
+          versionId: 'version-1',
+        },
+      },
+      loading: false,
+      error: null,
+    });
+
+    render(<TeacherTestMonitorPage />);
+
+    await waitFor(() => {
+      expect(mockLiveIssue).toHaveBeenCalledWith(expect.objectContaining({
+        assetId: 'asset-1',
+        liveScope: expect.objectContaining({
+          sessionCode: 'SESSION-1',
+          testId: 'test-1',
+          versionId: 'version-1',
+          studentId: 'teacher-1',
+          sectionNumber: 1,
+        }),
+      }));
+    });
+    const panel = await screen.findByTestId('audio-progress-panel');
+    await waitFor(() => {
+      expect(panel).toHaveAttribute('data-audio-url', issued.url);
+      expect(panel).toHaveAttribute('data-authorized-delivery', 'true');
+      expect(panel).toHaveAttribute('data-master-revision', '9');
+    });
   });
 
   it('surfaces integrity alerts and opens the detail panel from the monitor banner', async () => {
@@ -410,7 +617,7 @@ describe('TeacherTestMonitorPage release controls', () => {
 
     const { rerender } = render(<TeacherTestMonitorPage />);
 
-    expect(mockNotificationsShow).not.toHaveBeenCalled();
+    expect(mockToastShow).not.toHaveBeenCalled();
 
     liveState.current = {
       ...liveState.current,
@@ -440,11 +647,11 @@ describe('TeacherTestMonitorPage release controls', () => {
     rerender(<TeacherTestMonitorPage />);
 
     await waitFor(() => {
-      expect(mockNotificationsShow).toHaveBeenCalledWith(
+      expect(mockToastShow).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'High-Risk Integrity Alert',
           message: expect.stringContaining('Ada'),
-          color: 'red',
+          tone: 'error',
         }),
       );
     });

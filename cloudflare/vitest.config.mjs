@@ -13,6 +13,6 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ['__tests__/**/*.test.js'],
+    include: ['__tests__/**/*.test.js', 'test/**/*.test.ts'],
   },
 });

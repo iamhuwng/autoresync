@@ -57,6 +57,8 @@ export interface AudioSection {
   name: string;
   audioUrl: string;
   streamUrl?: string;
+  assetId?: string;
+  versionId?: string;
   startQuestion: number;
   endQuestion: number;
   playLimit?: number;

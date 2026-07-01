@@ -1,0 +1,17 @@
+{
+  "id": "7d32be9d-1470-4c82-bb6a-8782a80de1c9",
+  "source": "wrangler",
+  "strategy": "percentage",
+  "author_email": "iamhuwng@gmail.com",
+  "annotations": {
+    "workers/message": "PRD-0055 active version pin recovery rehearsal",
+    "workers/triggered_by": "deployment"
+  },
+  "versions": [
+    {
+      "version_id": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+      "percentage": 100
+    }
+  ],
+  "created_on": "2026-06-30T17:38:10.858655Z"
+}

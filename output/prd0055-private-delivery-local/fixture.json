@@ -1,0 +1,27 @@
+{
+  "sessionCode": "T8P06L",
+  "testId": "prd0055_private_local_1782831133187",
+  "versionId": "prd0055_private_version_1782831133187",
+  "teacherUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+  "studentUid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+  "assetIds": [
+    "prd0055-private-asset-1-1782831133187",
+    "prd0055-private-asset-2-1782831133187"
+  ],
+  "durableKeys": [
+    "assessment-assets/listening/prd0055-local/asset-private-1/section-1.wav",
+    "assessment-assets/listening/prd0055-local/asset-private-2/section-2.wav"
+  ],
+  "teacherUrl": "http://localhost:5173/teacher-test/T8P06L",
+  "studentUrl": "http://localhost:5174/student-test/T8P06L",
+  "seededAt": "2026-06-30T14:52:13.187Z",
+  "scope": "local proof fixture; prod app paths + emulator worker paths; no cleanup/delete",
+  "readback": {
+    "prodSessionStatus": "in-progress",
+    "prodTestAudioAsset": "prd0055-private-asset-1-1782831133187",
+    "emuSessionTeacher": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "emuPlayerPresent": true,
+    "emuAssetState": "committed",
+    "emuAssetKey": "assessment-assets/listening/prd0055-local/asset-private-1/section-1.wav"
+  }
+}

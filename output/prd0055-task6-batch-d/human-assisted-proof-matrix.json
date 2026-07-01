@@ -1,0 +1,75 @@
+{
+  "packet": "PRD-0055 Task 6 Batch D",
+  "scope": "Task 6.6 through 6.8 only",
+  "generatedAt": "2026-06-29",
+  "nonActions": [
+    "no solo runtime private cutover",
+    "no live runtime private cutover",
+    "no AudioPlayer.tsx change",
+    "no deploy",
+    "no remote mutation",
+    "no cleanup execution"
+  ],
+  "rows": [
+    {
+      "requirement": "authorized issuance",
+      "status": "passed",
+      "evidence": "src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts issues a 60-minute URL for a retained result viewer through trusted graph authorization"
+    },
+    {
+      "requirement": "known asset ID alone denied",
+      "status": "passed",
+      "evidence": "listeningAssetDelivery.service.test.ts denies issuance when retained result/version authorization is absent"
+    },
+    {
+      "requirement": "cross-user and cross-owner issuance denied",
+      "status": "passed",
+      "evidence": "listeningAssetDelivery.service.test.ts denies another student and another teacher despite valid assetId/resultId"
+    },
+    {
+      "requirement": "byte ranges, 206, Accept-Ranges, stable Content-Length",
+      "status": "passed",
+      "evidence": "listeningAssetDelivery.service.test.ts validates range probe headers before signing; e2e/prd0055-task6-result-review-delivery.spec.ts proves browser Range fetches in a synthetic result-review proof page"
+    },
+    {
+      "requirement": "expiration and refresh issuance",
+      "status": "passed",
+      "evidence": "listeningAssetDelivery.service.test.ts proves 60-minute TTL, refresh-after below 10 minutes remaining, early refresh denial, previous URL validity until replacement, and expired URL denial"
+    },
+    {
+      "requirement": "Chrome result review",
+      "status": "passed",
+      "evidence": "output/playwright/prd0055-task6-batch-d/report.json project chrome-result-review passed"
+    },
+    {
+      "requirement": "Edge result review",
+      "status": "passed",
+      "evidence": "output/playwright/prd0055-task6-batch-d/report.json project edge-result-review passed"
+    },
+    {
+      "requirement": "desktop Safari result review",
+      "status": "passed",
+      "evidence": "output/playwright/prd0055-task6-batch-d/report.json project desktop-safari-result-review passed with Playwright WebKit"
+    },
+    {
+      "requirement": "iOS Safari result review",
+      "status": "passed",
+      "evidence": "output/playwright/prd0055-task6-batch-d/report.json project ios-safari-result-review passed with Playwright WebKit and iPhone 15 device profile"
+    },
+    {
+      "requirement": "legacy result records",
+      "status": "passed",
+      "evidence": "src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts and SharedSavedResultCore.test.tsx keep raw public R2 legacy result audio on public-r2 resolver without migration"
+    },
+    {
+      "requirement": "new result records",
+      "status": "passed",
+      "evidence": "listeningResultReviewAudioResolver.test.ts, listeningResultReviewDeliveryClient.test.ts, SharedSavedResultCore.test.tsx, and cloudflare/test/listening-delivery-worker.test.ts resolve asset-ID result review through authorized delivery scoped to resultId/versionId with default client and authenticated Worker authority"
+    },
+    {
+      "requirement": "production issuer boundary",
+      "status": "passed",
+      "evidence": "SharedSavedResultCore.test.tsx proves saved-result shells do not need an injected issuer; listeningResultReviewDeliveryClient.test.ts proves browser payload includes only assetId/resultId/versionId; cloudflare/test/listening-delivery-worker.test.ts proves UID derivation and browser authority rejection"
+    }
+  ]
+}

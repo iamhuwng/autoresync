@@ -39,7 +39,15 @@ export interface TestData {
   skill: string;
   duration: number;
   questionCount: number;
-  audioSections?: Array<{ number: number; name: string; audioUrl?: string; streamUrl?: string }>;
+  audioSections?: Array<{
+    number: number;
+    name: string;
+    audioUrl?: string;
+    streamUrl?: string;
+    assetId?: string;
+    versionId?: string;
+    duration?: number;
+  }>;
 }
 
 export interface MonitorSessionResult {

@@ -1,0 +1,115 @@
+{
+  "task": "PRD-0055 Task 8.15 selected-class live private delivery proof",
+  "proofId": "prd0055-selected-class-live-1782841132794",
+  "startedAt": "2026-06-30T17:38:52.794Z",
+  "workerUrl": "https://r2-upload-signer.iamhuwng.workers.dev",
+  "firebaseProjectId": "temp-a1437",
+  "fixture": {
+    "sessionCode": "T8TDAS",
+    "classId": "prd0055-selected-class-live-1782841132794-class",
+    "testId": "prd0055_live_private_deployed_1782834043116",
+    "versionId": "prd0055_live_private_version_1782834043116",
+    "assetId": "prd0055-live-private-asset-1782834043116"
+  },
+  "writes": [
+    "/classes/prd0055-selected-class-live-1782841132794-class",
+    "/tests/prd0055_live_private_deployed_1782834043116",
+    "/student_safe_tests/prd0055_live_private_deployed_1782834043116",
+    "/game_sessions/T8TDAS",
+    "/session_test_payloads/T8TDAS",
+    "[redacted]"
+  ],
+  "checks": [
+    {
+      "name": "firebase-selected-class-readback",
+      "status": "passed",
+      "classStudentPresent": true,
+      "sessionRestrictedToClass": true,
+      "sessionClassId": "prd0055-selected-class-live-1782841132794-class",
+      "sessionLinkedClassId": "prd0055-selected-class-live-1782841132794-class",
+      "mediaSessionReference": true
+    },
+    {
+      "name": "teacher-live-private-delivery",
+      "status": "passed",
+      "issueStatus": 200,
+      "deliveryReady": true,
+      "range": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/32044",
+        "contentLength": "16",
+        "firstBytesHex": "52494646247d000057415645666d7420",
+        "byteLength": 16
+      }
+    },
+    {
+      "name": "selected-student-live-private-delivery",
+      "status": "passed",
+      "issueStatus": 200,
+      "deliveryReady": true,
+      "range": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/32044",
+        "contentLength": "16",
+        "firstBytesHex": "52494646247d000057415645666d7420",
+        "byteLength": 16
+      }
+    },
+    {
+      "name": "selected-student-refresh-attempt",
+      "status": "passed",
+      "refreshStatus": 400,
+      "deliveryReady": false,
+      "code": "refresh_not_due",
+      "acceptedAsHealthyFreshToken": true
+    },
+    {
+      "name": "cross-owner-live-denial-attempt",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_not_authorized"
+    },
+    {
+      "name": "cross-owner-live-denial",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_not_authorized"
+    },
+    {
+      "name": "wrong-section-denial-attempt",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_live_asset_mismatch"
+    },
+    {
+      "name": "wrong-section-denial",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_live_asset_mismatch"
+    }
+  ],
+  "explicitNonActions": [
+    "No cleanup/delete.",
+    "No commit/push/merge.",
+    "No Cloudflare traffic percentage change.",
+    "No selected-user rollout beyond this internal fixture class."
+  ],
+  "selectedTeacher": {
+    "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "email": "teacher@test.com"
+  },
+  "selectedStudent": {
+    "uid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "email": "student@test.com"
+  },
+  "crossOwnerTeacher": {
+    "uid": "J5Llx96V9BePuw7aF0EME9ukII83",
+    "email": "teacher2@test.com"
+  },
+  "completedAt": "2026-06-30T17:39:49.240Z",
+  "passed": true
+}

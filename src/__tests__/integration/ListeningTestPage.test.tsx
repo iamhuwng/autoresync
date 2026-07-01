@@ -17,8 +17,12 @@ import { useHeadphonePermission } from '../../hooks/audio/useHeadphonePermission
 
 const {
   mockUseMobileExamMode,
+  mockLiveIssue,
+  mockLiveRefresh,
 } = vi.hoisted(() => ({
   mockUseMobileExamMode: vi.fn(),
+  mockLiveIssue: vi.fn(),
+  mockLiveRefresh: vi.fn(),
 }));
 
 vi.mock('../../services/firebase', () => ({
@@ -105,6 +109,13 @@ vi.mock('../../core/platform/hooks/useMobileExamMode', () => ({
   useMobileExamMode: (...args: unknown[]) => mockUseMobileExamMode(...args),
 }));
 
+vi.mock('../../features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient', () => ({
+  createListeningLiveDeliveryIssuer: vi.fn(() => ({
+    issue: mockLiveIssue,
+    refresh: mockLiveRefresh,
+  })),
+}));
+
 vi.mock('../../components/modern/ToastNotification', () => ({
   toast: {
     warning: vi.fn(),
@@ -166,7 +177,16 @@ vi.mock('../../components/test/mobile/MobileListeningAnswerSheet', () => ({
 }));
 
 vi.mock('../../skills/listening/components/ListeningHeader', () => ({
-  ListeningHeader: () => <div>Listening Header</div>,
+  ListeningHeader: (props: any) => (
+    <div
+      data-testid="listening-header"
+      data-audio-url={props.audioUrl || ''}
+      data-has-audio={String(Boolean(props.hasAudio))}
+      data-authorized-delivery={String(Boolean(props.authorizedDelivery))}
+    >
+      Listening Header
+    </div>
+  ),
 }));
 
 vi.mock('../../skills/listening/components/SectionRubricBlock', () => ({
@@ -180,12 +200,14 @@ vi.mock('../../skills/listening/components/ListeningNavArrows', () => ({
 }));
 
 vi.mock('../../skills/listening/components/AudioPlayer', () => ({
-  AudioPlayer: ({ sectionNumber, mobileLayout, isPlaying, onSectionComplete }: any) => (
+  AudioPlayer: ({ sectionNumber, mobileLayout, isPlaying, onSectionComplete, audioUrl, authorizedDelivery }: any) => (
     <div
       data-testid="mobile-audio-player"
       data-section={sectionNumber}
       data-is-playing={String(Boolean(isPlaying))}
       data-mobile-layout={String(Boolean(mobileLayout))}
+      data-audio-url={audioUrl || ''}
+      data-authorized-delivery={String(Boolean(authorizedDelivery))}
     >
       <button type="button" onClick={onSectionComplete}>
         Complete Audio Section
@@ -300,6 +322,24 @@ const antiCheatConfig = {
   shuffleOptions: false,
 };
 
+const liveDeliveryResponse = {
+  assetId: 'asset-1',
+  url: 'https://authorized.example/live/asset-1.mp3',
+  tokenId: 'token-1',
+  issuedAt: 1_700_000_000_000,
+  expiresAt: 1_700_003_600_000,
+  refreshAfter: 1_700_003_000_000,
+  ttlMs: 60 * 60 * 1000,
+  deliveryReady: true,
+  range: {
+    requestRange: 'bytes=0-0',
+    status: 206,
+    acceptRanges: 'bytes',
+    contentLength: 1,
+    contentRange: 'bytes 0-0/4096',
+  },
+};
+
 /** Standard Listening test with 4 audio sections, showPlayPause=false */
 const makeMockTestData = (showPlayPause = false) => ({
   id: 'listening-test',
@@ -368,6 +408,13 @@ function renderPage() {
 function setupDefaults(showPlayPause = false) {
   vi.clearAllMocks();
   mockUseMobileExamMode.mockReturnValue({ isMobileExamMode: false });
+  mockLiveIssue.mockResolvedValue(liveDeliveryResponse);
+  mockLiveRefresh.mockResolvedValue({
+    ...liveDeliveryResponse,
+    url: 'https://authorized.example/live/asset-1-refresh.mp3',
+    tokenId: 'token-2',
+    previousUrlValidUntil: liveDeliveryResponse.expiresAt,
+  });
 
   sessionStorage.clear();
   sessionStorage.setItem('playerId', 'player-123');
@@ -467,6 +514,48 @@ describe('ListeningTestPage integration', () => {
     expect(useIntegrityRefreshRequest).toHaveBeenCalledWith(expect.objectContaining({
       requestTimestamp: 1_700_000_000_000,
     }));
+  });
+
+  it('resolves asset-ID live audio through authorized delivery before desktop playback', async () => {
+    const liveTestData = {
+      ...makeMockTestData(),
+      authoringVersioning: { frozen: true, versionId: 'version-1' },
+      audioSections: [{
+        ...makeMockTestData().audioSections[0],
+        audioUrl: 'https://public.example/legacy-asset-1.mp3',
+        assetId: 'asset-1',
+      }],
+    };
+    vi.mocked(useTestData).mockReturnValue({
+      testData: liveTestData,
+      loading: false,
+      error: null,
+      questionsWithAnswersRef: { current: liveTestData.questions },
+    } as any);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockLiveIssue).toHaveBeenCalledWith({
+        assetId: 'asset-1',
+        context: { runtime: 'trusted-server', callerUserId: 'player-123' },
+        now: expect.any(Number),
+        liveScope: {
+          sessionCode: 'ABC123',
+          testId: 'listening-test',
+          versionId: 'version-1',
+          studentId: 'player-123',
+          classId: undefined,
+          sectionNumber: 1,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const header = screen.getByTestId('listening-header');
+      expect(header.getAttribute('data-audio-url')).toBe(liveDeliveryResponse.url);
+      expect(header.getAttribute('data-authorized-delivery')).toBe('true');
+    });
   });
 
   it('flushes integrity events before listening submission', async () => {

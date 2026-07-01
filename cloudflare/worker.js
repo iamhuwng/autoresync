@@ -18,6 +18,10 @@ import {
   handleGrantMove,
   handleGrantUpload,
 } from './src/upload-worker/request-handlers.js';
+import { handleListeningUploadSessionGrant } from './src/upload-worker/listening-upload-session-grant.ts';
+import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
+import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
+import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -64,6 +68,9 @@ export function createUploadWorker({
   firebaseVerifier = createFirebaseVerifier(),
   nonceGenerator = generateNonce,
   now = () => Date.now(),
+  listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
+  listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
+  listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
 } = {}) {
   return {
     async fetch(request, env) {
@@ -81,6 +88,24 @@ export function createUploadWorker({
       const respond = ({ body, init = {} }) => json(body, init);
 
       try {
+        if (
+          (request.method === 'GET' || request.method === 'HEAD') &&
+          url.pathname === '/listening-delivery/content'
+        ) {
+          const response = await listeningDeliveryHandlers.content({
+            request,
+            env,
+            now,
+          });
+          const headers = new Headers(response.headers);
+          Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+          });
+        }
+
         const auth = await authenticate(request, env, firebaseVerifier, corsHeaders);
         if (auth.response) return auth.response;
         const { uid } = auth;
@@ -109,7 +134,97 @@ export function createUploadWorker({
           }));
         }
 
+        if (request.method === 'POST' && url.pathname === '/createListeningUploadSession') {
+          return respond(await listeningUploadSessionHandlers.createSession({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/issueListeningUploadAsset') {
+          return respond(await listeningUploadSessionHandlers.issueAsset({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/probeListeningUploadAsset') {
+          return respond(await listeningUploadSessionHandlers.probeAsset({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-authoring/save-draft') {
+          return respond(await listeningAuthoringHandlers.saveDraft({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-authoring/publish') {
+          return respond(await listeningAuthoringHandlers.publish({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-authoring/lifecycle') {
+          return respond(await listeningAuthoringHandlers.lifecycle({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/result-review') {
+          return respond(await listeningDeliveryHandlers.resultReview({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/solo') {
+          return respond(await listeningDeliveryHandlers.solo({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/live') {
+          return respond(await listeningDeliveryHandlers.live({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
         if (request.method === 'PUT' && url.pathname === '/upload') {
+          if (url.searchParams.has('assetGrant')) {
+            return respond(await handleListeningUploadSessionGrant({
+              request,
+              env,
+              url,
+              uid,
+              now,
+            }));
+          }
           return respond(await handleGrantUpload({
             request,
             env,

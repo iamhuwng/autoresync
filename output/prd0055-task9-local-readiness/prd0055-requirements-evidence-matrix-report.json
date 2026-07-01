@@ -1,0 +1,458 @@
+{
+  "createdAt": "2026-06-30T13:08:12.975Z",
+  "verdict": "REQUIREMENTS_MATRIX_PARTIAL_LOCAL_EVIDENCE_CLOSURE_BLOCKED",
+  "scope": "PRD-0055 remaining Task 8.14-8.18 and Task 9.0-9.15 objective requirements",
+  "branchHead": "dfe02060bf473fb4d60fbb601eba23aaecf534cf",
+  "taskboxes": {
+    "8.14": "unchecked",
+    "8.15": "unchecked",
+    "8.16": "unchecked",
+    "8.17": "unchecked",
+    "8.18": "unchecked",
+    "9.0": "unchecked",
+    "9.1": "unchecked",
+    "9.2": "unchecked",
+    "9.3": "unchecked",
+    "9.4": "unchecked",
+    "9.5": "unchecked",
+    "9.6": "unchecked",
+    "9.7": "unchecked",
+    "9.8": "unchecked",
+    "9.9": "unchecked",
+    "9.10": "unchecked",
+    "9.11": "unchecked",
+    "9.12": "unchecked",
+    "9.13": "unchecked",
+    "9.14": "unchecked",
+    "9.15": "unchecked"
+  },
+  "counts": {
+    "OPEN_AND_TRACKED": 1,
+    "PROVEN_FOR_THIS_AUDIT_SLICE": 1,
+    "PARTIAL_LOCAL_HUMAN_AUDIBLE_PROVEN": 1,
+    "PARTIAL_LOCAL_HUMAN_BROWSER_PROVEN": 1,
+    "PARTIAL_DEPLOYED_READBACK_BLOCKED": 1,
+    "MISSING_BLOCKED": 1,
+    "BLOCKED_NOT_CLOSURE": 1,
+    "PARTIAL_LOCAL_PROVEN": 9,
+    "PARTIAL_OR_MISSING": 1,
+    "PARTIAL_RECOVERY_VERSION_PROVEN_BLOCKED": 1,
+    "PARTIAL_LOCAL_ONLY_BLOCKED": 1,
+    "PARTIAL_LOCAL_RECONCILED": 1,
+    "BLOCKER_DOCUMENTED": 1
+  },
+  "deploySensitiveChangedPaths": [
+    "cloudflare/__tests__/upload-worker-harness.test.js",
+    "cloudflare/package.json",
+    "cloudflare/r2-lifecycle.temp-24h.json",
+    "cloudflare/scripts/verify-r2-lifecycle-config.mjs",
+    "cloudflare/src/upload-worker/cors-policy.js",
+    "cloudflare/src/upload-worker/listening-authoring.ts",
+    "cloudflare/src/upload-worker/listening-authoring/repository.ts",
+    "cloudflare/src/upload-worker/listening-authoring/rtdb.ts",
+    "cloudflare/src/upload-worker/listening-authoring/worker.ts",
+    "cloudflare/src/upload-worker/listening-delivery.ts",
+    "cloudflare/src/upload-worker/listening-upload-session-contract.ts",
+    "cloudflare/src/upload-worker/listening-upload-session-grant.ts",
+    "cloudflare/src/upload-worker/listening-upload-session-repository.ts",
+    "cloudflare/src/upload-worker/listening-upload-session-types.ts",
+    "cloudflare/src/upload-worker/listening-upload-session.ts",
+    "cloudflare/test/listening-authoring-worker.test.ts",
+    "cloudflare/test/listening-delivery-worker.test.ts",
+    "cloudflare/test/listening-upload-session-bridge.test.ts",
+    "cloudflare/test/r2-lifecycle-config.test.ts",
+    "cloudflare/vitest.config.mjs",
+    "cloudflare/worker.js",
+    "cloudflare/wrangler.jsonc",
+    "database.rules.json",
+    "firebase.json",
+    "functions/lib/listening-authoring/canonical.js",
+    "functions/lib/listening-authoring/canonical.js.map",
+    "functions/lib/listening-authoring/constants.js",
+    "functions/lib/listening-authoring/constants.js.map",
+    "functions/lib/listening-authoring/contracts.js",
+    "functions/lib/listening-authoring/contracts.js.map",
+    "functions/lib/listening-authoring/http.js",
+    "functions/lib/listening-authoring/http.js.map",
+    "functions/lib/listening-authoring/http.test.js",
+    "functions/lib/listening-authoring/http.test.js.map",
+    "functions/lib/listening-authoring/lifecycle.service.test.js",
+    "functions/lib/listening-authoring/lifecycle.service.test.js.map",
+    "functions/lib/listening-authoring/listeningAuthoringContract.test.js",
+    "functions/lib/listening-authoring/listeningAuthoringContract.test.js.map",
+    "functions/lib/listening-authoring/publish.service.test.js",
+    "functions/lib/listening-authoring/publish.service.test.js.map",
+    "functions/lib/listening-authoring/repository.firebase.emulator.test.js",
+    "functions/lib/listening-authoring/repository.firebase.emulator.test.js.map",
+    "functions/lib/listening-authoring/repository.firebase.js",
+    "functions/lib/listening-authoring/repository.firebase.js.map",
+    "functions/lib/listening-authoring/repository.firebaseLegacyFirstEdit.js",
+    "functions/lib/listening-authoring/repository.firebaseLegacyFirstEdit.js.map",
+    "functions/lib/listening-authoring/repository.firebaseLifecycle.js",
+    "functions/lib/listening-authoring/repository.firebaseLifecycle.js.map",
+    "functions/lib/listening-authoring/repository.firebaseOperations.js",
+    "functions/lib/listening-authoring/repository.firebaseOperations.js.map",
+    "functions/lib/listening-authoring/repository.firebasePublish.js",
+    "functions/lib/listening-authoring/repository.firebasePublish.js.map",
+    "functions/lib/listening-authoring/repository.firebaseSupport.js",
+    "functions/lib/listening-authoring/repository.firebaseSupport.js.map",
+    "functions/lib/listening-authoring/repository.firebaseVersions.js",
+    "functions/lib/listening-authoring/repository.firebaseVersions.js.map",
+    "functions/lib/listening-authoring/repository.inMemory.js",
+    "functions/lib/listening-authoring/repository.inMemory.js.map",
+    "functions/lib/listening-authoring/repository.js",
+    "functions/lib/listening-authoring/repository.js.map",
+    "functions/lib/listening-authoring/repository.legacyFirstEditMutation.js",
+    "functions/lib/listening-authoring/repository.legacyFirstEditMutation.js.map",
+    "functions/lib/listening-authoring/repository.lifecycleMutation.js",
+    "functions/lib/listening-authoring/repository.lifecycleMutation.js.map",
+    "functions/lib/listening-authoring/repository.operationRecords.js",
+    "functions/lib/listening-authoring/repository.operationRecords.js.map",
+    "functions/lib/listening-authoring/repository.publishMutation.js",
+    "functions/lib/listening-authoring/repository.publishMutation.js.map",
+    "functions/lib/listening-authoring/repository.saveDraftMutation.js",
+    "functions/lib/listening-authoring/repository.saveDraftMutation.js.map",
+    "functions/lib/listening-authoring/repository.shared.js",
+    "functions/lib/listening-authoring/repository.shared.js.map",
+    "functions/lib/listening-authoring/repository.test.js",
+    "functions/lib/listening-authoring/repository.test.js.map",
+    "functions/lib/listening-authoring/repository.types.js",
+    "functions/lib/listening-authoring/repository.types.js.map",
+    "functions/lib/listening-authoring/saveDraft.service.test.js",
+    "functions/lib/listening-authoring/saveDraft.service.test.js.map",
+    "functions/lib/listening-authoring/service.js",
+    "functions/lib/listening-authoring/service.js.map",
+    "functions/lib/listening-authoring/validation.document.js",
+    "functions/lib/listening-authoring/validation.document.js.map",
+    "functions/lib/listening-authoring/validation.js",
+    "functions/lib/listening-authoring/validation.js.map",
+    "functions/lib/listening-authoring/validation.primitives.js",
+    "functions/lib/listening-authoring/validation.primitives.js.map",
+    "functions/lib/listening-authoring/validation.questions.js",
+    "functions/lib/listening-authoring/validation.questions.js.map",
+    "functions/lib/listening-authoring/validation.settings.js",
+    "functions/lib/listening-authoring/validation.settings.js.map",
+    "functions/src/listening-authoring/canonical.ts",
+    "functions/src/listening-authoring/constants.ts",
+    "functions/src/listening-authoring/contracts.ts",
+    "functions/src/listening-authoring/http.test.ts",
+    "functions/src/listening-authoring/http.ts",
+    "functions/src/listening-authoring/lifecycle.service.test.ts",
+    "functions/src/listening-authoring/listeningAuthoringContract.test.ts",
+    "functions/src/listening-authoring/publish.service.test.ts",
+    "functions/src/listening-authoring/repository.firebase.emulator.test.ts",
+    "functions/src/listening-authoring/repository.firebase.ts",
+    "functions/src/listening-authoring/repository.firebaseLegacyFirstEdit.ts",
+    "functions/src/listening-authoring/repository.firebaseLifecycle.ts",
+    "functions/src/listening-authoring/repository.firebaseOperations.ts",
+    "functions/src/listening-authoring/repository.firebasePublish.ts",
+    "functions/src/listening-authoring/repository.firebaseSupport.ts",
+    "functions/src/listening-authoring/repository.firebaseVersions.ts",
+    "functions/src/listening-authoring/repository.inMemory.ts",
+    "functions/src/listening-authoring/repository.legacyFirstEditMutation.ts",
+    "functions/src/listening-authoring/repository.lifecycleMutation.ts",
+    "functions/src/listening-authoring/repository.operationRecords.ts",
+    "functions/src/listening-authoring/repository.publishMutation.ts",
+    "functions/src/listening-authoring/repository.saveDraftMutation.ts",
+    "functions/src/listening-authoring/repository.shared.ts",
+    "functions/src/listening-authoring/repository.test.ts",
+    "functions/src/listening-authoring/repository.ts",
+    "functions/src/listening-authoring/repository.types.ts",
+    "functions/src/listening-authoring/saveDraft.service.test.ts",
+    "functions/src/listening-authoring/service.ts",
+    "functions/src/listening-authoring/validation.document.ts",
+    "functions/src/listening-authoring/validation.primitives.ts",
+    "functions/src/listening-authoring/validation.questions.ts",
+    "functions/src/listening-authoring/validation.settings.ts",
+    "functions/src/listening-authoring/validation.ts",
+    "r2-backup-worker/src/backup/auto-backup.test.ts",
+    "r2-backup-worker/src/backup/data-backup.test.ts",
+    "r2-backup-worker/src/backup/data-backup.ts",
+    "r2-backup-worker/src/backup/listening-media-governance.test.ts",
+    "r2-backup-worker/src/backup/listening-media-governance.ts",
+    "r2-backup-worker/src/restore/restore-execute.test.ts",
+    "r2-backup-worker/src/restore/restore-execute.ts",
+    "scripts/prd0055-selected-teacher-worker-proof.mjs"
+  ],
+  "matrix": [
+    {
+      "id": "SCOPE-REMAINING-TASKS",
+      "requirement": "Remaining scope is Task 8.14-8.18 and Task 9.0-9.15 only.",
+      "status": "OPEN_AND_TRACKED",
+      "evidence": [
+        "tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+        "EV-FINAL-F"
+      ],
+      "missing": [
+        "Actual closure for each unchecked task."
+      ]
+    },
+    {
+      "id": "NONACTIONS",
+      "requirement": "No Task 10/unrelated work, no cleanup/delete, commit, push, branch merge, production deploy, selected-user rollout, or percentage rollout. Approved dev RTDB internal fixture writes are recorded separately.",
+      "status": "PROVEN_FOR_THIS_AUDIT_SLICE",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-rollout-deployed-truth-audit-report.json",
+        "output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit-report.json",
+        "output/prd0055-task8-local-unblock/browser-audible-fixture.json"
+      ],
+      "missing": [
+        "N/A for this local audit slice."
+      ]
+    },
+    {
+      "id": "HARD-8.14-HUMAN-BROWSER",
+      "requirement": "Human-assisted browser proof is required for Task 8.14.",
+      "status": "PARTIAL_LOCAL_HUMAN_AUDIBLE_PROVEN",
+      "evidence": [
+        "HUMAN_AUDIBLE_AND_NO_WRONG_AUDIO_CONFIRMED_BY_USER: user manually clicked teacher Audio Control Panel at http://localhost:5173/teacher-test/T8P9J2 and heard Browser tone; progress advanced; no wrong audio, interruption, or visible drift observed."
+      ],
+      "missing": [
+        "Live private delivery route/cutover implementation, full private-delivery proof, deployed human speaker proof, rollout and recovery evidence."
+      ]
+    },
+    {
+      "id": "HARD-9.13-HUMAN-BROWSER",
+      "requirement": "Human-assisted final browser proof is required for Task 9.13.",
+      "status": "PARTIAL_LOCAL_HUMAN_BROWSER_PROVEN",
+      "evidence": [
+        "Teacher audible/no-wrong-audio/no-interruption proof exists for T8P9J2 with exact URL, fixture ID, screenshot, JSON artifact, and Browser state."
+      ],
+      "missing": [
+        "Student desktop/mobile human or equivalent final browser packet, network evidence, durable DB evidence, live private delivery implementation, deployed/private proof, rollout/recovery artifacts."
+      ]
+    },
+    {
+      "id": "HARD-ROLLOUT-DEPLOYED-TRUTH",
+      "requirement": "Real rollout/deployed-truth evidence is required for 8.15, 8.16, 9.8, 9.10, 9.12, and 9.15.",
+      "status": "PARTIAL_DEPLOYED_READBACK_BLOCKED",
+      "evidence": [
+        "Cloudflare readback shows 070b0ae2-b5f0-46f8-a40b-3857c4489a66 serving 34970bd6-feb7-4520-87f1-fa6341dc0ba0 at 100%, post-upload readback still serves 34970bd6-feb7-4520-87f1-fa6341dc0ba0 at 100%, Firebase authoring writes flag false, recovery candidate d219c36f-0e0f-489c-a10b-a843ed339bf2 has current-authoring bindings, worker live private route present=false, and EV-FINAL-E records 7 gate blockers."
+      ],
+      "missing": [
+        "Live private delivery route/cutover implementation, selected/percentage/full rollout evidence, deployed/current live private-delivery truth, controlled rollback/recovery rehearsal proof."
+      ]
+    },
+    {
+      "id": "HARD-8.17-INDEPENDENT-VERIFICATION",
+      "requirement": "Final independent verification is required for 8.17.",
+      "status": "MISSING_BLOCKED",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/prd0055-final-independent-gate-audit-summary.json records BLOCKED."
+      ],
+      "missing": [
+        "Fresh-context independent verification after complete 8.14-8.16 evidence exists."
+      ]
+    },
+    {
+      "id": "HARD-PARENTS",
+      "requirement": "Parent Task 8.0 and Task 9.0 may be checked only after all children truly pass.",
+      "status": "BLOCKED_NOT_CLOSURE",
+      "evidence": [
+        "Taskbox scan and EV-FINAL-F keep all target taskboxes unchecked."
+      ],
+      "missing": [
+        "8.14-8.18 and 9.1-9.15 closure."
+      ]
+    },
+    {
+      "id": "BROWSER-MATRIX-LOCAL",
+      "requirement": "Automated integration/a11y/browser local proof for teacher desktop, student desktop, and student mobile.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+        "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json"
+      ],
+      "missing": [
+        "Deployed/private delivery proof and final Task 9.13 full browser packet."
+      ]
+    },
+    {
+      "id": "BROWSER-SCENARIOS",
+      "requirement": "Prove normal/late join, teacher/student reload, pause/resume/skip/seek/speed, buffering, stale command, authority conflict, headphone states, accepted/rejected submit during session end.",
+      "status": "PARTIAL_OR_MISSING",
+      "evidence": [
+        "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json"
+      ],
+      "missing": [
+        "Deployed/private/live and final full browser packet."
+      ]
+    },
+    {
+      "id": "ROLLBACK-RECOVERY-EVIDENCE",
+      "requirement": "Record rollout cohort, recovery evidence, and rollback paths.",
+      "status": "PARTIAL_RECOVERY_VERSION_PROVEN_BLOCKED",
+      "evidence": [
+        "Prior version 3687d2e0-4718-4c0b-9c84-7f81749c31fb misses LISTENING_AUTHORING_IDEMPOTENCY_SECRET.",
+        "Historical recovery version 959065cd-8399-4000-b479-d8303a2f18ad misses FIREBASE_DB_URL, GOOGLE_SA_KEY, LISTENING_AUTHORING_IDEMPOTENCY_SECRET, LISTENING_UPLOAD_SESSION_GRANT_SECRET.",
+        "Current-authoring recovery candidate d219c36f-0e0f-489c-a10b-a843ed339bf2 misses no required binding and traffic stayed on 34970bd6-feb7-4520-87f1-fa6341dc0ba0."
+      ],
+      "missing": [
+        "Real cohort/recovery/rollback rehearsal under approved rollout, including controlled version-pin/rollback proof and stop-condition decision evidence."
+      ]
+    },
+    {
+      "id": "READING-V2-UNCHANGED",
+      "requirement": "Verify Reading V2 flows unchanged.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json"
+      ],
+      "missing": [
+        "Final dirty-tree/deployed/live compatibility review."
+      ]
+    },
+    {
+      "id": "LEGACY-R2-LISTENING",
+      "requirement": "Verify legacy R2-backed Listening results remain readable.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json"
+      ],
+      "missing": [
+        "Deployed/private/live compatibility proof."
+      ]
+    },
+    {
+      "id": "NO-GOOGLE-DRIVE-CHANGE",
+      "requirement": "Verify no Google Drive behavior changed.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json"
+      ],
+      "missing": [
+        "Final dirty-tree review at closure."
+      ]
+    },
+    {
+      "id": "SHARED-BOUNDARY",
+      "requirement": "Verify shared-layer import/API boundaries.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/boundary-static-readiness-report.json"
+      ],
+      "missing": [
+        "Final post-last-edit full boundary scan."
+      ]
+    },
+    {
+      "id": "AUTHORIZATION-NEGATIVE",
+      "requirement": "Verify every new Firebase/worker read/write path has authorization and negative tests.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json",
+        "output/prd0055-task9-local-readiness/task9-worker-auth-negative-report.json"
+      ],
+      "missing": [
+        "Deployed/current rule truth and final all-path review."
+      ]
+    },
+    {
+      "id": "OBSERVABILITY-ANNOUNCEMENTS",
+      "requirement": "Verify observability/feature-registry/shared announcements for visible user actions.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-observability-live-regression-report.json"
+      ],
+      "missing": [
+        "Every final action surface review, including authoring Save/Publish/discard/retry/conflict/archive-delete paths and final browser proof."
+      ]
+    },
+    {
+      "id": "SECTION-27",
+      "requirement": "Execute every section 27 regression-checklist item and attach traceability evidence.",
+      "status": "PARTIAL_LOCAL_ONLY_BLOCKED",
+      "evidence": [
+        "EV-FINAL-E and EV-FINAL-F identify partial row readiness only."
+      ],
+      "missing": [
+        "Full Section 27 execution as written, live private delivery implementation, deployed/private/live row evidence, and full final browser packet where required."
+      ]
+    },
+    {
+      "id": "DEFERRED-RESIDUE",
+      "requirement": "Review all deferred residue and classify as resolved, approved deferral, or blocker.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json"
+      ],
+      "missing": [
+        "Final dirty-tree and production-truth review."
+      ]
+    },
+    {
+      "id": "PROOF-CATEGORIES",
+      "requirement": "Focused/cross-system/live authority/AudioPlayer/solo/homework/Reading V2/Firebase-worker/security/a11y/browser proof must exist where applicable.",
+      "status": "PARTIAL_LOCAL_PROVEN",
+      "evidence": [
+        "output/prd0055-task8-local-unblock/focused-unit-report.json",
+        "output/prd0055-task8-local-unblock/cross-system-compat-report.json",
+        "output/prd0055-task9-local-readiness/task9-worker-auth-negative-report.json",
+        "output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json",
+        "output/prd0055-task8-local-unblock/playwright-task8-after-browser-audio-fix-180s-report.json",
+        "output/prd0055-task8-local-unblock/audio-progress-panel-duration-fix-report.json"
+      ],
+      "missing": [
+        "Final focused/cross-system rerun after docs/audit edits and final independent verification."
+      ]
+    },
+    {
+      "id": "DOCS-RECONCILIATION",
+      "requirement": "Findings, traceability, implementation log, architecture/current-state docs all reconciled to live truth.",
+      "status": "PARTIAL_LOCAL_RECONCILED",
+      "evidence": [
+        "tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+        "tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md",
+        "documentation/ielts-reading-v2-listening-unification-implementation-log.md",
+        "documentation/architecture/ielts-reading-v2-listening-unification.md",
+        "documentation/architecture/upload-storage-authority.md",
+        "cloudflare/worker.js"
+      ],
+      "missing": [
+        "Docs matching deployed/live/production truth after final rollout."
+      ]
+    },
+    {
+      "id": "PRD-0060-FUTURE-GATES",
+      "requirement": "PRD-0060 browser proof, rollout, rollback, and future implementation gates must be respected.",
+      "status": "BLOCKER_DOCUMENTED",
+      "evidence": [
+        "tasks/0060-prd-listening-live-session-authority-runtime-load-test-plan.md"
+      ],
+      "missing": [
+        "Product-owner and architecture/security approval, deployed/live human gates, internal/selected/percentage rollout, controlled rollback/recovery proof."
+      ]
+    }
+  ],
+  "sourceArtifacts": [
+    "output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json",
+    "output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json",
+    "output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit-report.json",
+    "output/prd0055-task9-local-readiness/prd0055-final-independent-gate-audit-summary.json",
+    "output/prd0055-task9-live-readback/wrangler-deployments-status.json",
+    "output/prd0055-task9-live-readback/wrangler-deployments-status-after-recovery-upload.json",
+    "output/prd0055-task9-live-readback/wrangler-version-d219c36f.json",
+    "output/prd0055-task9-live-readback/wrangler-versions-upload-current-authoring-recovery.txt",
+    "output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-pending-human-audible-proof.json",
+    "output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-human-audible-confirmed.json",
+    "cloudflare/worker.js",
+    "documentation/architecture/upload-storage-authority.md"
+  ],
+  "livePrivateDeliveryImplementation": {
+    "workerSourcePath": "cloudflare/worker.js",
+    "resultReviewRoutePresent": true,
+    "liveDeliveryRoutePresent": false,
+    "soloDeliveryRoutePresent": false,
+    "uploadAuthorityStatesSoloLivePrivateCutoverUnimplemented": true
+  },
+  "explicitNonActions": [
+    "No production deploy was performed by this matrix audit.",
+    "A Cloudflare Worker version upload created current-authoring recovery candidate d219c36f-0e0f-489c-a10b-a843ed339bf2 without traffic movement.",
+    "No cleanup/delete was performed by this matrix audit.",
+    "No selected-user rollout was performed by this matrix audit.",
+    "No percentage rollout was performed by this matrix audit.",
+    "No commit or push was performed by this matrix audit.",
+    "No taskbox was changed to checked by this matrix audit.",
+    "The approved dev RTDB internal fixture write for session T8P9J2 is recorded separately and was not cleanup/delete."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "body": {
+    "code": "delivery_unexpected_error"
+  },
+  "email": "teacher@test.com",
+  "ok": false,
+  "status": 500,
+  "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+}

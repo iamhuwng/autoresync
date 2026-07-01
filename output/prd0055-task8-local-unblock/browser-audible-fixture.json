@@ -1,0 +1,12 @@
+{
+  "createdAt": "2026-06-30T11:32:22.934Z",
+  "sessionCode": "T8P9J2",
+  "testId": "prd0055_task8_browser_1782819142934",
+  "teacherUrl": "http://localhost:5173/teacher-test/T8P9J2",
+  "studentUrl": "http://localhost:5174/test/T8P9J2",
+  "audioUrls": [
+    "http://localhost:5174/__prd0055-task8-local/section-1.wav",
+    "http://localhost:5174/__prd0055-task8-local/section-2.wav"
+  ],
+  "firebaseProjectId": "temp-a1437"
+}

@@ -20,6 +20,12 @@
  * Path: game_sessions/{code}/masterAudioState
  */
 export interface MasterAudioState {
+    /** Schema version for live authority writes */
+    schemaVersion?: 2;
+
+    /** Monotonic canonical revision */
+    revision?: number;
+
     /** Current section number (1-indexed) */
     section: number;
 
@@ -38,14 +44,33 @@ export interface MasterAudioState {
     /** Last action type that caused this state update */
     lastAction: MasterAudioAction;
 
+    /** Last command revision. Heartbeats keep the previous command revision. */
+    lastActionRevision?: number;
+
     /** Timestamp when lastAction occurred */
     lastActionTimestamp: number;
+
+    /** Update type for command vs heartbeat writes */
+    updateKind?: 'command' | 'heartbeat';
+
+    /** Idempotency and compatibility command id */
+    actionId?: string;
+
+    /** Canonical teacher uid that wrote authority */
+    writerUid?: string;
+
+    /** Browser tab/client id that wrote authority */
+    writerClientId?: string;
+
+    /** Non-sensitive action metadata */
+    actionMetadata?: Record<string, unknown>;
 }
 
 /**
  * Actions that can modify the master audio state.
  */
 export type MasterAudioAction =
+    | 'initialize' // Canonical authority initialized for a live session
     | 'play'      // Audio started playing
     | 'pause'     // Audio paused
     | 'seek'      // Position changed within section

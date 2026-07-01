@@ -1,0 +1,102 @@
+{
+  "task": "PRD-0055 Task 6 Batch E local rollout, metrics, and rollback unblock",
+  "scope": "Task 6.9 through Task 6.11 only",
+  "generatedAt": "2026-06-29",
+  "mode": "local-only using accepted prior selected-teacher Worker proof and local result-review browser proof",
+  "selectedTeacherTraffic": {
+    "source": "output/prd0055-task5-selected-teacher-worker-proof/selected-teacher-worker-proof.json",
+    "proofId": "prd0055-selected-teacher-1782727843357",
+    "acceptedPriorProof": true,
+    "newSelectedTeacherTrafficInThisPacket": false,
+    "deployedWorkerVersionId": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+    "stopConditions": {
+      "unexplainedPermanentObjectGrowth": false,
+      "failedCleanup": false,
+      "wrongAudio": false,
+      "legacyIncompatibility": false
+    }
+  },
+  "resultReviewTraffic": {
+    "source": "output/prd0055-task6-batch-d/human-assisted-proof-matrix.json",
+    "localBrowserProofAccepted": true,
+    "newResultReviewRemoteTrafficInThisPacket": false,
+    "legacyPublicR2ResultReview": "passed",
+    "assetIdAuthorizedResultReview": "passed",
+    "chrome": "passed",
+    "edge": "passed",
+    "desktopSafariEquivalentWebKit": "passed",
+    "iosSafariEquivalentWebKit": "passed"
+  },
+  "reconciliationRollout": {
+    "source": "src/features/assessment/listening/storage/listeningTask6LocalRollout.ts",
+    "hourlyTemp": "dry-run/report/checkpoint only",
+    "dailyPendingDelete": "dry-run/report/checkpoint only",
+    "cleanupExecution": false,
+    "r2WriteOperations": 0,
+    "r2DeleteOperations": 0,
+    "firebaseWriteOperations": 0
+  },
+  "metrics": {
+    "source": "src/features/assessment/listening/storage/listeningAssetMetrics.ts",
+    "preservesTask4OrphanMetrics": true,
+    "operations": [
+      "temp-age",
+      "reconciliation",
+      "delete-failure",
+      "issuance-failure",
+      "refresh-failure",
+      "reclaimed-bytes",
+      "auth-denial",
+      "assets-blocked-by-references",
+      "result-playback-failure"
+    ],
+    "alertMode": "human-dashboard-review local runbook; no production alerting deployment"
+  },
+  "rollback": {
+    "source": "src/features/assessment/listening/storage/listeningAssetRollback.ts",
+    "cleanupDeletionStopped": true,
+    "oldAndNewReadersPreserved": true,
+    "referencedAssetsRetained": true,
+    "resultReviewReturnsToPublicR2WithoutDataMutation": true
+  },
+  "proof": [
+    {
+      "command": "rtk npx vitest run src/features/assessment/listening/storage/listeningTask6LocalRollout.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts --reporter=basic",
+      "result": "4 files / 18 tests passed"
+    },
+    {
+      "command": "rtk proxy cmd /c \"npx vitest run src/features/assessment/listening/storage/listeningTask6LocalRollout.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts --reporter=json > output\\prd0055-task6-batch-e\\focused-report.json\"",
+      "result": "JSON report success true, 18/18 tests passed"
+    },
+    {
+      "command": "rtk npx vitest run src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts src/components/results/SharedSavedResultCore.test.tsx --reporter=basic",
+      "result": "5 files / 62 tests passed"
+    },
+    {
+      "command": "rtk npm --prefix r2-backup-worker test -- --reporter=basic",
+      "result": "6 files / 37 tests passed"
+    },
+    {
+      "command": "rtk proxy powershell -NoProfile -Command \"& 'C:\\Users\\The Lord\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe' 'node_modules\\vitest\\vitest.mjs' run 'test\\listening-delivery-worker.test.ts'\"",
+      "cwd": "cloudflare",
+      "result": "1 file / 3 tests passed with bundled x64 Node after default Windows ARM64 workerd startup failed"
+    }
+  ],
+  "boundaries": [
+    "no cleanup execution",
+    "no object deletion",
+    "no production data read in this packet",
+    "no new selected-teacher or result-review remote traffic in this packet",
+    "no R2/Firebase/Cloudflare remote mutation in this packet",
+    "no deploy",
+    "no staging",
+    "no commit",
+    "no push",
+    "no solo/homework runtime change",
+    "no live runtime change",
+    "no AudioPlayer.tsx change",
+    "no Reading V2 runtime internals change",
+    "no Google Drive behavior change",
+    "no Task 7 work"
+  ]
+}

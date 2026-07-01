@@ -1,0 +1,152 @@
+﻿[
+  {
+    "id": "8cc1464c-e39b-4438-b3db-c4c4a53f69fd",
+    "number": 14,
+    "metadata": {
+      "created_on": "2026-06-26T18:58:52.083803Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0056A bridge handler-stage classifier",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "6ba302b7-e7d9-47b9-9837-9efd970306c6",
+    "number": 15,
+    "metadata": {
+      "created_on": "2026-06-26T19:02:08.559375Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0056A bridge repository-boundary classifier",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "57bc4a91-c8d5-4fca-8dfb-2486de912eca",
+    "number": 16,
+    "metadata": {
+      "created_on": "2026-06-26T19:04:09.864107Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0056A Worker bridge bind global fetch",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "d04f70d6-b773-4ed6-b221-ffb98a19a387",
+    "number": 17,
+    "metadata": {
+      "created_on": "2026-06-26T19:07:26.146336Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0056A Worker bridge RTDB empty map fix",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "3687d2e0-4718-4c0b-9c84-7f81749c31fb",
+    "number": 18,
+    "metadata": {
+      "created_on": "2026-06-26T19:17:40.739296Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0056A Worker bridge contract split",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "9566b47e-5452-4540-ad11-e888612d8b95",
+    "number": 19,
+    "metadata": {
+      "created_on": "2026-06-29T09:51:45.575628Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/triggered_by": "secret"
+    }
+  },
+  {
+    "id": "5627523c-fa83-419c-8caf-eb65499f71b1",
+    "number": 20,
+    "metadata": {
+      "created_on": "2026-06-29T09:51:56.928592Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 Spark Worker authoring selected-teacher proof",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "f1ce51d5-cc72-498a-9ad7-0fd9fb35fd7b",
+    "number": 21,
+    "metadata": {
+      "created_on": "2026-06-29T10:02:17.41947Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 legacy authoring diagnostic",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+    "number": 22,
+    "metadata": {
+      "created_on": "2026-06-29T10:08:26.559222Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0057 scoped legacy authoring Worker fix",
+      "workers/triggered_by": "version_upload"
+    }
+  },
+  {
+    "id": "d219c36f-0e0f-489c-a10b-a843ed339bf2",
+    "number": 23,
+    "metadata": {
+      "created_on": "2026-06-30T12:32:42.131375Z",
+      "source": "wrangler",
+      "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+      "author_email": "iamhuwng@gmail.com",
+      "has_preview": false
+    },
+    "annotations": {
+      "workers/message": "PRD-0055 current-authoring rollback-compatible recovery candidate",
+      "workers/tag": "prd0055-current-authoring-recovery-20260630",
+      "workers/triggered_by": "version_upload"
+    }
+  }
+]

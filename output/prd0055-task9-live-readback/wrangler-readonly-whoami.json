@@ -1,0 +1,40 @@
+
+ ⛅️ wrangler 4.103.0
+────────────────────
+Getting User settings...
+👋 You are logged in with an OAuth Token, associated with the email iamhuwng@gmail.com.
+┌──────────────────────────────┬──────────────────────────────────┐
+│ Account Name                 │ Account ID                       │
+├──────────────────────────────┼──────────────────────────────────┤
+│ Iamhuwng@gmail.com's Account │ e41db829dabe9993f03674afdfd56510 │
+└──────────────────────────────┴──────────────────────────────────┘
+🔓 Token Permissions:
+Scope (Access)
+- account (read)
+- user (read)
+- workers (write)
+- workers_kv (write)
+- workers_routes (write)
+- workers_scripts (write)
+- workers_tail (read)
+- d1 (write)
+- pages (write)
+- zone (read)
+- ssl_certs (write)
+- ai (write)
+- ai-search (write)
+- ai-search (run)
+- websearch.run
+- agent-memory (write)
+- queues (write)
+- pipelines (write)
+- secrets_store (write)
+- artifacts (write)
+- flagship (write)
+- containers (write)
+- cloudchamber (write)
+- connectivity (admin)
+- email_routing (write)
+- email_sending (write)
+- browser (write)
+- offline_access

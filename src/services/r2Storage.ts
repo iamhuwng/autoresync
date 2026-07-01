@@ -1,12 +1,47 @@
 import R2UploadClient, {
+    type AssetGrantUploadAuthorization,
     type MoveResult,
     type R2UploadClientContract,
     type UploadOperationKind,
     type UploadProgress,
     type UploadResult,
 } from './r2UploadClient';
+import {
+    WorkerListeningUploadSessionApi,
+    type ListeningUploadAssetResponse,
+    type ListeningUploadAssetProbeResponse,
+    type ListeningUploadSessionApi,
+    type ListeningUploadSessionResponse,
+} from '../features/assessment/listening/storage/listeningUploadSessionApi';
 
-const PUBLIC_URL = 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
+export const R2_PUBLIC_URL = 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
+
+export interface ListeningAuthoringUploadInput {
+    sessionIdempotencyKey: string;
+    assetIdempotencyKey: string;
+    draftId?: string;
+}
+
+export interface ListeningAuthoringUploadResult extends UploadResult {
+    assetId: string;
+    uploadSessionId: string;
+    tempKey: string;
+    contentType: string;
+    sizeBytes: number;
+}
+
+const LISTENING_MIME_BY_EXTENSION: Record<string, string> = {
+    '.aac': 'audio/aac',
+    '.m4a': 'audio/m4a',
+    '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav',
+};
+
+const listeningContentType = (file: File): string => {
+    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? '';
+    return LISTENING_MIME_BY_EXTENSION[extension] ?? file.type.toLowerCase();
+};
 
 const tempOperationForFolder = (folder: string): UploadOperationKind => {
     if (folder === 'listening-audio') return 'listening_audio_temp';
@@ -28,7 +63,70 @@ const permanentOperationForHint = (hint: string): UploadOperationKind => {
 };
 
 class R2StorageService {
-    constructor(private readonly client: R2UploadClientContract = new R2UploadClient()) {}
+    constructor(
+        private readonly client: R2UploadClientContract = new R2UploadClient(),
+        private readonly listeningUploadSessionApi: ListeningUploadSessionApi = new WorkerListeningUploadSessionApi(),
+    ) {}
+
+    createListeningUploadSession(input: {
+        idempotencyKey: string;
+        draftId?: string;
+        testId?: string;
+        revisionId?: string;
+    }): Promise<ListeningUploadSessionResponse> {
+        return this.listeningUploadSessionApi.createSession(input);
+    }
+
+    issueListeningUploadAsset(input: {
+        idempotencyKey: string;
+        uploadSessionId: string;
+        fileName: string;
+        declaredMimeType: string;
+        sizeBytes: number;
+    }): Promise<ListeningUploadAssetResponse> {
+        return this.listeningUploadSessionApi.issueAsset(input);
+    }
+
+    probeListeningAuthoringAudio(input: {
+        uploadSessionId: string;
+        assetId: string;
+    }): Promise<ListeningUploadAssetProbeResponse> {
+        return this.listeningUploadSessionApi.probeAsset(input);
+    }
+
+    async uploadListeningAuthoringAudio(
+        file: File,
+        input: ListeningAuthoringUploadInput,
+        onProgress?: UploadProgress,
+    ): Promise<ListeningAuthoringUploadResult> {
+        const contentType = listeningContentType(file);
+        const session = await this.createListeningUploadSession({
+            idempotencyKey: input.sessionIdempotencyKey,
+            ...(input.draftId ? { draftId: input.draftId } : {}),
+        });
+        const asset = await this.issueListeningUploadAsset({
+            idempotencyKey: input.assetIdempotencyKey,
+            uploadSessionId: session.uploadSessionId,
+            fileName: file.name,
+            declaredMimeType: contentType,
+            sizeBytes: file.size,
+        });
+        const authorization: AssetGrantUploadAuthorization = {
+            assetGrant: asset.assetGrant,
+            key: asset.tempKey,
+            publicUrl: `${R2_PUBLIC_URL}/${asset.tempKey}`,
+            contentType,
+        };
+        const uploaded = await this.client.uploadWithAssetGrant(file, authorization, onProgress);
+        return {
+            ...uploaded,
+            assetId: asset.assetId,
+            uploadSessionId: asset.uploadSessionId,
+            tempKey: asset.tempKey,
+            contentType,
+            sizeBytes: file.size,
+        };
+    }
 
     async uploadFile(
         file: File,
@@ -42,7 +140,7 @@ class R2StorageService {
         if (!this.isTempFile(tempKey)) {
             return {
                 success: true,
-                newUrl: `${PUBLIC_URL}/${tempKey}`,
+                newUrl: `${R2_PUBLIC_URL}/${tempKey}`,
                 newKey: tempKey,
             };
         }
@@ -54,7 +152,7 @@ class R2StorageService {
     }
 
     getKeyFromUrl(url: string): string | null {
-        const publicPrefix = `${PUBLIC_URL}/`;
+        const publicPrefix = `${R2_PUBLIC_URL}/`;
         if (!url.startsWith(publicPrefix)) return null;
         return url.slice(publicPrefix.length).split(/[?#]/, 1)[0] || null;
     }
@@ -132,6 +230,11 @@ const r2StorageService = new R2StorageService();
 export default r2StorageService;
 export { R2StorageService };
 export type {
+    AssetGrantUploadAuthorization,
+    ListeningUploadAssetResponse,
+    ListeningUploadAssetProbeResponse,
+    ListeningUploadSessionApi,
+    ListeningUploadSessionResponse,
     MoveResult,
     R2UploadClientContract,
     UploadOperationKind,

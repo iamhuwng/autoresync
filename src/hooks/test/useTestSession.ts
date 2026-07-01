@@ -12,6 +12,7 @@ import { database } from '../../services/firebase';
 // @ts-ignore - Firebase is a .js file
 import { ref, onValue, update, onDisconnect } from 'firebase/database';
 import type { MasterAudioState, AudioMode, HeadphoneRequest } from '../../types/audio.types';
+import { shouldAcceptCanonicalAudioState } from '../../features/assessment/listening/live-session/authority/liveAudioRuntimeHydration';
 import type { AntiCheatConfig } from '../../types/integrity.types';
 import type { SavedMobileState } from '../../types/practice.types';
 
@@ -38,6 +39,9 @@ interface ReMarkingData {
 
 /** Audio command broadcast from teacher for listening tests */
 export interface AudioCommand {
+  schemaVersion?: 2;
+  commandId?: string;
+  canonicalRevision?: number;
   type: 'pause' | 'resume' | 'skipToSection' | 'setSpeed' | 'seekToPosition';
   sectionNumber?: number;
   speed?: number;
@@ -127,6 +131,7 @@ export const useTestSession = ({
   const [integrityRefreshRequestedAt, setIntegrityRefreshRequestedAt] = useState<number | null>(null);
   const [mobileState, setMobileState] = useState<SavedMobileState | null>(null);
   const lastMasterStateTimestampRef = useRef<number>(0);
+  const lastMasterStateRef = useRef<MasterAudioState | null>(null);
   const lastSyncedStartTimeRef = useRef<number | null>(null);
 
   // Initialize session when test data is loaded
@@ -244,7 +249,11 @@ export const useTestSession = ({
         // PRD-0018: Listen for masterAudioState (preferred over audioCommand)
         if (data.masterAudioState) {
           const masterState = data.masterAudioState as MasterAudioState;
-          if (masterState.timestamp > lastMasterStateTimestampRef.current) {
+          const acceptDecision = shouldAcceptCanonicalAudioState({
+            currentState: lastMasterStateRef.current as any,
+            nextState: masterState as any,
+          });
+          if (acceptDecision.accept) {
             console.log('🎵 [Session] Master audio state received:', {
               section: masterState.section,
               position: masterState.position?.toFixed(1),
@@ -253,6 +262,9 @@ export const useTestSession = ({
             });
             setMasterAudioState(masterState);
             lastMasterStateTimestampRef.current = masterState.timestamp;
+            lastMasterStateRef.current = masterState;
+          } else if (acceptDecision.reason === 'equal_revision_conflict') {
+            console.warn('[Session] Ignored conflicting master audio state revision:', masterState);
           }
         }
 

@@ -1,0 +1,33 @@
+{
+  "createdAt": "2026-06-30T17:38:07.624Z",
+  "mode": "apply",
+  "activeVersion": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+  "message": "PRD-0055 active version pin recovery rehearsal",
+  "commands": [
+    {
+      "name": "deploy",
+      "ok": true,
+      "args": [
+        "versions",
+        "deploy",
+        "993acdc9-dd93-4ee8-8764-15847146ac3a@100",
+        "--message",
+        "PRD-0055 active version pin recovery rehearsal",
+        "-y"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-active-pin-apply-deploy.txt",
+      "bytes": 1323
+    },
+    {
+      "name": "status",
+      "ok": true,
+      "args": [
+        "deployments",
+        "status",
+        "--json"
+      ],
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-active-pin-apply-status.txt",
+      "bytes": 445
+    }
+  ]
+}

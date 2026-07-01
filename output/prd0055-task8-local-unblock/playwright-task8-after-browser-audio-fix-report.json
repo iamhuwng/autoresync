@@ -1,0 +1,478 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task8-local.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "task8-local-chromium",
+        "name": "task8-local-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task8-live-local.spec.ts",
+      "file": "prd0055-task8-live-local.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 Task 8.14 local live Listening browser proof",
+          "file": "prd0055-task8-live-local.spec.ts",
+          "line": 637,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and student live fixture exercise canonical audio authority on localhost ports",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "task8-local-chromium",
+                  "projectName": "task8-local-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 120744,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "message": "Error: End of central directory record signature not found. Either not a zip file, or file is truncated."
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/ClassSelectionModal.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Select } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/UseAsIsModal.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] requestfailed GET https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/StudentDetailModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/TestResultsModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Center, Loader, ScrollArea, Text } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentWaitingRoomPage.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { AppShell, Title, Text, Paper, SimpleGrid,…r, Group, Divider, Button } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/hooks/test/useTestTimer.ts \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { notifications } from \"@mantine/notifications\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 247ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 249ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log 📊 [ListeningTestPage] Session status: in-progress (testData loaded, staying on test page)\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Audio stalled {sectionNumber: 1, currentTime: 0, readyState: 0, networkState: 2, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 1, currentTime: 0, readyState: 4, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 1, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 0, networkState: 2, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [AudioPlayer] Pause event {sectionNumber: 2, currentTime: 0, duration: 20, readyState: 1, networkState: 1}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/StudentDetailModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/hooks/test/useTestTimer.ts \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { notifications } from \"@mantine/notifications\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 237ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 236ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log 📊 [ListeningTestPage] Session status: in-progress (testData loaded, staying on test page)\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/hooks/test/useTestTimer.ts \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { notifications } from \"@mantine/notifications\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 262ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log ⏱ [TestPageRouter] Session testId fetch: 262ms\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.log 📊 [ListeningTestPage] Session status: in-progress (testData loaded, staying on test page)\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [Session] Ignored conflicting master audio state revision: {actionId: equal-revision-conflict-6-1782820620895, isPlaying: false, lastAction: section, lastActionRevision: 6, lastActionTimestamp: 1782820620895}\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning [Session] Ignored conflicting master audio state revision: {actionId: equal-revision-conflict-6-1782820620895, isPlaying: false, lastAction: section, lastActionRevision: 6, lastActionTimestamp: 1782820620895}\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/StudentDetailModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/TestResultsModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Center, Loader, ScrollArea, Text } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentWaitingRoomPage.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { AppShell, Title, Text, Paper, SimpleGrid,…r, Group, Divider, Button } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/hooks/test/useTestTimer.ts \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { notifications } from \"@mantine/notifications\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.log ⏱ [TestPageRouter] Session testId fetch: 321ms\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.log ⏱ [TestPageRouter] Session testId fetch: 339ms\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.log 📊 [ListeningTestPage] Session status: in-progress (testData loaded, staying on test page)\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [Courses DEBUG] getStudentClasses: membership index was incomplete for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\" (3 indexed vs 5 merged)\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [Courses DEBUG] getStudentClasses: membership index was incomplete for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\" (3 indexed vs 5 merged)\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [Courses DEBUG] getStudentClasses: membership index was incomplete for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\" (3 indexed vs 5 merged)\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [Courses DEBUG] getStudentClasses: membership index was incomplete for uid=\"x3hDfjYVN7cJtSbwq0ChIjl1Bk62\" (3 indexed vs 5 merged)\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&SID=KZqqk0qTYwuIz8idEuQqOg&RID=75365&AID=0&zx=f3pgq2oy0oc5&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&SID=KZqqk0qTYwuIz8idEuQqOg&RID=75363&AID=0&zx=jznd9v8y0m96&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&SID=KZqqk0qTYwuIz8idEuQqOg&RID=75364&AID=0&zx=y6sb8qni3nd0&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&SID=KZqqk0qTYwuIz8idEuQqOg&RID=75366&AID=0&zx=hl2qjzoa90e3&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed POST https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&SID=KZqqk0qTYwuIz8idEuQqOg&RID=75367&AID=0&zx=5acxzfha2qjs&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] requestfailed GET https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=DN9NJoMr5jDsFE0eMiuVzuw7qQe4sBBm2Uznk0tZKH4V6Y7YuUariA&VER=8&database=projects%2Ftemp-a1437%2Fdatabases%2F(default)&RID=rpc&SID=KZqqk0qTYwuIz8idEuQqOg&AID=0&CI=0&TYPE=xmlhttp&zx=wuii9kwagn72&t=1 net::ERR_ABORTED\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/TestResultsModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Center, Loader, ScrollArea, Text } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentWaitingRoomPage.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { AppShell, Title, Text, Paper, SimpleGrid,…r, Group, Divider, Button } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/hooks/test/useTestTimer.ts \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { notifications } from \"@mantine/notifications\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.log ⏱ [TestPageRouter] Session testId fetch: 242ms\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.log ⏱ [TestPageRouter] Session testId fetch: 240ms\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [TestPageRouter] Routed live Listening from session-safe payload {reason: reading-v2-metadata-read-failed, sessionCode: T8G297, testId: prd0055_task8_local_1782820577442}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: waiting}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 0, currentQuestionNumber: 1, currentSection: 1, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: true, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.info [ListeningTestPage] isPlaying state changed {currentAudioIndex: 1, currentQuestionNumber: 1, currentSection: 2, isPlaying: false, sessionStatus: in-progress}\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.log 📊 [ListeningTestPage] Session status: in-progress (testData loaded, staying on test page)\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/test/TestResultsModal.tsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Center, Loader, ScrollArea, Text } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/pages/StudentWaitingRoomPage.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { AppShell, Title, Text, Paper, SimpleGrid,…r, Group, Divider, Button } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-320] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] console.warning [ReportingService] Diagnostic upload skipped - missing VITE_BACKUP_WORKER_URL or VITE_DIAGNOSTIC_TOKEN\n"
+                        },
+                        {
+                          "text": "[task8:student-mobile-375] pageerror Permission denied\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/ClassSelectionModal.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal, Select } from \"@mantine/core\";]\n"
+                        },
+                        {
+                          "text": "[task8:teacher-desktop] console.warning %c🚫 Rule 15 — No Mantine in New Files background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; \n\nFile: src/components/UseAsIsModal.jsx \n\nThis NEW file contains @mantine imports. Use native HTML/CSS instead. \nSee: documentation/integration-safety-rules.md#rule-15 \n\nImports found: [import { Modal } from \"@mantine/core\";]\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-30T11:56:10.717Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-live-local-P-57629-uthority-on-localhost-ports-task8-local-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-live-local-P-57629-uthority-on-localhost-ports-task8-local-chromium\\test-failed-2.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-live-local-P-57629-uthority-on-localhost-ports-task8-local-chromium\\test-failed-3.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-live-local-P-57629-uthority-on-localhost-ports-task8-local-chromium\\test-failed-4.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-live-local-P-57629-uthority-on-localhost-ports-task8-local-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "e117633ce04abd61f859-57bb4c110ee3972f8d9d",
+              "file": "prd0055-task8-live-local.spec.ts",
+              "line": 638,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T11:56:05.983Z",
+    "duration": 128373.98400000001,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

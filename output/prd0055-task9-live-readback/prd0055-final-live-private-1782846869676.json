@@ -1,0 +1,131 @@
+{
+  "task": "PRD-0055 final deployed live private delivery fixture",
+  "proofId": "prd0055-final-live-private-1782846869676",
+  "startedAt": "2026-06-30T19:14:29.676Z",
+  "workerUrl": "https://r2-upload-signer.iamhuwng.workers.dev",
+  "firebaseProjectId": "temp-a1437",
+  "fixture": {
+    "sessionCode": "T8581O",
+    "classId": "prd0055-final-live-private-1782846869676-class",
+    "testId": "prd0055-final-live-private-1782846869676-test",
+    "versionId": "prd0055-final-live-private-1782846869676-version",
+    "assetIds": [
+      "prd0055-final-live-private-1782846869676-asset-s1",
+      "prd0055-final-live-private-1782846869676-asset-s2"
+    ]
+  },
+  "writes": [
+    "/classes/prd0055-final-live-private-1782846869676-class",
+    "/tests/prd0055-final-live-private-1782846869676-test",
+    "/student_safe_tests/prd0055-final-live-private-1782846869676-test",
+    "/game_sessions/T8581O",
+    "/session_test_payloads/T8581O",
+    "/media_assets/prd0055-final-live-private-1782846869676-asset-s1",
+    "/media_assets/prd0055-final-live-private-1782846869676-asset-s2"
+  ],
+  "r2Operations": [
+    {
+      "name": "r2-put-section-1",
+      "exitCode": 0,
+      "artifact": "[redacted]"
+    },
+    {
+      "name": "r2-put-section-2",
+      "exitCode": 0,
+      "artifact": "[redacted]"
+    }
+  ],
+  "checks": [
+    {
+      "name": "firebase-final-fixture-readback",
+      "status": "passed",
+      "classStudentPresent": true,
+      "sessionRestrictedToClass": true,
+      "sessionClassId": "prd0055-final-live-private-1782846869676-class",
+      "mediaDurableKeys": [
+        "[redacted]",
+        "[redacted]"
+      ]
+    },
+    {
+      "name": "section-1-teacher-student-live-private-delivery",
+      "status": "passed",
+      "teacherIssueStatus": 200,
+      "teacherRange": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/128044",
+        "contentLength": "16",
+        "firstBytesHex": "5249464624f4010057415645666d7420",
+        "byteLength": 16
+      },
+      "studentIssueStatus": 200,
+      "studentRange": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/128044",
+        "contentLength": "16",
+        "firstBytesHex": "5249464624f4010057415645666d7420",
+        "byteLength": 16
+      }
+    },
+    {
+      "name": "section-2-teacher-student-live-private-delivery",
+      "status": "passed",
+      "teacherIssueStatus": 200,
+      "teacherRange": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/128044",
+        "contentLength": "16",
+        "firstBytesHex": "5249464624f4010057415645666d7420",
+        "byteLength": 16
+      },
+      "studentIssueStatus": 200,
+      "studentRange": {
+        "status": 206,
+        "contentType": "audio/wav",
+        "acceptRanges": "bytes",
+        "contentRange": "bytes 0-15/128044",
+        "contentLength": "16",
+        "firstBytesHex": "5249464624f4010057415645666d7420",
+        "byteLength": 16
+      }
+    },
+    {
+      "name": "cross-owner-live-denial",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_not_authorized"
+    },
+    {
+      "name": "wrong-section-denial",
+      "status": "passed",
+      "issueStatus": 403,
+      "code": "delivery_live_asset_mismatch"
+    }
+  ],
+  "explicitNonActions": [
+    "No cleanup/delete.",
+    "No commit/push/merge.",
+    "No Cloudflare traffic percentage change.",
+    "Internal fixture Firebase/R2 writes only."
+  ],
+  "selectedTeacher": {
+    "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "email": "teacher@test.com"
+  },
+  "selectedStudent": {
+    "uid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "email": "student@test.com"
+  },
+  "crossOwnerTeacher": {
+    "uid": "J5Llx96V9BePuw7aF0EME9ukII83",
+    "email": "teacher2@test.com"
+  },
+  "completedAt": "2026-06-30T19:15:57.058Z",
+  "passed": true
+}

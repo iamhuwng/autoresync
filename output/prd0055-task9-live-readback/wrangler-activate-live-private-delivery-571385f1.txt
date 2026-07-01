@@ -1,0 +1,35 @@
+
+ ⛅️ wrangler 4.103.0
+────────────────────
+╭ Deploy Worker Versions by splitting traffic between multiple versions
+│
+├ Fetching latest deployment
+│
+├ Your current deployment has 1 version(s):
+│
+│ (100%) 34970bd6-feb7-4520-87f1-fa6341dc0ba0
+│       Created:  2026-06-29T10:08:26.559222Z
+│           Tag:  -
+│       Message:  PRD-0057 scoped legacy authoring Worker fix
+│
+├ Fetching versions
+│
+├ Which version(s) do you want to deploy?
+├ 1 Worker Version(s) selected
+│
+├     Worker Version 1:  571385f1-f6f2-4db9-bff8-38739d3e9f08
+│              Created:  2026-06-30T15:10:14.285129Z
+│                  Tag:  prd0055-live-private-delivery-20260630
+│              Message:  PRD-0055 live private delivery Worker
+│
+├ What percentage of traffic should Worker Version 1 receive?
+├ 100% of traffic
+├
+├ Add a deployment message
+│ Deployment message PRD-0055 activate live private delivery Worker
+│
+├ Deploying 1 version(s)
+│
+│ No non-versioned settings to sync. Skipping...
+│
+╰  SUCCESS  Deployed r2-upload-signer version 571385f1-f6f2-4db9-bff8-38739d3e9f08 at 100% (1.42 sec)

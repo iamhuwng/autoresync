@@ -1,0 +1,75 @@
+{
+  "createdAt": "2026-06-30T19:05:59.090Z",
+  "proofPath": "output/prd0055-task9-live-readback/prd0055-final-live-private-1782845974456.json",
+  "proofId": "prd0055-final-live-private-1782845974456",
+  "deployedOrigin": "https://kahut1.web.app",
+  "fixture": {
+    "sessionCode": "T8UJQK",
+    "classId": "prd0055-final-live-private-1782845974456-class",
+    "testId": "prd0055-final-live-private-1782845974456-test",
+    "versionId": "prd0055-final-live-private-1782845974456-version",
+    "assetIds": [
+      "prd0055-final-live-private-1782845974456-asset-s1",
+      "prd0055-final-live-private-1782845974456-asset-s2"
+    ]
+  },
+  "urls": {
+    "teacherDesktop": "https://kahut1.web.app/teacher-test/T8UJQK",
+    "studentDesktop": "https://kahut1.web.app/student-wait/T8UJQK",
+    "studentMobile": "https://kahut1.web.app/student-wait/T8UJQK"
+  },
+  "deliveryEvents": [
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "benignMediaAborts": [
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "blockingDeliveryFailures": []
+}

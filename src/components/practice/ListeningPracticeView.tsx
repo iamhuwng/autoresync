@@ -41,6 +41,7 @@ import { MobileStartScreen } from '../test/mobile/MobileStartScreen';
 
 // Listening-specific components
 import { AudioPlayer } from '../../skills/listening/components/AudioPlayer';
+import type { AuthorizedDeliveryConfig } from '../../skills/listening/components/AudioPlayer';
 import { ListeningQuestionDisplay } from '../../skills/listening/components/ListeningQuestionDisplay';
 import { SectionRubricBlock } from '../../skills/listening/components/SectionRubricBlock';
 
@@ -60,6 +61,16 @@ import { useSoloTimer } from '../../hooks/solo/useSoloTimer';
 import { useSoloAutoSave } from '../../hooks/solo/useSoloAutoSave';
 import { useSoloResume } from '../../hooks/solo/useSoloResume';
 import { useSoloSubmission } from '../../hooks/solo/useSoloSubmission';
+import { buildListeningSoloAttemptIdentity } from '../../features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity';
+import {
+    readListeningSoloVersionId,
+    refreshListeningSoloAudioDelivery,
+    resolveListeningSoloAudioSection,
+    type ListeningSoloAudioResolution,
+    type ListeningSoloDeliveryIssuer,
+} from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter';
+import { createListeningSoloDeliveryIssuer } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
+import type { ListeningDeliveryIssuedUrl } from '../../features/assessment/listening/storage/listeningAssetDelivery.service';
 
 // Integrity hooks
 import { useTestIntegrity } from '../../hooks/test/useTestIntegrity';
@@ -76,6 +87,7 @@ import { FEATURE_IDS } from '../../config/featureRegistry';
 import { SoloSettingsModal } from '../test/SoloSettingsModal';
 import { SoloResumeModal } from '../test/SoloResumeModal';
 import { TimeUpOverlay } from '../test/TimeUpOverlay';
+import { AssessmentStatusState } from '../../features/assessment/shared/components/AssessmentStatusState';
 import { listeningDiagnostics } from '../../utils/listeningDiagnostics';
 
 // Types
@@ -102,6 +114,8 @@ interface AudioSection {
     name: string;
     audioUrl: string;
     streamUrl?: string;
+    assetId?: string;
+    versionId?: string;
     startQuestion: number;
     endQuestion: number;
     waitTimeBefore?: number;
@@ -120,6 +134,9 @@ interface Question {
     context?: any;
     items?: Array<{ id: string; text: string }>;
 }
+
+const MOBILE_DIRECT_QUESTION_PADDING_BOTTOM = 'calc(16rem + env(safe-area-inset-bottom, 0px))';
+const MOBILE_DIRECT_QUESTION_SCROLL_PADDING_BOTTOM = 'calc(17rem + env(safe-area-inset-bottom, 0px))';
 
 const getSoloProgressScopeContext = (practiceContext: PracticeContext): SoloProgressScopeContext => (
     practiceContext.type === 'homework'
@@ -163,6 +180,8 @@ export interface ListeningPracticeViewProps {
     resolvedSettings: ResolvedPracticeSettings;
     practiceContext: PracticeContext;
     autoResume?: boolean;
+    soloDeliveryIssuer?: ListeningSoloDeliveryIssuer;
+    getDeliveryNow?: () => number;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -172,6 +191,8 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
   resolvedSettings,
   practiceContext,
   autoResume = false,
+  soloDeliveryIssuer,
+  getDeliveryNow,
 }) => {
   const { navigateTo } = useNavigation('student');
   const { isMobileExamMode } = useMobileExamMode();
@@ -180,6 +201,10 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
   const mobileStateDirtyRef = useRef(false);
   const playbackCheckpointRef = useRef(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const generatedAttemptSeedRef = useRef<string | null>(null);
+  if (!generatedAttemptSeedRef.current) {
+    generatedAttemptSeedRef.current = `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // STUDENT PREFERENCES
@@ -230,7 +255,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // AUDIO SECTIONS (derived from testData)
     // ═══════════════════════════════════════════════════════════════
 
-    const audioSections: AudioSection[] = useMemo(() => {
+    const sourceAudioSections: AudioSection[] = useMemo(() => {
         if (testData && 'audioSections' in testData && Array.isArray((testData as any).audioSections)) {
             return (testData as any).audioSections;
         }
@@ -242,6 +267,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             { number: 4, name: 'Section 4', audioUrl: '', startQuestion: 31, endQuestion: 40, waitTimeBefore: 30 },
         ];
     }, [testData]);
+    const materialVersionId = useMemo(() => readListeningSoloVersionId(testData), [testData]);
 
     // ═══════════════════════════════════════════════════════════════
     // DISPLAY MODE & QUESTION IMAGES
@@ -324,6 +350,28 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // PART NAVIGATION
     // ═══════════════════════════════════════════════════════════════
 
+    const soloAttemptIdentity = useMemo(() => {
+        if (!user?.uid) {
+            return null;
+        }
+
+        return buildListeningSoloAttemptIdentity({
+            materialId,
+            studentId: user.uid,
+            scopeContext: progressScopeContext,
+            existingAttemptId: resumeDecision === 'resume' ? savedProgress?.attemptId : undefined,
+            existingSubmissionOperationId: resumeDecision === 'resume' ? savedProgress?.submissionOperationId : undefined,
+            generatedAttemptSeed: generatedAttemptSeedRef.current,
+        });
+    }, [
+        materialId,
+        progressScopeContext,
+        resumeDecision,
+        savedProgress?.attemptId,
+        savedProgress?.submissionOperationId,
+        user?.uid,
+    ]);
+
     const [viewedPartNumber, setViewedPartNumber] = useState(1);
     const [currentAudioIndex, setCurrentAudioIndex] = useState(0);
 
@@ -332,14 +380,143 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // ═══════════════════════════════════════════════════════════════
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioError, setAudioError] = useState<string | null>(null);
+    const [soloDeliveryError, setSoloDeliveryError] = useState<string | null>(null);
     const [audioPositionSeconds, setAudioPositionSeconds] = useState(0);
     const [volume, setVolume] = useState(1);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [audioIndicesCompleted, setAudioIndicesCompleted] = useState<number[]>([]);
     const [pendingSeekPosition, setPendingSeekPosition] = useState<number | null>(null);
 
+    const resolvedSoloDeliveryIssuer = useMemo(
+        () => soloDeliveryIssuer ?? createListeningSoloDeliveryIssuer(),
+        [soloDeliveryIssuer],
+    );
+    const soloDeliveryRef = useRef<Record<number, ListeningDeliveryIssuedUrl>>({});
+    const [soloAudioResolutions, setSoloAudioResolutions] = useState<Record<number, ListeningSoloAudioResolution>>({});
+
+    useEffect(() => {
+        if (!testData || sourceAudioSections.length === 0) {
+            setSoloAudioResolutions({});
+            setSoloDeliveryError(null);
+            return;
+        }
+
+        let cancelled = false;
+        Promise.all(sourceAudioSections.map(async (section) => {
+            const resolution = await resolveListeningSoloAudioSection({
+                materialId,
+                materialVersionId,
+                studentId: user?.uid,
+                now: getDeliveryNow?.() ?? Date.now(),
+                scopeContext: progressScopeContext,
+                section,
+                deliveryIssuer: resolvedSoloDeliveryIssuer,
+            });
+            return [section.number, resolution] as const;
+        }))
+            .then((entries) => {
+                if (cancelled) return;
+                setSoloAudioResolutions(Object.fromEntries(entries));
+                setSoloDeliveryError(null);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setSoloAudioResolutions({});
+                setSoloDeliveryError(err instanceof Error ? err.message : 'listening_solo_delivery_failed');
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        getDeliveryNow,
+        materialId,
+        materialVersionId,
+        progressScopeContext,
+        resolvedSoloDeliveryIssuer,
+        sourceAudioSections,
+        testData,
+        user?.uid,
+    ]);
+
+    const audioSections: AudioSection[] = useMemo(() => (
+        sourceAudioSections.map((section) => {
+            const resolution = soloAudioResolutions[section.number];
+            if (resolution) {
+                return {
+                    ...section,
+                    audioUrl: resolution.audioUrl,
+                    streamUrl: resolution.kind === 'legacy-public-r2' ? resolution.streamUrl : undefined,
+                };
+            }
+            if (section.assetId) {
+                return {
+                    ...section,
+                    audioUrl: '',
+                    streamUrl: undefined,
+                };
+            }
+            return section;
+        })
+    ), [soloAudioResolutions, sourceAudioSections]);
+
+    useEffect(() => {
+        const next: Record<number, ListeningDeliveryIssuedUrl> = {};
+        Object.values(soloAudioResolutions).forEach((resolution) => {
+            if (resolution.kind === 'authorized-asset-delivery') {
+                next[resolution.sectionNumber] = resolution.delivery;
+            }
+        });
+        soloDeliveryRef.current = next;
+    }, [soloAudioResolutions]);
+
     const currentAudioSection = audioSections[currentAudioIndex] || audioSections[0];
     const playingPartNumber = currentAudioSection?.number || 1;
+    const effectiveAudioError = audioError || soloDeliveryError;
+    const currentSoloAuthorizedDelivery = useMemo<AuthorizedDeliveryConfig | undefined>(() => {
+        const sectionNumber = currentAudioSection?.number;
+        if (!sectionNumber) return undefined;
+
+        const resolution = soloAudioResolutions[sectionNumber];
+        if (!resolution || resolution.kind !== 'authorized-asset-delivery') {
+            return undefined;
+        }
+
+        return {
+            expiresAt: resolution.delivery.expiresAt,
+            refreshAfter: resolution.delivery.refreshAfter,
+            now: getDeliveryNow,
+            refreshSource: async () => {
+                const previous = soloDeliveryRef.current[sectionNumber] ?? resolution.delivery;
+                const refreshed = await refreshListeningSoloAudioDelivery({
+                    previous,
+                    materialId,
+                    materialVersionId: resolution.versionId,
+                    studentId: user?.uid,
+                    now: getDeliveryNow?.() ?? Date.now(),
+                    scopeContext: progressScopeContext,
+                    deliveryIssuer: resolvedSoloDeliveryIssuer,
+                });
+                soloDeliveryRef.current = {
+                    ...soloDeliveryRef.current,
+                    [sectionNumber]: refreshed,
+                };
+                return {
+                    url: refreshed.url,
+                    expiresAt: refreshed.expiresAt,
+                    refreshAfter: refreshed.refreshAfter,
+                };
+            },
+        };
+    }, [
+        currentAudioSection?.number,
+        getDeliveryNow,
+        materialId,
+        progressScopeContext,
+        resolvedSoloDeliveryIssuer,
+        soloAudioResolutions,
+        user?.uid,
+    ]);
 
     const handlePartChange = useCallback((partNumber: number) => {
         trackAction('switchListeningPart', {
@@ -481,13 +658,15 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // ═══════════════════════════════════════════════════════════════
 
     const submitTestRef = useRef<((auto: boolean) => Promise<void>) | null>(null);
+    const submitSequenceRef = useRef<Promise<void> | null>(null);
+    const autoSubmitStartedRef = useRef(false);
 
     const handleTimeUp = useCallback(() => {
         trackAction('timeOut', {
             mode: practiceContext.type === 'homework' ? 'homework' : 'solo',
             surface: 'mobile',
         });
-        void submitTestRef.current?.(true);
+        return submitTestRef.current?.(true) ?? Promise.resolve();
     }, [practiceContext.type, trackAction]);
 
     const handleGracePeriodStart = useCallback(() => {
@@ -598,6 +777,8 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             moduleId: practiceContext.moduleId,
         } : undefined,
         progressScopeContext,
+        attemptId: soloAttemptIdentity?.attemptId,
+        submissionOperationId: soloAttemptIdentity?.submissionOperationId,
         homeworkId: practiceContext.homeworkId,
         submissionId: practiceContext.submissionId,
         questionsWithAnswersRef,
@@ -618,16 +799,6 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         telemetrySurface: isHomework ? 'listening_homework' : 'listening_solo',
     });
 
-    // Keep submitTestRef updated
-    useEffect(() => {
-        submitTestRef.current = async (isAutoSubmit = false) => {
-            if (isHomework && antiCheatConfig) {
-                await flushEvents(isAutoSubmit ? 'auto_submit' : 'homework_submit');
-            }
-            await handleSubmit(isAutoSubmit);
-        };
-    }, [antiCheatConfig, flushEvents, handleSubmit, isHomework]);
-
     // ═══════════════════════════════════════════════════════════════
     // AUTO-SAVE
     // ═══════════════════════════════════════════════════════════════
@@ -639,10 +810,12 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         }
     }, [timeRemaining, hasTimer, resolvedSettings?.timerMinutes]);
 
-    useSoloAutoSave({
+    const autoSaveStatus = useSoloAutoSave({
         materialId,
         studentId: user?.uid,
         scopeContext: progressScopeContext,
+        attemptId: soloAttemptIdentity?.attemptId,
+        submissionOperationId: soloAttemptIdentity?.submissionOperationId,
         answers,
         currentQuestion: currentQuestionNumber,
         timeElapsed: timeElapsedRef.current,
@@ -653,6 +826,44 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // ═══════════════════════════════════════════════════════════════
     // ANSWER HANDLER
     // ═══════════════════════════════════════════════════════════════
+
+    useEffect(() => {
+        submitTestRef.current = async (isAutoSubmit = false) => {
+            if (submitSequenceRef.current) {
+                return submitSequenceRef.current;
+            }
+            if (isAutoSubmit && autoSubmitStartedRef.current) {
+                return Promise.resolve();
+            }
+            if (isAutoSubmit) {
+                autoSubmitStartedRef.current = true;
+            }
+
+            let operation: Promise<void>;
+            operation = (async () => {
+                await autoSaveStatus.waitForAcceptedSave();
+                const autosaveFlush = await autoSaveStatus.flushNow();
+                if (isHomework && antiCheatConfig) {
+                    await flushEvents(isAutoSubmit ? 'auto_submit' : 'homework_submit');
+                }
+                await handleSubmit(isAutoSubmit, { autosaveFlush });
+            })().finally(() => {
+                if (submitSequenceRef.current === operation) {
+                    submitSequenceRef.current = null;
+                }
+            });
+
+            submitSequenceRef.current = operation;
+            return operation;
+        };
+    }, [
+        antiCheatConfig,
+        autoSaveStatus.flushNow,
+        autoSaveStatus.waitForAcceptedSave,
+        flushEvents,
+        handleSubmit,
+        isHomework,
+    ]);
 
     const handleAnswerChange = useCallback((questionNumber: number, answer: any) => {
         if (isLocked || submissionLocked || testSubmitted) return;
@@ -1106,62 +1317,29 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // Loading state
     if (testLoading || checking) {
         return (
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                background: '#0f172a',
-                color: '#94a3b8',
-                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-                gap: '1rem',
-            }}>
-                <div style={{ fontSize: '2.5rem' }}>🎧</div>
-                <div style={{ fontSize: '0.875rem' }}>Loading listening test…</div>
-            </div>
+            <AssessmentStatusState
+                variant="loading"
+                title="Loading listening test"
+                message="Preparing your listening test."
+                as="main"
+                align="center"
+                ariaLabel="Loading listening test"
+            />
         );
     }
 
     // Error state
     if (error || !testData) {
         return (
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh',
-                background: '#0f172a',
-                color: '#f87171',
-                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-                gap: '1rem',
-                padding: '2rem',
-                textAlign: 'center',
-            }}>
-                <div style={{ fontSize: '2.5rem' }}>⚠️</div>
-                <div style={{ fontSize: '1rem', fontWeight: 600, color: '#fbbf24' }}>Failed to load test</div>
-                <div style={{ fontSize: '0.8125rem', color: '#94a3b8', maxWidth: 320 }}>
-                    {error || 'Test data not found.'}
-                </div>
-                <button
-                    onClick={handleBack}
-                    type="button"
-                    style={{
-                        marginTop: '0.5rem',
-                        padding: '0.5rem 1.5rem',
-                        background: '#1e293b',
-                        color: '#e2e8f0',
-                        border: '1px solid #334155',
-                        borderRadius: 8,
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                    }}
-                >
-                    Go Back
-                </button>
-            </div>
+            <AssessmentStatusState
+                variant="error"
+                title="Failed to load listening test"
+                message={error || 'Test data not found.'}
+                action={{ label: 'Go Back', onClick: handleBack }}
+                as="main"
+                align="center"
+                ariaLabel="Failed to load listening test"
+            />
         );
     }
 
@@ -1185,18 +1363,24 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // Test submitted — results
     if (testSubmitted && testResults) {
         return (
-            <MobileStartScreen
-                mode={isHomework ? 'homework' : 'solo'}
-                testTitle={`Test Completed — ${testResults.correctAnswers}/${testResults.totalQuestions}`}
-                testSkill="Listening"
-                passageCount={audioSections.length}
-                questionCount={testResults.totalQuestions}
-                timeLimit={null}
-                onStart={handleBack}
-                showStartButton={true}
-                practiceContext={practiceContext}
-                resolvedSettings={resolvedSettings}
-            />
+            <div
+                data-testid="listening-practice-review-shell"
+                data-surface="review"
+                style={{ minHeight: '100dvh', background: '#f8fafc' }}
+            >
+                <MobileStartScreen
+                    mode={isHomework ? 'homework' : 'solo'}
+                    testTitle={`Test Completed — ${testResults.correctAnswers}/${testResults.totalQuestions}`}
+                    testSkill="Listening"
+                    passageCount={audioSections.length}
+                    questionCount={testResults.totalQuestions}
+                    timeLimit={null}
+                    onStart={handleBack}
+                    showStartButton={true}
+                    practiceContext={practiceContext}
+                    resolvedSettings={resolvedSettings}
+                />
+            </div>
         );
     }
 
@@ -1206,7 +1390,14 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
 
     if (isMobileExamMode) {
         return (
-            <div ref={containerRef} style={{ height: '100%', width: '100%' }}>
+            <div
+                ref={containerRef}
+                data-testid="listening-practice-mobile-shell"
+                data-surface="listening-mobile-shell"
+                data-viewed-part={viewedPartNumber}
+                data-current-audio-index={currentAudioIndex}
+                style={{ height: '100%', width: '100%' }}
+            >
                 <MobileListeningExamScaffold
                     mode={isHomework ? 'homework' : 'solo'}
                     activePartNumber={viewedPartNumber}
@@ -1239,20 +1430,21 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                                     onSpeedChange={handlePlaybackSpeedChange}
                                     seekPosition={pendingSeekPosition}
                                     onSeekConsumed={handleSeekConsumed}
+                                    authorizedDelivery={currentSoloAuthorizedDelivery}
                                     allowReplay={resolvedSettings?.listening?.allowReplay !== false}
                                     maxReplays={resolvedSettings?.listening?.maxReplays ?? 2}
                                     playerMode="solo"
                                     minimal
                                     mobileLayout
                                 />
-                                {audioError && (
+                                {effectiveAudioError && (
                                     <div style={{
                                         padding: '0.25rem 0.5rem',
                                         fontSize: '0.75rem',
                                         color: '#ef4444',
                                         textAlign: 'center',
                                     }}>
-                                        Audio error: {audioError}
+                                        Audio error: {effectiveAudioError}
                                     </div>
                                 )}
                             </div>
@@ -1379,46 +1571,64 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                         ) : (
                             /* ── Direct-question mainContent (standard text mode) ── */
                             <div
+                                data-testid="mobile-listening-answer-scroll"
+                                data-keyboard-safe-bottom={MOBILE_DIRECT_QUESTION_PADDING_BOTTOM}
+                                data-scroll-safe-bottom={MOBILE_DIRECT_QUESTION_SCROLL_PADDING_BOTTOM}
                                 style={{
                                     flex: 1,
                                     overflowY: 'auto',
                                     WebkitOverflowScrolling: 'touch',
                                     padding: '1rem',
+                                    paddingBottom: MOBILE_DIRECT_QUESTION_PADDING_BOTTOM,
+                                    scrollPaddingBottom: MOBILE_DIRECT_QUESTION_SCROLL_PADDING_BOTTOM,
                                     fontSize: `${fontSize}px`,
                                 }}
                             >
-                                {/* Section Rubric */}
-                                <SectionRubricBlock
-                                    partNumber={viewedPartNumber}
-                                    startQuestion={viewedPartSection?.startQuestion || 1}
-                                    endQuestion={viewedPartSection?.endQuestion || 10}
-                                    sectionName={viewedPartSection?.name}
-                                    questionType={viewedPartQuestionGroups[0]?.type || 'completion'}
-                                />
+                                <section
+                                    data-testid="listening-practice-question-card"
+                                    data-surface="question-card"
+                                    aria-label={`Listening Part ${viewedPartNumber} questions`}
+                                    style={{
+                                        maxWidth: '52rem',
+                                        margin: '0 auto',
+                                        padding: '1rem',
+                                        border: '1px solid #d8dee8',
+                                        borderRadius: 8,
+                                        background: '#ffffff',
+                                        boxSizing: 'border-box',
+                                    }}
+                                >
+                                    {/* Section Rubric */}
+                                    <SectionRubricBlock
+                                        partNumber={viewedPartNumber}
+                                        startQuestion={viewedPartSection?.startQuestion || 1}
+                                        endQuestion={viewedPartSection?.endQuestion || 10}
+                                        sectionName={viewedPartSection?.name}
+                                        questionType={viewedPartQuestionGroups[0]?.type || 'completion'}
+                                    />
 
-                                {/* Question groups */}
-                                {viewedPartQuestionGroups.length === 0 ? (
-                                    <div style={{
-                                        textAlign: 'center',
-                                        padding: '3rem',
-                                        color: '#64748b',
-                                    }}>
-                                        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📝</div>
-                                        <div>No questions for this section</div>
-                                    </div>
-                                ) : (
-                                    viewedPartQuestionGroups.map((group, groupIndex) => (
-                                        <ListeningQuestionDisplay
-                                            key={`practice-group-${groupIndex}`}
-                                            group={group}
-                                            answers={answers}
-                                            onAnswerChange={(testSubmitted || isLocked || submissionLocked) ? () => {} : handleAnswerChange}
-                                            currentQuestionNumber={currentQuestionNumber}
-                                            testSubmitted={testSubmitted}
-                                            disabled={Boolean(testSubmitted || isLocked || submissionLocked)}
+                                    {/* Question groups */}
+                                    {viewedPartQuestionGroups.length === 0 ? (
+                                        <AssessmentStatusState
+                                            variant="empty"
+                                            title="No questions for this section"
+                                            titleLevel={3}
+                                            align="center"
                                         />
-                                    ))
-                                )}
+                                    ) : (
+                                        viewedPartQuestionGroups.map((group, groupIndex) => (
+                                            <ListeningQuestionDisplay
+                                                key={`practice-group-${groupIndex}`}
+                                                group={group}
+                                                answers={answers}
+                                                onAnswerChange={(testSubmitted || isLocked || submissionLocked) ? () => {} : handleAnswerChange}
+                                                currentQuestionNumber={currentQuestionNumber}
+                                                testSubmitted={testSubmitted}
+                                                disabled={Boolean(testSubmitted || isLocked || submissionLocked)}
+                                            />
+                                        ))
+                                    )}
+                                </section>
                             </div>
                         )
                     }
@@ -1479,6 +1689,10 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     return (
         <div
             ref={containerRef}
+            data-testid="listening-practice-desktop-shell"
+            data-surface="listening-desktop-shell"
+            data-viewed-part={viewedPartNumber}
+            data-current-audio-index={currentAudioIndex}
             className={isHomework && antiCheatConfig?.detectCopyPaste ? 'anti-select' : undefined}
             style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', position: 'relative' }}
         >
@@ -1515,7 +1729,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             )}
 
             {/* Audio Error Notification */}
-            {audioError && (
+            {effectiveAudioError && (
                 <div style={{
                     position: 'fixed',
                     top: '80px',
@@ -1538,12 +1752,13 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                             Audio Error
                         </div>
                         <div style={{ fontSize: '0.8125rem', color: '#991b1b' }}>
-                            {audioError}
+                            {effectiveAudioError}
                         </div>
                     </div>
                     <button
                         onClick={() => {
                             setAudioError(null);
+                            setSoloDeliveryError(null);
                             setIsPlaying(true);
                         }}
                         style={{
@@ -1580,6 +1795,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 onVolumeChange={handleVolumeChange}
                 onSectionComplete={handleSectionComplete}
                 onError={handleAudioError}
+                authorizedDelivery={currentSoloAuthorizedDelivery}
                 allowReplay={resolvedSettings?.listening?.allowReplay !== false}
                 maxReplays={resolvedSettings?.listening?.maxReplays ?? 2}
                 playerMode="solo"

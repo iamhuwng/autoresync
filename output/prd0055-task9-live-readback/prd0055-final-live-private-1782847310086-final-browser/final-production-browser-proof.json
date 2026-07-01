@@ -1,0 +1,511 @@
+{
+  "createdAt": "2026-06-30T19:26:02.614Z",
+  "proofPath": "output\\prd0055-task9-live-readback\\prd0055-final-live-private-1782847310086.json",
+  "proofId": "prd0055-final-live-private-1782847310086",
+  "deployedOrigin": "https://kahut1.web.app",
+  "fixture": {
+    "sessionCode": "T8XIZM",
+    "classId": "prd0055-final-live-private-1782847310086-class",
+    "testId": "prd0055-final-live-private-1782847310086-test",
+    "versionId": "prd0055-final-live-private-1782847310086-version",
+    "assetIds": [
+      "prd0055-final-live-private-1782847310086-asset-s1",
+      "prd0055-final-live-private-1782847310086-asset-s2"
+    ]
+  },
+  "urls": {
+    "teacherDesktop": "https://kahut1.web.app/teacher-test/T8XIZM",
+    "studentDesktop": "https://kahut1.web.app/student-wait/T8XIZM",
+    "studentMobile": "https://kahut1.web.app/student-wait/T8XIZM"
+  },
+  "studentPausedAudio": {
+    "beforeWait": {
+      "currentTime": 0,
+      "duration": 8,
+      "networkState": 1,
+      "paused": true,
+      "readyState": 4,
+      "src": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "error": null
+    },
+    "afterWait": {
+      "currentTime": 0,
+      "duration": 8,
+      "networkState": 1,
+      "paused": true,
+      "readyState": 4,
+      "src": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "error": null
+    }
+  },
+  "teacherDesktop": {
+    "error": "TimeoutError: locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('audio').first()\u001b[22m\n"
+  },
+  "studentDesktop": {
+    "error": "TimeoutError: locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('audio').first()\u001b[22m\n"
+  },
+  "authorityConflict": {
+    "rejectedState": {
+      "actionId": "equal-revision-conflict-6-1782847458836",
+      "isPlaying": false,
+      "lastAction": "section",
+      "lastActionRevision": 6,
+      "lastActionTimestamp": 1782847458836,
+      "position": 0,
+      "revision": 6,
+      "schemaVersion": 2,
+      "section": 1,
+      "speed": 1,
+      "timestamp": 1782847458836,
+      "updateKind": "command",
+      "writerClientId": "competing-monitor-T8XIZM",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "recoveredState": {
+      "actionId": "recover-after-conflict-7-1782847460966",
+      "isPlaying": false,
+      "lastAction": "seek",
+      "lastActionRevision": 7,
+      "lastActionTimestamp": 1782847460966,
+      "position": 4,
+      "revision": 7,
+      "schemaVersion": 2,
+      "section": 2,
+      "speed": 1.5,
+      "timestamp": 1782847460966,
+      "updateKind": "command",
+      "writerClientId": "teacher-monitor-T8XIZM",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    }
+  },
+  "submitDuringEnd": {
+    "acceptedResultIds": [
+      "-OwOzSLJ4bzcJ8UxPreK",
+      "-OwOzSdwz9admQ5oJhuQ"
+    ],
+    "latestResultId": "-OwOzSdwz9admQ5oJhuQ",
+    "postEndSubmitControlVisible": false,
+    "rejectedPostEndResultIds": [
+      "-OwOzSLJ4bzcJ8UxPreK",
+      "-OwOzSdwz9admQ5oJhuQ"
+    ]
+  },
+  "finalSession": {
+    "audioCommand": {
+      "canonicalRevision": 7,
+      "commandId": "recover-after-conflict-7-1782847460966",
+      "isPlaying": false,
+      "position": 4,
+      "schemaVersion": 2,
+      "sectionNumber": 2,
+      "speed": 1.5,
+      "timestamp": 1782847460966,
+      "type": "seekToPosition",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "classId": "prd0055-final-live-private-1782847310086-class",
+    "className": "PRD-0055 final selected class T8XIZM",
+    "createdAt": 1782847319288,
+    "createdBy": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "expiresAt": 1782933719288,
+    "isPaused": false,
+    "lastTestCompletedAt": 1782847493775,
+    "lastTestId": "prd0055-final-live-private-1782847310086-test",
+    "linkedClassId": "prd0055-final-live-private-1782847310086-class",
+    "masterAudioState": {
+      "actionId": "recover-after-conflict-7-1782847460966",
+      "isPlaying": false,
+      "lastAction": "seek",
+      "lastActionRevision": 7,
+      "lastActionTimestamp": 1782847460966,
+      "position": 4,
+      "revision": 7,
+      "schemaVersion": 2,
+      "section": 2,
+      "speed": 1.5,
+      "timestamp": 1782847460966,
+      "updateKind": "command",
+      "writerClientId": "teacher-monitor-T8XIZM",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "mode": "test",
+    "pausedDuration": 0,
+    "players": {
+      "prd0055-final-denied-headphones": {
+        "completedAt": 1782847493775,
+        "hasCompletedTest": true,
+        "headphoneRequest": {
+          "requested": true,
+          "requestedAt": 1782847462018,
+          "status": "denied"
+        },
+        "isSubmitted": true,
+        "lastResultPersistedAt": 1782847493789,
+        "lastTestEndedAt": 1782847493775,
+        "lastTestId": "prd0055-final-live-private-1782847310086-test",
+        "lastTestSessionCode": "T8XIZM",
+        "latestResultId": "-OwOzSLJ4bzcJ8UxPreK",
+        "name": "Denied Headphone Fixture",
+        "submittedBy": "teacher-end"
+      },
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "completedAt": 1782847493775,
+        "currentAudioIndex": 1,
+        "currentQuestionNumber": 1,
+        "currentSection": 2,
+        "disconnectedAt": 1782847449898,
+        "email": "student@test.com",
+        "hasCompletedTest": true,
+        "headphoneRequest": {
+          "approvedAt": 1782847466057,
+          "requested": true,
+          "requestedAt": 1782847462017,
+          "status": "approved"
+        },
+        "isConnected": true,
+        "isSubmitted": true,
+        "joinedAt": 1782847319288,
+        "lastActivity": 1782847497676,
+        "lastAnswerUpdate": 1782847492009,
+        "lastResultPersistedAt": 1782847495048,
+        "lastTestEndedAt": 1782847493775,
+        "lastTestId": "prd0055-final-live-private-1782847310086-test",
+        "lastTestSessionCode": "T8XIZM",
+        "latestResultId": "-OwOzSdwz9admQ5oJhuQ",
+        "name": "PRD-0055 Final Student",
+        "playbackSpeed": 1.5,
+        "submittedBy": "teacher-end",
+        "volume": 0.8
+      }
+    },
+    "reviewReleaseState": "review-released",
+    "sessionCode": "T8XIZM",
+    "settings": {
+      "allowLateJoin": true,
+      "audioMode": "offline",
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "examMode": true,
+      "restrictToClassMembers": true,
+      "showLeaderboard": false
+    },
+    "showCorrectAnswers": false,
+    "status": "waiting",
+    "students": {
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "email": "student@test.com",
+        "joinedAt": 1782847319288,
+        "name": "PRD-0055 Final Selected Student"
+      }
+    },
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "updatedAt": 1782847493775
+  },
+  "deliveryEvents": [
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "student-mobile-320",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-320",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-320",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-320",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-320",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    }
+  ],
+  "benignMediaAborts": [
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "blockingDeliveryFailures": []
+}

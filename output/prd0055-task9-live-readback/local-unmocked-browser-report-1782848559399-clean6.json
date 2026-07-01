@@ -1,0 +1,151 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task9-final-production.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-final-production-chromium",
+        "name": "prd0055-final-production-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task9-final-production-browser\\.spec\\.ts/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task9-final-production-browser.spec.ts",
+      "file": "prd0055-task9-final-production-browser.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 final deployed live private delivery browser matrix",
+          "file": "prd0055-task9-final-production-browser.spec.ts",
+          "line": 366,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected students pass deployed private live authority matrix",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-final-production-chromium",
+                  "projectName": "prd0055-final-production-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 67251,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 45000ms exceeded while waiting on the predicate",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 45000ms exceeded while waiting on the predicate\n    at expectPrivateAudioReady (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:267:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:440:7",
+                        "location": {
+                          "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                          "column": 3,
+                          "line": 267
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 265 |\u001b[39m\n \u001b[90m 266 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m expectPrivateAudioReady(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 267 |\u001b[39m   \u001b[36mawait\u001b[39m expect\u001b[33m.\u001b[39mpoll(\u001b[36masync\u001b[39m () \u001b[33m=>\u001b[39m {\n \u001b[90m     |\u001b[39m   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 268 |\u001b[39m     \u001b[36mconst\u001b[39m state \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m readAudioState(page)\u001b[33m;\u001b[39m\n \u001b[90m 269 |\u001b[39m     \u001b[36mreturn\u001b[39m {\n \u001b[90m 270 |\u001b[39m       hasPrivateContentUrl\u001b[33m:\u001b[39m state\u001b[33m.\u001b[39msrc\u001b[33m.\u001b[39mincludes(\u001b[32m'/listening-delivery/content?token='\u001b[39m)\u001b[33m,\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                            "column": 3,
+                            "line": 267
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 2\u001b[39m\n\u001b[31m+ Received  + 2\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[2m    \"error\": null,\u001b[22m\n\u001b[32m-   \"hasPrivateContentUrl\": true,\u001b[39m\n\u001b[32m-   \"readyStateAtLeastMetadata\": true,\u001b[39m\n\u001b[31m+   \"hasPrivateContentUrl\": false,\u001b[39m\n\u001b[31m+   \"readyStateAtLeastMetadata\": false,\u001b[39m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 45000ms exceeded while waiting on the predicate\n\n  265 |\n  266 | async function expectPrivateAudioReady(page: Page) {\n> 267 |   await expect.poll(async () => {\n      |   ^\n  268 |     const state = await readAudioState(page);\n  269 |     return {\n  270 |       hasPrivateContentUrl: state.src.includes('/listening-delivery/content?token='),\n    at expectPrivateAudioReady (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:267:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:440:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-01T05:03:07.353Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                        "column": 3,
+                        "line": 267
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "2231576afb6f433b9e61-e324200125660bc3e9a9",
+              "file": "prd0055-task9-final-production-browser.spec.ts",
+              "line": 367,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-01T05:03:05.282Z",
+    "duration": 71531.029,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

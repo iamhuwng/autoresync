@@ -1,0 +1,82 @@
+{
+  "task": "PRD-0055 Task 7.13 local solo rollout",
+  "rolloutId": "task-7.13-local-solo-rollout",
+  "observedAt": "2026-06-30T04:45:17.2103575+07:00",
+  "verdict": "passed",
+  "claimedScope": "internal fixtures only",
+  "unclaimedScope": {
+    "selectedTeacherStudentSoloOrHomeworkTraffic": "not run; no explicit authorization in this packet",
+    "percentageRollout": "not run; healthy playback/resume metrics and authorization required first",
+    "liveSessionTrafficPrivateDelivery": "not run; live traffic remains public and Task 8 owns live cutover"
+  },
+  "evaluator": {
+    "file": "src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.ts",
+    "testFile": "src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts",
+    "acceptedInternalFixtureStatus": "passed",
+    "selectedTrafficStatus": "not-run-not-authorized",
+    "percentageRolloutStatus": "not-run-metrics-required",
+    "liveTrafficStatus": "public-preserved",
+    "audioPlayerBoundary": "source-untouched",
+    "stopReasons": []
+  },
+  "internalFixtureEvidence": [
+    "legacy public playback",
+    "new asset-ID private solo delivery",
+    "resume",
+    "reload",
+    "seek",
+    "URL refresh delegation",
+    "time-up submit",
+    "mobile state",
+    "accessibility/touch targets"
+  ],
+  "stopConditionCoverage": [
+    "missing internal fixture proof",
+    "selected traffic claimed without authorization",
+    "percentage rollout claimed without healthy metrics",
+    "reload regression",
+    "seek regression",
+    "refresh regression",
+    "resume regression",
+    "mobile regression",
+    "legacy playback regression",
+    "live private traffic switch",
+    "AudioPlayer source/internal change",
+    "audioCommand write",
+    "masterAudioState write",
+    "Reading V2 runtime touch",
+    "Task 8 start",
+    "deploy",
+    "remote mutation",
+    "cleanup or object deletion"
+  ],
+  "verification": [
+    {
+      "cwd": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased",
+      "command": "rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts --reporter=basic",
+      "exitCode": 0,
+      "result": "3 tests passed"
+    },
+    {
+      "cwd": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased",
+      "command": "rtk proxy cmd /c \"if not exist output\\prd0055-task7-batch-e mkdir output\\prd0055-task7-batch-e && npx vitest run src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts --reporter=json > output\\prd0055-task7-batch-e\\local-rollout-report.json\"",
+      "exitCode": 0,
+      "result": "JSON report written; success true, 3 passed, 0 failed"
+    }
+  ],
+  "boundaryConfirmations": {
+    "noAudioPlayerTsxSourceChange": true,
+    "noAudioCommandWrite": true,
+    "noMasterAudioStateWrite": true,
+    "noReadingV2RuntimeChange": true,
+    "noTask8Work": true,
+    "noDeploy": true,
+    "noStageCommitPush": true,
+    "noCleanupOrObjectDeletion": true,
+    "noUnauthorizedRemoteMutation": true
+  },
+  "artifacts": [
+    "output/prd0055-task7-batch-e/local-rollout-report.json",
+    "output/prd0055-task7-batch-e/local-rollout-summary.json"
+  ]
+}

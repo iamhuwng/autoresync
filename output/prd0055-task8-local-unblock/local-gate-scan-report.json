@@ -1,0 +1,38 @@
+{
+  "createdAt": "2026-06-30T05:40:59.954Z",
+  "scope": "PRD-0055 local-only boundary scans for Tasks 9.4, 9.5, 9.7/9.11 evidence support after Task 8.14 browser proof fixes",
+  "scans": [
+    {
+      "id": "shared-forbidden-imports",
+      "exitCode": 1,
+      "matchCount": 0,
+      "matches": []
+    },
+    {
+      "id": "reading-v2-owned-imports-listening-live",
+      "exitCode": 1,
+      "matchCount": 0,
+      "matches": []
+    },
+    {
+      "id": "listening-owned-imports-reading-v2",
+      "exitCode": 1,
+      "matchCount": 0,
+      "matches": []
+    },
+    {
+      "id": "mantine-in-touched-task8-files",
+      "exitCode": 1,
+      "matchCount": 0,
+      "matches": []
+    }
+  ],
+  "changedGoogleDriveFiles": [],
+  "changedFileCount": 129,
+  "notes": [
+    "rg exitCode 1 means no matches for these scans",
+    "Router, teacher monitor, and shared result review adapters are excluded from Reading V2-owned boundary scan because they are not Reading V2-owned implementation paths",
+    "No production deploy, cleanup/delete, selected-user rollout, percentage rollout, commit, or push performed",
+    "Dev Firebase writes were limited to internal fixture live sessions only"
+  ]
+}

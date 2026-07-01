@@ -1,0 +1,51 @@
+{
+  "task": "PRD-0055 Task 6.3 read-only reconciliation planner review artifact",
+  "createdAt": "2026-06-29T11:01:32.227Z",
+  "source": "local summary from selected-teacher proof artifact plus read-only Firebase CLI evidence recorded by orchestrator",
+  "selectedTeacherProof": {
+    "proofId": "prd0055-selected-teacher-1782727843357",
+    "passed": true,
+    "deployedWorkerVersionId": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+    "rollbackWorkerVersionId": "3687d2e0-4718-4c0b-9c84-7f81749c31fb",
+    "selectedTeacher": {
+      "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "email": "teacher@test.com"
+    },
+    "stopConditions": {
+      "unexplainedPermanentObjectGrowth": false,
+      "failedCleanup": false,
+      "wrongAudio": false,
+      "legacyIncompatibility": false,
+      "productionData": true,
+      "remoteMutation": true
+    }
+  },
+  "remoteReadOnlyEvidence": {
+    "draftPath": "/listening_authoring/drafts/draft-78487cfad37a5ad2aa1414124a12a301",
+    "draftRead": "exists",
+    "versionPath": "/listening_authoring/versions/version-6601a16bced11ec0b9184340b2d831af",
+    "versionRead": "printed-json-but-firebase-cli-exit-1",
+    "legacyPath": "/tests/prd0055-selected-teacher-1782727843357-legacy",
+    "legacyRead": "exists-with-authoringVersioning",
+    "mediaAssetsShallowPath": "/media_assets",
+    "mediaAssetsShallow": null
+  },
+  "plannerResult": {
+    "inputAssets": [],
+    "hourlyTempCandidates": [],
+    "dailyPendingDeleteCandidates": [],
+    "executionAuthorized": false,
+    "r2DeleteOperations": 0,
+    "r2WriteOperations": 0,
+    "firebaseWriteOperations": 0
+  },
+  "boundaries": [
+    "no cleanup execution",
+    "no object deletion",
+    "no R2 mutation",
+    "no Firebase mutation",
+    "no Worker deploy",
+    "no Firebase deploy",
+    "no Task 6.4+"
+  ]
+}

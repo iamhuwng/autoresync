@@ -1,0 +1,7 @@
+
+ ⛅️ wrangler 4.103.0 (update available 4.105.0)
+───────────────────────────────────────────────
+Resource location: remote
+
+Downloading "assessment-assets/listening/prd0055-deployed/prd0055-live-private-asset-1782834043116/section-1.wav" from "kahoot-media".
+Download complete.

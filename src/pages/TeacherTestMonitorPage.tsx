@@ -12,11 +12,9 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Center, Loader } from '@mantine/core';
-import { notifications } from '@mantine/notifications'; // PRD-0019
 import type { ReviewReleaseState } from '../types/releaseState.types';
 import { getEffectiveReleaseState } from '../types/releaseState.types';
-import { Card, CardBody } from '../components/modern';
+import { Card, CardBody, toast, VanillaLoader } from '../components/modern';
 import { Button } from '../components/modern';
 import { IntegrityDetailPanel } from '../components/test/IntegrityDetailPanel';
 import { StudentProgressCard } from '../components/test/StudentProgressCard';
@@ -47,12 +45,22 @@ import {
   resetStudentSessionSubmission,
 } from '../services/sessionStudentControlService';
 import { reportingService } from '../services/reportingService';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database } from '../services/firebase';
 import type { WritingTestFormat, IELTSWritingTest } from '../types/ielts-writing.types';
 import type { IntegrityViewData } from '../utils/integrityUtils';
 import { getIntegritySummary, normalizeHomeworkIntegrity, normalizeIntegrityReport } from '../utils/integrityUtils'; // PRD-0036
+import type { LiveAudioAuthoritySnapshot } from '../features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction';
+import {
+  readListeningLiveVersionId,
+  refreshListeningLiveAudioDelivery,
+  resolveListeningLiveAudioSection,
+  type ListeningLiveAudioResolution,
+} from '../features/assessment/listening/live-session/delivery/listeningLiveDeliveryAdapter';
+import { createListeningLiveDeliveryIssuer } from '../features/assessment/listening/live-session/delivery/listeningLiveDeliveryClient';
+import type { ListeningDeliveryIssuedUrl } from '../features/assessment/listening/storage/listeningAssetDelivery.service';
+import type { AuthorizedDeliveryConfig } from '../skills/listening/components/AudioPlayer';
 
 const RISK_LABELS: Record<'low' | 'medium' | 'high', string> = {
   low: 'Low',
@@ -104,6 +112,141 @@ export const TeacherTestMonitorPage: React.FC = () => {
 
   // Use extracted hooks for session monitoring
   const { session, students, testData, fullTestData, loading, error } = useMonitorSession(sessionCode);
+  const canonicalMasterAudioState = (session as any)?.masterAudioState as
+    | { revision?: number; section?: number; isPlaying?: boolean; position?: number; speed?: number }
+    | undefined;
+  const monitorDeliveryIssuer = useMemo(() => createListeningLiveDeliveryIssuer(), []);
+  const monitorDeliveryRef = useRef<Record<number, ListeningDeliveryIssuedUrl>>({});
+  const [monitorAudioResolutions, setMonitorAudioResolutions] = useState<
+    Record<number, ListeningLiveAudioResolution>
+  >({});
+  const [monitorDeliveryError, setMonitorDeliveryError] = useState<string | null>(null);
+  const monitorTestId = typeof session?.testId === 'string' ? session.testId : undefined;
+  const monitorVersionId = useMemo(
+    () => readListeningLiveVersionId(fullTestData),
+    [fullTestData],
+  );
+  const monitorClassId = typeof session?.classId === 'string' ? session.classId : undefined;
+  const monitorTeacherId = (typeof session?.createdByUserId === 'string' ? session.createdByUserId : undefined)
+    ?? (typeof session?.createdBy === 'string' ? session.createdBy : undefined)
+    ?? (typeof session?.teacherId === 'string' ? session.teacherId : undefined);
+
+  useEffect(() => {
+    const sourceSections = testData?.skill === 'Listening' ? testData.audioSections ?? [] : [];
+    if (
+      !sessionCode
+      || !monitorTestId
+      || !monitorTeacherId
+      || sourceSections.length === 0
+    ) {
+      setMonitorAudioResolutions({});
+      setMonitorDeliveryError(null);
+      monitorDeliveryRef.current = {};
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(sourceSections.map(async (section) => {
+      const resolution = await resolveListeningLiveAudioSection({
+        sessionCode,
+        testId: monitorTestId,
+        materialVersionId: monitorVersionId,
+        studentId: monitorTeacherId,
+        classId: monitorClassId,
+        now: Date.now(),
+        section,
+        deliveryIssuer: monitorDeliveryIssuer,
+      });
+      return [section.number, resolution] as const;
+    }))
+      .then((entries) => {
+        if (cancelled) return;
+        const resolutions = Object.fromEntries(entries);
+        setMonitorAudioResolutions(resolutions);
+        monitorDeliveryRef.current = Object.fromEntries(
+          entries
+            .filter((entry): entry is readonly [number, Extract<ListeningLiveAudioResolution, {
+              kind: 'authorized-asset-delivery';
+            }>] => entry[1].kind === 'authorized-asset-delivery')
+            .map(([sectionNumber, resolution]) => [sectionNumber, resolution.delivery]),
+        );
+        setMonitorDeliveryError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMonitorAudioResolutions({});
+        monitorDeliveryRef.current = {};
+        setMonitorDeliveryError('listening_live_delivery_failed');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    monitorClassId,
+    monitorDeliveryIssuer,
+    monitorTeacherId,
+    monitorTestId,
+    monitorVersionId,
+    sessionCode,
+    testData?.audioSections,
+    testData?.skill,
+  ]);
+
+  const monitorAudioSections = useMemo(() => (
+    (testData?.audioSections ?? []).map((section) => {
+      const resolution = monitorAudioResolutions[section.number];
+      if (!resolution) {
+        return section.assetId
+          ? { ...section, audioUrl: '', streamUrl: undefined }
+          : section;
+      }
+      return {
+        ...section,
+        audioUrl: resolution.audioUrl,
+        streamUrl: resolution.kind === 'legacy-public-r2' ? resolution.streamUrl : undefined,
+      };
+    })
+  ), [monitorAudioResolutions, testData?.audioSections]);
+
+  const monitorAuthorizedDelivery = useMemo<AuthorizedDeliveryConfig | undefined>(() => {
+    const resolution = monitorAudioResolutions[currentAudioSection];
+    if (!resolution || resolution.kind !== 'authorized-asset-delivery') return undefined;
+
+    return {
+      expiresAt: resolution.delivery.expiresAt,
+      refreshAfter: resolution.delivery.refreshAfter,
+      refreshSource: async () => {
+        const previous = monitorDeliveryRef.current[currentAudioSection] ?? resolution.delivery;
+        const refreshed = await refreshListeningLiveAudioDelivery({
+          previous,
+          sessionCode: sessionCode!,
+          testId: monitorTestId!,
+          materialVersionId: monitorVersionId!,
+          studentId: monitorTeacherId!,
+          classId: monitorClassId,
+          sectionNumber: currentAudioSection,
+          now: Date.now(),
+          deliveryIssuer: monitorDeliveryIssuer,
+        });
+        monitorDeliveryRef.current[currentAudioSection] = refreshed;
+        return {
+          url: refreshed.url,
+          expiresAt: refreshed.expiresAt,
+          refreshAfter: refreshed.refreshAfter,
+        };
+      },
+    };
+  }, [
+    currentAudioSection,
+    monitorAudioResolutions,
+    monitorClassId,
+    monitorDeliveryIssuer,
+    monitorTeacherId,
+    monitorTestId,
+    monitorVersionId,
+    sessionCode,
+  ]);
 
   // PRD-0028: Detect THCS test type from fullTestData
   useEffect(() => {
@@ -120,6 +263,35 @@ export const TeacherTestMonitorPage: React.FC = () => {
       setIsWritingSession(true);
     }
   }, [testData]);
+
+  useEffect(() => {
+    if (testData?.skill !== 'Listening' || session?.status !== 'in-progress') {
+      return;
+    }
+
+    const section = Number(canonicalMasterAudioState?.section);
+    const speed = Number(canonicalMasterAudioState?.speed);
+
+    if (
+      !Number.isInteger(section)
+      || section <= 0
+      || !Number.isFinite(speed)
+      || typeof canonicalMasterAudioState?.isPlaying !== 'boolean'
+    ) {
+      return;
+    }
+
+    setCurrentAudioSection(section);
+    setIsAudioPaused(!canonicalMasterAudioState.isPlaying);
+    setCurrentPlaybackSpeed(speed);
+  }, [
+    canonicalMasterAudioState?.isPlaying,
+    canonicalMasterAudioState?.revision,
+    canonicalMasterAudioState?.section,
+    canonicalMasterAudioState?.speed,
+    session?.status,
+    testData?.skill,
+  ]);
 
   // PRD-0030: Writing test format for monitor cards
   const writingTestFormat: WritingTestFormat = useMemo(() => {
@@ -226,11 +398,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
         return;
       }
 
-      notifications.show({
+      toast.show({
         title: report.riskLevel === 'high' ? 'High-Risk Integrity Alert' : 'Integrity Alert',
         message: `${student.name}: ${getIntegritySummary(report)}. Counted violations: ${report.violationCount}.`,
-        color: report.riskLevel === 'high' ? 'red' : 'orange',
-        autoClose: 5000,
+        tone: report.riskLevel === 'high' ? 'error' : 'warning',
+        duration: 5000,
       });
     });
 
@@ -245,11 +417,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
         ref(database, `game_sessions/${sessionCode}/students/${studentUid}/writing/reopened`),
         true
       );
-      notifications.show({
+      toast.show({
         title: 'Reopened',
         message: 'Student can continue writing.',
-        color: 'blue',
-        autoClose: 3000,
+        tone: 'info',
+        duration: 3000,
       });
     } catch (err) {
       console.error('❌ Failed to reopen writing for student:', err);
@@ -285,11 +457,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
       );
 
       console.log('✅ [PRD-0030] All unsubmitted writing students auto-submitted');
-      notifications.show({
+      toast.show({
         title: 'Auto-submitted',
         message: `${unsubmittedUids.length} student(s) auto-submitted.`,
-        color: 'green',
-        autoClose: 3000,
+        tone: 'success',
+        duration: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0030] Failed to auto-submit writing students:', err);
@@ -414,11 +586,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
         sessionCode,
         studentId,
       });
-      notifications.show({
+      toast.show({
         title: 'Force submit requested',
         message: 'The student client is submitting this test now.',
-        color: 'orange',
-        autoClose: 3000,
+        tone: 'warning',
+        duration: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0036] Failed to force submit student:', err);
@@ -441,11 +613,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
         studentId,
         deletedResultCount,
       });
-      notifications.show({
+      toast.show({
         title: 'Submission reset',
         message: 'The student can re-enter the active test and continue working.',
-        color: 'blue',
-        autoClose: 3000,
+        tone: 'info',
+        duration: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0036] Failed to reset student submission:', err);
@@ -469,29 +641,71 @@ export const TeacherTestMonitorPage: React.FC = () => {
   });
 
   // Wrapped handlers that update local state
-  const handleSkipToSection = async (sectionNumber: number) => {
-    setCurrentAudioSection(sectionNumber);
-    if (skipToSection) await skipToSection(sectionNumber);
+  const handleSkipToSection = async (sectionNumber: number, snapshot?: LiveAudioAuthoritySnapshot) => {
+    try {
+      if (skipToSection) await skipToSection(sectionNumber, snapshot);
+      setCurrentAudioSection(sectionNumber);
+      reportingService.trackAction('liveSessions', 'listeningLive.skipSection', {
+        sessionCode,
+        sectionNumber,
+      });
+    } catch (error) {
+      console.error('[Monitor] Failed to skip listening audio section:', error);
+    }
   };
 
-  const handleSeekToPosition = async (sectionNumber: number, position: number) => {
-    // Broadcast seek command to all students
-    if (seekToPosition) await seekToPosition(sectionNumber, position);
+  const handleSeekToPosition = async (
+    sectionNumber: number,
+    position: number,
+    snapshot?: LiveAudioAuthoritySnapshot,
+  ) => {
+    try {
+      if (seekToPosition) await seekToPosition(sectionNumber, position, snapshot);
+      reportingService.trackAction('liveSessions', 'listeningLive.seekAudio', {
+        sessionCode,
+        sectionNumber,
+        position,
+      });
+    } catch (error) {
+      console.error('[Monitor] Failed to seek listening audio:', error);
+    }
   };
 
-  const handlePauseAudio = async () => {
-    setIsAudioPaused(true);
-    if (pauseAllAudio) await pauseAllAudio();
+  const handlePauseAudio = async (snapshot?: LiveAudioAuthoritySnapshot) => {
+    try {
+      if (pauseAllAudio) await pauseAllAudio(snapshot);
+      setIsAudioPaused(true);
+      reportingService.trackAction('liveSessions', 'listeningLive.pauseAudio', {
+        sessionCode,
+      });
+    } catch (error) {
+      console.error('[Monitor] Failed to pause listening audio:', error);
+    }
   };
 
-  const handleResumeAudio = async () => {
-    setIsAudioPaused(false);
-    if (resumeAllAudio) await resumeAllAudio();
+  const handleResumeAudio = async (snapshot?: LiveAudioAuthoritySnapshot) => {
+    try {
+      if (resumeAllAudio) await resumeAllAudio(snapshot);
+      setIsAudioPaused(false);
+      reportingService.trackAction('liveSessions', 'listeningLive.resumeAudio', {
+        sessionCode,
+      });
+    } catch (error) {
+      console.error('[Monitor] Failed to resume listening audio:', error);
+    }
   };
 
-  const handleSetPlaybackSpeed = async (speed: number) => {
-    setCurrentPlaybackSpeed(speed);
-    if (setPlaybackSpeed) await setPlaybackSpeed(speed);
+  const handleSetPlaybackSpeed = async (speed: number, snapshot?: LiveAudioAuthoritySnapshot) => {
+    try {
+      if (setPlaybackSpeed) await setPlaybackSpeed(speed, snapshot);
+      setCurrentPlaybackSpeed(speed);
+      reportingService.trackAction('liveSessions', 'listeningLive.changeSpeed', {
+        sessionCode,
+        speed,
+      });
+    } catch (error) {
+      console.error('[Monitor] Failed to change listening audio speed:', error);
+    }
   };
 
   const handleRefreshLogs = useCallback(async () => {
@@ -503,11 +717,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
       reportingService.trackAction('liveSessions', 'refreshIntegrityLogs', {
         sessionCode,
       });
-      notifications.show({
+      toast.show({
         title: 'Integrity refresh requested',
         message: 'Active student clients are flushing their latest integrity logs now.',
-        color: 'blue',
-        autoClose: 3000,
+        tone: 'info',
+        duration: 3000,
       });
     } catch (err) {
       console.error('❌ [PRD-0036] Failed to refresh integrity logs:', err);
@@ -566,12 +780,11 @@ export const TeacherTestMonitorPage: React.FC = () => {
       console.log('✅ [PRD-0019] All students finished (base + accommodated). Ending session...');
       isEndingRef.current = true;
 
-      notifications.show({
+      toast.show({
         title: 'All Finished!',
         message: 'All students have completed the test. Redirecting to results...',
-        color: 'green',
-        autoClose: 2000,
-        withCloseButton: false,
+        tone: 'success',
+        duration: 2000,
       });
 
       // 2-second delay before redirect
@@ -610,7 +823,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
   React.useEffect(() => {
     if (!session || !testData) return;
 
-    const { status, startTime, isPaused, pausedAt, totalPausedDuration = 0 } = session;
+    const { status, startTime, isPaused, totalPausedDuration = 0 } = session;
 
     if (status !== 'in-progress' || isPaused) return;
     if (!startTime) return;
@@ -683,14 +896,14 @@ export const TeacherTestMonitorPage: React.FC = () => {
 
   if (isDataLoading) {
     return (
-      <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
-        <Loader size="xl" />
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }} role="status" aria-live="polite">
+        <VanillaLoader size="xl" />
         {isTestCleared && (
           <div style={{ fontSize: '1rem', color: '#64748b' }}>
             Returning to lobby...
           </div>
         )}
-      </Center>
+      </div>
     );
   }
 
@@ -699,7 +912,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
    */
   if (error || !session || !testData) {
     return (
-      <Center style={{ height: '100vh', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1rem', textAlign: 'center' }} role="alert">
         <div style={{ fontSize: '3rem' }}>⚠️</div>
         <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1e293b' }}>
           {error || 'Failed to load test session'}
@@ -707,7 +920,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
         <Button variant="primary" onClick={handleBack}>
           Return to Sessions
         </Button>
-      </Center>
+      </div>
     );
   }
 
@@ -736,6 +949,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
         onSkipToSection={handleSkipToSection}
         onSetPlaybackSpeed={handleSetPlaybackSpeed}
         currentAudioSection={currentAudioSection}
+        currentPlaybackSpeed={currentPlaybackSpeed}
       />
 
       {/* PRD-0019: Accommodation Status Bar (shown after base time expires) */}
@@ -754,7 +968,7 @@ export const TeacherTestMonitorPage: React.FC = () => {
       {testData?.skill === 'Listening' && testData?.audioSections && testData.audioSections.length > 0 && session?.status === 'in-progress' && (
         <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '1rem 2rem 0' }}>
           <AudioProgressPanel
-            audioSections={testData.audioSections}
+            audioSections={monitorAudioSections}
             currentSection={currentAudioSection}
             isPlaying={!isAudioPaused && !session?.isPaused}
             isPaused={isAudioPaused || !!session?.isPaused}
@@ -766,6 +980,10 @@ export const TeacherTestMonitorPage: React.FC = () => {
             sessionCode={sessionCode}
             audioMode={audioMode}
             enableUnifiedAudio={true}
+            authorizedDelivery={monitorAuthorizedDelivery}
+            masterRevision={canonicalMasterAudioState?.revision ?? null}
+            canonicalPosition={canonicalMasterAudioState?.position ?? null}
+            authorizedDeliveryError={monitorDeliveryError}
           />
 
           {/* PRD-0018 Task 6.4: Headphone Request Panel (Offline Mode Only) */}
@@ -914,18 +1132,18 @@ export const TeacherTestMonitorPage: React.FC = () => {
                               if (isActive) return;
                               try {
                                 await setReviewReleaseState(rs.key);
-                                notifications.show({
+                                toast.show({
                                   title: `Review Access: ${rs.label}`,
                                   message: rs.desc,
-                                  color: rs.key === 'locked-review' ? 'orange' : rs.key === 'review-released' ? 'blue' : 'green',
-                                  autoClose: 3000,
+                                  tone: rs.key === 'locked-review' ? 'warning' : rs.key === 'review-released' ? 'info' : 'success',
+                                  duration: 3000,
                                 });
                               } catch {
-                                notifications.show({
+                                toast.show({
                                   title: 'Failed',
                                   message: 'Could not update review access. Try again.',
-                                  color: 'red',
-                                  autoClose: 3000,
+                                  tone: 'error',
+                                  duration: 3000,
                                 });
                               }
                             }}

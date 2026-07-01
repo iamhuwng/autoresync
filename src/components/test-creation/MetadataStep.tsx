@@ -13,7 +13,6 @@
  */
 
 import React, { useEffect } from 'react';
-import { Text } from '@mantine/core';
 import { Input } from '../modern';
 import {
     type TestType,
@@ -26,6 +25,40 @@ import {
     DURATION_OPTIONS,
     generateDefaultTitle,
 } from '../../types/draft.types';
+
+type LocalTextProps = React.HTMLAttributes<HTMLParagraphElement> & {
+    size?: 'xs' | 'sm' | 'md';
+    fw?: React.CSSProperties['fontWeight'];
+    c?: 'dimmed' | string;
+};
+
+const TEXT_SIZE_PX: Record<NonNullable<LocalTextProps['size']>, string> = {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    md: '1rem',
+};
+
+const Text: React.FC<LocalTextProps> = ({
+    children,
+    c,
+    fw,
+    size = 'md',
+    style,
+    ...props
+}) => (
+    <p
+        {...props}
+        style={{
+            margin: 0,
+            color: c === 'dimmed' ? '#64748b' : c,
+            fontSize: TEXT_SIZE_PX[size],
+            fontWeight: fw,
+            ...style,
+        }}
+    >
+        {children}
+    </p>
+);
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -81,6 +114,9 @@ const FORMAT_OPTIONS: { value: TestFormat; label: string; description: string }[
     { value: 'academic', label: 'Academic', description: 'For university admission' },
     { value: 'general', label: 'General Training', description: 'For work or migration' },
 ];
+
+const LISTENING_DEFAULT_DURATION_MINUTES = 30;
+const LISTENING_DURATION_OPTIONS = [20, 30, 40, 60] as const;
 
 // ═══════════════════════════════════════════════════════════════
 // STYLES
@@ -204,6 +240,10 @@ const MetadataStep: React.FC<MetadataStepProps> = ({
     };
 
     const isIELTS = testType === 'IELTS';
+    const durationOptions = skillType === 'listening' ? LISTENING_DURATION_OPTIONS : DURATION_OPTIONS;
+    const defaultDuration = skillType === 'listening'
+        ? LISTENING_DEFAULT_DURATION_MINUTES
+        : DURATION_OPTIONS[2];
 
     return (
         <div style={styles.container}>
@@ -266,10 +306,10 @@ const MetadataStep: React.FC<MetadataStepProps> = ({
                     <label style={styles.label}>Duration</label>
                     <select
                         style={styles.select}
-                        value={metadata.duration || DURATION_OPTIONS[2]}
+                        value={metadata.duration || defaultDuration}
                         onChange={(e) => handleChange('duration', parseInt(e.target.value, 10))}
                     >
-                        {DURATION_OPTIONS.map((duration) => (
+                        {durationOptions.map((duration) => (
                             <option key={duration} value={duration}>
                                 {duration} minutes
                             </option>

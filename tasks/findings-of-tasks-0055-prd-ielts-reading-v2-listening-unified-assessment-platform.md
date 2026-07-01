@@ -2,6 +2,589 @@
 
 Append-only record. Corrections must be appended; prior entries must not be edited, removed, reordered, or combined.
 
+## PRD-0055 Task 8.17 fresh localhost-only independent PASS - 2026-07-01
+
+Verdict: TASK_8_17_LOCALHOST_INDEPENDENT_PASS_ONLY. Pauli (`019f1d94-ccdc-7fc3-bb0b-cc16c8583eaf`) returned `PASS` for Task 8.17 only after the false-gate removal. Durable summary is `output/prd0055-task9-local-readiness/prd0055-pauli-task817-local-independent-pass-summary.json`.
+
+Evidence:
+
+- Pauli inspected the tasklist, findings, traceability, implementation log, architecture doc, local Task 8 browser/human proof, local matrix supplement, REG-79 reports/proof, current rollout-status JSON, and canonical audit JSON.
+- Pauli accepted localhost Task 8.14 proof: human audible browser tone at `http://localhost:5173/teacher-test/T8P9J2`, progress advanced, no wrong audio, no interruption, no visible drift, plus local Playwright matrix and supplement coverage.
+- Pauli accepted REG-79 local private-delivery proof: endpoint tests, refresh fallback tests, WebKit report, `206` range response, `RIFF` bytes, and canonical seek authority.
+- Pauli confirmed live-domain/deployed proof, selected-user rollout, percentage rollout, full rollout, human production acceptance, production rollback/recovery, and Section 27 future rows are non-gates for this localhost packet.
+
+Closure:
+
+- Task 8.17 is safe to check.
+- Task 8.18, Task 9.0, and Task 9.1 through Task 9.15 remain unchecked until local-only task/docs reconciliation is completed.
+- No live-domain browser test, production deploy, rollout, cleanup/delete, commit, push, merge, or parent checkbox closure occurred.
+
+## PRD-0055 false-gate removal for localhost-only current closure - 2026-07-01
+
+Verdict: FALSE_GATES_REMOVED_CURRENT_LOCAL_BLOCKED_NOT_PASS. Current PRD-0055 remaining closure is localhost-only. Live-domain/deployed proof, selected-user rollout, percentage rollout, full rollout, human production acceptance, production rollback/recovery, and Section 27 future rows `REG-17` through `REG-23` plus `REG-26` are future-deferred non-gates, not current blockers.
+
+Current blockers:
+
+- No fresh independent localhost-only Task 8.17 PASS exists after the local-only scope correction.
+- Parent Task 8, parent Task 9, and PRD-0055 local-only acceptance remain unchecked until taskboxes, findings, traceability, implementation log, and current-status artifacts reconcile to the same local-only truth.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs` exits 0 and reports `remainingBlockers: 2`.
+- `rtk node output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs` exits 0 and reports `blockers: 2`, `achieved: false`, and `taskboxesChecked: []`.
+- `output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit-report.json` records 85 rows, 77 current-local evidence rows, 8 future deferrals, and 0 local blocking rows.
+
+Non-actions:
+
+- No live-domain browser test, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, merge, or checkbox closure is claimed.
+- Older blocker sections remain historical append-only evidence only where they mention live/deployed/rollout as blockers.
+
+## PRD-0055 Canonical closure audit after alternate rollback reconciliation - 2026-07-01
+
+Verdict: CANONICAL_CLOSURE_AUDIT_BLOCKED_NOT_PASS. `output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs` and `prd0055-canonical-closure-audit.cjs` now import the alternate rollback/restoration rehearsal and remove the stale `d219c36f-0e0f-489c-a10b-a843ed339bf2` missing-secret blocker from the current remaining blocker list.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs` exited 0 and reports `remainingBlockers: 8`.
+- `rtk node output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs` exited 0 and reports `blockers: 8`, `achieved: false`, and `taskboxesChecked: []`.
+- `rtk git diff --check` passed.
+
+Non-closure:
+
+- This is audit reconciliation only. It does not claim selected-user rollout acceptance, full rollout, final human-assisted production browser acceptance, Task 8.17 independent PASS, full Section 27 row proof, deployed/current clean-source reconciliation, parent acceptance, cleanup/delete, commit, push, merge, or checkbox closure.
+
+## PRD-0055 Automated final production browser proof reconciliation - 2026-07-01
+
+Verdict: PARTIAL AUTOMATED PRODUCTION BROWSER EVIDENCE, not PASS. Automated deployed browser proof exists for final fixture session `T8XIZM`, but no human-audible production acceptance confirmation is recorded.
+
+Evidence:
+
+- `output/prd0055-task9-live-readback/final-production-browser-report-1782847310086.json` passed 1 expected / 0 unexpected for `e2e/prd0055-task9-final-production-browser.spec.ts`.
+- `output/prd0055-task9-live-readback/prd0055-final-live-private-1782847310086-final-browser/final-production-browser-proof.json` records exact URLs `https://kahut1.web.app/teacher-test/T8XIZM` and `https://kahut1.web.app/student-wait/T8XIZM`, durable fixture `prd0055-final-live-private-1782847310086-*`, 40 delivery events, zero blocking delivery failures, authority-conflict recovery, stale-command rejection, headphone flow, and post-End submit protection.
+- The proof JSON also records early teacher/student direct audio snapshot timeouts before later private-audio assertions passed, so it must not be represented as human-audible acceptance.
+
+Non-closure:
+
+- Task 9.13 remains unchecked until human-audible production acceptance is recorded with exact URL/session/role/viewport/network/DB/artifact context.
+- Remaining blockers include selected-user rollout acceptance, full rollout proof, Task 8.17 independent PASS, full Section 27 row proof, deployed/current clean-source reconciliation, and parent acceptance.
+
+## PRD-0055 Alternate rollback/restoration stale blocker reconciliation - 2026-07-01
+
+Verdict: PARTIAL DEPLOYED RECOVERY EVIDENCE, not PASS. The older blocker tied to recovery candidate `d219c36f-0e0f-489c-a10b-a843ed339bf2` lacking `LISTENING_DELIVERY_SECRET` is superseded for the safe alternate-version rollback/restoration slice only.
+
+Evidence:
+
+- `output/prd0055-task9-live-readback/wrangler-equivalent-candidate-summary.json` proves candidate `f217034a-4a21-48be-85d1-5b629ebd70b8` is active-equivalent and includes `LISTENING_DELIVERY_SECRET`.
+- `output/prd0055-task9-live-readback/wrangler-alternate-rollback-rehearsal-summary.json` deployed `f217034a-4a21-48be-85d1-5b629ebd70b8` at 100% on deployment `7b56a1fc-e129-4b4e-86b7-3caf804ba8bd`, passed selected-class live/private smoke `T83ADF`, restored active version `993acdc9-dd93-4ee8-8764-15847146ac3a` to 100% on deployment `050fabef-5d8c-4d7c-a08d-1e4224e45a2a`, and passed restore smoke `T8WOUF`.
+
+Non-closure:
+
+- No cleanup/delete, commit, push, merge, selected-user rollout acceptance, or full rollout is claimed.
+- Task 8.14-8.18 and Task 9.0-9.15 remain unchecked.
+- Remaining blockers are selected-user rollout acceptance, full rollout proof, final human-assisted production browser packet, Task 8.17 independent PASS, full Section 27 row proof, deployed/current clean-source reconciliation, and parent acceptance.
+
+## PRD-0055 Listening Publish redirect to Materials local correction - 2026-07-01
+
+Verdict: PARTIAL LOCAL CORRECTION, not PASS. Listening Publish success now returns the teacher to Materials through the registered `LOBBY` route after the trusted publish operation succeeds. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked.
+
+What changed:
+
+- `src/skills/listening/builders/ListeningTestBuilder.tsx` now calls `navigateTo('LOBBY', undefined, { reason: 'listening_builder_publish_success', replace: true })` after `publishDraft(...)` returns `published`, after the shared success announcement, and after `trackAction('publishTest', ...)`.
+- `src/skills/listening/builders/ListeningTestBuilder.test.tsx` asserts successful publish redirects to `LOBBY` and blocked audio-readiness publish does not navigate.
+- Route audit confirmed `LOBBY` is registered as `/lobby`, mounted by `src/routes/teacherRoutes.tsx`, and treated as teacher Materials by `src/components/navigation/TeacherNavigation.tsx`.
+
+Proof basis:
+
+- `rtk npm exec -- vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/features/assessment/listening/authoring/listeningPublishReadiness.test.ts src/features/assessment/listening/authoring/listeningAuthoringValidation.test.ts src/config/featureRegistry.test.ts src/components/navigation/TeacherNavigation.test.tsx src/routes/teacherRoutes.test.tsx` passed 7 files / 65 tests.
+- `rtk git diff --check` passed.
+- Mini read-only route audit `019f1d01-07a0-7220-8def-2894abb6e18b` returned PASS with no findings for the redirect target and test coverage.
+
+Non-closure:
+
+- No browser proof was claimed for this redirect because the Browser plugin exposed no controllable in-app tab at verification time.
+- No production deploy, cleanup/delete, selected-user rollout, full rollout, commit, push, merge, or checkbox closure occurred.
+- This does not close final Task 9.7 action-surface review, Task 9.11 final proof, Task 9.13 final browser proof, Task 8.17 independent PASS, Section 27 execution, parent Task 8/9 acceptance, or PRD-0055 implemented status.
+
+## PRD-0055 canonical closure audit after stale-report reconciliation - 2026-07-01
+
+Verdict: CANONICAL_CLOSURE_AUDIT_BLOCKED_NOT_PASS. This is the current authoritative closure audit for Task 8.14-8.18 and Task 9.0-9.15; it supersedes older local-readiness report details only for active deployment/version truth, live/private route availability truth, and percentage rehearsal/restore truth.
+
+What changed:
+
+- Added `output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs`.
+- Added `output/prd0055-task9-live-readback/prd0055-canonical-closure-audit-report.json`.
+- The report imports current rollout status and Helmholtz evidence, verifies all target taskboxes remain unchecked, records active deployment `fd709c5b-c470-4c52-a3c2-1a7c1d4c18c1`, and preserves 9 missing closure gates.
+- Historical local-readiness reports remain append-only evidence. They are not deleted or rewritten.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs` exited 0.
+- No taskbox changed from unchecked to checked.
+- No cleanup/delete, selected-user rollout, full rollout, commit, push, or merge occurred.
+
+## PRD-0055 fresh independent blocker audit after 1 percent restore - 2026-07-01
+
+Verdict: BLOCKED, not PASS. Helmholtz (`019f19b7-e4fc-7913-97c6-37730f5cf210`) reviewed the current Task 8.14-8.18 and Task 9.0-9.15 closure evidence after active-version pin, equivalent 1 percent rollout rehearsal, restore, and selected-class deployed browser proof. No invalid checkbox closure or PASS overclaim was found.
+
+What changed:
+
+- Added `output/prd0055-task9-live-readback/prd0055-helmholtz-independent-verifier-summary.json`.
+- The audit confirms internal/local Task 8 proof, deployed selected-class proof, active-version pin, equivalent candidate, 99/1 rehearsal, and restore-to-active-100 proof exist.
+- The audit confirms remaining blockers: no Task 8.17 independent verification PASS, no final human-assisted production browser packet for Task 9.13, no selected-user rollout acceptance packet, no full rollout proof, no full Section 27 row-by-row proof, no safe alternate-version live-private rollback proof, and no parent acceptance path.
+- Older local-readiness report wording is now treated as historical where superseded by EV-FINAL-M/N/O/P and `prd0055-rollout-current-status.json`; the closure verdict remains blocked.
+
+Proof basis:
+
+- Subagent notification from Helmholtz records `VERDICT BLOCKED`.
+- `output/prd0055-task9-live-readback/prd0055-helmholtz-independent-verifier-summary.json`.
+- No taskbox changed from unchecked to checked.
+- No cleanup/delete, selected-user rollout, full rollout, commit, push, or merge occurred.
+
+## PRD-0055 equivalent-candidate 1 percent rollout rehearsal and restore - 2026-06-30
+
+Verdict: PARTIAL PERCENTAGE/RESTORE EVIDENCE, not PASS. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked. This does not close selected-user rollout acceptance, full rollout, final independent verification, parent Task 8, parent Task 9, PRD-0055 implemented status, commit, push, cleanup, or deletion.
+
+What changed:
+
+- `output/prd0055-task9-live-readback/wrangler-equivalent-candidate-summary.json` records non-active candidate `f217034a-4a21-48be-85d1-5b629ebd70b8` with the same script ETag, Durable Object migration tag, compatibility flags, and bindings as active version `993acdc9-dd93-4ee8-8764-15847146ac3a`.
+- `output/prd0055-task9-live-readback/wrangler-percentage-split-rehearsal-summary.json` records deployment `b8b6435d-bba6-4951-a2a0-6a5d8e140da3` with `993acdc9-dd93-4ee8-8764-15847146ac3a` at 99% and equivalent candidate `f217034a-4a21-48be-85d1-5b629ebd70b8` at 1%.
+- The same report records restore deployment `fd709c5b-c470-4c52-a3c2-1a7c1d4c18c1` returning `993acdc9-dd93-4ee8-8764-15847146ac3a` to 100%.
+- Split smoke `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782841830774.json` (`T8HVWE`) and restore smoke `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782841911531.json` (`T8QYZU`) passed Firebase class/session/media readback, teacher/student live issue 200, content byte-range 206, refresh-not-due handling, cross-owner 403, and wrong-section 403.
+
+Proof basis:
+
+- `rtk C:\Users\THELOR~1\CACHE~1\CODEX-~1\CODEX-~2\DEPEND~1\node\bin\node.exe output\prd0055-task9-live-readback\wrangler-equivalent-candidate.cjs` exited 0.
+- `rtk C:\Users\THELOR~1\CACHE~1\CODEX-~1\CODEX-~2\DEPEND~1\node\bin\node.exe output\prd0055-task9-live-readback\wrangler-percentage-split-rehearsal.cjs` exited 0.
+- No taskbox changed from unchecked to checked.
+- No cleanup/delete, selected-user rollout, full rollout, commit, push, or merge occurred.
+
+## PRD-0055 active-version pin recovery-path rehearsal and post-pin live smoke - 2026-06-30
+
+Verdict: PARTIAL RECOVERY-PATH EVIDENCE, not PASS. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked. This does not close selected-user rollout acceptance, percentage rollout, full rollout, alternate-version rollback/restoration, final independent verification, parent Task 8, parent Task 9, PRD-0055 implemented status, commit, push, cleanup, or deletion.
+
+What changed:
+
+- Fresh read-only Wrangler snapshot succeeded through bundled Node and wrote `output/prd0055-task9-live-readback/wrangler-readonly-snapshot-summary.json`, `wrangler-readonly-deployments-status.json`, `wrangler-readonly-versions-list.json`, `wrangler-readonly-version-993acdc9.json`, and `wrangler-readonly-version-d219c36f.json`.
+- Current active Worker state before the pin was deployment `7af10e9a-bfb6-4c83-8b98-bc35d027bbe2`, version `993acdc9-dd93-4ee8-8764-15847146ac3a`, strategy `percentage`, traffic `100%`.
+- Recovery candidate `d219c36f-0e0f-489c-a10b-a843ed339bf2` is not safe live-private rollback proof because version view lacks `LISTENING_DELIVERY_SECRET`; active version `993acdc9-dd93-4ee8-8764-15847146ac3a` includes that binding.
+- `output/prd0055-task9-live-readback/wrangler-active-pin-dry-run-summary.json` dry-ran `wrangler versions deploy 993acdc9-dd93-4ee8-8764-15847146ac3a@100`.
+- `output/prd0055-task9-live-readback/wrangler-active-pin-apply-summary.json` applied the same active-version pin only; readback `output/prd0055-task9-live-readback/wrangler-active-pin-apply-status.txt` records deployment `7d32be9d-1470-4c82-bb6a-8782a80de1c9`, strategy `percentage`, version `993acdc9-dd93-4ee8-8764-15847146ac3a` at `100%`.
+- Post-pin internal selected-class live smoke proof passed at `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782841132794.json`: session `T8TDAS`, teacher/student live issue 200, content byte-range 206 with RIFF bytes, refresh-not-due accepted, cross-owner 403, and wrong-section 403.
+
+Proof basis:
+
+- `rtk C:\Users\THELOR~1\CACHE~1\CODEX-~1\CODEX-~2\DEPEND~1\node\bin\node.exe output\prd0055-task9-live-readback\wrangler-readonly-snapshot.cjs` exited 0.
+- `rtk C:\Users\THELOR~1\CACHE~1\CODEX-~1\CODEX-~2\DEPEND~1\node\bin\node.exe output\prd0055-task9-live-readback\wrangler-active-pin-rehearsal.cjs dry-run` exited 0.
+- `rtk C:\Users\THELOR~1\CACHE~1\CODEX-~1\CODEX-~2\DEPEND~1\node\bin\node.exe output\prd0055-task9-live-readback\wrangler-active-pin-rehearsal.cjs apply` exited 0.
+- `rtk node scripts/prd0055-task8-selected-class-live-proof.mjs` exited 0 and wrote the `T8TDAS` proof.
+- No taskbox changed from unchecked to checked.
+- No code version change, cleanup/delete, selected-user rollout, percentage rollout, full rollout, commit, push, or merge occurred.
+
+## PRD-0055 remaining closure scope changed to local-only - 2026-06-30
+
+Verdict: BLOCKED/DEFERRED, not PASS. Product owner approved changing the remaining PRD-0055 closure scope to local-only. Deployed/current truth, selected-user rollout, percentage rollout, final production rollout, production-current documentation truth, rollback/recovery production proof, and final production acceptance are deferred to named future PRD-0062 Listening Deployed Truth And Production Rollout Closure.
+
+What changed:
+
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now marks current remaining Task 8.14-8.18 and Task 9.0-9.15 scope as BLOCKED/DEFERRED, not PASS, while keeping all related checkboxes unchecked.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` adds `EV-FINAL-H`, `DEF-PRD0062`, and `DEP-0062` so the future production/deployed rollout work is named and not hidden as completion.
+- Local evidence from EV-FINAL-A through EV-FINAL-G remains usable for the local-only packet; it is not upgraded into deployed/current truth, rollout proof, final production acceptance, or PRD-0055 implemented status.
+
+Proof basis:
+
+- No taskbox changed from unchecked to checked.
+- No production deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 requirements evidence matrix for Task 8.14-8.18 and Task 9.0-9.15 - 2026-06-30
+
+Verdict: REQUIREMENTS_MATRIX_PARTIAL_LOCAL_EVIDENCE_CLOSURE_BLOCKED. This is a requirements-to-evidence audit, not a PASS packet. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked. This does not close PRD-0055, parent Task 8, parent Task 9, human-assisted browser proof, deployed/private/live proof, selected-user rollout, percentage rollout, final rollout, rollback, evidence-capture closure, final independent verification, deploy, staging, commit, push, cleanup, deletion, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/prd0055-requirements-evidence-matrix.cjs` maps explicit objective requirements to current evidence.
+- `output/prd0055-task9-local-readiness/prd0055-requirements-evidence-matrix-report.json` records 21 requirement rows: 1 `OPEN_AND_TRACKED`, 1 `PROVEN_FOR_THIS_AUDIT_SLICE`, 2 `PARTIAL_LOCAL_ONLY_BLOCKED`, 4 `MISSING_BLOCKED`, 1 `BLOCKED_NOT_CLOSURE`, 9 `PARTIAL_LOCAL_PROVEN`, 1 `PARTIAL_OR_MISSING`, 1 `PARTIAL_LOCAL_RECONCILED`, and 1 `BLOCKER_DOCUMENTED`.
+- The matrix has zero `CONTRADICTED` rows after checking the nested Google Drive compatibility report fields.
+- The report preserves the local Task 8 matrix result as 1 expected / 0 unexpected / 0 errors and keeps 131 deploy-sensitive dirty/untracked source candidates as local source state only.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-G` for this matrix and keeps final Task 9 acceptance evidence planned/open.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/prd0055-requirements-evidence-matrix.cjs` exited 0 and wrote the report.
+- No taskbox changed from unchecked to checked.
+- No production deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 final closure blocker audit for Task 8.14-8.18 and Task 9.0-9.15 - 2026-06-30
+
+Verdict: CLOSURE_BLOCKED_REQUIRED_REMOTE_AND_HUMAN_GATES_MISSING. Task 8.0 remains unchecked. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked. This does not close PRD-0055, parent Task 8, parent Task 9, human-assisted browser proof, deployed/private/live proof, selected-user rollout, percentage rollout, final rollout, rollback, evidence-capture closure, final independent verification, deploy, staging, commit, push, cleanup, deletion, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit.cjs` records a local final-closure blocker scanner for the remaining PRD-0055 scope only: Task 8.14-8.18 and Task 9.0-9.15.
+- `output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit-report.json` records 22 remaining unchecked taskboxes and 8 explicit closure blockers: Task 8.14, 8.15, 8.16, 8.17, 8.18, 9.0, 9.13, and 9.15.
+- `output/prd0055-task9-local-readiness/prd0055-final-independent-gate-audit-summary.json` records the reusable Einstein read-only audit result as `BLOCKED` for 8.17, 8.18, 9.13, and 9.15, with no EV-FINAL-E overclaim found. This is blocker-audit evidence only, not Task 8.17 independent verification PASS.
+- The report keeps Task 8 local fixture evidence as partial only: `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` remains 1 expected / 0 unexpected / 0 errors, and supplement session `T89XJH` remains 9 covered local proof slices with final canonical revision `7`.
+- The report points to `output/prd0055-task9-local-readiness/task9-rollout-deployed-truth-audit-report.json` for the earlier 7 rollout/deployed-truth gate statuses and 131 deploy-sensitive local source candidates.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records the final blocker audit under Task 8.17, 8.18, 9.0, 9.13, and 9.15 as current blocker evidence, not checkbox closure.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-F` for this final closure-blocker packet and keeps final Task 9 acceptance evidence planned/open.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/prd0055-final-closure-blocker-audit.cjs` exited 0 and wrote the report.
+- Existing subagent `019f17f3-4d6c-7100-9e53-ba02b260deb3` returned read-only `BLOCKED` for the closure gates and was left open/reusable.
+- The scanner verified taskboxes remained unchecked for `8.0`, `8.14` through `8.18`, and `9.0` through `9.15`.
+- The scanner verified required local artifacts exist for Task 8 local proof plus Task 9 boundary/static, observability/authorization, compatibility, deferred-residue, and rollout/deployed-truth blocker packets.
+- No taskbox changed from unchecked to checked.
+- No production deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 8.15/8.16 and 9.8/9.10/9.12/9.15 rollout/deployed-truth blocker audit - 2026-06-30
+
+Verdict: ROLLOUT_DEPLOYED_TRUTH_BLOCKERS_CONFIRMED_NOT_CLOSURE. Task 8.15 remains unchecked. Task 8.16 remains unchecked. Task 9.8 remains unchecked. Task 9.10 remains unchecked. Task 9.12 remains unchecked. Task 9.15 remains unchecked. Parent Task 8.0 remains unchecked. Parent Task 9.0 remains unchecked. This does not close deployed/private/live proof, selected-user rollout, percentage rollout, final rollout, rollback, evidence-capture closure, independent verification, parent acceptance, deploy, staging, commit, push, cleanup, deletion, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/task9-rollout-deployed-truth-audit.cjs` records a local audit for rollout/deployed-truth gates without performing any deploy, rollout, remote mutation, cleanup/delete, commit, or push.
+- `output/prd0055-task9-local-readiness/task9-rollout-deployed-truth-audit-report.json` records 7 gate statuses: Task 8.15 blocked, Task 8.16 partial local evidence only, Task 9.8 blocked, Task 9.9 local stop conditions recorded only, Task 9.10 partial document sync only, Task 9.12 partial row readiness only, and Task 9.15 blocked.
+- The report confirms 131 deploy-sensitive dirty/untracked source candidates exist only as local source state, not deployed truth or rollout evidence.
+- The Task 8 local matrix remains green for localhost fixtures only: 1 expected / 0 unexpected / 0 errors, latest local session `T89XJH`, final canonical revision `7`.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records the blocker audit under Task 8.15, 8.16, 9.8, 9.9, 9.10, 9.12, and 9.15 as current local blocker evidence, not checkbox closure.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-E` for this local rollout/deployed-truth blocker packet and keeps final Task 9 acceptance evidence planned/open.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/task9-rollout-deployed-truth-audit.cjs` exited 0 and wrote the report.
+- The scanner verified required taskboxes remained unchecked for `8.0`, `8.14`, `8.15`, `8.16`, `8.17`, `8.18`, `9.0`, `9.8`, `9.10`, `9.12`, `9.13`, and `9.15`.
+- The scanner verified `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` and `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` remain parseable local fixture evidence.
+- No taskbox changed from unchecked to checked.
+- No production deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 9.1-9.4 local compatibility readiness reconciliation - 2026-06-30
+
+Verdict: PARTIAL LOCAL READINESS reconciliation only. Task 9.1 remains unchecked. Task 9.2 remains unchecked. Task 9.3 remains unchecked. Task 9.4 remains unchecked. Parent Task 9.0 remains unchecked. This does not close final prior-parent readiness, deployed/live/private compatibility proof, rollout, rollback, evidence-capture closure, independent verification, parent acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/task9-compatibility-readiness.cjs` records a local scanner for Task 9.1-9.4 compatibility evidence.
+- `output/prd0055-task9-local-readiness/task9-compatibility-readiness-report.json` records `LOCAL_COMPATIBILITY_READINESS_PASS_NOT_CLOSURE`: parent Task 8.0 still unchecked, cross-system compatibility report passed 26 suites / 144 tests, 8 Reading V2 / Listening R2 coverage anchors were found, and zero Google-Drive-named changed paths were found.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records this under Task 9.1 through Task 9.4 as current local readiness evidence, not checkbox closure.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-D` for this local compatibility-readiness packet and keeps final Task 9 acceptance evidence planned/open.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/task9-compatibility-readiness.cjs` exited 0 and wrote the report.
+- The scanner verified `output/prd0055-task8-local-unblock/cross-system-compat-report.json`: success true, 26 suites, 144 tests, 0 failures.
+- Reading V2 local compatibility anchors include `ReadingV2StudioPage.test.tsx`, `readingV2LaunchIntegration.service.test.ts`, and `readingV2RuntimeSubmission.service.test.ts`.
+- Listening/R2 local compatibility anchors include `SharedSavedResultCore.test.tsx`, `listeningTestStorage.test.ts`, `r2Storage.test.ts`, and `listeningSoloDeliveryAdapter.test.ts`.
+- No taskbox changed from unchecked to checked.
+- No deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 9.14 local deferred-residue readiness review - 2026-06-30
+
+Verdict: PARTIAL LOCAL READINESS reconciliation only. Task 9.14 remains unchecked. Parent Task 9.0 remains unchecked. This does not close final dirty-tree residue review, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/task9-deferred-residue-review.cjs` records a local scanner for the Task 9.14 deferred-residue evidence anchors, traceability deferral registry, dependency residue, and large-file map seam coverage.
+- `output/prd0055-task9-local-readiness/task9-deferred-residue-review-report.json` records `LOCAL_DEFERRED_RESIDUE_REVIEW_PASS_NOT_CLOSURE` with 9 deferrals/residue entries reviewed, 8 Task 9.14 evidence anchors found, 4 large-file maps found, 4/4 maps with line counts, 4/4 maps with responsibility boundaries, 4/4 maps with future seams, and zero missing evidence.
+- The reviewed classifications are `DEF-GDRIVE`, `DEF-READ-RUNTIME`, `DEF-R2-MIGRATION`, `DEF-R2-MIGRATION-PARTIAL`, `DEF-DEDUP`, `DEF-CROSS-TEST-REUSE`, `DEF-MALWARE`, `DEF-SHARED-ANSWER`, and `DEP-BUCKET-C`.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records this under Task 9.14 as current local readiness evidence, not checkbox closure.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-C` for this local deferred-residue packet and keeps final Task 9 acceptance evidence planned/open.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/task9-deferred-residue-review.cjs` exited 0 and wrote the report.
+- No taskbox changed from unchecked to checked.
+- No deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 9.6/9.7 authorization and observability readiness - 2026-06-30
+
+Verdict: PARTIAL AUTHORIZATION READINESS reconciliation only. Task 9.6 remains unchecked. Task 9.7 remains unchecked. Parent Task 9.0 remains unchecked. Deployed-current RTDB rule truth is now proven for the `game_sessions` hardening slice, but this does not close final all-path authorization review, every final action surface, final cross-system regressions, full section-27 execution, final deployed/private browser proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent acceptance, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or broader production mutation.
+
+What changed:
+
+- `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts` static rule assertion now accepts required upload-session indexes with `expect.arrayContaining(...)` and explicitly asserts browser `.write: false`; this matches the current `lastHeartbeatAt` index added by later heartbeat work without weakening required index coverage.
+- `output/prd0055-task9-local-readiness/task9-observability-live-regression-report.json` records a local focused regression pass: 13 suites / 38 tests.
+- `output/prd0055-task9-local-readiness/task9-rtdb-rules-negative-report.json` records local static RTDB rules proof: 9 suites / 14 tests, 3 passed static assertions, 11 skipped emulator cases because `FIREBASE_DATABASE_EMULATOR_HOST` was unset.
+- `output/prd0055-task9-local-readiness/task9-worker-auth-negative-report.json` records Worker authorization and negative proof under bundled x64 Node: 6 suites / 38 tests.
+- `output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-blocked.txt` remains historical failed-attempt evidence. It is superseded by `output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json` and `output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-proof.txt`, which record process-local Temurin 21 emulator proof: 9 suites / 14 tests passed, 0 failures.
+- Deployed-current RTDB evidence for the game-session hardening slice is recorded under `output/prd0055-task9-live-readback/`: `firebase-rtdb-rules-deploy-after-game-session-auth.txt`, `firebase-rtdb-rules-after-deploy.json`, `firebase-rtdb-rules-readback-after-game-session-auth-summary.json`, and `firebase-rtdb-game-session-unauth-negative-after-rules-deploy.json`.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records this under Task 9.6 and Task 9.7 as current local readiness evidence, not checkbox closure.
+
+Proof basis:
+
+- `rtk cmd /c "npx vitest run src/config/featureRegistry.test.ts src/pages/TeacherTestMonitorPage.test.tsx src/services/listeningTestStorage.test.ts src/hooks/monitor/useMonitorControls.test.ts src/hooks/audio/useAudioSync.test.tsx --reporter=json > output\prd0055-task9-local-readiness\task9-observability-live-regression-report.json"` exited 0.
+- `rtk cmd /c "npx vitest run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts --reporter=json > output\prd0055-task9-local-readiness\task9-rtdb-rules-negative-report.json"` exited 0 after the stale static upload-session index assertion was corrected.
+- `rtk "C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" node_modules/vitest/vitest.mjs run test/listening-upload-session-bridge.test.ts test/listening-delivery-worker.test.ts __tests__/hardened-negative-contract.test.js --reporter=json --outputFile ..\output\prd0055-task9-local-readiness\task9-worker-auth-negative-report.json` exited 0 from `cloudflare/`.
+- The first attempted emulator-backed RTDB command failed before test startup with `Error: Could not spawn java -version. Please make sure Java is installed and on your system PATH.` The superseding process-local Temurin 21 command exited 0 and wrote `output/prd0055-task9-local-readiness/task9-rtdb-rules-emulator-report.json`.
+- No taskbox changed from unchecked to checked.
+- No deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 9.5/9.11 local boundary/static readiness reconciliation - 2026-06-30
+
+Verdict: PARTIAL LOCAL READINESS reconciliation only. Task 9.5 remains unchecked. Task 9.11 remains unchecked. Parent Task 9.0 remains unchecked. This does not close final cross-system regressions, full section-27 execution, deployed/private/live proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.
+
+What changed:
+
+- `output/prd0055-task9-local-readiness/boundary-static-readiness-scanner.cjs` records a local static scanner for shared assessment boundary, Reading/Listening import direction, added protected-path patterns, and remaining taskboxes.
+- `output/prd0055-task9-local-readiness/boundary-static-readiness-report.json` records `LOCAL_STATIC_PASS_NOT_CLOSURE` with 12 shared assessment files, 55 Reading V2 files, 94 Listening files, zero shared-authority hits, zero Listening-to-Reading imports, zero Reading-to-Listening imports, zero added protected source patterns, and 21 remaining taskboxes.
+- `output/prd0055-task9-local-readiness/run-shared-guardrails.mjs` and `assessment-guardrails-shared-report.*` record the existing assessment guardrail over the 12 shared files as OK with zero violations and zero protected-path changes.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records this under Task 9.5 and Task 9.11 as current local readiness evidence, not checkbox closure.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now adds `EV-FINAL-A` for this local static readiness packet and points relevant boundary rows at it without converting final Task 9 evidence to PASS.
+
+Proof basis:
+
+- `rtk node output/prd0055-task9-local-readiness/boundary-static-readiness-scanner.cjs` exited 0 and wrote the static report.
+- `rtk node output/prd0055-task9-local-readiness/run-shared-guardrails.mjs` exited 0 and printed `[assessment-guardrails] OK`.
+- No taskbox changed from unchecked to checked.
+- No deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push occurred.
+
+## PRD-0055 Task 9.12 section-27 row-level readiness reconciliation - 2026-06-30
+
+Verdict: PARTIAL LOCAL READINESS reconciliation only. Task 9.12 remains unchecked. Parent Task 9.0 remains unchecked. This does not close final section-27 execution, deployed/live/private proof, human-assisted browser proof, rollout, rollback, evidence-capture closure, independent verification, parent acceptance, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production mutation.
+
+What changed:
+
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` Section 27 rows `REG-45` through `REG-55` now point at current local PRD-0058 evidence for no-temp saved references, cleanup candidates, explicit promotion, heartbeat bounds, 24-hour temp fallback config, same-draft lease protection, replacement safety/concurrency, retained-reference preservation, and seven-day zero-reference grace. Each row preserves the future deployed lifecycle / cleanup-execution boundary where applicable.
+- Live-session rows `REG-65`, `REG-67`, `REG-69`, `REG-71`, `REG-73`, `REG-74`, `REG-76`, `REG-78`, `REG-80`, `REG-82`, and `REG-84` now point at EV-0060B localhost matrix or Browser-plugin evidence where local proof exists, while preserving deployed/private/speaker/rollout blockers.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` records this as current local readiness evidence under Task 9.12, not checkbox closure.
+
+Proof basis:
+
+- Storage evidence remains local PRD-0058 source/test/doc evidence already recorded in EV-0058; no cleanup execution or deployed lifecycle proof is claimed.
+- Live evidence remains local Task 8.14 localhost proof: `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json`, `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json`, and Browser-plugin artifacts under `output/prd0055-task8-local-unblock/`.
+- No taskbox changed from unchecked to checked.
+
+## PRD-0055 Task 8.14 teacher monitor gesture-policy correction - 2026-06-30
+
+Verdict: PARTIAL LOCAL PASS correction for localhost teacher-monitor audio-start diagnostics and toolbar resume bridging only. Task 8.14 remains unchecked. Parent Task 8.0 remains unchecked. Task 8.15+, rollout, evidence-capture closure, independent verification parent gate, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, and production mutation remain outside this packet.
+
+Scope and files:
+
+- `TeacherTestControlBar.tsx` now dispatches a local teacher-monitor resume gesture synchronously before the async canonical resume write.
+- `AudioProgressPanel.tsx` listens for that gesture, attempts teacher local playback during the same browser event path, avoids autoplay-only starts from authority hydration, and reports browser gesture-policy blocks as `console.info` plus an in-panel alert instead of raw `console.error`.
+- `teacherMonitorAudioEvents.ts` contains the small shared browser event contract.
+- Focused tests cover event ordering, toolbar-triggered local media start, and `NotAllowedError` handling without `console.error`.
+- Large-file map added: `tasks/large-file-maps-0055/src-components-test-audioprogresspanel-tsx.md` records the full-read evidence, 850 -> 1062 line delta, touched/protected regions, and future decomposition seams.
+
+Proof:
+
+- Browser plugin proof on `http://localhost:5173/teacher-test/T8KXWH`: `output/prd0055-task8-local-unblock/browser-plugin-teacher-gesture-policy-proof.json` shows decoded teacher audio at `0:00 / 0:20`, `muted: false`, `readyState: 4`, `errorCode: null`, a truthful `Seek section 1` value of `0`, and the toolbar Resume All Audio click target. The in-app Browser automation click is still blocked by Chrome's direct-user-gesture policy, now surfacing the panel alert `Click play in the Audio Control Panel to enable teacher monitor audio in this browser.` with no `console.error`.
+- Current in-app Browser recheck on `http://localhost:5173/teacher-test/T8KXWH` saved `output/prd0055-task8-local-unblock/task8-iab-teacher-monitor-after-wait-snapshot.md`, `output/prd0055-task8-local-unblock/task8-iab-teacher-monitor-after-wait.png`, `output/prd0055-task8-local-unblock/task8-iab-teacher-monitor-after-wait-console.json`, and `output/prd0055-task8-local-unblock/task8-iab-teacher-monitor-after-wait-state.json`: the teacher monitor loaded, console had 0 errors / 1 existing Mantine guard warning, and section 1 audio was ready with `readyState: 4`, `currentTime: 0`, `duration: 20`, waiting for a toolbar or panel play gesture.
+- Browser screenshots: `output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8kxwh-after-gesture-fix.png` and prior restart/progress proof `output/prd0055-task8-local-unblock/browser-plugin-teacher-progress-after-fix.png`.
+- Focused regressions passed: `rtk npx vitest run src/components/test/AudioProgressPanel.test.tsx src/components/test/TeacherTestControlBar.test.tsx src/pages/TestPageRouter.test.tsx src/skills/listening/components/AudioPlayer.test.tsx src/hooks/audio/useAudioSync.test.tsx --reporter=dot` passed 5 files / 33 tests.
+- Re-run Playwright matrix: `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` reports 1 expected / 0 unexpected tests, duration 99006.839 ms, with no `Playback failed`, `Audio error`, `Play failed`, or `console.error` scan hits.
+- Matrix supplement now records session `T89XJH`, test `prd0055_task8_local_1782809535071`, 9 covered proof slices, buffered pause observed, authority conflict present, post-End submit control not visible, and final canonical revision `7`.
+
+Boundary:
+
+- Browser plugin automation can prove media state, policy diagnostics, screenshots, and progress UI. It still cannot prove physical speaker output; that remains human-assisted proof.
+- No deployed human proof, private-delivery cutover, remote protocol load, rollout cohort, rollback proof, evidence-capture closure, independent-verification parent gate proof, parent Task 8 acceptance, Task 9 proof, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production data mutation occurred.
+
+## PRD-0055 Task 8.14 local audio/progress browser unblock - 2026-06-30
+
+Verdict: PARTIAL LOCAL PASS for the teacher-monitor audio restart/progress defect only. Task 8.14 remains unchecked. Parent Task 8.0 remains unchecked. Task 8.15+, rollout, evidence-capture closure, independent verification parent gate, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, and production mutation remain outside this packet.
+
+Scope and files:
+
+- `AudioProgressPanel.tsx` now treats unified live audio progress as media-driven, restarts an ended teacher clip from `0`, guards duplicate start calls, sends authority snapshots from the live media element state, and keeps the progress bar and seek control aligned with actual playback.
+- `TeacherTestControlBar.tsx` now reflects canonical playback speed in its speed select instead of showing a stale default.
+- `TeacherTestMonitorPage.tsx` routes live teacher audio snapshots through monitor controls so canonical writes use the latest media state.
+- Focused tests were added for media play-state snapshots, ended-clip restart, unified media progress, stale time-update correction, and canonical control-bar speed display.
+
+Proof:
+
+- Browser plugin proof on `http://localhost:5173/teacher-test/T8KXWH`: `output/prd0055-task8-local-unblock/browser-plugin-teacher-audio-restart-proof.json` shows the teacher audio was ended at `20/20`, then after clicking Resume All Audio it reset to `0`, became unpaused/unended with `volume: 0.8`, `muted: false`, `readyState: 4`, no media error, and advanced to `2.868s` with progress fill `14.223%` by 3000 ms.
+- Clean visual artifact: `output/prd0055-task8-local-unblock/browser-plugin-teacher-progress-after-fix.png`. The older `browser-plugin-teacher-progress.png` is stale and still shows the pre-fix Audio Error banner; it is not closure evidence.
+- Playwright local fixture proof: `output/prd0055-task8-local-unblock/playwright-task8-audio-fix-report.json` reports 1 expected / 0 unexpected tests for the local teacher/student Task 8 fixture flow.
+- Focused regressions passed: `rtk npx vitest run src/components/test/AudioProgressPanel.test.tsx src/components/test/TeacherTestControlBar.test.tsx src/pages/TestPageRouter.test.tsx --reporter=dot` passed 3 files / 18 tests.
+- Build/static proof passed: `rtk npm run build`, `rtk git diff --check`, and UTF-8 checks over touched source/tests plus local Task 8 proof artifacts.
+
+Boundary:
+
+- This is localhost/browser-fixture evidence only. The Browser plugin can prove media element state and UI progress, but it does not prove physical speaker output.
+- No deployed human proof, private-delivery cutover, remote protocol load, rollout cohort, rollback proof, evidence-capture closure, independent-verification parent gate proof, parent Task 8 acceptance, Task 9 proof, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production data mutation occurred.
+- The remaining 8.14 matrix still needs full human-assisted proof across teacher desktop, student desktop/mobile, late join, reload, pause/resume/skip/seek/speed, buffering/stale command/authority conflict, headphone states, and submit/session-end behavior before Task 8.15 can start.
+
+## PRD-0055 Task 8.14 expanded local browser matrix supplement - 2026-06-30
+
+Verdict: PARTIAL LOCAL PASS expanded for localhost internal fixture proof only. Task 8.14 remains unchecked. Parent Task 8.0 remains unchecked. Task 8.15+, rollout, evidence-capture closure, independent verification parent gate, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, and production mutation remain outside this packet.
+
+Scope and files:
+
+- `e2e/prd0055-task8-live-local.spec.ts` now records local matrix proof for teacher desktop, student desktop, student mobile late joins, reload hydration, pause/resume, section skip, seek, speed, stale command rejection, headphone visibility, and teacher End/session-result pointer behavior.
+- `AudioPlayer.tsx` treats browser `AbortError` play rejections during source handoff as expected media interruption, logs a diagnostic info event, and does not surface a visible audio error for that transient handoff.
+- `AudioPlayer.test.tsx` covers that interrupted source-handoff play requests do not call `onError` or log `Playback failed:`.
+
+Proof:
+
+- Expanded Playwright proof: `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` reports 1 expected / 0 unexpected tests for the local fixture matrix.
+- Matrix supplement: `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` records session `T84NAX`, test `prd0055_task8_local_1782806730491`, final canonical `masterAudioState` revision `6` at section `2`, position `5`, speed `1.5`, a stale compatibility `audioCommand` at canonical revision `5`, submitted player `x3hDfjYVN7cJtSbwq0ChIjl1Bk62`, result `-OwMZEVAU8tB4NNoCy-x`, and a denied-headphone fixture.
+- Focused regression proof: `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx --reporter=basic` passed 1 file / 10 tests for the AbortError handoff behavior.
+- Re-run artifact after the AbortError fix contains no `Playback failed`, `Audio error`, or `console.error` lines.
+
+Boundary:
+
+- This remains local-only localhost fixture proof. It does not prove private-delivery cutover, deployed human browser/speaker output, remote protocol load, rollout, rollback, evidence capture, independent verification, parent Task 8 acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production data mutation.
+- Residual local report noise remains non-closure risk: one aborted fixture PATCH, repeated `Permission denied` page errors, `AudioPlayer` waiting-for-audio-data warnings, missing diagnostic upload config warnings, and existing Mantine guard warnings in unrelated files. The expanded proof verifies no visible `Audio Error`/`NaN` in the exercised reload/mobile paths and no post-fix `Playback failed`/`Audio error` console emission.
+
+## PRD-0055 Task 8.14 strengthened local browser matrix supplement - 2026-06-30
+
+Verdict: PARTIAL LOCAL PASS strengthened for localhost internal fixture proof only. Task 8.14 remains unchecked. Parent Task 8.0 remains unchecked. Task 8.15+, rollout, evidence-capture closure, independent verification parent gate, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, and production mutation remain outside this packet.
+
+Scope and files:
+
+- `e2e/prd0055-task8-live-local.spec.ts` now uses fixture-served WAV routes so the local browser proof can assert deterministic stalled/buffered audio while the teacher canonical state is paused.
+- The same Playwright matrix now injects an equal-revision competing `masterAudioState` and proves the already-hydrated student client rejects it, then recovers through a newer canonical revision.
+- The End-flow proof now records accepted teacher-End auto-submit result IDs and proves a post-End submit attempt does not create a duplicate result or corrupt the waiting session.
+- `useAudioSync.ts` now handles interrupted `audio.play()` `AbortError` during canonical handoff as diagnostic info instead of raw `console.error`.
+- `useAudioSync.test.tsx` covers the interrupted-play case.
+
+Proof:
+
+- Expanded Playwright proof: `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` reports 1 expected / 0 unexpected tests, duration 108476 ms, with no `Playback failed`, `Audio error`, or `console.error` lines after the `useAudioSync` fix.
+- Matrix supplement: `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` records session `T8QPLB`, test `prd0055_task8_local_1782808368596`, buffered pause media state pinned at `currentTime: 0` before and after wait, rejected equal-revision conflict `equal-revision-conflict-6-1782808417402`, recovered canonical revision `7`, indexed result IDs `-OwMeXG4jUH96_HT_Ozc` and `-OwMeXcBvZImYrBbWIsA`, and unchanged result IDs after the post-End submit attempt.
+- Focused regression proof: `rtk npx vitest run src/hooks/audio/useAudioSync.test.tsx --reporter=basic` passed 1 file / 2 tests.
+
+Boundary:
+
+- This is still localhost-only fixture evidence. It is not private-delivery cutover proof, deployed human browser/speaker proof, remote protocol load, rollout, rollback, evidence-capture closure, independent verification, parent Task 8 acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, selected-user rollout, percentage rollout, or production data mutation.
+- Residual local report noise remains non-closure risk: existing Mantine guard warnings, `Permission denied` page errors, missing diagnostic upload config warnings, and expected buffering/waiting diagnostics from the fixture audio route.
+
+## PRD-0055 Task 8 Batch D: 8.12 through 8.13 AudioPlayer source handoff and live accessibility - 2026-06-30
+
+Verdict: PASS for Task 8.12 and Task 8.13 only after RED/GREEN focused proof, live authority/runtime proof, solo/homework shared-player regressions, taskbox/docs reconciliation, and read-only subagent exploration. Parent Task 8.0 remains unchecked. Task 8.14+, browser pre-cutover gate, rollout, evidence-capture closure, independent verification parent gate, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, and remote mutation remain outside this packet.
+
+Scope and files:
+
+- `AudioPlayer.tsx` now accepts an optional `authorizedDelivery` handoff contract. It is inert unless supplied by a caller, so current production live traffic stays public. The old source remains mounted while a replacement URL is authorized and preloaded. Refresh failures retry through bounded backoff and surface recoverable warnings without calling the parent error path or independently pausing playback. Source swaps preserve canonical teacher `masterAudioState` section, position, speed, play state, and revision. Diagnostic output and warnings redact signed URLs, tokens, raw keys, and query values.
+- `AudioPlayer.test.tsx` adds focused coverage for old-source retention, replacement readiness, retry bounds, no independent pause, warning issue/clear, no secret leakage, and canonical authority preservation.
+- Teacher-monitor/live accessibility proof adds focused tests and small UI fixes in `StudentProgressCard`, `AudioProgressPanel`, `TeacherTestControlBar`, and `AudioPlayer`: keyboard-reachable monitor controls, icon-only accessible names, status/alert roles, non-color-only visible state text, and 44px touch targets where applicable.
+
+Proof:
+
+- RED: `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx --reporter=basic` failed before implementation because the new source-refresh cases had no refresh source call, retry/warning behavior, or loading status semantics.
+- Focused GREEN: `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx src/components/test/StudentProgressCard.test.tsx src/components/test/AudioProgressPanel.test.tsx src/components/test/TeacherTestControlBar.test.tsx --reporter=basic` passed 4 files / 12 tests.
+- Live authority/runtime GREEN: `rtk npx vitest run src/features/assessment/listening/live-session/authority/masterAudioState.validation.test.ts src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts src/features/assessment/listening/live-session/authority/liveAuthorityFutureGaps.test.ts src/hooks/audio/useAudioSync.test.tsx src/pages/TeacherTestMonitorPage.test.tsx src/components/test/AudioProgressPanel.test.tsx src/components/test/TeacherTestControlBar.test.tsx src/components/test/StudentProgressCard.test.tsx --reporter=basic` passed 11 files / 47 tests.
+- Solo/homework shared-player regression: `rtk npx vitest run src/components/practice/ListeningPracticeView.test.tsx src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.test.ts src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.test.ts src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts src/hooks/solo/useSoloTimer.test.ts src/hooks/solo/useSoloAutoSave.test.ts src/hooks/solo/useSoloResume.test.ts src/hooks/solo/useSoloSubmission.test.ts src/components/test/mobile/mobileListeningState.test.ts src/components/results/SharedSavedResultCore.test.tsx src/skills/listening/components/AudioPlayer.test.tsx --reporter=basic` passed 11 files / 125 tests.
+- Additional live page/headphone regression: `rtk npx vitest run src/__tests__/integration/ListeningTestPage.test.tsx src/components/test/HeadphoneRequestPanel.test.tsx --reporter=basic` passed 2 files / 28 tests.
+- Post-review correction: Batch D read-only verifier first found refresh-failure diagnostics could echo `error.message`. `AudioPlayer` now logs `redacted_refresh_error` plus a safe error type instead of the thrown message, and `AudioPlayer.test.tsx` throws a secret-shaped URL/raw-key error while asserting console warning payloads exclude `OLDSECRET`, `NEWSECRET`, and `raw-key`.
+
+Read-only subagents:
+
+- Source-handoff explorer `019f15e6-13f4-7cc2-bdba-b8e963ec9495` identified the minimal shared-player handoff boundary in `AudioPlayer.tsx`, required old-source retention, retry/warning contracts, no parent-error pause, and raw URL logging risks.
+- Accessibility explorer `019f15e6-39df-78b3-a565-25c9e49cff0e` identified keyboard/name/role/touch-target gaps in `StudentProgressCard`, `AudioProgressPanel`, and `TeacherTestControlBar`.
+- Stale-doc explorer `019f15e6-5148-7f52-bbee-2e2602a0b634` identified taskbox, findings, traceability, implementation-log, and current-state docs requiring Batch D reconciliation only.
+- Protected-path explorer `019f15e6-7819-7742-87cb-55112a9ac50c` confirmed the safe packet boundary and flagged Cloudflare, R2, Firebase, e2e/browser, deployment, rollout, cleanup, and remote-mutation paths as out of scope.
+- Batch D read-only verifier `019f15fe-a407-7581-8c8a-6d33a07fd3bd` first returned BLOCKED on the refresh-failure diagnostic leak path, then returned PASS after the redacted diagnostic fix and secret-shaped regression. It reran `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx --reporter=basic` with 1 file / 9 tests passed and confirmed taskbox/docs boundaries still held.
+
+Boundary:
+
+- No live private cutover, browser pre-cutover gate, remote protocol load, rollout, parent acceptance, Task 9, deploy, staging, commit, push, cleanup execution, object deletion, production data read/write, R2/Firebase/Cloudflare remote mutation, Reading V2 runtime behavior change, solo/homework behavior change, authoring/storage change, Google Drive behavior, or shared-presentation authority move occurred.
+- The guarded Task 8.4 future-gap matrix remains a browser/runtime proof gate for Task 8.14+ scenarios. Batch D proves the local `AudioPlayer` source-handoff primitive and live monitor accessibility behavior only.
+
+## PRD-0055 Task 8 Batch C: 8.11 local load-test harness foundation - 2026-06-30
+
+Verdict: PASS for Task 8.11 only after local RED/GREEN harness proof, adjacent live protection proof, protected-scope scans, subagent exploration, and source-test-doc reconciliation. Parent Task 8.0 remains unchecked. Task 8.12+, private live delivery/source handoff, teacher-monitor accessibility expansion, browser pre-cutover gate, rollout, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, and remote mutation remain outside this packet.
+
+Scope and files:
+
+- Added bounded load-test files only under `src/features/assessment/listening/live-session/tests/load/listening-live/`: `config.ts`, `scenarios.ts`, `virtualTeacher.ts`, `virtualStudent.ts`, `metrics.ts`, `report.ts`, and `loadTestHarness.test.ts`.
+- `config.ts` validates the exact PRD-0060 local methodology target: 20 sessions, 100 students per session, 20 teacher writers, five collision sessions, two-second heartbeats, 10-minute ramp, 30-minute steady state, and 10-minute recovery/drain.
+- `scenarios.ts` generates 20 prefixed session codes, 2,000 deterministic synthetic students, eight network profiles, staggered joins/reloads, partitions, media buffering, refresh delay, pause/resume/seek/speed/section actions, and five deliberate two-monitor contention sessions.
+- `virtualTeacher.ts` and `virtualStudent.ts` provide local synthetic clients. They reuse existing authority transaction, hydration, and drift helpers without editing runtime code. Student clients cannot write authority.
+- `metrics.ts` and `report.ts` aggregate PRD-0060 metrics, enforce planning pass/fail thresholds, model Firebase/Worker quota utilization, detect source/audio failure stop reasons, block signed URL/token/raw-audio leakage in captured logs, and emit sanitized JSON report output.
+
+Proof:
+
+- RED: `rtk npx vitest run src/features/assessment/listening/live-session/tests/load/listening-live/loadTestHarness.test.ts --reporter=basic` exited 1 before implementation because `./config` did not exist.
+- GREEN authority/load: `rtk npx vitest run src/features/assessment/listening/live-session/authority/masterAudioState.validation.test.ts src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts src/features/assessment/listening/live-session/authority/liveAuthorityFutureGaps.test.ts src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts src/features/assessment/listening/live-session/tests/load/listening-live/loadTestHarness.test.ts --reporter=basic` passed 7 files / 42 tests.
+- Adjacent live protection: `rtk npx vitest run src/hooks/audio/useAudioSync.test.tsx src/components/test/HeadphoneRequestPanel.test.tsx src/hooks/monitor/useMonitorControls.test.ts src/pages/TeacherTestMonitorPage.test.tsx --reporter=basic` passed 4 files / 16 tests.
+- File-budget check: `config.ts` 126 lines, `scenarios.ts` 164, `virtualTeacher.ts` 96, `virtualStudent.ts` 113, `metrics.ts` 155, `report.ts` 70, and `loadTestHarness.test.ts` 299. Each file remains under the PRD-0060 load package budget.
+
+Read-only subagents:
+
+- Load-plan explorer `019f15d2-6668-74a2-81df-d9350f02cd21` confirmed PRD-0060 requires the `tests/load/listening-live/` package, 100/session, 20 sessions, 2,000 clients, 20 writers, 10/30/10-minute phases, eight network profiles, required metrics, proposed thresholds, stop conditions, and future browser/deployed gates.
+- Protected-path explorer `019f15d2-990a-70f1-8281-027d720f3c7c` confirmed the safe harness boundary is the load package and flagged forbidden adjacent runtime, solo/homework, Reading V2, authoring/storage, Google Drive, Cloudflare/R2/Firebase config, and remote-state paths.
+- Stale-doc explorer `019f15d2-7a98-73e1-8747-a74fdc354376` found Task 8.11 had no prior harness code and identified the taskbox, findings, traceability, implementation log, PRD-0060 status, and count references requiring reconciliation.
+
+Boundary:
+
+- No live traffic behavior changed. No `AudioPlayer.tsx`, `ListeningTestPage.tsx`, `TeacherTestMonitorPage.tsx`, `useMonitorControls.ts`, `useMasterAudioState.ts`, `useAudioSync.ts`, private delivery, accessibility UI, solo/homework runtime, Reading V2 runtime, authoring/storage behavior, Google Drive behavior, Cloudflare/R2/Firebase config, database rules, deploy, staging, commit, push, cleanup, deletion, or remote mutation occurred.
+- No remote or browser load was executed. The harness is local/dry-run by default. Production execution is forbidden. Isolated non-production execution requires explicit approval reference, isolated project ID, cleanup plan, and remote-mutation gate.
+
+## PRD-0055 Task 8 Batch B: 8.5 through 8.10 live authority runtime foundation - 2026-06-30
+
+Verdict: PASS for Task 8.5, Task 8.6, Task 8.7, Task 8.8, Task 8.9, and Task 8.10 only after RED/GREEN local proof, protected regression proof, taskbox reconciliation, static scans, and independent verifier recheck. Parent Task 8.0 remains unchecked. Task 8.11+, load-test harness work, private-delivery source handoff, browser pre-cutover gate, rollout, parent acceptance, Task 9, deploy, staging, commit, push, cleanup, deletion, and remote mutation remain outside this packet.
+
+Scope reconciliation:
+- PRD-0060 is the authority. No conflict was found for 8.5-8.10. Batch B implements local runtime foundations for canonical authority, monitor write routing, hydration, baseline drift correction, headphone visibility, and disconnect recovery. PRD-0060 still owns browser proof, load proof, private live delivery/source handoff, final threshold approval, rollout, rollback, and parent acceptance.
+- `masterAudioState` is now the canonical local runtime authority for Batch B behavior. `audioCommand` is emitted and consumed only as compatibility traffic and cannot override an accepted newer canonical revision.
+- `AudioPlayer.tsx` source was intentionally not edited in Batch B because its existing hook contract accepts `masterAudioState`; required shared-player behavior was consolidated in `useAudioSync`. Shared `AudioPlayer` tests and solo/homework tests were rerun because the hook is shared.
+
+Implemented source:
+- Added `liveAudioAuthorityTransaction.ts`, `liveAudioRuntimeHydration.ts`, and `liveAudioSyncPolicy.ts` under `src/features/assessment/listening/live-session/authority/`.
+- Updated `useMonitorControls`, `TeacherTestMonitorPage`, and `AudioProgressPanel` so teacher pause/resume/skip/seek/speed actions write through one canonical authority transaction path. The transaction requires hydrated current authority, increments revision, writes `masterAudioState`, and emits a compatibility `audioCommand` projection without default section/position/speed overwrite. Teacher monitor reload also hydrates its local audio panel state from canonical `session.masterAudioState` before rendering control defaults.
+- Updated `useMasterAudioState`, `useAudioSync`, `useTestSession`, and `ListeningTestPage` so canonical revisions win over stale/equal legacy compatibility commands, reload/late join hydrates from canonical state plus elapsed trusted time, drift correction uses local test-baseline policy, and sync loss pauses after bounded grace until a newer canonical state arrives.
+- Updated `HeadphoneRequestPanel` so pending, approved, and denied headphone states remain teacher-visible.
+- Added focused tracking actions for live monitor audio controls in `featureRegistry`.
+
+RED/GREEN and regression proof:
+- Initial RED command: `rtk npx vitest run src/features/assessment/listening/live-session/authority/liveAudioAuthorityTransaction.test.ts src/features/assessment/listening/live-session/authority/liveAudioRuntimeHydration.test.ts src/features/assessment/listening/live-session/authority/liveAudioSyncPolicy.test.ts src/hooks/audio/useAudioSync.test.tsx src/components/test/HeadphoneRequestPanel.test.tsx src/hooks/monitor/useMonitorControls.test.ts --reporter=basic` exited 1 before implementation because the new authority modules did not exist, denied headphone requests were hidden, disconnect did not pause, and monitor audio writes were not root canonical transactions.
+- Focused GREEN proof: the same command passed 6 files / 21 tests after implementation.
+- Live/shared proof after monitor hydration correction: `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx src/__tests__/integration/ListeningTestPage.test.tsx src/pages/TeacherTestMonitorPage.test.tsx --reporter=basic` passed 3 files / 38 tests.
+- Solo/homework shared-player protection: `rtk npx vitest run src/components/practice/ListeningPracticeView.test.tsx src/hooks/solo/useSoloTimer.test.ts src/hooks/solo/useSoloAutoSave.test.ts src/hooks/solo/useSoloResume.test.ts src/hooks/solo/useSoloSubmission.test.ts src/components/test/mobile/mobileListeningState.test.ts src/components/results/SharedSavedResultCore.test.tsx --reporter=basic` passed 7 files / 104 tests.
+- Reading V2 protection: `rtk npx vitest run src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx src/components/reading-v2/runtime/ReadingV2RuntimeShell.mobile-css.test.ts src/components/reading-v2/runtime/ReadingV2MobileUtilities.test.tsx src/pages/StudentPracticePage.test.tsx src/pages/TestPageRouter.test.tsx src/services/reading-v2/readingV2ResultAdapter.service.test.ts src/services/reading-v2/readingV2TaskComponentContracts.service.test.ts src/__tests__/readingV2BoundaryImports.test.ts --reporter=basic` passed 8 files / 137 tests.
+- Post-cleanup focused rerun before the verifier correction: `rtk npx vitest run src/pages/TeacherTestMonitorPage.test.tsx src/hooks/monitor/useMonitorControls.test.ts src/components/test/HeadphoneRequestPanel.test.tsx --reporter=basic` passed 3 files / 14 tests. After the verifier found teacher-monitor reload hydration was missing, `rtk npx vitest run src/pages/TeacherTestMonitorPage.test.tsx --reporter=basic` passed 1 file / 6 tests with canonical `masterAudioState` section/play/speed hydration coverage.
+- `rtk npx tsc --noEmit` remains a repo-wide failure because of preexisting unrelated TypeScript errors. It exposed touched-file unused locals in `AudioProgressPanel.tsx` and then in `TeacherTestMonitorPage.tsx`; those were fixed. The filtered touched-file TypeScript check later reported no touched-file errors while global `tsc` still emitted 958 unrelated lines.
+- Final GPT-5.5 medium read-only verifier `019f15c1-da7e-79f3-9145-60ed18297409` first returned BLOCKED with one real P1: teacher monitor reload still rendered local default audio section/play/speed instead of canonical `session.masterAudioState`. Main thread fixed it in `TeacherTestMonitorPage.tsx` and added `TeacherTestMonitorPage.test.tsx` coverage. The same verifier rechecked and returned PASS with no findings; it inspected the hydration effect and test, ran `git diff --check`, and confirmed taskbox/docs scope stayed 8.5-8.10 only with 8.0 and 8.11+ unchecked.
+
+Boundaries and residual gates:
+- No live traffic switch, authorized live private cutover, load-test harness execution, browser pre-cutover proof, final threshold approval, deploy, staging, commit, push, cleanup execution, object deletion, production data read/write, R2/Firebase/Cloudflare remote mutation, Task 8.11+ work, Task 9 work, Reading V2 runtime behavior change, solo/homework behavior change, or Google Drive behavior occurred.
+- 500 ms soft correction and 2-second hard seek are local test baselines only. Final product thresholds still require browser/live measurement and approval.
+- Batch B proves local authority/runtime foundations. PRD-0060 load, private source handoff, browser gate, rollout, rollback, and parent acceptance remain unclaimed future gates.
+
+## PRD-0055 Task 8 Batch A: 8.1 through 8.4 live authority contract foundation - 2026-06-30
+
+Verdict: PASS for Task 8.1, Task 8.2, Task 8.3, and Task 8.4 only after focused proof, mandatory independent verification, stale/drift scan, and source-test-doc reconciliation. Parent Task 8.0 remains unchecked. Task 8.5+, Task 9+, live runtime/cutover, load execution, `AudioPlayer.tsx` internals, live traffic switch, staging, commit, push, deploy, cleanup execution, object deletion, production data, remote mutation, Google Drive behavior, Reading V2 runtime, and solo/homework behavior changes are outside this packet.
+
+Findings:
+
+- No blocking source/test finding after focused contract implementation. Task 8.2 and Task 8.3 are inert pure modules/tests under `src/features/assessment/listening/live-session/authority/`.
+- Task 8.1 sign-off is bounded to Batch A. Product-owner authorization is the current Codex goal objective file at `C:\Users\The Lord\.codex\attachments\f346c9fb-1c9d-4dc1-af82-554df4fb85eb\goal-objective.md`, which explicitly limits work to 8.1-8.4 and excludes Task 8.5+, Task 9+, live rollout, deploy, remote mutation, and `AudioPlayer.tsx` internals. Architecture/security reconciliation approves only the schema/contract/test foundation after comparing against PRD-0060; later behavior remains blocked on PRD-0060 gates.
+- Existing live implementation remains legacy/timestamp-only. Independent read-only exploration confirmed `src/types/audio.types.ts`, `useMasterAudioState`, `useAudioSync`, `useMonitorControls`, `useTestSession`, `ListeningTestPage`, and `AudioPlayer` still lack Task 8 v2 runtime authority behavior; this packet deliberately does not wire runtime behavior.
+- Task 8.4 RED matrix is present as guarded future-gap tests. The unguarded first run failed, proving the runtime gaps remain. The committed suite uses `it.fails` so normal test runs do not stay red.
+
+Implementation:
+
+- Added `src/features/assessment/listening/live-session/authority/masterAudioState.types.ts`.
+- Added `src/features/assessment/listening/live-session/authority/masterAudioState.validation.ts`.
+- Added `src/features/assessment/listening/live-session/authority/masterAudioState.validation.test.ts`.
+- Added `src/features/assessment/listening/live-session/authority/audioCommandCompatibility.ts`.
+- Added `src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts`.
+- Added `src/features/assessment/listening/live-session/authority/liveAuthorityFutureGaps.test.ts`.
+
+Requirement map:
+
+- Task 8.1: recorded bounded sign-off and PRD-0060 reconciliation in this findings entry, taskbox, traceability, and implementation log. PRD-0060 wins for later runtime/cutover work.
+- Task 8.2: `masterAudioState.types.ts` and `masterAudioState.validation.ts` define schema version 2, monotonic revision validation, trusted timestamp markers, section/position/speed/play-state validation, command/heartbeat action consistency, canonical teacher writer enforcement, browser/client non-authority, and action-metadata leakage rejection.
+- Task 8.3: `audioCommandCompatibility.ts` defines v2 compatibility command projection, command-to-canonical validation, stale/future/legacy command decisions, and all retirement criteria. Commands mirror canonical state transactions and never apply state over a newer canonical revision.
+- Task 8.4: `liveAuthorityFutureGaps.test.ts` records failing runtime scenarios for authority conflicts, stale command rejection, late join, student reload, teacher reload, buffering during pause, long-pause resume, skip, seek, speed, network partition, teacher disconnect, session end during submit, authorized URL refresh, source handoff without interruption, and expiry retry.
+
+Evidence:
+
+- RED: `rtk npx vitest run src/features/assessment/listening/live-session/authority/masterAudioState.validation.test.ts src/features/assessment/listening/live-session/authority/audioCommandCompatibility.test.ts src/features/assessment/listening/live-session/authority/liveAuthorityFutureGaps.test.ts --reporter=basic` exited 1 before implementation because `./masterAudioState.validation` and `./audioCommandCompatibility` did not exist and all 16 unguarded future-gap tests failed.
+- GREEN: the same focused command passed 3 files / 26 tests after implementation and guarded future-gap tests.
+- Explorer `019f1569-4e1d-76a0-8783-6f8c3b34ea3a` returned read-only DONE with method/scope/risk notes. Model/effort was not visible to the agent, but the spawn request explicitly set `gpt-5.4-mini` with high reasoning. It confirmed current live schema/writer/reader/player paths are legacy, no existing Task 8 runtime tests covered the gap matrix, and `AudioPlayer.tsx`/Task 8.5+ are scope traps.
+- Explorer `019f1569-6270-7201-8e07-d021974423b1` returned read-only DONE with method/scope/risk notes. It confirmed Task 8.0-8.18 were unchecked before this packet, Task 6 and Task 7 closure truth, and stale/forbidden-scope risks.
+- Final verifier `019f1576-3d5a-7f02-a32f-f9f0f30e8f1a` returned PASS with no findings. Spawn request set `gpt-5.5` with medium reasoning; the agent reported `MODEL_VISIBLE: NOT_VISIBLE`. It reran the focused authority suite, `git diff --check`, exact UTF-8 over six authority files plus four docs, and protected live-runtime diff checks. All passed.
+- Final stale/drift explorer `019f1576-9657-7d42-8fd7-a4c9f7b1cbee` returned PASS with no findings. Spawn request set `gpt-5.4-mini` with high reasoning; the agent reported `MODEL_VISIBLE: NOT_VISIBLE`. It confirmed only 8.1-8.4 are checked, 8.0 and 8.5-8.18 remain unchecked, forbidden claims are absent, and the broad dirty worktree is distinct from this packet.
+- Final local static proof passed: `rtk git diff --check`; `rtk npm run check:utf8 --` over the six authority files plus four docs; taskbox checkbox scan for 8.0-8.18; and protected live-runtime diff scan over `AudioPlayer.tsx`, `useMonitorControls`, `useMasterAudioState`, `useAudioSync`, `ListeningTestPage`, `TeacherTestMonitorPage`, `AudioProgressPanel`, `TeacherTestControlBar`, `useTestSession`, and `audio.types.ts`.
+
+Boundaries:
+
+- No existing live runtime source file was modified.
+- No `AudioPlayer.tsx`, `useMonitorControls`, `useMasterAudioState`, `useAudioSync`, `ListeningTestPage`, `TeacherTestMonitorPage`, `AudioProgressPanel`, `TeacherTestControlBar`, `database.rules.json`, `firebase.json`, `cloudflare/**`, or `r2-backup-worker/**` edit occurred in this packet.
+- No live traffic switch, authorized live private cutover, load test execution, deploy, staging, commit, push, cleanup execution, object deletion, production data read/write, R2/Firebase/Cloudflare remote mutation, Task 8.5+ work, Task 9 work, Reading V2 runtime change, solo/homework behavior change, or Google Drive behavior occurred.
+
 ## Packet 1A Baseline - 2026-06-19 23:26:45 +07:00
 
 ### Scope
@@ -5200,30 +5783,31 @@ Independent review must complete before commit. Main orchestrator will inspect t
 
 Task 3.14 is checked as a dedicated authoring-shell patch. Parent Task 3.0 remains unchecked. Tasks 3.15 through 3.17 remain unchecked. Task 3.15+ is not started.
 
-## PRD-0055 Task 3.14 corrective record for live guardrail truth - 2026-06-26
+## PRD-0055 live `ListeningTestBuilder.tsx` guardrail truth - updated 2026-06-28
 
 ### Findings First And Verdict
 
-Verdict: PASS for source, test, and docs corrective record.
+Verdict: PASS for source, test, and docs corrective record at the time of each listed proof. The later Task 5 Batch C section records the current A-C source/test/docs reconciliation for Task 5.12 through Task 5.15; parent Task 5 remains open.
 
-Findings: historical Task 3.9 through Task 3.13 sections must stay historical. Current live `ListeningTestBuilder.tsx` guardrail truth and semantic display-mode control correction are recorded here so older packets do not claim post-Task 3.14 state.
+Findings: historical Task 3.9 through Task 3.14 sections must stay historical. Current live `ListeningTestBuilder.tsx` guardrail truth is recorded here so older packets do not claim current post-Task 5 foundation state.
 
-Scope boundary: corrective changes are limited to `ListeningTestBuilder.tsx`, `ListeningTestBuilder.test.tsx`, the Task 3.14 tasklist evidence text, traceability EV-T3/DECISION-073 text, this findings ledger, the implementation log, and the canonical architecture current-state note. No parser, audio, save, persistence, storage, runtime/live, teacher monitor, Firebase, R2, Cloudflare, production config, deploy, push, remote-state mutation, shared answer input, or new shared primitive changed. Task 3.15+ is not started.
+Scope boundary: current live line-budget evidence covers the existing Listening builder, its focused tests, and this findings ledger. The 2026-06-28 Task 5 foundation fix routes builder Save draft and Publish through the trusted authoring workflow facade while preserving parser, audio upload, runtime/live, teacher monitor, direct Firebase/R2 mutation, Cloudflare deploy, production config, selected-teacher rollout, push, and new shared primitive boundaries.
 
 ### Current Live Correction Record
 
-1. `ListeningTestBuilder.tsx` logical line count is 2354 when counted without the trailing final newline.
+1. `ListeningTestBuilder.tsx` logical line count is 2948 when counted without the trailing final newline.
 2. Mode-select tiles now render native `<button>` controls with `aria-pressed`, phrasing-safe inner markup, and scoped transitions for the active `text` and `image` states.
 3. Current authoring frame keeps the local `Card` / `CardBody` shell but removes the prior glass variant, using a white background, border, restrained shadow, and `backdropFilter: none`.
 4. Current `ListeningTestBuilder.tsx` has no `@mantine/core` import and no `AppShell` wrapper.
-5. Guardrail proof for this live state is expected through the explicit changed-files run that includes `src/skills/listening/builders/ListeningTestBuilder.tsx`.
+5. Current Save draft and Publish handlers call `createListeningAuthoringWorkflow()` and no longer call `saveListeningTestToFirebase` from the builder.
+6. Guardrail proof for this live state is expected through the explicit changed-files run that includes `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 
 <!-- assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
-line-count: 2354
-responsibilities: legacy Listening authoring wizard step orchestration with accessible and semantically valid display-mode button composition, reduced authoring-shell framing, and existing audio upload validation parser save review and storage integration boundaries retained in one builder
-split-alternatives: extract the mode-select surface into a bounded Listening component; extract the authoring shell and review/save frame into bounded Listening components before future shared-adopter work
-rejection-reason: extract the mode-select surface into a bounded Listening component => this corrective packet keeps ownership in the existing builder while fixing semantics and does not move handlers into a new component boundary; extract the authoring shell and review/save frame into bounded Listening components before future shared-adopter work => this remains valid future decomposition, but current packet only records live guardrail truth, semantic control correction, and authoring-shell cleanup while preserving historical evidence in inert form
+line-count: 2948
+responsibilities: Listening authoring wizard step orchestration with display-mode controls, audio-section metadata capture, question editing, draft status UI, trusted Save draft calls, and trusted Publish calls retained in the existing builder while backend authority lives in the authoring workflow facade
+split-alternatives: extract the Save draft and Publish command surface into a bounded Listening authoring controller component; extract mode-select audio question and review steps into separate route-local step components
+rejection-reason: extract the Save draft and Publish command surface into a bounded Listening authoring controller component => this foundation fix must remove legacy browser persistence first while preserving current builder state flow and avoiding a second behavior move; extract mode-select audio question and review steps into separate route-local step components => this remains valid future decomposition, but it would widen the current authority fix into a large UI refactor before A-C source test docs reconciliation is complete
 approver: The Lord
 approver-role: Task Scope Reviewer
 status: approved
@@ -5231,7 +5815,7 @@ status: approved
 
 ### Verification
 
-1. Logical line-count proof should use `node -e "const fs=require('fs'); const p='src/skills/listening/builders/ListeningTestBuilder.tsx'; let s=fs.readFileSync(p,'utf8').replace(/\\r\\n/g,'\\n'); if (s.endsWith('\\n')) s=s.slice(0,-1); console.log(s.split('\\n').length);"` and return `2354`.
+1. Logical line-count proof should use `rtk powershell -NoProfile -Command "(Get-Content -Path 'src/skills/listening/builders/ListeningTestBuilder.tsx').Count"` and return `2948`.
 2. Current control scan should show `aria-pressed` mode buttons in `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 3. Current Mantine/AppShell scan should return no matches for `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 4. Guardrail proof should use `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/features/assessment/shared/components/AssessmentAuthoringHeader.tsx,src/features/assessment/shared/components/AssessmentAuthoringHeader.css,src/components/reading-v2/studio/ReadingV2SettingsPanel.tsx,src/skills/listening/builders/ListeningTestBuilder.tsx`.
@@ -5374,3 +5958,2308 @@ Required before Task 4.2+ implementation can start:
 3. Current dependencies and evidence surfaces.
 4. Registry rules/indexes/emulator proof, restore proof, DR-owner sign-off, and explicit Task 4.2+ implementation authorization where required by the child task.
 5. No Task 4.1 sign-off waives child-specific security, deployment, browser, recovery, or independent-review gates.
+
+## PRD-0056A local bridge candidate salvage and proof attempt - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: BLOCKED for local PRD-0056A readiness. Source/tests/docs candidate exists and focused local proof is mostly green, but executable RTDB emulator proof did not run because Java is unavailable on PATH, and independent PRD-0056A review is not complete. Deployed/current PRD-0056A bridge proof is also BLOCKED and not attempted.
+
+Findings:
+
+1. The prior `prd0056a_implementer` subagent was no longer live in the agent list after a usage-limit failure; reconnect was impossible. Main-thread salvage used the shared workspace diff plus preserved status messages.
+2. Accidental generated `functions/lib/index.js` and `functions/lib/index.js.map` newline-only build artifacts were restored to `HEAD` and removed from the candidate diff.
+3. Existing staged Task 3/Task 4.1 files remained staged and were not rewritten as PRD-0056A closure evidence.
+4. `AGENTS.md` and `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md` remain instruction-surface changes outside this PRD-0056A implementation claim unless separately staged by the owner.
+5. Fresh spec-review and quality/security-review subagents were attempted after salvage, but the subagent service hit the usage limit before returning review findings or proof reruns. Independent-review closure is therefore not credited.
+
+### Dirty-File Allowlist And Classification
+
+PRD-0056A candidate source/test/rules paths:
+
+1. `functions/src/listening-upload-session/**`
+2. `functions/src/index.ts`
+3. `cloudflare/src/upload-worker/listening-upload-session-grant.ts`
+4. `cloudflare/worker.js`
+5. `cloudflare/test/listening-upload-session-bridge.test.ts`
+6. `src/services/r2Storage.ts`
+7. `src/services/r2Storage.test.ts`
+8. `database.rules.json`
+9. `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`
+
+Current-truth docs touched for blocked-state reconciliation:
+
+1. `tasks/0056a-prd-listening-upload-session-bridge.md`
+2. `documentation/architecture/upload-storage-authority.md`
+3. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+4. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+Existing staged Task 3/Task 4.1 paths preserved:
+
+1. `documentation/architecture/ielts-reading-v2-listening-unification.md`
+2. `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+3. `src/skills/listening/builders/ListeningTestBuilder.tsx`
+4. `src/skills/listening/builders/ListeningTestBuilder.test.tsx`
+5. `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+6. `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+7. `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+### Facade And Seam Evidence
+
+Before line counts from `HEAD`: `functions/src/index.ts` 234, `cloudflare/worker.js` 122, `src/services/r2Storage.ts` 119, `src/services/r2Storage.test.ts` 99.
+
+After line counts: `functions/src/index.ts` 238, `cloudflare/worker.js` 132, `src/services/r2Storage.ts` 210, `src/services/r2Storage.test.ts` 144.
+
+Responsibility deltas:
+
+1. `functions/src/index.ts`: four-line re-export only for `createListeningUploadSession` and `issueListeningUploadAsset`.
+2. `cloudflare/worker.js`: one import plus `assetGrant` query-branch wiring to the bridge adapter; existing `/upload?grant=...` S0 route remains.
+3. `src/services/r2Storage.ts`: facade types plus backend endpoint delegation for session create and asset grant issuance; no owner/session/asset/key derivation, no raw-key authority, and no lifecycle state transitions.
+4. `src/services/r2Storage.test.ts`: dependency-injection proof that the facade delegates bridge requests and does not call legacy upload authority while issuing session/asset requests.
+
+### Local Proof Results
+
+Passed:
+
+1. `node --input-type=module -e "import { startVitest } from 'vitest/node'; ... include: ['functions/src/listening-upload-session/**/*.test.ts'] ..."`: PASS, 1 file, 4 tests.
+2. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit`: PASS.
+3. `node .\node_modules\vitest\vitest.mjs run src/services/r2Storage.test.ts src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`: PASS, 15 tests passed, 1 emulator branch skipped outside emulator.
+4. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe --input-type=module -e "import { startVitest } from 'vitest/node'; ... config:false ... virtual cloudflare:workers stub ..."` from `cloudflare/`: PASS, 1 file, 3 tests.
+5. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe .\node_modules\vitest\vitest.mjs run` from `cloudflare/`: PASS, 7 files, 129 tests.
+6. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-hardened-negative-suite.mjs` from `cloudflare/`: PASS, 22/22.
+7. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-insecure-baseline.mjs` from `cloudflare/`: PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, four already-safe passes.
+8. `node --input-type=module -e "import { startVitest } from 'vitest/node'; ... include: ['functions/src/readingV2SubmitCore.test.ts'] ..."`: PASS, 7/7.
+9. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js deployments status --name r2-upload-signer --json`: PASS, read-only deployed S0 status remained deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9`, version `11af545a-479b-4063-a899-d475dd57d2b5`, `100%` traffic.
+10. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js versions list --name r2-upload-signer --json`: PASS, read-only version list included S0 version `11af545a-479b-4063-a899-d475dd57d2b5` and rollback-compatible recovery version `959065cd-8399-4000-b479-d8303a2f18ad`.
+11. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js deploy --dry-run` from `cloudflare/`: PASS, Worker bundled locally and exited without deploy.
+
+Blocked:
+
+1. `node node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts"`: BLOCKED before emulator startup, `Error: Could not spawn java -version. Please make sure Java is installed and on your system PATH.`
+2. `node node_modules\firebase-tools\lib\bin\firebase.js use --json`: BLOCKED by local Firebase CLI authentication absence, `Failed to authenticate, have you run firebase login?`
+
+### Requirement-To-Test Map
+
+1. Idempotent session/asset issuance -> `listeningUploadSessionBridge.test.ts` owner-scoped issuance test -> same `uploadSessionId`, same `assetId`, exact canonical key, only bootstrap path writes.
+2. 128-bit opaque IDs -> `listeningUploadSessionBridge.test.ts` entropy test -> `createOpaqueId()` decodes to 16 random bytes.
+3. Server-side HMAC idempotency hashes -> `listeningUploadSessionBridge.test.ts` hash assertions -> session and asset request keys are 64 hex HMACs and do not contain raw idempotency sentinels.
+4. Cross-owner/browser-authority rejection -> `listeningUploadSessionBridge.test.ts` rejection test and Worker bridge test -> cross-owner session/bridge use denied; browser `ownerId`, `assetId`, `tempKey`, `rawKey`, and old-prefix signed bridge key rejected.
+5. Expiry/tamper/replay/media-contract denial -> Worker bridge test -> expired grant 403, tampered grant 403, replay 409, content-type/size mismatch 400.
+6. S0 compatibility -> existing Cloudflare Vitest/security suites -> legacy `/upload?grant=...` and `temp/listening-audio/{uid}/...` behavior remains green.
+7. Bridge-only prefix -> Worker bridge old-prefix negative and canonical key positive -> signed `temp/listening-audio/...` bridge claim rejected; canonical `temp/listening/...` accepted.
+8. No write outside bootstrap path -> memory repository write log and boundary scan -> only `media_asset_upload_sessions/{ownerId}/{uploadSessionId}` writes in bridge tests; no `media_assets/**`, `listening_authoring/**`, `tests/**`, or generic `drafts/**` bridge writes.
+9. Log secrecy -> function and Worker log spies -> no token, raw idempotency key, signed grant, secret, raw key, or audio bytes logged in covered paths.
+
+### Remaining Gates
+
+1. Install or expose Java locally, then rerun executable RTDB emulator proof. Static rules proof is not enough.
+2. Complete fresh independent spec review and quality/security review against the current diff and named proof; current attempts produced no usable findings because of subagent usage-limit failure.
+3. Run final UTF-8, `rtk git diff --check`, cached diff check, and exact-path staging only after all local gates pass.
+4. Deployment/current proof remains separate: capture Functions and `r2-upload-signer` versions, provision secrets, run remote browser/internal fixture proof, perform selected recovery rehearsal if authorized, and keep Task 4.2 blocked until accepted proof and explicit Task 4.2 authorization exist.
+
+## PRD-0056A local bridge emulator unblock and proof continuation - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: BLOCKED for Task 4.2 start; PRD-0056A local proof is materially improved but still awaits accepted independent review and separate deployed/current bridge proof. No Task 4.2 implementation, PRD-0058 lifecycle/registry work, deploy, push, secret provisioning, remote write, cleanup, or rollback execution occurred.
+
+Findings:
+
+1. Executable RTDB emulator proof now runs locally after using a temporary process-local Temurin JDK 21 under `%TEMP%`; no system Java install was performed.
+2. The first emulator run produced a real RED failure: `admin.ref('media_asset_upload_sessions/teacher-1/session-1').remove()` succeeded because the root `.write` super-admin rule granted ancestor write authority before the child `.write: false` rule. This meant browser super-admin credentials could mutate PRD-0056A bootstrap state.
+3. `database.rules.json` now narrows the root super-admin `.write` rule so `newData.child('media_asset_upload_sessions').val()` must equal `data.child('media_asset_upload_sessions').val()`. The PRD-0056A subtree remains browser write-denied while other existing root super-admin writes retain compatibility when that subtree is unchanged.
+4. Re-run executable emulator proof passed 2/2 tests and showed permission-denied warnings for owner update, owner create, and super-admin delete attempts under `media_asset_upload_sessions/**`.
+5. The current Worker local dry-run bundles without deployment, but it does not prove deployed/current PRD-0056A secret provisioning or remote bridge behavior.
+6. The subagent spawn surface did not expose model-tier selection or model metadata. Two read-only reviewers were spawned only after the user explicitly requested `$superpowers:subagent-driven-development`; their outputs are not accepted unless they inspect current diff and rerun named proof.
+
+### Updated Facade And Seam Evidence
+
+Current line counts against `HEAD`:
+
+1. `functions/src/index.ts`: `HEAD=268`, worktree `272`, delta `+4`. Responsibility remains two thin bridge exports only.
+2. `cloudflare/worker.js`: `HEAD=139`, worktree `149`, delta `+10`. Responsibility remains one import plus `assetGrant` routing to the bridge verifier before legacy S0 upload handling.
+3. `src/services/r2Storage.ts`: `HEAD=140`, worktree `240`, delta `+100`. Responsibility is compatibility facade wiring to backend session/asset endpoints plus response types; it does not derive owner/session/asset/key authority, does not write lifecycle state, and does not perform registry/commit/cleanup.
+4. `src/services/r2Storage.test.ts`: `HEAD=118`, worktree `167`, delta `+49`. Responsibility is dependency-injection proof that the facade delegates bridge requests and avoids legacy upload authority during session/asset issuance.
+
+New PRD-0056A file line counts:
+
+1. `functions/src/listening-upload-session/assetGrant.ts`: 26.
+2. `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts`: 197.
+3. `functions/src/listening-upload-session/sessionHandlers.ts`: 236.
+4. `functions/src/listening-upload-session/sessionIds.ts`: 6.
+5. `functions/src/listening-upload-session/sessionRepository.ts`: 104.
+6. `functions/src/listening-upload-session/sessionSchema.ts`: 75.
+7. `functions/src/listening-upload-session/tempKey.ts`: 54.
+8. `cloudflare/src/upload-worker/listening-upload-session-grant.ts`: 129.
+9. `cloudflare/test/listening-upload-session-bridge.test.ts`: 176.
+10. `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`: 76.
+
+### Local Proof Results After Emulator Fix
+
+Passed:
+
+1. `node node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts"` with process-local JDK: PASS, 1 file, 2 tests.
+2. `node node_modules\vitest\vitest.mjs run src/services/r2Storage.test.ts src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`: PASS, 2 files, 15 tests passed and 1 emulator branch skipped outside emulator.
+3. Temporary Functions Vitest config including `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts` and `functions/src/readingV2SubmitCore.test.ts`: PASS, 2 files, 11 tests.
+4. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit`: PASS.
+5. Cloudflare Worker bridge test with throwaway local Vitest config and virtual `cloudflare:workers` stub: PASS, 1 file, 3 tests; the throwaway config was deleted.
+6. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run` from `cloudflare/`: PASS, 7 files, 129 tests.
+7. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-hardened-negative-suite.mjs` from `cloudflare/`: PASS, 22/22.
+8. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-insecure-baseline.mjs` from `cloudflare/`: PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, four already-safe passes.
+9. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js deploy --dry-run` from `cloudflare/`: PASS, local bundle only, no deployment.
+10. `git diff --check`, `git diff --cached --check`, and `rtk git diff --check`: PASS; `rtk` reported no hook installed only.
+11. UTF-8 check over touched PRD-0056A source/test/rules/facade files: PASS, 15 text files.
+
+### Requirement-To-Test-To-Assertion-To-Mutation Map
+
+1. Browser writes denied for bootstrap records -> `prd0056a-upload-session-rules.emulator.test.ts` -> owner update, owner create, and super-admin delete fail against the RTDB emulator -> initial ancestor `.write` mutation was killed by the emulator RED.
+2. Owner/super-admin read and cross-owner/guest denial -> `prd0056a-upload-session-rules.emulator.test.ts` -> owner and explicit super-admin read succeed; other teacher and unauthenticated reads fail -> wrong owner read path is denied.
+3. Backend-issued opaque session/asset identity -> `listeningUploadSessionBridge.test.ts` -> `createOpaqueId()` emits 16 random bytes and service-generated session/asset IDs feed canonical key construction -> browser-provided `ownerId`, `assetId`, `tempKey`, `rawKey`, and `prefix` are rejected.
+4. HMAC idempotency identifiers -> `listeningUploadSessionBridge.test.ts` -> stored creation and asset request IDs are 64-character HMAC hex values and do not contain raw idempotency sentinels -> repeated session/asset request reuses backend identity.
+5. Canonical bridge key -> `listeningUploadSessionBridge.test.ts` and `listening-upload-session-bridge.test.ts` -> only `temp/listening/{ownerId}/{uploadSessionId}/{assetId}-{sanitizedFileName}` is accepted -> signed old-prefix `temp/listening-audio/...` bridge claim fails.
+6. Grant expiry/tamper/replay/media binding -> `listening-upload-session-bridge.test.ts` -> expired/tampered/cross-owner/replayed/content-type mismatch/size mismatch requests fail before byte acceptance -> accepted upload is single-use and tuple-bound.
+7. S0 compatibility -> Cloudflare 129/129, hardened negative 22/22, insecure-baseline fixture exact -> legacy `/upload?grant=...` and old `temp/listening-audio/{uid}/...` path remain green for non-bridge callers.
+8. Log secrecy -> bridge tests spy on logs -> no secret, signed grant, raw key, or raw idempotency value appears in logs.
+9. No PRD-0058 work -> boundary scan over touched bridge paths -> no `media_assets/**`, `listening_authoring/**`, generic `drafts/**`, registry commit/reference/cleanup/reconciliation/metrics/delivery writes in PRD-0056A bridge code.
+
+### Remaining Gates
+
+1. Accept or reject current independent spec-review and quality/security-review outputs once they finish; any blocking finding must be fixed and re-reviewed.
+2. Rerun final focused proof after any review fix.
+3. Stage exact PRD-0056A paths only if local closure is accepted; preserve existing staged Task 3/Task 4.1 work and instruction-surface files.
+4. Stop before deployment/current proof. Task 4.2 remains blocked until separate PRD-0056A deployment-and-proof authority, deployed/current evidence, and accepted bridge proof exist.
+
+## PRD-0056A local bridge hardening and final local proof continuation - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: BLOCKED for Task 4.2 start and deployed/current bridge proof. Local PRD-0056A proof is green after follow-up hardening, but independent review is not accepted because the attempted reviewer agents exceeded the AGENTS.md model/effort ceiling and produced no final closure. No Task 4.2 implementation, PRD-0058 lifecycle/registry work, deploy, push, secret provisioning, remote write, cleanup, or rollback execution occurred.
+
+Findings:
+
+1. Salvaged reviewer context identified three local hardening risks: browser lifecycle/session-record fields were not explicitly rejected, zero-byte audio was accepted, and Firebase session bootstrap could create a second session if the same owner/idempotency HMAC won a race between query and write.
+2. `functions/src/listening-upload-session/sessionSchema.ts` now rejects browser-supplied `schemaVersion`, `purpose`, `status`, `createdAt`, `createdBy`, `expiresAt`, `maxEligibilityExpiresAt`, `lastGrantIssuedAt`, `assetIds`, `assetRequests`, and `bridgeVersion` fields, in addition to owner/key/prefix/asset authority fields.
+3. `functions/src/listening-upload-session/sessionSchema.ts` now rejects `sizeBytes <= 0`; the media contract still enforces the existing 50 MB maximum.
+4. `functions/src/listening-upload-session/sessionRepository.ts` now creates sessions through an owner-level transaction that preserves an existing record with the same `creationRequestIdHash` before inserting a new `uploadSessionId`.
+5. Local proof reran after these changes and remained green.
+6. `cloudflare/wrangler.jsonc` is the live Worker config file in this repo, not `cloudflare/wrangler.toml`; PRD wording that names TOML remains historical/planning wording. No config mutation was made in this packet.
+7. Wrangler dry-run compiled the local Worker without deployment. The dry-run binding list still does not prove `LISTENING_UPLOAD_SESSION_GRANT_SECRET` secret provisioning, so deployed/current PRD-0056A proof remains blocked.
+
+### Current Facade And Seam Evidence
+
+Line counts against current `HEAD`:
+
+1. `functions/src/index.ts`: `HEAD=234`, worktree `238`, delta `+4`. Responsibility remains two thin bridge exports only.
+2. `cloudflare/worker.js`: `HEAD=122`, worktree `132`, delta `+10`. Responsibility remains one import plus `assetGrant` routing to the bridge verifier before legacy S0 upload handling.
+3. `src/services/r2Storage.ts`: `HEAD=119`, worktree `210`, delta `+91`. Responsibility is compatibility facade wiring to backend session/asset endpoints plus response types; it does not derive owner/session/asset/key authority, does not write lifecycle state, and does not perform registry/commit/cleanup.
+4. `src/services/r2Storage.test.ts`: `HEAD=99`, worktree `144`, delta `+45`. Responsibility is dependency-injection proof that the facade delegates bridge requests and avoids legacy upload authority during session/asset issuance.
+
+Current PRD-0056A file counts:
+
+1. `functions/src/listening-upload-session/assetGrant.ts`: 26.
+2. `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts`: 214.
+3. `functions/src/listening-upload-session/sessionHandlers.ts`: 236.
+4. `functions/src/listening-upload-session/sessionIds.ts`: 6.
+5. `functions/src/listening-upload-session/sessionRepository.ts`: 106.
+6. `functions/src/listening-upload-session/sessionSchema.ts`: 84.
+7. `functions/src/listening-upload-session/tempKey.ts`: 54.
+8. `cloudflare/src/upload-worker/listening-upload-session-grant.ts`: 129.
+9. `cloudflare/test/listening-upload-session-bridge.test.ts`: 176.
+10. `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`: 76.
+
+### Final Local Proof Results After Hardening
+
+Passed:
+
+1. RED before parser hardening: focused Functions bridge test failed because `body: { status: 'active' }` resolved instead of rejecting with `browser_authority_field`.
+2. Temporary Functions Vitest config including `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts` and `functions/src/readingV2SubmitCore.test.ts`: PASS, 2 files, 11 tests.
+3. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit`: PASS.
+4. Executable RTDB emulator proof with process-local Temurin JDK: PASS, 1 file, 2 tests.
+5. `node .\node_modules\vitest\vitest.mjs run src/services/r2Storage.test.ts src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts`: PASS, 2 files, 15 tests passed and 1 emulator branch skipped outside emulator.
+6. Cloudflare Worker bridge test with throwaway local Vitest config and virtual `cloudflare:workers` stub: PASS, 1 file, 3 tests; throwaway config was deleted.
+7. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run` from `cloudflare/`: PASS, 7 files, 129 tests.
+8. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-hardened-negative-suite.mjs` from `cloudflare/`: PASS, 22/22.
+9. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-insecure-baseline.mjs` from `cloudflare/`: PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, four already-safe passes.
+10. Wrangler read-only/dry-run: version `4.103.0`, `deploy --dry-run` help confirms no upload, `deployments status --name r2-upload-signer --json` shows deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9` with version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`, and `deploy --dry-run` exits without deployment.
+11. `npm run build`: PASS, Vite transformed 9345 modules and bundle budget reported OK.
+12. `npm run check:utf8 -- ...`: PASS, 21 text files.
+13. `git diff --check`, `git diff --cached --check`, and `rtk git diff --check`: PASS; `rtk` reported no hook installed only.
+
+### Requirement-To-Test-To-Assertion-To-Mutation Map Updates
+
+1. Browser lifecycle/session records never authority -> `listeningUploadSessionBridge.test.ts` -> `status` on create and `assetRequests` on issue reject as `browser_authority_field` -> browser cannot author bootstrap/lifecycle state.
+2. Approved media contract requires non-empty byte payload -> `listeningUploadSessionBridge.test.ts` -> `sizeBytes: 0` rejects as `invalid_size` -> zero-byte audio grant mutation killed.
+3. Session idempotency under create race -> `sessionRepository.ts` owner transaction -> same `creationRequestIdHash` returns existing record instead of inserting a new random `uploadSessionId` -> duplicate bootstrap session race reduced.
+4. Existing emulator mutation remains killed -> `prd0056a-upload-session-rules.emulator.test.ts` -> owner update, owner create, and super-admin delete fail against RTDB emulator -> ancestor `.write` cannot mutate bridge subtree.
+
+### Remaining Gates
+
+1. Independent implementation review must be rerun with compliant model/effort and must inspect current diff plus rerun named proof; current failed/violating reviewer attempts do not count. The final attempted reviewer `/root/prd0056a_spec_review_gate` spawned as `gpt-5.5` with `xhigh` reasoning and was interrupted because AGENTS.md caps subagents at `gpt-5.5` with medium reasoning.
+2. Exact-path staging remains withheld until independent review is accepted. Existing staged Task 3/Task 4.1 work remains preserved.
+3. Deployed/current PRD-0056A bridge proof remains separate and blocked pending explicit authority for secret provisioning, Functions and Worker deployment proof, selected browser/internal fixture proof, version capture, and recovery rehearsal decision.
+4. Task 4.2 remains blocked until deployed/current PRD-0056A proof is accepted and explicit Task 4.2 implementation authorization exists.
+
+## PRD-0056A local bridge independent-review closeout and final local rerun - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: local PRD-0056A prerequisite closure PASS. Deployed/current PRD-0056A bridge proof remains BLOCKED. Task 4.2 remains BLOCKED pending separate deployed/current proof acceptance and explicit Task 4.2 authorization.
+
+Findings:
+
+1. Main-thread review found two remaining local hardening gaps after the earlier local PASS packet: the Functions bridge CORS allowlist did not yet include the approved production origin `https://kahut1.web.app`, and the Worker bridge verifier needed an explicit zero-byte rejection path in current proof.
+2. `functions/src/listening-upload-session/sessionHandlers.ts` now exports exact approved CORS headers for `https://kahut1.web.app`, `http://localhost:5173`, and `http://localhost:5174`, and `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts` now proves the allowlist without introducing wildcard behavior.
+3. `cloudflare/src/upload-worker/listening-upload-session-grant.ts` now rejects zero-byte bridge grants directly in the verifier/handler path, and `cloudflare/test/listening-upload-session-bridge.test.ts` now proves that rejection with the current direct-handler negative instead of the obsolete stale-fork assertion shape.
+4. A compliant read-only independent reviewer (`gpt-5.4` high) found no blocking spec/boundary issues in the broader local PRD-0056A candidate. A later patch-only reviewer response was rejected because it analyzed an older forked copy of the test file after the main thread had already replaced the flagged assertion.
+5. Final local proof reran green after the CORS and zero-byte fixes. No deploy, push, secret provisioning, Firebase/R2/Cloudflare mutation, rollback execution, remote cleanup, Task 4.0 check, Task 4.2 start, or PRD-0058 lifecycle/registry work occurred.
+
+### Final Local Proof After Review Closeout
+
+Passed:
+
+1. Focused Functions proof with temporary Vitest config: `functions/src/listening-upload-session/listeningUploadSessionBridge.test.ts` plus `functions/src/readingV2SubmitCore.test.ts` -> PASS, 2 files, 12 tests.
+2. Functions compile: `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit` -> PASS.
+3. Facade/static rules proof: `src/services/r2Storage.test.ts` plus `src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts` -> PASS, 15 tests, 1 emulator-only branch skipped outside emulator.
+4. Executable RTDB emulator proof with process-local Temurin JDK -> PASS, 1 file, 2 tests.
+5. Focused Worker bridge proof with a temporary config and virtual `cloudflare:workers` stub -> PASS, 1 file, 3 tests.
+6. Existing Cloudflare Worker suite -> PASS, 7 files, 129 tests.
+7. Hardened negatives -> PASS, 22/22.
+8. Insecure baseline -> PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, 4 already-safe passes.
+9. Wrangler dry-run -> PASS, no upload/deploy.
+10. `npm run build` -> PASS.
+11. `npm run check:utf8 -- ...` -> PASS, 22 text files.
+12. `git diff --check`, `git diff --cached --check`, and `rtk git diff --check` -> PASS.
+
+### Remaining Gates
+
+1. No deployed/current PRD-0056A bridge proof is complete. Secret provisioning, Functions/Worker deployment proof, internal fixture/browser proof, captured pre-version IDs, and recovery rehearsal remain separate authorization gates.
+2. Task 4.2 remains blocked until deployed/current PRD-0056A proof is accepted and explicit Task 4.2 authorization exists.
+
+## PRD-0056A local bridge missing-size parity correction - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: local PRD-0056A prerequisite closure remains PASS after one final Worker guard correction. Deployed/current PRD-0056A bridge proof remains BLOCKED. Task 4.2 remains BLOCKED.
+
+Findings:
+
+1. Fresh current-diff patch review found one real issue in the latest Worker bridge hardening: `cloudflare/src/upload-worker/listening-upload-session-grant.ts` converted `request.headers.get('Content-Length')` directly with `Number(...)`, so a missing header could collapse into the zero-byte 403 branch instead of preserving the existing S0-style `missing_size` 411 path.
+2. The Worker bridge handler now reads the raw `Content-Length` header first, returns `missing_size` with HTTP 411 when the header is absent/empty, then keeps the explicit zero-byte bridge-grant rejection separate from that path.
+3. `cloudflare/test/listening-upload-session-bridge.test.ts` now proves both cases in the focused bridge suite: missing `Content-Length` -> 411 and zero-byte bridge grant -> `invalid_bridge_grant` 403.
+4. Focused Worker proof reran green, and the full Cloudflare/local dry-run proof bundle reran green after this correction.
+
+### Verification After Missing-Size Correction
+
+Passed:
+
+1. Focused Worker bridge proof with temporary config and virtual `cloudflare:workers` stub -> PASS, 1 file, 3 tests.
+2. Existing Cloudflare Worker suite -> PASS, 7 files, 129 tests.
+3. Hardened negatives -> PASS, 22/22.
+4. Insecure baseline -> PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, 4 already-safe passes.
+5. Wrangler dry-run -> PASS, no upload/deploy.
+
+## PRD-0056A deployed/current bridge preflight blocker - 2026-06-26
+
+### Findings First And Verdict
+
+Verdict: BLOCKED for deployed/current PRD-0056A bridge proof. Local PRD-0056A readiness remains PASS. Task 4.2 remains BLOCKED.
+
+Approval scope: User selected deployment/current-proof option A for a separate PRD-0056A packet with named Functions and `r2-upload-signer`, captured pre-version IDs, selected internal fixtures, non-destructive recovery rehearsal, and redacted evidence.
+
+Findings:
+
+1. Firebase deployment path is unavailable on this host. `node node_modules\firebase-tools\lib\bin\firebase.js login:list` reported `No authorized accounts`, `firebase use --project temp-a1437` and `firebase functions:list --project temp-a1437` failed authentication, `FIREBASE_TOKEN` is unset, no Application Default Credentials file exists at `C:\Users\The Lord\AppData\Roaming\gcloud\application_default_credentials.json`, and `gcloud auth application-default print-access-token` failed.
+2. Read-only Google project preflight shows active `gcloud` account `iamhuwng@gmail.com` on project `temp-a1437`, but `gcloud billing projects describe temp-a1437` returned `billingEnabled: false`.
+3. `gcloud functions list --project temp-a1437` returned `Listed 0 items.`
+4. Required Google service state is incomplete for secret-backed bridge deployment: `cloudfunctions.googleapis.com=True`, but `cloudbuild.googleapis.com=False`, `artifactregistry.googleapis.com=False`, `run.googleapis.com=False`, and `secretmanager.googleapis.com=False`. `gcloud secrets list --project temp-a1437` failed with `SERVICE_DISABLED` for Secret Manager.
+5. Read-only Cloudflare pre-version capture succeeded: `wrangler deployments status --name r2-upload-signer --json` returned deployment `0c0bca87-6bca-4a42-934d-509299b7e3c9` with active version `11af545a-479b-4063-a899-d475dd57d2b5` at `100%`; `wrangler versions list --name r2-upload-signer --json` still includes active version `11af545a-479b-4063-a899-d475dd57d2b5` plus rollback-compatible recovery version `959065cd-8399-4000-b479-d8303a2f18ad`; `wrangler versions view` for both versions confirms the same S0 Durable Object migration tag `v1-upload-grant-replay-ledger` and binding shape.
+6. Because PRD-0056A current proof requires deployed Functions to issue a live bridge grant and matching secret-backed Worker verification, the packet cannot safely continue from this host without restoring an authorized Firebase deployment path and the missing Google billing/API prerequisites. No Functions deploy, Worker deploy, secret provisioning, R2 mutation, traffic change, or recovery rehearsal executed.
+
+### Remaining Gates
+
+1. Restore a usable Firebase deployment path for `temp-a1437` on this host or authorize a different approved deployment mechanism.
+2. If Google-side prerequisites must change, capture explicit approval first for billing/API enablement and any required auth/bootstrap steps.
+3. After Google-side prerequisites exist, rerun the separate PRD-0056A deployed/current packet: capture pre-version IDs, provision matching `LISTENING_UPLOAD_SESSION_GRANT_SECRET` names only, deploy `createListeningUploadSession` and `issueListeningUploadAsset`, deploy the Worker bridge change, run non-destructive recovery rehearsal, execute selected internal fixtures, then update truth docs and rerun independent review.
+
+## PRD-0056A Spark-safe Worker-only correction and local closure - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict: local PRD-0056A prerequisite closure PASS. Deployed/current PRD-0056A bridge proof remains BLOCKED. Task 4.2 remains BLOCKED pending separate deployed/current proof acceptance and explicit Task 4.2 authorization.
+
+Findings:
+
+1. The earlier local PRD-0056A candidate assumed new Firebase Functions, which violated the repo's fixed Spark-tier boundary. The current source candidate is corrected to a Spark-safe Worker-only design: `r2-upload-signer` now owns `POST /createListeningUploadSession` and `POST /issueListeningUploadAsset`, writes owner-scoped bootstrap rows through Firebase RTDB REST with Worker-held `GOOGLE_SA_KEY`, and keeps legacy S0 `/upload?assetGrant=...` compatibility for non-bridge callers.
+2. Independent review on 2026-06-27 found three real blockers in the then-current Worker candidate: dead `VITE_LISTENING_UPLOAD_SESSION_FUNCTIONS_URL` fallback in `src/services/r2Storage.ts`, dead focused Worker bridge coverage because `cloudflare/vitest.config.mjs` excluded `cloudflare/test/**/*.test.ts`, and stale PRD/authority wording that did not yet own the minimal root `.write` narrowing required to preserve browser write denial for `media_asset_upload_sessions/**`.
+3. Main-thread corrections removed the Functions fallback, added explicit Worker-only endpoint resolution coverage in `src/services/r2Storage.test.ts`, wired `test/**/*.test.ts` into the checked-in Cloudflare Vitest config, and reconciled PRD-0056A plus upload-storage authority wording to the Spark-safe Worker-only boundary, including the minimal root `.write` ownership needed because RTDB ancestor `.write` cannot be revoked by child `.write: false`.
+4. Two compliant corrective independent re-reviews on 2026-06-27 then passed with no remaining blockers: spec/doc/rules boundary PASS and runtime/test-discovery PASS.
+5. No deploy, push, secret provisioning, Firebase/R2/Cloudflare mutation, rollback execution, Task 4.0 checkbox change, Task 4.2 work, Task 4.3 work, or PRD-0058 lifecycle/registry work occurred.
+
+### Verification
+
+1. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit`: PASS.
+2. `node .\node_modules\vitest\vitest.mjs run src\services\r2Storage.test.ts src\__tests__\security\prd0056a-upload-session-rules.emulator.test.ts`: PASS, 16 passed, 1 skipped.
+3. `node node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts"` with process-local Temurin JDK: PASS, 2/2.
+4. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run test\listening-upload-session-bridge.test.ts` in `cloudflare/`: PASS, 1 file, 9 tests.
+5. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run` in `cloudflare/`: PASS, 8 files, 138 tests.
+6. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-hardened-negative-suite.mjs` in `cloudflare/`: PASS, 22/22.
+7. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-insecure-baseline.mjs` in `cloudflare/`: PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED failures, 4 already-safe passes.
+8. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js deploy --dry-run` in `cloudflare/`: PASS, no upload/deploy.
+9. `npm run build`: PASS.
+
+### Remaining Gates
+
+1. Deployed/current PRD-0056A bridge proof remains separate. No Worker deployment, secret provisioning, selected internal fixture run, or recovery rehearsal occurred in this packet.
+2. Task 4.2 remains blocked until deployed/current PRD-0056A proof is accepted and explicit Task 4.2 authorization exists.
+
+## PRD-0056A deployed/current Worker-only bridge proof - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict: deployed/current PRD-0056A bridge proof PASS. Task 4.2 foundation is unblocked. Task 4.2 implementation remains unstarted in this packet.
+
+Findings:
+
+1. The deployed proof found a live-only Worker runtime gap: storing default `fetch` and invoking it as `this.fetchImpl(...)` caused a Cloudflare Worker `TypeError`. The repository now wraps `globalThis.fetch(...)`, and `cloudflare/test/listening-upload-session-bridge.test.ts` includes a regression that fails if default repository fetch is called through the repository receiver.
+2. The deployed proof found an RTDB behavior gap: Firebase RTDB does not persist empty `{}` maps, so a newly created session could return without `assetRequests`. `issueAsset` now treats missing maps as empty, and the focused bridge suite includes a regression for that shape.
+3. The live proof showed deployed RTDB rules were stale before this packet. `firebase deploy --only database --project temp-a1437` released the checked-in PRD-0056A owner-read/browser-write-denial rules and the root `.write` narrowing required to preserve subtree denial.
+4. The bridge service was split so PRD-0056A production modules remain under the file-size ceiling: `listening-upload-session.ts` 361, `listening-upload-session-contract.ts` 227, `listening-upload-session-repository.ts` 316, `listening-upload-session-grant.ts` 132, `worker.js` 169, and `src/services/r2Storage.ts` 252.
+5. The earlier unused user-managed service-account key `478c17975f17082d247ac747861176f5f26daecd` was deleted. The active user-managed key remaining for `r2-upload-signer-prd0056a@temp-a1437.iam.gserviceaccount.com` is `f863c13b287dcbdb46a141b04423e6f9970a009e`; no secret values were printed or checked in.
+
+### Remote State And Deployed Proof
+
+1. Current Worker: `r2-upload-signer`.
+2. Current active version: `3687d2e0-4718-4c0b-9c84-7f81749c31fb` at 100%.
+3. Current deployment: `b0bb984c-e666-4535-9af0-85c354d75993`, message `PRD-0056A recovery rehearsal: restore split bridge`.
+4. Current bindings include `FIREBASE_DB_URL`, `FIREBASE_PROJECT_ID=temp-a1437`, `R2_BUCKET=kahoot-media`, Durable Object migration `v1-upload-grant-replay-ledger`, rate namespace `205512`, and secret bindings by name for `GOOGLE_SA_KEY`, `LISTENING_UPLOAD_SESSION_GRANT_SECRET`, and `UPLOAD_GRANT_SECRET`.
+5. Full deployed proof passed against `https://r2-upload-signer.iamhuwng.workers.dev`: no-auth create 401; evil-origin preflight 403 with no allowed origin; authenticated create 200; issue-asset 200; cross-owner issue 404; cross-owner upload 403; owner upload 200; owner RTDB read 200; browser RTDB mutation permission denied; public R2 read matched SHA-256 `8cb78897dbf5328c6a78c31684ac7c097aa4f7afd6707be70d659fce7cb29015`; proof-object cleanup verified 404.
+6. Recovery rehearsal passed after the final split deploy: S0 recovery version `959065cd-8399-4000-b479-d8303a2f18ad` activated at 100%, then PRD-0056A split bridge version `3687d2e0-4718-4c0b-9c84-7f81749c31fb` restored at 100%; post-restore create-session smoke returned 200.
+
+### Verification
+
+1. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run test\listening-upload-session-bridge.test.ts` in `cloudflare/`: PASS, 12/12.
+2. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\vitest\vitest.mjs run` in `cloudflare/`: PASS, 8 files / 141 tests.
+3. `node .\node_modules\vitest\vitest.mjs run src\services\r2Storage.test.ts src\__tests__\security\prd0056a-upload-session-rules.emulator.test.ts`: PASS, 16 passed / 1 skipped.
+4. `node node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts"` with process-local JDK: PASS, 2/2.
+5. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-hardened-negative-suite.mjs` in `cloudflare/`: PASS, 22/22.
+6. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe scripts\run-insecure-baseline.mjs` in `cloudflare/`: PASS, fixture SHA `93e046d0986811a2c91c3ceb7b48bca7215f75064153cff370750d5e2776a05c`, 18 expected RED, four already-safe.
+7. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe node_modules\wrangler\bin\wrangler.js deploy --dry-run` in `cloudflare/`: PASS.
+8. `npm run build`: PASS.
+9. `C:\Users\The Lord\AppData\Local\OpenAI\Codex\bin\node.exe functions\node_modules\typescript\bin\tsc --project functions\tsconfig.json --noEmit`: PASS.
+10. `npm run check:utf8 -- ...`: PASS, 14 text files.
+11. `git diff --check`, `git diff --cached --check`, and `rtk git diff --check`: PASS, with only the known `cloudflare/wrangler.jsonc` line-ending warning and RTK no-hook notice.
+
+### Remaining Gates
+
+1. Task 4.2 can now begin from an unblocked PRD-0056A foundation, but the implementation was not started here.
+2. Task 4.3, PRD-0058 lifecycle/registry/commit/cleanup/reconciliation/backup/restore/metrics/delivery work, staging, commit, and push remain separate gates.
+
+## PRD-0055 Task 4.2 foundation gate and baseline preservation - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 4.2 only. Task 4.2 is closed as a foundation gate/baseline packet. Task 4.3, Task 4.4+, PRD-0058 lifecycle/registry source implementation, Firebase/Cloudflare/R2 deployed-state mutation, staging, commit, and push remain separate gates.
+
+Subtask:
+
+- Task 4.2: accept deployed/current PRD-0056A Worker-only bridge proof after S0, confirm current dependencies, preserve baseline tests before storage ownership changes, and confirm PRD-0058 names bounded homes for registry/upload-session-lifecycle/commit/cleanup/heartbeat/metrics while keeping `r2Storage.ts` and `listeningTestStorage.ts` as compatibility facades.
+
+Claims proven:
+
+1. PRD-0056A Worker-only bridge remains source truth; no Firebase Functions were reintroduced.
+2. Current upload/session behavior remains covered by existing facade/client/Worker tests.
+3. Current publish-time promotion, distinct stream-URL promotion, and current failure fallback behavior are now directly characterized in `src/services/listeningTestStorage.test.ts`.
+4. Current playback behavior remains covered by existing `AudioPlayer` tests.
+5. PRD-0058 now names bounded future homes for registry, upload-session-lifecycle, commit, cleanup, heartbeat, metrics, delivery, and compatibility facades.
+6. No PRD-0058 source modules, RTDB registry rules, Worker lifecycle behavior, cleanup runner, heartbeat implementation, metrics sink, backup/restore behavior, or delivery implementation was started.
+
+Files and declared touch regions:
+
+- `src/services/listeningTestStorage.test.ts`: new characterization tests only.
+- `src/skills/listening/components/AudioPlayer.test.tsx`: playback baseline harness cleanup only; production `AudioPlayer.tsx` remains untouched.
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`: Section 26 module-home naming only.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 4.2 checkbox and closure note only.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: EV-0056A, EV-0058, FR-019, FR-020B, and current-status wording only.
+- `documentation/architecture/upload-storage-authority.md`: current Task 4.2 status sentence only.
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: new Task 4.2 packet note only.
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only findings packet.
+
+Lines before -> after and responsibility delta:
+
+- `listeningTestStorage.ts` production responsibility did not change; it remains the current compatibility owner of save shape and publish-time temp-to-permanent behavior until later PRD-0058 work.
+- `r2Storage.ts` production responsibility did not change; it remains a compatibility facade over the current upload client and PRD-0056A Worker-only bridge.
+- PRD-0058 responsibility text changed from implicit session/heartbeat/metrics homes to explicit future service homes. This is documentation ownership only, not implementation.
+
+Created/preserved decomposition seams:
+
+- Created baseline seam: `saveListeningTestToFirebase(...)` behavior can now be tested without Firebase or R2 network calls by mocking `firebase/database` and `r2StorageService`.
+- Preserved facade seam: `src/services/r2Storage.ts` and `src/services/listeningTestStorage.ts` are not expanded with registry, cleanup, heartbeat, or metrics logic.
+- Preserved PRD split: PRD-0056A owns create-time upload-session/bootstrap identity; PRD-0058 owns future lifecycle fields, registry, commit, references, cleanup, reconciliation, backup/restore, metrics, and delivery.
+
+Traceability row IDs:
+
+- `EV-0056A`
+- `EV-0058`
+- `FR-019`
+- `FR-020B`
+- `DECISION-050` remains aligned with accepted PRD-0056A evidence and no raw-key browser authority.
+
+Characterization/baseline:
+
+- `src/services/listeningTestStorage.test.ts` pins missing-audio rejection before move/write, temp audio plus matching stream URL promotion before save, distinct temp stream URL promotion before save, persisted `isPublished: true`, move failure fallback that preserves temp URLs and still saves, and Firebase permission/network error mapping.
+- Existing upload baselines remain in `src/services/r2Storage.test.ts` and `src/services/r2UploadClient.test.ts`.
+- Existing Worker bridge baseline remains in `cloudflare/test/listening-upload-session-bridge.test.ts`.
+- Existing playback baseline remains in `src/skills/listening/components/AudioPlayer.test.tsx`; the test harness now restores manual `HTMLMediaElement` prototype descriptors after each test to avoid order-dependent media mock leakage.
+
+RED command and result:
+
+- Product-behavior RED was not applicable because Task 4.2 is a gate/baseline packet with no intended runtime behavior change.
+- Baseline mismatch caught during authoring: `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts src\services\r2Storage.test.ts src\services\r2UploadClient.test.ts src\skills\listening\components\AudioPlayer.test.tsx --reporter=basic` initially failed 2 `listeningTestStorage` tests because the expected generated ID suffix was too long; the test was corrected to match current `substr(2, 9)` behavior.
+
+GREEN command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts src\services\r2Storage.test.ts src\services\r2UploadClient.test.ts src\skills\listening\components\AudioPlayer.test.tsx --reporter=basic`: PASS, 4 files / 45 tests after the code-review correction.
+- `rtk powershell -NoProfile -Command "& 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' '.\node_modules\vitest\vitest.mjs' run 'test\listening-upload-session-bridge.test.ts'"` from `cloudflare/`: PASS, 1 file / 12 tests.
+- `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 1 file / 5 tests after restoring the final stream-branch mutation.
+
+Mutation proof and restoration evidence:
+
+- Temporary mutation: changed `isPublished: true` to `isPublished: false` in `src/services/listeningTestStorage.ts`.
+- Killed by: `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts --reporter=basic`: FAIL as expected, 2 failed / 4 total; both failures showed `isPublished` expected `true` but received `false`.
+- Restored: changed `isPublished` back to `true`.
+- Restoration proof: `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 4/4.
+- Additional code-review mutation: changed the distinct `streamUrl` temp-promotion guard from `streamUrl !== audioUrl` to `streamUrl === audioUrl`.
+- Killed by: `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts --reporter=basic`: FAIL as expected, 1 failed / 5 total; the distinct stream URL test saw only one `moveToPermanent(...)` call instead of the required second stream move.
+- Restored: changed the guard back to `streamUrl !== audioUrl`.
+- Restoration proof: `rtk node .\node_modules\vitest\vitest.mjs run src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 5/5.
+
+Static/boundary/diff checks:
+
+- `rtk git diff --check`: PASS.
+- `rtk npm run check:utf8 -- src/services/listeningTestStorage.test.ts src/skills/listening/components/AudioPlayer.test.tsx tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/architecture/upload-storage-authority.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 8 text files.
+- `rtk rg -n "\[x\] 4\.3|\[x\] 4\.(4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: exit 1 with no matches, so Task 4.3+ remains unchecked.
+- `rtk git diff -- src/services/listeningTestStorage.ts`: no output after both mutation restorations.
+- `rtk rg -n "[ \t]+$" src/services/listeningTestStorage.test.ts src/skills/listening/components/AudioPlayer.test.tsx`: exit 1 with no matches, so the new/updated test files have no trailing whitespace.
+
+Browser/deploy artifacts:
+
+- None. No browser run was required for this gate/baseline packet. No Firebase, Cloudflare, R2, secret, Worker traffic, recovery version, or deployed-state mutation occurred.
+- First Cloudflare bridge test attempt with ambient Node failed before tests with local `workerd` startup error `Unsupported platform: win32 arm64 LE`; the rerun used bundled Windows x64 Node and passed.
+
+Residual risks or deferred items:
+
+1. Task 4.3 scope-confirmation gate remains unstarted.
+2. Task 4.4+ registry, lifecycle, commit, cleanup, heartbeat, metrics, backup/restore, reconciliation, and delivery implementation remains unstarted.
+3. PRD-0058 future proof gates for RTDB rules/indexes/emulator, restore, DR ownership, deployment, browser/mobile/byte-range playback, private delivery, cleanup budgets, and independent review remain required.
+4. Current legacy `listeningTestStorage.ts` behavior still allows move failure to save temp URLs; Task 4.2 preserves this as baseline only. PRD-0058 later owns changing that behavior under its own tests and approval gate.
+
+Verifier and verification outcome:
+
+- Main-thread verification: PASS for Task 4.2 gate/baseline scope after focused tests, mutation proof, Worker bridge rerun, source-boundary review, docs sync, and code-review corrections.
+- Subagent read-only reviews: five scoped exploration subagents reviewed Task 4.2 boundary, storage/test baselines, PRD-0058 module homes/rules paths, docs closure surfaces, and missing baseline gaps. One final spec reviewer passed; one final code/test reviewer initially blocked on `AudioPlayer.test.tsx` media prototype leakage and a missing distinct stream URL baseline. Main thread corrected both issues, reran focused proof, and the same code/test reviewer re-checked PASS with no remaining blockers.
+
+## PRD-0055 Task 4.3 scope confirmation gate - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict: PASS for Task 4.3 only. PRD-0058 already contains the required minimum storage-scope capabilities and accepted PRD-0056A ownership split, so Tasks 4.4-4.19 do not need rewrite. Task 4.4+, PRD-0058 lifecycle source implementation, deployed-state mutation, staging, commit, and push remain separate gates.
+
+Subtask:
+
+- Task 4.3: verify the approved storage child PRD plan/text includes the minimum capability set before implementation starts and confirm PRD-0056A owns create-time upload-session/bootstrap identity while PRD-0058 owns lifecycle fields, registry, commit, references, cleanup, reconciliation, backup/restore, and delivery.
+
+Starting gate:
+
+- `git status --short --branch`: branch `codex/prd-0055-task-2a-s0-worker-truth`; existing dirty paths already included Task 4 docs, upload-worker files, tests, `database.rules.json`, and PRD-0056A bridge files. No clean-tree claim was made.
+- `git status --short --untracked-files=all`: same branch inventory plus untracked PRD-0056A bridge modules/tests and the temporary authority-sync rule file already present in the worktree.
+- `git rev-parse HEAD`: `1c3329a2dd72580c874d67370843a4413cb28e51`.
+- `rg -n "\[.\] 4\.(0|1|2|3|4|5)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 4.1 and 4.2 were checked; Task 4.3-4.5 were unchecked when this gate opened.
+
+Claims proven:
+
+1. PRD-0056A remains create-time authority for backend-issued immutable `assetId`, owner-scoped upload-session bootstrap, and canonical `temp/listening/{ownerId}/{uploadSessionId}/{assetId}-{sanitizedFileName}` keys.
+2. PRD-0058 consumes those bridge-issued identities and owns later lifecycle fields on upload sessions, trusted registry entries, draft/test reference tracking, idempotent commit, immediate discard cleanup, scheduled/fallback cleanup, backup/restore governance, orphan/reconciliation metrics, and delivery.
+3. `src/services/r2Storage.ts` and `src/services/listeningTestStorage.ts` remain compatibility facades; no Task 4.3 runtime expansion is required.
+4. No material mismatch exists between the required Task 4.3 minimum capability set and current PRD-0058 text, so Tasks 4.4-4.19 do not need rewrite.
+5. Task 4.3 can close as a docs/scope-only gate. No runtime source, Worker, or RTDB rules edit is required for this packet.
+
+Files and declared touch regions:
+
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 4.3 checklist, checkbox, and closure note only.
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`: current-status wording only.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: `EV-0058`, bridge evidence rows, and current-status wording only.
+- `documentation/architecture/upload-storage-authority.md`: current Task 4.3 status sentence only.
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: new Task 4.3 packet note only.
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: append-only findings packet.
+
+Capability map:
+
+- PRD-0058 section 9 defines the trusted `media_assets/{assetId}` registry and required asset metadata.
+- Sections 10 through 16 define object state, upload-session lifecycle-only continuation, heartbeat/eligibility, idempotent commit, replacement, and retained reference rules.
+- Sections 17 through 19 preserve public-reader compatibility and define delivery ownership/read authorization without reassigning PRD-0056A bootstrap identity.
+- Sections 21 through 24 define immediate cleanup, scheduled fallback cleanup, reconciliation, backup/restore governance, and orphan/commit metric ownership.
+- Sections 26, 28, 38, and 39 preserve compatibility facades, split `media_asset_upload_sessions/{ownerId}/{uploadSessionId}` ownership between PRD-0056A create-time bootstrap and PRD-0058 later lifecycle fields, and keep `DAG-21 -> DAG-40` as the only approved bridge-to-foundation path.
+
+Verification:
+
+1. Main-thread read audit: PASS. Required files and authority docs reconcile to the same PRD-0056A/PRD-0058 split.
+2. PRD mapper subagent: PASS. Reported no material mismatch forcing rewrite of Tasks 4.4-4.19.
+3. Traceability/tasklist auditor subagent: PASS with required closure-doc updates only; no contradiction forced BLOCKED.
+4. Source boundary auditor subagent: PASS. Confirmed Task 4.3 can stay docs/scope-only and no runtime/rules edit is required.
+5. `rtk git diff --check`: PASS. RTK printed only the known `No hook installed` notice and no diff-check findings.
+6. `rtk npm run check:utf8 -- tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/architecture/upload-storage-authority.md documentation/ielts-reading-v2-listening-unification-implementation-log.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS, UTF-8 check passed for 6 text files.
+7. `rtk rg -n "\[x\] 4\.(4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: exit 1 with no matches, so Task 4.4+ remains unchecked.
+8. `rtk rg -n "\[x\] 4\.3|\[x\] 4\.(4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: one match at Task 4.3 only.
+9. `rtk git diff -- src/services/r2Storage.ts src/services/listeningTestStorage.ts database.rules.json cloudflare/src cloudflare/worker.js`: returned existing dirty diffs in `src/services/r2Storage.ts`, `database.rules.json`, `cloudflare/worker.js`, and `cloudflare/src/upload-worker/cors-policy.js`; those files were already dirty at gate open and are outside this Task 4.3 docs-only touch set.
+
+Residual risks or deferred items:
+
+1. Task 4.4+ implementation remains unstarted and separately gated.
+2. PRD-0058 still carries historical pre-bridge text in superseded sections; section 38 remains the binding split-ownership authority.
+3. Current legacy `listeningTestStorage.ts` temp-promotion fallback remains baseline-only behavior until a later PRD-0058 implementation packet replaces it under dedicated proof.
+
+## PRD-0055 Task 4.4 minimal asset states and Task 4.5 first registry durability - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict:
+
+- Task 4.4: PASS.
+- Task 4.5: PASS.
+
+Scope:
+
+- Task 4.4 only: add the minimum safe-retention asset states `temp`, `committing`, `committed`, and `pending-delete`.
+- Task 4.5 only: ship first registry durability for `media_assets/**` with checked-in rules/indexes, emulator-backed negative proof, backup coverage, restore behavior plus restore drill, scheduled backup cron proof, checksum metadata without deduplication, and fail-closed cleanup gating.
+
+Required approval captured:
+
+- Disaster-recovery owner sign-off obtained in-thread: `I am the named r2-backup-worker disaster-recovery owner, distinct from the storage implementer/reviewer, and I approve PRD-0055 Task 4.5 backup/restore/cron/restore-drill scope.`
+
+Claims proven:
+
+1. A new bounded storage module under `src/features/assessment/listening/storage/` defines only the approved Task 4.4 states and required checksum metadata. No commit runtime, heartbeat runtime, replacement flow, reference flow, or deduplication logic was added.
+2. `database.rules.json` now contains first secured `media_assets/{assetId}` registry rules and indexes. Browser writes remain denied, owner/admin reads are scoped, cross-owner reads fail, and trusted-service authority is separate from teacher/browser authority.
+3. `firebase.json` now provides checked-in RTDB emulator wiring so the registry rules suite is executable in-repo.
+4. `r2-backup-worker` backup coverage now includes `media_assets`, restore ordering explicitly restores `media_assets` before dependent content, the restore drill proves wipe-and-restore for registry data, and scheduled backup cron still succeeds after the coverage change.
+5. Cleanup remains fail-closed until restore/integrity flags are explicitly satisfied. No active cleanup runtime or deletion rollout was started.
+6. PRD-0056A bootstrap authority and the compatibility seams stayed intact: `r2Storage.ts` remains a facade, `listeningTestStorage.ts` remains the current persistence-shape owner, Worker bridge scope stayed create-time only, and the public R2 compatibility window remains unchanged.
+
+Files changed:
+
+- `firebase.json`
+- `database.rules.json`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.ts`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.test.ts`
+- `src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts`
+- `r2-backup-worker/src/backup/data-backup.test.ts`
+- `r2-backup-worker/src/backup/auto-backup.test.ts`
+- `r2-backup-worker/src/restore/restore-execute.ts`
+- `r2-backup-worker/src/restore/restore-execute.test.ts`
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `documentation/architecture/upload-storage-authority.md`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+
+Verification:
+
+1. `npm exec vitest run src/features/assessment/listening/storage/listeningAssetRegistry.test.ts src/services/r2Storage.test.ts src/services/listeningTestStorage.test.ts`: PASS, 24 tests.
+2. `npm --prefix r2-backup-worker test -- src/backup/data-backup.test.ts src/backup/auto-backup.test.ts src/restore/restore-execute.test.ts`: PASS, 3 files / 3 tests.
+3. `node .\\node_modules\\firebase-tools\\lib\\bin\\firebase.js emulators:exec --only database "npm exec vitest run src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts"` with temporary process-local JDK wiring: PASS, 2 files / 6 tests.
+4. `npm --prefix r2-backup-worker test`: PASS, 5 files / 32 tests, including protected regressions `src/reading-v2/submit.test.ts` and `src/homework/assignments.test.ts`.
+5. `rtk git diff --check`: PASS.
+6. `rtk npm run check:utf8 -- firebase.json database.rules.json src/features/assessment/listening/storage/listeningAssetRegistry.ts src/features/assessment/listening/storage/listeningAssetRegistry.test.ts src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts r2-backup-worker/src/backup/data-backup.test.ts r2-backup-worker/src/backup/auto-backup.test.ts r2-backup-worker/src/restore/restore-execute.ts r2-backup-worker/src/restore/restore-execute.test.ts tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS.
+7. `rtk rg -n "\[x\] 4\.(6|7|8|9|10|11|12|13|14|15|16|17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: exit 1 with no matches.
+
+Boundaries preserved:
+
+- `r2Storage.ts` remains facade-only.
+- `listeningTestStorage.ts` remains compatibility owner of the current save shape.
+- `cloudflare/src/upload-worker/listening-upload-session.ts` remains bridge-only.
+- Canonical temp-key shape did not change.
+- No private-delivery cutover started.
+- No inline registry logic was pushed into the compatibility facades.
+- `r2-backup-worker/src/index.ts` was not edited.
+
+Explicit non-claims:
+
+- Task 4.6+ remains unstarted.
+- No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
+- No staging, commit, or push occurred.
+
+## PRD-0055 Task 4.6 lifecycle continuation, Task 4.7 temp lifecycle config, and Task 4.8 idempotent commit - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict:
+
+- Task 4.6: PASS.
+- Task 4.7: PASS.
+- Task 4.8: PASS.
+
+Scope:
+
+- Task 4.6 only: consume the PRD-0056A authenticated upload-session bridge and add only PRD-0058 lifecycle/session continuation.
+- Task 4.7 only: add checked-in, prefix-scoped `temp/` R2 lifecycle configuration and a non-deploy verifier for 24-hour expiration.
+- Task 4.8 only: add bounded idempotent registry-backed commit and save/publish public-reader compatibility.
+
+Claims proven:
+
+1. Task 4.4 and Task 4.5 were checked before edits and their foundation proof was rerun green: registry/storage tests, backup/restore/cron tests, and RTDB emulator registry rules tests.
+2. Lifecycle continuation in `src/features/assessment/listening/storage/listeningAssetRegistry.ts` writes only PRD-0058 lifecycle fields. It preserves PRD-0056A `ownerId`, `createdBy`, `uploadSessionId`, `assetId`, and temp key shape, records heartbeat freshness, and marks expired/cleanup-queued only after the 8-hour eligibility ceiling.
+3. Worker bridge authorization remains 10-minute, owner/session/asset scoped, and media-contract scoped. The bridge contract now rejects WebM so allowed audio formats are MP3, M4A, AAC, WAV, and OGG.
+4. `cloudflare/r2-lifecycle.temp-24h.json` is checked in, enabled, scoped only to `temp/`, expires at `86400` seconds, and does not cover durable prefixes. `cloudflare/scripts/verify-r2-lifecycle-config.mjs` gives a non-deploy verification command.
+5. `src/features/assessment/listening/storage/listeningAssetCommit.ts` validates ownership, upload session, asset, temp object, extension, declared MIME, temp object MIME, magic bytes, size, checksum, decodability metadata, duration metadata, and active file count before copy.
+6. Commit creates immutable durable keys under `assessment-assets/listening/{ownerId}/{assetId}/...`, verifies the durable object, writes the owning reference, marks committed, and deletes temp only after durable/reference success.
+7. Idempotent retry of an already committed asset returns the committed asset without recopying bytes or deleting temp again.
+8. `src/services/listeningTestStorage.ts` remains a compatibility facade. It accepts an optional `ListeningAssetCommitter` when canonical bridge metadata is present and otherwise preserves the existing API/legacy move behavior.
+9. Saved/published payloads preserve canonical `assetId` plus derived public `audioUrl` and `streamUrl`, so unchanged public readers keep the same playback fields without Task 6, 7, or 8 runtime changes.
+
+Files changed for this packet:
+
+- `cloudflare/package.json`
+- `cloudflare/r2-lifecycle.temp-24h.json`
+- `cloudflare/scripts/verify-r2-lifecycle-config.mjs`
+- `cloudflare/src/upload-worker/listening-upload-session-contract.ts`
+- `cloudflare/test/listening-upload-session-bridge.test.ts`
+- `cloudflare/test/r2-lifecycle-config.test.ts`
+- `documentation/architecture/upload-storage-authority.md`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`
+- `src/features/assessment/listening/storage/listeningAssetCommit.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.ts`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.test.ts`
+- `src/services/listeningTestStorage.ts`
+- `src/services/listeningTestStorage.test.ts`
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+Verification:
+
+1. Starting gate `git status --short --branch`, `git status --short --untracked-files=all`, `git rev-parse HEAD`, and Task 4.4-4.9 taskbox scan ran before edits. HEAD was `1c3329a2dd72580c874d67370843a4413cb28e51`; Task 4.4 and Task 4.5 were checked; Task 4.6, Task 4.7, Task 4.8, and Task 4.9 were unchecked.
+2. Prerequisite proof passed before edits: `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`, 3 files / 24 tests.
+3. Prerequisite backup/restore/cron proof passed before edits: `rtk npm --prefix r2-backup-worker test -- --run src/backup/data-backup.test.ts src/backup/auto-backup.test.ts src/restore/restore-execute.test.ts --reporter=basic`, 3 files / 3 tests.
+4. Prerequisite RTDB emulator proof passed before edits with process-local JDK wiring: `rtk node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0056a-upload-session-rules.emulator.test.ts src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic"`, 2 files / 6 tests.
+5. RED proof ran before implementation: new lifecycle/commit tests failed for missing `continueListeningUploadSessionLifecycle`, missing `listeningAssetCommit`, and missing committer integration.
+6. `rtk node .\node_modules\vitest\vitest.mjs run src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts src\services\r2UploadClient.test.ts src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts --reporter=basic`: PASS, 5 files / 54 tests.
+7. Bundled Windows x64 Node from `cloudflare/`: `node .\node_modules\vitest\vitest.mjs run test\listening-upload-session-bridge.test.ts test\r2-lifecycle-config.test.ts`: PASS, 2 files / 15 tests.
+8. `rtk npm --prefix cloudflare run verify:r2-lifecycle`: PASS, output `R2 lifecycle config OK: expire-temp-prefix-after-one-day temp/ 86400s`.
+9. `rtk npm run build`: PASS.
+
+Boundaries preserved:
+
+- Task 4.9+ replacement/reference cleanup was not started.
+- No private delivery was implemented.
+- Solo, live, and result-review runtime files were not changed.
+- `r2Storage.ts` and `listeningTestStorage.ts` were not rewritten into registry owners.
+- PRD-0056A bootstrap identity fields and canonical temp key shape were not altered.
+- Firebase Functions were not reintroduced.
+- No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
+- No staging, commit, push, clean, or revert occurred.
+
+## PRD-0055 Task 8.14 localhost-only checkbox closure - 2026-07-01
+
+Verdict: TASK_8_14_LOCALHOST_ONLY_PASS. Task 8.14 is checked for the current localhost-only packet. This is not parent Task 8, parent Task 9, or PRD-0055 PASS.
+
+Evidence:
+
+- `output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-human-audible-confirmed.json` records user-confirmed Browser tone at `http://localhost:5173/teacher-test/T8P9J2`, progress advanced, no wrong audio, no interruption, and no visible drift.
+- `output/prd0055-task8-local-unblock/playwright-task8-after-browser-audio-fix-180s-report.json` passed 1 expected / 0 unexpected for the local Task 8 browser proof.
+- `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` covers teacher desktop, student desktop, student mobile 375px/320px, reload, late join, pause/resume, skip/seek/speed, buffering during pause, stale command rejection, equal-revision authority conflict rejection, headphone states, End/result indexing, and duplicate-submit rejection.
+- `output/prd0055-task9-local-readiness/prd0055-pauli-task817-local-independent-pass-summary.json` independently accepted the Task 8.14 localhost browser/human proof while recommending only Task 8.17 before this docs/status reconciliation.
+
+Current blocker:
+
+- Task 8.14 and Task 8.17 are the only checked target boxes.
+- Task 8.15, Task 8.16, Task 8.18, and Task 9.0 through Task 9.15 remain unchecked.
+- Task 9.11 and parent acceptance remain blocked because `rtk npm run check:utf8:all` fails on pre-existing tracked non-UTF-8 files outside the current PRD-0055 docs/status/output scope. Scoped UTF-8 over touched PRD-0055 docs/status/output artifacts passed.
+
+Non-actions:
+
+- No live-domain browser test, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, merge, or parent checkbox closure occurred.
+
+## PRD-0055 Task 8.15 through 8.18 localhost-only closure - 2026-07-01
+
+Verdict: TASK_8_15_TO_8_18_LOCALHOST_ONLY_PASS. Task 8.15, 8.16, 8.17, and 8.18 are checked for the current localhost-only packet. This is not PRD-0055 PASS and not live rollout execution.
+
+Evidence:
+
+- User decision: "pass, no rollout to live server anytime soon." This makes selected-user rollout, percentage rollout, full rollout, and production recovery future-deferred non-gates for this packet.
+- Task 8.15 closes as a no-live-rollout deferral/non-action. Historical selected-class, active-version pin, split/restore, and smoke artifacts remain retained evidence only.
+- Task 8.16 closes on local evidence capture: human/browser proof `T8P9J2`, Playwright JSON, local matrix supplement, local auth/security reports, Section 27 localhost audit, current status/canonical artifacts, and scoped UTF-8 acceptance.
+- Task 8.17 remains backed by Pauli independent PASS.
+- Task 8.18 closes local-only parent acceptance for the target packet: teacher authority, monitor controls, solo separation, live/solo regressions, warning/accessibility proof, load-harness methodology, large-file maps, and independent verification are recorded. Selected-live-traffic survival is future-deferred.
+
+Current blocker:
+
+- Task 9.0 through Task 9.15 remain unchecked and must be closed one-by-one under the localhost-only boundary.
+- Parent Task 8.0 remains outside the exact target packet unless separately authorized.
+
+Non-actions:
+
+- No live-domain browser test, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, merge, or parent checkbox closure occurred.
+
+## PRD-0055 localhost-only scope correction after mission drift - 2026-07-01
+
+Verdict: CURRENT SCOPE CORRECTION RECORDED, not PASS. The current Task 8.14-8.18 and Task 9.0-9.15 work is localhost-only. Live-domain testing is not a current unlock path because the implementation slice has not been deployed for current proof.
+
+Current boundary:
+
+- Teacher proof target: `http://localhost:5173`.
+- Student proof target: `http://localhost:5174`.
+- Forbidden current targets/actions: `https://kahut1.web.app` browser proof, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, and merge.
+- Future production gates belong to `DEF-PRD0062` / PRD-0062 Listening Deployed Truth And Production Rollout Closure, or a separately approved future deploy/rollout PRD.
+
+Correction:
+
+- Earlier live-domain/deployed artifacts remain retained historical evidence only.
+- They must not be treated as current proof targets, user prompts, or unlock steps for the localhost implementation slice.
+- Current unlock work is local proof/review only: localhost browser proof, local independent verification, Section 27 localhost-scope row execution, and source/test/doc truth reconciliation.
+
+Proof basis:
+
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md` now records the current governing localhost-only boundary.
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now records the same boundary at top-level status plus Task 8.0 and Task 9.0.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` now records `EV-FINAL-U` and reaffirms `DEF-PRD0062`.
+- `output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs` and `prd0055-canonical-closure-audit.cjs` now encode the localhost-only boundary.
+
+## PRD-0055 Section 27 localhost row audit - 2026-07-01
+
+Verdict: SECTION27_LOCALHOST_ROW_AUDIT_BLOCKED_NOT_PASS. Local row execution has no local blockers, but this is not closure because 8 approved future deferrals and final deployed/rollout gates remain.
+
+Evidence:
+
+- `output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit.cjs` parses `REG-01` through `REG-85` from traceability and writes `output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit-report.json`.
+- The generated report records 85 rows, with 77 current-local-evidence rows, 8 approved future deferrals, and 0 local blocking rows.
+- Current supplemental local evidence accepted by the audit includes `output/prd0055-task9-local-readiness/assessment-guardrails-shared-report.json`, `output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json` at 26 suites / 86 tests passed, `output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json` at 9 suites / 71 tests passed, `output/prd0055-task9-local-readiness/section27-monitor-ui-vitest-report.json` at 14 suites / 34 tests passed, `output/prd0055-task9-local-readiness/section27-storage-grace-vitest-report.json` at 4 suites / 32 tests passed, `output/prd0055-task9-local-readiness/section27-live-load-drift-vitest-report.json` at 8 suites / 16 tests passed, and REG-79 localhost private-delivery proof.
+- `REG-79` is current for localhost: endpoint fallback proof passed, Safari refresh fallback proof passed, and `output/prd0055-task9-local-readiness/reg79-local-private-webkit/reg79-local-private-webkit-proof.json` records private refresh issuance, `206` byte-range content fetch, `RIFF` bytes, and canonical seek authority at section 1 / position 4.
+
+Commands:
+
+- `rtk node output/prd0055-task9-local-readiness/prd0055-section27-localhost-audit.cjs`: exit 0.
+
+## PRD-0055 Mencius local independent blocker audit after REG-79 update - 2026-07-01
+
+Verdict: BLOCKED, not PASS. Mencius (`019f1d7d-b031-71c1-bf1b-dceecfd2d138`) performed a read-only local-only verifier pass after the REG-79 localhost proof update.
+
+Evidence:
+
+- Added `output/prd0055-task9-local-readiness/prd0055-mencius-local-independent-verifier-summary.json`.
+- The audit confirms target taskboxes 8.14-8.18 and 9.0-9.15 remain unchecked.
+- The audit confirms Section 27 local evidence is clean locally: 85 rows, 77 current-local rows, 8 approved future deferrals, 0 local blockers, and `REG-79` accepted.
+- Scoped stale-doc search found no current `76 rows`, `1 local blocking row`, or `REG-79 blocked` claims in the target closure artifacts.
+- Final independent PASS still cannot be claimed because current closure remains blocked by unchecked parent/final tasks, 8 approved future deferrals, and deferred live/deployed rollout gates.
+
+Non-actions:
+
+- No taskbox closure, live-domain browser proof, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, or merge occurred.
+- `rtk node output/prd0055-task9-live-readback/prd0055-rollout-current-status.cjs`: exit 0, current status still blocked.
+- `rtk node output/prd0055-task9-live-readback/prd0055-canonical-closure-audit.cjs`: exit 0, achieved false, 6 blockers, 0 taskboxes checked.
+- `rtk npm exec -- vitest run src/features/assessment/shared/components/AssessmentAuthoringHeader.test.tsx src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx src/components/reading-v2/studio/ReadingV2StudioShell.test.tsx src/components/reading-v2/studio/ReadingV2MetadataPanel.test.tsx src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx src/components/reading-v2/studio/ReadingV2PreviewOverlay.test.tsx src/components/reading-v2/studio/ReadingV2StudioModalAdapter.test.tsx src/pages/ReadingV2StudioPage.test.tsx src/pages/ReadingV2StudioSmokePage.test.tsx src/routes/teacherRoutes.test.tsx src/config/readingV2FeatureFlags.test.ts --reporter=json --outputFile=output/prd0055-task9-local-readiness/section27-baseline-current-vitest-report.json`: exit 0, 26 suites / 86 tests.
+- `rtk npm exec -- vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx src/services/r2Storage.test.ts src/services/r2UploadClient.test.ts src/skills/listening/components/AudioPlayer.test.tsx --reporter=json --outputFile=output/prd0055-task9-local-readiness/section27-listening-upload-preview-vitest-report.json`: exit 0, 9 suites / 71 tests.
+- `rtk npx vitest run src/components/test/AudioProgressPanel.test.tsx src/components/test/HeadphoneRequestPanel.test.tsx src/components/test/TeacherTestControlBar.test.tsx src/components/test/StudentProgressCard.test.tsx src/hooks/monitor/useMonitorControls.test.ts src/pages/TeacherTestMonitorPage.test.tsx src/hooks/audio/useAudioSync.test.tsx --reporter=json`: exit 0, 14 suites / 32 tests, saved as `section27-monitor-ui-vitest-report.json`.
+- `rtk git diff --check`: exit 0.
+
+Non-closure:
+
+- Task 9.12 remains unchecked.
+- No live-domain browser proof, production deploy, selected-user rollout, percentage rollout, full rollout, cleanup/delete, commit, push, merge, or taskbox closure occurred.
+
+## PRD-0055 selected-class deployed live private browser proof and progress-bar diagnostic - 2026-06-30
+
+Verdict: PARTIAL DEPLOYED SELECTED-CLASS PROOF, not PASS. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked. This does not close selected-user rollout acceptance, percentage rollout, full rollout, controlled recovery/version-pin rehearsal, final independent verification, parent Task 8, parent Task 9, PRD-0055 implemented status, commit, push, cleanup, or deletion.
+
+What changed:
+
+- `scripts/prd0055-task8-selected-class-live-proof.mjs` now stamps internal fixture `/tests/<testId>` and `/student_safe_tests/<testId>` with selected teacher ownership fields required by deployed RTDB read rules. Root cause of the first deployed browser failure was missing `ownerId`/`createdBy`: API/service proof could read the test, but deployed teacher monitor could not, so it showed `Failed to load test data`.
+- Fresh internal fixture proof passed at `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782839559853.json`: session `T843A5`, class `prd0055-selected-class-live-1782839559853-class`, teacher live issue 200, selected student issue 200, content byte-range 206, refresh gate `refresh_not_due` accepted, cross-owner denial 403, wrong-section denial 403.
+- Deployed browser proof passed at `output/prd0055-task9-live-readback/selected-class-deployed-browser-report-1782839559853-progress.json`. Artifact `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782839559853-browser/selected-class-browser-proof.json` records teacher desktop, student desktop, and student mobile private content URLs, readyState 4, no audio errors, `/listening-delivery/live` 200, `/listening-delivery/content` 206, one benign media `net::ERR_ABORTED` after successful range load, and zero blocking delivery failures. Screenshots live in the same artifact directory.
+- Progress-bar diagnostic found the deployed teacher monitor's hidden range input quantized the two-second clip to whole seconds because the seek slider had no explicit `step`. Source now sets `step="any"` on the teacher monitor seek range in `src/components/test/AudioProgressPanel.tsx`, and `src/components/test/AudioProgressPanel.test.tsx` asserts the attribute.
+
+Proof basis:
+
+- `rtk node --check scripts/prd0055-task8-selected-class-live-proof.mjs` passed.
+- `rtk node scripts/prd0055-task8-selected-class-live-proof.mjs` exited 0 and wrote `output/prd0055-task9-live-readback/prd0055-selected-class-live-1782839559853.json`.
+- `rtk powershell -NoProfile -Command '$env:PRD0055_SELECTED_CLASS_PROOF = ''output/prd0055-task9-live-readback/prd0055-selected-class-live-1782839559853.json''; npx playwright test prd0055-task8-selected-class-deployed.spec.ts --config=playwright.prd0055-task8-selected-deployed.config.js --reporter=json > ''output\prd0055-task9-live-readback\selected-class-deployed-browser-report-1782839559853-progress.json''; exit $LASTEXITCODE'` exited 0.
+- `rtk npx vitest run src/components/test/AudioProgressPanel.test.tsx --reporter=basic` passed 10/10.
+- `rtk git diff --check` passed.
+- No taskbox changed from unchecked to checked.
+- No cleanup/delete, commit, push, merge, selected-user rollout, percentage rollout, or full rollout occurred.
+
+## PRD-0055 final closure human-audible proof and recovery-candidate readback - 2026-06-30
+
+Verdict: CLOSURE_BLOCKED_REQUIRED_ROLLOUT_RECOVERY_AND_FINAL_GATES_MISSING. This is corrective evidence for the renewed final-closure attempt, not a PASS packet. Task 8.14 through Task 8.18 remain unchecked. Task 9.0 through Task 9.15 remain unchecked.
+
+What changed:
+
+- Human proof is now recorded for internal fixture `T8P9J2`: the user manually clicked play in the teacher Audio Control Panel at `http://localhost:5173/teacher-test/T8P9J2`, heard the Browser tone, saw progress advance, and observed no wrong audio, no interruption, and no visible drift.
+- `AudioProgressPanel` now uses measured media duration when metadata differs, fixing the teacher-monitor progress-control visual mismatch. Focused proof is `output/prd0055-task8-local-unblock/audio-progress-panel-duration-fix-report.json`.
+- A non-active Cloudflare Worker recovery candidate was uploaded with `--keep-vars`: `d219c36f-0e0f-489c-a10b-a843ed339bf2`, tag `prd0055-current-authoring-recovery-20260630`.
+- Readback artifacts show the recovery candidate has required current-authoring bindings and production traffic stayed on `34970bd6-feb7-4520-87f1-fa6341dc0ba0` at 100% after upload.
+- Audit scripts and reports now distinguish recovered version availability from the still-missing controlled recovery/version-pin rehearsal.
+
+Proof basis:
+
+- `output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-human-audible-confirmed.json`
+- `output/prd0055-task9-live-readback/wrangler-versions-upload-current-authoring-recovery.txt`
+- `output/prd0055-task9-live-readback/wrangler-version-d219c36f.json`
+- `output/prd0055-task9-live-readback/wrangler-deployments-status-after-recovery-upload.json`
+- No taskbox changed from unchecked to checked.
+- No production deploy, cleanup/delete, selected-user rollout, percentage rollout, commit, push, or merge occurred.
+
+## PRD-0055 live private-delivery implementation blocker - 2026-06-30 historical, superseded
+
+Verdict: HISTORICAL_BLOCKER_SUPERSEDED_BY_LIVE_PRIVATE_ACTIVATION, not PASS. This section records the earlier blocker state. Current source/deployed proof now includes live/private Worker routes, but final closure remains blocked by missing rollout, final browser matrix, recovery rehearsal, and independent verification.
+
+What changed:
+
+- Earlier static source review confirmed `cloudflare/worker.js` exposed `/listening-delivery/result-review` only. That statement is superseded by later live/private Worker activation.
+- Current Worker source and deployed readback now include `/listening-delivery/live`, `/listening-delivery/solo`, and `/listening-delivery/content`.
+- Active deployed Worker version `993acdc9-dd93-4ee8-8764-15847146ac3a` at deployment `7af10e9a-bfb6-4c83-8b98-bc35d027bbe2` has delivery secret coverage, and Hosting bundle readback contains `/listening-delivery/live`.
+- Internal deployed fixture `T8D116` proves live issue 200, content byte-range 206, and wrong-section 403. Fresh auth proof passed: `task9-worker-auth-negative-after-result-review-report.json` 15/15 and RTDB emulator proof 19/19. Deployed RTDB rules proof released the local `game_sessions` hardening to `temp-a1437-default-rtdb`, read back deployed rules matching local with no blanket root auth, and proved unauthenticated deployed REST read denial for `game_sessions/T8D116` with status 401.
+- Traceability retains `EV-FINAL-L` as historical and adds `EV-FINAL-M` as current live/private activation proof.
+
+Proof basis:
+
+- Read-only verifier `019f189c-7fcb-7b40-a5d3-41b0f67fbf8f` returned PASS for the earlier blocker state only; it is not current closure evidence after EV-FINAL-M.
+- `cloudflare/worker.js`
+- `cloudflare/src/upload-worker/listening-delivery.ts`
+- `src/skills/listening/components/AudioPlayer.tsx`
+- `src/skills/listening/components/ListeningTestPage.tsx`
+- `src/pages/TeacherTestMonitorPage.tsx`
+- `documentation/architecture/upload-storage-authority.md`
+- No taskbox changed from unchecked to checked.
+- No production deploy, cleanup/delete, selected-user rollout, percentage rollout, commit, push, or merge occurred.
+
+## PRD-0055 final closure execution after renewed approval - 2026-06-30
+
+Verdict: FINAL_CLOSURE_EXECUTION_BLOCKED_AFTER_READBACK, not PASS. Product owner reauthorized PRD-0055 final closure execution for Task 8.14-8.18 and Task 9.0-9.15 after the earlier local-only scope change. Current target taskboxes remain unchecked.
+
+What changed:
+
+- Added browser-reachable local fixture audio under `public/__prd0055-task8-local/section-1.wav` and `public/__prd0055-task8-local/section-2.wav`, fixing the in-app Browser no-sound root cause where earlier proof depended on Playwright route fulfillment instead of a real served asset.
+- Seeded approved dev RTDB internal fixture session `T8P9J2` for teacher URL `http://localhost:5173/teacher-test/T8P9J2`; this was an internal fixture write only and no cleanup/delete was performed.
+- Updated `AudioProgressPanel` to prefer measured media duration for section progress when metadata differs from loaded audio duration, fixing the teacher-monitor progress-control visual mismatch. Focused proof: `output/prd0055-task8-local-unblock/audio-progress-panel-duration-fix-report.json`.
+- Recorded Browser plugin pending-human-audible state in `output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-pending-human-audible-proof.json` and `.png`: WAV loaded, duration `20`, seek max `20`, label `0:07 / 0:20`, source `http://localhost:5174/__prd0055-task8-local/section-1.wav`. Human heard-tone confirmation is now recorded in `output/prd0055-task8-local-unblock/browser-plugin-current-teacher-t8p9j2-human-audible-confirmed.json`: the user manually clicked play, heard the Browser tone, saw progress advance, and observed no wrong audio, no interruption, and no visible drift.
+- Reran local Task 8 matrix after the fixture fix: `output/prd0055-task8-local-unblock/playwright-task8-after-browser-audio-fix-180s-report.json`.
+- Recorded deployed/current readback under `output/prd0055-task9-live-readback/`: Cloudflare deployment `070b0ae2-b5f0-46f8-a40b-3857c4489a66`, percentage strategy, active version `34970bd6-feb7-4520-87f1-fa6341dc0ba0` at 100%, Firebase authoring writes flag `false`, prior version `3687d2e0-4718-4c0b-9c84-7f81749c31fb` missing `LISTENING_AUTHORING_IDEMPOTENCY_SECRET`, and recovery version `959065cd-8399-4000-b479-d8303a2f18ad` missing current authoring/delivery secret coverage.
+- Updated tasklist, traceability `EV-FINAL-I`, architecture current state, implementation log, PRD-0060 current closure note, and local audit scripts to stop treating the earlier local-only deferral as current closure truth.
+- Current mutable local matrix supplement supersedes older historical session references: `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` now records session `T8MDGR`, test `prd0055_task8_local_1782820738985`, 9 covered proof slices, and final canonical revision `7`.
+- Current requirements matrix counts supersede older summary text: 21 rows total, with 9 `PARTIAL_LOCAL_PROVEN`, 1 `MISSING_BLOCKED`, 1 `PARTIAL_DEPLOYED_READBACK_BLOCKED`, 1 `PARTIAL_LOCAL_ONLY_BLOCKED`, 1 `PARTIAL_RECOVERY_VERSION_PROVEN_BLOCKED`, 1 `PARTIAL_LOCAL_HUMAN_AUDIBLE_PROVEN`, 1 `PARTIAL_LOCAL_HUMAN_BROWSER_PROVEN`, 1 `BLOCKED_NOT_CLOSURE`, 1 `PARTIAL_OR_MISSING`, 1 `PARTIAL_LOCAL_RECONCILED`, 1 `BLOCKER_DOCUMENTED`, 1 `OPEN_AND_TRACKED`, 1 `PROVEN_FOR_THIS_AUDIT_SLICE`, and zero `CONTRADICTED`.
+
+Blocking gates:
+
+- Selected-teacher/class rollout, percentage rollout, and full rollout proof were not executed.
+- Rollback-compatible current-authoring recovery candidate exists as non-active Worker version `d219c36f-0e0f-489c-a10b-a843ed339bf2`, but controlled recovery/version-pin rehearsal proof was not executed.
+- Live/private Worker route and deployed internal API proof now exist, but final selected/percentage/full rollout proof was not executed.
+- Final deployed/private browser role proof, controlled recovery/version-pin rehearsal proof, final independent verification PASS, final Section 27 execution, parent Task 8 acceptance, parent Task 9 acceptance, and PRD-0055 implemented status remain open.
+
+Proof basis:
+
+- No taskbox changed from unchecked to checked.
+- No production deploy, cleanup/delete, selected-user rollout, percentage rollout, commit, push, or merge occurred.
+
+## PRD-0055 live/private delivery activation and auth-negative proof - 2026-06-30
+
+Verdict: PARTIAL_DEPLOYED_API_PROOF_NOT_CLOSURE. Live/private delivery implementation and deployed internal API proof are no longer the blocker, but the remaining final gates still block PASS.
+
+Evidence added:
+
+- Active Worker deployment readback: `7af10e9a-bfb6-4c83-8b98-bc35d027bbe2`, version `993acdc9-dd93-4ee8-8764-15847146ac3a` at 100%, deployment message `PRD-0055 activate delivery RTDB fetch binding fix`.
+- Secret readback includes `LISTENING_DELIVERY_SECRET`; Hosting asset readback contains `r2-upload-signer.iamhuwng.workers.dev` and `/listening-delivery/live`.
+- Internal fixture `T8D116` / asset `prd0055-live-private-asset-1782834043116` has R2 WAV readback size 32044, live issue 200, content 206 with RIFF/WAVE bytes, and wrong-section 403.
+- Worker auth proof: `output/prd0055-task9-local-readiness/task9-worker-auth-negative-after-result-review-report.json` passed 15/15, including unauthenticated `/listening-delivery/result-review` denial before issuer access.
+- RTDB auth proof: `output/prd0055-task9-local-readiness/task9-rtdb-rules-existing-emulator-after-game-session-rules-report.json` passed 19/19, covering private/restricted `game_sessions/{sessionCode}` owner/player/class-member/admin access and cross-owner/unauth denial.
+- Deployed RTDB rules proof: `output/prd0055-task9-live-readback/firebase-rtdb-rules-deploy-after-game-session-auth.txt` released rules successfully, `output/prd0055-task9-live-readback/firebase-rtdb-rules-readback-after-game-session-auth-summary.json` proves deployed rules match local and no blanket root auth remains, and `output/prd0055-task9-live-readback/firebase-rtdb-game-session-unauth-negative-after-rules-deploy.json` records deployed unauthenticated REST denial with status 401.
+
+Still blocked:
+
+- No selected-teacher/class rollout, percentage rollout, or full rollout proof.
+- No controlled recovery/version-pin rehearsal.
+- No final deployed/private teacher-and-student browser matrix with network writes, durable DB state, screenshots/traces, and JSON reports.
+- No final independent verification PASS, full Section 27 execution, parent Task 8/9 acceptance, or PRD-0055 implemented status.
+
+## PRD-0055 Task 7 Batch C Findings - 2026-06-30
+
+Verdict: PASS for local Task 7.9 and Task 7.10 Batch C closure after focused implementation proof, browser a11y/mobile proof, protected scans, docs/taskbox reconciliation, and mandatory independent read-only review. Parent Task 7.0 remains unchecked. Task 7.11+, Task 8, live authority, private delivery, deploy, staging, commit, push, cleanup execution, and remote mutation remain outside this packet.
+
+Implementation findings:
+
+1. Task 7.9 source exists. `ListeningPracticeView` derives a stable solo attempt identity, passes it into autosave/submission, and gates auto-submit through one sequence that waits for an accepted autosave, forces a final flush, then calls submit once. `useSoloAutoSave` exposes `waitForAcceptedSave()` and `flushNow()` and records attempt/operation identity in progress. `useSoloSubmission` uses a synchronous ref lock and stable `saveTestResult` operation options. `testResults.service` preflights stable result IDs and returns existing same-operation rows without duplicate writes.
+2. Task 7.10 source exists. `MobileListeningSubmitSheet` exposes the unanswered warning as `role="alert"` with `aria-describedby`, announces submitting via visible copy and `aria-busy`, and keeps action controls at 48 px. `MobileListeningHeader` exposes the low-time timer as `role="status"` with `aria-live="polite"` and an accessible low-time warning label; header controls remain named and 44 px. Batch C browser proof exercises these controls at desktop 1440 px, phone 375 px, and phone 320 px for semantics, touch targets, focusability, and no horizontal overflow.
+3. Large-file evidence exists for `ListeningPracticeView.tsx`: `tasks/large-file-maps-0055/src-components-practice-listening-practice-view-tsx.md` records current-turn pre-edit 1700 lines, current 1761 lines, `HEAD` 1525 lines, touched regions, and responsibility delta.
+
+Focused evidence:
+
+- RED proof: `rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.test.ts --reporter=dot` first failed because `./listeningSoloAttemptIdentity` did not exist.
+- RED proof: `rtk npx vitest run src/hooks/solo/useSoloAutoSave.test.ts --reporter=dot` first failed because `flushNow` and `waitForAcceptedSave` were not returned by the hook.
+- `rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.test.ts --reporter=dot`: PASS, 1 file / 3 tests.
+- `rtk npx vitest run src/hooks/solo/useSoloAutoSave.test.ts --reporter=dot`: PASS, 1 file / 12 tests.
+- `rtk npx vitest run src/components/test/mobile/MobileListeningSubmitSheet.test.tsx src/components/test/mobile/MobileListeningHeader.test.tsx --reporter=dot`: PASS, 2 files / 27 tests.
+- `rtk npx vitest run src/hooks/solo/useSoloSubmission.test.ts --reporter=dot`: PASS, 1 file / 9 tests.
+- `rtk npx vitest run src/services/testResults.service.test.ts --reporter=dot`: PASS, 1 file / 60 tests.
+- `rtk npx vitest run src/components/practice/ListeningPracticeView.test.tsx --reporter=dot`: PASS, 1 file / 31 tests.
+- `rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity.test.ts src/hooks/solo/useSoloAutoSave.test.ts src/hooks/solo/useSoloSubmission.test.ts src/services/testResults.service.test.ts src/components/practice/ListeningPracticeView.test.tsx src/components/test/mobile/MobileListeningSubmitSheet.test.tsx src/components/test/mobile/MobileListeningHeader.test.tsx --reporter=dot`: PASS, 7 files / 142 tests.
+- `rtk cmd /c "npx playwright test e2e/prd0055-task7-batch-c-a11y.spec.ts --config=playwright.prd0055-task7-batch-c.config.js --reporter=json > output\playwright\prd0055-task7-batch-c-a11y\report.json"`: PASS, 6 expected, 0 unexpected, 0 skipped, 0 flaky. Artifacts: `output/playwright/prd0055-task7-batch-c-a11y/report.json`, `desktop-1440.png`, `phone-375.png`, and `phone-320.png`.
+- `rtk git diff --check`: PASS.
+- `rtk npx tsc --noEmit`: fails due repo-wide baseline, 638 errors in 147 files after the local autosave TS fix. Touched-file log grep showed only pre-existing `src/services/testResults.service.ts` visibility/type errors, not new Batch C autosave/submission/mobile component errors.
+
+Independent review:
+
+- GPT-5.5 medium verifier `019f1500-7ae7-7ec1-a5e6-79388678cba0`: PASS after re-review. It confirmed `A11Y-09`, `RESP-04`, and `DECISION-018` no longer have stale planning-only evidence, Batch C boundaries remain unclaimed, and the browser report parses as 6 expected / 0 unexpected / 0 skipped / 0 flaky.
+- GPT-5.4-mini high stale/drift explorer `019f1500-8f05-7fa2-9b21-b8f80af8b92a`: PASS after recheck. It confirmed taskbox/traceability/findings/log alignment, `7.0` unchecked, `7.11+` and Task 8 unclaimed, no native-keyboard overclaim, and the browser report retained at 9469 bytes.
+
+Scope findings:
+
+- No `AudioPlayer.tsx` source/internal change is part of this candidate packet.
+- Scoped source scan found no `audioCommand` or `masterAudioState` in Batch C touched source files.
+- Scoped source scan found no executable `alert(` or `window.confirm` in Batch C submit/mobile host files after removing a stale comment.
+- No parent Task 7.0 closure, Task 7.11+, Task 8, live authority, private delivery, Reading V2 runtime, Google Drive behavior, deploy, staging, commit, push, cleanup execution, object deletion, or remote mutation is claimed.
+
+## PRD-0055 Task 7 Batch A: 7.1 through 7.5 solo/homework foundation - 2026-06-30
+
+Verdict: PASS for local Task 7.1 through Task 7.5 foundation after scaffold reconciliation, start-gate review, baseline characterization tests, state-owner mapping, and neutral-wrapper selection. Parent Task 7.0 remains unchecked. Task 7.6+ and Task 8 stay outside this packet.
+
+Findings:
+
+- Product-owner sign-off source: current Codex goal objective file `C:\Users\The Lord\.codex\attachments\0280dcf0-40aa-4b25-bb2b-202fe905bad4\goal-objective.md`. It authorizes only Task 7.1 through 7.5 and explicitly excludes Task 7.0 closure, Task 7.6+, Task 7.9, Task 7.11, Task 8, live-session authority, `AudioPlayer.tsx` source/internal scope, `audioCommand`, `masterAudioState`, Reading V2 runtime internals, Google Drive behavior, remote mutation, deploy, staging, commit, push, cleanup, and deletion.
+- Architecture reviewer sign-off: current Codex architecture review reconciled the Task 7.1-7.5 scaffold against PRD-0059 sections 4, 6, 9-12, 15-17, 20, 21, and 25. No mismatch requiring a stop was found. PRD-0059 remains child authority for future solo/homework runtime implementation.
+- Start gate: Task 5.0 authoring stability and Task 6.0 delivery-boundary parent acceptance are checked locally before Batch A. Batch A changed tests and documentation only; it did not start live-session or teacher-authority work.
+
+State owner map:
+
+- Answer state and current question: `ListeningPracticeView` owns `answers` / `currentQuestionNumber` at `src/components/practice/ListeningPracticeView.tsx:310` through `:312`, with answer mutation in `handleAnswerChange` at `:657`.
+- Viewed section/part: `ListeningPracticeView` owns `viewedPartNumber` at `src/components/practice/ListeningPracticeView.tsx:328`, with part/image/audio transitions at `:344`, `:371`, and `:420`.
+- Current audio index: `ListeningPracticeView` owns `currentAudioIndex` at `src/components/practice/ListeningPracticeView.tsx:332`, advances in `handleSectionComplete` at `:420`, and passes public props to `AudioPlayer` at `:1227` and `ListeningHeader` at `:1567`.
+- Position, speed, volume, completed audio: `ListeningPracticeView` owns `audioPositionSeconds`, `playbackSpeed`, `volume`, and `audioIndicesCompleted` at `src/components/practice/ListeningPracticeView.tsx:335` through `:338`, updates them in playback handlers at `:399`, `:450`, `:457`, and `:462`, serializes them through `mobileListeningState` at `:1021`, and hydrates compatible saved playback state at `:1053`.
+- Timer: `useSoloTimer` owns countdown, five-minute warning, pause, grace period, and `onTimeUp` handoff at `src/hooks/solo/useSoloTimer.ts:33`. `ListeningPracticeView` wires it at `src/components/practice/ListeningPracticeView.tsx:499`.
+- Autosave: `useSoloAutoSave` owns scoped progress persistence of answers, current question, elapsed time, and mobile state at `src/hooks/solo/useSoloAutoSave.ts:22`. `ListeningPracticeView` passes the current solo/homework payload at `src/components/practice/ListeningPracticeView.tsx:642`.
+- Resume: `useSoloResume` owns scoped progress lookup/discard; `ListeningPracticeView` wires saved progress at `src/components/practice/ListeningPracticeView.tsx:278` and hydrates only compatible Listening mobile state at `:1045`.
+- Submission and review: `useSoloSubmission` owns grading, homework update, result save, progress cleanup, and result navigation at `src/hooks/solo/useSoloSubmission.ts:101`. Existing `SharedSavedResultCore` coverage remains the current saved-result review baseline.
+- Mobile state: `src/components/test/mobile/mobileListeningState.ts` owns Listening mobile serialize/hydrate/compatibility/clamp behavior. Batch A adds playback serialization coverage and host autosave ownership coverage.
+
+Baseline tests:
+
+- Added `src/hooks/solo/useSoloTimer.test.ts` for resume-elapsed countdown, grace-period handoff, submitted-test freeze, and five-minute warning.
+- Extended `src/hooks/solo/useSoloAutoSave.test.ts` for homework-scoped Listening playback payload persistence through the storage abstraction.
+- Extended `src/components/test/mobile/mobileListeningState.test.ts` for explicit playback serialization.
+- Extended `src/components/practice/ListeningPracticeView.test.tsx` for host-owned answer/playback autosave payload and hydrated playback seek props.
+- Reran existing public-contract/review baselines: `src/skills/listening/components/AudioPlayer.test.tsx`, `src/hooks/solo/useSoloResume.test.ts`, `src/hooks/solo/useSoloSubmission.test.ts`, and `src/components/results/SharedSavedResultCore.test.tsx`.
+- Focused proof command: `rtk npx vitest run src/components/practice/ListeningPracticeView.test.tsx src/hooks/solo/useSoloTimer.test.ts src/hooks/solo/useSoloAutoSave.test.ts src/hooks/solo/useSoloResume.test.ts src/hooks/solo/useSoloSubmission.test.ts src/components/test/mobile/mobileListeningState.test.ts src/skills/listening/components/AudioPlayer.test.tsx src/components/results/SharedSavedResultCore.test.tsx --reporter=basic` passed 8 files / 98 tests.
+
+Neutral wrapper selection:
+
+- Selected for future Task 7 visual work only where presentation-only semantics fit: `AssessmentAuthoringHeader`, `AssessmentAuthoringSection`, and `AssessmentStatusState`. These are already proven in authoring. `AssessmentValidationSummary` remains deferred because Listening adoption is not proven.
+- `MobileListeningExamScaffold` remains evidence of host-owned Listening presentation composition, not shared runtime authority. No playback, persistence, submit, timer, autosave, resume, or review logic moved into shared components.
+
+Protected boundaries:
+
+- No diff in `src/skills/listening/components/AudioPlayer.tsx`.
+- Absent from diff: live-session authority, teacher authority, command-state fields `audioCommand` and `masterAudioState`, Reading V2 runtime internals, Google Drive behavior, production data, R2/Firebase/Cloudflare remote mutation, cleanup execution, object deletion, deploy, staging, commit, and push.
+- Deferred to later approved tasks: Task 7.6+ visual alignment, Task 7.9 submit idempotency/race protection, Task 7.11 private delivery integration, and Task 8 live authority/runtime.
+
+## PRD-0055 Task 7 Batch B findings - 2026-06-30
+
+Verdict: PASS for local Task 7.6 through Task 7.8 foundational presentation packet. Parent Task 7.0 remains unchecked. Task 7.9+, Task 8, live authority, private delivery, and `AudioPlayer.tsx` internals remain deferred.
+
+Findings:
+
+1. Task 7.6 completed with one focused presentation adopter patch. `ListeningPracticeView` uses `AssessmentStatusState` for loading/error/empty status presentation, adds inert shell/review markers, and wraps the mobile direct-question surface in a bounded question-card shell. `MobileListeningAnswerSheet` adds CSS-only safe-area reserve to the image-mode answer sheet body/footer.
+2. Task 7.7 preserved mobile state semantics. `src/components/test/mobile/mobileListeningState.ts` source was not edited, and hydration/autosave/mobile-state baselines were rerun. No `audioCommand` or `masterAudioState` write path was introduced.
+3. Task 7.8 completed local and browser proof. `ListeningPracticeView.test.tsx` now flips `useMobileExamMode` mobile -> desktop -> mobile and proves answers, timer payload, viewed part, and audio index survive the branch switch. RTL tests cover direct-question and image-mode answer-region safe-area reserve. Playwright proof exercises the real `MobileListeningAnswerSheet` component at 375 px and 320 px on `http://localhost:5174` under `chromium-mobile` with Pixel 5 emulation and a simulated 240 px keyboard overlay.
+
+Evidence:
+
+- Focused proof: `rtk npx vitest run src/components/practice/ListeningPracticeView.test.tsx src/components/test/mobile/MobileListeningAnswerSheet.test.tsx --reporter=basic` passed 2 files / 49 tests.
+- Baseline rerun: `rtk npx vitest run src/components/test/mobile/mobileListeningState.test.ts src/hooks/solo/useSoloAutoSave.test.ts src/skills/listening/components/AudioPlayer.test.tsx src/components/results/SharedSavedResultCore.test.tsx src/features/assessment/shared/components/AssessmentStatusState.test.tsx src/hooks/solo/useSoloTimer.test.ts src/hooks/solo/useSoloResume.test.ts src/hooks/solo/useSoloSubmission.test.ts --reporter=basic` passed 8 files / 77 tests.
+- Browser proof: `rtk powershell -NoProfile -Command '& { New-Item -ItemType Directory -Force -Path "output/playwright/prd0055-task7-mobile-keyboard" | Out-Null; $out = & npx playwright test e2e/prd0055-task7-mobile-keyboard.spec.ts --config=playwright.prd0055-task7.config.js --reporter=json 2>&1; $code = $LASTEXITCODE; $out | Set-Content -Encoding UTF8 -LiteralPath "output/playwright/prd0055-task7-mobile-keyboard/report.json"; $out; exit $code }'` passed with expected 2, unexpected 0, skipped 0, flaky 0. Artifacts: `output/playwright/prd0055-task7-mobile-keyboard/report.json`, `phone-375.png`, and `phone-320.png`.
+- Build/static gates: `rtk npm run build`, `rtk git diff --check`, final UTF-8 checks over the 11 touched text files, and `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files ...` passed.
+- Independent verifier: GPT-5.5 medium agent `019f14b3-28b2-7cc2-97e0-30eb14b29179` returned PASS with no findings after reading scope docs/diffs, checking protected paths, scanning forbidden terms, and inspecting Playwright proof. It noted the keyboard proof is a simulated overlay and viewport-switch proof is RTL branch/rerender proof.
+- Stale/drift explorer: GPT-5.4-mini high agent `019f14b3-7ff0-7760-b488-5321e74e0fea` returned PASS with no findings after checking checkbox state, stale claims, forbidden drift, native-keyboard overclaims, and touched inventory.
+
+Boundary checks:
+
+- `src/skills/listening/components/AudioPlayer.tsx` has no diff.
+- `src/components/test/mobile/mobileListeningState.ts` has no diff.
+- Scoped grep over touched source/test files found no `audioCommand`, `masterAudioState`, `useAudioSync`, `useMasterAudioState`, direct storage writes, `window.innerWidth`, `window.matchMedia`, direct router coupling, or new `@mantine/*` imports.
+- No deploy, staging, commit, push, cleanup execution, object deletion, Firebase/R2/Cloudflare remote mutation, live authority work, private-delivery cutover, Task 7.9+ work, parent Task 7.0 closure, or Task 8 work occurred.
+
+## PRD-0055 Spark-tier PRD-0057 authoring backend correction packet - 2026-06-29
+
+Verdict: correction packet applied to docs only. Task 6.3 remained unchecked and unimplemented at that point; later 2026-06-29 read-only planner evidence supersedes that pre-implementation state.
+
+Findings:
+
+1. PRD-0057 previously named `functions/src/listening-authoring/**` and Firebase Functions secret ownership as the production trusted authoring backend. That conflicts with the user-confirmed Spark-tier constraint for project `temp-a1437`.
+2. PRD-0057 also said no Cloudflare Worker changes were required. That remains true only for the already accepted local UI/service proof, not for production selected-teacher authoring writes.
+3. Traceability rows for authoring immutability/integration pointed at `functions/src/listening-authoring` without distinguishing reusable local core from production authority.
+
+Corrections:
+
+1. PRD-0057 now routes production Save draft / Publish / lifecycle mutations to Cloudflare Worker endpoints backed by Firebase RTDB REST and Worker-held secrets.
+2. `functions/src/listening-authoring/**`, if retained, is reusable local/shared authoring core and test evidence only; it is not a production Cloud Functions export target and does not consume Firebase Secret Manager under the current Spark-tier constraint.
+3. Added Spark-vs-Blaze routing matrix covering Firebase Auth, RTDB browser access, trusted mutations, backend secrets, R2 object storage, and scheduled/reconciliation work.
+4. Parent tasklist and traceability now require the Spark-safe Worker backend before selected-teacher authoring writes or Task 6.3 reconciliation dependency proof.
+5. Upload-storage authority now records the shared Spark-tier backend routing rule.
+
+Evidence:
+
+- Stale scan covered `Firebase Functions`, `Cloud Functions`, `Secret Manager`, `functions/src/listening-authoring`, `No Cloudflare Worker changes`, `Spark`, `Blaze`, and authoring handler names across scoped PRD/task/traceability/architecture/log/findings files.
+- At that Spark-tier correction time, the independent read-only explorer confirmed Task 6.0 and Task 6.3 remained unchecked and no 6.4+ start/completion claim existed in the main PRD/task docs.
+- Independent read-only explorer found the same stale Spark/Firebase Functions authority risk and identified historical PRD-0056A notes separately from active PRD-0057 authoring authority.
+
+Boundaries:
+
+- No source, tests, rules, Firebase Functions, Cloudflare Worker code, R2, Firebase config, deployment, selected-teacher rollout, cleanup execution, staging, commit, push, or remote state changed.
+
+## PRD-0057 Spark-tier Worker implementation correction - 2026-06-29
+
+Verdict: IMPLEMENTED_UNREVIEWED at source level before independent review; Task 6.3 remains blocked on selected-teacher rollout evidence.
+
+Findings and corrections:
+
+1. Previous source still routed PRD-0057 production authoring through Firebase Functions exports in `functions/src/index.ts` and the browser facade still derived/called Cloud Functions endpoints. That contradicted the Spark-tier correction packet.
+2. Added Cloudflare Worker endpoints under `cloudflare/src/upload-worker/listening-authoring/**` and route wiring in `cloudflare/worker.js`:
+   - `POST /listening-authoring/save-draft`
+   - `POST /listening-authoring/publish`
+   - `POST /listening-authoring/lifecycle`
+3. Added Firebase RTDB REST repository with ETag/`if-match` transaction retries and Worker-held Google service account OAuth for trusted mutation writes.
+4. Updated browser facade to require explicit Worker endpoint configuration and fail closed when absent. It now sends Worker route paths and `Idempotency-Key` headers instead of Cloud Functions handler names.
+5. Removed PRD-0057 authoring production exports from `functions/src/index.ts`; shared core under `functions/src/listening-authoring/**` remains reusable local/shared code only.
+6. Split the Worker implementation so route/export files remain bounded: `cloudflare/src/upload-worker/listening-authoring.ts` is 2 lines, `worker.ts` is 251 lines, `repository.ts` is 362 lines, and `rtdb.ts` is 152 lines.
+7. Corrected legacy first-edit parity so Worker RTDB REST freezes `tests/{legacyTestId}` metadata in the same root ETag/`if-match` write as version/revision/operation creation.
+
+Proof:
+
+- RED: `rtk "C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" "C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\vitest\vitest.mjs" run test/listening-authoring-worker.test.ts` failed before implementation because `cloudflare/src/upload-worker/listening-authoring.ts` did not exist.
+- RED: `rtk npx vitest run src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts --reporter=basic` failed before facade correction because it still derived `cloudfunctions.net` and called `saveListeningDraft` / `mutateListeningAuthoringLifecycle`.
+- GREEN: Cloudflare Worker suite passed 10 files / 147 tests under bundled x64 Node.
+- GREEN: `rtk "C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" "C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\wrangler\bin\wrangler.js" deploy --dry-run` bundled successfully and reported `FIREBASE_PROJECT_ID`, `FIREBASE_DB_URL`, R2, DO, and rate-limit bindings.
+- GREEN: `rtk npm --prefix functions run build`.
+- GREEN: `rtk npx vitest run src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/skills/listening/builders/ListeningTestBuilder.test.tsx --reporter=basic` passed 22/22.
+- PARTIAL: `rtk npx vitest run src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts --reporter=basic` passed the harness but executed 1/5 with 4 skipped in this local run; this packet does not claim fresh full emulator proof.
+- GREEN: `rtk git diff --check`.
+
+Boundaries:
+
+- No deploy, remote Firebase/Cloudflare/R2 mutation, selected-teacher rollout, Task 6.3 implementation, cleanup, staging, commit, or push occurred.
+- Selected-teacher authoring writes through the Worker remain the next required gate before Task 6.3 dependency evidence.
+- In that PRD-0057 correction packet, no Task 6.0 closure, Task 6.3 implementation, Task 6.4+ work, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, cleanup/deletion, or selected-teacher rollout occurred.
+
+## PRD-0055 Task 6 Batch A: 6.1 through 6.2 deletion-governance local implementation - 2026-06-29
+
+Verdict: PASS for Task 6.1 and Task 6.2 local deletion-governance design/tests/implementation. Parent Task 6.0 and Task 6.3+ remain unchecked.
+
+Findings:
+
+- No blocking source/test/doc finding remains after the required independent review.
+- Product-owner authorization is the 2026-06-29 current-thread request to execute `PRD-0055 Task 6 Batch A only: subtasks 6.1 through 6.2`.
+- Architecture/security reconciliation found no mismatch between the approved PRD-0058 storage child PRD, accepted Task 4 local storage truth, accepted Task 5 local authoring truth, and this bounded local deletion-governance slice. PRD-0058 child PRD wins.
+- Selected-teacher rollout was not run because separate explicit authorization was not given; no selected-teacher, production, or real-traffic evidence is claimed. Task 6.3+ remains blocked/unstarted.
+
+Implementation:
+
+- Added `src/features/assessment/listening/storage/listeningAssetDeletionGovernance.ts` as a pure local planner for final deletion governance. It produces an audited administrative deletion intent, metadata-only tombstone, and idempotency record; it performs no object deletion and calls no R2/Firebase/Cloudflare adapter.
+- Added `src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts`.
+- Extended `LISTENING_MEDIA_ASSET_STATES` in `src/features/assessment/listening/storage/listeningAssetRegistry.ts` with final state `deleted`, and updated `listeningAssetRegistry.test.ts`.
+
+Requirement map:
+
+- Full approved state-machine and invalid-transition tests: covered by `LISTENING_ASSET_DELETION_STATE_TRANSITIONS` and direct invalid-transition assertions.
+- Seven-day zero-reference pending-delete grace: deletion is denied until both `pendingDeleteAt + LISTENING_PENDING_DELETE_GRACE_MS` and `deleteAfter` have elapsed.
+- Immediate reference recheck before deletion: deletion requires a same-asset reference recheck with `checkedAt === now`.
+- Metadata-only tombstone retained exactly 90 days: tombstone uses `deletedAt + LISTENING_DELETION_TOMBSTONE_RETENTION_MS`.
+- Tombstone excludes signed URLs, secrets, keys, raw audio, and audio content: tombstone schema contains only identifiers, owner/session metadata, size/content-type, deletion metadata, retained-reference count, and retention expiry; forbidden-value test injects sentinel fields and asserts they do not serialize.
+- Separate audited administrative deletion operation: operation is `administrative-delete-listening-asset` with admin actor and audit event.
+- Administrative deletion must not reuse teacher endpoint: `requestedVia: 'teacher-endpoint'` and `actorRole: 'teacher'` are denied.
+- Retained-reference rules: both pending snapshot references and immediate recheck references block deletion.
+- Idempotency/retry: identical prior operation record replays; changed request under the same idempotency hash is denied.
+- Rollback stop-delete behavior: rollback controls deny deletion intent with `cleanup_deletion_disabled`.
+
+Proof already observed before independent review:
+
+- Focused RED: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts src/features/assessment/listening/storage/listeningAssetRegistry.test.ts --reporter=basic` failed before implementation because the new deletion-governance module was missing and the registry state list lacked `deleted`.
+- Focused GREEN: same command passed after implementation, 2 files / 15 tests.
+- Task 4 storage baselines passed, 6 files / 58 tests.
+- Task 5 legacy R2 compatibility and result/read compatibility baselines passed, 4 files / 35 tests.
+- Correct functions harness passed, 3 files / 48 tests.
+- Wrong root Vitest invocation against `functions/src/**` failed with zero discovered tests; this is harness-evidence failure only and is not product-code failure.
+- Mutation probes failed as required before restoration for missing reference recheck, tombstone forbidden-value leakage, deletion before seven-day grace, retained-reference deletion, and teacher-endpoint admin-delete reuse. Final focused GREEN passed after restoration.
+
+Boundaries:
+
+- No Task 6.3+, selected-teacher rollout, production data, remote mutation, cleanup execution, real object deletion, deploy, staging, commit, push, private delivery, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
+- Google Drive remains obsolete unsupported residue only and was not used, tested, expanded, or represented as supported.
+- Required GPT-5.5 medium architecture/security verification returned PASS with no blocking findings. Method: read-only inspection of scoped source/tests/docs, dirty tree, targeted diffs, Task 6 taskbox, PRD-0058 authority, findings, traceability, implementation log, upload-storage authority, focused 6.1/6.2 Vitest, `rtk git diff --check`, and forbidden mutation/remote/runtime scan. Risk model: irreversible audio loss, cross-owner/admin misuse, tombstone secret leakage, stale-reference deletion, teacher endpoint reuse, premature cleanup, and scope creep into Task 6.3+ or runtime/Google Drive/AudioPlayer.
+- Required GPT-5.4-mini high stale/drift explorer returned PASS. Method: read-only checkbox, stale-claim, forbidden-path, and exact touched-file inventory scan across taskbox, traceability, findings, implementation log, upload-storage authority, PRD-0058, current git inventory, and scoped `rg` searches. It confirmed Task 6.0 `[ ]`, Task 6.1 `[x]`, Task 6.2 `[x]`, Task 6.3+ `[ ]`, no Task 6.3+ start/close claim, no selected-teacher rollout claim, no production data/remote mutation/deploy/cleanup execution/real deletion claim, no supported Google Drive wording, and no forbidden-path drift.
+
+## PRD-0055 Task 4 Foundational Corrective Unblock - 2026-06-27
+
+Scope:
+
+- Correct Task 4 storage-foundation blockers only.
+- Prepare readiness for Task 5 without starting Task 5 authoring UI behavior.
+- No deploy, remote mutation, cleanup execution, private delivery, staging, commit, push, clean, or revert.
+
+Findings fixed:
+
+1. Builder metadata carry: live `ListeningTestBuilder` save mapping did not preserve canonical `assetId`, `uploadSessionId`, `tempKey`, checksum, content type, size, and filename into `listeningTestStorage`.
+2. Fail-closed persistence: legacy temp URL move/fallback in `listeningTestStorage` could still persist untracked expiring temp URLs instead of requiring registry-backed commit metadata.
+3. Partial mixed-section commit: a canonical first section plus invalid temp later section could start a commit before the payload rejected.
+4. Commit retry/reconciliation: already committed retry did not reverify durable object metadata, and reference-write failure lacked an explicit unreferenced durable-copy reconciliation queue.
+5. Registry path coverage: RTDB rules and backup/restore proof covered too narrow a subset and did not prove upload sessions, assets, events, metrics, and sweeps together.
+6. Facade boundary and authority drift: `r2Storage.ts` still owned Worker upload-session transport inline, and closure docs overstated prior review as finding no code-level defect.
+
+Corrections:
+
+- `src/skills/listening/builders/ListeningTestBuilder.tsx` carries canonical audio metadata into storage; test coverage was added in `ListeningTestBuilder.test.tsx`.
+- `src/services/listeningTestStorage.ts` preflights all audio sections before any commit, fails closed for temp URLs without canonical metadata, delegates registry commit only through an injected adapter, and preserves public-reader fields plus canonical `assetId`.
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts` validates duration/decodability metadata, reverifies committed durable objects, and queues unreferenced durable-copy reconciliation on reference-write failure.
+- `src/services/r2Storage.ts` remains a compatibility facade; Worker upload-session transport moved to `src/features/assessment/listening/storage/listeningUploadSessionApi.ts`.
+- `database.rules.json`, `src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts`, and `r2-backup-worker` backup/restore tests now cover `media_asset_upload_sessions`, `media_assets`, `media_asset_events`, `media_asset_metrics`, and `media_asset_sweeps`.
+- Taskbox, traceability, implementation log, PRD-0058 status, findings, and upload-storage authority were synchronized to corrective truth.
+
+Subagent review:
+
+- `superpowers:subagent-driven-development` was used.
+- Initial implementer subagent hung and was closed; its output was not counted.
+- Spec reviewer found the mixed-section partial-commit bug; main thread fixed it with preflight.
+- Spec re-review passed on builder metadata carry, fail-closed temp persistence, commit reverify/reconciliation, rules/backup/restore coverage, and facade split.
+- Code-quality reviewer subagent failed from account usage limits and is not counted as proof; main thread performed the local quality pass.
+
+Current proof:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts src\skills\listening\builders\ListeningTestBuilder.test.tsx --reporter=basic` -> PASS, 9 files / 85 tests.
+- `rtk npm --prefix r2-backup-worker test -- --run src/backup/data-backup.test.ts src/backup/auto-backup.test.ts src/restore/restore-execute.test.ts src/reading-v2/submit.test.ts src/homework/assignments.test.ts --reporter=basic` -> PASS, 5 files / 32 tests.
+- Firebase RTDB emulator proof for `src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts` -> PASS, 1 file / 7 tests.
+- Bundled x64 Node Cloudflare bridge/lifecycle proof for `cloudflare/test/listening-upload-session-bridge.test.ts` and `cloudflare/test/r2-lifecycle-config.test.ts` -> PASS, 2 files / 15 tests. The subpackage does not accept `--reporter=basic`; rerun without that reporter passed.
+- `rtk npm --prefix cloudflare run verify:r2-lifecycle` -> PASS, `R2 lifecycle config OK: expire-temp-prefix-after-one-day temp/ 86400s`.
+- `rtk git diff --check` -> PASS.
+- `rtk npm run check:utf8 -- <touched text files>` -> PASS, 51 text files.
+- Task 5/6 checkbox scan -> PASS by no checked Task 5 or Task 6 matches.
+- `rtk npm run build` -> PASS; Vite build and bundle-budget passed.
+
+Non-claims:
+
+- At that Task 4.17 checkpoint, Task 5 authoring behavior was outside scope and had no implementation claim.
+- Task 6 cleanup execution, deployed lifecycle proof, private delivery, production alerting, remote mutation, staging, commit, push, clean, and revert did not occur.
+
+## PRD-0055 Task 4.17 through Task 4.19 focused proof, independent verification, and parent acceptance - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict:
+
+- Task 4.17: PASS.
+- Task 4.18: PASS after authority-surface drift correction.
+- Task 4.19: PASS.
+- Parent Task 4.0: PASS.
+
+Scope:
+
+- Task 4.17 only: rerun current focused local proof for registry, commit, replacement, cleanup, lifecycle, rules, backup/restore, cron, metrics, rollback, lifecycle config, facade compatibility, PRD-0056A bridge, and build/static closure checks.
+- Task 4.18 only: run fresh-context independent read-only verification over registry/storage traceability rows, declared touch regions, RED/GREEN and mutation proof records, rules proof, backup/restore proof, lifecycle config proof, cleanup safety, metrics, rollback, and Task 5/no-deploy boundaries.
+- Task 4.19 only: parent acceptance for the local PRD-0058 minimum storage foundation.
+
+Claims proven:
+
+1. Task 4.15 and Task 4.16 were checked with closure evidence at the starting gate; Task 4.17, Task 4.18, Task 4.19, parent Task 4.0, and Task 5.0 were unchecked before this packet.
+2. Current storage/facade proof passes for asset registry states, idempotent commit, replacement, immediate cleanup intent, heartbeat/fallback, multi-tab leases, reference removal to `pending-delete`, explicit cross-test reuse prohibition/deferral, metrics sink/thresholds, rollback controls, `r2Storage`, and `listeningTestStorage`.
+3. Current RTDB emulator proof passes for `media_assets/**` and `media_asset_metrics/**` rules/indexes with owner/super-admin reads, browser write denial, cross-owner denial, trusted-service authority separation, root write freeze, and forbidden metric fields.
+4. Current backup/restore/cron proof passes for registry backup coverage, restore ordering/drill, and scheduled backup path.
+5. Current checked-in R2 lifecycle config proof passes for exactly one enabled `temp/` rule at 86400 seconds and durable-prefix exclusion.
+6. Current Cloudflare bridge/lifecycle tests pass under bundled x64 Node, preserving PRD-0056A bridge evidence and the Task 4.7 lifecycle verifier test.
+7. Ambient Cloudflare Worker-pool proof first failed only because local `workerd` cannot start on `win32 arm64 LE`; bundled x64 Node proof then passed.
+8. Build and static checks pass: `rtk git diff --check`, UTF-8 over 51 touched text files, Task 5 checkbox scan, and production build/bundle-budget.
+9. Two initial read-only auditor attempts failed from account usage limits before output and are not counted as closure proof.
+10. The completed fresh-context read-only auditor found no code-level defect in storage modules, RTDB rules, Firebase emulator wiring, `r2-backup-worker`, or lifecycle config. The only finding was authority-surface drift because 4.17-4.19 were still open before closure updates.
+11. Authority-surface drift is corrected in the taskbox, traceability matrix, implementation log, PRD-0058 current status, upload-storage authority, and this append-only findings entry.
+12. Parent Task 4.0 acceptance is local only: no cleanup execution, production alerting, deployed lifecycle proof, private delivery, Task 5 authoring, staging, commit, push, or remote-state mutation is claimed.
+
+Files and declared touch regions:
+
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: Task 4.17-4.19 and parent Task 4.0 checkbox/closure text only.
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: `EV-0058` registry and implementation-status paragraph only.
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`: current status / historical planning-scope wording / B1 status paragraph only.
+- `documentation/architecture/upload-storage-authority.md`: Task 4 current status paragraphs only.
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`: new top entry for Task 4.17-4.19.
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: this append-only entry.
+
+Lines before -> after and responsibility delta:
+
+- `src/services/r2Storage.ts`: 446 Packet 1I baseline -> 252 current lines. Responsibility remains a compatibility facade for upload/move/session delegation and trusted public URL export. It gained no registry, cleanup, heartbeat, replacement, reconciliation, or delivery-authorization algorithm.
+- `src/services/listeningTestStorage.ts`: 634 Packet 1I baseline -> 686 current lines. Responsibility remains Listening persistence and compatibility shaping. Net new storage behavior is only optional registry-backed commit delegation for bridge metadata plus public-reader field preservation.
+- `src/features/assessment/listening/storage/listeningAssetRegistry.ts`: 161 current lines, bounded registry/session lifecycle model.
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`: 250 current lines, bounded immutable commit orchestration.
+- `src/features/assessment/listening/storage/listeningAssetReplacement.ts`: 179 current lines, bounded replacement policy.
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.ts`: 285 current lines, bounded cleanup intent, heartbeat, lease, pending-delete, and reuse policy.
+- `src/features/assessment/listening/storage/listeningAssetMetrics.ts`: 209 current lines, bounded metrics schema/threshold/runbook baseline.
+- `src/features/assessment/listening/storage/listeningAssetRollback.ts`: 73 current lines, bounded rollback controls.
+
+Created/preserved decomposition seams:
+
+- Storage behavior remains in bounded modules under `src/features/assessment/listening/storage/`.
+- `r2Storage.ts` and `listeningTestStorage.ts` remain compatibility facades.
+- Task 5 authoring write-model modules remain unstarted.
+- Task 6 delivery issuance/range, cleanup execution, reconciliation, tombstone, and private-delivery work remain unstarted.
+
+Traceability row IDs:
+
+- `EV-0058`
+- `FR-019`
+- `FR-020B` through `FR-020U`
+- `DATA-09`, `DATA-10` through `DATA-14`, `DATA-29`, and PRD-0058 storage/lifecycle rows mapped to `EV-0058`
+- `DECISION-024`, `DECISION-025`, `DECISION-049` through `DECISION-065`, `DECISION-095`, `DECISION-101`
+
+Characterization/baseline:
+
+- Starting gate commands:
+  - `git status --short --branch`
+  - `git status --short --untracked-files=all`
+  - `git rev-parse HEAD`
+  - `rg -n "\[.\] 4\.(15|16|17|18|19)|\[.\] 5\.0" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- Starting gate result: branch `codex/prd-0055-task-2a-s0-worker-truth`, HEAD `1c3329a2dd72580c874d67370843a4413cb28e51`; 4.15 and 4.16 checked, 4.17-4.19 and 5.0 unchecked.
+
+RED command and result:
+
+- Not applicable for Task 4.17-4.19 closure rerun because implementation RED/GREEN/mutation proof was already captured in Tasks 4.4-4.16 and was audited by the fresh-context reviewer.
+
+GREEN command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`
+  - Result: PASS, 8 files / 77 tests.
+- `rtk npm --prefix r2-backup-worker test -- src/backup/data-backup.test.ts src/backup/auto-backup.test.ts src/restore/restore-execute.test.ts --reporter=basic`
+  - Result: PASS, 3 files / 3 tests.
+- `& 'C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' .\node_modules\vitest\vitest.mjs run test\listening-upload-session-bridge.test.ts test\r2-lifecycle-config.test.ts` from `cloudflare/`
+  - Result: PASS, 2 files / 15 tests.
+- `rtk npm --prefix cloudflare run verify:r2-lifecycle`
+  - Result: PASS, printed `R2 lifecycle config OK: expire-temp-prefix-after-one-day temp/ 86400s`.
+- `$env:PATH = 'C:\Users\The Lord\AppData\Local\Temp\codex-temurin-jdk-21\jdk-21.0.11+10\bin;' + $env:PATH; rtk node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic"`
+  - Result: PASS, 1 file / 5 tests.
+- `rtk npm run build`
+  - Result: PASS, Vite build plus bundle budget OK.
+
+Mutation proof and restoration evidence:
+
+- Current closure does not add new behavior. Fresh-context reviewer audited prior RED/GREEN/mutation records for Tasks 4.4-4.16 and found no code-level defect.
+- Prior mutation evidence remains the authoritative behavioral sensitivity proof for registry/commit/replacement/lifecycle/metrics/rollback boundaries.
+
+Static/boundary/diff checks:
+
+- `rtk git diff --check`: PASS.
+- `rtk npm run check:utf8 -- <51 touched text files>`: PASS, 51 text files.
+- `rtk rg -n "\[x\] 5\.0|\[x\] 5\." tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: no matches, exit 1.
+- Ambient Cloudflare command `rtk npm --prefix cloudflare test -- test/listening-upload-session-bridge.test.ts test/r2-lifecycle-config.test.ts --reporter=basic` failed with known local `workerd` startup error `Unsupported platform: win32 arm64 LE`; bundled x64 Node rerun passed.
+- First RTDB emulator command failed because `java` was absent from PATH; rerun with local Temurin JDK in process PATH passed.
+
+Browser/deploy artifacts:
+
+- Not applicable. No Playwright, browser QA, deploy, deployed proof, Firebase rules deploy, Cloudflare deploy, R2 lifecycle deploy, cleanup execution, production alerting, private-delivery proof, or remote object mutation was run in this packet.
+
+Residual risks or deferred items:
+
+- Production alerting remains unclaimed; current accepted detection mode is human dashboard review.
+- R2 lifecycle config is checked in and locally verified but not deployed in this no-deploy packet.
+- Cleanup execution, durable reconciliation, tombstones, historical orphan sweep deletion, delivery issuance/range/private delivery, and Task 5 authoring consumption remain future gated work.
+- Legacy temp-to-permanent behavior can still preserve temp URLs for callers without canonical bridge metadata/committer; Task 5 must route new audio-bearing draft/publish behavior through the registry-backed commit APIs before exposing authoring writes.
+
+Verifier and verification outcome:
+
+- Fresh read-only auditor result after current proof: no code-level defect found; initial BLOCKED disposition was only authority-surface drift before this closure update.
+- Main-thread correction synchronized authority surfaces and reran closure checks before final status.
+
+Explicit non-claims:
+
+- At that Task 4.19 checkpoint, Task 5 was outside scope and had no implementation claim.
+- No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
+- No cleanup execution, production alerting, private delivery, Playwright, staging, commit, push, clean, or revert occurred.
+
+## PRD-0055 Task 4.15 Accepted-Risk Unblock Addendum - 2026-06-27
+
+Verdict:
+
+- Task 4.15: PASS after product-owner accepted-risk approval.
+- Task 4.16: unchanged PASS.
+- Task 4.17+ remains unstarted.
+
+Accepted-risk approval text:
+
+```text
+Product-owner accepted risk for PRD-0055 Task 4.15:
+
+I accept the current known untracked permanent Listening audio baseline as legacy risk only:
+- tracked registry audio: 1 object / 10 bytes
+- known untracked permanent audio: 2 objects / 50 bytes
+- new untracked draft audio: 0 objects / 0 bytes
+
+This approval does not permit any new untracked draft audio. The default acceptable new untracked-draft-audio count remains zero. Any unexplained orphan growth or commit failure triggers the Task 5.21 and Task 9.9 stop actions recorded in PRD-0058.
+```
+
+Evidence source:
+
+- User-provided product-owner approval in the Codex thread on 2026-06-27.
+- Recorded in `LISTENING_KNOWN_UNTRACKED_PERMANENT_AUDIO_ACCEPTED_RISK` and covered by `listeningAssetMetrics.test.ts`.
+
+Changes:
+
+1. `getListeningKnownUntrackedPermanentAudioRiskStatus()` now returns accepted status with the approval text, date, evidence location, and default acceptable new untracked draft audio count `0`.
+2. Task 4.15 taskbox is checked and closure text records the accepted-risk approval.
+3. PRD-0058, traceability, upload-storage authority, and implementation log now state Task 4.15 local metrics/accepted-risk is complete.
+4. PRD-0058 metric event shape and alert/runbook stop-action checklist items are checked for the human-dashboard-review mode. Production alerting remains unclaimed because human review is the recorded detection mode.
+
+Verification to rerun after this addendum:
+
+- Focused metrics/storage proof.
+- RTDB emulator metrics/rules proof.
+- `rtk git diff --check`.
+- UTF-8 check for touched text files.
+- Task 4.17+ checkbox drift scan.
+
+Verification result after this addendum:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 8 files / 77 tests.
+- `rtk node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic"` with local JDK on PATH: PASS, 1 file / 5 tests.
+- `rtk npm run build`: PASS, Vite transformed 9345 modules and bundle budget reported `[bundle-budget] OK - root entry 229KB; public preloads are within budget`.
+- `rtk git diff --check`: PASS.
+- `rtk npm run check:utf8 -- database.rules.json src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/architecture/upload-storage-authority.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 10 text files.
+- `rtk rg -n "\[x\] 4\.(17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS by no matches, exit 1.
+
+Non-claims:
+
+- No Task 4.17+, Task 5, deploy, remote mutation, cleanup run, private delivery, staging, commit, or push occurred.
+
+### PRD-0055 Task 4.15/4.16 Closure-Review Corrective Addendum - 2026-06-27
+
+Closure reviewer result:
+
+- Read-only closure reviewer returned BLOCKED for two classes of findings: rollback gaps in `removeListeningAssetReference(...)` and replacement cleanup, plus a facade-origin concern against current-tree `src/services/r2Storage.ts` and `src/services/listeningTestStorage.ts`.
+- Main-thread disposition accepted the rollback findings as current Task 4.16 blockers and fixed them.
+- Main-thread disposition did not revert or rewrite the facade-origin finding in this packet. Those facade diffs were already present at the Task 4.15/4.16 starting gate as accepted PRD-0056A/Task 4.6-4.14 foundation work. This packet did not add metrics or rollback algorithms to `r2Storage.ts` or `listeningTestStorage.ts`.
+
+Corrective changes:
+
+1. `removeListeningAssetReference(...)` now accepts rollback controls and returns the original asset unchanged when rollback forbids existing-audio mutation, preserving references and skipping `pending-delete` entry.
+2. Replacement failed-save and cancellation cleanup now accept rollback controls and return `cleanup-stopped` when cleanup/deletion is disabled.
+3. `listeningAssetRollback.ts` now exposes storage-domain helpers for cleanup-stop and existing-audio-retention decisions.
+4. Taskbox, PRD-0058 local status, traceability, authority docs, and implementation log now name the added rollback edges.
+
+Corrective RED:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts --reporter=basic`
+- Result: RED, 2 failed files / 3 failed tests. Failures showed final-reference removal still entered `pending-delete`, replacement failed-save cleanup still returned `cleanup-temp`, and replacement cancellation cleanup still returned `cleanup-temp`.
+
+Corrective GREEN:
+
+- Same command after fix: PASS, 2 files / 30 tests.
+- Focused storage/facade proof: `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 8 files / 77 tests.
+- RTDB emulator rules proof: `rtk node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic"` with local JDK on PATH: PASS, 1 file / 5 tests.
+- Build: `rtk npm run build`: PASS, Vite transformed 9345 modules and bundle budget reported `[bundle-budget] OK - root entry 229KB; public preloads are within budget`.
+- Static pre-addendum checks: `rtk git diff --check` PASS; `rtk rg -n "\[x\] 4\.(17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md` found no matches; UTF-8 check passed for 17 touched text files.
+
+Corrective verdict:
+
+- Task 4.15 remains BLOCKED because product-owner accepted-risk text for known untracked permanent audio is absent.
+- Task 4.16 remains PASS after correction.
+- Task 4.17+ was not started.
+- No remote/deployed Firebase, Cloudflare, or R2 state was mutated.
+- No staging, commit, push, clean, or revert occurred.
+
+## PRD-0055 Task 4.15 metrics sink and Task 4.16 rollback controls - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict:
+
+- Task 4.15: BLOCKED.
+- Task 4.16: PASS.
+
+Scope:
+
+- Task 4.15 only: orphan-growth and commit-failure metrics before Task 5 audio-bearing drafts.
+- Task 4.16 only: rollback controls for registry writes, cleanup/deletion, referenced assets, legacy publish reads, and existing-audio mutation prevention.
+- Task 4.17+, Task 5, private delivery, cleanup execution, production alerting, deployment, remote-state mutation, staging, commit, and push remained out of scope.
+
+Claims proven:
+
+1. Task 4.9 through Task 4.14 were checked at the starting gate with closure evidence in taskbox, traceability, findings, implementation log, and upload-storage authority.
+2. Concrete secured metrics sink is `media_asset_metrics/{metricEventId}`.
+3. Metric schema fields are `schemaVersion`, `metricEventId`, `createdAt`, `ownerScope`, `assetId`, `operation`, `outcome`, `reasonCode`, `stateBefore`, `stateAfter`, `sizeBytes`, `durationMs`, `attemptCount`, `runId`, `budgetName`, `budgetValue`, `thresholdName`, `thresholdValue`, and `stopAction`.
+4. Orphan-growth metrics record new untracked draft audio count/bytes against a zero threshold.
+5. Commit-failure metrics record failed commit reason, state transition, size, duration, attempts, owner scope, and stop action.
+6. Threshold detection is human dashboard review, not deployed production alerting in this no-deploy packet.
+7. Responsible role is `Frontend Platform / IELTS Assessment storage owner`; review cadence is daily during internal and selected-teacher rollout and before each cohort expansion; evidence location is `media_asset_metrics/{metricEventId}` plus Task 4.15/5.21 findings.
+8. Stop action for `commit-failure-count` is to disable new registry writes for Task 5.21 and stop Task 9.9 rollout on unresolved commit failure that risks data loss or legacy incompatibility.
+9. Stop action for `new-untracked-draft-audio-count` is to stop Task 5.21 storage-write rollout before cohort expansion and keep Task 9.9 final rollout stopped until unexplained growth is resolved.
+10. Deterministic local baseline summarization records tracked registry audio count/bytes, known untracked permanent audio count/bytes, and zero new untracked draft audio count/bytes without remote inventory.
+11. Product-owner accepted-risk text for known untracked permanent audio was searched and not found; Task 4.15 remains unchecked/BLOCKED.
+12. `media_asset_metrics/**` RTDB rules/indexes exist; ordinary teachers and guests cannot read/write metrics; super-admin can read; browser create/update/delete is denied.
+13. Rollback controls disable new registry writes before registry/R2 mutation.
+14. Rollback controls stop cleanup/deletion queues.
+15. Rollback controls retain referenced assets.
+16. Rollback controls preserve legacy publish read fields.
+17. Rollback controls prohibit mutating existing audio.
+
+Files changed for this packet:
+
+- `database.rules.json`
+- `documentation/architecture/upload-storage-authority.md`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+- `src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.ts`
+- `src/features/assessment/listening/storage/listeningAssetMetrics.ts`
+- `src/features/assessment/listening/storage/listeningAssetMetrics.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetRollback.ts`
+- `src/features/assessment/listening/storage/listeningAssetRollback.test.ts`
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+Lines before -> after and responsibility delta:
+
+- `src/features/assessment/listening/storage/listeningAssetMetrics.ts`: new bounded metrics module for schema, event creation, threshold metadata, baseline summary, and accepted-risk gate only.
+- `src/features/assessment/listening/storage/listeningAssetRollback.ts`: new bounded rollback-control module only.
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`: narrow optional rollback-control guard before new registry/R2 mutation; no facade growth.
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.ts`: narrow optional rollback-control stop result for cleanup queueing; no cleanup executor added.
+- `database.rules.json`: adds `media_asset_metrics/**` indexes, validation, read/write denial for non-admin clients, and root super-admin write freeze for the metrics subtree.
+
+Created/preserved decomposition seams:
+
+- Metrics logic lives in `listeningAssetMetrics.ts`.
+- Rollback controls live in `listeningAssetRollback.ts`.
+- Existing facades `r2Storage.ts` and `listeningTestStorage.ts` were not edited by this packet.
+- No metrics or rollback algorithm was placed in `r2Storage.ts` or `listeningTestStorage.ts`.
+
+Traceability row IDs:
+
+- `EV-0058`
+- `DECISION-095`
+- `DECISION-101`
+
+Characterization/baseline:
+
+- Starting gate: `git status --short --branch`, `git status --short --untracked-files=all`, `git rev-parse HEAD`, and Task 4.9-4.17 scan. HEAD was `1c3329a2dd72580c874d67370843a4413cb28e51`; Task 4.9 through 4.14 were checked; Task 4.15, 4.16, and 4.17 were unchecked.
+- Accepted-risk search: `rg -n "accepted[- ]risk|accepted risk|known untracked permanent audio|untracked permanent audio|untracked-draft-audio|untracked draft audio|product-owner accepted" tasks documentation src database.rules.json` found only task requirements, not product-owner approval text.
+
+RED command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic`
+- Result: RED, 3 failed files. Expected failures were missing `./listeningAssetMetrics`, missing `./listeningAssetRollback`, and missing `media_asset_metrics` rule/index path.
+
+GREEN command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic`
+- Result: PASS, 3 files / 11 tests with 4 emulator-only tests skipped outside emulator.
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetMetrics.test.ts src\features\assessment\listening\storage\listeningAssetRollback.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`
+- Result after mutation restorations: PASS, 8 files / 74 tests.
+- RTDB emulator proof with restored local JDK: `rtk node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0058-media-asset-rules.emulator.test.ts --reporter=basic"`
+- Result: PASS, 1 file / 5 tests.
+
+Mutation proof and restoration evidence:
+
+- Metric threshold mutation changed new untracked draft audio threshold from `0` to `1`. `listeningAssetMetrics.test.ts` failed 2 tests, proving the zero threshold and stop-action event shape are covered. Restored threshold to `0` and reran focused storage proof green.
+- Rollback mutation made `areListeningRegistryWritesEnabled(...)` always return `true`. `listeningAssetRollback.test.ts` failed `disables new registry writes before commit mutates registry or R2 objects`, proving the rollback write-stop guard is covered. Restored the guard and reran focused storage proof green.
+
+Static/boundary/diff checks:
+
+- Pending final closeout reruns after documentation updates: `rtk git diff --check`, UTF-8 check for touched text files, Task 4.17+ checkbox drift scan, focused storage proof, and emulator-backed rules proof.
+
+Browser/deploy artifacts:
+
+- Not applicable. No browser proof, production alerting, deploy, Worker rollout, Firebase rules deploy, R2 lifecycle deploy, cleanup execution, or remote object mutation was in scope.
+
+Residual risks or deferred items:
+
+- Task 4.15 remains BLOCKED pending product-owner accepted-risk statement for known untracked permanent audio.
+- Production alerting is not enabled; current threshold detection is human dashboard review.
+- Task 4.17+ parent verification/acceptance remains unstarted.
+- At that historical Task 4.15 checkpoint, Task 5 had not started.
+- Cleanup execution, private delivery, and remote rollout remain future tasks.
+
+Verifier and verification outcome:
+
+- Main-thread proof passed for local metrics, rollback controls, storage adjacency, and RTDB emulator rules. Closure reviewer still pending for current diff.
+
+Explicit non-claims:
+
+- Task 4.17+ was not started.
+- No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
+- No staging, commit, push, clean, or revert occurred.
+
+Closure reviewer disposition:
+
+- Read-only closure reviewer returned BLOCKED on current-tree `src/services/r2Storage.ts` upload-session client code and requested independent proof reruns.
+- Main-thread audit disposition: `src/services/r2Storage.ts` was already dirty at the starting gate for the accepted PRD-0056A/Task 4.2 foundation work and was not edited by this Task 4.6-4.8 packet. This packet's `r2Storage.ts` boundary claim is no new Batch 2 edit and no registry/commit algorithm moved there.
+- Main-thread proof reruns after the reviewer response passed: `rtk git diff --check`, Task 4.9+ checkbox drift scan, UTF-8 check for 18 touched text files, focused root Vitest 5 files / 54 tests, focused Cloudflare Vitest 2 files / 15 tests, `rtk npm --prefix cloudflare run verify:r2-lifecycle`, and `rtk npm run build`.
+- Reviewer output is retained as a non-PASS review record because it did not independently rerun proof. Main-thread closure relies on the explicit proof commands above and the starting-gate boundary audit, not on the reviewer as PASS evidence.
+
+## PRD-0055 Task 4.9 through Task 4.14 replacement, cleanup, heartbeat, lease, pending-delete, and reuse policy - 2026-06-27
+
+### Findings First And Verdict
+
+Verdict:
+
+- Task 4.9: PASS.
+- Task 4.10: PASS.
+- Task 4.11: PASS.
+- Task 4.12: PASS.
+- Task 4.13: PASS.
+- Task 4.14: PASS.
+
+Scope:
+
+- Task 4.9 only: replacement safety before Task 5 authoring exposure.
+- Task 4.10 only: immediate best-effort temp cleanup intent for explicit remove, builder cancel, confirmed navigation, logout, auth loss, failed save/publish, replacement cancellation, and detected abandonment.
+- Task 4.11 only: minimum heartbeat/fallback safety.
+- Task 4.12 only: same-owner/same-draft multi-tab lease aggregation.
+- Task 4.13 only: reference removal and safe `pending-delete`.
+- Task 4.14 only: explicit cross-test reuse policy.
+
+Claims proven:
+
+1. Task 4.6, Task 4.7, and Task 4.8 were checked at the starting gate before edits.
+2. Replacement requires a new `assetId`; same-asset replacement is rejected.
+3. Old committed playback remains authoritative while the replacement commit/save is unresolved.
+4. New replacement reference swaps only after surrounding save success; old reference removal is emitted only after success.
+5. Failed or cancelled replacement preserves old playback and queues only the new temp asset for cleanup.
+6. A second replacement is blocked while the first replacement commit remains unresolved.
+7. Immediate cleanup intent covers explicit remove, builder cancel, confirmed navigation, logout, auth loss, failed save/publish, replacement cancellation, and detected abandonment.
+8. Cleanup intent never grants durable delete authority and preserves committed assets.
+9. Heartbeat records 60-second next due, 3-minute stale, and 8-hour maximum eligibility; heartbeat creates no durable draft or retained reference.
+10. 24-hour fallback applies to uncommitted temp/committing assets and excludes committed assets.
+11. Same-owner/same-draft lease aggregation prevents one tab close from deleting audio leased by another fresh tab, rejects different-draft retention, and queues cleanup when only stale leases remain.
+12. Reference removal moves an asset to `pending-delete` only after retained references reach zero; references, not timestamps, decide retention.
+13. `pending-delete` uses seven-day `deleteAfter` from `pendingDeleteAt`.
+14. Cross-test reuse is explicitly deferred by current product-owner instruction: implicit filename, URL, key, checksum, or byte-content reuse is forbidden; future reuse requires a trusted registry-reference operation with ownership/reference tests.
+15. Closure review found a prior active-audio-count bug in the Task 4.8 commit helper. The correction allows the approved tenth active audio file and rejects the eleventh before durable copy.
+
+Files changed for this packet:
+
+- `documentation/architecture/upload-storage-authority.md`
+- `documentation/ielts-reading-v2-listening-unification-implementation-log.md`
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`
+- `src/features/assessment/listening/storage/listeningAssetCommit.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.ts`
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.ts`
+- `src/features/assessment/listening/storage/listeningAssetRegistry.test.ts`
+- `src/features/assessment/listening/storage/listeningAssetReplacement.ts`
+- `src/features/assessment/listening/storage/listeningAssetReplacement.test.ts`
+- `src/services/r2Storage.ts`
+- `src/services/listeningTestStorage.ts`
+- `src/services/listeningTestStorage.test.ts`
+- `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`
+- `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+Lines before -> after and responsibility delta:
+
+- `src/features/assessment/listening/storage/listeningAssetRegistry.ts`: 133 -> 145. Added optional lifecycle lease types only; no PRD-0056A bootstrap identity or temp-key authority change.
+- `src/features/assessment/listening/storage/listeningAssetCommit.ts`: closure-review correction only; active-audio count now allows the approved tenth active audio file and rejects the eleventh before durable copy.
+- `src/features/assessment/listening/storage/listeningAssetCommit.test.ts`: closure-review regression coverage for 10 allowed / 11 rejected active audio files.
+- `src/features/assessment/listening/storage/listeningAssetReplacement.ts`: new 121-line bounded replacement service.
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.ts`: new 224-line bounded cleanup/heartbeat/lease/reference/reuse policy service.
+- `src/features/assessment/listening/storage/listeningAssetReplacement.test.ts`: new 143-line focused replacement proof.
+- `src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts`: new 324-line focused lifecycle proof covering cleanup, heartbeat, lease, pending-delete, and implicit filename/URL/key/checksum/byte-content reuse denial.
+
+Created/preserved decomposition seams:
+
+- Replacement policy lives in `listeningAssetReplacement.ts`.
+- Cleanup, heartbeat, lease, reference removal, and reuse policy live in `listeningAssetLifecycle.ts`.
+- `r2Storage.ts` and `listeningTestStorage.ts` remain facades. The corrective package touched them only to export/use the trusted public R2 base for registry-backed commit compatibility, not to place registry, cleanup, heartbeat, or replacement algorithms there.
+- No registry, cleanup, heartbeat, or replacement algorithm was placed in a facade.
+
+Traceability row IDs:
+
+- `FR-020E`, `FR-020F`, `FR-020G`, `FR-020H`, `FR-020L`, `FR-020M`, `FR-020N`, `FR-020O`, `FR-020P`.
+- `DATA-33`, `DATA-34`.
+- `DECISION-028`, `DECISION-029`, `DECISION-037`, `DECISION-038`, `DECISION-058`, `DECISION-059`, `DECISION-060`, `DECISION-061`.
+
+Characterization/baseline:
+
+- Starting gate: `git status --short --branch`, `git status --short --untracked-files=all`, `git rev-parse HEAD`, and Task 4.6-4.15 taskbox scan. HEAD was `1c3329a2dd72580c874d67370843a4413cb28e51`; Task 4.6, Task 4.7, and Task 4.8 were checked; Task 4.9 through Task 4.15 were unchecked.
+- Read-only subagents mapped storage boundaries and cleanup/lease risks. Their outputs warned against facade bloat, Task 4.15+ drift, equality-boundary omissions, same-draft lease leaks, and implicit reuse.
+
+RED command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts --reporter=basic`
+- Result: RED, 2 failed suites, 0 tests collected because `./listeningAssetReplacement` and `./listeningAssetLifecycle` did not exist.
+
+GREEN command and result:
+
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts --reporter=basic`
+- Result before closure-review correction: PASS, 2 files / 21 tests.
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts --reporter=basic`
+- Result after closure-review correction: PASS, 2 files / 29 tests.
+
+Mutation proof and restoration evidence:
+
+- Temporary unresolved-replacement guard mutation in `listeningAssetReplacement.ts` made `blocks second replacement while first commit remains unresolved` fail. Restored source and reran focused storage/facade proof green.
+- Temporary committed-fallback mutation in `listeningAssetLifecycle.ts` made the committed asset fallback exclusion fail. Restored source and reran focused storage/facade proof green.
+- Closure-review correction proof: `listeningAssetCommit.test.ts` proves 10 active audio files pass and 11 fail; `listeningAssetLifecycle.test.ts` proves filename, URL, key, checksum, and byte-content implicit reuse each fail.
+- Restored proof before closure-review correction: `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic` -> PASS, 6 files / 55 tests.
+
+Static/boundary/diff checks:
+
+- `rtk git diff --check`: PASS; only RTK `No hook installed` warning.
+- `rtk npm run check:utf8 -- src/features/assessment/listening/storage/listeningAssetRegistry.ts src/features/assessment/listening/storage/listeningAssetReplacement.ts src/features/assessment/listening/storage/listeningAssetReplacement.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts src/features/assessment/listening/storage/listeningAssetCommit.ts src/features/assessment/listening/storage/listeningAssetCommit.test.ts tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/architecture/upload-storage-authority.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 13 text files.
+- `rtk rg -n "\[x\] 4\.(15|16|17|18|19)" tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`: PASS by no matches, exit 1.
+- `rtk node .\node_modules\vitest\vitest.mjs run src\features\assessment\listening\storage\listeningAssetReplacement.test.ts src\features\assessment\listening\storage\listeningAssetLifecycle.test.ts src\features\assessment\listening\storage\listeningAssetRegistry.test.ts src\features\assessment\listening\storage\listeningAssetCommit.test.ts src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 6 files / 64 tests.
+- `rtk node .\node_modules\vitest\vitest.mjs run src\services\r2Storage.test.ts src\services\listeningTestStorage.test.ts --reporter=basic`: PASS, 2 files / 21 tests.
+- `rtk npm run build`: PASS; Vite build and bundle budget check passed.
+
+Browser/deploy artifacts:
+
+- Not applicable. No browser proof, deploy, Worker rollout, Firebase rules deploy, R2 lifecycle deploy, or remote object mutation was in scope.
+
+Residual risks or deferred items:
+
+- Task 4.15+ metrics, rollback controls, parent acceptance, delivery, and rollout remain unstarted.
+- Authoring UI has not consumed the replacement/cleanup/heartbeat helpers; Task 5 must wire those without moving algorithms into facades.
+- Permanent durable cleanup execution, immediate pre-delete recheck execution, tombstone retention, metrics sink, and private delivery remain future tasks.
+
+Verifier and verification outcome:
+
+- Read-only closure reviewer returned BLOCKED for two real issues: active audio limit rejected the approved tenth file, and Task 4.14 tests did not explicitly cover URL/checksum/byte-content reuse. Main thread corrected both and reran focused proof.
+
+Explicit non-claims:
+
+- Task 4.15+ was not started.
+- No private delivery or runtime cutover was implemented.
+- No PRD-0056A bootstrap identity, temp key shape, Worker bridge authority, Firebase rules, or Cloudflare Worker code changed in this packet.
+
+## PRD-0055 Task 5 Batch A: 5.1 through 5.8 authoring service foundation - 2026-06-27
+
+Status:
+
+- Task 5.1: PASS.
+- Task 5.2: PASS.
+- Task 5.3: PASS.
+- Task 5.4: PASS.
+- Task 5.5: PASS.
+- Task 5.6: PASS.
+- Task 5.7: PASS.
+- Task 5.8: PASS.
+- At Batch A closure, later Batch B scope had not started.
+
+Scope:
+
+- Implemented Task 5 Batch A only: 5.1 through 5.8.
+- No UI controls from Task 5.12+, no solo/homework runtime, no live runtime, no `AudioPlayer.tsx`, no Reading V2 internals, no Google Drive behavior, no Cloudflare deploy, no Firebase deploy, no production data, no staging, no commit, and no push.
+
+Starting gate:
+
+- `rtk git status --short --branch`: branch `codex/prd-0055-task-2a-s0-worker-truth`; dirty tree already contained prior Task 4/storage/docs work and untracked `src/features/assessment/listening/storage/**`.
+- `rtk git status --short --untracked-files=all`: confirmed existing dirty/untracked paths before Task 5 Batch A edits.
+- `rtk git rev-parse HEAD`: `dfe02060bf473fb4d60fbb601eba23aaecf534cf`.
+- Task 4 parent acceptance was present before implementation: Task 4.19 and parent Task 4.0 were checked, and implementation log/findings recorded local PRD-0058 minimum storage foundation acceptance.
+
+Product-owner and architecture/security sign-off:
+
+- Product-owner implementation authorization source: current Codex thread on 2026-06-27; user explicitly requested `Implement PRD-0055 Task 5 Batch A only: subtasks 5.1 through 5.8`.
+- Architecture/security reviewer source: Codex main-thread PRD-0057 reconciliation plus read-only subagent review in the current thread. Review found no material mismatch between provisional Task 5 Batch A scaffold and approved PRD-0057; only reviewer-label wording drift existed (`architecture reviewer` vs PRD-0057 `architecture/security reviewer`), corrected in taskbox.
+- Child PRD wins: approved PRD-0057 B2 Option B keeps new writes under `listening_authoring/**`, keeps `tests/{testId}` compatibility-only, and keeps `src/services/listeningTestStorage.ts` as a facade.
+
+Implemented files:
+
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts`: Save draft, Publish, revision draft, conflict-token, idempotency, and Task 4 asset-commit/reference orchestration.
+- `src/features/assessment/listening/authoring/listeningAuthoringValidation.ts`: lenient Save draft warnings and strict Publish blockers.
+- `src/features/assessment/listening/storage/listeningAuthoringStore.ts`: focused authoring store contract plus in-memory test adapter for drafts, versions, and operations.
+- `src/features/assessment/listening/storage/listeningAuthoringDeletionGovernance.ts`: bounded draft soft-delete and published archive governance helpers for the facade seam.
+- `src/features/assessment/listening/types/listeningAuthoring.types.ts`: PRD-0057 B2 contracts for drafts, revision drafts, versions, operations, validation, conflict, and idempotency.
+- `src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts`: bounded legacy raw-R2 read adapter seam. Full legacy first-edit transition remains Task 5.9.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`: Task 5.3 service proof.
+- `src/services/listeningTestStorage.ts`: facade-only exports for the focused modules; existing compatibility save/read/update/delete behavior remains in place.
+- `src/services/listeningTestStorage.test.ts`: baseline assertion that successful legacy save remains one published Firebase write.
+
+Facade and module line evidence:
+
+- `src/services/listeningTestStorage.ts`: 702 lines after Task 5 Batch A; role remains public Listening persistence facade and compatibility save/read/update/delete owner. New Task 5 behavior is exported/delegated, not implemented inline.
+- `listeningAuthoringWorkflow.ts`: 413 lines.
+- `listeningAuthoringValidation.ts`: 73 lines.
+- `listeningAuthoringStore.ts`: 82 lines.
+- `listeningAuthoringDeletionGovernance.ts`: 65 lines.
+- `listeningAuthoring.types.ts`: 202 lines.
+- `listeningLegacyAudioResolver.ts`: 26 lines.
+
+TDD RED:
+
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`
+- Result: RED, failed suite because `../storage/listeningAuthoringStore` did not exist. This proved the new service tests were exercising missing Task 5 Batch A behavior/modules.
+
+GREEN proof:
+
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/services/listeningTestStorage.test.ts`
+- Result: PASS, 2 files / 15 tests.
+- The same command also ran repository `posttest`: `r2-backup-worker` PASS, 5 files / 32 tests.
+
+Behavior proof:
+
+- Explicit first Save draft creates non-published draft record, returns draft ID, conflict token 1, lenient warnings for missing audio/question/answer, and creates no version.
+- Autosave after existing draft ID updates only with valid expected conflict token and increments token.
+- Stale Save draft returns recoverable conflict state and does not overwrite current draft state.
+- Publish blocks missing audio/question/answer before version writes.
+- Audio-bearing Save draft and Publish call the Task 4 `ListeningAssetCommitter` with `drafts` and `versions` references under `listening_authoring/**`, never persist `/temp/` URLs, and store canonical `assetId` plus derived public reader `audioUrl`/`streamUrl`.
+- Publish creates one immutable version, stores retained assignment/result pins, increments conflict token, and idempotent retry returns the same version result without duplicate versions.
+- Revision draft creation copies from immutable version metadata without mutating prior retained pins.
+- Reusing an idempotency key with changed payload returns fail-closed idempotency conflict.
+- Existing legacy compatibility save still writes one Firebase `tests/{testId}` record with `isPublished: true`.
+
+Subagent evidence:
+
+- Docs/signoff explorer found Task 4 parent acceptance present, Task 5.1 signoff missing before this packet, and no material PRD-0057 mismatch except reviewer-label wording drift. Main thread recorded signoff and corrected wording.
+- Storage/test explorer confirmed existing `listeningTestStorage.test.ts` covered missing-audio hard block, temp URL failure, registry-backed public URLs, and no legacy `moveToPermanent` for canonical commits, but lacked explicit published-write and single-write assertions. Main thread added those assertions.
+- Registry/API explorer confirmed Task 4 commit/reference APIs and warned draft save must not reuse legacy `saveListeningTestToFirebase` because it writes `isPublished: true`. Main thread implemented a separate authoring workflow/store and kept the facade thin.
+
+Explicit non-claims:
+
+- At Batch A closure, legacy first-edit freeze/version-1 transition was still future Batch B scope.
+- At Batch A closure, draft delete/recovery and published deletion governance were still future Batch B scope; Batch A only created bounded seams required by 5.5.
+- Task 5.12+ UI controls, announcements, observability, browser proof, selected-teacher rollout, and parent Task 5 acceptance are not started.
+- No Google Drive files, `AudioPlayer.tsx`, solo/homework runtime, live runtime, Reading V2 internals, Cloudflare/Firebase deploy, production data, staging, commit, or push changed in this packet.
+
+## PRD-0055 Task 5 Batch B: 5.9 through 5.11 legacy transition and deletion governance - 2026-06-27
+
+Status:
+
+- Task 5.9: PASS.
+- Task 5.10: PASS.
+- Task 5.11: PASS.
+- Task 5.12+ remains unstarted.
+- Parent Task 5.0 remains open.
+
+Scope:
+
+- Implemented Task 5 Batch B only: 5.9 through 5.11.
+- No Task 5.12+ UI work, private delivery, reconciliation runner, cleanup execution, Task 6 deletion operation, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 internals, Google Drive behavior, deploy, staging, commit, or push.
+
+Starting gate:
+
+- `rtk git status --short --branch`: branch `codex/prd-0055-task-2a-s0-worker-truth`; tree already dirty with prior Task 4 / PRD-0056A / PRD-0058 / Task 5 Batch A work.
+- `rtk git status --short --untracked-files=all`: confirmed existing dirty/untracked paths before Task 5 Batch B edits.
+- `rtk git rev-parse HEAD`: `dfe02060bf473fb4d60fbb601eba23aaecf534cf`.
+- Batch A precondition was satisfied: taskbox, traceability, findings, and implementation log recorded Task 5.1 through Task 5.8 complete locally and Task 5.9+ unstarted before this packet.
+
+Implemented files:
+
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts`: added first-edit legacy freeze, revision draft creation from legacy tests, soft delete, restore, permanent cleanup fail-closed gate, archive, and physical-delete fail-closed gate.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`: focused Batch B service tests.
+- `src/features/assessment/listening/storage/listeningAuthoringStore.ts`: added metadata-only version write helper that rejects immutable-field mutation.
+- `src/features/assessment/listening/types/listeningAuthoring.types.ts`: added legacy freeze metadata, source legacy test link, soft-delete recovery metadata, and operation kinds.
+- `src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts`: normalized resolver output marks compatibility reads as `readOnly: true`.
+
+Line evidence:
+
+- `src/services/listeningTestStorage.ts`: 702 before Batch B, 682 after Batch B; Batch B changes only fail-close the legacy hard-delete export and preserve existing facade responsibilities.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts`: 413 before Batch B, 788 after review-fix Batch B.
+- `src/features/assessment/listening/storage/listeningAuthoringStore.ts`: 82 before Batch B, 123 after Batch B.
+- `src/features/assessment/listening/storage/listeningAuthoringDeletionGovernance.ts`: 65 before Batch B, 73 after review-fix Batch B.
+- `src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts`: 26 before Batch B, 30 after Batch B.
+- `src/features/assessment/listening/types/listeningAuthoring.types.ts`: 202 before Batch B, 247 after Batch B.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`: 666 after review-fix Batch B.
+- `src/services/listeningTestStorage.test.ts`: 357 after review-fix Batch B.
+
+TDD RED:
+
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`
+- Result: RED, 5 failing new tests. Failures were missing `createRevisionDraftFromLegacyTest`, missing `softDeleteDraft`, missing `archivePublishedVersion`, and missing resolver `readOnly` output.
+
+GREEN proof:
+
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts`: PASS, 1 file / 12 tests; repository `posttest` PASS, 5 files / 32 tests.
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/services/listeningTestStorage.test.ts`: PASS, 2 files / 20 tests; repository `posttest` PASS, 5 files / 32 tests.
+- `rtk npm test -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/services/listeningTestStorage.test.ts src/features/assessment/listening/storage/listeningAssetRegistry.test.ts src/features/assessment/listening/storage/listeningAssetCommit.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts src/features/assessment/listening/storage/listeningAssetReplacement.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts`: PASS, 8 files / 81 tests after review fixes; repository `posttest` PASS, 5 files / 32 tests.
+- `rtk git diff --check`: PASS.
+- `rtk npm run check:utf8 -- src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/features/assessment/listening/storage/listeningAuthoringStore.ts src/features/assessment/listening/storage/listeningAuthoringDeletionGovernance.ts src/features/assessment/listening/adapters/listeningLegacyAudioResolver.ts src/features/assessment/listening/types/listeningAuthoring.types.ts src/services/listeningTestStorage.ts src/services/listeningTestStorage.test.ts tasks/tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/ielts-reading-v2-listening-unification-implementation-log.md`: PASS, 12 files.
+
+Behavior proof:
+
+- Duplicate first-edit legacy transition is idempotent and returns the same version/revision result for the same key/request.
+- Partial legacy freeze retry with version 1 but missing revision draft now creates the required revision draft instead of reporting success without it.
+- First-edited legacy R2 document is snapshotted as immutable version 1 with `sourceDraftPath: "legacy_tests"` and `sourceLegacyTestId`.
+- Revision draft is created under `listening_authoring/revision_drafts` with `createdFromVersionId` and `createdFromVersionNumber: 1`.
+- Assignments, sessions, attempts, and results remain retained pins on version 1.
+- Raw R2 resolver returns read-only normalized compatibility output and does not call the asset committer or create registry rows.
+- Soft delete preserves draft identity, conflict token progression, recovery metadata, and asset references.
+- Restore recovers the same draft identity and remains available beyond the seven-day minimum until approved retention governance implements permanent cleanup.
+- Permanent draft cleanup is blocked during recovery and otherwise blocked pending reference checks.
+- Published archive is metadata-only and preserves immutable version document, hash, retained pins, and audio references.
+- Physical deletion is blocked while retained references exist and remains gated on the future Task 6 audited operation.
+- Public `deleteListeningTestFromFirebase(...)` now fails closed and does not call Firebase `set(..., null)`.
+
+Subagent evidence:
+
+- Legacy/result/session/assignment explorer found direct legacy-row and raw-Listening-URL consumers still pinned: shared `tests/{testId}` storage, student/teacher session consumers, assignment/session writers, result reconstruction, Listening compatibility storage/resolver, and Listening practice readers. Adjacent generic audio editors were not counted as direct Task 5.9 dependencies.
+- Deletion/archive explorer found no live `src` consumer of `deleteListeningTestFromFirebase(...)`; risk remains latent because any future direct import would hard-delete `tests/{testId}` and bypass governance.
+- Required GPT-5.5 medium reviewer initially returned BLOCKED on partial legacy-freeze retry, fail-open public hard delete, and public soft-delete helper recovery metadata. Main thread added RED tests, fixed all three, reran focused and storage baseline proof, and requested re-review.
+
+Residual risks:
+
+- `deleteListeningTestFromFirebase(...)` remains exported for legacy compatibility but now fails closed until the approved future Task 6 audited deletion operation exists.
+- Runtime readers still consume legacy `audioUrl` / `streamUrl` directly and remain pinned until future Task 6/7 packets deliberately consume the shared resolver.
+- No RTDB rules, backup/restore implementation, UI, browser, private delivery, cleanup runner, or Task 6 audited deletion operation changed in this packet.
+
+## PRD-0055 Task 5 Batch C: 5.12 through 5.15 bounded Save/Publish UI and announcements - 2026-06-28
+
+Status:
+
+- Task 5.12: PASS.
+- Task 5.13: PASS.
+- Task 5.14: PASS.
+- Task 5.15: PASS.
+- At that time, Task 5.16+ was unstarted.
+- Parent Task 5.0 remains open.
+
+Scope:
+
+- Completed Batch C only: Save draft / Publish controls, module-owned status/copy, exact upload guidance, shared announcement adapter, and feature tracking for builder actions.
+- No Publish-time audio accessibility validation from 5.16, authoring accessibility verification from 5.17, integration-test expansion from 5.18, selected-teacher rollout, browser proof, private delivery, reconciliation runner, cleanup execution, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 internals, Google Drive behavior, deploy, staging, commit, or push.
+
+Current source truth:
+
+- `ListeningTestBuilder.tsx` imports and holds `createListeningAuthoringWorkflow()`, calls trusted `saveDraft(...)` for Save draft, and calls trusted `publishDraft(...)` only with saved `draftId` plus `expectedConflictToken`.
+- `ListeningTestBuilder.tsx` has no production `saveListeningTestToFirebase` or `alert(` matches; the test file keeps the legacy mock only to assert non-use.
+- `ListeningSavePublishBar.tsx` owns the separate Save draft, Publish, and Discard controls plus pending labels.
+- `ListeningDraftStatus.tsx` owns first-save copy, saved/warning/error/conflict/publish-blocked states, duplicate-action copy, 8-hour stale copy, re-upload guidance, navigation-away discard copy, and discarded-state copy.
+- `ListeningUploadGuidance.tsx` owns exact guidance copy and status counters labeled `audio file(s)` / `audio files`.
+- `listeningAuthoringAnnouncements.ts` owns shared-toast announcements for Save draft, Publish, conflict, duplicate, discard, archive, and restore outcomes.
+- `src/config/featureRegistry.ts` lists `saveDraft`, `publishTest`, `discardListeningDraft`, `recoverListeningConflict`, `listeningDuplicateActionBlocked`, `archiveListeningPublishedVersion`, and `restoreListeningDraft`.
+
+Verification:
+
+- `rtk npx vitest run src/skills/listening/builders/ListeningTestBuilder.test.tsx src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts --reporter=basic`: PASS, 2 files / 14 tests.
+- `rtk npx vitest run --root functions src/listening-authoring/lifecycle.service.test.ts src/listening-authoring/saveDraft.service.test.ts src/listening-authoring/publish.service.test.ts --reporter=basic`: PASS, 3 files / 36 tests.
+- `rtk node scripts/check-assessment-unification-guardrails.mjs --changed-files src/skills/listening/builders/ListeningTestBuilder.tsx`: PASS.
+- `rtk npm run build`: PASS; bundle budget OK.
+- `rtk git diff --check`: PASS.
+- `rtk npx vitest run src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts --reporter=basic`: PASS only for static rules/index proof, 1 passed / 4 skipped because `FIREBASE_DATABASE_EMULATOR_HOST` was not set.
+- Java/emulator caveat: `rtk java -version` failed with `Binary 'java' not found on PATH`, so RTDB emulator denial proof is not claimed in this Batch C closeout.
+
+Subagent evidence:
+
+- Docs explorer found taskbox, traceability, findings, implementation log, and upload-storage authority still described Batch C as open before this authority-sync patch.
+- Source explorer found builder Save/Publish now route through trusted workflow, UI components remain wired, feature tracking entries exist, and legacy persistence / `alert()` matches are test-only negative assertions.
+- Proof explorer found Java absent and identified the same RTDB emulator blocker; main thread reran focused proof directly.
+
+Residual risks:
+
+- RTDB emulator denial proof remains blocked until Java is available and Firebase Database emulator can start.
+- At that Batch C time, browser proof, selected-teacher rollout, Publish-time audio accessibility/range validation, expanded integration tests, and parent Task 5 acceptance remained later Batch D/E scope. Current superseding status: Task 5.16-5.19 local Batch D proof is recorded later; Task 5.20-5.23 remain open.
+- Runtime readers, private delivery, cleanup execution, and reconciliation remain future child-PRD scope; this Batch C patch does not claim them.
+
+## PRD-0055 Task 5 A-C authority-unblock gate - 2026-06-29 (historical, superseded by Batch D)
+
+Historical verdict: BLOCKED at that time. Superseded by the Batch D section below.
+
+Fresh proof:
+
+- Backend authoring: PASS, 3 files / 36 tests.
+- A-C/storage: PASS, 8 files / 73 tests.
+- `r2-backup-worker` regressions: PASS, 5 files / 32 tests.
+- Frontend pair initial concurrent run: FAIL, 13/14 tests passed; `ListeningTestBuilder.test.tsx:187` timed out after 5.315 seconds against the 5-second limit.
+- Frontend pair standalone rerun: PASS, 2 files / 14 tests; the same test completed in 3.974 seconds. The contrast points to resource-sensitive timing, but the inherited near-threshold risk remains.
+- Existing Temurin JDK 21 was found at `%TEMP%\codex-temurin-jdk-21\jdk-21.0.11+10`; no software was installed and no system PATH was changed.
+- Executable PRD-0057 RTDB emulator proof: FAIL before test execution because Database Emulator rejected `database.rules.json:649:28` with `! only operates on booleans.` The failing expression negates `data.child('authoringVersioning').child('frozen').val()` / `newData...val()` directly, which can be null/non-boolean.
+- Stale-claim scan found historical statements in the backend design, backend plan command text, and earlier findings. Active authority wording was superseded without rewriting those historical records.
+- `rtk git diff --check`: PASS before this authority append.
+
+Closure effect:
+
+- At that time, the legacy frozen-row gate was reopened because its stale-client guard could not be proven while the rules file did not compile.
+- Task 5.1-5.15 local source candidates remain present; this finding does not erase prior implementation history.
+- At that time, the A-C precondition was not complete, freshly verified, or authority-synced, so Batch D start remained prohibited.
+- Rules/source/test correction, fresh emulator proof, stable frontend proof, and policy-compliant independent read-only review require a separately authorized packet.
+- No runtime/source/test/rules edits, staging, commit, push, deploy, remote mutation, or Batch D work occurred in this authority-only packet.
+
+## PRD-0055 Task 5 Batch D: 5.16 through 5.19 publish readiness, accessibility, integration proof, and observability - 2026-06-29
+
+Historical verdict at Batch D close: PASS for local Batch D scope. Task 5.9 was reclosed and Task 5.16 through Task 5.19 were checked. Later Batch E proof supersedes the old 5.20+ open status; current status is recorded in the Batch E section below.
+
+Prerequisite unblock:
+
+- The prior A-C authority-unblock failure is historical. Executable PRD-0057 RTDB emulator proof now passes with the process-local Temurin JDK at `%TEMP%\codex-temurin-jdk-21\jdk-21.0.11+10`.
+- Command: `$env:JAVA_HOME = 'C:\Users\The Lord\AppData\Local\Temp\codex-temurin-jdk-21\jdk-21.0.11+10'; $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"; node .\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec --only database "node .\node_modules\vitest\vitest.mjs run src\__tests__\security\prd0057-listening-authoring-rules.emulator.test.ts --reporter=basic"`
+- Result: PASS, `src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts` 5/5, including owner/admin reads, cross-owner/unauthenticated denials, canonical authoring browser-write denial, and frozen legacy row browser write/delete denial. The prior `! only operates on booleans` compiler failure did not recur.
+
+Batch D implementation:
+
+- `src/features/assessment/listening/authoring/listeningPublishReadiness.ts`: focused publish readiness service. It requires canonical `assetId`, a current delivery URL, and a successful `Range: bytes=0-0` probe with `206` and byte-range headers. It fails closed on missing canonical identity, missing delivery path, rejected fetch, malformed range response, or non-seekable media.
+- `src/features/assessment/listening/authoring/ListeningPublishReadinessPanel.tsx`: bounded readiness component with labelled `status` / `alert` semantics, assertive blocked state, and section-level blocker copy.
+- `src/skills/listening/builders/ListeningTestBuilder.tsx`: Publish now checks readiness after local Publish validation and before trusted backend `publishDraft(...)`; blocked readiness sets publish-blocked state, preserves Save draft warning behavior, emits readiness observability, and does not call backend publish. Builder Back/Next workflow actions now track feature events, and URL-bearing validation/update debug logs were removed.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts`: adds sanitized observability callback events for autosave failure, revision creation, archive, restore, and legacy transition with ID/status metadata only.
+- `src/config/featureRegistry.ts`: registers Batch D Listening authoring actions, including readiness, Back/Next workflow, autosave failure, revision, archive/restore, commit failure, orphan growth, and legacy transition.
+
+Proof:
+
+- Frontend/authoring focused proof: `rtk npx vitest run src/features/assessment/listening/authoring/listeningPublishReadiness.test.ts src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts src/skills/listening/builders/ListeningTestBuilder.test.tsx src/config/featureRegistry.test.ts --reporter=basic`: PASS, 4 files / 35 tests after the observability-seam update.
+- Backend authoring broad proof: `rtk npx vitest run --root functions src/listening-authoring/listeningAuthoringContract.test.ts src/listening-authoring/http.test.ts src/listening-authoring/lifecycle.service.test.ts src/listening-authoring/publish.service.test.ts src/listening-authoring/repository.test.ts src/listening-authoring/saveDraft.service.test.ts --reporter=basic`: PASS, 6 files / 92 tests.
+- Storage/public-reader support proof: `rtk npx vitest run src/services/listeningTestStorage.test.ts src/services/r2Storage.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts src/features/assessment/listening/storage/listeningAssetCommit.test.ts --reporter=basic`: PASS, 4 files / 59 tests.
+- Executable RTDB emulator proof: PASS, 1 file / 5 tests, command recorded above.
+- Static log-redaction scan: `rg -n "console\.log\([^\n]*(audioUrl|streamUrl|url|URL)|console\.log\([^\n]*metadata\.sections|console\.log\([^\n]*updateSection|console\.log\([^\n]*Section \$\{section\.number\}" src\skills\listening\builders\ListeningTestBuilder.tsx src\features\assessment\listening`: exit 1, no matches.
+- Line-count checkpoint: `ListeningTestBuilder.tsx` 3008 lines, `listeningTestStorage.ts` 685 lines, `listeningPublishReadiness.ts` 120 lines, `ListeningPublishReadinessPanel.tsx` 89 lines, `listeningPublishReadiness.test.ts` 127 lines. The new readiness service/component hold new control-state responsibility; builder growth is orchestration and test wiring in the inherited dirty tree.
+
+Independent / delegated review:
+
+- Docs-map subagent reported active authority drift in taskbox, findings, traceability, implementation log, and PRD-0057; this packet reconciles those current surfaces and keeps the old blocked gate as historical evidence.
+- Proof-matrix subagent identified the exact no-broad-suite command matrix and emulator/port risks; main thread ran the stronger executable emulator gate.
+- Implementation-review subagent initially returned BLOCKED for audio URL logging and missing Back/Next workflow tracking. Main thread removed URL-bearing builder logs, added Back/Next tracking/registry/tests, added blocked-readiness `role="alert"` proof, and added sanitized workflow observability. Re-review returned PASS with no new blocker.
+
+Residual boundaries:
+
+- No Task 5.20 human-assisted browser/tablet/screen-reader gate, selected-teacher rollout, Task 5.21 metrics sample window, Task 5.22 mandatory fresh-context independent verification, parent Task 5.0 acceptance, Task 6 private delivery/reconciliation/cleanup, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Google Drive behavior, deployment, staging, commit, push, or remote-state mutation occurred.
+
+## PRD-0055 Task 5 Batch E precondition correction - 2026-06-29
+
+Verdict before final A-D re-review: implemented, not yet authority-closed.
+
+- Historical conversation evidence correctly cleared the obsolete A-C blocked wording, but fresh proof found real remaining gaps: parser matching-bank split, incomplete archive/restore keyboard proof, no trusted builder discard/restore/archive wiring, no single lifecycle integration sequence, traceability section-marker mojibake, contradictory PRD-0057 final status, and stale line counts.
+- Parser RED reproduced a false second section when matching instructions repeated `Questions 11-15`; GREEN now returns one matching section with seven options. Reviewer regression for `PART 1 Questions 1-2` was added and passes.
+- Lifecycle RED proved discard did not call trusted mutation and archive/restore controls were absent. GREEN adds bounded controls, trusted discard/restore/archive calls, shared announcements, lifecycle-wide action freeze, conflict-focus recovery, and 44px keyboard targets.
+- Backend integration now runs create -> reload -> autosave -> stale conflict -> publish -> revision save/publish -> discard -> restore -> archive against one in-memory repository.
+- Review found and corrected archive token authority (`versionNumber`, not draft conflict token), lifecycle-pending Save/Publish/Discard/Next/Back concurrency, duplicate lifecycle observability, and numbered PART-header regression.
+- Current line checkpoint supersedes the historical Batch D count: `ListeningTestBuilder.tsx` 3157; `listeningTestStorage.ts` 684; bounded `ListeningLifecycleActions.tsx` 54; `ListeningSavePublishBar.tsx` 96.
+- `Â§` traceability corruption was mechanically repaired to `§`; active PRD-0057 status now says 5.1-5.19 are local candidates and 5.20-5.23 remain open.
+- Fresh proof at that checkpoint: parser 8/8, correction UI 15/15, frontend authoring/parser 46/46 before final concurrency correction, backend 93/93, storage/public-reader 59/59, and app build/bundle budget PASS. Superseding proof below records the full post-edit frontend/backend/storage reruns, RTDB emulator pass, build, and `git diff --check`. Behavioral mutation probes remain a Task 5.22 Batch E requirement, not A-D closure evidence.
+- No Google Drive behavior was used or changed. No deploy, remote mutation, staging, commit, push, Task 6+, solo/live runtime, Reading V2 internals, or `AudioPlayer.tsx` change occurred.
+
+## Task 5 Batch E A-D gate escalation correction - 2026-06-29
+
+- GPT-5.5 medium independent review returned `BLOCKED` after finding active authority drift that earlier reviews missed.
+- Google Drive is current product-nonauthority: executable branches remain physically present only as obsolete unsupported residue. Task 5 did not use, extend, validate, or test that residue as supported behavior. Removal and backed-test disposition remain deferred to the separate approved cleanup/deletion task.
+- The upload-storage authority historical snapshot now labels its Task 5.16+ status as historical and explicitly points to the superseding current status.
+- Fresh reviewer proof passed frontend authoring/parser 47/47, backend authoring 93/93, storage/public-reader 59/59, RTDB emulator 5/5, production build/bundle budget, and `git diff --check`.
+- Behavioral mutation-kill proof remains a Task 5.22 requirement, not completed A-D evidence. Batch E cannot close without it.
+- The reviewer also found that current facade/orchestrator growth needed explicit evidence. Required large-file maps for `ListeningTestBuilder.tsx` and `listeningTestStorage.ts` were absent at reviewer time.
+- Correction: both maps now exist under `tasks/large-file-maps-0055/`. Independent full reads covered 3157/3157 builder lines and 684/684 storage-facade lines. The maps record all symbols, state/effects, side effects, branches, callers, exact diff regions, protected regions, characterization tests, responsibility deltas, and future seams. The +975 builder delta is explicit UI orchestration/render wiring around bounded workflow/readiness/announcement/lifecycle modules; the +126 storage delta replaces direct R2 mutation with canonical validation and an injected committer. This is a maintenance risk, not accepted evidence of new domain authority. Fresh clean A-D re-review is in progress before Batch E starts.
+
+## PRD-0055 Task 5 Batch E: 5.20 through 5.21 browser/a11y and local rollout proof - 2026-06-29
+
+Interim verdict before final review: PASS for Task 5.20 and Task 5.21 local scope. The old open status for Task 5.22, Task 5.23, and parent Task 5.0 is superseded by the final verification and parent acceptance section below.
+
+Findings:
+
+- No blocking findings for Task 5.20 browser/a11y proof.
+- No blocking findings for Task 5.21 internal-fixture rollout proof.
+- Selected-teacher rollout was not run because separate explicit authorization was not given; no selected-teacher or production data evidence is claimed.
+
+Evidence:
+
+- Focused frontend authoring/parser proof passed 6 files / 47 tests.
+- Focused backend authoring proof passed 6 files / 93 tests.
+- Focused storage/public-reader proof passed 4 files / 59 tests.
+- Executable PRD-0057 RTDB emulator proof passed 1 file / 5 tests with process-local Temurin JDK.
+- Mutation probes failed as required before restoration: stale conflict accepted, idempotency duplicate version, temp URL durable persistence, failed byte-range readiness acceptance, and legacy frozen-content mutation.
+- Playwright proof ran exactly as `npx playwright test e2e/prd0055-task5-authoring-a11y.spec.ts --reporter=json > report.json`; Chromium desktop 1366x900 and tablet 768x1024 both passed.
+- Browser path: `http://localhost:5173/login`, bottom-right dev quick-login settings button, Teacher quick-login button, `/lobby`, then `/create-test?skill=Listening`.
+- Browser artifacts: `report.json`, `output/playwright/prd0055-task5-batch-e/authoring-desktop.png`, `output/playwright/prd0055-task5-batch-e/authoring-tablet.png`, `output/playwright/prd0055-task5-batch-e/a11y-desktop.json`, and `output/playwright/prd0055-task5-batch-e/a11y-tablet.json`.
+- Internal-fixture rollout artifacts: `output/prd0055-task5-batch-e/local-rollout-authoring-report.json`, `output/prd0055-task5-batch-e/local-rollout-storage-report.json`, and `output/prd0055-task5-batch-e/local-rollout-summary.json`.
+- Local rollout metrics: authoring lifecycle/publish 27/27 tests passed; storage metrics/commit/lifecycle 40/40 tests passed; observed commit failures zero; new untracked draft audio count zero; new untracked draft audio bytes zero.
+
+Boundaries:
+
+- No browser Save draft or Publish write was clicked.
+- No selected-teacher rollout, production data, deployment, cleanup execution, production alerting, private delivery, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, staging, commit, push, or remote-state mutation occurred.
+
+## PRD-0055 Task 5 Batch E final verification and parent acceptance - 2026-06-29
+
+Verdict: PASS for Task 5.22, Task 5.23, and parent Task 5.0 local acceptance.
+
+Findings:
+
+- No blocking findings from the required GPT-5.5 medium read-only independent verifier.
+- No blocking findings from the required GPT-5.4-mini high read-only stale/drift explorer.
+- Selected-teacher rollout remains explicitly unclaimed because separate authorization was not given.
+
+Independent verifier summary:
+
+- GPT-5.5 medium verifier inspected taskbox, PRD-0057, traceability, findings, implementation log, upload-storage authority, large-file maps, full dirty inventory, source diff, proof JSON, screenshots, selected-teacher boundary, Google Drive unsupported-residue boundary, large-file responsibility drift, protected-path drift, and remote-mutation/deploy/push risk.
+- It reran safe local proof: backend authoring lifecycle/publish 27/27, storage metrics/commit/lifecycle 40/40, and `rtk git diff --check`.
+- Final status: PASS, no blocking findings. Non-blocking notes were selected-teacher rollout not run/no claim and Google Drive executable residue still physically present but not expanded or treated as supported.
+
+Explorer summary:
+
+- GPT-5.4-mini high explorer checked stale claims, forbidden path drift, exact checkbox state, changed/untracked inventory, and proof-artifact parseability.
+- It confirmed `5.0 [ ]`, `5.20 [x]`, `5.21 [x]`, `5.22 [ ]`, `5.23 [ ]`, `6.0 [ ]`, `7.0 [ ]`, and `8.0 [ ]` before final closure; final taskbox patch then checked 5.22, 5.23, and parent 5.0.
+- It found no active stale claims; one low historical implementation-log line was reconciled before closure.
+
+Parent acceptance:
+
+- Draft/publish semantics, immutable revisions, optimistic conflict rejection, idempotency, legacy first-edit transition, draft recovery, published archive/delete governance, publish readiness, authoring accessibility, facade boundaries, line-count maps, mutation proofs, and local rollout metrics are accepted locally.
+- Internal-fixture rollout evidence shows zero observed commit failures and zero new untracked draft audio. Selected-teacher production traffic is not claimed and requires separate explicit authorization before any Task 6.3 reconciliation conclusion depends on it.
+- No Task 6+, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, deployment, staging, commit, push, or remote-state mutation occurred.
+
+## PRD-0055 Task 5 selected-teacher Worker proof and legacy scoped CAS correction - 2026-06-29
+
+Verdict: PASS for single selected-teacher Worker HTTP proof as Task 6.3 dependency evidence. Task 6.3 remained unchecked and unimplemented at that point; later 2026-06-29 read-only planner evidence supersedes that pre-implementation state.
+
+Findings:
+
+- Prior Firebase Functions/Secret Manager direction was invalid for production because project `temp-a1437` intentionally remains Spark-tier. Production authoring authority now stays on Cloudflare Worker + Firebase RTDB REST + Worker secrets.
+- First live legacy first-edit proof exposed a production RTDB limit: whole-root ETag/CAS write exceeded the maximum single-request write size. The Worker repository now scopes legacy first-edit CAS to `listening_authoring` plus `tests/{legacyTestId}`.
+- Selected-teacher proof is direct Worker HTTP with selected teacher credentials, not natural browser UI write proof. It creates real production authoring sample rows for Task 6.3 dependency use.
+
+Evidence:
+
+- Cloudflare Worker secret `LISTENING_AUTHORING_IDEMPOTENCY_SECRET` was configured by binding name only; secret value is not recorded.
+- Worker deploy for proof: `r2-upload-signer` version `34970bd6-feb7-4520-87f1-fa6341dc0ba0`; rollback reference version `3687d2e0-4718-4c0b-9c84-7f81749c31fb`.
+- Firebase RTDB rules were deployed for project `temp-a1437` before final proof after live owner-read proof required current `listening_authoring/drafts` indexing.
+- Proof artifact `output/prd0055-task5-selected-teacher-worker-proof/selected-teacher-worker-proof.json` passed for proof ID `prd0055-selected-teacher-1782727843357`.
+- Passed proof steps: enable write flag; incomplete Save draft returned warning and created no version/test row; stale conflict returned `409` and preserved title; Publish plus idempotent retry returned the same `versionId`; cross-owner draft/version reads and browser canonical write were denied; legacy first-edit added freeze metadata without changing content fields; write flag disabled; post-disable write returned `503` / `writes-disabled`.
+- Final write flag check returned `false`.
+- Current line checkpoint: `cloudflare/src/upload-worker/listening-authoring/repository.ts` 342 lines, `cloudflare/src/upload-worker/listening-authoring/rtdb.ts` 155 lines, `cloudflare/src/upload-worker/listening-authoring/worker.ts` 258 lines, `functions/src/listening-authoring/repository.legacyFirstEditMutation.ts` 385 lines, `cloudflare/test/listening-authoring-worker.test.ts` 266 lines, `scripts/prd0055-selected-teacher-worker-proof.mjs` 433 lines.
+
+Boundaries:
+
+- No cleanup or deletion was run; production proof rows remain as expected proof residue.
+- In that selected-teacher proof packet, no Firebase Functions deploy, Firebase Hosting deploy, staging, commit, push, Task 6.3 implementation, Task 6.4+ work, cleanup execution, private delivery, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
+
+## PRD-0055 Task 6.3 read-only reconciliation planner slice - 2026-06-29
+
+Verdict: implemented and locally verified as a read-only Task 6.3 slice. Task 6.3 remains unchecked and not closed.
+
+Findings:
+
+- Selected-teacher dependency evidence is now required at planner entry. Missing proof, failed proof, no production/remote mutation evidence, or selected-teacher stop conditions abort planning with `selected_teacher_proof_missing`.
+- Hourly temp reconciliation is represented as bounded report/checkpoint/candidate planning only. Candidate operations are `report-only-temp-delete-candidate` and carry `executionAuthorized: false`.
+- Daily durable `pending-delete` reconciliation is represented as bounded report/checkpoint/candidate planning only. Candidate operations require seven-day grace plus a same-tick zero-reference recheck and carry `executionAuthorized: false`.
+- Capacity exceed produces an aborted report, checkpoint, stop action, and no candidates, so a run cannot continue after a capacity stop.
+- Budgets are explicit for object operations, R2 list/read/write/delete counts, Firebase read/write counts, estimated wall-clock, and estimated R2 cost. Source constants record Cloudflare R2 Standard pricing docs checked on 2026-06-29: Class A `$4.50` / million, Class B `$0.36` / million, and `DeleteObject` free.
+- Read-only Firebase checks against selected-teacher proof rows found the incomplete draft row, legacy frozen row, and version-row JSON output; `/media_assets --shallow` returned `null`, so the selected-teacher proof sample currently has no media registry rows to delete or reconcile.
+
+Evidence:
+
+- New source: `src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.ts` (320 lines).
+- New tests: `src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts` (182 lines).
+- Focused proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts --reporter=basic` passed 1 file / 5 tests.
+- Adjacent storage proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts --reporter=basic` passed 3 files / 37 tests.
+
+Boundaries:
+
+- In that read-only Task 6.3 planner-slice packet, no cleanup execution, object deletion, R2 mutation, Firebase mutation, Worker deploy, Firebase deploy, private delivery, Task 6.4+, staging, commit, push, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
+- No Task 6.3 checkbox change occurred in that earlier packet. Parent Task 6.0 was still unchecked at that packet close; later Batch F parent closure supersedes that historical status.
+
+## PRD-0055 Task 6.3 local reconciliation dry-run foundation closure - 2026-06-29
+
+Verdict: PASS for Task 6.3 local reconciliation dry-run/report/checkpoint foundation. This superseded only the prior Task 6.3 read-only planner-slice status above. Parent Task 6.0 was still unchecked at that packet close; later Batch F parent closure supersedes that historical status.
+
+Findings:
+
+- Selected-teacher Worker proof is mandatory before any Task 6.3 dry run. Missing, failed, or synthetic-only proof aborts with report/checkpoint before asset listing or same-tick reference rechecks.
+- Hourly temp reconciliation is bounded and checkpointed through an injected repository plus injected report/checkpoint sink. It emits report-only temp candidates with `executionAuthorized: false`.
+- Daily durable `pending-delete` reconciliation is bounded and checkpointed through the same dry-run boundary. It requires a same-tick reference recheck before any report-only durable delete candidate and denies candidates when that recheck is missing.
+- Object, R2, Firebase, estimated wall-clock, and estimated R2-cost budgets abort immediately. The dry-run stops before continuing candidate planning or additional same-tick reference rechecks after a capacity stop.
+- Stale references, retained references, cross-owner ambiguity, missing owner evidence, rollback stop-delete, and backup/restore uncertainty fail closed as blocked candidates with no delete/write authority.
+- The repository/execution boundary has no delete or write executor. Report/checkpoint persistence is injected for Spark-safe Worker or approved local runner wiring later.
+
+Evidence:
+
+- Focused proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts --reporter=basic` passed 1 file / 15 tests after adding synthetic-only proof rejection and missing-reference-recheck denial coverage.
+- Combined storage proof: planner, lifecycle, deletion-governance, registry, commit, and metrics suites passed 6 files / 70 tests after restoring mutation probes.
+- Public-reader/storage facade proof: `src/services/r2Storage.test.ts` and `src/services/listeningTestStorage.test.ts` passed 2 files / 24 tests.
+- Task 5 authoring/builder compatibility proof: `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.test.ts` and `src/skills/listening/builders/ListeningTestBuilder.test.tsx` passed 2 files / 22 tests.
+- Backup/restore/cron baseline proof: `r2-backup-worker` package-root `data-backup`, `auto-backup`, and `restore-execute` tests passed 3 files / 3 tests after the root Vitest invocation was rejected by the wrong include pattern.
+- Cloudflare bridge/lifecycle proof ran under bundled x64 Node after ambient ARM64 `workerd` failed; `test/listening-upload-session-bridge.test.ts` and `test/r2-lifecycle-config.test.ts` passed 2 files / 15 tests. The subpackage Vitest 4 runner rejected `--reporter=basic`; rerun without that reporter passed.
+- App build passed with bundle budget OK.
+- `rtk git diff --check` passed.
+
+Independent review:
+
+- GPT-5.4-mini high read-only reviewer first returned BLOCKED for dry-run proof-gate ordering and stale findings truth. The implementation now short-circuits after proof read and before list/recheck calls, tests prove zero list/recheck calls on bad proof, and this append-only findings entry supersedes the stale read-only planner slice wording.
+
+Boundaries:
+
+- In the Task 6.3 closure packet, no cleanup execution, object deletion, R2 mutation, Firebase mutation, Worker deploy, Firebase deploy, private delivery, production alerting, Task 6.4+ historical inventory, staging, commit, push, solo/homework runtime, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
+- No `executionAuthorized: true` path was added. Nonzero delete/write operation counts remain absent outside mocked/test-only proof contexts.
+
+## PRD-0055 Task 6 Batch C: 6.4 through 6.5 historical inventory and backup governance - 2026-06-29
+
+Verdict: PASS for local Task 6.4 and Task 6.5 foundations. Parent Task 6.0 was still unchecked and Task 6.6+ was unchecked/unstarted at that packet close; later Batch F parent closure supersedes that historical status.
+
+Findings:
+
+- No blocking source/test finding remains after focused, adjacent, and mutation proof.
+- Historical orphan inventory is dry-run/report/checkpoint only. It classifies deleted-test leftovers, pre-registry permanent audio, interim/failed rollout objects, missing owner evidence, and ambiguous owner evidence while excluding retained live product references.
+- Accepted-risk-required records exist for unresolved interim, missing-owner, and ambiguous-owner classes. Deletion remains unauthorized and requires a later explicit target list, backup review, budget, rollback, and deletion approval.
+- Operation budgets are explicit for object count, R2 list/copy/delete counts, estimated cost, and wall-clock duration. Capacity stops abort with report/checkpoint and preserve zero copy/delete counts.
+- Backup governance records `r2-backup-worker/` as the DR owner for this local design/test packet, preserves Task 4 registry backup/restore acceptance, blocks backup copies from live-reference counting, filters GDPR-completed/tombstoned/permanently-deleted objects from restore/live retention, and blocks teacher-role restore authority.
+- Existing scheduled backup cron, registry backup/restore, Reading V2 trusted submit, and homework assignment route regressions pass in the full `r2-backup-worker` suite.
+
+Evidence:
+
+- New Task 6.4 source/test: `src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.ts`, `src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.test.ts`.
+- New Task 6.5 source/test: `r2-backup-worker/src/backup/listening-media-governance.ts`, `r2-backup-worker/src/backup/listening-media-governance.test.ts`.
+- Focused proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.test.ts --reporter=basic` passed 1 file / 7 tests.
+- Focused proof: `rtk npx vitest run src/backup/listening-media-governance.test.ts --reporter=basic` from `r2-backup-worker` passed 1 file / 5 tests.
+- Adjacent storage proof: historical inventory plus Task 4 storage baselines and Task 5 storage/public-reader compatibility passed 11 files / 113 tests.
+- Full `r2-backup-worker` proof: `rtk npm test -- --reporter=basic` passed 6 files / 37 tests, including scheduled auto-backup cron.
+- Mutation probes failed as expected and were restored for retained reference counted as orphan, object-operation budget bypass, deletion side effect during dry run, backup copy treated as live product reference, and GDPR-deleted object restored as live.
+
+Independent review:
+
+- Required GPT-5.5 medium independent verifier was spawned with `model=gpt-5.5` and `reasoning_effort=medium`; the agent runtime reported that its exact internal model label was not visible, but the spawn call accepted the requested configuration. Verdict PASS, no findings. Method: read scoped source/tests/docs, scanned forbidden executor/deploy/private-delivery terms, ran focused tests plus `git diff --check` and UTF-8 checks. Risk model: retained reference exclusion, dry-run side effects, budget bypass, backup-copy live-reference exclusion, GDPR/permanent-delete restore filtering, Task 4 backup/restore preservation, cron proof, stale taskbox/docs overclaim, and forbidden remote/delete/private-delivery claims.
+- Required GPT-5.4-mini high stale/drift explorer was spawned with `model=gpt-5.4-mini` and `reasoning_effort=high`; the agent runtime reported that its exact internal model label was not visible, but the spawn call accepted the requested configuration. Verdict PASS, no findings. Method: read packet docs/status/diff inventory and ran exact-string scans. Risk model: stale checkbox drift, parent/child closure mismatch, deploy/remote/delete/private-delivery overclaim, and protected-path drift. It confirmed Task 6.0 unchecked, Task 6.4 and Task 6.5 checked, Task 6.6+ unchecked/unstarted, and no current-packet drift into forbidden source paths.
+
+Boundaries:
+
+- No production/R2 inventory access, production data, cleanup execution, object deletion, copy/delete executor, R2/Firebase/Cloudflare remote mutation, deploy, private delivery, staging, commit, push, Task 6.6+ delivery work, solo/homework runtime source change, live runtime, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred.
+
+## PRD-0055 Task 6 Batch D: 6.6 through 6.8 authorized delivery and result-review proof - 2026-06-29
+
+Verdict: PASS for local Task 6.6, Task 6.7, and Task 6.8 foundations after post-correction source/test/docs proof. Parent Task 6.0 remained unchecked. Task 6.9+ remained unchecked and unstarted at Batch D close; the Batch E section below supersedes that status.
+
+Findings:
+
+- No blocking source/test finding remains after focused, adjacent, and browser proof.
+- Authorized delivery is trusted-server-only and dependency-injected. `src/features/assessment/listening/storage/listeningAssetDelivery.service.ts` resolves canonical asset IDs through an injected reference-graph boundary, authorizes only asset owner or retained result viewer access tied to an active immutable version, and denies browser runtime, known asset ID alone, cross-user, cross-owner, noncanonical, noncommitted, expired, and prior-signed-URL-only access.
+- Delivery issuance returns a 60-minute URL and exposes refresh timing at fewer than 10 minutes remaining. Refresh before the threshold fails closed; refresh at threshold returns a replacement while preserving `previousUrlValidUntil`.
+- Delivery readiness requires a successful byte-range probe before signing. Non-`206`, missing `Accept-Ranges`, unstable `Content-Length`, malformed `Content-Range`, and non-seekable behavior fail closed before any signed URL is issued.
+- Result-review delivery is integrated through `src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.ts` and consumed by `src/components/results/SharedSavedResultCore.tsx` when a loaded Listening saved result carries `listeningResultReviewAudio`. Legacy raw public R2 result audio remains read-only public delivery through the existing legacy resolver with `migrationPerformed: false`; new asset-ID result audio requires immutable `versionId` scope and resolves through authorized delivery with `resultId`/`versionId`. Production shell calls use the default `src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.ts` issuer, which posts only `assetId`, `resultId`, and `versionId` to the authenticated Worker route `POST /listening-delivery/result-review`; the Worker route derives `callerUserId` from Firebase auth and rejects browser owner/context/runtime authority.
+- Human-assisted/browser proof matrix is recorded at `output/prd0055-task6-batch-d/human-assisted-proof-matrix.json`. Playwright JSON proof at `output/playwright/prd0055-task6-batch-d/report.json` passes Chrome, Edge, desktop-Safari-equivalent WebKit, and iOS-Safari-equivalent WebKit/iPhone result-review range probes for legacy and authorized audio in a synthetic proof page. The final successful Playwright run used `--reporter=json > output\playwright\prd0055-task6-batch-d\report.json`.
+
+Evidence:
+
+- RED proof: focused delivery and result-review resolver tests first failed because `listeningAssetDelivery.service.ts` and `listeningResultReviewAudioResolver.ts` did not exist.
+- Focused GREEN proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts --reporter=basic` passed 2 files / 14 tests.
+- Client/resolver/component proof: `rtk npx vitest run src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts src/components/results/SharedSavedResultCore.test.tsx --reporter=basic` passed 3 files / 30 tests, including client payload authority, legacy public result-review audio, new asset-ID authorized result-review delivery consumption, and production/default issuer use without shell injection.
+- Worker route proof: local node Vitest proof for `cloudflare/test/listening-delivery-worker.test.ts` passed 1 file / 3 tests, proving authenticated trusted-server UID derivation, browser-authority rejection, and required result/version scope. The checked-in Cloudflare Vitest config still owns the test for supported `workerd` platforms.
+- Adjacent storage proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts src/features/assessment/listening/storage/listeningAssetRegistry.test.ts src/features/assessment/listening/storage/listeningAssetCommit.test.ts src/features/assessment/listening/storage/listeningAssetLifecycle.test.ts src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts src/features/assessment/listening/storage/listeningAssetReplacement.test.ts src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts src/features/assessment/listening/storage/listeningHistoricalOrphanInventory.test.ts --reporter=basic` passed 10 files / 100 tests.
+- Existing Task 5 public-reader/result compatibility proof plus delivery client: `rtk npx vitest run src/services/r2Storage.test.ts src/services/listeningTestStorage.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts --reporter=basic` passed 4 files / 31 tests.
+- Existing Task 6.5 backup-governance/protected-route baseline: `rtk npm --prefix r2-backup-worker test -- --reporter=basic` passed 6 files / 37 tests.
+- Browser proof: `rtk proxy cmd /c "npx playwright test prd0055-task6-result-review-delivery.spec.ts --config=playwright.prd0055-task6.config.js --reporter=json > output\playwright\prd0055-task6-batch-d\report.json"` passed Chrome, Edge, desktop-Safari-equivalent WebKit, and iOS-Safari-equivalent WebKit/iPhone projects. A prior PowerShell redirection run exited 0 but produced UTF-16 JSON, and a later `cmd` run with a doubled `e2e\` path exited 1 with "No tests found"; both are superseded by the final successful JSON run.
+
+Mutation probes / negative proof:
+
+- Known asset ID grants URL without retained reference fails in `listeningAssetDelivery.service.test.ts`.
+- Cross-owner and cross-user issuance fail before signing in `listeningAssetDelivery.service.test.ts`.
+- Expired URL accepted fails through `assertListeningDeliveryUrlUsable(...)`.
+- Non-206/non-seekable range marked ready fails before signing.
+- Result review bypasses resolver for new asset-ID records fails because `versionId` scope is required and the resolver delegates to authorized delivery.
+- Browser-provided `ownerId`/`context`/`runtime` authority fails at the Worker route before issuer invocation.
+
+Boundaries:
+
+- No cleanup execution, object deletion, production/R2 inventory access, production data read, R2/Firebase/Cloudflare remote mutation, deploy, private delivery rollout, staging, commit, push, Task 6.9+ work, solo/homework runtime source change, live runtime source change, `AudioPlayer.tsx`, Reading V2 runtime internals, or Google Drive behavior occurred in Batch D.
+
+## PRD-0055 Task 6 Batch E: 6.9 through 6.11 local rollout, metrics, and rollback proof - 2026-06-29
+
+Verdict: PASS for local Task 6.9, Task 6.10, and Task 6.11 foundations after RED/GREEN, focused/adjacent proof, backup-governance proof, Worker route proof, and source/test/docs reconciliation. Parent Task 6.0 remained unchecked. Task 6.12 and Task 6.13 were unchecked and unstarted at Batch E close; the Batch F section below supersedes that status.
+
+Findings:
+
+- No blocking source/test finding remains after focused and adjacent proof.
+- Task 6.9 local rollout proof adds `src/features/assessment/listening/storage/listeningTask6LocalRollout.ts`. It accepts only already accepted prior selected-teacher Worker proof, local result-review proof, dry-run reconciliation reports with zero write/delete operations, complete metrics, and clean packet boundaries. It blocks missing/stale selected-teacher proof, missing result-review proof, missing metrics, blocked references, write/delete operations, result audio failure, backup-policy conflict, cleanup execution, new production-data reads, new remote mutation, and solo/live traffic switching.
+- Task 6.10 metrics extend `src/features/assessment/listening/storage/listeningAssetMetrics.ts` with temp age, reconciliation, delete failure, issuance failure, refresh failure, reclaimed bytes, auth denial, assets blocked by references, and result-playback failure. Task 4 orphan-growth metrics remain available and unchanged.
+- Task 6.11 rollback extends `src/features/assessment/listening/storage/listeningAssetRollback.ts` and `src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.ts` so rollback returns asset-ID result-review records to public R2 without invoking authorized delivery or mutating result records.
+- Local rollout artifact is `output/prd0055-task6-batch-e/local-rollout-summary.json`; focused JSON report is `output/prd0055-task6-batch-e/focused-report.json`.
+
+Evidence:
+
+- RED proof: focused tests first failed because `listeningTask6LocalRollout.ts` did not exist, `createListeningTask6LifecycleMetric(...)` did not exist, and `resolveListeningResultReviewAudio(...)` ignored rollback and still issued authorized delivery for asset-ID result-review records.
+- Focused GREEN proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningTask6LocalRollout.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts --reporter=basic` passed 4 files / 18 tests.
+- Focused JSON proof: `rtk proxy cmd /c "npx vitest run src/features/assessment/listening/storage/listeningTask6LocalRollout.test.ts src/features/assessment/listening/storage/listeningAssetMetrics.test.ts src/features/assessment/listening/storage/listeningAssetRollback.test.ts src/features/assessment/listening/adapters/listeningResultReviewAudioResolver.test.ts --reporter=json > output\prd0055-task6-batch-e\focused-report.json"` passed with `success: true` and 18/18 tests.
+- Adjacent proof: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetReconciliationPlanner.test.ts src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts src/features/assessment/listening/storage/listeningAssetDeletionGovernance.test.ts src/features/assessment/listening/adapters/listeningResultReviewDeliveryClient.test.ts src/components/results/SharedSavedResultCore.test.tsx --reporter=basic` passed 5 files / 62 tests.
+- Existing Task 6.5 backup-governance/protected-route proof: `rtk npm --prefix r2-backup-worker test -- --reporter=basic` passed 6 files / 37 tests.
+- Worker route proof: default local Node run hit the known Windows ARM64 `workerd` startup error; superseding proof from `cloudflare/` with bundled x64 Node passed `test/listening-delivery-worker.test.ts` 1 file / 3 tests.
+
+Boundaries:
+
+- No cleanup execution, object deletion, production data read in this packet, new selected-teacher/result-review remote traffic in this packet, R2/Firebase/Cloudflare remote mutation, deploy, staging, commit, push, solo/homework runtime change, live runtime change, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, Task 6.12+, or Task 7 work occurred.
+
+## PRD-0055 Task 6 Batch F: 6.12 independent verification and 6.13 parent blocker - 2026-06-29
+
+Verdict: PASS for Task 6.12 fresh-context independent verification, Task 6.13 parent acceptance, and parent Task 6.0 closure after explicit owner acceptance and read-only remote evidence.
+
+Findings:
+
+- Independent reviewer `019f1416-21a3-78a0-b298-a8846e2aff5c` originally returned BLOCKED for parent acceptance after auditing Task 6 taskbox/docs/proof, selected-teacher proof, reconciliation proof, deletion/tombstone rules, delivery/range behavior, backup governance, rollback, RED/GREEN/mutation evidence, and large-file maps. The blocker was semantic: `output/prd0055-task6-3-reconciliation-planner/read-only-reconciliation-summary.json` showed `/media_assets = null`, `inputAssets: []`, `executionAuthorized: false`, `r2DeleteOperations: 0`, and `firebaseWriteOperations: 0`.
+- Owner acceptance on 2026-06-29 explicitly accepts selected-teacher proof `prd0055-selected-teacher-1782727843357` with `/media_assets = null`, `inputAssets: []`, `executionAuthorized: false`, and zero R2/Firebase writes/deletes as satisfying Task 6.13 real Task-5 traffic reconciliation because there were no media-asset rows to reconcile in that accepted Task-5 traffic sample.
+- Fresh read-only Firebase CLI shallow proof against project `temp-a1437` confirmed `/media_assets` is `null`, the selected proof draft row exists, the selected proof version row exists, and the legacy proof row printed shallow keys. This remote proof was read-only and owner-authorized.
+- Result-review browser evidence remains local/simulated proof plus local rollout summary. Batch E explicitly records no new selected-teacher or result-review remote traffic in that packet.
+- Stale/drift reviewer `019f1416-685e-7c51-96a5-8baa25ee3273` returned PASS for active 6.9-6.11 status alignment before this Batch F record.
+
+Evidence:
+
+- Batch F summary artifact: `output/prd0055-task6-batch-f/independent-verification-summary.json`.
+- Blocking reconciliation artifact: `output/prd0055-task6-3-reconciliation-planner/read-only-reconciliation-summary.json`.
+- Local rollout artifact consumed by the reviewer: `output/prd0055-task6-batch-e/local-rollout-summary.json`.
+- Read-only remote commands: `rtk npx firebase-tools database:get /media_assets --shallow --project temp-a1437`; `rtk npx firebase-tools database:get /listening_authoring/drafts/draft-78487cfad37a5ad2aa1414124a12a301 --shallow --project temp-a1437`; `rtk npx firebase-tools database:get /listening_authoring/versions/version-6601a16bced11ec0b9184340b2d831af --shallow --project temp-a1437`; `rtk npx firebase-tools database:get /tests/prd0055-selected-teacher-1782727843357-legacy --shallow --project temp-a1437`.
+
+Boundaries:
+
+- No cleanup execution, object deletion, R2/Firebase/Cloudflare remote mutation, deploy, staging, commit, push, solo/homework runtime change, live runtime change, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, or Task 7 work occurred. Remote activity in this packet was limited to owner-authorized read-only shallow Firebase evidence collection.
+
+## PRD-0055 Task 7 Batch E: 7.13 through 7.15 local rollout and parent acceptance - 2026-06-30
+
+Verdict: PASS for local/internal Task 7.13, 7.14, 7.15, and parent Task 7.0 closure. Task 8+, selected solo/homework traffic, percentage rollout, live authority, deploy, staging, commit, push, cleanup execution, object deletion, and remote mutation remain outside this packet.
+
+Findings:
+
+- No blocking findings after fresh independent verification and stale/drift sync.
+- Stale/drift explorer found one real sync gap before this record: Task 7.13 evaluator code existed while docs/taskbox/log still stopped at Batch D. This Batch E record, taskbox update, and traceability addendum resolve it.
+- Selected teacher/student solo or homework traffic was not run or claimed because no explicit authorization was present.
+- Percentage rollout was not run or claimed because healthy playback/resume metrics plus authorization remain separate future gates.
+
+Implementation:
+
+- Added `src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.ts` as a pure local rollout evaluator.
+- Added `src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts` with proof for accepted internal-fixture rollout, unauthorized selected-traffic block, missing healthy-metric percentage rollout block, reload/legacy regression block, live private switch block, `AudioPlayer` source-change block, and remote-mutation block.
+- Added `output/prd0055-task7-batch-e/local-rollout-summary.json`; generated `output/prd0055-task7-batch-e/local-rollout-report.json`.
+
+Evidence:
+
+- RED: `rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts --reporter=basic` failed before implementation because `./listeningTask7LocalRollout` did not exist.
+- GREEN: `rtk npx vitest run src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts --reporter=basic` passed 1 file / 3 tests.
+- JSON proof: `rtk proxy cmd /c "if not exist output\prd0055-task7-batch-e mkdir output\prd0055-task7-batch-e && npx vitest run src/features/assessment/listening/runtime/solo/listeningTask7LocalRollout.test.ts --reporter=json > output\prd0055-task7-batch-e\local-rollout-report.json"` passed; parsed result success true, 3 passed, 0 failed.
+- GPT-5.5 medium independent verifier `019f154f-607c-79b0-a623-7f1ec8465465` returned PASS for Task 7.14 with no findings after inspecting source, large-file map, tests, taskbox/docs, and browser artifacts; it reran 16 files / 183 tests, `git diff --check`, exact UTF-8 check, scoped protected scans, and browser JSON parses.
+- GPT-5.4-mini high stale/drift explorer `019f154f-7554-7273-b877-06d3cfb4685a` returned DONE_WITH_CONCERNS only for the now-resolved docs sync gap and found no false Task 8/live/private/AudioPlayer/Google Drive/deploy/delete claim.
+
+Parent acceptance:
+
+- Task 7.1-7.15 source, tests, browser artifacts, large-file map, taskbox, findings, traceability, and implementation log now match live truth for the authorized local/internal-fixture scope.
+- Solo/homework presentation, resume/autosave/timer/playback/idempotent-submit/review, accessibility/mobile behavior, legacy public playback, and host/adapter-level private solo delivery remain proven by Batches A-E.
+- `AudioPlayer.tsx` source diff remains empty; Task 7 did not write `audioCommand` or `masterAudioState`, did not touch Reading V2 runtime internals, did not start Task 8, and did not run deploy, cleanup, deletion, staging, commit, push, unauthorized remote mutation, selected traffic, or percentage rollout.
+
+## PRD-0055 Task 7 Batch D: 7.11 through 7.12 solo delivery foundation - 2026-06-30
+
+Verdict: PASS for local Task 7.11 and Task 7.12 closure. Parent Task 7.0 remains unchecked. Task 7.13+, Task 8, selected solo/homework rollout, live authority, deploy, staging, commit, push, cleanup execution, object deletion, and remote mutation remain outside this packet.
+
+Implementation:
+
+- `src/features/assessment/listening/storage/listeningAssetDelivery.service.ts` now supports a `soloScope` alongside result-review scope. Solo issuance requires trusted-server context, active immutable version reference, retained test reference, caller equals scoped student, and retained solo access matching self-study/course/homework context. Asset-ID possession alone remains denied.
+- `src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.ts` resolves legacy public sections through the existing shared legacy resolver without issuer calls, resolves asset-ID sections through authorized delivery with test/version/student scope, and exposes a refresh delegation contract without changing `AudioPlayer` internals.
+- `src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.ts` posts only asset/test/version/mode context to `/listening-delivery/solo` with a Firebase ID token. It deliberately omits `studentId` and `callerUserId` from the browser body so student authority is derived at the trusted boundary.
+- `src/components/practice/ListeningPracticeView.tsx` resolves section audio at the solo host boundary before rendering `AudioPlayer`. Asset-ID sections fail closed until authorized delivery resolves; legacy public sections remain playable without private delivery.
+- `src/services/testStorage.ts` adds optional `assetId`/`versionId` audio-section metadata typing only.
+
+Evidence:
+
+- Focused Vitest: `rtk npx vitest run src/features/assessment/listening/storage/listeningAssetDelivery.service.test.ts src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.test.ts src/features/assessment/listening/runtime/solo/listeningSoloDeliveryClient.test.ts src/components/practice/ListeningPracticeView.test.tsx` passed 4 files / 55 tests.
+- Playwright JSON proof: `rtk proxy cmd /c "npx playwright test e2e/prd0055-task7-solo-delivery.spec.ts --config=playwright.prd0055-task7-batch-d.config.js --reporter=json > output\prd0055-task7-batch-d\report.json"` passed against `http://localhost:5174`; `report.json` stats expected 8, unexpected 0, skipped 0, flaky 0.
+- Browser proof covered desktop Chromium, 375 px Chromium, 320 px Chromium, and iOS Safari/WebKit projects; authorized asset-ID solo delivery, legacy public audio, byte-range `206`/`Accept-Ranges`/`Content-Range`, no browser-supplied `studentId` or `callerUserId`, resume checkpoint state, one time-up submit, 3590-second long-playback checkpoint, URL expiry/refresh delegation, and legacy/new test records.
+- `rtk npx tsc --noEmit` remains red from repo-wide baseline: 647 errors in 148 files. Focused tests and Playwright proof passed; no new solo adapter/client TypeScript error surfaced in the reported set.
+- Stale/drift explorer `019f1535-814e-7bd0-bcc0-5a2bed829c49` returned PASS and found no blocker; it identified only historical Batch C text needing append-only status correction.
+
+Boundaries:
+
+- `git diff -- src/skills/listening/components/AudioPlayer.tsx` is empty. Existing unrelated `AudioPlayer.test.tsx` descriptor cleanup remains outside this packet's source boundary.
+- Scoped scan found no `audioCommand`, `masterAudioState`, `useAudioSync`, `useMasterAudioState`, or `useMonitorControls` in Batch D touched solo paths.
+- No `AudioPlayer.tsx` internals, live-session authority, teacher authority, Reading V2 runtime internals, Google Drive behavior, Cloudflare Worker source/deployment mutation, Firebase/R2/Cloudflare remote mutation, selected rollout, staging, commit, push, cleanup execution, object deletion, Task 7.13+, parent Task 7.0 closure, or Task 8 work occurred.
+- Safe automatic refresh/source handoff through `AudioPlayer` internals remains blocked until Task 8 if rollout requires it; this packet proves the adapter refresh contract only.
+
+### Corrective Package Review - 2026-06-27
+
+Corrective review after the first Task 4.9-4.14 closeout found five real blockers plus one facade-origin risk. Main-thread fixes and proof:
+
+1. MP3 sync validation now rejects malformed `0xff 00 00 00` bytes before durable copy. RED reproduced the malformed bytes slipping past the sync check; GREEN passed `listeningAssetCommit.test.ts`.
+2. Replacement completion now returns terminal `nextState` for success, failed save, and cancellation. Tests prove a later replacement is blocked only while unresolved and can start after terminal resolution.
+3. Heartbeat now returns `nextHeartbeatDueAt` and `heartbeatStaleAt` helper values without persisting them as retention authority. Session state persists approved lifecycle fields and `leaseIds`; same-owner/same-draft leases live in separate lease records.
+4. Repeated no-op reference removal on an existing `pending-delete` asset preserves original `pendingDeleteAt` and `deleteAfter`.
+5. Registry-backed save/publish now derives durable public URLs from exported trusted `R2_PUBLIC_URL`, not from draft `audioUrl` origin. Facade change is delegation/compatibility only.
+6. Current corrective proof expanded focused storage/facade coverage to 6 files / 64 tests. Static proof, UTF-8 check, build, and Task 4.15+ checkbox drift scan were rerun after the corrective package.
+- No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
+- No staging, commit, push, clean, or revert occurred.

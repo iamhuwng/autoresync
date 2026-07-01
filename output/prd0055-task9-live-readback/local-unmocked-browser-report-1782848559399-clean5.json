@@ -1,0 +1,151 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task9-final-production.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-final-production-chromium",
+        "name": "prd0055-final-production-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task9-final-production-browser\\.spec\\.ts/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task9-final-production-browser.spec.ts",
+      "file": "prd0055-task9-final-production-browser.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 final deployed live private delivery browser matrix",
+          "file": "prd0055-task9-final-production-browser.spec.ts",
+          "line": 366,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected students pass deployed private live authority matrix",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-final-production-chromium",
+                  "projectName": "prd0055-final-production-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 2896,
+                      "error": {
+                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n",
+                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n\n    at quickLogin (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:211:14)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:376:33",
+                        "location": {
+                          "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                          "column": 14,
+                          "line": 211
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 209 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m quickLogin(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m role\u001b[33m:\u001b[39m \u001b[32m'teacher'\u001b[39m \u001b[33m|\u001b[39m \u001b[32m'student'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mBrowserAuth\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 210 |\u001b[39m   \u001b[36mconst\u001b[39m origin \u001b[33m=\u001b[39m role \u001b[33m===\u001b[39m \u001b[32m'teacher'\u001b[39m \u001b[33m?\u001b[39m \u001b[33mTEACHER_ORIGIN\u001b[39m \u001b[33m:\u001b[39m \u001b[33mSTUDENT_ORIGIN\u001b[39m\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 211 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m`${origin}/login`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 212 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgetByRole(\u001b[32m'button'\u001b[39m\u001b[33m,\u001b[39m { name\u001b[33m:\u001b[39m \u001b[35m/show dev quick login/i\u001b[39m })\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 213 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(role \u001b[33m===\u001b[39m \u001b[32m'teacher'\u001b[39m \u001b[33m?\u001b[39m \u001b[32m'#dev-login-teacher'\u001b[39m \u001b[33m:\u001b[39m \u001b[32m'#dev-login-student'\u001b[39m)\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 214 |\u001b[39m   \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveURL(role \u001b[33m===\u001b[39m \u001b[32m'teacher'\u001b[39m \u001b[33m?\u001b[39m \u001b[35m/\\/lobby/\u001b[39m \u001b[33m:\u001b[39m \u001b[35m/\\/student/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m60\u001b[39m_000 })\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                            "column": 14,
+                            "line": 211
+                          },
+                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n\n\n  209 | async function quickLogin(page: Page, role: 'teacher' | 'student'): Promise<BrowserAuth> {\n  210 |   const origin = role === 'teacher' ? TEACHER_ORIGIN : STUDENT_ORIGIN;\n> 211 |   await page.goto(`${origin}/login`);\n      |              ^\n  212 |   await page.getByRole('button', { name: /show dev quick login/i }).click();\n  213 |   await page.locator(role === 'teacher' ? '#dev-login-teacher' : '#dev-login-student').click();\n  214 |   await expect(page).toHaveURL(role === 'teacher' ? /\\/lobby/ : /\\/student/, { timeout: 60_000 });\n    at quickLogin (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:211:14)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:376:33"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-01T05:01:13.399Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                        "column": 14,
+                        "line": 211
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "2231576afb6f433b9e61-e324200125660bc3e9a9",
+              "file": "prd0055-task9-final-production-browser.spec.ts",
+              "line": 367,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-01T05:01:11.103Z",
+    "duration": 6613.679000000001,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

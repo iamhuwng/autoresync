@@ -18,9 +18,13 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { Collapse } from '@mantine/core';
 import r2StorageService from '../../services/r2Storage';
 import type { WritingTask1Type, WritingTask2Type } from '../../types/ielts-writing.types';
+
+const Collapse: React.FC<{ in: boolean; children: React.ReactNode }> = ({
+    in: opened,
+    children,
+}) => (opened ? <div>{children}</div> : null);
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES

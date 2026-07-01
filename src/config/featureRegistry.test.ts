@@ -161,6 +161,17 @@ describe('featureRegistry', () => {
           'editBookMetadata',
           'archiveBook',
           'changeBookScope',
+          'selectListeningSkill',
+          'startListeningCreationMode',
+          'listeningAuthoringStepNext',
+          'listeningAuthoringStepBack',
+          'listeningPublishReadinessChecked',
+          'listeningPublishReadinessFailed',
+          'listeningAutosaveFailure',
+          'listeningRevisionCreated',
+          'listeningCommitFailure',
+          'listeningOrphanGrowthObserved',
+          'listeningLegacyTransition',
         ]),
       );
       expect(testTaking?.actions).toEqual(

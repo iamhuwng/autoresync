@@ -34,6 +34,7 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn((_database: any, path: string) => ({ path })),
   get: (...args: any[]) => getMock(...args),
   update: (...args: any[]) => updateMock(...args),
+  serverTimestamp: vi.fn(() => ({ '.sv': 'timestamp' })),
 }));
 
 vi.mock('../../utils/monitor', () => ({
@@ -68,6 +69,7 @@ describe('useMonitorControls', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('writes review-released by default when ending a session', async () => {
@@ -380,6 +382,68 @@ describe('useMonitorControls', () => {
         moduleId: 'module-1',
       }
     );
+  });
+
+  it('pauses listening audio through one canonical root transaction without defaulting section or speed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+
+    const session = {
+      createdByUserId: 'teacher-1',
+      masterAudioState: {
+        schemaVersion: 2,
+        revision: 4,
+        section: 3,
+        position: 127.5,
+        isPlaying: true,
+        speed: 1.25,
+        timestamp: 1_699_999_998_000,
+        updateKind: 'command',
+        lastAction: 'resume',
+        lastActionRevision: 4,
+        lastActionTimestamp: 1_699_999_998_000,
+        actionId: 'resume-4',
+        writerUid: 'teacher-1',
+        writerClientId: 'teacher-tab-1',
+      },
+    } as any;
+
+    const { result } = renderHook(() =>
+      useMonitorControls('LIVE123', session, { ...TEST_DATA, skill: 'Listening', audioSections: [{ number: 1 }, { number: 2 }, { number: 3 }] } as any, null)
+    );
+
+    await act(async () => {
+      await result.current.pauseAllAudio();
+    });
+
+    const rootWrite = updateMock.mock.calls.find(([target]) => target?.path === undefined);
+    expect(rootWrite).toBeTruthy();
+    const updates = rootWrite?.[1];
+    expect(updates[`game_sessions/LIVE123/masterAudioState`]).toEqual(expect.objectContaining({
+      schemaVersion: 2,
+      revision: 5,
+      section: 3,
+      position: 127.5,
+      isPlaying: false,
+      speed: 1.25,
+      lastAction: 'pause',
+      lastActionRevision: 5,
+      writerUid: 'teacher-1',
+      updateKind: 'command',
+      writerClientId: 'teacher-monitor-LIVE123',
+      timestamp: { '.sv': 'timestamp' },
+      lastActionTimestamp: { '.sv': 'timestamp' },
+    }));
+    expect(updates[`game_sessions/LIVE123/audioCommand`]).toEqual(expect.objectContaining({
+      schemaVersion: 2,
+      canonicalRevision: 5,
+      type: 'pause',
+      sectionNumber: 3,
+      position: 127.5,
+      speed: 1.25,
+      isPlaying: false,
+      writerUid: 'teacher-1',
+    }));
   });
 
   it('does not reset the session to waiting when end-session result persistence fails', async () => {

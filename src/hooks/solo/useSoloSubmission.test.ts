@@ -12,9 +12,13 @@ import { submitHomework } from '../../services/homeworkSubmissionService';
 const {
   mockNavigateTo,
   mockTrackAntiCheatAction,
+  mockToastError,
+  mockToastWarning,
 } = vi.hoisted(() => ({
   mockNavigateTo: vi.fn(() => ({ success: true })),
   mockTrackAntiCheatAction: vi.fn(),
+  mockToastError: vi.fn(),
+  mockToastWarning: vi.fn(),
 }));
 
 vi.mock('../useNavigation', () => ({
@@ -39,6 +43,13 @@ vi.mock('./useSoloAutoSave', () => ({
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
   submitHomework: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../components/modern/ToastNotification', () => ({
+  toast: {
+    error: mockToastError,
+    warning: mockToastWarning,
+  },
 }));
 
 vi.mock('../../services/antiCheatReporting', () => ({
@@ -557,8 +568,124 @@ describe('useSoloSubmission', () => {
     confirmSpy.mockRestore();
   });
 
-  it('shows unanswered-questions confirm when skipConfirm is false (default)', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('deduplicates rapid manual submit calls behind one pending operation', async () => {
+    let releaseSave!: () => void;
+    vi.mocked(saveTestResult).mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        releaseSave = () => resolve('result-1');
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Practice Test',
+          type: 'IELTS',
+          skill: 'Listening',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              answer: 'A',
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: { 1: 'A' },
+        materialId: 'test-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'self_study',
+          source: { type: 'material', id: 'test-1', name: 'Practice Test' },
+        },
+        attemptId: 'self_study__student-1__test-1__attempt-001',
+        submissionOperationId: 'self_study__student-1__test-1__attempt-001__submit',
+        skipConfirm: true,
+      }),
+    );
+
+    let firstSubmit!: Promise<void>;
+    let secondSubmit!: Promise<void>;
+    await act(async () => {
+      firstSubmit = result.current.handleSubmit(false);
+      secondSubmit = result.current.handleSubmit(false);
+      await Promise.resolve();
+    });
+
+    expect(result.current.isSubmitting).toBe(true);
+    expect(result.current.isLocked).toBe(true);
+    expect(saveTestResult).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseSave();
+      await Promise.all([firstSubmit, secondSubmit]);
+    });
+
+    expect(saveTestResult).toHaveBeenCalledTimes(1);
+    expect(mockNavigateTo).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes stable result and operation identity to result persistence for reload recovery', async () => {
+    const { result } = renderHook(() =>
+      useSoloSubmission({
+        testData: {
+          id: 'test-1',
+          duration: 60,
+          questionCount: 1,
+          title: 'Practice Test',
+          type: 'IELTS',
+          skill: 'Listening',
+          questions: [
+            {
+              number: 1,
+              type: 'multiple-choice',
+              question: 'Q1',
+              options: ['A', 'B'],
+              answer: 'A',
+              passageId: 'p1',
+              points: 1,
+            },
+          ],
+        } as any,
+        answers: { 1: 'A' },
+        materialId: 'test-1',
+        studentId: 'student-1',
+        studentName: 'Student One',
+        timeRemaining: 1200,
+        resolvedSettings: null,
+        context: {
+          type: 'self_study',
+          source: { type: 'material', id: 'test-1', name: 'Practice Test' },
+        },
+        attemptId: 'self_study__student-1__test-1__attempt-001',
+        submissionOperationId: 'self_study__student-1__test-1__attempt-001__submit',
+        skipConfirm: true,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(false);
+    });
+
+    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
+    expect(saveCall?.[0]).toBe('self_study__student-1__test-1__attempt-001__submit');
+    expect(saveCall?.[14]).toEqual({
+      stableResultId: 'listening_solo__self_study__student-1__test-1__attempt-001__submit',
+      submissionOperationId: 'self_study__student-1__test-1__attempt-001__submit',
+    });
+  });
+
+  it('announces unanswered questions without browser confirm when skipConfirm is false (default)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm');
 
     const { result } = renderHook(() =>
       useSoloSubmission({
@@ -598,8 +725,11 @@ describe('useSoloSubmission', () => {
       await result.current.handleSubmit(false);
     });
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(saveTestResult).not.toHaveBeenCalled(); // confirm returned false → aborted
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      'You have 1 unanswered question(s). Open the submit sheet to confirm when ready.',
+    );
+    expect(saveTestResult).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 });

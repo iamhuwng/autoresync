@@ -1,7 +1,7 @@
 {
     "rules": {
         ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val()",
         "users": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$uid": {
@@ -22,6 +22,153 @@
                 "role",
                 "status"
             ]
+        },
+        "listening_authoring": {
+            "drafts": {
+                ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+                ".write": false,
+                ".indexOn": [
+                    "ownerId",
+                    "testId",
+                    "state",
+                    "updatedAt"
+                ],
+                "$draftId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": false
+                }
+            },
+            "revision_drafts": {
+                ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+                ".write": false,
+                ".indexOn": [
+                    "ownerId",
+                    "testId",
+                    "createdFromVersionId",
+                    "state",
+                    "updatedAt"
+                ],
+                "$draftId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": false
+                }
+            },
+            "versions": {
+                ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+                ".write": false,
+                ".indexOn": [
+                    "ownerId",
+                    "testId",
+                    "versionNumber",
+                    "publishedAt",
+                    "archive/state"
+                ],
+                "$versionId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": false
+                }
+            },
+            "operations": {
+                ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+                ".write": false,
+                ".indexOn": [
+                    "ownerId",
+                    "operationType",
+                    "targetId",
+                    "idempotencyKeyHash",
+                    "status",
+                    "createdAt",
+                    "expiresAt"
+                ],
+                "$operationId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": false
+                }
+            }
+        },
+        "media_asset_upload_sessions": {
+            "$ownerId": {
+                ".read": "auth != null && ($ownerId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": false,
+                ".indexOn": [
+                    "creationRequestIdHash",
+                    "status",
+                    "expiresAt",
+                    "maxEligibilityExpiresAt",
+                    "lastHeartbeatAt"
+                ],
+                "$uploadSessionId": {
+                    ".validate": "newData.hasChildren(['ownerId', 'uploadSessionId', 'purpose', 'status', 'createdAt', 'expiresAt', 'maxEligibilityExpiresAt', 'bridgeVersion']) && newData.child('ownerId').val() === $ownerId && newData.child('uploadSessionId').val() === $uploadSessionId && newData.child('purpose').val() === 'listening-authoring' && newData.child('status').val() === 'active' && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber() && newData.child('maxEligibilityExpiresAt').isNumber() && newData.child('bridgeVersion').val() === '0056A-v1'"
+                }
+            }
+        },
+        "media_assets": {
+            ".read": false,
+            ".write": false,
+            ".indexOn": [
+                "ownerId",
+                "state",
+                "uploadSessionId",
+                "createdAt",
+                "committedAt",
+                "pendingDeleteAt",
+                "deleteAfter",
+                "tombstoneExpiresAt",
+                "lastReferencedAt"
+            ],
+            "$assetId": {
+                ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": false,
+                ".validate": "!newData.exists() || (newData.hasChildren(['assetId', 'ownerId', 'uploadSessionId', 'state', 'tempKey', 'contentType', 'sizeBytes', 'checksum', 'checksumAlgorithm', 'createdAt', 'updatedAt']) && newData.child('assetId').val() === $assetId && newData.child('ownerId').isString() && newData.child('uploadSessionId').isString() && (newData.child('state').val() === 'temp' || newData.child('state').val() === 'committing' || newData.child('state').val() === 'committed' || newData.child('state').val() === 'pending-delete') && newData.child('tempKey').isString() && newData.child('contentType').isString() && newData.child('sizeBytes').isNumber() && newData.child('checksum').isString() && newData.child('checksumAlgorithm').val() === 'sha256' && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber())"
+            }
+        },
+        "media_asset_events": {
+            ".read": false,
+            ".write": false,
+            ".indexOn": [
+                "createdAt",
+                "actorUserId",
+                "assetId",
+                "operation",
+                "outcome",
+                "reasonCode"
+            ],
+            "$eventId": {
+                ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": false,
+                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'eventId', 'ownerId', 'actorUserId', 'assetId', 'operation', 'outcome', 'reasonCode', 'createdAt']) && newData.child('schemaVersion').val() === 1 && newData.child('eventId').val() === $eventId && newData.child('ownerId').isString() && newData.child('actorUserId').isString() && newData.child('assetId').isString() && newData.child('operation').isString() && newData.child('outcome').isString() && newData.child('reasonCode').isString() && newData.child('createdAt').isNumber() && !newData.child('signedUrl').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('rawKey').exists() && !newData.child('rawAudio').exists() && !newData.child('audioContent').exists())"
+            }
+        },
+        "media_asset_metrics": {
+            ".read": false,
+            ".write": false,
+            ".indexOn": [
+                "createdAt",
+                "operation",
+                "outcome",
+                "reasonCode",
+                "runId",
+                "stopAction"
+            ],
+            "$metricEventId": {
+                ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": false,
+                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'metricEventId', 'createdAt', 'ownerScope', 'assetId', 'operation', 'outcome', 'reasonCode', 'stateBefore', 'stateAfter', 'sizeBytes', 'durationMs', 'attemptCount', 'runId', 'budgetName', 'budgetValue', 'thresholdName', 'thresholdValue', 'stopAction']) && newData.child('schemaVersion').val() === 1 && newData.child('metricEventId').val() === $metricEventId && newData.child('createdAt').isNumber() && newData.child('ownerScope').isString() && newData.child('assetId').isString() && (newData.child('operation').val() === 'orphan-growth' || newData.child('operation').val() === 'commit-failure') && (newData.child('outcome').val() === 'within-threshold' || newData.child('outcome').val() === 'threshold-exceeded') && newData.child('reasonCode').isString() && newData.child('stateBefore').isString() && newData.child('stateAfter').isString() && newData.child('sizeBytes').isNumber() && newData.child('durationMs').isNumber() && newData.child('attemptCount').isNumber() && newData.child('runId').isString() && newData.child('budgetName').isString() && newData.child('budgetValue').isNumber() && newData.child('thresholdName').isString() && newData.child('thresholdValue').isNumber() && newData.child('stopAction').isString() && !newData.child('signedUrl').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('rawKey').exists() && !newData.child('rawAudio').exists() && !newData.child('audioContent').exists())"
+            }
+        },
+        "media_asset_sweeps": {
+            ".read": false,
+            ".write": false,
+            ".indexOn": [
+                "status",
+                "createdAt",
+                "approvedAt"
+            ],
+            "$sweepId": {
+                ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                ".write": false,
+                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'sweepId', 'status', 'createdAt']) && newData.child('schemaVersion').val() === 1 && newData.child('sweepId').val() === $sweepId && (newData.child('status').val() === 'planned' || newData.child('status').val() === 'approved' || newData.child('status').val() === 'running' || newData.child('status').val() === 'complete' || newData.child('status').val() === 'failed') && newData.child('createdAt').isNumber() && (!newData.child('approvedAt').exists() || newData.child('approvedAt').isNumber()) && !newData.child('signedUrl').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('rawKey').exists() && !newData.child('rawAudio').exists() && !newData.child('audioContent').exists())"
+            }
         },
         "student_teacher_assignments": {
             ".read": "auth != null",
@@ -454,11 +601,26 @@
             }
         },
         "game_sessions": {
-            ".read": "auth != null",
-            ".write": "auth != null",
+            ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdByUserId' && query.equalTo === auth.uid) || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid) || (query.orderByChild === 'teacherId' && query.equalTo === auth.uid))",
+            "$sessionCode": {
+                ".read": "auth != null && data.exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || data.child('players').child(auth.uid).exists() || data.child('students').child(auth.uid).exists() || data.child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(data.child('linkedClassId').val()).child('students').child(auth.uid).exists())",
+                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || (!data.exists() && (newData.child('createdByUserId').val() === auth.uid || newData.child('createdBy').val() === auth.uid || newData.child('teacherId').val() === auth.uid)))",
+                "players": {
+                    "$playerId": {
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($playerId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))"
+                    }
+                },
+                "students": {
+                    "$studentId": {
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($studentId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))"
+                    }
+                }
+            },
             ".indexOn": [
                 "status",
                 "teacherId",
+                "createdByUserId",
+                "createdBy",
                 "createdAt"
             ]
         },
@@ -499,7 +661,7 @@
             ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'isPublic' && query.equalTo === true) || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid) || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid))",
             "$testId": {
                 ".read": "auth != null && (data.child('isPublic').val() === true || data.child('ownerId').val() === auth.uid || data.child('createdBy').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                ".write": "(root.child('users').child(auth.uid).child('role').val() === 'teacher' && (!data.exists() || data.child('ownerId').val() === auth.uid)) || root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+                ".write": "data.child('authoringVersioning').child('frozen').val() !== true && newData.child('authoringVersioning').child('frozen').val() !== true && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && (!data.exists() || data.child('ownerId').val() === auth.uid)) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
             },
             ".indexOn": [
                 "userId",

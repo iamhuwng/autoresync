@@ -205,12 +205,26 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({
     return colors[index] as string;
   };
 
+  const handleKeyboardOpen = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick || (event.key !== 'Enter' && event.key !== ' ')) {
+      return;
+    }
+
+    event.preventDefault();
+    onClick();
+  };
+
   return (
     <div
       onClick={onClick}
+      onKeyDown={handleKeyboardOpen}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Open details for ${name}` : undefined}
       style={{
         cursor: onClick ? 'pointer' : 'default',
         height: '100%',
+        outlineOffset: '3px',
       }}
     >
       <Card

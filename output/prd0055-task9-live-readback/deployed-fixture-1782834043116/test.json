@@ -1,0 +1,25 @@
+{
+  "id": "prd0055_live_private_deployed_1782834043116",
+  "testId": "prd0055_live_private_deployed_1782834043116",
+  "testSkill": "listening",
+  "title": "PRD-0055 Deployed Private Delivery Fixture",
+  "metadata": {
+    "title": "PRD-0055 Deployed Private Delivery Fixture",
+    "skill": "Listening"
+  },
+  "authoringVersioning": {
+    "versionId": "prd0055_live_private_version_1782834043116"
+  },
+  "versionId": "prd0055_live_private_version_1782834043116",
+  "audioSections": [
+    {
+      "number": 1,
+      "name": "Section 1",
+      "assetId": "prd0055-live-private-asset-1782834043116",
+      "audioUrl": "",
+      "streamUrl": "",
+      "startQuestion": 1,
+      "endQuestion": 1
+    }
+  ]
+}

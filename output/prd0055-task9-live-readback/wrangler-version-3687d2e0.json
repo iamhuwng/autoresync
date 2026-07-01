@@ -1,0 +1,92 @@
+﻿{
+  "id": "3687d2e0-4718-4c0b-9c84-7f81749c31fb",
+  "number": 18,
+  "metadata": {
+    "created_on": "2026-06-26T19:17:40.739296Z",
+    "source": "wrangler",
+    "author_id": "95ba81bdc34d126fb0ceddc6483c0d04",
+    "author_email": "iamhuwng@gmail.com",
+    "has_preview": false
+  },
+  "annotations": {
+    "workers/message": "PRD-0056A Worker bridge contract split",
+    "workers/triggered_by": "version_upload"
+  },
+  "resources": {
+    "script": {
+      "etag": "9c3ba66b933d6f143762735b39a4d77238420a500ce06ff472c0573dbf35a97a",
+      "handlers": [
+        "fetch"
+      ],
+      "named_handlers": [
+        {
+          "name": "UploadGrantReplayLedger",
+          "handlers": [
+            "class"
+          ]
+        },
+        {
+          "name": "createUploadWorker",
+          "handlers": [
+            "class"
+          ]
+        }
+      ],
+      "last_deployed_from": "wrangler"
+    },
+    "script_runtime": {
+      "migration_tag": "v1-upload-grant-replay-ledger",
+      "compatibility_date": "2026-01-20",
+      "usage_model": "standard"
+    },
+    "bindings": [
+      {
+        "name": "FIREBASE_DB_URL",
+        "text": "https://temp-a1437-default-rtdb.firebaseio.com",
+        "type": "plain_text"
+      },
+      {
+        "name": "FIREBASE_PROJECT_ID",
+        "text": "temp-a1437",
+        "type": "plain_text"
+      },
+      {
+        "name": "GOOGLE_SA_KEY",
+        "type": "secret_text"
+      },
+      {
+        "name": "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "PUBLIC_URL",
+        "text": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
+        "type": "plain_text"
+      },
+      {
+        "bucket_name": "kahoot-media",
+        "name": "R2_BUCKET",
+        "type": "r2_bucket"
+      },
+      {
+        "class_name": "UploadGrantReplayLedger",
+        "name": "UPLOAD_GRANT_REPLAY_LEDGER",
+        "namespace_id": "6653df5f663d4648992dc26bd099b489",
+        "type": "durable_object_namespace"
+      },
+      {
+        "name": "UPLOAD_GRANT_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "UPLOAD_RATE_LIMITER",
+        "namespace_id": "205512",
+        "simple": {
+          "limit": 30,
+          "period": 60
+        },
+        "type": "ratelimit"
+      }
+    ]
+  }
+}

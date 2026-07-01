@@ -1,0 +1,161 @@
+{
+  "createdAt": "2026-06-30T19:48:29.941Z",
+  "proofPath": "output\\prd0055-task9-live-readback\\prd0055-final-live-private-1782848559399.json",
+  "proofId": "prd0055-final-live-private-1782848559399",
+  "origin": "http://localhost:5173",
+  "sessionCode": "T8E60V",
+  "testId": "prd0055-final-live-private-1782848559399-test",
+  "localDeliveryRouteMock": true,
+  "timeText": "0:04 / 0:08",
+  "fillWidth": "50%",
+  "audioState": {
+    "currentTime": 4,
+    "duration": 8,
+    "networkState": 1,
+    "paused": true,
+    "readyState": 4,
+    "src": "http://localhost:8787/listening-delivery/content?token=[redacted]",
+    "error": null
+  },
+  "deliveryEvents": [
+    {
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "http://localhost:8787/listening-delivery/live"
+    },
+    {
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "http://localhost:8787/listening-delivery/live"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "http://localhost:8787/listening-delivery/live"
+    },
+    {
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "http://localhost:8787/listening-delivery/live"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+    }
+  ],
+  "finalSession": {
+    "audioCommand": {
+      "canonicalRevision": 3,
+      "commandId": "seek-3-1782848906004",
+      "isPlaying": false,
+      "position": 4,
+      "schemaVersion": 2,
+      "sectionNumber": 2,
+      "speed": 1,
+      "timestamp": 1782848906004,
+      "type": "seekToPosition",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "classId": "prd0055-final-live-private-1782848559399-class",
+    "className": "PRD-0055 final selected class T8E60V",
+    "createdAt": 1782848568414,
+    "createdBy": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "expiresAt": 1782934968414,
+    "linkedClassId": "prd0055-final-live-private-1782848559399-class",
+    "masterAudioState": {
+      "actionId": "seek-3-1782848906004",
+      "isPlaying": false,
+      "lastAction": "seek",
+      "lastActionRevision": 3,
+      "lastActionTimestamp": 1782848905946,
+      "position": 4,
+      "revision": 3,
+      "schemaVersion": 2,
+      "section": 2,
+      "speed": 1,
+      "timestamp": 1782848905946,
+      "updateKind": "command",
+      "writerClientId": "teacher-monitor-T8E60V",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "mode": "test",
+    "players": {
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "email": "student@test.com",
+        "joinedAt": 1782848568414,
+        "name": "PRD-0055 Final Selected Student"
+      }
+    },
+    "sessionCode": "T8E60V",
+    "settings": {
+      "allowLateJoin": true,
+      "audioMode": "online",
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "examMode": true,
+      "restrictToClassMembers": true,
+      "showLeaderboard": false
+    },
+    "startTime": 1782848568414,
+    "status": "in-progress",
+    "students": {
+      "x3hDfjYVN7cJtSbwq0ChIjl1Bk62": {
+        "email": "student@test.com",
+        "joinedAt": 1782848568414,
+        "name": "PRD-0055 Final Selected Student"
+      }
+    },
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "testId": "prd0055-final-live-private-1782848559399-test",
+    "updatedAt": 1782848568414
+  }
+}

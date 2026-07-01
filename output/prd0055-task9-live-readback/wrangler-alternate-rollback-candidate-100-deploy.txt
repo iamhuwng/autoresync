@@ -1,0 +1,35 @@
+
+ ⛅️ wrangler 4.103.0
+────────────────────
+╭ Deploy Worker Versions by splitting traffic between multiple versions
+│
+├ Fetching latest deployment
+│
+├ Your current deployment has 1 version(s):
+│
+│ (100%) 993acdc9-dd93-4ee8-8764-15847146ac3a
+│       Created:  2026-06-30T15:54:26.232253Z
+│           Tag:  prd0055-bind-delivery-rtdb-fetch-20260630
+│       Message:  PRD-0055 bind delivery RTDB fetch
+│
+├ Fetching versions
+│
+├ Which version(s) do you want to deploy?
+├ 1 Worker Version(s) selected
+│
+├     Worker Version 1:  f217034a-4a21-48be-85d1-5b629ebd70b8
+│              Created:  2026-06-30T17:49:22.115469Z
+│                  Tag:  prd0055-active-equivalent-1782841754348
+│              Message:  PRD-0055 active-equivalent percentage rollout candidate
+│
+├ What percentage of traffic should Worker Version 1 receive?
+├ 100% of traffic
+├
+├ Add a deployment message
+│ Deployment message PRD-0055 alternate equivalent candidate recovery rehearsal
+│
+├ Deploying 1 version(s)
+│
+│ No non-versioned settings to sync. Skipping...
+│
+╰  SUCCESS  Deployed r2-upload-signer version f217034a-4a21-48be-85d1-5b629ebd70b8 at 100% (1.35 sec)

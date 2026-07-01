@@ -7,6 +7,7 @@
     "test": "vitest run",
     "test:security:red": "node scripts/run-insecure-baseline.mjs",
     "test:security:green": "node scripts/run-hardened-negative-suite.mjs",
+    "verify:r2-lifecycle": "node scripts/verify-r2-lifecycle-config.mjs r2-lifecycle.temp-24h.json",
     "check": "wrangler deploy --dry-run",
     "local": "wrangler dev",
     "dev": "wrangler dev",

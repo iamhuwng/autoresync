@@ -249,6 +249,31 @@ describe('mobileListeningState helpers', () => {
       expect(result.textSize).toBeUndefined();
       expect(result.playback).toBeUndefined();
     });
+
+    it('serializes playback ownership fields when provided', () => {
+      const result = serializeListeningMobileState({
+        compatContext: baseContext,
+        viewedPartNumber: 2,
+        currentQuestionNumber: 11,
+        answerSheetScrollByPart: {},
+        imageZoomByPart: {},
+        playback: {
+          currentAudioIndex: 1,
+          audioPositionSeconds: 42.25,
+          volume: 0.75,
+          playbackSpeed: 1.25,
+          audioIndicesCompleted: [0],
+        },
+      });
+
+      expect(result.playback).toEqual({
+        currentAudioIndex: 1,
+        audioPositionSeconds: 42.25,
+        volume: 0.75,
+        playbackSpeed: 1.25,
+        audioIndicesCompleted: [0],
+      });
+    });
   });
 
   describe('clearListeningTransientState', () => {

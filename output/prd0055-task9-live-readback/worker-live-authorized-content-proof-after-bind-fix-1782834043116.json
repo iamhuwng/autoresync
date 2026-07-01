@@ -1,0 +1,41 @@
+{
+  "issue": {
+    "body": {
+      "assetId": "prd0055-live-private-asset-1782834043116",
+      "deliveryReady": true,
+      "expiresAt": 1782838525549,
+      "issuedAt": 1782834925549,
+      "range": {
+        "acceptRanges": "bytes",
+        "contentLength": 1,
+        "contentRange": "bytes 0-0/32044",
+        "requestRange": "bytes=0-0",
+        "status": 206
+      },
+      "refreshAfter": 1782837925549,
+      "tokenId": "GTlXEdKASj7cj_zA9yvjGA",
+      "ttlMs": 3600000,
+      "url": "[redacted]"
+    },
+    "email": "teacher@test.com",
+    "ok": true,
+    "status": 200,
+    "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+  },
+  "content": {
+    "status": 206,
+    "contentType": "audio/wav",
+    "acceptRanges": "bytes",
+    "contentRange": "bytes 0-15/32044",
+    "contentLength": "16",
+    "firstBytesHex": "52494646247d000057415645666d7420",
+    "byteLength": 16
+  },
+  "wrongSection": {
+    "body": {
+      "code": "delivery_live_asset_mismatch"
+    },
+    "ok": false,
+    "status": 403
+  }
+}

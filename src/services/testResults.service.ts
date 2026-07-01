@@ -138,6 +138,9 @@ export interface TestResultRecord {
   // PRD-0016: Result context (class_session, homework, self_study, course_material)
   context?: ResultContext;
 
+  /** Stable client operation identity for idempotent solo/listening submissions. */
+  submissionOperationId?: string;
+
   /** PRD-0027: THCS-THPT specific grading data */
   thcsData?: {
     scaledScore: number; // 10-point scale (e.g., 8.3)
@@ -668,6 +671,12 @@ async function triggerInitialSavedResultFeedback(resultId: string): Promise<void
   }
 }
 
+function assertValidStableResultId(resultId: string): void {
+  if (!resultId || /[.#$/[\]]/.test(resultId)) {
+    throw new Error('Stable result ID contains characters that are invalid in Firebase Realtime Database keys.');
+  }
+}
+
 /**
  * Save test results to Firebase
  * Stores under test_results/{resultId} and indexes by session and student
@@ -704,6 +713,8 @@ export async function saveTestResult(
   ieltsData?: TestResultRecord['ieltsData'], // PRD-0039: IELTS passage results
   options?: {
     skipInitialFeedbackTrigger?: boolean;
+    stableResultId?: string;
+    submissionOperationId?: string;
   }
 ): Promise<string> {
   try {
@@ -723,9 +734,30 @@ export async function saveTestResult(
       );
     }
 
-    // Generate unique result ID
-    const resultRef = push(ref(database, 'test_results'));
-    const resultId = resultRef.key;
+    const stableResultId = options?.stableResultId?.trim();
+    const submissionOperationId = options?.submissionOperationId?.trim();
+    let resultRef: ReturnType<typeof ref>;
+    let resultId: string | null | undefined;
+
+    if (stableResultId) {
+      assertValidStableResultId(stableResultId);
+      resultRef = ref(database, `test_results/${stableResultId}`);
+      resultId = stableResultId;
+
+      const existingSnapshot = await get(resultRef);
+      if (existingSnapshot.exists()) {
+        const existingResult = existingSnapshot.val() as Partial<TestResultRecord>;
+        if (submissionOperationId && existingResult.submissionOperationId === submissionOperationId) {
+          return stableResultId;
+        }
+
+        throw new Error(`Stable result ID ${stableResultId} already belongs to another submit operation.`);
+      }
+    } else {
+      // Generate unique result ID
+      resultRef = push(ref(database, 'test_results'));
+      resultId = resultRef.key;
+    }
 
     if (!resultId) {
       throw new Error('Failed to generate result ID');
@@ -793,6 +825,7 @@ export async function saveTestResult(
     if (submissionContent?.writing) resultRecord.writingSubmission = submissionContent.writing;
     if (submissionContent?.speaking) resultRecord.speakingSubmission = submissionContent.speaking;
     if (context) resultRecord.context = context;
+    if (submissionOperationId) resultRecord.submissionOperationId = submissionOperationId;
     if (thcsData) (resultRecord as any).thcsData = thcsData;
     if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
     resultRecord.feedbackGenerationMeta = {

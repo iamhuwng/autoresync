@@ -1,0 +1,136 @@
+{
+  "createdAt": "2026-06-30T16:08:15.715Z",
+  "scope": "PRD-0055 Task 8.14 local-only browser matrix supplement",
+  "sessionCode": "T82R2Y",
+  "testId": "prd0055_task8_local_1782835603570",
+  "covered": [
+    "student buffering/loading during teacher pause stays paused and pinned before resume",
+    "teacher reload hydrates section/speed/seek controls from canonical state",
+    "student reload stays on canonical section without Audio Error/NaN",
+    "explicit seek writes canonical seekToPosition state",
+    "stale compatibility audioCommand does not override newer masterAudioState",
+    "equal-revision competing masterAudioState conflict is ignored by the hydrated student client",
+    "headphone pending, approved, and denied states are teacher-visible",
+    "teacher End flow accepts auto-submit, indexes the result, returns the session to waiting, and preserves the live student result pointer",
+    "post-End submit attempt does not create a duplicate result or corrupt the waiting session"
+  ],
+  "bufferingDuringPause": {
+    "bufferingDiagnosticObserved": true,
+    "beforeWait": {
+      "currentTime": 0,
+      "duration": null,
+      "networkState": 2,
+      "paused": true,
+      "readyState": 0,
+      "src": "http://localhost:5174/__prd0055-task8-local/section-1.wav"
+    },
+    "afterWait": {
+      "currentTime": 0,
+      "duration": 20,
+      "networkState": 1,
+      "paused": true,
+      "readyState": 4,
+      "src": "http://localhost:5174/__prd0055-task8-local/section-1.wav"
+    },
+    "diagnosticLines": [
+      "[task8:student-desktop] console.warning [AudioPlayer] Audio stalled {sectionNumber: 1, currentTime: 0, readyState: 0, networkState: 2, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 1, currentTime: 0, readyState: 4, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 1, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 0, networkState: 2, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Waiting for audio data {sectionNumber: 2, currentTime: 0, readyState: 1, networkState: 1, src: http://localhost:5174/[redacted-audio-url]}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Pause event {sectionNumber: 2, currentTime: 0, duration: 20, readyState: 1, networkState: 1}",
+      "[task8:student-desktop] console.warning [AudioPlayer] Playback did not advance after play request {reason: sync, playerMode: session, audioMode: online, sectionNumber: 2, readyState: 4}"
+    ]
+  },
+  "authorityConflict": {
+    "rejectedState": {
+      "actionId": "equal-revision-conflict-6-1782835643692",
+      "isPlaying": false,
+      "lastAction": "section",
+      "lastActionRevision": 6,
+      "lastActionTimestamp": 1782835643692,
+      "position": 0,
+      "revision": 6,
+      "schemaVersion": 2,
+      "section": 1,
+      "speed": 1,
+      "timestamp": 1782835643692,
+      "updateKind": "command",
+      "writerClientId": "competing-monitor-T82R2Y",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "recoveredState": {
+      "actionId": "recover-after-conflict-7-1782835645507",
+      "isPlaying": false,
+      "lastAction": "seek",
+      "lastActionRevision": 7,
+      "lastActionTimestamp": 1782835645507,
+      "position": 5,
+      "revision": 7,
+      "schemaVersion": 2,
+      "section": 2,
+      "speed": 1.5,
+      "timestamp": 1782835645507,
+      "updateKind": "command",
+      "writerClientId": "teacher-monitor-T82R2Y",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "studentStillOnSection": 2
+  },
+  "submitDuringEnd": {
+    "acceptedResultIds": [
+      "-OwOHOztRBn9_8EhpfBI",
+      "-OwOHPKGpOqx5ybDIhzY"
+    ],
+    "latestResultId": "-OwOHPKGpOqx5ybDIhzY",
+    "postEndSubmitControlVisible": false,
+    "rejectedPostEndResultIds": [
+      "-OwOHOztRBn9_8EhpfBI",
+      "-OwOHPKGpOqx5ybDIhzY"
+    ]
+  },
+  "finalMasterAudioState": {
+    "actionId": "recover-after-conflict-7-1782835645507",
+    "isPlaying": false,
+    "lastAction": "seek",
+    "lastActionRevision": 7,
+    "lastActionTimestamp": 1782835645507,
+    "position": 5,
+    "revision": 7,
+    "schemaVersion": 2,
+    "section": 2,
+    "speed": 1.5,
+    "timestamp": 1782835645507,
+    "updateKind": "command",
+    "writerClientId": "teacher-monitor-T82R2Y",
+    "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+  },
+  "finalAudioCommand": {
+    "canonicalRevision": 7,
+    "commandId": "recover-after-conflict-7-1782835645507",
+    "isPlaying": false,
+    "position": 5,
+    "schemaVersion": 2,
+    "sectionNumber": 2,
+    "speed": 1.5,
+    "timestamp": 1782835645507,
+    "type": "seekToPosition",
+    "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+  },
+  "submittedPlayer": {
+    "playerId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "hasCompletedTest": true,
+    "isSubmitted": true,
+    "submittedBy": "teacher-end",
+    "lastTestId": "prd0055_task8_local_1782835603570",
+    "latestResultId": "-OwOHPKGpOqx5ybDIhzY",
+    "headphoneStatus": "approved"
+  },
+  "deniedHeadphoneFixture": {
+    "requested": true,
+    "requestedAt": 1782835646122,
+    "status": "denied"
+  }
+}

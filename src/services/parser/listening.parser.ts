@@ -279,8 +279,7 @@ class ListeningParser {
     const sectionHeaderPatterns = [
       /^\*{0,2}Questions?\s+(\d+)\s*[-–—]\s*(\d+)\*{0,2}$/i,                    // Questions 1-6
       /^\*{0,2}Questions?\s+(\d+)\s*[-–—]\s*(\d+)\s*[:(]/i,                      // Questions 1-6: or Questions 1-6 (
-      /(?:SECTION|PART|SECTION\s*\d+:?)\s*Questions?\s+(\d+)\s*[-–—]\s*(\d+)/i,  // SECTION 1: Questions 1-10
-      /Questions?\s+(\d+)\s*[-–—]\s*(\d+)/i,                                     // Questions 1-10 (anywhere in line)
+      /^(?:SECTION|PART)(?:\s+\d+)?\s*:?\s*Questions?\s+(\d+)\s*[-–—]\s*(\d+)\s*$/i, // PART 1 Questions 1-10
     ];
 
     let currentSectionStart = -1;

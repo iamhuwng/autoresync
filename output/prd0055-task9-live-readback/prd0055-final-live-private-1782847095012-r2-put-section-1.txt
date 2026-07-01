@@ -1,0 +1,12 @@
+$ "C:\Users\The Lord\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" "C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\cloudflare\node_modules\wrangler\bin\wrangler.js" r2 object put kahoot-media/assessment-assets/listening/prd0055-final/prd0055-final-live-private-1782847095012/section-1.wav --file "C:\Users\The Lord\Desktop\luyentap-writing-import-rebased\output\prd0055-task9-live-readback\prd0055-final-live-private-1782847095012\section-1.wav" --remote
+exit=0
+--- stdout ---
+
+ ⛅️ wrangler 4.103.0 (update available 4.106.0)
+───────────────────────────────────────────────
+Resource location: remote
+
+Creating object "[redacted]" in bucket "kahoot-media".
+Upload complete.
+
+--- stderr ---

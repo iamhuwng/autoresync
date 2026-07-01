@@ -1,0 +1,7 @@
+{
+  "body": {
+    "code": "refresh_not_due"
+  },
+  "ok": false,
+  "status": 400
+}

@@ -1,0 +1,101 @@
+{
+  "clickedTarget": {
+    "aria": "Resume All Audio",
+    "disabled": false,
+    "i": 3,
+    "text": "▶️",
+    "x": 892,
+    "y": 39
+  },
+  "proof": {
+    "alerts": [
+      "⚠️ Click play in the Audio Control Panel to enable teacher monitor audio in this browser."
+    ],
+    "audio": {
+      "currentTime": 0,
+      "duration": 20,
+      "errorCode": null,
+      "muted": false,
+      "paused": true,
+      "readyState": 4,
+      "srcPrefix": "data:audio/wav;base64,UklGRiTiBABXQVZFZm10IBAAAA"
+    },
+    "bodyText": "←\nSession: T8KXWH\n0:00\nPause\n⏸️\n▶️\n⏮️\nSec 1\nSec 2\n⏭️\n0.75x\n1x\n1.25x\n1.5x\n2x\n⏱️ +\nEnd\n🎵\nAudio Control Panel🌐 Online\nSection 1 of 2 • Part 1⚠️ Click play in the Audio Control Panel to enable teacher monitor audio in this browser.\n🔊\n0:00 / 0:20\n▶\nSection 1\n2\nSec 1\nPart 1\nSec 2\nPart 2\nRefresh Logs\nACTIVE TEST\nPRD-0055 Task 8.14 Local Listening Fixture\nIELTS • Listening\n5m\nTIME\n4\nQ'S\n1\nSTUDENTS\n0\nDone\n0\nWorking\n1\nOffline\n0%\nAvg\nS\nstudent\n⚠\nDisconnected\nProgress\n0%\nQuestions\n0/4\nTime\n48s\nForce Submit\nClick to view details →",
+    "buttons": [
+      {
+        "aria": "Pause All Audio",
+        "disabled": false,
+        "index": 2,
+        "text": "⏸️"
+      },
+      {
+        "aria": "Resume All Audio",
+        "disabled": false,
+        "index": 3,
+        "text": "▶️"
+      },
+      {
+        "aria": null,
+        "disabled": false,
+        "index": 7,
+        "text": "End"
+      },
+      {
+        "aria": "Resume All Audio",
+        "disabled": false,
+        "index": 8,
+        "text": "▶"
+      }
+    ],
+    "capturedAt": "2026-06-30T09:11:38.664Z",
+    "seek": {
+      "label": "Seek section 1",
+      "value": "0"
+    },
+    "url": "http://localhost:5173/teacher-test/T8KXWH"
+  },
+  "filteredLogs": [
+    {
+      "level": "log",
+      "message": "🎵 [AudioPanel] Loading section 1 audio",
+      "timestamp": "2026-06-30T09:11:17.116Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "log",
+      "message": "✅ [AudioPanel] Audio loaded for section 1",
+      "timestamp": "2026-06-30T09:11:17.346Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "log",
+      "message": "📦 [AudioPanel] Section 1 preloaded (20.0s)",
+      "timestamp": "2026-06-30T09:11:17.347Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "log",
+      "message": "📦 [AudioPanel] Section 2 preloaded (20.0s)",
+      "timestamp": "2026-06-30T09:11:17.347Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "info",
+      "message": "[AudioPanel] Teacher monitor audio is ready and waiting for a toolbar or panel play gesture Object",
+      "timestamp": "2026-06-30T09:11:17.347Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "info",
+      "message": "[AudioPanel] Teacher monitor playback requires a direct browser gesture Object",
+      "timestamp": "2026-06-30T09:11:36.729Z",
+      "url": "http://localhost:5173/src/components/test/AudioProgressPanel.tsx?t=1782809385367"
+    },
+    {
+      "level": "log",
+      "message": "[Controls] Resume all audio command broadcast from canonical authority",
+      "timestamp": "2026-06-30T09:11:36.949Z",
+      "url": "http://localhost:5173/src/hooks/monitor/useMonitorControls.ts"
+    }
+  ]
+}

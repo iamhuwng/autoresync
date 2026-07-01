@@ -1,5 +1,5 @@
 // File: src/hooks/solo/useSoloSubmission.ts
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { useNavigation } from '../useNavigation';
 import { scoreQuestion } from '../../services/autoMarking.service';
@@ -9,15 +9,18 @@ import { getTestQuestionsFromFirebase } from '../../services/testStorage';
 import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import { clearSoloProgress } from './useSoloAutoSave';
+import type { SoloAutoSaveFlushOutcome } from './useSoloAutoSave';
 import type { ResolvedPracticeSettings, SoloProgressScopeContext } from '../../types/practice.types';
 import type { HomeworkIntegrity } from '../../types/integrity.types';
 import type { ResultContext, ResultSourceType } from '../../types/solo.types';
+import { toast } from '../../components/modern/ToastNotification';
 import {
     summarizeError,
     summarizeIntegritySnapshot,
     trackAntiCheatAction,
 } from '../../services/antiCheatReporting';
 import { studentResumeService } from '../../services/studentResume.service';
+import { buildListeningSoloAttemptIdentity } from '../../features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity';
 
 interface TestData {
     id: string;
@@ -81,18 +84,24 @@ interface UseSoloSubmissionOptions {
         shuffleOptions?: boolean;
     } | null;
     progressScopeContext?: SoloProgressScopeContext;
+    attemptId?: string;
+    submissionOperationId?: string;
     integrity?: HomeworkIntegrity;
     attemptsNullified?: boolean;
     telemetrySurface?: string;
-    /** When true, skip the window.confirm prompt for unanswered questions (mobile UI provides its own) */
+    /** When true, skip the shared unanswered warning because mobile UI provides its own submit sheet */
     skipConfirm?: boolean;
+}
+
+interface SoloSubmissionCoordination {
+    autosaveFlush?: SoloAutoSaveFlushOutcome;
 }
 
 interface UseSoloSubmissionReturn {
     isSubmitting: boolean;
     testSubmitted: boolean;
     testResults: TestResults | null;
-    handleSubmit: (isAutoSubmit?: boolean) => Promise<void>;
+    handleSubmit: (isAutoSubmit?: boolean, coordination?: SoloSubmissionCoordination) => Promise<void>;
     markTest: () => Promise<TestResults>;
     isLocked: boolean;
     lockInputs: () => void;
@@ -113,6 +122,8 @@ export const useSoloSubmission = ({
     questionsWithAnswersRef,
     questionPresentation,
     progressScopeContext,
+    attemptId,
+    submissionOperationId,
     integrity,
     attemptsNullified = false,
     telemetrySurface = 'solo_submission',
@@ -124,6 +135,17 @@ export const useSoloSubmission = ({
     const [testSubmitted, setTestSubmitted] = useState(false);
     const [testResults, setTestResults] = useState<TestResults | null>(null);
     const [isLocked, setIsLocked] = useState(false);
+    const isSubmittingRef = useRef(false);
+    const testSubmittedRef = useRef(false);
+    const submitPromiseRef = useRef<Promise<void> | null>(null);
+    const generatedAttemptSeedRef = useRef<string | null>(null);
+
+    const getGeneratedAttemptSeed = () => {
+        if (!generatedAttemptSeedRef.current) {
+            generatedAttemptSeedRef.current = `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        return generatedAttemptSeedRef.current;
+    };
 
     const buildCanonicalResultContext = (): ResultContext => {
         const normalizedCourseId = courseContext?.courseId || context.courseId || context.source.courseId;
@@ -243,8 +265,8 @@ export const useSoloSubmission = ({
         };
     };
 
-    const handleSubmit = async (isAutoSubmit = false): Promise<void> => {
-        if (isSubmitting || !testData || testSubmitted || !materialId || !studentId) return;
+    const submitOnce = async (isAutoSubmit = false, _coordination?: SoloSubmissionCoordination): Promise<void> => {
+        if (!testData || testSubmittedRef.current || !materialId || !studentId) return;
 
         // M5: Server-side maxAttempts guard â€” check before allowing submission
         if (resolvedSettings?.maxAttempts != null && resolvedSettings.maxAttempts > 0) {
@@ -252,7 +274,7 @@ export const useSoloSubmission = ({
                 const { getStudentResultCount } = await import('../../services/testResults.service');
                 const existingCount = await getStudentResultCount(studentId, materialId);
                 if (existingCount >= resolvedSettings.maxAttempts) {
-                    alert(`You've reached the maximum number of attempts (${resolvedSettings.maxAttempts}). This submission cannot be saved.`);
+                    toast.error(`You've reached the maximum number of attempts (${resolvedSettings.maxAttempts}). This submission cannot be saved.`);
                     return;
                 }
             } catch (err) {
@@ -263,10 +285,8 @@ export const useSoloSubmission = ({
 
         const unansweredCount = testData.questionCount - Object.keys(answers).length;
         if (!isAutoSubmit && !skipConfirm && unansweredCount > 0) {
-            const confirmed = window.confirm(
-                `You have ${unansweredCount} unanswered question(s). Are you sure you want to submit?`
-            );
-            if (!confirmed) return;
+            toast.warning(`You have ${unansweredCount} unanswered question(s). Open the submit sheet to confirm when ready.`);
+            return;
         }
 
         setIsSubmitting(true);
@@ -332,10 +352,18 @@ export const useSoloSubmission = ({
             }
 
             const canonicalContext = buildCanonicalResultContext();
+            const submitIdentity = buildListeningSoloAttemptIdentity({
+                materialId,
+                studentId,
+                scopeContext: progressScopeContext,
+                existingAttemptId: attemptId,
+                existingSubmissionOperationId: submissionOperationId,
+                generatedAttemptSeed: getGeneratedAttemptSeed(),
+            });
 
             // Save to test_results/ using canonical practice/homework context identifiers
             const resultId = await saveTestResult(
-                `solo_${materialId}_${Date.now()}`,
+                submitIdentity.submissionOperationId,
                 materialId,
                 studentId,
                 studentName,
@@ -356,7 +384,11 @@ export const useSoloSubmission = ({
                 } : undefined,
                 canonicalContext,
                 undefined,
-                ieltsData
+                ieltsData,
+                {
+                    stableResultId: submitIdentity.resultId,
+                    submissionOperationId: submitIdentity.submissionOperationId,
+                }
             );
 
             // Update course progress if passing score met
@@ -445,6 +477,7 @@ export const useSoloSubmission = ({
             // Update local state
             setTestResults(results);
             setTestSubmitted(true);
+            testSubmittedRef.current = true;
 
             // Navigate to the appropriate page
             if (isHomework) {
@@ -464,10 +497,42 @@ export const useSoloSubmission = ({
             }
         } catch (err) {
             console.error('Error submitting solo test:', err);
-            alert('Failed to submit test. Please try again.');
+            toast.error('Failed to submit test. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleSubmit = async (
+        isAutoSubmit = false,
+        coordination?: SoloSubmissionCoordination,
+    ): Promise<void> => {
+        if (submitPromiseRef.current) {
+            return submitPromiseRef.current;
+        }
+
+        if (isSubmittingRef.current || !testData || testSubmittedRef.current || testSubmitted || !materialId || !studentId) {
+            return;
+        }
+
+        isSubmittingRef.current = true;
+        setIsSubmitting(true);
+        setIsLocked(true);
+
+        let operation: Promise<void>;
+        operation = submitOnce(isAutoSubmit, coordination).finally(() => {
+            isSubmittingRef.current = false;
+            setIsSubmitting(false);
+            if (!testSubmittedRef.current) {
+                setIsLocked(false);
+            }
+            if (submitPromiseRef.current === operation && !testSubmittedRef.current) {
+                submitPromiseRef.current = null;
+            }
+        });
+
+        submitPromiseRef.current = operation;
+        return operation;
     };
 
     const lockInputs = () => setIsLocked(true);

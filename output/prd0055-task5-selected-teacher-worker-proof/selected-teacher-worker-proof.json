@@ -1,0 +1,96 @@
+{
+  "task": "PRD-0055 Task 5 selected-teacher Worker authoring proof",
+  "proofId": "prd0055-selected-teacher-1782727843357",
+  "startedAt": "2026-06-29T10:10:43.357Z",
+  "workerUrl": "https://r2-upload-signer.iamhuwng.workers.dev",
+  "firebaseProjectId": "temp-a1437",
+  "selectedTeachersAuthorized": true,
+  "selectedTeacherRollout": "single selected-teacher proof window",
+  "deployedWorkerVersionId": "34970bd6-feb7-4520-87f1-fa6341dc0ba0",
+  "rollbackWorkerVersionId": "3687d2e0-4718-4c0b-9c84-7f81749c31fb",
+  "steps": [
+    {
+      "name": "enable-write-flag",
+      "status": "passed"
+    },
+    {
+      "name": "save-incomplete-draft",
+      "status": "passed",
+      "httpStatus": 200,
+      "draftId": "draft-78487cfad37a5ad2aa1414124a12a301",
+      "testId": "draft-78487cfad37a5ad2aa1414124a12a301",
+      "warnings": 1,
+      "matchingVersions": 0,
+      "testRowCreated": false
+    },
+    {
+      "name": "stale-conflict-denial",
+      "status": "passed",
+      "httpStatus": 409,
+      "draftId": "draft-c2098dcd60a7bd7150555f4df4580d87",
+      "currentConflictToken": 2,
+      "titlePreserved": true
+    },
+    {
+      "name": "publish-and-idempotent-retry",
+      "status": "passed",
+      "draftId": "draft-c2098dcd60a7bd7150555f4df4580d87",
+      "versionId": "version-6601a16bced11ec0b9184340b2d831af",
+      "versionNumber": 1,
+      "retrySameVersionId": true,
+      "operationRecordFound": true,
+      "conflictToken": 3
+    },
+    {
+      "name": "browser-rule-denials",
+      "status": "passed",
+      "crossOwnerDraftStatus": 401,
+      "crossOwnerVersionStatus": 401,
+      "browserWriteStatus": 401,
+      "browserWriteError": {
+        "error": "Permission denied"
+      }
+    },
+    {
+      "name": "legacy-first-edit-freeze",
+      "status": "passed",
+      "legacyTestId": "prd0055-selected-teacher-1782727843357-legacy",
+      "draftId": "draft-36024838b79f3ce57047867491c20f6e",
+      "versionId": "version-ff62fb7e6feb8b9d94ef1335faf48767",
+      "versionNumber": 1,
+      "contentFieldsUnchanged": true,
+      "freezeMetadataAdded": true
+    },
+    {
+      "name": "disable-write-flag",
+      "status": "passed"
+    },
+    {
+      "name": "post-disable-write-blocked",
+      "status": "passed",
+      "httpStatus": 503,
+      "responseStatus": "writes-disabled"
+    }
+  ],
+  "artifacts": [
+    "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/output/prd0055-task5-selected-teacher-worker-proof/selected-teacher-worker-proof.json"
+  ],
+  "stopConditions": {
+    "unexplainedPermanentObjectGrowth": false,
+    "failedCleanup": false,
+    "wrongAudio": false,
+    "legacyIncompatibility": false,
+    "productionData": true,
+    "remoteMutation": true
+  },
+  "selectedTeacher": {
+    "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "email": "teacher@test.com"
+  },
+  "crossOwnerTeacher": {
+    "uid": "J5Llx96V9BePuw7aF0EME9ukII83",
+    "email": "teacher2@test.com"
+  },
+  "completedAt": "2026-06-29T10:11:39.527Z",
+  "passed": true
+}

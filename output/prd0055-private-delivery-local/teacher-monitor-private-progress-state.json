@@ -1,0 +1,40 @@
+{
+  "createdAt": "2026-06-30T14:55:41.279Z",
+  "fixture": {
+    "sessionCode": "T8P06L",
+    "testId": "prd0055_private_local_1782831133187",
+    "versionId": "prd0055_private_version_1782831133187",
+    "teacherUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentUid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "asset1": "prd0055-private-asset-1-1782831133187",
+    "asset2": "prd0055-private-asset-2-1782831133187",
+    "teacherUrl": "http://localhost:5173/teacher-test/T8P06L",
+    "studentUrl": "http://localhost:5174/student-test/T8P06L"
+  },
+  "state": {
+    "audio": [
+      {
+        "currentTime": 0,
+        "duration": 20,
+        "paused": true,
+        "readyState": 4,
+        "src": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+      }
+    ],
+    "ranges": [
+      {
+        "aria": "Teacher monitor volume",
+        "max": "1",
+        "min": "0",
+        "value": "0.8"
+      },
+      {
+        "aria": "Seek section 2",
+        "max": "20",
+        "min": "0",
+        "value": "0"
+      }
+    ],
+    "text": "←\nSession: T8P06L\n1:33\nPause\n⏸️\n▶️\n⏮️\nSec 1\nSec 2\n⏭️\n0.75x\n1x\n1.25x\n1.5x\n2x\n⏱️ +\nEnd\n🎵\nAudio Control Panel🌐 Online\nSection 2 of 2 • Part 2\n🔊\n0:00 / 0:20\n▶\n1\nSection 2\nSec 1\nPart 1\nSec 2\nPart 2\nRefresh Logs\nACTIVE TEST\nPRD-0055 Local Private Delivery Fixture\nIELTS • Listening\n5m\nTIME\n4\nQ'S\n0\nSTUDENTS\n0\nDone\n0\nWorking\n0\nOffline\n0%\nAvg\n👥\nNo Students Yet\n\nWaiting for students to join the test session..."
+  }
+}

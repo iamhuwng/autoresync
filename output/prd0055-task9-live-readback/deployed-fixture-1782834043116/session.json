@@ -1,0 +1,25 @@
+{
+  "sessionCode": "T8D116",
+  "testId": "prd0055_live_private_deployed_1782834043116",
+  "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+  "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+  "status": "in-progress",
+  "startedAt": 1782834043116,
+  "updatedAt": 1782834043116,
+  "players": {
+    "glMHCrzMnyS6AqFcb9I0nlOqQ6X2": {
+      "name": "teacher@test.com",
+      "joinedAt": 1782834043116
+    }
+  },
+  "audioState": {
+    "section": 1,
+    "position": 0,
+    "isPlaying": false,
+    "speed": 1,
+    "lastAction": "pause",
+    "lastActionRevision": 1,
+    "lastActionTimestamp": 1782834043116,
+    "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+  }
+}

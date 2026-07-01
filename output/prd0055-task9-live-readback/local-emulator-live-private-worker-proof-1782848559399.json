@@ -1,0 +1,46 @@
+{
+  "task": "PRD-0055 local emulator live private delivery seed/proof",
+  "proofPath": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\output\\prd0055-task9-live-readback\\prd0055-final-live-private-1782848559399.json",
+  "proofId": "prd0055-final-live-private-1782848559399",
+  "fixture": {
+    "sessionCode": "T8E60V",
+    "classId": "prd0055-final-live-private-1782848559399-class",
+    "testId": "prd0055-final-live-private-1782848559399-test",
+    "versionId": "prd0055-final-live-private-1782848559399-version",
+    "assetIds": [
+      "prd0055-final-live-private-1782848559399-asset-s1",
+      "prd0055-final-live-private-1782848559399-asset-s2"
+    ]
+  },
+  "emulatorUrl": "http://127.0.0.1:9000",
+  "workerUrl": "http://localhost:8787",
+  "startedAt": "2026-07-01T05:07:25.526Z",
+  "r2Operations": [
+    {
+      "name": "local-r2-put-section-1",
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "\n ⛅️ wrangler 4.103.0 (update available 4.106.0)\n───────────────────────────────────────────────\nResource location: local \n\nUse --remote if you want to access the remote instance.\n\nCreating object \"assessment-assets/listening/prd0055-final/prd0055-final-live-private-1782848559399/section-1.wav\" in bucket \"kahoot-media\".\nUpload complete.\n",
+      "stderr": ""
+    },
+    {
+      "name": "local-r2-put-section-2",
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "\n ⛅️ wrangler 4.103.0 (update available 4.106.0)\n───────────────────────────────────────────────\nResource location: local \n\nUse --remote if you want to access the remote instance.\n\nCreating object \"assessment-assets/listening/prd0055-final/prd0055-final-live-private-1782848559399/section-2.wav\" in bucket \"kahoot-media\".\nUpload complete.\n",
+      "stderr": ""
+    }
+  ],
+  "emulatorWrites": [],
+  "checks": [],
+  "explicitNonActions": [
+    "No production deploy.",
+    "No Cloudflare traffic rollout change.",
+    "No cleanup/delete.",
+    "No commit/push/merge.",
+    "Local emulator and local Miniflare R2 writes only."
+  ],
+  "completedAt": "2026-07-01T05:07:32.495Z",
+  "passed": false,
+  "error": "fetch failed"
+}

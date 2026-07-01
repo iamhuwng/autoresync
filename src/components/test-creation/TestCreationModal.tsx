@@ -34,6 +34,7 @@ import {
     type DraftMetadata,
     MODAL_STEP_ORDER,
     READING_V2_STEP_ORDER,
+    LISTENING_STEP_ORDER,
     WRITING_STEP_ORDER,
     INITIAL_MODAL_DATA,
     DEFAULT_DRAFT_METADATA,
@@ -59,8 +60,44 @@ import { resolveMaterialTestTypeIdsFromLegacyTestType } from '../../services/mat
 import type { WritingTask, WritingTestMetadata } from '../../types/ielts-writing.types';
 import { canonicalizeReadingQuestion } from '../../utils/readingQuestionContract';
 import { THCSTestEditorSurface } from '../../pages/THCSTestEditorPage';
+import ListeningTestBuilder, {
+    type ListeningBuilderHeaderState,
+    type ListeningBuilderStep,
+} from '../../skills/listening/builders/ListeningTestBuilder';
 import type { WizardStep } from '../thcs-editor/THCSWizardStepper';
 import { isReadingV2TeacherRouteExposureAllowed } from '../../config/readingV2FeatureFlags';
+import { testCreationModalFooterStyle } from './testCreationModalChrome';
+
+type ListeningCreationMode = 'text' | 'image';
+type ListeningBuilderDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
+type ListeningBuilderMetadataInput = {
+    title: string;
+    type: 'IELTS' | 'Custom';
+    skill: 'Listening';
+    duration: number;
+    difficulty: ListeningBuilderDifficulty;
+    description: string;
+    tags: string[];
+    targetBand: string;
+};
+
+const LISTENING_DEFAULT_DURATION_MINUTES = 30;
+
+const hasOwn = <TObject extends object>(object: TObject, key: PropertyKey): boolean => (
+    Object.prototype.hasOwnProperty.call(object, key)
+);
+
+const hasMeaningfulMetadataValue = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'string') return value.trim().length > 0;
+    return value !== undefined && value !== null;
+};
+
+const getDefaultMetadataDuration = (skillType: SkillType | null): number => (
+    skillType === 'listening'
+        ? LISTENING_DEFAULT_DURATION_MINUTES
+        : DEFAULT_DRAFT_METADATA.duration
+);
 
 type LocalTextProps = React.HTMLAttributes<HTMLParagraphElement> & {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -447,6 +484,40 @@ const READING_V2_STEP_CONFIGS: StepConfig[] = [
     },
 ];
 
+/** Listening-specific entry configs */
+const LISTENING_STEP_CONFIGS: StepConfig[] = [
+    {
+        id: 'type',
+        label: 'Test Type',
+        description: 'Choose the exam format',
+        icon: 'T',
+    },
+    {
+        id: 'skill',
+        label: 'Skill',
+        description: 'Select the skill to test',
+        icon: 'S',
+    },
+    {
+        id: 'metadata',
+        label: 'Details',
+        description: 'Add Listening information',
+        icon: 'D',
+    },
+    {
+        id: 'listening-mode',
+        label: 'Mode',
+        description: 'Choose how to build the test',
+        icon: 'L',
+    },
+    {
+        id: 'listening-builder',
+        label: 'Build',
+        description: 'Upload audio, add questions, and publish',
+        icon: 'B',
+    },
+];
+
 const DEFAULT_THCS_STEP_CONFIGS: WizardStep[] = [
     { label: 'Test Setup', icon: '📋' },
     { label: 'Build Test', icon: '✏️' },
@@ -506,15 +577,7 @@ const modalStyles = {
         overflowY: 'auto' as const,
         minHeight: 0, // Critical: allows this flex child to scroll rather than expand
     },
-    footer: {
-        padding: '1.25rem 2rem',
-        borderTop: '1px solid rgba(139, 92, 246, 0.1)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexShrink: 0,
-        background: 'rgba(255, 255, 255, 0.95)',
-    },
+    footer: testCreationModalFooterStyle,
 };
 
 const stepIndicatorStyles = {
@@ -592,6 +655,17 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const readingV2AutoRequestIdRef = useRef(0);
     const { writeText: writeClipboardText } = useClipboard();
 
+    // Listening-specific State
+    const [listeningCreationMode, setListeningCreationMode] = useState<ListeningCreationMode>('text');
+    const [listeningHasUnsavedChanges, setListeningHasUnsavedChanges] = useState(false);
+    const [listeningBuilderHeader, setListeningBuilderHeader] = useState<ListeningBuilderHeaderState>({
+        title: 'Audio',
+        subtitle: 'Upload one file per section',
+        step: 'audio',
+        displayMode: 'text',
+    });
+    const [listeningBuilderHeaderActions, setListeningBuilderHeaderActions] = useState<React.ReactNode>(null);
+
     // ─── Writing-specific State ───────────────────────────────────
     const [writingMeta, setWritingMeta] = useState<WritingMetadataFields>({
         title: '',
@@ -607,12 +681,14 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     // ─── Derived State ───────────────────────────────────────────
     const isWritingFlow = stepData.skillType === 'writing';
     const isReadingV2Flow = stepData.skillType === 'reading-v2';
-    const activeStepOrder = isWritingFlow ? WRITING_STEP_ORDER : isReadingV2Flow ? READING_V2_STEP_ORDER : MODAL_STEP_ORDER;
-    const activeStepConfigs = isWritingFlow ? WRITING_STEP_CONFIGS : isReadingV2Flow ? READING_V2_STEP_CONFIGS : STEP_CONFIGS;
+    const isListeningFlow = stepData.skillType === 'listening';
+    const activeStepOrder = isWritingFlow ? WRITING_STEP_ORDER : isReadingV2Flow ? READING_V2_STEP_ORDER : isListeningFlow ? LISTENING_STEP_ORDER : MODAL_STEP_ORDER;
+    const activeStepConfigs = isWritingFlow ? WRITING_STEP_CONFIGS : isReadingV2Flow ? READING_V2_STEP_CONFIGS : isListeningFlow ? LISTENING_STEP_CONFIGS : STEP_CONFIGS;
     const currentStepIndex = activeStepOrder.indexOf(currentStep);
     const totalSteps = activeStepOrder.length;
     const currentStepConfig = activeStepConfigs.find(s => s.id === currentStep);
     const isParsing = currentStep === 'parsing';
+    const isListeningBuilderStep = currentStep === 'listening-builder';
 
     // ─── Validation Logic ────────────────────────────────────────
     const canProceed = useCallback((): boolean => {
@@ -678,19 +754,59 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     }, [canProceed, currentStepIndex, totalSteps, activeStepOrder]);
 
     // ─── Step Data Handlers ──────────────────────────────────────
-    const updateStepData = useCallback((updates: Partial<ModalStepData>) => {
+    const updateStepData = useCallback((updates: Partial<ModalStepData>, options?: { markDirty?: boolean }) => {
         setStepData(prev => ({ ...prev, ...updates }));
-        setHasUnsavedChanges(true);
+        if (options?.markDirty !== false) {
+            setHasUnsavedChanges(true);
+        }
     }, []);
+
+    const metadataIsEffectivelyPristine = useCallback(() => {
+        const metadata = stepData.metadata || {};
+        const expectedTitle = stepData.testType && stepData.skillType
+            ? generateDefaultTitle(stepData.testType, stepData.skillType)
+            : '';
+        const expectedDuration = getDefaultMetadataDuration(stepData.skillType);
+        const title = metadata.title?.trim() || '';
+
+        if (hasOwn(metadata, 'title') && title !== expectedTitle) {
+            return false;
+        }
+
+        if (hasOwn(metadata, 'duration')
+            && metadata.duration !== undefined
+            && metadata.duration !== expectedDuration) {
+            return false;
+        }
+
+        if (stepData.format !== INITIAL_MODAL_DATA.format) {
+            return false;
+        }
+
+        const optionalFields: Array<keyof DraftMetadata> = [
+            'targetBand',
+            'cefrLevel',
+            'difficulty',
+            'description',
+            'tags',
+        ];
+
+        return optionalFields.every(field => !hasMeaningfulMetadataValue(metadata[field]));
+    }, [
+        stepData.format,
+        stepData.metadata,
+        stepData.skillType,
+        stepData.testType,
+    ]);
 
     const handleTypeSelect = useCallback((testType: TestType) => {
         if (testType === 'THCS-THPT') {
-            updateStepData({ testType });
+            updateStepData({ testType }, { markDirty: false });
             setIsThcsFlow(true);
             setThcsHasUnsavedChanges(false);
             return;
         }
-        updateStepData({ testType });
+        updateStepData({ testType }, { markDirty: false });
         // Auto-advance to skill step after selection
         setTimeout(() => {
             setIsAnimating(true);
@@ -709,7 +825,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     title: stepData.metadata?.title || generateDefaultTitle(stepData.testType, skillType),
                 }
                 : stepData.metadata;
-            updateStepData({ skillType, metadata: nextMetadata });
+            updateStepData({ skillType, metadata: nextMetadata }, { markDirty: false });
             onAction?.('selectReadingV2Skill', { testType: stepData.testType });
             setTimeout(() => {
                 setIsAnimating(true);
@@ -721,16 +837,26 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             return;
         }
 
-        updateStepData({ skillType });
-
-        // PRD-0020 / PRD-0022 bug fix: Redirect to dedicated Listening builder immediately
         if (skillType === 'listening') {
-            onClose();
-            navigate(`/create-test?type=${stepData.testType}&skill=Listening`, {
-                state: { metadata: { type: stepData.testType } }
-            });
+            const nextMetadata = stepData.testType
+                ? {
+                    ...stepData.metadata,
+                    title: stepData.metadata?.title || generateDefaultTitle(stepData.testType, skillType),
+                }
+                : stepData.metadata;
+            updateStepData({ skillType, metadata: nextMetadata }, { markDirty: false });
+            onAction?.('selectListeningSkill', { testType: stepData.testType });
+            setTimeout(() => {
+                setIsAnimating(true);
+                setTimeout(() => {
+                    setCurrentStep('metadata');
+                    setIsAnimating(false);
+                }, 150);
+            }, 100);
             return;
         }
+
+        updateStepData({ skillType }, { markDirty: false });
 
         // Writing stays in the modal and advances into the writing-specific steps.
         if (skillType === 'writing') {
@@ -755,7 +881,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         // avoiding a race with MetadataStep's internal useEffect.
         if (stepData.testType) {
             const defaultTitle = generateDefaultTitle(stepData.testType, skillType);
-            updateStepData({ metadata: { title: defaultTitle } });
+            updateStepData({ metadata: { title: defaultTitle } }, { markDirty: false });
         }
 
         setTimeout(() => {
@@ -784,6 +910,52 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             testTypeIds,
         };
     }, [stepData.metadata, stepData.testType, user?.uid]);
+
+    const createListeningInitialMetadata = useCallback((): ListeningBuilderMetadataInput => {
+        const metadata = stepData.metadata || {};
+        const difficulty: ListeningBuilderDifficulty = metadata.difficulty === 'Beginner'
+            || metadata.difficulty === 'Intermediate'
+            || metadata.difficulty === 'Advanced'
+            ? metadata.difficulty
+            : 'Intermediate';
+
+        return {
+            title: metadata.title || '',
+            type: stepData.testType === 'IELTS' ? 'IELTS' : 'Custom',
+            skill: 'Listening',
+            duration: metadata.duration || LISTENING_DEFAULT_DURATION_MINUTES,
+            difficulty,
+            description: metadata.description || '',
+            tags: metadata.tags || [],
+            targetBand: metadata.targetBand || '',
+        };
+    }, [stepData.metadata, stepData.testType]);
+
+    const handleListeningStart = useCallback((displayMode: ListeningCreationMode) => {
+        const initialMetadata = createListeningInitialMetadata();
+
+        onAction?.('startListeningCreationMode', {
+            source: 'test_creation_modal',
+            testType: stepData.testType,
+            displayMode,
+            titleLength: initialMetadata.title.length,
+            durationMinutes: initialMetadata.duration,
+        });
+        setListeningCreationMode(displayMode);
+        setListeningBuilderHeader({
+            title: 'Audio',
+            subtitle: 'Upload one file per section',
+            step: 'audio',
+            displayMode,
+        });
+        setListeningBuilderHeaderActions(null);
+        setListeningHasUnsavedChanges(false);
+        setIsAnimating(true);
+        setTimeout(() => {
+            setCurrentStep('listening-builder');
+            setIsAnimating(false);
+        }, 150);
+    }, [createListeningInitialMetadata, onAction, stepData.testType]);
 
     const appendReadingV2AutoDiagnosticLog = useCallback((event: string, payload: Record<string, unknown>) => {
         setReadingV2AutoDiagnosticLogs(prev => [
@@ -1259,14 +1431,34 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             return;
         }
 
+        const isSetupSelectionOnlyStep = currentStep === 'type' || currentStep === 'skill';
+        const isGeneratedMetadataOnlyStep = currentStep === 'metadata' && metadataIsEffectivelyPristine();
+
         if (readingV2AutoProcessing) {
             setShowCloseConfirmation(true);
-        } else if (hasUnsavedChanges && currentStepIndex > 0) {
+        } else if (isListeningBuilderStep && listeningHasUnsavedChanges) {
+            setShowCloseConfirmation(true);
+        } else if (hasUnsavedChanges
+            && currentStepIndex > 0
+            && !isSetupSelectionOnlyStep
+            && !isGeneratedMetadataOnlyStep) {
             setShowCloseConfirmation(true);
         } else {
             onClose();
         }
-    }, [currentStepIndex, hasUnsavedChanges, isParsing, isThcsFlow, onClose, readingV2AutoProcessing, thcsHasUnsavedChanges]);
+    }, [
+        currentStep,
+        currentStepIndex,
+        hasUnsavedChanges,
+        isListeningBuilderStep,
+        isParsing,
+        isThcsFlow,
+        listeningHasUnsavedChanges,
+        metadataIsEffectivelyPristine,
+        onClose,
+        readingV2AutoProcessing,
+        thcsHasUnsavedChanges,
+    ]);
 
     const handleConfirmClose = useCallback(() => {
         setShowCloseConfirmation(false);
@@ -1287,6 +1479,15 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setReadingV2AutoError(null);
         setReadingV2AutoDiagnostics([]);
         setReadingV2AutoProcessing(false);
+        setListeningCreationMode('text');
+        setListeningBuilderHeader({
+            title: 'Audio',
+            subtitle: 'Upload one file per section',
+            step: 'audio',
+            displayMode: 'text',
+        });
+        setListeningBuilderHeaderActions(null);
+        setListeningHasUnsavedChanges(false);
         readingV2AutoRequestIdRef.current += 1;
         onClose();
     }, [onClose]);
@@ -1308,6 +1509,15 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setReadingV2AutoError(null);
         setReadingV2AutoDiagnostics([]);
         setReadingV2AutoProcessing(false);
+        setListeningCreationMode('text');
+        setListeningBuilderHeader({
+            title: 'Audio',
+            subtitle: 'Upload one file per section',
+            step: 'audio',
+            displayMode: 'text',
+        });
+        setListeningBuilderHeaderActions(null);
+        setListeningHasUnsavedChanges(false);
         readingV2AutoRequestIdRef.current += 1;
         onClose();
     }, [onClose]);
@@ -1350,6 +1560,15 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setReadingV2ImportError(null);
             setReadingV2PromptCopied(false);
             setReadingV2PromptFallbackVisible(false);
+            setListeningCreationMode('text');
+            setListeningBuilderHeader({
+                title: 'Audio',
+                subtitle: 'Upload one file per section',
+                step: 'audio',
+                displayMode: 'text',
+            });
+            setListeningBuilderHeaderActions(null);
+            setListeningHasUnsavedChanges(false);
             // Reset parsing state
             setParsingStage('converting');
             setParsingProgress(0);
@@ -1658,26 +1877,126 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const THCS_STEP_LABELS = thcsStepConfigs.map((step) => step.label);
     const THCS_STEP_ICONS = ['📋', '✏️', '🔑', '✅'];
 
+    const renderListeningBuilderNav = () => {
+        const navSteps: Array<{ key: string; label: string; matches: ListeningBuilderStep[] }> = [
+            { key: 'audio', label: 'Audio', matches: ['audio'] },
+            {
+                key: listeningBuilderHeader.displayMode === 'text' ? 'questions-text' : 'questions-images',
+                label: listeningBuilderHeader.displayMode === 'text' ? 'Parse' : 'Images',
+                matches: listeningBuilderHeader.displayMode === 'text' ? ['questions-text'] : ['questions-images'],
+            },
+            {
+                key: 'questions',
+                label: listeningBuilderHeader.displayMode === 'image' ? 'Answer key' : 'Questions',
+                matches: ['questions'],
+            },
+            { key: 'review', label: 'Review', matches: ['review'] },
+        ];
+        const activeIndex = Math.max(0, navSteps.findIndex(step => step.matches.includes(listeningBuilderHeader.step)));
+
+        return (
+            <div
+                aria-label="Listening builder steps"
+                style={{
+                    display: 'inline-flex',
+                    gap: '0.1875rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '999px',
+                    padding: '0.1875rem',
+                    maxWidth: '100%',
+                    overflowX: 'auto',
+                    flexShrink: 0,
+                }}
+            >
+                {navSteps.map((step, index) => {
+                    const isActive = step.matches.includes(listeningBuilderHeader.step);
+                    const isDone = index < activeIndex;
+                    return (
+                        <div
+                            key={step.key}
+                            aria-current={isActive ? 'step' : undefined}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '0.375rem 0.6875rem',
+                                borderRadius: '999px',
+                                color: isDone ? '#059669' : isActive ? '#4f46e5' : '#6b7280',
+                                background: isActive ? '#ffffff' : 'transparent',
+                                boxShadow: isActive ? '0 1px 2px rgba(16, 24, 40, 0.06)' : 'none',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {step.label}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    const getListeningVisibleStep = () => {
+        if (!isListeningFlow) return null;
+
+        const builderStepNumbers: Record<ListeningBuilderStep, number> = {
+            'mode-select': 4,
+            audio: 5,
+            'questions-text': 6,
+            'questions-images': 6,
+            questions: 7,
+            review: 8,
+        };
+
+        if (isListeningBuilderStep) {
+            return { current: builderStepNumbers[listeningBuilderHeader.step], total: 8 };
+        }
+
+        const modalStepNumbers: Partial<Record<ModalStep, number>> = {
+            type: 1,
+            skill: 2,
+            metadata: 3,
+            'listening-mode': 4,
+        };
+
+        return { current: modalStepNumbers[currentStep] ?? currentStepIndex + 1, total: 8 };
+    };
+
     const renderHeader = () => (
         <div style={modalStyles.header as React.CSSProperties}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontSize: '1.5rem' }}>
-                            {isThcsFlow ? (THCS_STEP_ICONS[thcsStep] ?? '📋') : currentStepConfig?.icon}
+                            {isListeningBuilderStep
+                                ? listeningBuilderHeader.title.charAt(0)
+                                : isThcsFlow ? (THCS_STEP_ICONS[thcsStep] ?? '📋') : currentStepConfig?.icon}
                         </span>
                         <div>
                             <Text size="xl" fw={700} style={{ color: '#1e293b' }}>
-                                {isThcsFlow ? 'THCS-THPT Test' : currentStepConfig?.label}
+                                {isListeningBuilderStep
+                                    ? listeningBuilderHeader.title
+                                    : isThcsFlow ? 'THCS-THPT Test' : currentStepConfig?.label}
                             </Text>
                             <Text size="sm" c="dimmed">
-                                {isThcsFlow
-                                    ? `${THCS_STEP_LABELS[thcsStep] ?? 'Test Setup'} · Step ${thcsStep + 1} of 4`
-                                    : `${currentStepConfig?.description} • Step ${currentStepIndex + 1} of ${totalSteps}`}
+                                {(() => {
+                                    const listeningStep = getListeningVisibleStep();
+                                    if (isListeningBuilderStep) {
+                                        return `${listeningBuilderHeader.subtitle} - Step ${listeningStep?.current ?? currentStepIndex + 1} of ${listeningStep?.total ?? totalSteps}`;
+                                    }
+                                    if (isListeningFlow && listeningStep) {
+                                        return `${currentStepConfig?.description} - Step ${listeningStep.current} of ${listeningStep.total}`;
+                                    }
+                                    if (isThcsFlow) {
+                                        return `${THCS_STEP_LABELS[thcsStep] ?? 'Test Setup'} · Step ${thcsStep + 1} of 4`;
+                                    }
+                                    return `${currentStepConfig?.description} - Step ${currentStepIndex + 1} of ${totalSteps}`;
+                                })()}
                             </Text>
                         </div>
                     </div>
-                    {isThcsFlow ? (
+                    {isListeningBuilderStep ? null : isThcsFlow ? (
                         <div style={stepIndicatorStyles.container}>
                             {THCS_STEP_LABELS.map((label, idx) => (
                                 <div
@@ -1689,6 +2008,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                         </div>
                     ) : renderStepIndicator()}
                 </div>
+
+                {isListeningBuilderStep ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        {renderListeningBuilderNav()}
+                        {listeningBuilderHeaderActions}
+                    </div>
+                ) : null}
 
                 {/* Close Button */}
                 <button
@@ -1737,6 +2063,13 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             opacity: isAnimating ? 0 : 1,
             transform: isAnimating ? 'translateX(20px)' : 'translateX(0)',
             transition: 'opacity 0.15s ease, transform 0.15s ease',
+            ...(isListeningBuilderStep ? {
+                display: 'flex',
+                flex: 1,
+                flexDirection: 'column',
+                minHeight: 0,
+                overflow: 'hidden',
+            } : {}),
         };
 
         switch (currentStep) {
@@ -1846,6 +2179,39 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                             }}
                             onClear={handleClearReadingV2AutoImportSetup}
                             onCopyDiagnostics={copyReadingV2AutoDiagnosticLogs}
+                        />
+                    </div>
+                );
+            case 'listening-mode':
+                return (
+                    <div style={contentStyle}>
+                        <ListeningModeStep
+                            metadata={stepData.metadata}
+                            onStartText={() => handleListeningStart('text')}
+                            onStartImage={() => handleListeningStart('image')}
+                        />
+                    </div>
+                );
+            case 'listening-builder':
+                return (
+                    <div style={contentStyle}>
+                        <ListeningTestBuilder
+                            presentation="embedded"
+                            initialMetadata={createListeningInitialMetadata()}
+                            initialDisplayMode={listeningCreationMode}
+                            initialStep="audio"
+                            onExit={() => {
+                                setListeningBuilderHeaderActions(null);
+                                setCurrentStep('listening-mode');
+                            }}
+                            onPublished={() => {
+                                setListeningHasUnsavedChanges(false);
+                                setListeningBuilderHeaderActions(null);
+                                onClose();
+                            }}
+                            onDirtyChange={setListeningHasUnsavedChanges}
+                            onHeaderChange={setListeningBuilderHeader}
+                            onHeaderActionsChange={setListeningBuilderHeaderActions}
                         />
                     </div>
                 );
@@ -2012,6 +2378,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     const renderFooter = () => {
         if (isThcsFlow) {
+            return null;
+        }
+
+        if (isListeningBuilderStep) {
             return null;
         }
 
@@ -2269,7 +2639,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             <Modal
                 opened={opened}
                 onClose={handleCloseRequest}
-                size={isThcsFlow ? '95vw' : 'lg'}
+                size={isListeningBuilderStep ? '94vw' : isThcsFlow ? '95vw' : 'lg'}
                 title={null}
                 withCloseButton={false}
                 padding={0}
@@ -2279,8 +2649,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     body: { padding: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
                     content: {
                         ...(modalStyles.content as React.CSSProperties),
-                        ...(isThcsFlow ? {
-                            maxWidth: thcsWideLayout ? '95vw' : '620px',
+                        ...(isThcsFlow || isListeningBuilderStep ? {
+                            maxWidth: isListeningBuilderStep ? 'min(960px, 94vw)' : thcsWideLayout ? '95vw' : '620px',
+                            height: isListeningBuilderStep ? 'min(680px, 82vh)' : undefined,
                             transitionProperty: 'max-width',
                             transitionDuration: '220ms',
                             transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -2295,10 +2666,10 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                         ref={contentRef}
                         style={{
                             ...(modalStyles.body as React.CSSProperties),
-                            padding: isThcsFlow ? 0 : (modalStyles.body as React.CSSProperties).padding,
-                            overflowY: isThcsFlow && thcsWideLayout ? 'hidden' : 'auto',
-                            display: isThcsFlow && thcsWideLayout ? 'flex' : (modalStyles.body as React.CSSProperties).display,
-                            flexDirection: isThcsFlow && thcsWideLayout ? 'column' : (modalStyles.body as React.CSSProperties).flexDirection,
+                            padding: isThcsFlow || isListeningBuilderStep ? 0 : (modalStyles.body as React.CSSProperties).padding,
+                            overflowY: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'hidden' : 'auto',
+                            display: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'flex' : (modalStyles.body as React.CSSProperties).display,
+                            flexDirection: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'column' : (modalStyles.body as React.CSSProperties).flexDirection,
                         }}
                     >
                         {renderStepContent()}
@@ -2501,6 +2872,133 @@ const SkillSelectionStep: React.FC<SkillSelectionStepProps> = ({ testType, selec
                         )}
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+};
+
+interface ListeningModeStepProps {
+    metadata: Partial<DraftMetadata>;
+    onStartText: () => void;
+    onStartImage: () => void;
+}
+
+const LISTENING_MODE_OPTIONS = [
+    {
+        id: 'text',
+        title: 'Create using Text',
+        description: 'Use typed or pasted question text, then parse answers and review questions.',
+        actionLabel: 'Use Text',
+        icon: 'TXT',
+    },
+    {
+        id: 'image',
+        title: 'Create using Image',
+        description: 'Upload audio first, then set question images and answer keys by range.',
+        actionLabel: 'Use Image',
+        icon: 'IMG',
+    },
+] as const;
+
+const ListeningModeStep: React.FC<ListeningModeStepProps> = ({
+    metadata,
+    onStartText,
+    onStartImage,
+}) => {
+    const summaryItems = [
+        metadata.title || 'Untitled Listening test',
+        `${metadata.duration || LISTENING_DEFAULT_DURATION_MINUTES} minutes`,
+        metadata.targetBand ? `Band ${metadata.targetBand}` : null,
+    ].filter(Boolean);
+
+    return (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+            <div
+                style={{
+                    padding: '1rem',
+                    borderRadius: '0.75rem',
+                    border: '1px solid rgba(37, 99, 235, 0.24)',
+                    background: 'rgba(37, 99, 235, 0.08)',
+                }}
+            >
+                <strong style={{ color: '#1d4ed8', fontSize: '1rem' }}>
+                    Listening setup ready
+                </strong>
+                <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
+                    {summaryItems.join(' - ')}
+                </p>
+            </div>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '1rem',
+                }}
+            >
+                {LISTENING_MODE_OPTIONS.map((option) => {
+                    const start = option.id === 'text' ? onStartText : onStartImage;
+
+                    return (
+                        <button
+                            key={option.id}
+                            type="button"
+                            onClick={start}
+                            style={{
+                                width: '100%',
+                                minHeight: '170px',
+                                padding: '1.25rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid rgba(37, 99, 235, 0.28)',
+                                background: 'rgba(255, 255, 255, 0.88)',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                display: 'grid',
+                                alignContent: 'space-between',
+                                gap: '1rem',
+                                transition: 'all 0.2s ease',
+                            }}
+                            onMouseEnter={(event) => {
+                                event.currentTarget.style.background = 'rgba(37, 99, 235, 0.08)';
+                                event.currentTarget.style.transform = 'translateY(-2px)';
+                                event.currentTarget.style.boxShadow = '0 8px 20px rgba(37, 99, 235, 0.14)';
+                            }}
+                            onMouseLeave={(event) => {
+                                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.88)';
+                                event.currentTarget.style.transform = 'translateY(0)';
+                                event.currentTarget.style.boxShadow = 'none';
+                            }}
+                        >
+                            <span
+                                style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    borderRadius: '0.75rem',
+                                    background: 'rgba(37, 99, 235, 0.12)',
+                                    color: '#1d4ed8',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 800,
+                                    fontSize: '0.75rem',
+                                }}
+                            >
+                                {option.icon}
+                            </span>
+                            <span>
+                                <strong style={{ color: '#1e3a8a', display: 'block', fontSize: '1.125rem' }}>
+                                    {option.title}
+                                </strong>
+                                <span style={{ color: '#64748b', display: 'block', fontSize: '0.875rem' }}>
+                                    {option.description}
+                                </span>
+                            </span>
+                            <span style={{ color: '#1d4ed8', fontWeight: 700 }}>
+                                {option.actionLabel} {'->'}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );

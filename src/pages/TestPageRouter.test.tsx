@@ -271,6 +271,58 @@ describe('TestPageRouter', () => {
     expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
   });
 
+  it('routes live Listening from session-safe payload when private test metadata is blocked', async () => {
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('listening-test-1');
+        case 'tests/listening-test-1/testType':
+          throw new Error('permission_denied');
+        case 'session_test_payloads/FMQYME':
+          return createSnapshot({
+            testId: 'listening-test-1',
+            testData: {
+              skill: 'Listening',
+            },
+          });
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    renderRouter();
+
+    expect(await screen.findByText('listening-page')).toBeInTheDocument();
+    expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+  });
+
+  it('routes live Listening from session-safe payload when optional Reading V2 metadata is blocked', async () => {
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('listening-test-1');
+        case 'game_sessions/FMQYME/readingV2':
+          return createSnapshot(null, false);
+        case 'reading_v2/material_metadata/listening-test-1':
+          throw new Error('permission_denied');
+        case 'session_test_payloads/FMQYME':
+          return createSnapshot({
+            testId: 'listening-test-1',
+            testData: {
+              skill: 'Listening',
+            },
+          });
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    renderRouter();
+
+    expect(await screen.findByText('listening-page')).toBeInTheDocument();
+    expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+  });
+
   it.each(READING_V2_ENGINE_FIELDS)(
     'fails closed when a Reading V2 %s marker is present',
     async (markerField) => {

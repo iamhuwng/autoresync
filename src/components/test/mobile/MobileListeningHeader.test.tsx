@@ -106,4 +106,23 @@ describe('MobileListeningHeader', () => {
     const timer = getByTestId('mobile-listening-header-timer');
     expect(timer.style.color).toBe('rgb(239, 68, 68)'); // #ef4444
   });
+
+  it('announces low-time timer state with status semantics', () => {
+    render(<MobileListeningHeader {...defaultProps()} timeRemaining={299} />);
+
+    const timer = screen.getByRole('status', {
+      name: /time remaining: 4:59\. less than 5 minutes left/i,
+    });
+    expect(timer).toBe(screen.getByTestId('mobile-listening-header-timer'));
+    expect(timer).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('keeps header controls named and at least 44px tall/wide', () => {
+    render(<MobileListeningHeader {...defaultProps()} />);
+
+    const submit = screen.getByRole('button', { name: 'Submit test' });
+    const overflow = screen.getByRole('button', { name: 'More options' });
+    expect(submit).toHaveStyle({ minHeight: '44px' });
+    expect(overflow).toHaveStyle({ width: '44px', height: '44px' });
+  });
 });

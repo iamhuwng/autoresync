@@ -16,6 +16,15 @@ For teacher pages, `TeacherHeader` owns shared header design and must stay attac
 
 Before adding or modifying user-facing create, save, update, publish, assign, enroll, restore, archive, remove, or delete announcements, read [`rules/announcements.md`](documentation/rules/announcements.md). These outcomes must use the shared announcement system: bottom-right rectangular notifications that slowly fade/disappear after a readable duration, with `role="status"` for success/info/warning and `role="alert"` for failures. Do not add one-off page banners, `alert()`, or silent success states for these workflows. This applies across tests, homework, Reading V2 masters/passages, students, courses/classes, books, and future material types.
 
+## Temporary PRD / Task-List Process And Closure Gate (MANDATORY)
+
+Before PRD/task-list packet planning, implementation review, correction, handoff, staging, commit, or PASS/BLOCKED closure, read [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) when work involves:
+- next-patch prompts, handoffs, or task sequencing
+- taskboxes, findings, traceability, implementation logs, canonical/current-state docs, guardrails, or reviewer blockers
+- source-test-doc truth reconciliation, exact-path staging, RTK/PowerShell command proof, or Cloudflare/Wrangler/R2 remote proof
+
+Temporary bridge: remove after Codex memory index contains `prd0055-authority-sync-closure-lessons` / `authority-sync`.
+
 ## Dev Login Shortcuts (MANDATORY)
 
 When testing authenticated teacher or student flows in this repo:
@@ -67,6 +76,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying create/save/update/publish/assign/enroll/restore/archive/remove/delete announcements | [`rules/announcements.md`](documentation/rules/announcements.md) |
+| PRD/task-list packet planning, review, correction, handoff, closure, taskbox/findings/traceability/log/docs reconciliation, exact-path staging, RTK/PowerShell proof, or Cloudflare/Wrangler/R2 remote proof | [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
 | Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 | Writing hooks using `window.*`, `document.*`, `navigator.*` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |

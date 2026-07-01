@@ -28,6 +28,7 @@ import { pruneBackupHistory } from './retention';
 // ─── Constants ─────────────────────────────────────────────────────────
 
 const RTDB_EXCLUDE = ['system_flags'];
+const RTDB_REQUIRED_NODES = ['listening_authoring'];
 const FIRESTORE_EXCLUDE = ['parsingCache'];
 
 const SPECIAL_HANDLERS: Record<string, (data: Record<string, unknown>) => Record<string, unknown>> = {
@@ -92,7 +93,8 @@ export async function executeStep1_RTDB(
         if (!shallowRes.ok) throw new Error(`RTDB discovery failed: ${shallowRes.status}`);
 
         const shallowData = await shallowRes.json() as Record<string, boolean> | null;
-        const nodesToBackup = (shallowData ? Object.keys(shallowData) : [])
+        const discoveredNodes = shallowData ? Object.keys(shallowData) : [];
+        const nodesToBackup = [...new Set([...discoveredNodes, ...RTDB_REQUIRED_NODES])]
             .filter(n => !RTDB_EXCLUDE.includes(n));
 
         // Read RTDB nodes in parallel batches of 5

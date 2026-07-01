@@ -26,13 +26,16 @@ import { filterGdprEntities } from './gdpr-filter';
 
 /** Known dependency order for RTDB restore (PRD §4.16.3) */
 const RTDB_RESTORE_ORDER = [
-    'users', 'tests', 'quizzes', 'classes', 'courses',
+    'users', 'media_asset_upload_sessions', 'media_assets', 'media_asset_events',
+    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'tests', 'quizzes', 'classes', 'courses',
     'course_enrollments', 'class_course_links', 'course_materials', 'course_progress',
     'test_results', 'game_sessions', 'deleted_users', 'guest_results',
     'invitations', 'badges', 'course_attendance', 'audit_logs',
     'test_results_by_session', 'test_results_by_student', 'test_results_by_teacher',
     'test_results_by_course', 'test_results_by_class',
 ];
+
+const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring'];
 
 /** Nodes excluded from restore by default (prevent spam) */
 const RTDB_SKIP_ON_RESTORE = ['notifications'];
@@ -407,7 +410,12 @@ async function createPreRestoreSnapshot(
     }
 
     const shallowData = await shallowRes.json() as Record<string, boolean> | null;
-    const allNodes = shallowData ? Object.keys(shallowData) : [];
+    const allNodes = [
+        ...new Set([
+            ...Object.keys(shallowData ?? {}),
+            ...RTDB_REQUIRED_SNAPSHOT_NODES,
+        ]),
+    ];
     const nodesToBackup = allNodes.filter(n => n !== 'system_flags');
 
     const rtdbData: Record<string, unknown> = {};

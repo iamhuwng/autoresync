@@ -1,6 +1,8 @@
 import { getAuth } from 'firebase/auth';
 
-export const DEFAULT_R2_UPLOAD_WORKER_URL = 'https://r2-upload-signer.iamhuwng.workers.dev';
+import { DEFAULT_R2_UPLOAD_WORKER_URL } from './r2WorkerEndpoint';
+
+export { DEFAULT_R2_UPLOAD_WORKER_URL };
 
 export type UploadOperationKind =
     | 'listening_audio_temp'
@@ -35,7 +37,19 @@ export interface R2UploadClientContract {
         operationKind: UploadOperationKind,
         onProgress?: UploadProgress,
     ): Promise<UploadResult>;
+    uploadWithAssetGrant(
+        file: File,
+        authorization: AssetGrantUploadAuthorization,
+        onProgress?: UploadProgress,
+    ): Promise<UploadResult>;
     move(key: string): Promise<MoveResult>;
+}
+
+export interface AssetGrantUploadAuthorization {
+    assetGrant: string;
+    key: string;
+    publicUrl: string;
+    contentType: string;
 }
 
 interface AuthorizationResponse {
@@ -65,6 +79,11 @@ interface R2UploadClientOptions {
     now?: () => number;
 }
 
+export interface R2UploadEndpointEnv {
+    readonly DEV?: boolean;
+    readonly VITE_R2_UPLOAD_WORKER_URL?: string;
+}
+
 const temporaryOperations = new Set<UploadOperationKind>([
     'listening_audio_temp',
     'test_audio_temp',
@@ -73,9 +92,48 @@ const temporaryOperations = new Set<UploadOperationKind>([
 
 const basename = (name: string) => name.split(/[\\/]/).pop() || 'upload';
 
-const configuredEndpoint = () => {
-    const override = import.meta.env.VITE_R2_UPLOAD_WORKER_URL?.trim();
-    return (override || DEFAULT_R2_UPLOAD_WORKER_URL).replace(/\/+$/, '');
+const LOCAL_R2_UPLOAD_WORKER_URL = 'http://localhost:8787';
+const LOCAL_APP_ORIGINS = new Set([
+    'http://localhost:5173',
+    'http://localhost:5174',
+]);
+
+const readBrowserHostname = (): string | undefined => {
+    const location = globalThis.location;
+    return location && typeof location.hostname === 'string'
+        ? location.hostname
+        : undefined;
+};
+
+const isLocalDevHost = (hostname: string | undefined): boolean =>
+    hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '::1'
+    || hostname === '[::1]';
+
+export const resolveR2UploadEndpoint = (
+    env: R2UploadEndpointEnv = import.meta.env,
+    hostname: string | undefined = readBrowserHostname(),
+): string => {
+    const override = env.VITE_R2_UPLOAD_WORKER_URL?.trim();
+    if (override) return override.replace(/\/+$/, '');
+    if (env.DEV === true && isLocalDevHost(hostname)) return LOCAL_R2_UPLOAD_WORKER_URL;
+    return DEFAULT_R2_UPLOAD_WORKER_URL;
+};
+
+const resolveLocalUploadTransportOrigin = (endpoint: string): string | undefined => {
+    if (import.meta.env.DEV !== true || !LOCAL_APP_ORIGINS.has(globalThis.location?.origin)) {
+        return undefined;
+    }
+    try {
+        const parsed = new URL(endpoint);
+        return parsed.origin === LOCAL_R2_UPLOAD_WORKER_URL
+            && (parsed.pathname === '' || parsed.pathname === '/')
+            ? parsed.origin
+            : undefined;
+    } catch {
+        return undefined;
+    }
 };
 
 const readJson = async <T>(response: Response): Promise<T> => {
@@ -88,11 +146,24 @@ const readJson = async <T>(response: Response): Promise<T> => {
 
 const assertString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
+const readWorkerErrorCode = (responseText: string): string | undefined => {
+    try {
+        const body = JSON.parse(responseText) as { error?: unknown };
+        return typeof body.error === 'string' && /^[a-z0-9_]{1,64}$/.test(body.error)
+            ? body.error
+            : undefined;
+    } catch {
+        return undefined;
+    }
+};
+
 export class R2UploadClientError extends Error {
     constructor(
         public readonly code: string,
         message: string,
         public readonly recoverable = false,
+        public readonly status?: number,
+        public readonly workerError?: string,
     ) {
         super(message);
         this.name = 'R2UploadClientError';
@@ -134,7 +205,7 @@ export class R2UploadClient implements R2UploadClientContract {
     private readonly moveGrants = new Map<string, MoveGrantRecord>();
 
     constructor(options: R2UploadClientOptions = {}) {
-        this.endpoint = (options.endpoint?.trim() || configuredEndpoint()).replace(/\/+$/, '');
+        this.endpoint = (options.endpoint?.trim() || resolveR2UploadEndpoint()).replace(/\/+$/, '');
         this.fetchImpl = options.fetch ?? defaultFetch;
         this.getIdToken = options.getIdToken ?? defaultGetIdToken;
         this.xhrFactory = options.xhrFactory ?? (() => new XMLHttpRequest());
@@ -189,6 +260,54 @@ export class R2UploadClient implements R2UploadClientContract {
             fileName: basename(file.name),
             key: uploaded.key,
             isTemp,
+        };
+    }
+
+    async uploadWithAssetGrant(
+        file: File,
+        authorization: AssetGrantUploadAuthorization,
+        onProgress?: UploadProgress,
+    ): Promise<UploadResult> {
+        if (
+            !assertString(authorization.assetGrant)
+            || !assertString(authorization.key)
+            || !assertString(authorization.publicUrl)
+            || !assertString(authorization.contentType)
+        ) {
+            throw new R2UploadClientError(
+                'invalid_asset_grant',
+                'Upload service returned invalid asset authorization',
+            );
+        }
+
+        const uploadUrl = new URL(`${this.endpoint}/upload`);
+        uploadUrl.searchParams.set('assetGrant', authorization.assetGrant);
+        this.assertUploadUrl(uploadUrl.toString());
+        const token = await this.requireToken();
+        const uploaded = await this.putFile({
+            file,
+            token,
+            uploadUrl: uploadUrl.toString(),
+            contentType: authorization.contentType,
+            onProgress,
+        });
+        if (
+            uploaded.key !== authorization.key
+            || uploaded.url !== authorization.publicUrl
+        ) {
+            throw new R2UploadClientError(
+                'invalid_upload_response',
+                'Upload service returned inconsistent file details',
+            );
+        }
+
+        return {
+            url: uploaded.url,
+            streamUrl: uploaded.url,
+            directUrl: uploaded.url,
+            fileName: basename(file.name),
+            key: uploaded.key,
+            isTemp: true,
         };
     }
 
@@ -251,6 +370,7 @@ export class R2UploadClient implements R2UploadClientContract {
                     fileName: basename(file.name),
                     contentType: file.type || 'application/octet-stream',
                     sizeBytes: file.size,
+                    uploadTransportOrigin: resolveLocalUploadTransportOrigin(this.endpoint),
                 }),
             });
         } catch {
@@ -297,7 +417,15 @@ export class R2UploadClient implements R2UploadClientContract {
         } catch {
             throw new R2UploadClientError('invalid_upload_url', 'Upload service returned an invalid URL');
         }
-        if (`${parsed.origin}${parsed.pathname}` !== `${this.endpoint}/upload`) {
+        const receivedOriginPath = `${parsed.origin}${parsed.pathname}`;
+        const expectedOriginPath = `${this.endpoint}/upload`;
+        if (receivedOriginPath !== expectedOriginPath) {
+            if (import.meta.env.DEV) {
+                console.error('[r2-upload] unexpected upload URL', {
+                    expectedOriginPath,
+                    receivedOriginPath,
+                });
+            }
             throw new R2UploadClientError('invalid_upload_url', 'Upload service returned an unexpected URL');
         }
     }
@@ -306,11 +434,13 @@ export class R2UploadClient implements R2UploadClientContract {
         file,
         token,
         uploadUrl,
+        contentType,
         onProgress,
     }: {
         file: File;
         token: string;
         uploadUrl: string;
+        contentType?: string;
         onProgress?: UploadProgress;
     }): Promise<UploadResponse> {
         return new Promise((resolve, reject) => {
@@ -327,7 +457,21 @@ export class R2UploadClient implements R2UploadClientContract {
             }
             xhr.addEventListener('load', () => {
                 if (xhr.status < 200 || xhr.status >= 300) {
-                    reject(this.httpError(xhr.status, 'upload_failed'));
+                    const workerError = readWorkerErrorCode(xhr.responseText);
+                    if (import.meta.env.DEV) {
+                        console.error(`[r2-upload] PUT rejected ${JSON.stringify({
+                            status: xhr.status,
+                            workerError,
+                        })}`);
+                    }
+                    const error = this.httpError(xhr.status, 'upload_failed');
+                    reject(new R2UploadClientError(
+                        error.code,
+                        error.message,
+                        error.recoverable,
+                        xhr.status,
+                        workerError,
+                    ));
                     return;
                 }
                 try {
@@ -348,7 +492,8 @@ export class R2UploadClient implements R2UploadClientContract {
             });
             xhr.open('PUT', uploadUrl);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            xhr.setRequestHeader('Content-Type', contentType || file.type || 'application/octet-stream');
+            xhr.setRequestHeader('X-Upload-Size', String(file.size));
             xhr.send(file);
         });
     }

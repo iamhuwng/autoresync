@@ -3,21 +3,72 @@
  * Create IELTS Listening tests with audio files and questions
  */
 
-import React, { useState, useEffect } from 'react';
-import { IconFileText, IconPhoto } from '@tabler/icons-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  IconCheck,
+  IconFileText,
+  IconHeadphones,
+  IconInfoCircle,
+  IconListCheck,
+  IconPhoto,
+  IconSettings,
+  IconSparkles,
+  IconTrash,
+  IconUpload,
+} from '@tabler/icons-react';
 import { useLocation } from 'react-router-dom';
-import { Card, CardBody, Button } from '../../../components/modern';
-import { saveListeningTestToFirebase, AUDIO_CONTROLS_PRESETS } from '../../../services/listeningTestStorage';
-import type { AudioSection as StorageAudioSection, ListeningDisplayMode, QuestionImage, AudioControlsConfig } from '../../../services/listeningTestStorage';
+import { Button, toast } from '../../../components/modern';
+import {
+  AUDIO_CONTROLS_PRESETS,
+} from '../../../services/listeningTestStorage';
+import type {
+  AudioSection as StorageAudioSection,
+  ListeningDisplayMode,
+  QuestionImage,
+  AudioControlsConfig,
+} from '../../../services/listeningTestStorage';
 import { googleDriveAudioService } from '../../../services/googleDriveAudio';
 import r2StorageService from '../../../services/r2Storage';
 import type { ParsedQuestion } from '../../../types/document.types';
 import { listeningRouter } from '../../../services/parser/listening.router';
-import { useAuth } from '../../../hooks/useAuth';
+import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
 import { useNavigation } from '../../../hooks/useNavigation';
+import { useAppLifecycle } from '../../../core/platform/hooks/useAppLifecycle';
+import { FEATURE_IDS } from '../../../config/featureRegistry';
+import {
+  validateListeningDraft,
+  validateListeningPublish,
+} from '../../../features/assessment/listening/authoring/listeningAuthoringValidation';
+import { createListeningAuthoringWorkflow } from '../../../features/assessment/listening/authoring/listeningAuthoringWorkflow';
+import type {
+  ListeningAuthoringDocumentV1,
+  ListeningAuthoringIssue,
+} from '../../../features/assessment/listening/types/listeningAuthoring.types';
 import { AssessmentAuthoringHeader } from '../../../features/assessment/shared/components/AssessmentAuthoringHeader';
 import { AssessmentAuthoringSection } from '../../../features/assessment/shared/components/AssessmentAuthoringSection';
 import { AssessmentStatusState } from '../../../features/assessment/shared/components/AssessmentStatusState';
+import { ListeningDraftStatus, type ListeningDraftStatusMode } from '../../../features/assessment/listening/authoring/ListeningDraftStatus';
+import { ListeningPublishReadinessPanel, type ListeningPublishReadinessMode } from '../../../features/assessment/listening/authoring/ListeningPublishReadinessPanel';
+import { ListeningSavePublishBar } from '../../../features/assessment/listening/authoring/ListeningSavePublishBar';
+import {
+  ListeningLifecycleActions,
+  type ListeningLifecyclePendingAction,
+} from '../../../features/assessment/listening/authoring/ListeningLifecycleActions';
+import { ListeningUploadGuidance } from '../../../features/assessment/listening/authoring/ListeningUploadGuidance';
+import { validateListeningPublishReadiness } from '../../../features/assessment/listening/authoring/listeningPublishReadiness';
+import {
+  announceListeningDraftDiscarded,
+  announceListeningDraftConflict,
+  announceListeningDraftFailed,
+  announceListeningDraftRestored,
+  announceListeningDraftSaved,
+  announceListeningDuplicateAction,
+  announceListeningPublishBlocked,
+  announceListeningPublishFailed,
+  announceListeningPublishSucceeded,
+  announceListeningPublishedArchive,
+} from '../../../features/assessment/listening/authoring/listeningAuthoringAnnouncements';
+import { listeningMakerStyles, listeningMakerTokens } from './listeningTestMakerTheme';
 
 // Test types
 type TestType = 'IELTS' | 'TOEFL' | 'Custom';
@@ -28,6 +79,13 @@ interface AudioSection {
   name: string;
   audioUrl: string;
   streamUrl?: string; // Direct stream URL for audio player preview
+  assetId?: string;
+  uploadSessionId?: string;
+  tempKey?: string;
+  checksum?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  fileName?: string;
   startQuestion: number;
   endQuestion: number;
   playLimit?: number; // How many times can replay (undefined = unlimited)
@@ -50,61 +108,184 @@ interface ListeningTestMetadata {
   transcript?: string;
 }
 
-const ListeningTestBuilder: React.FC = () => {
-  const { navigateTo } = useNavigation('teacher');
-  const location = useLocation();
-  const { user } = useAuth();
+export type ListeningBuilderStep = 'mode-select' | 'audio' | 'questions-text' | 'questions-images' | 'questions' | 'review';
 
-  // Check if metadata was passed from CreateTestPage
-  const passedMetadata = location.state?.metadata;
+export interface ListeningBuilderHeaderState {
+  title: string;
+  subtitle: string;
+  step: ListeningBuilderStep;
+  displayMode: ListeningDisplayMode;
+}
 
-  // Form state - initialize with passed metadata if available
-  const [metadata, setMetadata] = useState<ListeningTestMetadata>(() => {
-    // Start with only 1 section by default - teachers can add more as needed
-    const defaultSections = [
-      { number: 1, name: 'Section 1', audioUrl: '', startQuestion: 1, endQuestion: 10, waitTimeBefore: 0 },
-    ];
+interface ListeningBuilderRouteState {
+  entryPoint?: string;
+  metadata?: Partial<ListeningTestMetadata>;
+  initialDisplayMode?: ListeningDisplayMode;
+  initialStep?: ListeningBuilderStep;
+}
 
-    if (passedMetadata) {
-      // Use metadata from CreateTestPage
-      return {
-        title: passedMetadata.title || '',
-        type: (passedMetadata.type as TestType) || 'IELTS',
-        skill: 'Listening',
-        duration: passedMetadata.duration || 30,
-        difficulty: (passedMetadata.difficulty as Difficulty) || 'Intermediate',
-        description: passedMetadata.description || '',
-        tags: passedMetadata.tags || [],
-        targetBand: passedMetadata.targetBand || '',
-        sections: defaultSections,
-        totalQuestions: 10,
-        transcript: '',
-      };
-    }
+interface ListeningTestBuilderProps {
+  presentation?: 'page' | 'embedded';
+  initialMetadata?: Partial<ListeningTestMetadata>;
+  initialDisplayMode?: ListeningDisplayMode;
+  initialStep?: ListeningBuilderStep;
+  onExit?: () => void;
+  onPublished?: () => void;
+  onDirtyChange?: (hasUnsavedChanges: boolean) => void;
+  onHeaderChange?: (header: ListeningBuilderHeaderState) => void;
+  onHeaderActionsChange?: (actions: React.ReactNode | null) => void;
+}
 
-    // Default metadata if not passed
+const LISTENING_BUILDER_STEPS: ListeningBuilderStep[] = [
+  'mode-select',
+  'audio',
+  'questions-text',
+  'questions-images',
+  'questions',
+  'review',
+];
+
+const resolveInitialDisplayMode = (value: unknown): ListeningDisplayMode =>
+  value === 'image' ? 'image' : 'text';
+
+const resolveInitialBuilderStep = (value: unknown): ListeningBuilderStep =>
+  LISTENING_BUILDER_STEPS.includes(value as ListeningBuilderStep)
+    ? value as ListeningBuilderStep
+    : 'mode-select';
+
+const createDefaultSection = (): AudioSection => (
+  { number: 1, name: 'Section 1', audioUrl: '', startQuestion: 1, endQuestion: 10, waitTimeBefore: 0 }
+);
+
+const createDefaultSections = (): AudioSection[] => [
+  { number: 1, name: 'Section 1', audioUrl: '', startQuestion: 1, endQuestion: 10, waitTimeBefore: 0 },
+];
+
+const buildInitialListeningMetadata = (passedMetadata?: any): ListeningTestMetadata => {
+  const defaultSections = createDefaultSections();
+
+  if (passedMetadata) {
     return {
-      title: '',
-      type: 'IELTS',
+      title: passedMetadata.title || '',
+      type: (passedMetadata.type as TestType) || 'IELTS',
       skill: 'Listening',
-      duration: 30,
-      difficulty: 'Intermediate',
-      description: '',
-      tags: [],
+      duration: passedMetadata.duration || 30,
+      difficulty: (passedMetadata.difficulty as Difficulty) || 'Intermediate',
+      description: passedMetadata.description || '',
+      tags: passedMetadata.tags || [],
+      targetBand: passedMetadata.targetBand || '',
       sections: defaultSections,
       totalQuestions: 10,
       transcript: '',
     };
-  });
+  }
+
+  return {
+    title: '',
+    type: 'IELTS',
+    skill: 'Listening',
+    duration: 30,
+    difficulty: 'Intermediate',
+    description: '',
+    tags: [],
+    sections: defaultSections,
+    totalQuestions: 10,
+    transcript: '',
+  };
+};
+
+const createListeningActionIdempotencyKey = (
+  action: 'saveDraft' | 'publish' | 'discard' | 'restore' | 'archive',
+) =>
+  `listening-builder-${action}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const createListeningUploadAttemptId = (sectionNumber: number) =>
+  `listening-builder-upload-${sectionNumber}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const isListeningAuthoringIssue = (value: unknown): value is ListeningAuthoringIssue => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const issue = value as Record<string, unknown>;
+  return typeof issue.field === 'string'
+    && (issue.severity === 'warning' || issue.severity === 'blocker')
+    && typeof issue.guidance === 'string';
+};
+
+const normalizeAuthoringIssues = (
+  issues: readonly unknown[],
+  severity: ListeningAuthoringIssue['severity'],
+  fallbackField: string,
+  fallbackGuidance: string,
+): ListeningAuthoringIssue[] => issues.map((issue) => {
+  if (isListeningAuthoringIssue(issue)) return issue;
+  if (typeof issue === 'string' && issue.trim()) {
+    return {
+      field: fallbackField,
+      severity,
+      guidance: issue,
+    };
+  }
+  return {
+    field: fallbackField,
+    severity,
+    guidance: fallbackGuidance,
+  };
+});
+
+type ListeningBuilderNavKind = 'mode' | 'audio' | 'parse' | 'images' | 'questions' | 'review';
+
+const ListeningBuilderNavIcon: React.FC<{ kind: ListeningBuilderNavKind }> = ({ kind }) => {
+  const iconProps = { size: 15, stroke: 1.8, 'aria-hidden': true } as const;
+  switch (kind) {
+    case 'mode':
+      return <IconSettings {...iconProps} />;
+    case 'audio':
+      return <IconHeadphones {...iconProps} />;
+    case 'parse':
+      return <IconSparkles {...iconProps} />;
+    case 'images':
+      return <IconPhoto {...iconProps} />;
+    case 'questions':
+      return <IconListCheck {...iconProps} />;
+    case 'review':
+      return <IconCheck {...iconProps} />;
+    default:
+      return null;
+  }
+};
+
+const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
+  presentation = 'page',
+  initialMetadata,
+  initialDisplayMode: initialDisplayModeProp,
+  initialStep: initialStepProp,
+  onExit,
+  onPublished,
+  onDirtyChange,
+  onHeaderChange,
+  onHeaderActionsChange,
+}) => {
+  const { navigateTo } = useNavigation('teacher');
+  const location = useLocation();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
+
+  const routeState = (location.state ?? {}) as ListeningBuilderRouteState;
+  const passedMetadata = initialMetadata ?? routeState.metadata;
+  const initialDisplayMode = resolveInitialDisplayMode(initialDisplayModeProp ?? routeState.initialDisplayMode);
+  const initialStep = resolveInitialBuilderStep(initialStepProp ?? routeState.initialStep);
+  const isEmbedded = presentation === 'embedded';
+
+  // Form state - initialize with passed metadata if available
+  const [metadata, setMetadata] = useState<ListeningTestMetadata>(() => buildInitialListeningMetadata(passedMetadata));
 
   // Step flow: mode-select → audio → questions → review (metadata collected in Review step)
-  const [currentStep, setCurrentStep] = useState<'mode-select' | 'audio' | 'questions-text' | 'questions-images' | 'questions' | 'review'>('mode-select');
+  const [currentStep, setCurrentStep] = useState<ListeningBuilderStep>(initialStep);
 
 
 
   // Display mode: 'text' for IELTS-like full-width, 'image' for two-column with question images
-  const [displayMode, setDisplayMode] = useState<ListeningDisplayMode>('text');
+  const [displayMode, setDisplayMode] = useState<ListeningDisplayMode>(initialDisplayMode);
   const [questionImages, setQuestionImages] = useState<QuestionImage[]>([]);
+  const [activeAnswerSectionNumber, setActiveAnswerSectionNumber] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -126,6 +307,39 @@ const ListeningTestBuilder: React.FC = () => {
   );
   const [allowReplay, setAllowReplay] = useState(false);
   const [maxReplays, setMaxReplays] = useState(1);
+  const [audioSettingsOpen, setAudioSettingsOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'saveDraft' | 'publish' | 'discard' | null>(null);
+  const [draftStatusMode, setDraftStatusMode] = useState<ListeningDraftStatusMode>('idle');
+  const [draftWarnings, setDraftWarnings] = useState<readonly ListeningAuthoringIssue[]>([]);
+  const [publishBlockers, setPublishBlockers] = useState<readonly ListeningAuthoringIssue[]>([]);
+  const [publishReadinessMode, setPublishReadinessMode] = useState<ListeningPublishReadinessMode>('idle');
+  const [publishReadinessBlockers, setPublishReadinessBlockers] = useState<readonly ListeningAuthoringIssue[]>([]);
+  const [publishReadinessCheckedSections, setPublishReadinessCheckedSections] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftConflictToken, setDraftConflictToken] = useState(0);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [lastPersistedFingerprint, setLastPersistedFingerprint] = useState<string | null>(null);
+  const [duplicateAction, setDuplicateAction] = useState<'saveDraft' | 'publish' | null>(null);
+  const [discardContext, setDiscardContext] = useState<'navigation-away' | 'saved-draft' | null>(null);
+  const [draftStatusMessage, setDraftStatusMessage] = useState<string | undefined>();
+  const [discardedDraft, setDiscardedDraft] = useState<{
+    draftId: string;
+    conflictToken: number;
+  } | null>(null);
+  const [publishedVersion, setPublishedVersion] = useState<{
+    versionId: string;
+    versionNumber: number;
+  } | null>(null);
+  const [isPublishedVersionArchived, setIsPublishedVersionArchived] = useState(false);
+  const [lifecyclePendingAction, setLifecyclePendingAction] =
+    useState<ListeningLifecyclePendingAction>(null);
+  const pendingActionRef = useRef<'saveDraft' | 'publish' | 'discard' | null>(null);
+  const initialFingerprintRef = useRef<string | null>(null);
+  const pendingNavigationRef = useRef<null | (() => void)>(null);
+  const uploadAttemptIdsRef = useRef<Record<number, string>>({});
+  const createAuthoringWorkflow = () => createListeningAuthoringWorkflow({
+    onObservabilityEvent: (actionName, metadata) => trackAction(actionName, metadata),
+  });
 
   // R2 Storage is always ready (no authentication needed)
   useEffect(() => {
@@ -149,6 +363,445 @@ const ListeningTestBuilder: React.FC = () => {
     const remainingSeconds = seconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
   };
+
+  const clearSaveError = () => {
+    setErrors((prev) => {
+      if (!prev.save) return prev;
+      const next = { ...prev };
+      delete next.save;
+      return next;
+    });
+  };
+
+  const getStorageSections = (): StorageAudioSection[] => metadata.sections.map((section) => ({
+    number: section.number,
+    name: section.name,
+    audioUrl: section.audioUrl,
+    streamUrl: section.streamUrl,
+    assetId: section.assetId,
+    uploadSessionId: section.uploadSessionId,
+    tempKey: section.tempKey,
+    checksum: section.checksum,
+    contentType: section.contentType,
+    sizeBytes: section.sizeBytes,
+    fileName: section.fileName,
+    startQuestion: section.startQuestion,
+    endQuestion: section.endQuestion,
+    playLimit: section.playLimit,
+    waitTimeBefore: section.waitTimeBefore,
+  }));
+
+  const getSectionNumberForQuestion = (questionNumber: number, sections: readonly StorageAudioSection[]) => {
+    const matchedSection = sections.find((section) =>
+      questionNumber >= section.startQuestion && questionNumber <= section.endQuestion,
+    );
+    return matchedSection?.number ?? 1;
+  };
+
+  const buildAuthoringDocument = (): ListeningAuthoringDocumentV1 => {
+    const storageSections = getStorageSections();
+    const audioSections: ListeningAuthoringDocumentV1['audioSections'] = storageSections.map(
+      (section) => ({
+        number: section.number,
+        name: section.name,
+        audioUrl: section.audioUrl,
+        ...(section.streamUrl ? { streamUrl: section.streamUrl } : {}),
+        ...(section.assetId ? { assetId: section.assetId } : {}),
+        startQuestion: section.startQuestion,
+        endQuestion: section.endQuestion,
+        ...(section.playLimit !== undefined ? { playLimit: section.playLimit } : {}),
+        ...(section.waitTimeBefore !== undefined
+          ? { waitTimeBefore: section.waitTimeBefore }
+          : {}),
+      }),
+    );
+    const authoringQuestions: ListeningAuthoringDocumentV1['questions'] = questions.map(
+      (question, index) => {
+        const questionNumber = question.number || question.questionNumber || index + 1;
+        return {
+          number: questionNumber,
+          type: question.type,
+          question: question.question || question.questionText || '',
+          options: question.options,
+          answer: question.answer || '',
+          sectionNumber: getSectionNumberForQuestion(questionNumber, storageSections),
+          points: question.points || 1,
+        };
+      },
+    );
+    const missingAnswerCount = authoringQuestions.filter((question) => {
+      if (typeof question.answer === 'string') return question.answer.trim() === '';
+      if (Array.isArray(question.answer)) return question.answer.length === 0;
+      return Object.keys(question.answer).length === 0;
+    }).length;
+
+    return {
+      title: metadata.title,
+      type: metadata.type,
+      skill: 'Listening',
+      duration: metadata.duration,
+      difficulty: metadata.difficulty,
+      questionCount: authoringQuestions.length,
+      isPublic,
+      isComplete: authoringQuestions.length === metadata.totalQuestions && missingAnswerCount === 0,
+      ...(missingAnswerCount > 0 ? { missingAnswerCount } : {}),
+      displayMode,
+      metadata: {
+        description: metadata.description,
+        instructions: '',
+        tags: metadata.tags,
+        targetBand: metadata.targetBand || undefined,
+        transcript: metadata.transcript || undefined,
+      },
+      audioSections,
+      questionImages: questionImages.map((image) => ({
+        sectionNumber: image.sectionNumber,
+        imageUrl: image.imageUrl,
+        ...(image.imageCaption ? { imageCaption: image.imageCaption } : {}),
+        ...(image.questionRange ? { questionRange: image.questionRange } : {}),
+      })),
+      questions: authoringQuestions,
+      settings: {
+        allowPause: true,
+        showTimer: true,
+        shuffleQuestions: false,
+        showResults: 'after-submission',
+        allowReview: true,
+        passingScore: 0,
+        allowReplay,
+        maxReplays: allowReplay ? maxReplays : undefined,
+        audioControls,
+      },
+    };
+  };
+
+  const buildDraftFingerprint = (): string => JSON.stringify({
+    document: buildAuthoringDocument(),
+    questionImages,
+    isPublic,
+  });
+
+  const beginAction = (action: 'saveDraft' | 'publish' | 'discard') => {
+    pendingActionRef.current = action;
+    setPendingAction(action);
+  };
+
+  const endAction = () => {
+    pendingActionRef.current = null;
+    setPendingAction(null);
+  };
+
+  const openDiscardConfirmation = (context: 'navigation-away' | 'saved-draft', onConfirm?: () => void) => {
+    pendingNavigationRef.current = onConfirm ?? null;
+    setDiscardContext(context);
+    setDraftStatusMode('discard-pending');
+    setDraftStatusMessage(undefined);
+    setDuplicateAction(null);
+  };
+
+  const handleDuplicateAction = (action: 'saveDraft' | 'publish') => {
+    setDuplicateAction(action);
+    setDiscardContext(null);
+    setDraftStatusMode('duplicate');
+    setDraftStatusMessage(undefined);
+    announceListeningDuplicateAction(action === 'publish' ? 'Publish' : 'Save draft');
+    trackAction('listeningDuplicateActionBlocked', {
+      action,
+      step: currentStep,
+      draftId,
+    });
+  };
+
+  const currentDraftFingerprint = buildDraftFingerprint();
+  if (initialFingerprintRef.current === null) {
+    initialFingerprintRef.current = currentDraftFingerprint;
+  }
+
+  const hasDraft = Boolean(draftId);
+  const hasUnsavedChanges = lastPersistedFingerprint
+    ? currentDraftFingerprint !== lastPersistedFingerprint
+    : currentDraftFingerprint !== initialFingerprintRef.current;
+  const canDiscard = !discardedDraft && (hasDraft || hasUnsavedChanges);
+
+  useEffect(() => {
+    onDirtyChange?.(canDiscard);
+  }, [canDiscard, onDirtyChange]);
+
+  useEffect(() => {
+    if (!onHeaderChange) return;
+
+    const headerByStep: Record<ListeningBuilderStep, { title: string; subtitle: string }> = {
+      'mode-select': {
+        title: 'Choose build method',
+        subtitle: 'Choose how to add questions',
+      },
+      audio: {
+        title: 'Audio',
+        subtitle: 'Upload one file per section',
+      },
+      'questions-text': {
+        title: 'Question text',
+        subtitle: 'Paste source text, then parse questions',
+      },
+      'questions-images': {
+        title: 'Question images',
+        subtitle: 'Upload images and set question ranges',
+      },
+      questions: {
+        title: displayMode === 'image' ? 'Answer key' : 'Questions',
+        subtitle: displayMode === 'image'
+          ? 'Questions are on images - set answers only'
+          : 'Review and edit parsed questions',
+      },
+      review: {
+        title: 'Review',
+        subtitle: 'Confirm settings and publish',
+      },
+    };
+
+    onHeaderChange({
+      ...headerByStep[currentStep],
+      step: currentStep,
+      displayMode,
+    });
+  }, [currentStep, displayMode, onHeaderChange]);
+
+  useEffect(() => {
+    if (!onHeaderActionsChange) return;
+
+    if (!isEmbedded) {
+      onHeaderActionsChange(null);
+      return;
+    }
+
+    const isIeltsStandard = !audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay;
+    const isPracticeMode = audioControls.showPlayPause && audioControls.showSpeedControl;
+    const isRelaxedMode = audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay;
+
+    onHeaderActionsChange(
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-label="Audio playback settings"
+          aria-expanded={audioSettingsOpen}
+          onClick={() => setAudioSettingsOpen((isOpen) => !isOpen)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+            padding: '0.375rem 0.6875rem',
+            borderRadius: '999px',
+            border: `1px solid ${listeningMakerTokens.line}`,
+            background: audioSettingsOpen ? listeningMakerTokens.surface : listeningMakerTokens.inset,
+            boxShadow: audioSettingsOpen ? listeningMakerTokens.shadowCard : 'none',
+            color: audioSettingsOpen ? listeningMakerTokens.primary : listeningMakerTokens.muted,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <IconSettings size={14} stroke={1.9} aria-hidden="true" />
+          Settings
+        </button>
+
+        {audioSettingsOpen && (
+          <div
+            role="dialog"
+            aria-label="Audio playback settings"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 0.625rem)',
+              right: 0,
+              width: 'min(23rem, 86vw)',
+              padding: '0.875rem',
+              borderRadius: '0.75rem',
+              border: `1px solid ${listeningMakerTokens.line2}`,
+              background: listeningMakerTokens.surface,
+              boxShadow: '0 18px 44px rgba(15, 23, 42, 0.18)',
+              zIndex: 40,
+              display: 'grid',
+              gap: '0.75rem',
+            }}
+          >
+            <div style={{ display: 'grid', gap: '0.2rem' }}>
+              <strong style={{ color: listeningMakerTokens.ink, fontSize: '0.875rem' }}>
+                Audio playback settings
+              </strong>
+              <span style={{ color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                Controls shown during the student test.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAudioControls(AUDIO_CONTROLS_PRESETS.IELTS_STANDARD);
+                  setAllowReplay(false);
+                }}
+                style={{
+                  ...listeningMakerStyles.compactButton,
+                  borderColor: isIeltsStandard ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                  background: isIeltsStandard ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                  color: isIeltsStandard ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                }}
+              >
+                IELTS standard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAudioControls(AUDIO_CONTROLS_PRESETS.PRACTICE_MODE);
+                  setAllowReplay(true);
+                  setMaxReplays(2);
+                }}
+                style={{
+                  ...listeningMakerStyles.compactButton,
+                  borderColor: isPracticeMode ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                  background: isPracticeMode ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                  color: isPracticeMode ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                }}
+              >
+                Practice mode
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAudioControls(AUDIO_CONTROLS_PRESETS.RELAXED_MODE);
+                  setAllowReplay(false);
+                }}
+                style={{
+                  ...listeningMakerStyles.compactButton,
+                  borderColor: isRelaxedMode ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                  background: isRelaxedMode ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                  color: isRelaxedMode ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                }}
+              >
+                Relaxed mode
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                <input
+                  type="checkbox"
+                  checked={audioControls.showPlayPause}
+                  onChange={(e) => setAudioControls({ ...audioControls, showPlayPause: e.target.checked })}
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Pause
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                <input
+                  type="checkbox"
+                  checked={allowReplay}
+                  onChange={(e) => setAllowReplay(e.target.checked)}
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Replay
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                <input
+                  type="checkbox"
+                  checked={audioControls.showSpeedControl}
+                  onChange={(e) => setAudioControls({ ...audioControls, showSpeedControl: e.target.checked })}
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Speed
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                <input
+                  type="checkbox"
+                  checked={audioControls.showSeekControl}
+                  onChange={(e) => setAudioControls({ ...audioControls, showSeekControl: e.target.checked })}
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Seeking
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                <input
+                  type="checkbox"
+                  checked={audioControls.showSkipSection}
+                  onChange={(e) => setAudioControls({ ...audioControls, showSkipSection: e.target.checked })}
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Skip section
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.75rem', color: listeningMakerTokens.muted }}>
+                <input
+                  type="checkbox"
+                  checked={audioControls.showVolumeControl}
+                  disabled
+                  style={{ width: '0.95rem', height: '0.95rem', accentColor: listeningMakerTokens.primary }}
+                />
+                Volume
+              </label>
+            </div>
+
+            {allowReplay && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: listeningMakerTokens.body }}>
+                Max replays
+                <select
+                  value={maxReplays}
+                  onChange={(e) => setMaxReplays(parseInt(e.target.value))}
+                  style={{
+                    padding: '0.35rem 0.625rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${listeningMakerTokens.line2}`,
+                    fontSize: '0.75rem',
+                    background: listeningMakerTokens.surface,
+                    color: listeningMakerTokens.ink,
+                  }}
+                >
+                  <option value={1}>1 time</option>
+                  <option value={2}>2 times</option>
+                  <option value={3}>3 times</option>
+                  <option value={5}>5 times</option>
+                  <option value={999}>Unlimited</option>
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }, [
+    allowReplay,
+    audioControls,
+    audioSettingsOpen,
+    isEmbedded,
+    maxReplays,
+    onHeaderActionsChange,
+  ]);
+
+  useEffect(() => {
+    if (pendingActionRef.current) return;
+    if (
+      draftStatusMode === 'idle'
+      || draftStatusMode === 'conflict'
+      || draftStatusMode === 'discard-pending'
+      || draftStatusMode === 'publish-blocked'
+      || draftStatusMode === 'draft-error'
+      || draftStatusMode === 'publish-error'
+    ) {
+      return;
+    }
+    if (hasUnsavedChanges) {
+      setDraftStatusMode('idle');
+      setPublishReadinessMode('idle');
+      setPublishReadinessBlockers([]);
+      setPublishReadinessCheckedSections(0);
+    }
+  }, [draftStatusMode, hasUnsavedChanges]);
+
+  useAppLifecycle({
+    onBeforeUnload: () => {
+      if (!canDiscard) return undefined;
+      return 'You have unsaved listening draft changes. Save draft or discard before leaving.';
+    },
+  });
 
   // Handle audio file upload (Step 2 - only after authenticated)
   const handleAudioUpload = async (sectionNumber: number, file: File) => {
@@ -189,75 +842,118 @@ const ListeningTestBuilder: React.FC = () => {
       if (!proceed) return;
     }
 
+    setErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[`section${sectionNumber}`];
+      return nextErrors;
+    });
     setUploadingSection(sectionNumber);
+    const uploadAttemptId = createListeningUploadAttemptId(sectionNumber);
+    uploadAttemptIdsRef.current[sectionNumber] = uploadAttemptId;
     const startTime = Date.now();
 
-    // Reset progress
-    updateSection(sectionNumber, 'uploadProgress', 0);
-    updateSection(sectionNumber, 'uploadETA', 0);
+    updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
+      uploadProgress: 0,
+      uploadETA: 0,
+    });
 
     try {
       console.log(`📤 Uploading audio for Section ${sectionNumber} to R2...`);
 
-      const result = await r2StorageService.uploadAudioReplacement(
+      const result = await r2StorageService.uploadListeningAuthoringAudio(
         file,
-        metadata.sections.find((section) => section.number === sectionNumber)?.audioUrl,
-        'listening-audio',
+        {
+          sessionIdempotencyKey: `${uploadAttemptId}-session`,
+          assetIdempotencyKey: `${uploadAttemptId}-asset`,
+          ...(draftId ? { draftId } : {}),
+        },
         (percent: number, bytesUploaded: number, totalBytes: number) => {
-          // Update progress
-          updateSection(sectionNumber, 'uploadProgress', percent);
+          updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
+            uploadProgress: percent,
+          });
 
-          // Calculate ETA
           const elapsed = (Date.now() - startTime) / 1000; // seconds
           if (elapsed > 0 && bytesUploaded > 0) {
             const bytesPerSecond = bytesUploaded / elapsed;
             const remainingBytes = totalBytes - bytesUploaded;
             const eta = Math.ceil(remainingBytes / bytesPerSecond);
-            updateSection(sectionNumber, 'uploadETA', eta);
+            updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
+              uploadETA: eta,
+            });
           }
         }
       );
 
-      // Update section with the URL and stream URL for preview
-      updateSection(sectionNumber, 'audioUrl', result.url);
-      updateSection(sectionNumber, 'streamUrl', result.streamUrl);
-      updateSection(sectionNumber, 'uploadProgress', 100);
-      updateSection(sectionNumber, 'uploadETA', 0);
+      updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
+        audioUrl: result.url,
+        streamUrl: result.streamUrl,
+        assetId: result.assetId,
+        uploadSessionId: result.uploadSessionId,
+        tempKey: result.tempKey,
+        fileName: result.fileName,
+        contentType: result.contentType,
+        sizeBytes: result.sizeBytes,
+        uploadProgress: 100,
+        uploadETA: 0,
+      });
 
       console.log(`✅ Section ${sectionNumber} audio uploaded successfully`);
     } catch (error) {
       console.error('Upload error:', error);
-      const newErrors = { ...errors };
-      newErrors[`section${sectionNumber}`] = 'Failed to upload audio file. Please try again.';
-      setErrors(newErrors);
-      updateSection(sectionNumber, 'uploadProgress', 0);
-      updateSection(sectionNumber, 'uploadETA', 0);
+      if (uploadAttemptIdsRef.current[sectionNumber] !== uploadAttemptId) return;
+      setErrors((currentErrors) => ({
+        ...currentErrors,
+        [`section${sectionNumber}`]: 'Failed to upload audio file. Please try again.',
+      }));
+      updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
+        uploadProgress: 0,
+        uploadETA: 0,
+      });
       // If token expired, reset auth state
       if (String(error).includes('token') || String(error).includes('auth')) {
         setIsAuthenticated(false);
       }
     } finally {
-      setUploadingSection(null);
+      if (uploadAttemptIdsRef.current[sectionNumber] === uploadAttemptId) {
+        setUploadingSection(null);
+      }
     }
   };
 
   // Update section data - uses functional update to avoid stale closure issues
   const updateSection = (sectionNumber: number, field: keyof AudioSection, value: any) => {
-    console.log(`📝 updateSection called: Section ${sectionNumber}, ${field} = ${typeof value === 'string' ? value.substring(0, 50) + '...' : value}`);
     setMetadata(prev => {
-      const updated = {
+      return {
         ...prev,
         sections: prev.sections.map(s =>
           s.number === sectionNumber ? { ...s, [field]: value } : s
         ),
       };
-      console.log(`📊 State updated - Section ${sectionNumber} ${field}:`, updated.sections.find(s => s.number === sectionNumber)?.[field]);
-      return updated;
+    });
+  };
+
+  const updateSectionForUploadAttempt = (
+    sectionNumber: number,
+    uploadAttemptId: string,
+    patch: Partial<AudioSection>,
+  ) => {
+    setMetadata((previous) => {
+      if (uploadAttemptIdsRef.current[sectionNumber] !== uploadAttemptId) return previous;
+      return {
+        ...previous,
+        sections: previous.sections.map((section) =>
+          section.number === sectionNumber ? { ...section, ...patch } : section),
+      };
     });
   };
 
   // Add a new section
   const addSection = () => {
+    trackAction('listeningSectionAdded', {
+      source: 'listening_builder',
+      step: currentStep,
+      sectionCount: metadata.sections.length + 1,
+    });
     setMetadata(prev => {
       const lastSection = prev.sections[prev.sections.length - 1];
       const newSectionNumber = lastSection ? lastSection.number + 1 : 1;
@@ -283,6 +979,25 @@ const ListeningTestBuilder: React.FC = () => {
 
   // Remove a section by number
   const removeSection = (sectionNumber: number) => {
+    if (metadata.sections.length <= 1) return;
+
+    trackAction('listeningSectionRemoved', {
+      source: 'listening_builder',
+      step: currentStep,
+      sectionNumber,
+      sectionCount: metadata.sections.length - 1,
+    });
+    setQuestionImages(prev => prev
+      .filter(image => image.sectionNumber !== sectionNumber)
+      .map(image => image.sectionNumber > sectionNumber
+        ? { ...image, sectionNumber: image.sectionNumber - 1 }
+        : image));
+    setActiveAnswerSectionNumber((current) => {
+      if (current === sectionNumber) return Math.max(1, sectionNumber - 1);
+      if (current > sectionNumber) return current - 1;
+      return current;
+    });
+
     setMetadata(prev => {
       if (prev.sections.length <= 1) {
         // Don't allow removing the last section
@@ -321,15 +1036,9 @@ const ListeningTestBuilder: React.FC = () => {
   const validateAudioUrls = async (): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
 
-    // Debug: Log current state
-    console.log('🔍 Validating audio URLs...');
-    console.log('📋 Current metadata.sections:', metadata.sections.map(s => ({ number: s.number, audioUrl: s.audioUrl })));
-
     for (const section of metadata.sections) {
-      console.log(`🔎 Checking Section ${section.number}: audioUrl = "${section.audioUrl}"`);
       if (!section.audioUrl.trim()) {
         newErrors[`section${section.number}`] = `Section ${section.number} audio URL is required`;
-        console.log(`❌ Section ${section.number} failed: empty audioUrl`);
         continue;
       }
       // Validate URL - R2 URLs are always valid if they're proper URLs
@@ -339,7 +1048,6 @@ const ListeningTestBuilder: React.FC = () => {
 
       if (isR2Url || isDirectUrl) {
         // R2 and other direct URLs are valid as-is
-        console.log(`✅ Section ${section.number}: Valid direct URL`);
         continue;
       }
 
@@ -358,21 +1066,45 @@ const ListeningTestBuilder: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const trackStepNavigation = (
+    direction: 'next' | 'back',
+    fromStep: ListeningBuilderStep,
+    toStep: ListeningBuilderStep | 'sessions' | 'listening-mode',
+    outcome: 'navigated' | 'blocked' | 'discard-pending' = 'navigated',
+    metadataOverride: Record<string, unknown> = {},
+  ) => {
+    trackAction(direction === 'next' ? 'listeningAuthoringStepNext' : 'listeningAuthoringStepBack', {
+      source: 'listening_builder',
+      fromStep,
+      toStep,
+      outcome,
+      ...metadataOverride,
+    });
+  };
+
   // Handle next step
   const handleNext = async () => {
     if (currentStep === 'mode-select') {
+      trackStepNavigation('next', currentStep, 'audio');
       setCurrentStep('audio');
     } else if (currentStep === 'audio') {
       const valid = await validateAudioUrls();
       if (valid) {
         // Route based on display mode
         if (displayMode === 'text') {
+          trackStepNavigation('next', currentStep, 'questions-text');
           setCurrentStep('questions-text');
         } else {
+          trackStepNavigation('next', currentStep, 'questions-images');
           setCurrentStep('questions-images');
         }
+      } else {
+        trackStepNavigation('next', currentStep, currentStep, 'blocked', {
+          errorCount: metadata.sections.filter((section) => !section.audioUrl.trim()).length || 1,
+        });
       }
     } else if (currentStep === 'questions-text') {
+      trackStepNavigation('next', currentStep, 'questions');
       setCurrentStep('questions');
     } else if (currentStep === 'questions-images') {
       // Sync questions count for Image Mode
@@ -393,8 +1125,12 @@ const ListeningTestBuilder: React.FC = () => {
         }));
         setQuestions([...questions, ...newQuestions] as any);
       }
+      trackStepNavigation('next', currentStep, 'questions', 'navigated', {
+        questionCount: Math.max(questions.length, metadata.totalQuestions),
+      });
       setCurrentStep('questions');
     } else if (currentStep === 'questions') {
+      trackStepNavigation('next', currentStep, 'review');
       setCurrentStep('review');
     }
   };
@@ -402,22 +1138,51 @@ const ListeningTestBuilder: React.FC = () => {
   // Handle back
   const handleBack = () => {
     if (currentStep === 'mode-select') {
-      // Go back to CreateTestPage (sessions) instead of Reading builder
+      if (isEmbedded && onExit) {
+        trackStepNavigation('back', currentStep, 'listening-mode');
+        onExit();
+        return;
+      }
+      if (canDiscard) {
+        trackStepNavigation('back', currentStep, 'sessions', 'discard-pending');
+        openDiscardConfirmation('navigation-away', () => {
+          navigateTo('SESSIONS', {}, { reason: 'listening_builder_back' });
+        });
+        return;
+      }
+      trackStepNavigation('back', currentStep, 'sessions');
       navigateTo('SESSIONS', {}, { reason: 'listening_builder_back' });
     }
     else if (currentStep === 'audio') {
+      if (isEmbedded && initialStep === 'audio' && onExit) {
+        trackStepNavigation('back', currentStep, 'listening-mode');
+        onExit();
+        return;
+      }
+      trackStepNavigation('back', currentStep, 'mode-select');
       setCurrentStep('mode-select');
     }
-    else if (currentStep === 'questions-text') setCurrentStep('audio');
-    else if (currentStep === 'questions-images') setCurrentStep('audio');
+    else if (currentStep === 'questions-text') {
+      trackStepNavigation('back', currentStep, 'audio');
+      setCurrentStep('audio');
+    }
+    else if (currentStep === 'questions-images') {
+      trackStepNavigation('back', currentStep, 'audio');
+      setCurrentStep('audio');
+    }
     else if (currentStep === 'questions') {
       if (displayMode === 'text') {
+        trackStepNavigation('back', currentStep, 'questions-text');
         setCurrentStep('questions-text');
       } else {
+        trackStepNavigation('back', currentStep, 'questions-images');
         setCurrentStep('questions-images');
       }
     }
-    else if (currentStep === 'review') setCurrentStep('questions');
+    else if (currentStep === 'review') {
+      trackStepNavigation('back', currentStep, 'questions');
+      setCurrentStep('questions');
+    }
   };
 
   // Parse question text using Parser Router
@@ -473,59 +1238,510 @@ const ListeningTestBuilder: React.FC = () => {
     }
   };
 
-  // Save test to Firebase
-  const handleSaveTest = async () => {
-    setIsSaving(true);
+  const handleSaveDraft = async () => {
+    if (pendingActionRef.current || isSaving || lifecyclePendingAction) {
+      handleDuplicateAction('saveDraft');
+      return;
+    }
+
+    beginAction('saveDraft');
+    clearSaveError();
+    setDiscardContext(null);
+    setDuplicateAction(null);
+    setDraftStatusMode('saving-draft');
+    setDraftStatusMessage(undefined);
+    setPublishBlockers([]);
+    setPublishReadinessMode('idle');
+    setPublishReadinessBlockers([]);
+    setPublishReadinessCheckedSections(0);
+
     try {
-      // Convert local AudioSection to storage format
-      const storageSections: StorageAudioSection[] = metadata.sections.map(s => ({
-        number: s.number,
-        name: s.name,
-        audioUrl: s.audioUrl,
-        streamUrl: s.streamUrl,
-        startQuestion: s.startQuestion,
-        endQuestion: s.endQuestion,
-        playLimit: s.playLimit,
-        waitTimeBefore: s.waitTimeBefore,
-      }));
+      const document = buildAuthoringDocument();
+      const result = await createAuthoringWorkflow().saveDraft({
+        idempotencyKey: createListeningActionIdempotencyKey('saveDraft'),
+        document,
+        draftId: draftId ?? undefined,
+        expectedConflictToken: draftId ? draftConflictToken : undefined,
+        trigger: 'explicit',
+      });
 
-      const result = await saveListeningTestToFirebase(
-        {
-          title: metadata.title,
-          type: metadata.type,
-          skill: 'Listening',
-          duration: metadata.duration,
-          difficulty: metadata.difficulty,
-          description: metadata.description,
-          tags: metadata.tags,
-          targetBand: metadata.targetBand,
-        },
-        storageSections,
-        questions,
-        user?.uid || 'admin-teacher',
-        metadata.transcript,
-        displayMode,
-        questionImages.length > 0 ? questionImages : undefined,
-        user?.uid || 'admin-teacher', // ownerId
-        isPublic, // isPublic
-        audioControls, // audioControlsConfig
-        allowReplay, // allowReplay
-        maxReplays // maxReplays
-      );
-
-      if (result.success && result.testId) {
-        console.log('✅ Listening test saved:', result.testId);
-        alert(`Listening test saved successfully! Test ID: ${result.testId}`);
-        navigateTo('SESSIONS', {}, { reason: 'listening_test_created', replace: true });
-      } else {
-        console.error('❌ Save failed:', result.error);
-        setErrors({ save: result.error || 'Failed to save test' });
+      if (result.status === 'conflict') {
+        setDraftId(result.draftId);
+        setDraftStatusMode('conflict');
+        setDraftStatusMessage('This draft changed in another session. Reload or merge before saving again.');
+        trackAction('saveDraft', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: result.draftId,
+          conflictToken: draftConflictToken,
+          currentConflictToken: result.currentConflictToken,
+          outcome: 'conflict',
+        });
+        announceListeningDraftConflict();
+        return;
       }
+
+      if (result.status !== 'saved') {
+        const message = result.status === 'idempotency-conflict'
+          ? 'Save draft was already submitted with different content. Try again.'
+          : 'Draft could not be saved. Try again.';
+        setDraftStatusMode('draft-error');
+        setDraftStatusMessage(message);
+        setErrors((prev) => ({ ...prev, save: message }));
+        trackAction('saveDraft', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: result.draftId ?? draftId,
+          conflictToken: draftConflictToken,
+          outcome: result.status,
+        });
+        announceListeningDraftFailed(message);
+        return;
+      }
+
+      const warnings = normalizeAuthoringIssues(
+        result.warnings,
+        'warning',
+        'draft',
+        'Draft saved with an item that needs attention before publishing.',
+      );
+      const savedAt = Date.now();
+
+      setDraftId(result.draftId);
+      setDraftConflictToken(result.conflictToken);
+      setDiscardedDraft(null);
+      setDraftWarnings(warnings);
+      setLastSavedAt(savedAt);
+      setLastPersistedFingerprint(currentDraftFingerprint);
+      setDraftStatusMode(warnings.length > 0 ? 'draft-warning' : 'draft-saved');
+
+      announceListeningDraftSaved(warnings.length);
+      trackAction('saveDraft', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId: result.draftId,
+        conflictToken: result.conflictToken,
+        warningCount: warnings.length,
+      });
     } catch (error) {
-      console.error('❌ Failed to save test:', error);
-      setErrors({ save: 'Failed to save test. Please try again.' });
+      const message = error instanceof Error ? error.message : 'Draft could not be saved. Try again.';
+      console.error('âŒ Failed to save draft:', error);
+      setDraftStatusMode('draft-error');
+      setDraftStatusMessage(message);
+      setErrors((prev) => ({ ...prev, save: message }));
+      trackAction('saveDraft', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId,
+        conflictToken: draftConflictToken,
+        outcome: 'error',
+      });
+      announceListeningDraftFailed(message);
+    } finally {
+      endAction();
+    }
+  };
+
+  const handleRecoverConflict = () => {
+    setDraftStatusMode('idle');
+    setDraftStatusMessage(undefined);
+    setDiscardedDraft(null);
+    setPublishedVersion(null);
+    setIsPublishedVersionArchived(false);
+    setPublishBlockers([]);
+    setPublishReadinessMode('idle');
+    setPublishReadinessBlockers([]);
+    setPublishReadinessCheckedSections(0);
+    setDiscardContext(null);
+    trackAction('recoverListeningConflict', {
+      source: 'listening_builder',
+      step: currentStep,
+      draftId,
+      conflictToken: draftConflictToken,
+    });
+  };
+
+  const resetBuilderState = () => {
+    setMetadata(buildInitialListeningMetadata(passedMetadata));
+    setCurrentStep(initialStep);
+    setDisplayMode(initialDisplayMode);
+    setQuestionImages([]);
+    setErrors({});
+    setQuestions([]);
+    setQuestionText('');
+    setParsingProgress(0);
+    setParsingStage('');
+    setBulkAnswerKey('');
+    setIsPublic(false);
+    setAudioControls(AUDIO_CONTROLS_PRESETS.IELTS_STANDARD);
+    setAllowReplay(false);
+    setMaxReplays(1);
+    setDraftWarnings([]);
+    setPublishBlockers([]);
+    setPublishReadinessMode('idle');
+    setPublishReadinessBlockers([]);
+    setPublishReadinessCheckedSections(0);
+    setDraftId(null);
+    setDraftConflictToken(0);
+    setLastSavedAt(null);
+    setLastPersistedFingerprint(null);
+    setDuplicateAction(null);
+    setDraftStatusMessage(undefined);
+  };
+
+  const handleDiscardCancelled = () => {
+    pendingNavigationRef.current = null;
+    setDiscardContext(null);
+    setDraftStatusMode('idle');
+    setDraftStatusMessage(undefined);
+  };
+
+  const handleDiscardConfirmed = async () => {
+    if (pendingActionRef.current || isSaving || lifecyclePendingAction) {
+      return;
+    }
+
+    beginAction('discard');
+    try {
+      const navigationTarget = pendingNavigationRef.current;
+      const discardReason = discardContext;
+
+      if (draftId) {
+        const result = await createAuthoringWorkflow().discardDraft({
+          draftId,
+          expectedConflictToken: draftConflictToken,
+          idempotencyKey: createListeningActionIdempotencyKey('discard'),
+          reasonCode: 'teacher-discard',
+        });
+        if (result.status !== 'discarded') {
+          const message = result.status === 'conflict'
+            ? 'Draft changed before discard. Reload or merge before trying again.'
+            : 'Draft could not be discarded. Try again.';
+          setDraftStatusMode(result.status === 'conflict' ? 'conflict' : 'draft-error');
+          setDraftStatusMessage(message);
+          announceListeningDraftFailed(message);
+          return;
+        }
+        setDiscardedDraft({
+          draftId: result.draftId ?? draftId,
+          conflictToken: result.conflictToken ?? draftConflictToken,
+        });
+        setDraftConflictToken(result.conflictToken ?? draftConflictToken);
+      } else {
+        resetBuilderState();
+      }
+      setDraftStatusMode('discarded');
+      announceListeningDraftDiscarded();
+      trackAction('discardListeningDraft', {
+        source: 'listening_builder',
+        step: currentStep,
+        context: discardReason ?? 'saved-draft',
+        draftId,
+        conflictToken: draftConflictToken,
+      });
+
+      pendingNavigationRef.current = null;
+      if (navigationTarget) {
+        navigationTarget();
+      }
+    } finally {
+      endAction();
+    }
+  };
+
+  const handleRestoreDraft = async () => {
+    if (!discardedDraft || lifecyclePendingAction) return;
+    setLifecyclePendingAction('restore');
+    try {
+      const result = await createAuthoringWorkflow().restoreDraft({
+        draftId: discardedDraft.draftId,
+        expectedConflictToken: discardedDraft.conflictToken,
+        idempotencyKey: createListeningActionIdempotencyKey('restore'),
+        reasonCode: 'teacher-restore',
+      });
+      if (result.status !== 'restored') {
+        const message = result.status === 'conflict'
+          ? 'Draft changed before restore. Reload before trying again.'
+          : 'Draft could not be restored. Try again.';
+        setDraftStatusMode(result.status === 'conflict' ? 'conflict' : 'draft-error');
+        setDraftStatusMessage(message);
+        announceListeningDraftFailed(message);
+        return;
+      }
+      const restoredDraftId = result.draftId ?? discardedDraft.draftId;
+      const restoredConflictToken = result.conflictToken ?? discardedDraft.conflictToken;
+      setDraftId(restoredDraftId);
+      setDraftConflictToken(restoredConflictToken);
+      setDiscardedDraft(null);
+      setDraftStatusMode('draft-saved');
+      setDraftStatusMessage(undefined);
+      announceListeningDraftRestored();
+    } finally {
+      setLifecyclePendingAction(null);
+    }
+  };
+
+  const handleArchivePublishedVersion = async () => {
+    if (!publishedVersion || isPublishedVersionArchived || lifecyclePendingAction) return;
+    setLifecyclePendingAction('archive');
+    try {
+      const result = await createAuthoringWorkflow().archivePublishedVersion({
+        versionId: publishedVersion.versionId,
+        expectedConflictToken: publishedVersion.versionNumber,
+        idempotencyKey: createListeningActionIdempotencyKey('archive'),
+        reasonCode: 'teacher-archive',
+      });
+      if (result.status !== 'archived') {
+        const message = 'Published version could not be archived. Try again.';
+        announceListeningPublishFailed(message);
+        return;
+      }
+      setIsPublishedVersionArchived(true);
+      announceListeningPublishedArchive();
+    } finally {
+      setLifecyclePendingAction(null);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (pendingActionRef.current || isSaving || lifecyclePendingAction) {
+      handleDuplicateAction('publish');
+      return;
+    }
+
+    clearSaveError();
+    setDiscardContext(null);
+    setDuplicateAction(null);
+    setDraftStatusMessage(undefined);
+
+    const document = buildAuthoringDocument();
+    const warnings = [...validateListeningDraft(document)];
+    const blockers: ListeningAuthoringIssue[] = [
+      ...(!draftId
+        ? [
+            {
+              field: 'draft',
+              severity: 'blocker' as const,
+              guidance: 'Save draft before publishing.',
+            },
+          ]
+        : []),
+      ...(currentStep === 'questions' && questions.length < metadata.totalQuestions
+        ? [
+            {
+              field: 'question',
+              severity: 'blocker' as const,
+              guidance: 'Publish requires every question prompt.',
+            },
+            {
+              field: 'answer',
+              severity: 'blocker' as const,
+              guidance: 'Publish requires every answer key.',
+            },
+          ]
+        : []),
+      ...validateListeningPublish(document),
+    ];
+    setDraftWarnings(warnings);
+    setPublishBlockers(blockers);
+
+    if (blockers.length > 0) {
+      setDraftStatusMode('publish-blocked');
+      trackAction('publishTest', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId,
+        conflictToken: draftConflictToken,
+        outcome: 'blocked',
+        blockerCount: blockers.length,
+      });
+      announceListeningPublishBlocked(blockers.length);
+      return;
+    }
+
+    const publishDraftId = draftId;
+    if (!publishDraftId) {
+      return;
+    }
+
+    beginAction('publish');
+    setIsSaving(true);
+    setDraftStatusMode('publishing');
+    setPublishReadinessMode('checking');
+    setPublishReadinessBlockers([]);
+    setPublishReadinessCheckedSections(document.audioSections.length);
+
+    try {
+      const readiness = await validateListeningPublishReadiness(document, {
+        authoritySections: getStorageSections(),
+        probeListeningAuthoringAsset: (input) =>
+          r2StorageService.probeListeningAuthoringAudio(input),
+      });
+      setPublishReadinessCheckedSections(readiness.checkedSections);
+
+      if (readiness.status === 'blocked') {
+        setPublishReadinessMode('blocked');
+        setPublishReadinessBlockers(readiness.blockers);
+        setPublishBlockers([{
+          field: 'audioReadiness',
+          severity: 'blocker',
+          guidance: 'Publish audio readiness blocked. Review section checks below.',
+        }]);
+        setDraftStatusMode('publish-blocked');
+        trackAction('listeningPublishReadinessFailed', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: publishDraftId,
+          conflictToken: draftConflictToken,
+          blockerCount: readiness.blockers.length,
+        });
+        announceListeningPublishBlocked(readiness.blockers.length);
+        return;
+      }
+
+      setPublishReadinessMode('ready');
+      setPublishReadinessBlockers([]);
+      trackAction('listeningPublishReadinessChecked', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId: publishDraftId,
+        conflictToken: draftConflictToken,
+        checkedSections: readiness.checkedSections,
+      });
+
+      const result = await createAuthoringWorkflow().publishDraft({
+        draftId: publishDraftId,
+        expectedConflictToken: draftConflictToken,
+        idempotencyKey: createListeningActionIdempotencyKey('publish'),
+      });
+
+      if (result.status === 'published') {
+        const savedAt = Date.now();
+        const publishWarnings = normalizeAuthoringIssues(
+          result.warnings,
+          'warning',
+          'publish',
+          'Published with an item that needs attention.',
+        );
+
+        setDraftId(result.draftId);
+        setDraftConflictToken(result.conflictToken);
+        setDraftWarnings(publishWarnings);
+        setPublishBlockers([]);
+        setLastSavedAt(savedAt);
+        setLastPersistedFingerprint(currentDraftFingerprint);
+        setDraftStatusMode('draft-saved');
+        setPublishedVersion({
+          versionId: result.versionId,
+          versionNumber: result.versionNumber,
+        });
+        setIsPublishedVersionArchived(false);
+        announceListeningPublishSucceeded(metadata.title || 'Untitled Listening Test');
+        trackAction('publishTest', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: result.draftId,
+          conflictToken: result.conflictToken,
+          warningCount: publishWarnings.length,
+          versionId: result.versionId,
+          versionNumber: result.versionNumber,
+        });
+        if (isEmbedded) {
+          onPublished?.();
+        } else {
+          navigateTo('LOBBY', undefined, {
+            reason: 'listening_builder_publish_success',
+            replace: true,
+          });
+        }
+        return;
+      }
+
+      if (result.status === 'blocked') {
+        const serverWarnings = normalizeAuthoringIssues(
+          result.warnings,
+          'warning',
+          'publish',
+          'Publish returned a warning.',
+        );
+        const serverBlockers = normalizeAuthoringIssues(
+          result.blockers,
+          'blocker',
+          'publish',
+          'Publish blocked by server validation.',
+        );
+        const visibleBlockers = serverBlockers.length > 0
+          ? serverBlockers
+          : [{
+              field: 'publish',
+              severity: 'blocker' as const,
+              guidance: 'Publish blocked by server validation.',
+            }];
+
+        if (typeof result.conflictToken === 'number') {
+          setDraftConflictToken(result.conflictToken);
+        }
+        setDraftWarnings(serverWarnings);
+        setPublishBlockers(visibleBlockers);
+        setDraftStatusMode('publish-blocked');
+        trackAction('publishTest', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: result.draftId,
+          conflictToken: result.conflictToken ?? draftConflictToken,
+          outcome: 'blocked',
+          blockerCount: visibleBlockers.length,
+        });
+        announceListeningPublishBlocked(visibleBlockers.length);
+        return;
+      }
+
+      if (result.status === 'conflict') {
+        setDraftStatusMode('conflict');
+        setDraftStatusMessage('This draft changed in another session. Reload or merge before publishing.');
+        trackAction('publishTest', {
+          source: 'listening_builder',
+          step: currentStep,
+          draftId: result.draftId,
+          conflictToken: draftConflictToken,
+          currentConflictToken: result.currentConflictToken,
+          outcome: 'conflict',
+        });
+        announceListeningDraftConflict();
+        return;
+      }
+
+      const message = result.status === 'idempotency-conflict'
+        ? 'Publish was already submitted with different content. Try again.'
+        : 'Publish could not complete. Try again.';
+      setDraftStatusMode('publish-error');
+      setDraftStatusMessage(message);
+      setErrors((prev) => ({ ...prev, save: message }));
+      trackAction('publishTest', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId: result.draftId ?? draftId,
+        conflictToken: draftConflictToken,
+        outcome: result.status,
+      });
+      announceListeningPublishFailed(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Publish could not complete. Try again.';
+      console.error('âŒ Failed to publish test:', error);
+      setDraftStatusMode('publish-error');
+      setDraftStatusMessage(message);
+      setErrors((prev) => ({ ...prev, save: message }));
+      trackAction('publishTest', {
+        source: 'listening_builder',
+        step: currentStep,
+        draftId,
+        conflictToken: draftConflictToken,
+        outcome: 'error',
+      });
+      announceListeningPublishFailed(message);
     } finally {
       setIsSaving(false);
+      endAction();
     }
   };
 
@@ -606,7 +1822,7 @@ const ListeningTestBuilder: React.FC = () => {
 
     } catch (error) {
       console.error("AI Parse failed:", error);
-      alert("AI parsing failed. Please check your internet connection or try simpler formatting.");
+      toast.error('AI parsing failed. Please check your internet connection or try simpler formatting.');
     } finally {
       setIsParsing(false);
       setParsingStage('');
@@ -682,14 +1898,13 @@ const ListeningTestBuilder: React.FC = () => {
             handleAddImage(validSections[0], event.target?.result as string);
           };
           reader.readAsDataURL(file);
-          // Show feedback
-          // alert('Image pasted to ' + validSections[0].name); 
+          // Image paste succeeds silently because the section preview updates immediately.
         } else {
           // If multiple sections, we can't guess. 
           // Maybe show a modal? 
           // For now, let's just log or notify.
           console.log('Multiple sections found, use the Paste button on specific section.');
-          alert('Please use the "Paste" button on the specific section you want to add this image to, as there are multiple sections.');
+          toast.info('Use the Paste button on the specific section you want to add this image to when multiple sections are present.');
         }
       }
     };
@@ -698,28 +1913,155 @@ const ListeningTestBuilder: React.FC = () => {
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, [currentStep, metadata.sections]);
 
+  const draftStatusAction = draftStatusMode === 'discard-pending'
+    ? (
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <Button variant="glass" onClick={handleDiscardCancelled}>
+          Keep editing
+        </Button>
+        <Button variant="outline" onClick={handleDiscardConfirmed} disabled={pendingAction === 'discard'}>
+          Discard now
+        </Button>
+      </div>
+    )
+    : draftStatusMode === 'conflict'
+      ? (
+        <Button variant="glass" onClick={handleRecoverConflict}>
+          Continue editing
+        </Button>
+      )
+      : null;
+
+  const builderNavSteps: Array<{
+    key: string;
+    label: string;
+    kind: ListeningBuilderNavKind;
+    matches: ListeningBuilderStep[];
+  }> = [
+    ...(!isEmbedded ? [{
+      key: 'mode-select',
+      label: 'Mode',
+      kind: 'mode' as const,
+      matches: ['mode-select' as ListeningBuilderStep],
+    }] : []),
+    {
+      key: 'audio',
+      label: 'Audio',
+      kind: 'audio',
+      matches: ['audio'],
+    },
+    {
+      key: displayMode === 'text' ? 'questions-text' : 'questions-images',
+      label: displayMode === 'text' ? 'Parse' : 'Images',
+      kind: displayMode === 'text' ? 'parse' : 'images',
+      matches: displayMode === 'text' ? ['questions-text'] : ['questions-images'],
+    },
+    {
+      key: 'questions',
+      label: displayMode === 'image' ? 'Answer key' : 'Questions',
+      kind: 'questions',
+      matches: ['questions'],
+    },
+    {
+      key: 'review',
+      label: 'Review',
+      kind: 'review',
+      matches: ['review'],
+    },
+  ];
+  const activeBuilderNavIndex = Math.max(0, builderNavSteps.findIndex(step => step.matches.includes(currentStep)));
+  const activeAnswerSection: AudioSection =
+    metadata.sections.find(section => section.number === activeAnswerSectionNumber)
+    ?? metadata.sections[0]
+    ?? createDefaultSection();
+  const activeAnswerSectionImages = questionImages
+    .filter(image => image.sectionNumber === activeAnswerSection.number)
+    .sort((a, b) => (a.questionRange?.start || 0) - (b.questionRange?.start || 0));
+  const activeAnswerImage = activeAnswerSectionImages[0] ?? null;
+  const activeAnswerQuestions = questions.filter(question =>
+      question.number >= activeAnswerSection.startQuestion &&
+      question.number <= activeAnswerSection.endQuestion
+    );
+
   return (
     <main
       style={{
-        background: '#f8fafc',
+        background: isEmbedded ? 'transparent' : '#f8fafc',
         boxSizing: 'border-box',
-        minHeight: '100vh',
-        padding: '1rem',
+        height: isEmbedded ? '100%' : undefined,
+        minHeight: isEmbedded ? 0 : '100vh',
+        overflow: isEmbedded ? 'hidden' : undefined,
+        padding: isEmbedded ? 0 : '1rem',
+        width: '100%',
       }}
     >
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+      <div
+        style={{
+          maxWidth: isEmbedded ? '100%' : 'min(960px, 94vw)',
+          margin: isEmbedded ? 0 : '0 auto',
+          padding: isEmbedded ? 0 : '2rem',
+          height: isEmbedded ? '100%' : undefined,
+          minHeight: isEmbedded ? 0 : undefined,
+        }}
+      >
         {/* Header */}
+        {!isEmbedded && (
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '2.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.5rem' }}>
-            🎧 Create Listening Test
+            Create Listening Test
           </h1>
           <p style={{ color: '#64748b', fontSize: '1.125rem' }}>
             Build IELTS Listening tests with audio files and questions
           </p>
         </div>
 
+        )}
+
         {/* Progress Steps */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '3rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {!isEmbedded && (
+          <div
+            aria-label="Listening builder steps"
+            style={{
+              display: 'inline-flex',
+              gap: '0.1875rem',
+              background: listeningMakerTokens.inset,
+              border: `1px solid ${listeningMakerTokens.line}`,
+              borderRadius: '999px',
+              padding: '0.1875rem',
+              marginBottom: '1rem',
+              maxWidth: '100%',
+              overflowX: 'auto',
+            }}
+          >
+            {builderNavSteps.map((step, index) => {
+              const isActive = step.matches.includes(currentStep);
+              const isDone = index < activeBuilderNavIndex;
+              return (
+                <div
+                  key={step.key}
+                  aria-current={isActive ? 'step' : undefined}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding: '0.375rem 0.6875rem',
+                    borderRadius: '999px',
+                    color: isDone ? listeningMakerTokens.success : isActive ? listeningMakerTokens.primary : listeningMakerTokens.muted,
+                    background: isActive ? listeningMakerTokens.surface : 'transparent',
+                    boxShadow: isActive ? listeningMakerTokens.shadowCard : 'none',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isDone ? <IconCheck size={15} stroke={2} aria-hidden="true" /> : <ListeningBuilderNavIcon kind={step.kind} />}
+                  {step.label}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div aria-hidden="true" style={{ display: 'none', justifyContent: 'center', marginBottom: isEmbedded ? '1.25rem' : '3rem', gap: '0.5rem', flexWrap: 'wrap' }}>
           {[
             { key: 'mode-select', label: 'Mode', icon: '🎛️' },
             { key: 'audio', label: 'Audio', icon: '🎵' },
@@ -748,17 +2090,44 @@ const ListeningTestBuilder: React.FC = () => {
         </div>
 
         {/* Step Content */}
-        <Card
-          hover={false}
+        <section
           style={{
-            background: '#ffffff',
-            border: '1px solid #dbe4ee',
-            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
-            backdropFilter: 'none',
-            WebkitBackdropFilter: 'none',
+            ...(isEmbedded ? {} : listeningMakerStyles.panel),
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            height: isEmbedded ? '100%' : 'min(680px, 82vh)',
+            minHeight: 0,
+            overflow: 'hidden',
+            background: isEmbedded ? 'rgba(255, 255, 255, 0.78)' : listeningMakerTokens.surface,
+            border: isEmbedded ? 'none' : undefined,
+            borderRadius: isEmbedded ? 0 : undefined,
+            boxShadow: isEmbedded ? 'none' : undefined,
           }}
         >
-          <CardBody style={{ padding: '1.5rem' }}>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: isEmbedded ? '1rem 1rem 0' : '1rem',
+            }}
+          >
+            {draftStatusMode !== 'idle' && draftStatusMode !== 'discard-pending' && (
+              <ListeningDraftStatus
+                mode={draftStatusMode}
+                warnings={draftWarnings}
+                blockers={publishBlockers}
+                lastSavedAt={lastSavedAt}
+                hasDraft={hasDraft}
+                hasUnsavedChanges={hasUnsavedChanges}
+                duplicateAction={duplicateAction}
+                discardContext={discardContext}
+                message={draftStatusMessage}
+                action={draftStatusAction}
+              />
+            )}
+
             {/* STEP 0: Mode Selection */}
             {currentStep === 'mode-select' && (
               <div>
@@ -914,25 +2283,46 @@ const ListeningTestBuilder: React.FC = () => {
             {/* STEP 2: Audio Sections */}
             {currentStep === 'audio' && (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.25rem' }}>
-                      Audio Configuration
-                    </h2>
-                    <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
-                      {metadata.sections.length} section{metadata.sections.length !== 1 ? 's' : ''} • {metadata.totalQuestions} questions total
-                    </p>
+                {!isEmbedded && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      <span style={{
+                        width: '2rem',
+                        height: '2rem',
+                        borderRadius: '0.625rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: listeningMakerTokens.selected,
+                        color: listeningMakerTokens.primary,
+                      }}>
+                        <IconHeadphones size={18} stroke={1.9} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: listeningMakerTokens.ink }}>
+                          Audio
+                        </h2>
+                        <p style={{ margin: '0.125rem 0 0 0', color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                          Upload one file per section
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                <ListeningUploadGuidance
+                  plannedAudioFiles={metadata.sections.length}
+                  uploadedAudioFiles={metadata.sections.filter((section) => section.audioUrl.trim()).length}
+                />
 
                 {/* R2 Storage Ready - No authentication needed */}
                 <div style={{
+                  display: 'none',
                   background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(34, 197, 94, 0.1) 100%)',
                   padding: '1rem 1.25rem',
                   borderRadius: '0.75rem',
                   marginBottom: '1.5rem',
                   border: '1px solid rgba(16, 185, 129, 0.3)',
-                  display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem'
                 }}>
@@ -942,7 +2332,7 @@ const ListeningTestBuilder: React.FC = () => {
                       Ready to Upload
                     </p>
                     <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
-                      Click "Upload Audio" below to select your MP3/WAV file. Files are stored on Cloudflare R2.
+                      Upload each listening file below. Re-upload any missing section before Publish.
                     </p>
                   </div>
                 </div>
@@ -963,6 +2353,7 @@ const ListeningTestBuilder: React.FC = () => {
 
                 {/* Instructions */}
                 <div style={{
+                  display: 'none',
                   background: 'rgba(59, 130, 246, 0.05)',
                   padding: '1rem',
                   borderRadius: '0.5rem',
@@ -970,18 +2361,249 @@ const ListeningTestBuilder: React.FC = () => {
                   border: '1px solid rgba(59, 130, 246, 0.2)'
                 }}>
                   <p style={{ color: '#3b82f6', fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9375rem' }}>
-                    💡 How to Upload:
+                    💡 Upload flow
                   </p>
                   <ol style={{ paddingLeft: '1.25rem', margin: 0, color: '#64748b', fontSize: '0.875rem', lineHeight: 1.8 }}>
-                    <li>Click <strong>"Upload Audio File"</strong> for each section below</li>
-                    <li>Select your <strong>MP3, WAV, or M4A</strong> file</li>
-                    <li>Wait for upload to complete (progress bar shown)</li>
-                    <li>Audio will auto-preview when ready</li>
+                    <li>Upload one audio file for each section below.</li>
+                    <li>Wait for upload progress to finish before moving on.</li>
+                    <li>Use re-upload if a section still shows missing audio before Publish.</li>
                   </ol>
                 </div>
+                <div style={{ display: 'grid', gap: '0.625rem' }}>
+                  {metadata.sections.map((section) => {
+                    const isUploadingThisSection = uploadingSection === section.number;
+                    const hasAudio = Boolean(section.audioUrl.trim());
+                    const uploadDisabled = uploadingSection !== null;
 
+                    return (
+                      <div
+                        key={`compact-audio-${section.number}`}
+                        style={{
+                          padding: '0.75rem',
+                          border: `1px solid ${hasAudio ? listeningMakerTokens.line : listeningMakerTokens.line2}`,
+                          borderRadius: '0.625rem',
+                          background: listeningMakerTokens.surface,
+                          display: 'grid',
+                          gap: '0.625rem',
+                        }}
+                      >
+                        <input
+                          type="file"
+                          accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleAudioUpload(section.number, file);
+                            e.target.value = '';
+                          }}
+                          style={{ display: 'none' }}
+                          id={`audio-upload-${section.number}`}
+                          disabled={uploadDisabled}
+                        />
 
-                <div style={{ display: 'grid', gap: '1.5rem' }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr) auto',
+                          gap: '0.75rem',
+                          alignItems: 'center',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+                            <span style={{
+                              width: '2.125rem',
+                              height: '2.125rem',
+                              borderRadius: '0.5rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: listeningMakerTokens.inset,
+                              color: listeningMakerTokens.primary,
+                              border: `1px solid ${listeningMakerTokens.line}`,
+                              flexShrink: 0,
+                            }}>
+                              <IconHeadphones size={17} stroke={1.9} aria-hidden="true" />
+                            </span>
+                            <div style={{ minWidth: 0 }}>
+                              <h3 style={{ fontSize: '0.875rem', fontWeight: 700, margin: 0, color: listeningMakerTokens.ink }}>
+                                Section {section.number}
+                              </h3>
+                              <p style={{ margin: '0.125rem 0 0 0', color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                                Questions {section.startQuestion}-{section.endQuestion}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              ...listeningMakerStyles.pill,
+                              background: hasAudio ? listeningMakerTokens.successTint : listeningMakerTokens.warningTint,
+                              color: hasAudio ? listeningMakerTokens.success : listeningMakerTokens.warning,
+                            }}>
+                              {hasAudio ? 'Uploaded' : 'No audio yet'}
+                            </span>
+
+                            {hasAudio && (
+                              <audio
+                                aria-label={`Section ${section.number} audio preview`}
+                                controls
+                                src={section.streamUrl || section.audioUrl}
+                                style={{
+                                  width: '10.75rem',
+                                  maxWidth: '100%',
+                                  height: '2rem',
+                                  borderRadius: '999px',
+                                }}
+                              >
+                                Your browser does not support audio playback.
+                              </audio>
+                            )}
+
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                color: listeningMakerTokens.body,
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Wait
+                              <input
+                                aria-label={`Section ${section.number} wait before section seconds`}
+                                type="number"
+                                value={section.waitTimeBefore || 0}
+                                onChange={(e) => updateSection(section.number, 'waitTimeBefore', parseInt(e.target.value) || 0)}
+                                min="0"
+                                style={{
+                                  width: '3.5rem',
+                                  padding: '0.35rem 0.45rem',
+                                  border: `1px solid ${listeningMakerTokens.line2}`,
+                                  borderRadius: '0.5rem',
+                                  fontSize: '0.75rem',
+                                  color: listeningMakerTokens.ink,
+                                }}
+                              />
+                              s
+                            </label>
+
+                            {metadata.sections.length > 1 && (
+                              <button
+                                type="button"
+                                aria-label={`Remove section ${section.number}`}
+                                title={`Remove section ${section.number}`}
+                                onClick={() => removeSection(section.number)}
+                                style={{
+                                  width: '2rem',
+                                  height: '2rem',
+                                  padding: 0,
+                                  borderRadius: '999px',
+                                  border: `1px solid ${listeningMakerTokens.line2}`,
+                                  background: listeningMakerTokens.surface,
+                                  color: listeningMakerTokens.danger,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <IconTrash size={14} stroke={1.9} aria-hidden="true" />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!uploadDisabled) {
+                                  document.getElementById(`audio-upload-${section.number}`)?.click();
+                                }
+                              }}
+                              disabled={uploadDisabled}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                border: 'none',
+                                borderRadius: '999px',
+                                padding: '0.5rem 0.875rem',
+                                background: isUploadingThisSection ? listeningMakerTokens.dim : listeningMakerTokens.primary,
+                                color: '#fff',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: uploadDisabled ? 'not-allowed' : 'pointer',
+                                opacity: uploadDisabled && !isUploadingThisSection ? 0.55 : 1,
+                              }}
+                            >
+                              <IconUpload size={14} stroke={1.9} aria-hidden="true" />
+                              {isUploadingThisSection ? 'Uploading...' : hasAudio ? 'Replace' : 'Upload'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isUploadingThisSection && section.uploadProgress !== undefined && section.uploadProgress > 0 && section.uploadProgress < 100 && (
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: listeningMakerTokens.primary }}>
+                                Uploading {section.uploadProgress}%
+                              </span>
+                              {section.uploadETA !== undefined && section.uploadETA > 0 && (
+                                <span style={{ fontSize: '0.75rem', color: listeningMakerTokens.muted }}>
+                                  {formatETA(section.uploadETA)} remaining
+                                </span>
+                              )}
+                            </div>
+                            <div style={{
+                              width: '100%',
+                              height: '0.375rem',
+                              background: listeningMakerTokens.inset,
+                              borderRadius: '999px',
+                              overflow: 'hidden',
+                            }}>
+                              <div style={{
+                                width: `${section.uploadProgress}%`,
+                                height: '100%',
+                                background: listeningMakerTokens.primary,
+                                borderRadius: '999px',
+                                transition: 'width 0.3s ease',
+                              }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {errors[`section${section.number}`] && (
+                          <span style={{ color: listeningMakerTokens.danger, fontSize: '0.75rem', display: 'block' }}>
+                            {errors[`section${section.number}`]}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px dashed ${listeningMakerTokens.line}`,
+                      borderRadius: '0.625rem',
+                      background: 'rgba(248, 250, 252, 0.72)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.8125rem',
+                      fontWeight: 700,
+                      color: listeningMakerTokens.primary,
+                      outline: 'none',
+                    }}
+                  >
+                    <IconUpload size={15} stroke={1.9} aria-hidden="true" />
+                    Add section {metadata.sections.length + 1}
+                  </button>
+                </div>
+
+                <div aria-hidden="true" style={{ display: 'none' }}>
                   {metadata.sections.map((section) => (
                     <div
                       key={section.number}
@@ -1228,8 +2850,169 @@ const ListeningTestBuilder: React.FC = () => {
                   </button>
                 </div>
 
+                <div aria-hidden={isEmbedded} style={{
+                  marginTop: '0.75rem',
+                  padding: '0.75rem',
+                  border: `1px solid ${listeningMakerTokens.line}`,
+                  borderRadius: '0.625rem',
+                  background: listeningMakerTokens.inset,
+                  display: isEmbedded ? 'none' : 'grid',
+                  gap: '0.75rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <IconSettings size={16} stroke={1.9} aria-hidden="true" style={{ color: listeningMakerTokens.primary }} />
+                    <div>
+                      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, margin: 0, color: listeningMakerTokens.ink }}>
+                        Audio playback settings
+                      </h3>
+                      <p style={{ color: listeningMakerTokens.muted, fontSize: '0.75rem', margin: '0.125rem 0 0 0' }}>
+                        Configure controls visible during the test.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioControls(AUDIO_CONTROLS_PRESETS.IELTS_STANDARD);
+                        setAllowReplay(false);
+                      }}
+                      style={{
+                        ...listeningMakerStyles.compactButton,
+                        borderColor: !audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                        background: !audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                        color: !audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                      }}
+                    >
+                      IELTS standard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioControls(AUDIO_CONTROLS_PRESETS.PRACTICE_MODE);
+                        setAllowReplay(true);
+                        setMaxReplays(2);
+                      }}
+                      style={{
+                        ...listeningMakerStyles.compactButton,
+                        borderColor: audioControls.showPlayPause && audioControls.showSpeedControl ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                        background: audioControls.showPlayPause && audioControls.showSpeedControl ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                        color: audioControls.showPlayPause && audioControls.showSpeedControl ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                      }}
+                    >
+                      Practice mode
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioControls(AUDIO_CONTROLS_PRESETS.RELAXED_MODE);
+                        setAllowReplay(false);
+                      }}
+                      style={{
+                        ...listeningMakerStyles.compactButton,
+                        borderColor: audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                        background: audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                        color: audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                      }}
+                    >
+                      Relaxed mode
+                    </button>
+                  </div>
+
+                  <p style={{ fontSize: '0.75rem', color: listeningMakerTokens.muted, margin: 0 }}>
+                    {!audioControls.showPlayPause && !audioControls.showSpeedControl && !allowReplay
+                      ? 'Strict exam conditions: no pause, replay, or speed control.'
+                      : audioControls.showPlayPause && audioControls.showSpeedControl
+                        ? 'Full controls: pause, replay, and speed control enabled.'
+                        : 'Basic controls: pause enabled, no speed control.'}
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem 1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      <input
+                        type="checkbox"
+                        checked={audioControls.showPlayPause}
+                        onChange={(e) => setAudioControls({ ...audioControls, showPlayPause: e.target.checked })}
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Allow pause
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      <input
+                        type="checkbox"
+                        checked={allowReplay}
+                        onChange={(e) => setAllowReplay(e.target.checked)}
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Allow replay
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      <input
+                        type="checkbox"
+                        checked={audioControls.showSpeedControl}
+                        onChange={(e) => setAudioControls({ ...audioControls, showSpeedControl: e.target.checked })}
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Speed control
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      <input
+                        type="checkbox"
+                        checked={audioControls.showSeekControl}
+                        onChange={(e) => setAudioControls({ ...audioControls, showSeekControl: e.target.checked })}
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Allow seeking
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      <input
+                        type="checkbox"
+                        checked={audioControls.showSkipSection}
+                        onChange={(e) => setAudioControls({ ...audioControls, showSkipSection: e.target.checked })}
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Skip to next section
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: listeningMakerTokens.muted }}>
+                      <input
+                        type="checkbox"
+                        checked={audioControls.showVolumeControl}
+                        disabled
+                        style={{ width: '1rem', height: '1rem', accentColor: listeningMakerTokens.primary }}
+                      />
+                      Volume always enabled
+                    </label>
+                  </div>
+
+                  {allowReplay && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: listeningMakerTokens.body }}>
+                      Max replays per section
+                      <select
+                        value={maxReplays}
+                        onChange={(e) => setMaxReplays(parseInt(e.target.value))}
+                        style={{
+                          padding: '0.375rem 0.75rem',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${listeningMakerTokens.line2}`,
+                          fontSize: '0.8125rem',
+                          background: listeningMakerTokens.surface,
+                          color: listeningMakerTokens.ink,
+                        }}
+                      >
+                        <option value={1}>1 time</option>
+                        <option value={2}>2 times</option>
+                        <option value={3}>3 times</option>
+                        <option value={5}>5 times</option>
+                        <option value={999}>Unlimited</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+
                 {/* Audio Settings Section */}
-                <div style={{
+                <div aria-hidden="true" style={{
+                  display: 'none',
                   marginTop: '2rem',
                   padding: '1.5rem',
                   border: '2px solid #e2e8f0',
@@ -1412,15 +3195,44 @@ const ListeningTestBuilder: React.FC = () => {
             {/* STEP 3: Questions Text & AI Parsing */}
             {currentStep === 'questions-text' && (
               <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.75rem' }}>
+                  <span style={{
+                    width: '2rem',
+                    height: '2rem',
+                    borderRadius: '0.625rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: listeningMakerTokens.selected,
+                    color: listeningMakerTokens.primary,
+                  }}>
+                    <IconSparkles size={18} stroke={1.9} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: listeningMakerTokens.ink }}>
+                      Question text
+                    </h2>
+                    <p style={{ margin: '0.125rem 0 0 0', color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                      Paste or upload source text, then parse into editable questions.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ ...listeningMakerStyles.strip, marginBottom: '0.75rem' }}>
+                  <IconInfoCircle size={16} stroke={1.9} aria-hidden="true" style={{ color: listeningMakerTokens.primary, flexShrink: 0 }} />
+                  <p style={{ margin: 0, color: listeningMakerTokens.body, fontSize: '0.8125rem' }}>
+                    Auto-parse extracts question text, answer limits, choices, and answer fields. Manual creation remains available after skipping.
+                  </p>
+                </div>
+                <h2 aria-hidden="true" style={{ display: 'none' }}>
                   🤖 AI Question Parsing
                 </h2>
 
-                <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
+                <p aria-hidden="true" style={{ display: 'none' }}>
                   Paste your questions below and let AI parse them automatically, or skip to add questions manually.
                 </p>
 
-                <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '0.75rem' }}>
                   <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>
                     Paste Questions Text
                   </label>
@@ -1437,14 +3249,16 @@ Write NO MORE THAN TWO WORDS for each answer.
 1. The museum is located in the __________ part of the city.
 2. Visitors must pay __________ to enter.
 ..."
-                    rows={15}
+                    rows={8}
                     style={{
                       width: '100%',
-                      padding: '1rem',
+                      padding: '0.75rem',
                       borderRadius: '0.5rem',
-                      border: '2px solid #e2e8f0',
-                      fontSize: '0.9375rem',
+                      border: `1px solid ${listeningMakerTokens.line2}`,
+                      fontSize: '0.8125rem',
                       fontFamily: 'monospace',
+                      color: listeningMakerTokens.ink,
+                      background: listeningMakerTokens.surface,
                     }}
                   />
                 </div>
@@ -1478,30 +3292,27 @@ Write NO MORE THAN TWO WORDS for each answer.
                       <div style={{
                         width: `${parsingProgress}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
+                        background: listeningMakerTokens.primary,
                         transition: 'width 0.3s ease',
                       }} />
                     </div>
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                  <Button variant="glass" onClick={handleBack}>
-                    ← Back
-                  </Button>
+                <div style={{ display: 'flex', gap: '0.625rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <Button variant="secondary" onClick={handleNext}>
-                    Skip → Add Manually
+                    Add manually
                   </Button>
                   <Button
                     variant="primary"
                     onClick={handleParseQuestions}
                     disabled={isParsing || !questionText.trim()}
                     style={{
-                      background: isParsing ? '#94a3b8' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      background: isParsing ? listeningMakerTokens.dim : listeningMakerTokens.primary,
                       border: 'none'
                     }}
                   >
-                    {isParsing ? '⏳ Parsing...' : '🤖 Parse with AI'}
+                    {isParsing ? 'Parsing...' : 'Parse with AI'}
                   </Button>
                 </div>
               </div>
@@ -1509,32 +3320,17 @@ Write NO MORE THAN TWO WORDS for each answer.
 
             {/* STEP 3b: Question Images Upload (for image mode) */}
             {currentStep === 'questions-images' && (
-              <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                <h2 aria-hidden="true" style={{ display: 'none' }}>
                   🖼️ Upload Question Images by Section
                 </h2>
-                <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
+                <p aria-hidden="true" style={{ display: 'none' }}>
                   Upload images for each section. Set the question range for each image.
                   When students click a question, the matching image will be displayed.
                 </p>
 
-                {/* Info Banner */}
-                <div style={{
-                  padding: '1rem',
-                  background: 'rgba(59, 130, 246, 0.05)',
-                  borderRadius: '0.5rem',
-                  border: '1px solid rgba(59, 130, 246, 0.2)',
-                  marginBottom: '1.5rem',
-                }}>
-                  <p style={{ color: '#3b82f6', fontSize: '0.875rem', margin: 0 }}>
-                    💡 <strong>How it works:</strong> Each image covers a range of questions.
-                    When you add multiple images, the next image's start is automatically set
-                    to continue from where the previous image ends.
-                  </p>
-                </div>
-
-                {/* Sections with configured audio only */}
-                {metadata.sections.filter(s => s.audioUrl).length === 0 ? (
+                {/* Section rail and active image workspace */}
+                {metadata.sections.length === 0 ? (
                   <div style={{
                     textAlign: 'center',
                     padding: '3rem',
@@ -1549,8 +3345,112 @@ Write NO MORE THAN TWO WORDS for each answer.
                     </p>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gap: '1.5rem' }}>
-                    {metadata.sections.filter(s => s.audioUrl).map((section) => {
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(12rem, 15rem) minmax(0, 1fr)',
+                    gap: 0,
+                    alignItems: 'stretch',
+                  }}>
+                    <aside
+                      aria-label="Listening image sections"
+                      style={{
+                        display: 'grid',
+                        alignContent: 'start',
+                        gap: '0.75rem',
+                        borderRight: `1px solid ${listeningMakerTokens.line}`,
+                        padding: '0.25rem 1rem 0.25rem 0',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ color: listeningMakerTokens.ink, fontSize: '0.8125rem', fontWeight: 800 }}>
+                          Sections
+                        </span>
+                        <span style={{
+                          ...listeningMakerStyles.pill,
+                          background: listeningMakerTokens.inset,
+                          color: listeningMakerTokens.muted,
+                        }}>
+                          {metadata.sections.length} section{metadata.sections.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gap: '0.5rem' }}>
+                        {metadata.sections.map((section) => {
+                          const isActiveSection = section.number === activeAnswerSection.number;
+                          const imageCount = questionImages.filter(image => image.sectionNumber === section.number).length;
+                          return (
+                            <button
+                              key={`image-section-nav-${section.number}`}
+                              type="button"
+                              onClick={() => {
+                                trackAction('listeningImageSectionSelected', {
+                                  source: 'listening_builder',
+                                  step: currentStep,
+                                  sectionNumber: section.number,
+                                });
+                                setActiveAnswerSectionNumber(section.number);
+                              }}
+                              aria-pressed={isActiveSection}
+                              style={{
+                                border: `1px solid ${isActiveSection ? listeningMakerTokens.selectedBorder : 'transparent'}`,
+                                borderLeft: `4px solid ${isActiveSection ? listeningMakerTokens.primary : 'transparent'}`,
+                                borderRadius: '0.75rem',
+                                background: isActiveSection ? listeningMakerTokens.surface : 'rgba(255, 255, 255, 0.58)',
+                                boxShadow: isActiveSection ? listeningMakerTokens.shadowCard : 'none',
+                                color: listeningMakerTokens.ink,
+                                cursor: 'pointer',
+                                padding: '0.6875rem 0.75rem',
+                                textAlign: 'left',
+                                display: 'grid',
+                                gap: '0.25rem',
+                              }}
+                            >
+                              <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '0.8125rem' }}>Section {section.number}</strong>
+                                <span style={{
+                                  ...listeningMakerStyles.pill,
+                                  background: imageCount > 0 ? '#dcfce7' : '#fef3c7',
+                                  color: imageCount > 0 ? '#047857' : '#b45309',
+                                }}>
+                                  {imageCount} image{imageCount === 1 ? '' : 's'}
+                                </span>
+                              </span>
+                              <span style={{ color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                                Q{section.startQuestion}-{section.endQuestion}
+                              </span>
+                              {!section.audioUrl ? (
+                                <span style={{ color: '#b45309', fontSize: '0.6875rem', fontWeight: 700 }}>
+                                  Audio needed
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                    </aside>
+
+                    <div style={{
+                      minWidth: 0,
+                      paddingLeft: '1rem',
+                    }}>
+                      {!activeAnswerSection.audioUrl ? (
+                        <div style={{
+                          minHeight: '13rem',
+                          display: 'grid',
+                          placeItems: 'center',
+                          padding: '1.25rem',
+                        }}>
+                          <AssessmentStatusState
+                            variant="empty"
+                            title={`Section ${activeAnswerSection.number} needs audio`}
+                            titleLevel={3}
+                            align="center"
+                            message={<p>Use the Audio step before adding question images for this section.</p>}
+                          />
+                        </div>
+                      ) : (() => {
+                      const section = activeAnswerSection;
                       // Get images for this section, sorted by start question
                       const sectionImages = questionImages
                         .filter(img => img.sectionNumber === section.number)
@@ -1563,10 +3463,8 @@ Write NO MORE THAN TWO WORDS for each answer.
                         <div
                           key={section.number}
                           style={{
-                            padding: '1.5rem',
-                            border: '2px solid #e2e8f0',
-                            borderRadius: '0.75rem',
-                            background: 'rgba(255, 255, 255, 0.5)',
+                            display: 'grid',
+                            gap: '1rem',
                           }}
                         >
                           {/* Section Header */}
@@ -1574,15 +3472,15 @@ Write NO MORE THAN TWO WORDS for each answer.
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            marginBottom: '1rem',
-                            paddingBottom: '0.75rem',
-                            borderBottom: '1px solid #e2e8f0'
+                            gap: '1rem',
+                            paddingBottom: '0.8125rem',
+                            borderBottom: `1px solid ${listeningMakerTokens.line}`,
                           }}>
-                            <div>
-                              <h3 style={{ fontSize: '1.125rem', fontWeight: '600', margin: 0, color: '#1e293b' }}>
-                                🎵 Section {section.number}: {section.name}
+                            <div style={{ display: 'grid', gap: '0.2rem' }}>
+                              <h3 style={{ fontSize: '1.0625rem', fontWeight: 800, margin: 0, color: listeningMakerTokens.ink }}>
+                                Section {section.number}: {section.name}
                               </h3>
-                              <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0.25rem 0 0 0' }}>
+                              <p style={{ fontSize: '0.8125rem', color: listeningMakerTokens.muted, margin: 0 }}>
                                 Questions {section.startQuestion} - {section.endQuestion} ({section.endQuestion - section.startQuestion + 1} questions)
                               </p>
                             </div>
@@ -1595,6 +3493,13 @@ Write NO MORE THAN TWO WORDS for each answer.
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
+                                    trackAction('listeningQuestionImageUploadRequested', {
+                                      source: 'listening_builder',
+                                      step: currentStep,
+                                      sectionNumber: section.number,
+                                      fileType: file.type,
+                                      fileSizeBytes: file.size,
+                                    });
                                     const reader = new FileReader();
                                     reader.onload = (event) => {
                                       const dataUrl = event.target?.result as string;
@@ -1612,6 +3517,11 @@ Write NO MORE THAN TWO WORDS for each answer.
                               <button
                                 type="button"
                                 onClick={async () => {
+                                  trackAction('listeningQuestionImagePasteRequested', {
+                                    source: 'listening_builder',
+                                    step: currentStep,
+                                    sectionNumber: section.number,
+                                  });
                                   try {
                                     const items = await navigator.clipboard.read();
                                     let foundImage = false;
@@ -1632,7 +3542,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                     }
 
                                     if (!foundImage) {
-                                      alert('No image found in clipboard! Copy an image first.');
+                                      toast.warning('No image found in clipboard. Copy an image first.');
                                     }
                                   } catch (err) {
                                     console.error('Clipboard paste failed:', err);
@@ -1647,9 +3557,9 @@ Write NO MORE THAN TWO WORDS for each answer.
                                       document.execCommand('paste');
                                       // This basic fallback usually handles text, not images well, 
                                       // so we mainly rely on the API or show instruction
-                                      alert('Please allow clipboard access or use Ctrl+V on the page if prompt appears.');
+                                      toast.warning('Allow clipboard access or use Ctrl+V on the page if a prompt appears.');
                                     } catch (e) {
-                                      alert('Clipboard access denied. Please use the "Add Image" button instead.');
+                                      toast.error('Clipboard access denied. Use the Add Image button instead.');
                                     } finally {
                                       document.body.removeChild(textarea);
                                     }
@@ -1678,7 +3588,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                   e.currentTarget.style.borderColor = '#e2e8f0';
                                 }}
                               >
-                                📋 Paste
+                                Paste
                               </button>
 
                               <button
@@ -1686,7 +3596,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                 onClick={() => document.getElementById(`section-${section.number}-upload`)?.click()}
                                 style={{
                                   padding: '0.5rem 1rem',
-                                  background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                  background: listeningMakerTokens.primary,
                                   border: 'none',
                                   borderRadius: '0.5rem',
                                   color: 'white',
@@ -1698,7 +3608,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                   gap: '0.5rem',
                                 }}
                               >
-                                ➕ Add Image
+                                Add image
                               </button>
                             </div>
                           </div>
@@ -1801,7 +3711,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                             fontWeight: 500,
                                           }}
                                         >
-                                          🗑️ Remove
+                                          Remove
                                         </button>
                                       </div>
 
@@ -1815,7 +3725,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                           fontSize: '0.8125rem',
                                           color: '#b45309',
                                         }}>
-                                          ⚠️ <strong>Set the end question</strong> for this image to define where the next image starts.
+                                          <strong>Set the end question</strong> for this image to define where the next image starts.
                                         </div>
                                       )}
 
@@ -1905,8 +3815,11 @@ Write NO MORE THAN TWO WORDS for each answer.
 
                                                 // Update all images after this one
                                                 for (let i = currentPosInSection + 1; i < sectionImgIndices.length; i++) {
-                                                  const prevImg = sectionImgIndices[i - 1].img;
-                                                  const currentIdx = sectionImgIndices[i].idx;
+                                                  const previousEntry = sectionImgIndices[i - 1];
+                                                  const currentEntry = sectionImgIndices[i];
+                                                  if (!previousEntry || !currentEntry) continue;
+                                                  const prevImg = previousEntry.img;
+                                                  const currentIdx = currentEntry.idx;
                                                   const newStart = (prevImg.questionRange?.end || section.startQuestion) + 1;
 
                                                   updated = updated.map((item, idx) =>
@@ -1984,7 +3897,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               alignItems: 'center',
                             }}>
                               <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                                📊 Coverage: {sectionImages.map((img, idx) => {
+                                Coverage: {sectionImages.map((img, idx) => {
                                   const prevImg = idx > 0 ? sectionImages[idx - 1] : null;
                                   const start = idx === 0
                                     ? section.startQuestion
@@ -2006,7 +3919,8 @@ Write NO MORE THAN TWO WORDS for each answer.
                           )}
                         </div>
                       );
-                    })}
+                    })()}
+                    </div>
                   </div>
                 )}
 
@@ -2020,7 +3934,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                     border: '1px solid rgba(16, 185, 129, 0.2)',
                   }}>
                     <p style={{ color: '#10b981', fontSize: '0.875rem', margin: 0, fontWeight: 600 }}>
-                      ✅ {questionImages.length} image{questionImages.length > 1 ? 's' : ''} configured across {
+                      {questionImages.length} image{questionImages.length > 1 ? 's' : ''} configured across {
                         new Set(questionImages.map(img => img.sectionNumber)).size
                       } section{new Set(questionImages.map(img => img.sectionNumber)).size > 1 ? 's' : ''}
                     </p>
@@ -2034,7 +3948,7 @@ Write NO MORE THAN TWO WORDS for each answer.
             {currentStep === 'questions' && (
               <AssessmentAuthoringSection
                 title={displayMode === 'image'
-                  ? `🔑 Answer Key (${questions.length} Questions)`
+                  ? `Answer key (${questions.length} Questions)`
                   : `Questions (${questions.length}/${metadata.totalQuestions})`
                 }
                 action={displayMode !== 'image' ? (
@@ -2045,6 +3959,249 @@ Write NO MORE THAN TWO WORDS for each answer.
               >
 
                 {displayMode === 'image' && (
+                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                      {metadata.sections.map((section) => {
+                        const isActive = activeAnswerSection && section.number === activeAnswerSection.number;
+                        return (
+                          <button
+                            key={`answer-section-${section.number}`}
+                            type="button"
+                            onClick={() => setActiveAnswerSectionNumber(section.number)}
+                            style={{
+                              ...listeningMakerStyles.compactButton,
+                              background: isActive ? listeningMakerTokens.selected : listeningMakerTokens.surface,
+                              borderColor: isActive ? listeningMakerTokens.selectedBorder : listeningMakerTokens.line,
+                              color: isActive ? listeningMakerTokens.primary : listeningMakerTokens.body,
+                            }}
+                          >
+                            Section {section.number}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                      gap: '0.75rem',
+                      alignItems: 'stretch',
+                    }}>
+                      <div style={{
+                        border: `1px solid ${listeningMakerTokens.line}`,
+                        borderRadius: '0.625rem',
+                        background: listeningMakerTokens.surface,
+                        overflow: 'hidden',
+                        minHeight: '20rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}>
+                        <div style={{
+                          padding: '0.75rem',
+                          borderBottom: `1px solid ${listeningMakerTokens.line}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                        }}>
+                          <div>
+                            <h3 style={{ margin: 0, color: listeningMakerTokens.ink, fontSize: '0.875rem', fontWeight: 700 }}>
+                              Section {activeAnswerSection.number}: Questions {activeAnswerSection.startQuestion}-{activeAnswerSection.endQuestion}
+                            </h3>
+                            <p style={{ margin: '0.125rem 0 0 0', color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
+                              {activeAnswerSectionImages.length} image{activeAnswerSectionImages.length === 1 ? '' : 's'} uploaded
+                            </p>
+                          </div>
+                          <span style={{ ...listeningMakerStyles.pill, background: listeningMakerTokens.inset, color: listeningMakerTokens.muted }}>
+                            Image
+                          </span>
+                        </div>
+
+                        <div style={{
+                          flex: 1,
+                          minHeight: 0,
+                          background: listeningMakerTokens.inset,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0.75rem',
+                        }}>
+                          {activeAnswerImage ? (
+                            <img
+                              src={activeAnswerImage.imageUrl}
+                              alt={`Section ${activeAnswerSection.number} question page`}
+                              style={{
+                                maxWidth: '100%',
+                                maxHeight: '22rem',
+                                objectFit: 'contain',
+                                borderRadius: '0.5rem',
+                                border: `1px solid ${listeningMakerTokens.line}`,
+                                background: listeningMakerTokens.surface,
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '100%',
+                              minHeight: '14rem',
+                              border: `1px dashed ${listeningMakerTokens.line2}`,
+                              borderRadius: '0.625rem',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              color: listeningMakerTokens.muted,
+                              textAlign: 'center',
+                            }}>
+                              <IconPhoto size={28} stroke={1.6} aria-hidden="true" />
+                              <span style={{ fontSize: '0.8125rem', fontWeight: 700 }}>No image for this section</span>
+                              <span style={{ fontSize: '0.75rem' }}>Return to Images to upload question pages.</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{
+                        border: `1px solid ${listeningMakerTokens.line}`,
+                        borderRadius: '0.625rem',
+                        background: listeningMakerTokens.surface,
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minHeight: '20rem',
+                      }}>
+                        <div style={{
+                          padding: '0.75rem',
+                          borderBottom: `1px solid ${listeningMakerTokens.line}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                        }}>
+                          <h3 style={{ margin: 0, color: listeningMakerTokens.ink, fontSize: '0.875rem', fontWeight: 700 }}>
+                            Answer key - {activeAnswerQuestions.length}
+                          </h3>
+                          <details style={{ position: 'relative' }}>
+                            <summary style={{
+                              listStyle: 'none',
+                              cursor: 'pointer',
+                              color: listeningMakerTokens.primary,
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}>
+                              Bulk paste
+                            </summary>
+                            <div style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: '1.75rem',
+                              width: 'min(22rem, 78vw)',
+                              padding: '0.75rem',
+                              background: listeningMakerTokens.surface,
+                              border: `1px solid ${listeningMakerTokens.line}`,
+                              borderRadius: '0.625rem',
+                              boxShadow: listeningMakerTokens.shadowModal,
+                              zIndex: 5,
+                              display: 'grid',
+                              gap: '0.5rem',
+                            }}>
+                              <textarea
+                                value={bulkAnswerKey}
+                                onChange={(e) => setBulkAnswerKey(e.target.value)}
+                                placeholder="1. Answer A&#10;2. Answer B&#10;...or just paste list"
+                                rows={4}
+                                style={{
+                                  ...listeningMakerStyles.control,
+                                  padding: '0.625rem',
+                                  fontFamily: 'monospace',
+                                  resize: 'vertical',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleBulkParseAnswers}
+                                disabled={!bulkAnswerKey.trim() || isParsing}
+                                style={{
+                                  justifySelf: 'end',
+                                  border: 'none',
+                                  borderRadius: '999px',
+                                  padding: '0.5rem 0.875rem',
+                                  background: isParsing ? listeningMakerTokens.dim : listeningMakerTokens.primary,
+                                  color: '#fff',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: isParsing ? 'wait' : 'pointer',
+                                }}
+                              >
+                                {isParsing ? 'Analyzing...' : 'Auto-fill answers'}
+                              </button>
+                            </div>
+                          </details>
+                        </div>
+
+                        {activeAnswerQuestions.length === 0 ? (
+                          <div style={{ padding: '1rem' }}>
+                            <AssessmentStatusState
+                              variant="empty"
+                              title="No answer rows yet"
+                              titleLevel={3}
+                              align="center"
+                              message={<p>Continue from Images to create the answer key rows.</p>}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gap: '0.5rem', padding: '0.75rem', overflowY: 'auto', maxHeight: '24rem' }}>
+                            {activeAnswerQuestions.map((q) => {
+                              const globalQuestionIndex = questions.findIndex(question => question.number === q.number);
+                              return (
+                                <label
+                                  key={`answer-row-${q.number}`}
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '2rem minmax(0, 1fr)',
+                                    gap: '0.5rem',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <span style={{
+                                    height: '1.625rem',
+                                    borderRadius: '0.375rem',
+                                    background: listeningMakerTokens.inset,
+                                    border: `1px solid ${listeningMakerTokens.line}`,
+                                    color: listeningMakerTokens.body,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}>
+                                    {q.number}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={q.answer}
+                                    onChange={(e) => {
+                                      if (globalQuestionIndex >= 0) {
+                                        updateQuestion(globalQuestionIndex, 'answer', e.target.value);
+                                      }
+                                    }}
+                                    placeholder="Type answer..."
+                                    style={{
+                                      ...listeningMakerStyles.control,
+                                      padding: '0.5rem 0.625rem',
+                                    }}
+                                  />
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {false && displayMode === 'image' && (
                   <div style={{ marginBottom: '2rem', background: 'white', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
                     <p style={{ color: '#64748b', marginBottom: '1rem', marginTop: 0 }}>
                       <strong>Since questions are on the images,</strong> you only need to provide the answer key.
@@ -2092,7 +4249,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                   </div>
                 )}
 
-                {questions.length === 0 ? (
+                {displayMode === 'image' ? null : questions.length === 0 ? (
                   <AssessmentStatusState
                     variant="empty"
                     title="No questions added yet"
@@ -2206,7 +4363,7 @@ Write NO MORE THAN TWO WORDS for each answer.
             {currentStep === 'review' && (
               <div>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem' }}>
-                  Review & Save
+                  Review & Publish
                 </h2>
 
                 <div style={{ display: 'grid', gap: '1.5rem' }}>
@@ -2292,12 +4449,41 @@ Write NO MORE THAN TWO WORDS for each answer.
 
                   <div>
                     <h3 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Audio Sections</h3>
-                    {metadata.sections.map(s => (
-                      <p key={s.number}>
-                        <strong>Section {s.number}:</strong> {s.audioUrl ? '✅ Configured' : '❌ Missing'}
-                      </p>
-                    ))}
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      {metadata.sections.map(s => (
+                        <div
+                          key={s.number}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            padding: '0.625rem 0.75rem',
+                            border: `1px solid ${listeningMakerTokens.line}`,
+                            borderRadius: '0.5rem',
+                            background: listeningMakerTokens.surface,
+                          }}
+                        >
+                          <span style={{ color: listeningMakerTokens.body, fontSize: '0.8125rem', fontWeight: 700 }}>
+                            Section {s.number}
+                          </span>
+                          <span style={{
+                            ...listeningMakerStyles.pill,
+                            background: s.audioUrl ? listeningMakerTokens.successTint : listeningMakerTokens.dangerTint,
+                            color: s.audioUrl ? listeningMakerTokens.success : listeningMakerTokens.danger,
+                          }}>
+                            {s.audioUrl ? 'Configured' : 'Missing'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  <ListeningPublishReadinessPanel
+                    mode={publishReadinessMode}
+                    blockers={publishReadinessBlockers}
+                    checkedSections={publishReadinessCheckedSections}
+                  />
 
                   {errors.save && (
                     <div style={{
@@ -2314,9 +4500,84 @@ Write NO MORE THAN TWO WORDS for each answer.
               </div>
             )}
 
+          </div>
+
             {/* Navigation Buttons */}
+            <ListeningSavePublishBar
+              onBack={handleBack}
+              onNext={currentStep === 'questions-text' ? undefined : handleNext}
+              onSaveDraft={handleSaveDraft}
+              onPublish={handlePublish}
+              onDiscard={() => openDiscardConfirmation('saved-draft')}
+              nextLabel="Next →"
+              pendingAction={pendingAction}
+              canDiscard={canDiscard}
+              showNext={currentStep !== 'review' && currentStep !== 'questions-text'}
+              actionsDisabled={Boolean(discardedDraft) || lifecyclePendingAction !== null}
+              trailingContent={(
+                <ListeningLifecycleActions
+                  canRestore={Boolean(discardedDraft)}
+                  canArchive={Boolean(publishedVersion) && !isPublishedVersionArchived}
+                  pendingAction={lifecyclePendingAction}
+                  onRestore={handleRestoreDraft}
+                  onArchive={handleArchivePublishedVersion}
+                />
+              )}
+            />
+
+            {draftStatusMode === 'discard-pending' && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Discard draft changes"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 30,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '1rem',
+                  background: 'rgba(15, 23, 42, 0.32)',
+                  backdropFilter: 'blur(3px)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 'min(30rem, 100%)',
+                    borderRadius: '0.875rem',
+                    border: `1px solid ${listeningMakerTokens.line2}`,
+                    background: listeningMakerTokens.surface,
+                    boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)',
+                    padding: '1.25rem',
+                    display: 'grid',
+                    gap: '0.875rem',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: listeningMakerTokens.ink }}>
+                      Discard draft changes?
+                    </h3>
+                    <p style={{ margin: 0, color: listeningMakerTokens.body, fontSize: '0.875rem', lineHeight: 1.55 }}>
+                      {discardContext === 'navigation-away'
+                        ? 'Going back now will discard unsaved draft changes. Keep editing, or discard and continue.'
+                        : 'This removes the current draft changes. Published tests stay separate.'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <Button variant="glass" onClick={handleDiscardCancelled}>
+                      Keep editing
+                    </Button>
+                    <Button variant="outline" onClick={handleDiscardConfirmed} disabled={pendingAction === 'discard'}>
+                      Discard now
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{
-              display: 'flex',
+              display: 'none',
               justifyContent: 'space-between',
               marginTop: '2rem',
               paddingTop: '2rem',
@@ -2336,16 +4597,15 @@ Write NO MORE THAN TWO WORDS for each answer.
               ) : (
                 <Button
                   variant="primary"
-                  onClick={handleSaveTest}
+                  onClick={handlePublish}
                   disabled={isSaving}
                   style={{ marginLeft: 'auto' }}
                 >
-                  {isSaving ? 'Saving...' : 'Save Test'}
+                  {isSaving ? 'Publishing...' : 'Publish'}
                 </Button>
               )}
             </div>
-          </CardBody>
-        </Card>
+        </section>
       </div>
     </main>
   );

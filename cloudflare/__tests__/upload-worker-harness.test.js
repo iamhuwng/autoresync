@@ -11,7 +11,7 @@ const APPROVED_ORIGINS = [
 ];
 const UNAPPROVED_ORIGIN = 'https://attacker.example';
 const ALLOWED_CORS_METHODS = 'OPTIONS, POST, PUT';
-const ALLOWED_CORS_HEADERS = 'Authorization, Content-Type, Content-Length';
+const ALLOWED_CORS_HEADERS = 'Authorization, Content-Type, Content-Length, Idempotency-Key, X-Upload-Size';
 const tokenUidMap = {
   'valid-owner-a-token': 'owner-a',
   'valid-owner-b-token': 'owner-b',
@@ -232,6 +232,83 @@ describe('r2-upload-signer native R2 harness', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('returns the validated localhost transport URL through remote dev proxying', async () => {
+    const response = await fetchWorker('/upload/authorize', {
+      method: 'POST',
+      headers: {
+        ...bearer('valid-owner-a-token'),
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationKind: 'test_audio_temp',
+        fileName: 'remote-dev.mp3',
+        contentType: 'audio/mpeg',
+        sizeBytes: 5,
+        uploadTransportOrigin: 'http://localhost:8787',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.uploadUrl).toMatch(/^http:\/\/localhost:8787\/upload\?grant=/);
+  });
+
+  it('accepts signed localhost upload size when remote dev forwarding omits Content-Length', async () => {
+    const authorizeResponse = await fetchWorker('/upload/authorize', {
+      method: 'POST',
+      headers: {
+        ...bearer('valid-owner-a-token'),
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationKind: 'test_audio_temp',
+        fileName: 'chunked-remote-dev.mp3',
+        contentType: 'audio/mpeg',
+        sizeBytes: 5,
+        uploadTransportOrigin: 'http://localhost:8787',
+      }),
+    });
+    const authorizeBody = await authorizeResponse.json();
+    const uploadPath = new URL(authorizeBody.uploadUrl);
+    const uploadResponse = await fetchWorker(`${uploadPath.pathname}${uploadPath.search}`, {
+      method: 'PUT',
+      headers: {
+        ...bearer('valid-owner-a-token'),
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'audio/mpeg',
+        'X-Upload-Size': '5',
+      },
+      body: new Uint8Array([1, 2, 3, 4, 5]),
+    });
+
+    expect(uploadResponse.status).toBe(200);
+  });
+
+  it.each([
+    ['non-loopback transport', 'https://attacker.example', 'http://localhost:5173', 400],
+    ['unapproved caller origin', 'http://localhost:8787', 'https://attacker.example', 403],
+  ])('rejects %s', async (_label, uploadTransportOrigin, origin, expectedStatus) => {
+    const response = await fetchWorker('/upload/authorize', {
+      method: 'POST',
+      headers: {
+        ...bearer('valid-owner-a-token'),
+        Origin: origin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationKind: 'test_audio_temp',
+        fileName: 'blocked.mp3',
+        contentType: 'audio/mpeg',
+        sizeBytes: 5,
+        uploadTransportOrigin,
+      }),
+    });
+
+    expect(response.status).toBe(expectedStatus);
   });
 
   it.each([

@@ -1,0 +1,14 @@
+
+ ⛅️ wrangler 4.103.0
+────────────────────
+Total Upload: 264.28 KiB / gzip: 50.38 KiB
+Your Worker has access to the following bindings:
+Binding                                                                          Resource
+env.UPLOAD_GRANT_REPLAY_LEDGER (UploadGrantReplayLedger)                         Durable Object
+env.R2_BUCKET (kahoot-media)                                                     R2 Bucket
+env.UPLOAD_RATE_LIMITER (30 requests/60s)                                        Rate Limit
+env.PUBLIC_URL ("https://pub-9785039d4a7e4f76b2446f9fa...")                      Environment Variable
+env.FIREBASE_PROJECT_ID ("temp-a1437")                                           Environment Variable
+env.FIREBASE_DB_URL ("https://temp-a1437-default-rtdb.fireb...")                 Environment Variable
+
+--dry-run: exiting now.

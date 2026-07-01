@@ -1,0 +1,156 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task9-final-production.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-final-production-chromium",
+        "name": "prd0055-final-production-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task9-final-production-browser\\.spec\\.ts/"
+        ],
+        "timeout": 240000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task9-final-production-browser.spec.ts",
+      "file": "prd0055-task9-final-production-browser.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 final deployed live private delivery browser matrix",
+          "file": "prd0055-task9-final-production-browser.spec.ts",
+          "line": 325,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected students pass deployed private live authority matrix",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-final-production-chromium",
+                  "projectName": "prd0055-final-production-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 48542,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 4\u001b[39m\n\u001b[31m+ Received  + 4\u001b[39m\n\n\u001b[32m- ObjectContaining {\u001b[39m\n\u001b[32m-   \"canonicalRevision\": Any<Number>,\u001b[39m\n\u001b[31m+ Object {\u001b[39m\n\u001b[31m+   \"canonicalRevision\": 6,\u001b[39m\n\u001b[2m    \"commandType\": \"seekToPosition\",\u001b[22m\n\u001b[2m    \"lastAction\": \"seek\",\u001b[22m\n\u001b[32m-   \"position\": 4,\u001b[39m\n\u001b[32m-   \"revision\": Any<Number>,\u001b[39m\n\u001b[31m+   \"position\": 0,\u001b[39m\n\u001b[31m+   \"revision\": 6,\u001b[39m\n\u001b[2m    \"section\": 2,\u001b[22m\n\u001b[2m    \"speed\": 1.5,\u001b[22m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 15000ms exceeded while waiting on the predicate",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 4\u001b[39m\n\u001b[31m+ Received  + 4\u001b[39m\n\n\u001b[32m- ObjectContaining {\u001b[39m\n\u001b[32m-   \"canonicalRevision\": Any<Number>,\u001b[39m\n\u001b[31m+ Object {\u001b[39m\n\u001b[31m+   \"canonicalRevision\": 6,\u001b[39m\n\u001b[2m    \"commandType\": \"seekToPosition\",\u001b[22m\n\u001b[2m    \"lastAction\": \"seek\",\u001b[22m\n\u001b[32m-   \"position\": 4,\u001b[39m\n\u001b[32m-   \"revision\": Any<Number>,\u001b[39m\n\u001b[31m+   \"position\": 0,\u001b[39m\n\u001b[31m+   \"revision\": 6,\u001b[39m\n\u001b[2m    \"section\": 2,\u001b[22m\n\u001b[2m    \"speed\": 1.5,\u001b[22m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 15000ms exceeded while waiting on the predicate\n    at expectSessionState (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:249:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:400:7",
+                        "location": {
+                          "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                          "column": 3,
+                          "line": 249
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 247 |\u001b[39m   expected\u001b[33m:\u001b[39m \u001b[33mPartial\u001b[39m\u001b[33m<\u001b[39m{ lastAction\u001b[33m:\u001b[39m string\u001b[33m;\u001b[39m section\u001b[33m:\u001b[39m number\u001b[33m;\u001b[39m speed\u001b[33m:\u001b[39m number\u001b[33m;\u001b[39m commandType\u001b[33m:\u001b[39m string\u001b[33m;\u001b[39m position\u001b[33m:\u001b[39m number }\u001b[33m>\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 248 |\u001b[39m ) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 249 |\u001b[39m   \u001b[36mawait\u001b[39m expect\u001b[33m.\u001b[39mpoll(\u001b[36masync\u001b[39m () \u001b[33m=>\u001b[39m {\n \u001b[90m     |\u001b[39m   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 250 |\u001b[39m     \u001b[36mconst\u001b[39m session \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m readSessionViaBrowser(page\u001b[33m,\u001b[39m token)\u001b[33m;\u001b[39m\n \u001b[90m 251 |\u001b[39m     \u001b[36mreturn\u001b[39m {\n \u001b[90m 252 |\u001b[39m       lastAction\u001b[33m:\u001b[39m session\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mmasterAudioState\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mlastAction\u001b[33m,\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                            "column": 3,
+                            "line": 249
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 4\u001b[39m\n\u001b[31m+ Received  + 4\u001b[39m\n\n\u001b[32m- ObjectContaining {\u001b[39m\n\u001b[32m-   \"canonicalRevision\": Any<Number>,\u001b[39m\n\u001b[31m+ Object {\u001b[39m\n\u001b[31m+   \"canonicalRevision\": 6,\u001b[39m\n\u001b[2m    \"commandType\": \"seekToPosition\",\u001b[22m\n\u001b[2m    \"lastAction\": \"seek\",\u001b[22m\n\u001b[32m-   \"position\": 4,\u001b[39m\n\u001b[32m-   \"revision\": Any<Number>,\u001b[39m\n\u001b[31m+   \"position\": 0,\u001b[39m\n\u001b[31m+   \"revision\": 6,\u001b[39m\n\u001b[2m    \"section\": 2,\u001b[22m\n\u001b[2m    \"speed\": 1.5,\u001b[22m\n\u001b[2m  }\u001b[22m\n\nCall Log:\n- Timeout 15000ms exceeded while waiting on the predicate\n\n  247 |   expected: Partial<{ lastAction: string; section: number; speed: number; commandType: string; position: number }>,\n  248 | ) {\n> 249 |   await expect.poll(async () => {\n      |   ^\n  250 |     const session = await readSessionViaBrowser(page, token);\n  251 |     return {\n  252 |       lastAction: session?.masterAudioState?.lastAction,\n    at expectSessionState (C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:249:3)\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts:400:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-30T19:16:08.596Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\test-failed-2.png"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task9-final-produc-38372-ivate-live-authority-matrix-prd0055-final-production-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task9-final-production-browser.spec.ts",
+                        "column": 3,
+                        "line": 249
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "2231576afb6f433b9e61-e324200125660bc3e9a9",
+              "file": "prd0055-task9-final-production-browser.spec.ts",
+              "line": 326,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T19:16:06.256Z",
+    "duration": 53148.651999999995,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

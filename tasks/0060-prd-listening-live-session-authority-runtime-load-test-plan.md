@@ -1,6 +1,7 @@
 # PRD 0060: Listening Live-Session Authority, Runtime, And Load-Test Plan
 
 Status: Draft child PRD - Task 1 planning is complete; implementation remains blocked pending dedicated authority contract tests/test harness, applicable authoring/delivery dependencies, child-specific product-owner plus architecture/security approval, explicit authorization, and remaining proof gates
+Current closure note, 2026-06-30: remaining PRD-0055 Task 8.14-8.18 and Task 9.0-9.15 final closure execution was reauthorized after the earlier local-only scope change, but closure remains BLOCKED, not PASS. Current readback/proof now includes internal fixture session `T8P9J2`, browser-reachable WAV fixtures, user-confirmed audible Browser tone with progress advanced and no wrong audio/no interruption/no visible drift, local matrix rerun, Cloudflare/Firebase deployed-current readback, live/private Worker and Hosting proof for `/listening-delivery/live`, internal deployed fixture `T8D116` issue/content/wrong-section proof, focused Worker/RTDB auth-negative proof, deployed RTDB rules readback/unauthenticated denial proof for the `game_sessions` hardening, and non-active current-authoring recovery candidate `d219c36f-0e0f-489c-a10b-a843ed339bf2`. Missing gates remain selected/percentage/full rollout proof, final deployed/private teacher-and-student browser proof, controlled recovery/version-pin rehearsal proof, final independent verification, full Section 27 execution, and parent acceptance. No cleanup/delete, selected-user rollout, percentage rollout, commit, push, or checkbox closure occurred.
 Created: 2026-06-20
 Task number: 0060
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -888,6 +889,42 @@ Test at minimum:
 3. Record project, environment, test-run ID, start/end time, and cleanup result.
 4. Do not log tokens, signed URLs, raw keys, answers, or raw audio.
 5. Delete only test-owned fixture data through approved cleanup.
+
+### Task 8.11 Local Harness Status - 2026-06-30
+
+Task 8.11 implements the local/dry-run harness package at `src/features/assessment/listening/live-session/tests/load/listening-live/`. It covers the PRD target shape, synthetic client fidelity, eight network profiles, synthetic teacher/student clients, Firebase/Worker quota metric fields, sync drift, audio/source failure metrics, threshold evaluation, sanitized report output, and production/remote execution guardrails. The RED proof failed before `config.ts` existed; focused GREEN proof passed the Task-8 authority/load suite with 7 files / 42 tests. Adjacent live protection proof passed 4 files / 16 tests.
+
+This is methodology and local dry-run harness proof only. It is not remote protocol load, browser/media fidelity proof, deployed human proof, final threshold approval, rollout evidence, private delivery/source handoff, rollback proof, or parent Task 8 acceptance. Production execution remains forbidden, and isolated non-production remote execution remains blocked without explicit approval gate configuration.
+
+### Task 8.12-8.13 Local AudioPlayer And Accessibility Status - 2026-06-30
+
+Task 8.12 now implements the local `AudioPlayer` source-handoff primitive behind an optional `authorizedDelivery` contract. The current public source stays active until the replacement source is ready, refresh retries are bounded, refresh failure does not call the parent playback-error path or independently pause playback, teacher `masterAudioState` survives the handoff, and warnings are actionable but redacted.
+
+Task 8.13 now has focused teacher-monitor/live accessibility verification for keyboard reachability, accessible names, non-color-only state text, status/alert roles, and 44px touch targets where applicable. Authority remains in Listening live authority code, not shared presentation code.
+
+This is local player/accessibility proof only. It is not browser private-delivery cutover proof, deployed human proof, rollout evidence, rollback proof, evidence-capture closure, independent-verification parent gate proof, or parent Task 8 acceptance. Task 8.14 remains the next human-assisted browser/private-delivery gate.
+
+### Task 8.14 Local Audio/Progress Browser Unblock Status - 2026-06-30
+
+Local localhost fixture proof now covers the teacher-monitor ended-clip audio/progress defect only. `output/prd0055-task8-local-unblock/browser-plugin-teacher-audio-restart-proof.json` shows Resume All Audio reset an ended `20/20` clip to `0`, resumed playback with `muted: false`, `volume: 0.8`, `readyState: 4`, and no media error, then advanced to `2.868s` / `14.223%` fill by 3000 ms. The clean visual artifact is `output/prd0055-task8-local-unblock/browser-plugin-teacher-progress-after-fix.png`. The older `browser-plugin-teacher-progress.png` is stale and not gate evidence. `output/prd0055-task8-local-unblock/playwright-task8-audio-fix-report.json` reports 1 expected / 0 unexpected local fixture tests.
+
+This does not close Task 8.14. The remaining human-assisted/private-delivery matrix, deployed human proof, rollout, rollback, evidence capture, independent verification parent gate, and parent Task 8 acceptance remain open. The Browser plugin proves media element state and progress UI; it does not prove physical speaker output.
+
+### Task 8.14 Expanded Local Browser Matrix Supplement - 2026-06-30
+
+Local localhost fixture proof now also covers teacher desktop reload hydration, student desktop reload, student mobile late join at 375px and 320px, pause/resume, skip/seek/speed, stale compatibility `audioCommand` rejection against newer `masterAudioState`, headphone pending/approved/denied teacher visibility, and teacher End preserving the live student result pointer. `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` reports 1 expected / 0 unexpected tests. `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` records session `T84NAX`, test `prd0055_task8_local_1782806730491`, final canonical `masterAudioState` revision `6`, section `2`, position `5`, speed `1.5`, stale compatibility command revision `5`, submitted result `-OwMZEVAU8tB4NNoCy-x`, and denied-headphone fixture state.
+
+The `AudioPlayer` handoff diagnostic was corrected so browser `AbortError` play rejections from interrupted media source handoff do not surface as visible audio errors. `rtk npx vitest run src/skills/listening/components/AudioPlayer.test.tsx --reporter=basic` passed 1 file / 10 tests, and the re-run report contains no `Playback failed`, `Audio error`, or `console.error` lines.
+
+This still does not close Task 8.14. Private-delivery cutover proof, deployed human browser/speaker proof, remote protocol load, rollout, rollback, evidence capture, independent verification, and parent Task 8 acceptance remain open. Residual local report noise remains: one aborted fixture PATCH, repeated `Permission denied` page errors, waiting-for-audio-data warnings, missing diagnostic upload config warnings, and unrelated Mantine guard warnings.
+
+### Task 8.14 Strengthened Local Browser Matrix Supplement - 2026-06-30
+
+Local localhost fixture proof now additionally covers deterministic buffered/stalled audio during teacher pause staying paused/time-pinned, equal-revision competing `masterAudioState` rejection by a hydrated student client, recovery through newer canonical revision `7`, accepted/indexed teacher-End auto-submit result IDs, and post-End submit attempt rejection/no duplicate result. The teacher monitor toolbar now dispatches a synchronous local resume gesture before the async canonical resume write, and `AudioProgressPanel` treats Chrome direct-gesture policy blocks as diagnostic info plus an in-panel alert rather than raw `console.error`. `output/prd0055-task8-local-unblock/playwright-task8-expanded-report.json` reports 1 expected / 0 unexpected tests, duration 99006.839 ms, with no `Playback failed`, `Audio error`, `Play failed`, or `console.error` scan hits. `output/prd0055-task8-local-unblock/playwright-artifacts/local-matrix-supplement.json` records session `T89XJH`, test `prd0055_task8_local_1782809535071`, 9 covered proof slices, buffered pause observed, authority conflict present, post-End submit control not visible, and final canonical revision `7`.
+
+The `useAudioSync` canonical handoff path now handles interrupted `audio.play()` `AbortError` as diagnostic info instead of raw `console.error`. `rtk npx vitest run src/hooks/audio/useAudioSync.test.tsx --reporter=basic` passed 1 file / 2 tests, and the re-run Playwright report contains no `Playback failed`, `Audio error`, or `console.error` lines.
+
+This still does not close Task 8.14. Private-delivery cutover proof, deployed human browser/speaker proof, remote protocol load, rollout, rollback, evidence capture, independent verification, and parent Task 8 acceptance are BLOCKED/DEFERRED to PRD-0062 unless separately reauthorized. Browser plugin automation proves media state/policy diagnostics but not physical speaker output. Residual local report noise remains: existing Mantine guard warnings, `Permission denied` page errors, missing diagnostic upload config warnings, and expected buffering/waiting diagnostics from the fixture audio route.
 
 ## 18. Metrics, Pass/Fail Thresholds, And Stop Conditions
 

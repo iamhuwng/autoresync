@@ -1,0 +1,98 @@
+{
+  "createdAt": "2026-06-30T17:16:36.145Z",
+  "proofPath": "output/prd0055-task9-live-readback/prd0055-selected-class-live-1782839029713.json",
+  "proofId": "prd0055-selected-class-live-1782839029713",
+  "fixture": {
+    "sessionCode": "T80VWY",
+    "classId": "prd0055-selected-class-live-1782839029713-class",
+    "testId": "prd0055_live_private_deployed_1782834043116",
+    "versionId": "prd0055_live_private_version_1782834043116",
+    "assetId": "prd0055-live-private-asset-1782834043116"
+  },
+  "deployedOrigin": "https://kahut1.web.app",
+  "teacherDesktop": {
+    "currentTime": 0.043,
+    "duration": 2,
+    "networkState": 1,
+    "paused": false,
+    "readyState": 4,
+    "src": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+    "error": null
+  },
+  "studentDesktop": {
+    "currentTime": 0.514,
+    "duration": 2,
+    "networkState": 1,
+    "paused": true,
+    "readyState": 4,
+    "src": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+    "error": null
+  },
+  "studentMobile375": {
+    "currentTime": 0.045,
+    "duration": 2,
+    "networkState": 1,
+    "paused": false,
+    "readyState": 4,
+    "src": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+    "error": null
+  },
+  "deliveryEvents": [
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "requestfailed",
+      "method": "GET",
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-desktop",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "POST",
+      "status": 200,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/live"
+    },
+    {
+      "label": "student-mobile-375",
+      "type": "response",
+      "method": "GET",
+      "status": 206,
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/listening-delivery/content?token=[redacted]"
+    }
+  ]
+}

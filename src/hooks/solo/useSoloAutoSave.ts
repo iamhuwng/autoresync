@@ -9,11 +9,26 @@ interface UseSoloAutoSaveOptions {
     materialId: string | undefined;
     studentId: string | undefined;
     scopeContext?: SoloProgressScopeContext;
+    attemptId?: string;
+    submissionOperationId?: string;
+    acceptedResultId?: string;
+    submitPhase?: SoloSessionProgress['submitPhase'];
     answers: Record<number, any>;
     currentQuestion: number;
     timeElapsed: number;
     mobileState?: SavedMobileState;
     enabled: boolean;  // false when test is submitted
+}
+
+export interface SoloAutoSaveFlushOutcome {
+    outcome: 'saved' | 'skipped' | 'failed';
+    savedAt: number | null;
+    error: string | null;
+}
+
+export interface SoloAutoSaveStatus extends AutoSaveStatus {
+    flushNow: () => Promise<SoloAutoSaveFlushOutcome>;
+    waitForAcceptedSave: () => Promise<SoloAutoSaveFlushOutcome | undefined>;
 }
 
 const SAVE_INTERVAL_MS = 30_000; // 30 seconds
@@ -23,33 +38,48 @@ export const useSoloAutoSave = ({
     materialId,
     studentId,
     scopeContext,
+    attemptId,
+    submissionOperationId,
+    acceptedResultId,
+    submitPhase,
     answers,
     currentQuestion,
     timeElapsed,
     mobileState,
     enabled,
-}: UseSoloAutoSaveOptions): AutoSaveStatus => {
+}: UseSoloAutoSaveOptions): SoloAutoSaveStatus => {
     const [status, setStatus] = useState<AutoSaveStatus['status']>('idle');
     const [lastSaved, setLastSaved] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const lastSaveRef = useRef<number>(Date.now());
-    const isSavingRef = useRef(false);
+    const lastSavedValueRef = useRef<number | null>(null);
+    const inFlightSaveRef = useRef<Promise<SoloAutoSaveFlushOutcome> | null>(null);
     const isMountedRef = useRef(true);
     const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const saveProgressRef = useRef<(options?: { force?: boolean }) => Promise<void>>(async () => {});
+    const saveProgressRef = useRef<(options?: { force?: boolean }) => Promise<SoloAutoSaveFlushOutcome>>(
+        async () => ({ outcome: 'skipped', savedAt: null, error: null }),
+    );
 
-    // Use refs for values that change frequently to avoid interval reset on every keystroke
+    // Use refs for values that change frequently to avoid interval reset on every keystroke.
     const answersRef = useRef(answers);
     const currentQuestionRef = useRef(currentQuestion);
     const timeElapsedRef = useRef(timeElapsed);
     const mobileStateRef = useRef(mobileState);
     const scopeContextRef = useRef(scopeContext);
+    const attemptIdRef = useRef(attemptId);
+    const submissionOperationIdRef = useRef(submissionOperationId);
+    const acceptedResultIdRef = useRef(acceptedResultId);
+    const submitPhaseRef = useRef(submitPhase);
 
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
     useEffect(() => { timeElapsedRef.current = timeElapsed; }, [timeElapsed]);
     useEffect(() => { mobileStateRef.current = mobileState; }, [mobileState]);
     useEffect(() => { scopeContextRef.current = scopeContext; }, [scopeContext]);
+    useEffect(() => { attemptIdRef.current = attemptId; }, [attemptId]);
+    useEffect(() => { submissionOperationIdRef.current = submissionOperationId; }, [submissionOperationId]);
+    useEffect(() => { acceptedResultIdRef.current = acceptedResultId; }, [acceptedResultId]);
+    useEffect(() => { submitPhaseRef.current = submitPhase; }, [submitPhase]);
 
     const clearStatusResetTimer = useCallback(() => {
         if (statusResetTimeoutRef.current) {
@@ -73,64 +103,82 @@ export const useSoloAutoSave = ({
         }, delayMs);
     }, [clearStatusResetTimer]);
 
-    const saveProgress = useCallback(async (options?: { force?: boolean }) => {
-        if (!materialId || !studentId || !enabled || isSavingRef.current) {
-            return;
+    const saveProgress = useCallback((options?: { force?: boolean }): Promise<SoloAutoSaveFlushOutcome> => {
+        if (!materialId || !studentId || !enabled) {
+            return Promise.resolve({ outcome: 'skipped', savedAt: lastSavedValueRef.current, error: null });
+        }
+
+        if (inFlightSaveRef.current) {
+            return inFlightSaveRef.current;
         }
 
         const now = Date.now();
         if (!options?.force && now - lastSaveRef.current < SAVE_INTERVAL_MS - 1000) {
-            return;
+            return Promise.resolve({ outcome: 'skipped', savedAt: lastSavedValueRef.current, error: null });
         }
 
-        try {
-            isSavingRef.current = true;
-            clearStatusResetTimer();
-            if (isMountedRef.current) {
-                setStatus('saving');
-                setError(null);
-            }
+        const operation = (async (): Promise<SoloAutoSaveFlushOutcome> => {
+            try {
+                clearStatusResetTimer();
+                if (isMountedRef.current) {
+                    setStatus('saving');
+                    setError(null);
+                }
 
-            const key = buildSoloProgressStorageKey({
-                materialId,
-                studentId,
-                scopeContext: scopeContextRef.current,
-            });
-            const existing = await storage.get<SoloSessionProgress>(key);
-            const startedAt = existing && typeof existing === 'object' && 'startedAt' in existing
-                ? Number((existing as SoloSessionProgress).startedAt) || now
-                : now;
+                const key = buildSoloProgressStorageKey({
+                    materialId,
+                    studentId,
+                    scopeContext: scopeContextRef.current,
+                });
+                const existing = await storage.get<SoloSessionProgress>(key);
+                const startedAt = existing && typeof existing === 'object' && 'startedAt' in existing
+                    ? Number((existing as SoloSessionProgress).startedAt) || now
+                    : now;
 
-            const progress: SoloSessionProgress = {
-                materialId,
-                studentId,
-                scopeContext: scopeContextRef.current,
-                answers: answersRef.current,
-                currentQuestion: currentQuestionRef.current,
-                timeElapsed: timeElapsedRef.current,
-                startedAt,
-                lastSavedAt: now,
-                mobileState: mobileStateRef.current,
-            };
+                const progress: SoloSessionProgress = {
+                    materialId,
+                    studentId,
+                    scopeContext: scopeContextRef.current,
+                    answers: answersRef.current,
+                    currentQuestion: currentQuestionRef.current,
+                    timeElapsed: timeElapsedRef.current,
+                    startedAt,
+                    lastSavedAt: now,
+                    mobileState: mobileStateRef.current,
+                };
 
-            await storage.set(key, progress);
-            lastSaveRef.current = now;
-            if (isMountedRef.current) {
-                setLastSaved(now);
-                setStatus('saved');
-                scheduleStatusReset(2000);
+                if (attemptIdRef.current) progress.attemptId = attemptIdRef.current;
+                if (submissionOperationIdRef.current) progress.submissionOperationId = submissionOperationIdRef.current;
+                if (acceptedResultIdRef.current) progress.acceptedResultId = acceptedResultIdRef.current;
+                if (submitPhaseRef.current) progress.submitPhase = submitPhaseRef.current;
+
+                await storage.set(key, progress);
+                lastSaveRef.current = now;
+                lastSavedValueRef.current = now;
+                if (isMountedRef.current) {
+                    setLastSaved(now);
+                    setStatus('saved');
+                    scheduleStatusReset(2000);
+                }
+                console.log('[SoloAutoSave] Progress saved');
+
+                return { outcome: 'saved', savedAt: now, error: null };
+            } catch (err) {
+                console.warn('Failed to save solo progress:', err);
+                const message = err instanceof Error ? err.message : 'Unknown error';
+                if (isMountedRef.current) {
+                    setError(message);
+                    setStatus('error');
+                    scheduleStatusReset(5000, true);
+                }
+                return { outcome: 'failed', savedAt: null, error: message };
+            } finally {
+                inFlightSaveRef.current = null;
             }
-            console.log('💾 [SoloAutoSave] Progress saved');
-        } catch (err) {
-            console.warn('Failed to save solo progress:', err);
-            if (isMountedRef.current) {
-                setError(err instanceof Error ? err.message : 'Unknown error');
-                setStatus('error');
-                scheduleStatusReset(5000, true);
-            }
-        } finally {
-            isSavingRef.current = false;
-        }
+        })();
+
+        inFlightSaveRef.current = operation;
+        return operation;
     }, [clearStatusResetTimer, enabled, materialId, scheduleStatusReset, studentId]);
 
     useEffect(() => {
@@ -155,6 +203,12 @@ export const useSoloAutoSave = ({
         void saveProgressRef.current({ force: true });
     }, [enabled, materialId, studentId]);
 
+    const flushNow = useCallback(() => saveProgressRef.current({ force: true }), []);
+
+    const waitForAcceptedSave = useCallback(() => (
+        inFlightSaveRef.current ?? Promise.resolve(undefined)
+    ), []);
+
     useAppLifecycle({
         onBackground: flushProgress,
         onBeforeUnload: flushProgress,
@@ -177,6 +231,8 @@ export const useSoloAutoSave = ({
         status,
         lastSaved,
         error,
+        flushNow,
+        waitForAcceptedSave,
     };
 };
 

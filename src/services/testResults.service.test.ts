@@ -251,6 +251,155 @@ describe('testResults.service', () => {
             );
         });
 
+        it('writes a stable solo result id with operation identity for idempotent reload recovery', async () => {
+            (get as any).mockResolvedValueOnce({
+                exists: () => false,
+                val: () => null,
+            });
+
+            const markingResult = {
+                totalScore: 10,
+                maxScore: 20,
+                percentage: 50,
+                completedAt: 1000,
+                questionResults: [],
+                summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 },
+            } as any;
+
+            const resultId = await saveTestResult(
+                'self_study__student-1__TEST-1__attempt-001__submit',
+                'TEST-1',
+                'student-1',
+                'Student Name',
+                markingResult,
+                { title: 'Test', type: 'IELTS', skill: 'Listening', duration: 30 },
+                500,
+                undefined,
+                false,
+                undefined,
+                undefined,
+                {
+                    type: 'self_study',
+                    source: { type: 'library', id: 'TEST-1', name: 'Test' },
+                },
+                undefined,
+                undefined,
+                {
+                    stableResultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    submissionOperationId: 'self_study__student-1__TEST-1__attempt-001__submit',
+                },
+            );
+
+            expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
+            expect(push).not.toHaveBeenCalled();
+            expect(set).toHaveBeenCalledWith(
+                'test_results/listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                expect.objectContaining({
+                    resultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    submissionOperationId: 'self_study__student-1__TEST-1__attempt-001__submit',
+                }),
+            );
+        });
+
+        it('returns an existing stable solo result without duplicate writes or side effects', async () => {
+            (get as any).mockResolvedValueOnce({
+                exists: () => true,
+                val: () => createLegacyResultRecord({
+                    resultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    sessionCode: 'self_study__student-1__TEST-1__attempt-001__submit',
+                    testId: 'TEST-1',
+                    studentId: 'student-1',
+                    testSkill: 'Listening',
+                    ...( { submissionOperationId: 'self_study__student-1__TEST-1__attempt-001__submit' } as any ),
+                }),
+            });
+
+            const resultId = await saveTestResult(
+                'self_study__student-1__TEST-1__attempt-001__submit',
+                'TEST-1',
+                'student-1',
+                'Student Name',
+                {
+                    totalScore: 10,
+                    maxScore: 20,
+                    percentage: 50,
+                    completedAt: 1000,
+                    questionResults: [],
+                    summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 },
+                } as any,
+                { title: 'Test', type: 'IELTS', skill: 'Listening', duration: 30 },
+                500,
+                undefined,
+                false,
+                undefined,
+                undefined,
+                {
+                    type: 'self_study',
+                    source: { type: 'library', id: 'TEST-1', name: 'Test' },
+                },
+                undefined,
+                undefined,
+                {
+                    stableResultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    submissionOperationId: 'self_study__student-1__TEST-1__attempt-001__submit',
+                },
+            );
+
+            expect(resultId).toBe('listening_solo__self_study__student-1__TEST-1__attempt-001__submit');
+            expect(set).not.toHaveBeenCalled();
+            expect(update).not.toHaveBeenCalled();
+            expect(mockCreateNotification).not.toHaveBeenCalled();
+            expect(mockTriggerFormativeFeedbackForSavedResult).not.toHaveBeenCalled();
+        });
+
+        it('rejects a stable result id that belongs to a different submit operation', async () => {
+            (get as any).mockResolvedValueOnce({
+                exists: () => true,
+                val: () => createLegacyResultRecord({
+                    resultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    sessionCode: 'self_study__student-1__TEST-1__attempt-001__submit',
+                    testId: 'TEST-1',
+                    studentId: 'student-1',
+                    testSkill: 'Listening',
+                    ...( { submissionOperationId: 'different-operation' } as any ),
+                }),
+            });
+
+            await expect(saveTestResult(
+                'self_study__student-1__TEST-1__attempt-001__submit',
+                'TEST-1',
+                'student-1',
+                'Student Name',
+                {
+                    totalScore: 10,
+                    maxScore: 20,
+                    percentage: 50,
+                    completedAt: 1000,
+                    questionResults: [],
+                    summary: { correct: 5, incorrect: 5, partialCredit: 0, totalQuestions: 10 },
+                } as any,
+                { title: 'Test', type: 'IELTS', skill: 'Listening', duration: 30 },
+                500,
+                undefined,
+                false,
+                undefined,
+                undefined,
+                {
+                    type: 'self_study',
+                    source: { type: 'library', id: 'TEST-1', name: 'Test' },
+                },
+                undefined,
+                undefined,
+                {
+                    stableResultId: 'listening_solo__self_study__student-1__TEST-1__attempt-001__submit',
+                    submissionOperationId: 'self_study__student-1__TEST-1__attempt-001__submit',
+                },
+            )).rejects.toThrow(/already belongs to another submit operation/i);
+
+            expect(set).not.toHaveBeenCalled();
+            expect(update).not.toHaveBeenCalled();
+        });
+
         it('writes the canonical result before fan-out indexes so RTDB rule checks can resolve the row', async () => {
             const mockPush = { key: 'result-order-1' };
             (push as any).mockReturnValue(mockPush);

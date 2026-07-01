@@ -1,0 +1,194 @@
+{
+  "createdAt": "2026-06-30T17:50:23.210Z",
+  "activeVersionId": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+  "candidateVersionId": "f217034a-4a21-48be-85d1-5b629ebd70b8",
+  "candidateEquivalent": true,
+  "candidateSummaryPath": "output/prd0055-task9-live-readback/wrangler-equivalent-candidate-summary.json",
+  "operations": [
+    {
+      "name": "split-99-1-deploy",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-split-99-1-deploy.txt",
+      "stdout": "\n ⛅️ wrangler 4.103.0 (update available 4.106.0)\n───────────────────────────────────────────────\n╭ Deploy Worker Versions by splitting traffic between multiple versions\n│\n├ Fetching latest deployment\n│\n├ Your current deployment has 1 version(s):\n│\n│ (100%) 993acdc9-dd93-4ee8-8764-15847146ac3a\n│       Created:  2026-06-30T15:54:26.232253Z\n│           Tag:  prd0055-bind-delivery-rtdb-fetch-20260630\n│       Message:  PRD-0055 bind delivery RTDB fetch\n│\n├ Fetching versions\n│\n├ Which version(s) do you want to deploy?\n├ 2 Worker Version(s) selected\n│\n├     Worker Version 1:  993acdc9-dd93-4ee8-8764-15847146ac3a\n│              Created:  2026-06-30T15:54:26.232253Z\n│                  Tag:  prd0055-bind-delivery-rtdb-fetch-20260630\n│              Message:  PRD-0055 bind delivery RTDB fetch\n│\n├     Worker Version 2:  f217034a-4a21-48be-85d1-5b629ebd70b8\n│              Created:  2026-06-30T17:49:22.115469Z\n│                  Tag:  prd0055-active-equivalent-1782841754348\n│              Message:  PRD-0055 active-equivalent percentage rollout candidate\n│\n├ What percentage of traffic should Worker Version 1 receive?\n├ 99% of traffic\n├\n├ What percentage of traffic should Worker Version 2 receive?\n├ 1% of traffic\n├\n├ Add a deployment message\n│ Deployment message PRD-0055 1 percent equivalent candidate rollout rehearsal\n│\n├ Deploying 2 version(s)\n│\n│ No non-versioned settings to sync. Skipping...\n│\n╰  SUCCESS  Deployed r2-upload-signer version 993acdc9-dd93-4ee8-8764-15847146ac3a at 99% and version f217034a-4a21-48be-85d1-5b629ebd70b8 at 1% (1.05 sec)\n"
+    },
+    {
+      "name": "split-99-1-status",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-split-99-1-status.json",
+      "stdout": "{\n  \"id\": \"b8b6435d-bba6-4951-a2a0-6a5d8e140da3\",\n  \"source\": \"wrangler\",\n  \"strategy\": \"percentage\",\n  \"author_email\": \"iamhuwng@gmail.com\",\n  \"annotations\": {\n    \"workers/message\": \"PRD-0055 1 percent equivalent candidate rollout rehearsal\",\n    \"workers/triggered_by\": \"deployment\"\n  },\n  \"versions\": [\n    {\n      \"version_id\": \"993acdc9-dd93-4ee8-8764-15847146ac3a\",\n      \"percentage\": 99\n    },\n    {\n      \"version_id\": \"f217034a-4a21-48be-85d1-5b629ebd70b8\",\n      \"percentage\": 1\n    }\n  ],\n  \"created_on\": \"2026-06-30T17:50:26.406636Z\"\n}\n",
+      "json": {
+        "id": "b8b6435d-bba6-4951-a2a0-6a5d8e140da3",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "author_email": "iamhuwng@gmail.com",
+        "annotations": {
+          "workers/message": "PRD-0055 1 percent equivalent candidate rollout rehearsal",
+          "workers/triggered_by": "deployment"
+        },
+        "versions": [
+          {
+            "version_id": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+            "percentage": 99
+          },
+          {
+            "version_id": "f217034a-4a21-48be-85d1-5b629ebd70b8",
+            "percentage": 1
+          }
+        ],
+        "created_on": "2026-06-30T17:50:26.406636Z"
+      }
+    },
+    {
+      "name": "split-99-1-smoke",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-split-99-1-smoke.txt",
+      "stdout": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\output\\prd0055-task9-live-readback\\prd0055-selected-class-live-1782841830774.json\n",
+      "proofPath": "output/prd0055-task9-live-readback/prd0055-selected-class-live-1782841830774.json",
+      "proofId": "prd0055-selected-class-live-1782841830774",
+      "sessionCode": "T8HVWE",
+      "passed": true,
+      "checks": [
+        {
+          "name": "firebase-selected-class-readback",
+          "status": "passed"
+        },
+        {
+          "name": "teacher-live-private-delivery",
+          "status": "passed",
+          "issueStatus": 200,
+          "rangeStatus": 206
+        },
+        {
+          "name": "selected-student-live-private-delivery",
+          "status": "passed",
+          "issueStatus": 200,
+          "rangeStatus": 206
+        },
+        {
+          "name": "selected-student-refresh-attempt",
+          "status": "passed",
+          "refreshStatus": 400,
+          "code": "refresh_not_due"
+        },
+        {
+          "name": "cross-owner-live-denial-attempt",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_not_authorized"
+        },
+        {
+          "name": "cross-owner-live-denial",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_not_authorized"
+        },
+        {
+          "name": "wrong-section-denial-attempt",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_live_asset_mismatch"
+        },
+        {
+          "name": "wrong-section-denial",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_live_asset_mismatch"
+        }
+      ]
+    },
+    {
+      "name": "restore-active-100-deploy",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-restore-active-100-deploy.txt",
+      "stdout": "\n ⛅️ wrangler 4.103.0 (update available 4.106.0)\n───────────────────────────────────────────────\n╭ Deploy Worker Versions by splitting traffic between multiple versions\n│\n├ Fetching latest deployment\n│\n├ Your current deployment has 2 version(s):\n│\n│ (99%) 993acdc9-dd93-4ee8-8764-15847146ac3a\n│       Created:  2026-06-30T15:54:26.232253Z\n│           Tag:  prd0055-bind-delivery-rtdb-fetch-20260630\n│       Message:  PRD-0055 bind delivery RTDB fetch\n│\n│ (1%) f217034a-4a21-48be-85d1-5b629ebd70b8\n│       Created:  2026-06-30T17:49:22.115469Z\n│           Tag:  prd0055-active-equivalent-1782841754348\n│       Message:  PRD-0055 active-equivalent percentage rollout candidate\n│\n├ Fetching versions\n│\n├ Which version(s) do you want to deploy?\n├ 1 Worker Version(s) selected\n│\n├     Worker Version 1:  993acdc9-dd93-4ee8-8764-15847146ac3a\n│              Created:  2026-06-30T15:54:26.232253Z\n│                  Tag:  prd0055-bind-delivery-rtdb-fetch-20260630\n│              Message:  PRD-0055 bind delivery RTDB fetch\n│\n├ What percentage of traffic should Worker Version 1 receive?\n├ 100% of traffic\n├\n├ Add a deployment message\n│ Deployment message PRD-0055 restore active version after 1 percent rollout rehearsal\n│\n├ Deploying 1 version(s)\n│\n│ No non-versioned settings to sync. Skipping...\n│\n╰  SUCCESS  Deployed r2-upload-signer version 993acdc9-dd93-4ee8-8764-15847146ac3a at 100% (1.15 sec)\n"
+    },
+    {
+      "name": "restore-active-100-status",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-restore-active-100-status.json",
+      "stdout": "{\n  \"id\": \"fd709c5b-c470-4c52-a3c2-1a7c1d4c18c1\",\n  \"source\": \"wrangler\",\n  \"strategy\": \"percentage\",\n  \"author_email\": \"iamhuwng@gmail.com\",\n  \"annotations\": {\n    \"workers/message\": \"PRD-0055 restore active version after 1 percent rollout rehearsal\",\n    \"workers/triggered_by\": \"deployment\"\n  },\n  \"versions\": [\n    {\n      \"version_id\": \"993acdc9-dd93-4ee8-8764-15847146ac3a\",\n      \"percentage\": 100\n    }\n  ],\n  \"created_on\": \"2026-06-30T17:51:46.747915Z\"\n}\n",
+      "json": {
+        "id": "fd709c5b-c470-4c52-a3c2-1a7c1d4c18c1",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "author_email": "iamhuwng@gmail.com",
+        "annotations": {
+          "workers/message": "PRD-0055 restore active version after 1 percent rollout rehearsal",
+          "workers/triggered_by": "deployment"
+        },
+        "versions": [
+          {
+            "version_id": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-06-30T17:51:46.747915Z"
+      }
+    },
+    {
+      "name": "restore-active-100-smoke",
+      "ok": true,
+      "artifact": "output\\prd0055-task9-live-readback\\wrangler-percentage-restore-active-100-smoke.txt",
+      "stdout": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\output\\prd0055-task9-live-readback\\prd0055-selected-class-live-1782841911531.json\n",
+      "proofPath": "output/prd0055-task9-live-readback/prd0055-selected-class-live-1782841911531.json",
+      "proofId": "prd0055-selected-class-live-1782841911531",
+      "sessionCode": "T8QYZU",
+      "passed": true,
+      "checks": [
+        {
+          "name": "firebase-selected-class-readback",
+          "status": "passed"
+        },
+        {
+          "name": "teacher-live-private-delivery",
+          "status": "passed",
+          "issueStatus": 200,
+          "rangeStatus": 206
+        },
+        {
+          "name": "selected-student-live-private-delivery",
+          "status": "passed",
+          "issueStatus": 200,
+          "rangeStatus": 206
+        },
+        {
+          "name": "selected-student-refresh-attempt",
+          "status": "passed",
+          "refreshStatus": 400,
+          "code": "refresh_not_due"
+        },
+        {
+          "name": "cross-owner-live-denial-attempt",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_not_authorized"
+        },
+        {
+          "name": "cross-owner-live-denial",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_not_authorized"
+        },
+        {
+          "name": "wrong-section-denial-attempt",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_live_asset_mismatch"
+        },
+        {
+          "name": "wrong-section-denial",
+          "status": "passed",
+          "issueStatus": 403,
+          "code": "delivery_live_asset_mismatch"
+        }
+      ]
+    }
+  ],
+  "explicitNonActions": [
+    "No cleanup/delete.",
+    "No commit/push/merge.",
+    "No code-version deploy during this percentage split; both versions already existed."
+  ],
+  "restoredActive100": true,
+  "passed": true
+}

@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "id": "expire-temp-prefix-after-one-day",
+      "enabled": true,
+      "conditions": {
+        "prefix": "temp/"
+      },
+      "deleteObjectsTransition": {
+        "condition": {
+          "type": "Age",
+          "maxAge": 86400
+        }
+      }
+    }
+  ]
+}

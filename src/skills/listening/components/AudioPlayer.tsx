@@ -34,6 +34,28 @@ interface AudioControlsConfig {
   showVolumeControl: boolean;
 }
 
+export interface AuthorizedDeliveryRefreshContext {
+  sectionNumber: number;
+  masterRevision: number | null;
+  expiresAt?: number;
+}
+
+export interface AuthorizedDeliveryRefreshResult {
+  url: string;
+  expiresAt?: number;
+  refreshAfter?: number;
+}
+
+export interface AuthorizedDeliveryConfig {
+  expiresAt?: number;
+  refreshAfter?: number;
+  refreshSource?: (context: AuthorizedDeliveryRefreshContext) => Promise<AuthorizedDeliveryRefreshResult | string>;
+  prepareReplacementSource?: (url: string) => Promise<void>;
+  retryBackoffMs?: readonly number[];
+  onRefreshWarning?: (message: string | null) => void;
+  now?: () => number;
+}
+
 interface AudioPlayerProps {
   audioUrl: string;
   sectionNumber: number;
@@ -83,6 +105,79 @@ interface AudioPlayerProps {
   headphoneRequest?: HeadphoneRequest | null;
   /** Callback when student requests headphone permission */
   onRequestHeadphones?: () => void;
+  /** Optional live/private delivery refresh handoff. Inert for current public traffic. */
+  authorizedDelivery?: AuthorizedDeliveryConfig;
+}
+
+const AUTHORIZED_REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
+const AUTHORIZED_REFRESH_RISK_MS = 2 * 60 * 1000;
+const AUTHORIZED_REFRESH_DEFAULT_BACKOFF_MS = [1000, 3000, 5000] as const;
+const AUTHORIZED_REPLACEMENT_PRELOAD_TIMEOUT_MS = 10000;
+
+function sanitizeAudioUrlForDiagnostics(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return `${parsed.origin}/[redacted-audio-url]`;
+    }
+  } catch {
+    return '[redacted-audio-url]';
+  }
+
+  return '[redacted-audio-url]';
+}
+
+function getSafeAudioElementSource(audio: HTMLAudioElement): string | null {
+  return sanitizeAudioUrlForDiagnostics(audio.currentSrc || audio.src);
+}
+
+function normalizeRefreshResult(result: AuthorizedDeliveryRefreshResult | string): AuthorizedDeliveryRefreshResult {
+  if (typeof result === 'string') {
+    return { url: result };
+  }
+
+  return result;
+}
+
+function preloadReplacementAudioSource(url: string): Promise<void> {
+  if (typeof Audio === 'undefined') {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+      audio.removeEventListener('canplay', handleReady);
+      audio.removeEventListener('loadedmetadata', handleReady);
+      audio.removeEventListener('error', handleError);
+      audio.src = '';
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const handleReady = () => finish();
+    const handleError = () => finish(new Error('replacement_source_not_ready'));
+    const timeoutId = setTimeout(() => finish(new Error('replacement_source_timeout')), AUTHORIZED_REPLACEMENT_PRELOAD_TIMEOUT_MS);
+
+    audio.preload = 'metadata';
+    audio.addEventListener('canplay', handleReady, { once: true });
+    audio.addEventListener('loadedmetadata', handleReady, { once: true });
+    audio.addEventListener('error', handleError, { once: true });
+    audio.src = url;
+    audio.load();
+  });
 }
 
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({
@@ -114,6 +209,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   masterAudioState,
   headphoneRequest,
   onRequestHeadphones,
+  authorizedDelivery,
 }) => {
   // Resolve settings: prefer audioControls if provided, fall back to legacy props
   const allowPause = audioControls?.showPlayPause ?? allowPauseLegacy;
@@ -134,6 +230,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
   // Retry logic for transient errors
   const loadRetryCountRef = useRef(0);
+  const refreshRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshSequenceRef = useRef(0);
+  const pendingSourceHandoffRef = useRef<{
+    url: string;
+    position: number;
+    speed: number;
+    shouldPlay: boolean;
+    revision: number | null;
+  } | null>(null);
   const playbackDiagnosticTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingPlayDiagnosticRef = useRef<{
     reason: 'tap' | 'sync';
@@ -141,6 +246,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     startedAt: number;
   } | null>(null);
   const MAX_LOAD_RETRIES = 3;
+  const [authorizedSourceMeta, setAuthorizedSourceMeta] = useState<{
+    url: string;
+    expiresAt?: number;
+    refreshAfter?: number;
+  } | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   // ============================================================
   // PRD-0018: Unified Audio Mode Logic
@@ -288,6 +399,19 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     pendingPlayDiagnosticRef.current = null;
   }, []);
 
+  const clearRefreshRetry = useCallback(() => {
+    refreshSequenceRef.current += 1;
+    if (refreshRetryTimeoutRef.current) {
+      clearTimeout(refreshRetryTimeoutRef.current);
+      refreshRetryTimeoutRef.current = null;
+    }
+  }, []);
+
+  const setSafeRefreshWarning = useCallback((message: string | null) => {
+    setRefreshWarning(message);
+    authorizedDelivery?.onRefreshWarning?.(message);
+  }, [authorizedDelivery?.onRefreshWarning]);
+
   const schedulePlaybackDiagnostics = useCallback((reason: 'tap' | 'sync') => {
     const audio = audioRef.current;
     if (!audio) {
@@ -323,7 +447,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         paused: currentAudio.paused,
         currentTime: currentAudio.currentTime,
         duration: currentAudio.duration,
-        src: currentAudio.currentSrc || currentAudio.src,
+        src: getSafeAudioElementSource(currentAudio),
       });
     }, 1500);
   }, [audioMode, clearPlaybackDiagnostics, playerMode, sectionNumber]);
@@ -343,7 +467,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       currentTime: audio.currentTime,
       duration: audio.duration,
       readyState: audio.readyState,
-      src: audio.currentSrc || audio.src,
+      src: getSafeAudioElementSource(audio),
     });
     clearPlaybackDiagnostics();
   }, [clearPlaybackDiagnostics, sectionNumber]);
@@ -396,12 +520,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         if (isR2Url || isDirectUrl) {
           // Direct URL (R2 or other CDN)
-          listeningDiagnostics.log('🎵 Using direct audio URL:', audioUrl);
+          listeningDiagnostics.log('AudioPlayer using direct audio URL', sanitizeAudioUrlForDiagnostics(audioUrl));
 
           // PROACTIVE CHECK: Detect legacy temp paths that may have been deleted
           const isLegacyTempPath = audioUrl.includes('-temp/');
           if (isLegacyTempPath) {
-            listeningDiagnostics.warn('⚠️ [AudioPlayer] Detected legacy temp path in URL:', audioUrl);
+            listeningDiagnostics.warn('[AudioPlayer] Detected legacy temp path in URL', sanitizeAudioUrlForDiagnostics(audioUrl));
             listeningDiagnostics.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
             listeningDiagnostics.warn('⚠️ Expected pattern: temp/folder/file.mp3 or permanent path without -temp/');
 
@@ -440,7 +564,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           }
         } else {
           // Unknown URL format - try as direct
-          listeningDiagnostics.log('🎵 Treating unknown URL as direct:', audioUrl);
+          listeningDiagnostics.log('AudioPlayer treating unknown URL as direct', sanitizeAudioUrlForDiagnostics(audioUrl));
           setAudioSource({
             type: 'direct',
             url: audioUrl,
@@ -461,6 +585,163 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   }, [audioUrl, onError]);
 
+  useEffect(() => {
+    setAuthorizedSourceMeta(authorizedDelivery
+      ? {
+          url: audioUrl,
+          expiresAt: authorizedDelivery.expiresAt,
+          refreshAfter: authorizedDelivery.refreshAfter,
+        }
+      : null);
+    setRefreshWarning(null);
+    authorizedDelivery?.onRefreshWarning?.(null);
+    clearRefreshRetry();
+  }, [
+    audioUrl,
+    authorizedDelivery?.expiresAt,
+    authorizedDelivery?.refreshAfter,
+    authorizedDelivery?.onRefreshWarning,
+    clearRefreshRetry,
+  ]);
+
+  useEffect(() => {
+    const refreshSource = authorizedDelivery?.refreshSource;
+    if (!authorizedDelivery || !refreshSource || !audioSource?.url || audioSource.type === 'error') {
+      return;
+    }
+
+    const activeMeta = authorizedSourceMeta?.url === audioSource.url
+      ? authorizedSourceMeta
+      : {
+          url: audioSource.url,
+          expiresAt: authorizedDelivery.expiresAt,
+          refreshAfter: authorizedDelivery.refreshAfter,
+        };
+    const now = authorizedDelivery.now?.() ?? Date.now();
+    const expiresInMs = typeof activeMeta.expiresAt === 'number'
+      ? activeMeta.expiresAt - now
+      : Number.POSITIVE_INFINITY;
+    const refreshDue = typeof activeMeta.refreshAfter === 'number'
+      ? now >= activeMeta.refreshAfter
+      : expiresInMs <= AUTHORIZED_REFRESH_THRESHOLD_MS;
+
+    if (!refreshDue) {
+      if (expiresInMs <= AUTHORIZED_REFRESH_RISK_MS) {
+        setSafeRefreshWarning('Audio source expires soon. Playback continues while a replacement source is prepared.');
+      }
+      return;
+    }
+
+    clearRefreshRetry();
+    const sequence = refreshSequenceRef.current;
+    const backoff = authorizedDelivery.retryBackoffMs ?? AUTHORIZED_REFRESH_DEFAULT_BACKOFF_MS;
+    let cancelled = false;
+
+    const runRefreshAttempt = async (attemptIndex: number) => {
+      if (cancelled || refreshSequenceRef.current !== sequence) {
+        return;
+      }
+
+      try {
+        const result = normalizeRefreshResult(await refreshSource({
+          sectionNumber,
+          masterRevision: typeof masterAudioState?.revision === 'number' ? masterAudioState.revision : null,
+          expiresAt: activeMeta.expiresAt,
+        }));
+
+        if (!result.url) {
+          throw new Error('authorized_refresh_missing_url');
+        }
+
+        const prepareReplacement = authorizedDelivery.prepareReplacementSource ?? preloadReplacementAudioSource;
+        await prepareReplacement(result.url);
+
+        if (cancelled || refreshSequenceRef.current !== sequence) {
+          return;
+        }
+
+        const audio = audioRef.current;
+        const position = masterAudioState?.section === sectionNumber
+          ? masterAudioState.position
+          : audio?.currentTime ?? currentTime;
+        const speed = masterAudioState?.speed ?? playbackSpeed;
+        const shouldPlay = masterAudioState?.isPlaying ?? effectiveIsPlaying;
+
+        pendingSourceHandoffRef.current = {
+          url: result.url,
+          position,
+          speed,
+          shouldPlay,
+          revision: typeof masterAudioState?.revision === 'number' ? masterAudioState.revision : null,
+        };
+
+        setAuthorizedSourceMeta({
+          url: result.url,
+          expiresAt: result.expiresAt,
+          refreshAfter: result.refreshAfter,
+        });
+        setAudioSource((currentSource) => currentSource
+          ? {
+              ...currentSource,
+              type: 'direct',
+              url: result.url,
+              originalUrl: result.url,
+            }
+          : {
+              type: 'direct',
+              url: result.url,
+              fileId: '',
+              originalUrl: result.url,
+            });
+        loadRetryCountRef.current = 0;
+        setSafeRefreshWarning(null);
+        listeningDiagnostics.info('[AudioPlayer] Authorized source refresh ready', {
+          sectionNumber,
+          masterRevision: typeof masterAudioState?.revision === 'number' ? masterAudioState.revision : null,
+          replacement: sanitizeAudioUrlForDiagnostics(result.url),
+        });
+      } catch (error) {
+        if (cancelled || refreshSequenceRef.current !== sequence) {
+          return;
+        }
+
+        setSafeRefreshWarning('Audio source refresh needs attention. Playback continues on the current source while retrying.');
+        listeningDiagnostics.warn('[AudioPlayer] Authorized source refresh failed; keeping current source active', {
+          sectionNumber,
+          attempt: attemptIndex + 1,
+          maxAttempts: backoff.length + 1,
+          currentSource: sanitizeAudioUrlForDiagnostics(activeMeta.url),
+          error: 'redacted_refresh_error',
+          errorType: error instanceof Error ? 'error' : typeof error,
+        });
+
+        if (attemptIndex < backoff.length) {
+          refreshRetryTimeoutRef.current = setTimeout(() => {
+            void runRefreshAttempt(attemptIndex + 1);
+          }, backoff[attemptIndex]);
+        }
+      }
+    };
+
+    void runRefreshAttempt(0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    audioSource?.type,
+    audioSource?.url,
+    authorizedDelivery,
+    authorizedSourceMeta,
+    clearRefreshRetry,
+    currentTime,
+    effectiveIsPlaying,
+    masterAudioState,
+    playbackSpeed,
+    sectionNumber,
+    setSafeRefreshWarning,
+  ]);
+
   // Handle audio element events
   useEffect(() => {
     const audio = audioRef.current;
@@ -475,7 +756,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         duration: audio.duration,
         readyState: audio.readyState,
         networkState: audio.networkState,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
     };
 
@@ -493,7 +774,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         readyState: audio.readyState,
         networkState: audio.networkState,
         ended: audio.ended,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
     };
 
@@ -502,7 +783,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         sectionNumber,
         currentTime: audio.currentTime,
         readyState: audio.readyState,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
       markPlaybackProgress('playing');
     };
@@ -513,7 +794,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         currentTime: audio.currentTime,
         duration: audio.duration,
         readyState: audio.readyState,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
     };
 
@@ -523,7 +804,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         currentTime: audio.currentTime,
         readyState: audio.readyState,
         networkState: audio.networkState,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
     };
 
@@ -533,7 +814,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         currentTime: audio.currentTime,
         readyState: audio.readyState,
         networkState: audio.networkState,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
     };
 
@@ -563,8 +844,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         code: errorCode,
         description: errorDescription,
         message: errorMessage,
-        url: audioSource?.url,
-        originalUrl: audioSource?.originalUrl,
+        url: sanitizeAudioUrlForDiagnostics(audioSource?.url),
+        originalUrl: sanitizeAudioUrlForDiagnostics(audioSource?.originalUrl),
       });
 
       // Only try Google Drive embed fallback if it's a Google Drive URL
@@ -664,7 +945,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         networkState: audio.networkState,
         paused: audio.paused,
         currentTime: audio.currentTime,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
       if (audio.readyState === 0) {
         audio.load();
@@ -673,6 +954,21 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       schedulePlaybackDiagnostics(reason);
     } catch (err) {
       clearPlaybackDiagnostics();
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        listeningDiagnostics.info('[AudioPlayer] Ignored interrupted play request during media handoff', {
+          reason,
+          sectionNumber,
+          playerMode,
+          audioMode: audioMode ?? null,
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          paused: audio.paused,
+          currentTime: audio.currentTime,
+          src: getSafeAudioElementSource(audio),
+        });
+        return;
+      }
+
       console.error('Playback failed:', err);
       listeningDiagnostics.warn('[AudioPlayer] Playback request rejected', {
         reason,
@@ -683,7 +979,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         networkState: audio.networkState,
         paused: audio.paused,
         currentTime: audio.currentTime,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
 
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
@@ -802,16 +1098,32 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   // Reset state and reload audio when URL or section changes
   useLayoutEffect(() => {
     listeningDiagnostics.log(`🎵 [AudioPlayer] Section/URL changed - resetting player state`);
-    setReplaysUsed(0);
-    setCurrentTime(0);
-    setUseEmbed(false);
     clearPlaybackDiagnostics();
-    loadRetryCountRef.current = 0; // Reset retry counter for new audio
 
     // Reset and reload audio element when URL changes
     const audio = audioRef.current;
     if (audio && audioSource?.url) {
-      audio.currentTime = 0;
+      const pendingHandoff = pendingSourceHandoffRef.current;
+      if (pendingHandoff?.url === audioSource.url) {
+        audio.playbackRate = pendingHandoff.speed;
+        audio.currentTime = pendingHandoff.position;
+        setCurrentTime(pendingHandoff.position);
+        pendingSourceHandoffRef.current = null;
+        listeningDiagnostics.info('[AudioPlayer] Authorized source handoff applied', {
+          sectionNumber,
+          revision: pendingHandoff.revision,
+          position: pendingHandoff.position,
+          speed: pendingHandoff.speed,
+          shouldPlay: pendingHandoff.shouldPlay,
+          source: sanitizeAudioUrlForDiagnostics(audioSource.url),
+        });
+      } else {
+        setReplaysUsed(0);
+        setCurrentTime(0);
+        setUseEmbed(false);
+        loadRetryCountRef.current = 0; // Reset retry counter for new audio
+        audio.currentTime = 0;
+      }
       audio.load(); // Force reload the audio source
     }
   }, [audioSource?.url, audioUrl, clearPlaybackDiagnostics, sectionNumber]);
@@ -832,7 +1144,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         sectionNumber,
         readyState: audio.readyState,
         currentTime: audio.currentTime,
-        src: audio.currentSrc || audio.src,
+        src: getSafeAudioElementSource(audio),
       });
       void attemptPlay('sync', false);
     };
@@ -856,8 +1168,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   useEffect(() => {
     return () => {
       clearPlaybackDiagnostics();
+      clearRefreshRetry();
     };
-  }, [clearPlaybackDiagnostics]);
+  }, [clearPlaybackDiagnostics, clearRefreshRetry]);
 
   // Handle teacher-commanded seek position
   useEffect(() => {
@@ -887,6 +1200,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.addEventListener('canplay', handleCanPlay);
       return () => audio.removeEventListener('canplay', handleCanPlay);
     }
+    return undefined;
   }, [seekPosition, onSeekConsumed]);
 
   // Handle seek
@@ -913,17 +1227,42 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   // Calculate progress percentage
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const renderRefreshWarning = () => refreshWarning ? (
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 10px',
+        backgroundColor: '#fff7ed',
+        border: '1px solid #fed7aa',
+        borderRadius: '6px',
+        color: '#9a3412',
+        fontSize: '12px',
+        fontWeight: 600,
+      }}
+    >
+      <span aria-hidden="true">!</span>
+      <span>{refreshWarning}</span>
+    </div>
+  ) : null;
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px 16px',
-        backgroundColor: '#f8fafc',
-        borderRadius: '8px',
-      }}>
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          backgroundColor: '#f8fafc',
+          borderRadius: '8px',
+        }}
+      >
         <div style={{
           width: '36px',
           height: '36px',
@@ -934,7 +1273,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           justifyContent: 'center',
           fontSize: '14px',
           color: '#94a3b8',
-        }}>
+        }} aria-hidden="true">
           ⏳
         </div>
         <span style={{ fontSize: '14px', color: '#64748b' }}>
@@ -946,16 +1285,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   if (audioSource?.type === 'error') {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px 16px',
-        backgroundColor: '#fef2f2',
-        borderRadius: '8px',
-        border: '1px solid #fecaca',
-      }}>
-        <span style={{ fontSize: '16px' }}>⚠️</span>
+      <div
+        role="alert"
+        aria-live="assertive"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          backgroundColor: '#fef2f2',
+          borderRadius: '8px',
+          border: '1px solid #fecaca',
+        }}
+      >
+        <span style={{ fontSize: '16px' }} aria-hidden="true">⚠️</span>
         <span style={{ fontSize: '14px', color: '#dc2626' }}>
           {audioSource.errorMessage || 'Audio load error'}
         </span>
@@ -1009,7 +1352,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       currentTime >= duration &&
       duration > 0;
     const compactSecondaryButtonStyle: React.CSSProperties = {
-      minHeight: '36px',
+      minHeight: '44px',
       padding: '0 8px',
       fontSize: '11px',
       fontWeight: 600,
@@ -1035,18 +1378,22 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       }}>
         {/* Offline Mode Banner - Request Headphones */}
         {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            padding: '10px 12px',
-            backgroundColor: 'rgba(251, 191, 36, 0.1)',
-            border: '1px solid rgba(251, 191, 36, 0.3)',
-            borderRadius: '10px',
-            fontSize: '12px',
-          }}>
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              padding: '10px 12px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid rgba(251, 191, 36, 0.3)',
+              borderRadius: '10px',
+              fontSize: '12px',
+            }}
+          >
             <span style={{ color: '#92400e', fontWeight: 600 }}>
               Audio is muted in classroom mode
             </span>
@@ -1072,6 +1419,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             </button>
           </div>
         )}
+
+        {renderRefreshWarning()}
 
         {/* Hidden Audio Element */}
         <audio
@@ -1174,7 +1523,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                     onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
                     aria-label="Playback speed"
                     style={{
-                      minHeight: '36px',
+                      minHeight: '44px',
                       padding: '0 8px',
                       fontSize: '12px',
                       fontWeight: 600,
@@ -1256,7 +1605,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 aria-label="Audio progress"
                 style={{
                   width: '100%',
-                  minHeight: '22px',
+                  minHeight: '44px',
                   background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
                   cursor: effectiveAllowRewind ? 'pointer' : 'default',
                   touchAction: 'manipulation',
@@ -1330,7 +1679,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                     aria-label="Volume"
                     style={{
                       width: '100%',
-                      minHeight: '22px',
+                      minHeight: '44px',
                       background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
                       cursor: 'pointer',
                       touchAction: 'manipulation',
@@ -1463,16 +1812,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       }}>
         {/* Offline Mode Banner - Request Headphones */}
         {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 12px',
-            backgroundColor: 'rgba(251, 191, 36, 0.1)',
-            border: '1px solid rgba(251, 191, 36, 0.3)',
-            borderRadius: '6px',
-            fontSize: '12px',
-          }}>
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid rgba(251, 191, 36, 0.3)',
+              borderRadius: '6px',
+              fontSize: '12px',
+            }}
+          >
             <span style={{ color: '#92400e' }}>
               🔇 Audio is muted in classroom mode
             </span>
@@ -1482,6 +1835,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               type="button"
               style={{
                 padding: '4px 8px',
+                minHeight: '44px',
                 fontSize: '11px',
                 backgroundColor: isHeadphoneRequestPending ? '#e5e7eb' : '#3b82f6',
                 color: 'white',
@@ -1496,6 +1850,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             </button>
           </div>
         )}
+
+        {renderRefreshWarning()}
 
         {/* Main Player Row */}
         <div style={{
@@ -1528,7 +1884,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               type="button"
               style={{
                 width: '32px',
-                height: '32px',
+                minWidth: '44px',
+                height: '44px',
                 borderRadius: '50%',
                 backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#374151',
                 color: 'white',
@@ -1550,7 +1907,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             /* Show playing indicator when pause not allowed */
             <div style={{
               width: '32px',
-              height: '32px',
+              minWidth: '44px',
+              height: '44px',
               borderRadius: '50%',
               backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#94a3b8',
               color: 'white',
@@ -1559,7 +1917,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               justifyContent: 'center',
               fontSize: '12px',
               flexShrink: 0,
-            }}>
+            }}
+              role="status"
+              aria-label={effectiveIsPlaying ? 'Audio playing under teacher control' : 'Audio paused under teacher control'}
+            >
               {effectiveIsPlaying ? '🎧' : '⏸'}
             </div>
           )}
@@ -1573,9 +1934,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               value={currentTime}
               onChange={handleSeek}
               disabled={!effectiveAllowRewind}
+              aria-label="Audio progress"
               style={{
                 width: '100%',
-                height: '6px',
+                minHeight: '44px',
                 borderRadius: '3px',
                 outline: 'none',
                 appearance: 'none',
@@ -1602,7 +1964,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <select
               value={localSpeed}
               onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+              aria-label="Playback speed"
               style={{
+                minHeight: '44px',
                 padding: '4px 6px',
                 fontSize: '11px',
                 borderRadius: '4px',
@@ -1626,8 +1990,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <button
               onClick={onSkipSection}
               title="Skip to next section"
+              aria-label="Skip to next section"
               type="button"
               style={{
+                minHeight: '44px',
                 padding: '4px 8px',
                 fontSize: '11px',
                 borderRadius: '4px',
@@ -1659,8 +2025,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 }
               }}
               title={`Replay (${maxReplays - replaysUsed} remaining)`}
+              aria-label={`Replay section (${maxReplays - replaysUsed} remaining)`}
               type="button"
               style={{
+                minHeight: '44px',
                 padding: '4px 8px',
                 fontSize: '11px',
                 borderRadius: '4px',
@@ -1691,9 +2059,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   onVolumeChange?.(newVolume);
                 }}
                 type="button"
+                aria-label="Decrease volume"
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '44px',
+                  height: '44px',
                   borderRadius: '4px',
                   border: '1px solid #cbd5e1',
                   background: '#f1f5f9',
@@ -1727,6 +2096,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 max="1"
                 step="0.01"
                 value={volume}
+                aria-label="Volume"
                 onChange={(e) => {
                   const newVolume = parseFloat(e.target.value);
                   const audio = audioRef.current;
@@ -1735,7 +2105,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 }}
                 style={{
                   width: '80px',
-                  height: '6px',
+                  minHeight: '44px',
                   borderRadius: '3px',
                   outline: 'none',
                   appearance: 'none',
@@ -1765,9 +2135,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   onVolumeChange?.(newVolume);
                 }}
                 type="button"
+                aria-label="Increase volume"
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '44px',
+                  height: '44px',
                   borderRadius: '4px',
                   border: '1px solid #cbd5e1',
                   background: '#f1f5f9',
@@ -1802,6 +2173,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       borderRadius: '8px',
       padding: '16px',
     }}>
+      {renderRefreshWarning()}
+
       {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
@@ -1816,6 +2189,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           onClick={handlePlayPausePress}
           disabled={!allowPause && effectiveIsPlaying}
           type="button"
+          aria-label={effectiveIsPlaying ? 'Pause' : 'Play'}
           style={{
             width: '44px',
             height: '44px',
@@ -1844,9 +2218,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             value={currentTime}
             onChange={handleSeek}
             disabled={!allowRewind && currentTime > 0}
+            aria-label="Audio progress"
             style={{
               width: '100%',
-              height: '8px',
+              minHeight: '44px',
               borderRadius: '4px',
               outline: 'none',
               background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,

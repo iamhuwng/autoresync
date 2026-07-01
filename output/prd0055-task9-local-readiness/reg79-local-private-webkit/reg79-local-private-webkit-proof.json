@@ -1,0 +1,115 @@
+{
+  "createdAt": "2026-07-01T11:32:48.939Z",
+  "projectName": "ios-safari",
+  "origin": "http://localhost:5173",
+  "localWorkerOrigin": "http://localhost:8787",
+  "localRouteMock": true,
+  "firebaseFixtureWrite": "internal live-session fixture only",
+  "fixture": {
+    "proofId": "reg79-local-private-webkit-1782905557299",
+    "sessionCode": "R794QW",
+    "testId": "reg79-local-private-webkit-1782905557299-test",
+    "versionId": "reg79-local-private-webkit-1782905557299-version",
+    "assetIds": [
+      "reg79-local-private-webkit-1782905557299-asset-s1",
+      "reg79-local-private-webkit-1782905557299-asset-s2"
+    ]
+  },
+  "rangeProbe": {
+    "status": 206,
+    "acceptRanges": "bytes",
+    "contentLength": "16",
+    "contentRange": "bytes 0-15/128044",
+    "riff": "RIFF"
+  },
+  "audioState": {
+    "currentTime": 4,
+    "duration": null,
+    "error": "",
+    "networkState": 3,
+    "paused": true,
+    "readyState": 0,
+    "src": "http://localhost:8787/listening-delivery/content?token=[redacted]"
+  },
+  "deliveryEvents": [
+    {
+      "type": "issue",
+      "sectionNumber": 1,
+      "tokenId": "[redacted-local-token]",
+      "hasPrevious": false
+    },
+    {
+      "type": "issue",
+      "sectionNumber": 2,
+      "tokenId": "[redacted-local-token]",
+      "hasPrevious": false
+    },
+    {
+      "type": "issue",
+      "sectionNumber": 1,
+      "tokenId": "[redacted-local-token]",
+      "hasPrevious": true
+    },
+    {
+      "type": "content",
+      "sectionNumber": 1,
+      "resourceType": "fetch",
+      "range": "bytes=0-15",
+      "status": 206,
+      "contentRange": "bytes 0-15/128044"
+    }
+  ],
+  "finalSession": {
+    "audioCommand": {
+      "canonicalRevision": 2,
+      "commandId": "seek-2-1782905567340",
+      "isPlaying": false,
+      "position": 4,
+      "schemaVersion": 2,
+      "sectionNumber": 1,
+      "speed": 1,
+      "timestamp": 1782905567340,
+      "type": "seekToPosition",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "className": "PRD-0055 REG-79 R794QW",
+    "createdAt": 1782905557299,
+    "createdBy": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "createdByUserId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "currentQuestionIndex": 0,
+    "expiresAt": 1782991957299,
+    "isPaused": false,
+    "masterAudioState": {
+      "actionId": "seek-2-1782905567340",
+      "isPlaying": false,
+      "lastAction": "seek",
+      "lastActionRevision": 2,
+      "lastActionTimestamp": 1782905567177,
+      "position": 4,
+      "revision": 2,
+      "schemaVersion": 2,
+      "section": 1,
+      "speed": 1,
+      "timestamp": 1782905567177,
+      "updateKind": "command",
+      "writerClientId": "teacher-monitor-R794QW",
+      "writerUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "mode": "test",
+    "sessionCode": "R794QW",
+    "settings": {
+      "allowLateJoin": true,
+      "audioMode": "online",
+      "autoAdvance": true,
+      "autoArchiveDays": 90,
+      "examMode": true,
+      "restrictToClassMembers": false,
+      "showLeaderboard": false
+    },
+    "startTime": 1782905557299,
+    "status": "in-progress",
+    "teacherId": "reg79-local-private-webkit-1782905557299-writer",
+    "testId": "reg79-local-private-webkit-1782905557299-test",
+    "updatedAt": 1782905557299
+  }
+}

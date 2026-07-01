@@ -1,0 +1,47 @@
+{
+  "createdAt": "2026-06-30T12:10:45.692Z",
+  "currentTime": 7.875746,
+  "duration": 20,
+  "href": "http://localhost:5173/teacher-test/T8P9J2",
+  "muted": false,
+  "paused": true,
+  "progressFills": [
+    {
+      "inlineWidth": "39.3787%",
+      "testId": "audio-section-progress-fill-1",
+      "width": "181.531px"
+    }
+  ],
+  "ranges": [
+    {
+      "aria": "Teacher monitor volume",
+      "max": "1",
+      "min": "0",
+      "value": "0.8"
+    },
+    {
+      "aria": "Seek section 1",
+      "max": "20",
+      "min": "0",
+      "value": "7.875746"
+    }
+  ],
+  "readyState": 4,
+  "resumeButtons": [
+    {
+      "aria": "Resume All Audio",
+      "disabled": false,
+      "text": "▶️"
+    },
+    {
+      "aria": "Resume All Audio",
+      "disabled": false,
+      "text": "▶"
+    }
+  ],
+  "src": "http://localhost:5174/__prd0055-task8-local/section-1.wav",
+  "timeControlLabel": null,
+  "timeLabel": "0:07 / 0:20",
+  "verdict": "HUMAN_AUDIBLE_PROOF_PENDING_DIRECT_GESTURE",
+  "visibleText": "←\nSession: T8P9J2\n0:00\nPause\n⏸️\n▶️\n⏮️\nSec 1\nSec 2\n⏭️\n0.75x\n1x\n1.25x\n1.5x\n2x\n⏱️ +\nEnd\n🎵\nAudio Control Panel🌐 Online\nSection 1 of 2 • Browser tone A\n🔊\n0:07 / 0:20\n▶\nSection 1\n2\nSec 1\nBrowser tone A\nSec 2\nBrowser tone B\nRefresh Logs\nACTIVE TEST\nPRD-0055 Task 8.14 Browser Audible Fixture\nIELTS • Listening\n5m\nTIME\n4\nQ'S\n0\nSTUDENTS\n0\nDone\n0\nWorking\n0\nOffline\n0%\nAvg\n👥\nNo Students Yet\n\nWaiting for students to join the test session..."
+}

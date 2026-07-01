@@ -1,0 +1,129 @@
+{
+  "createdAt": "2026-07-01T13:05:21.682Z",
+  "verdict": "LOCAL_COMPATIBILITY_READINESS_PASS",
+  "scope": "PRD-0055 Task 9.1-9.4 local compatibility closure under localhost-only scope",
+  "taskboxes": {
+    "task9_1": "checked",
+    "task9_2": "checked",
+    "task9_3": "checked",
+    "task9_4": "checked",
+    "parentTask8": "unchecked",
+    "parentTask9": "checked"
+  },
+  "crossSystemReport": {
+    "path": "output/prd0055-task8-local-unblock/cross-system-compat-report.json",
+    "suites": 26,
+    "tests": 144,
+    "passed": 144,
+    "failed": 0,
+    "success": true
+  },
+  "coverage": [
+    {
+      "task": "9.2",
+      "label": "Reading V2 Studio unchanged",
+      "filePart": "ReadingV2StudioPage.test.tsx",
+      "requiredTitle": "returns teachers to the lobby after a successful publish",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/pages/ReadingV2StudioPage.test.tsx",
+      "passedAssertions": 11,
+      "found": true
+    },
+    {
+      "task": "9.2",
+      "label": "Reading V2 launch/listing/runtime compatibility",
+      "filePart": "readingV2LaunchIntegration.service.test.ts",
+      "requiredTitle": "keeps legacy materials on the existing launch path",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/services/reading-v2/readingV2LaunchIntegration.service.test.ts",
+      "passedAssertions": 12,
+      "found": true
+    },
+    {
+      "task": "9.2",
+      "label": "Reading V2 trusted submit compatibility",
+      "filePart": "readingV2RuntimeSubmission.service.test.ts",
+      "requiredTitle": "fails closed when the endpoint or auth token is missing",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/services/reading-v2/readingV2RuntimeSubmission.service.test.ts",
+      "passedAssertions": 5,
+      "found": true
+    },
+    {
+      "task": "9.3",
+      "label": "legacy Listening public result playback",
+      "filePart": "SharedSavedResultCore.test.tsx",
+      "requiredTitle": "renders legacy Listening result-review audio through the public resolver without delivery issuance",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/components/results/SharedSavedResultCore.test.tsx",
+      "passedAssertions": 23,
+      "found": true
+    },
+    {
+      "task": "9.3",
+      "label": "new Listening result delivery path",
+      "filePart": "SharedSavedResultCore.test.tsx",
+      "requiredTitle": "resolves new Listening asset-ID result-review audio through authorized delivery",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/components/results/SharedSavedResultCore.test.tsx",
+      "passedAssertions": 23,
+      "found": true
+    },
+    {
+      "task": "9.3",
+      "label": "Listening storage baseline compatibility",
+      "filePart": "listeningTestStorage.test.ts",
+      "requiredTitle": "commits canonical registry-backed audio before saving and preserves assetId plus public reader URLs",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/services/listeningTestStorage.test.ts",
+      "passedAssertions": 9,
+      "found": true
+    },
+    {
+      "task": "9.3",
+      "label": "R2 upload contract authority",
+      "filePart": "r2Storage.test.ts",
+      "requiredTitle": "resolves Listening upload session authority from Worker env only",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/services/r2Storage.test.ts",
+      "passedAssertions": 15,
+      "found": true
+    },
+    {
+      "task": "9.3",
+      "label": "legacy solo audio stays read-only",
+      "filePart": "listeningSoloDeliveryAdapter.test.ts",
+      "requiredTitle": "keeps legacy public audio read-only and does not call the delivery issuer",
+      "testFile": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/src/features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter.test.ts",
+      "passedAssertions": 5,
+      "found": true
+    }
+  ],
+  "googleDrive": {
+    "localGateScanPath": "output/prd0055-task8-local-unblock/local-gate-scan-report.json",
+    "changedGoogleDriveFiles": [],
+    "googleDriveNamedChangedPaths": []
+  },
+  "evidenceAnchors": [
+    {
+      "id": "traceability-final-a",
+      "found": true
+    },
+    {
+      "id": "traceability-final-b",
+      "found": true
+    },
+    {
+      "id": "traceability-final-c",
+      "found": true
+    },
+    {
+      "id": "architecture-task9-local-readiness",
+      "found": true
+    },
+    {
+      "id": "findings-task9-local-pass",
+      "found": true
+    }
+  ],
+  "blockersToClosure": [],
+  "scopedNonActions": [
+    "Task 8.0 remains outside the exact target packet unless separately authorized.",
+    "Live-domain/deployed proof, selected-user rollout, percentage rollout, and full rollout are future-deferred non-gates.",
+    "Google Drive cleanup/deletion remains separately deferred.",
+    "No production deploy, remote mutation, cleanup/delete, selected-user rollout, percentage rollout, commit, or push is claimed."
+  ]
+}

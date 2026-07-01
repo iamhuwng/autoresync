@@ -1,0 +1,75 @@
+- button "←":
+  - generic: ←
+- generic: "Session: T8KXWH"
+- generic: 0:00
+- button "Pause":
+  - generic: Pause
+- button "Pause All Audio": ⏸️
+- button "Resume All Audio": ▶️
+- button "Previous Section" [disabled]: ⏮️
+- combobox "Current audio section":
+  - option "Sec 1" [selected]
+  - option "Sec 2"
+- button "Next Section": ⏭️
+- combobox "Playback speed for all students":
+  - option "0.75x"
+  - option "1x" [selected]
+  - option "1.25x"
+  - option "1.5x"
+  - option "2x"
+- button "⏱️ +":
+  - generic: ⏱️ +
+- button "End":
+  - generic: End
+- generic: 🎵
+- generic: Audio Control Panel🌐 Online
+- generic: Section 1 of 2 • Part 1
+- generic: 🔊
+- slider "Teacher monitor volume": "0.8"
+- button "Edit current audio time, 0:00 of 0:20":
+  - generic: 0:00 / 0:20
+- button "Resume All Audio": ▶
+- 'generic "Section 1: Part 1"':
+  - slider "Seek section 1": "0"
+  - generic: Section 1
+- 'generic "Section 2: Part 2"':
+  - button "Jump to section 2, upcoming":
+    - generic: "2"
+- button "Jump to section 1, current, Part 1" [pressed]:
+  - generic: Sec 1
+  - generic: Part 1
+- button "Jump to section 2, upcoming, Part 2":
+  - generic: Sec 2
+  - generic: Part 2
+- button "Refresh Logs":
+  - generic: Refresh Logs
+- generic: Active Test
+- generic: PRD-0055 Task 8.14 Local Listening Fixture
+- generic: IELTS • Listening
+- generic: 5m
+- generic: Time
+- generic: "4"
+- generic: Q's
+- generic: "1"
+- generic: Students
+- generic: "0"
+- generic: Done
+- generic: "0"
+- generic: Working
+- generic: "1"
+- generic: Offline
+- generic: 0%
+- generic: Avg
+- button "Open details for student":
+  - generic: S
+  - generic "student"
+  - generic: ⚠
+  - generic: disconnected
+  - generic: Progress
+  - generic: 0%
+  - generic: Questions
+  - generic: 0/4
+  - generic: Time
+  - generic: 48s
+  - button "Force Submit"
+  - generic: Click to view details →

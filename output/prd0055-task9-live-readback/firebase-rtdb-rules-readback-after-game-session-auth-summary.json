@@ -1,0 +1,11 @@
+﻿{
+    "deployedMatchesLocal":  true,
+    "beforeMatchedLocal":  false,
+    "localLength":  97316,
+    "beforeLength":  93713,
+    "afterLength":  97316,
+    "gameRootRead":  "auth != null \u0026\u0026 (root.child(\u0027users\u0027).child(auth.uid).child(\u0027role\u0027).val() === \u0027super_admin\u0027 || (query.orderByChild === \u0027createdByUserId\u0027 \u0026\u0026 query.equalTo === auth.uid) || (query.orderByChild === \u0027createdBy\u0027 \u0026\u0026 query.equalTo === auth.uid) || (query.orderByChild === \u0027teacherId\u0027 \u0026\u0026 query.equalTo === auth.uid))",
+    "hasSessionDataExists":  true,
+    "hasPlayerExistsGuard":  true,
+    "hasBlanketRootAuth":  false
+}

@@ -1,0 +1,43 @@
+{
+  "createdAt": "2026-06-30T19:33:51.297Z",
+  "proofPath": "output\\prd0055-task9-live-readback\\prd0055-final-live-private-1782847865572.json",
+  "proofId": "prd0055-final-live-private-1782847865572",
+  "deployedOrigin": "https://kahut1.web.app",
+  "origins": {
+    "teacher": "http://localhost:5173",
+    "student": "http://localhost:5174"
+  },
+  "fixture": {
+    "sessionCode": "T8UKMD",
+    "classId": "prd0055-final-live-private-1782847865572-class",
+    "testId": "prd0055-final-live-private-1782847865572-test",
+    "versionId": "prd0055-final-live-private-1782847865572-version",
+    "assetIds": [
+      "prd0055-final-live-private-1782847865572-asset-s1",
+      "prd0055-final-live-private-1782847865572-asset-s2"
+    ]
+  },
+  "urls": {
+    "teacherDesktop": "http://localhost:5173/teacher-test/T8UKMD",
+    "studentDesktop": "http://localhost:5174/student-wait/T8UKMD",
+    "studentMobile": "http://localhost:5174/student-wait/T8UKMD"
+  },
+  "deliveryEvents": [
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 403,
+      "url": "http://localhost:8787/listening-delivery/live"
+    },
+    {
+      "label": "teacher-desktop",
+      "type": "response",
+      "method": "POST",
+      "status": 403,
+      "url": "http://localhost:8787/listening-delivery/live"
+    }
+  ],
+  "benignMediaAborts": [],
+  "blockingDeliveryFailures": []
+}

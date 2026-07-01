@@ -1,0 +1,21 @@
+{
+  "id": "b8b6435d-bba6-4951-a2a0-6a5d8e140da3",
+  "source": "wrangler",
+  "strategy": "percentage",
+  "author_email": "iamhuwng@gmail.com",
+  "annotations": {
+    "workers/message": "PRD-0055 1 percent equivalent candidate rollout rehearsal",
+    "workers/triggered_by": "deployment"
+  },
+  "versions": [
+    {
+      "version_id": "993acdc9-dd93-4ee8-8764-15847146ac3a",
+      "percentage": 99
+    },
+    {
+      "version_id": "f217034a-4a21-48be-85d1-5b629ebd70b8",
+      "percentage": 1
+    }
+  ],
+  "created_on": "2026-06-30T17:50:26.406636Z"
+}

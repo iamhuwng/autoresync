@@ -24,7 +24,6 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardBody, Button } from '../modern';
-import { Loader, Progress } from '@mantine/core';
 import {
     IconFileText,
     IconBrain,
@@ -34,6 +33,72 @@ import {
     IconX,
     IconRefresh,
 } from '@tabler/icons-react';
+
+const Loader: React.FC<{ size?: 'lg' | number; color?: string }> = ({
+    size = 'lg',
+    color = '#8b5cf6',
+}) => {
+    const resolvedSize = size === 'lg' ? 40 : size;
+
+    return (
+        <svg
+            aria-label="Loading"
+            role="img"
+            width={resolvedSize}
+            height={resolvedSize}
+            viewBox="0 0 40 40"
+            fill="none"
+        >
+            <circle cx="20" cy="20" r="16" stroke="rgba(255,255,255,0.35)" strokeWidth="4" />
+            <path
+                d="M36 20a16 16 0 0 1-16 16"
+                stroke={color}
+                strokeWidth="4"
+                strokeLinecap="round"
+            />
+        </svg>
+    );
+};
+
+interface ProgressProps {
+    value: number;
+    styles?: {
+        root?: React.CSSProperties;
+    };
+}
+
+const Progress: React.FC<ProgressProps> = ({
+    value,
+    styles,
+}) => {
+    const boundedValue = Math.max(0, Math.min(100, value));
+
+    return (
+        <div
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={boundedValue}
+            role="progressbar"
+            style={{
+                height: '1rem',
+                borderRadius: '999px',
+                overflow: 'hidden',
+                background: '#e2e8f0',
+                ...styles?.root,
+            }}
+        >
+            <div
+                style={{
+                    width: `${boundedValue}%`,
+                    height: '100%',
+                    borderRadius: '999px',
+                    background: 'linear-gradient(90deg, #8b5cf6 0%, #6366f1 100%)',
+                    transition: 'width 0.3s ease',
+                }}
+            />
+        </div>
+    );
+};
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -367,10 +432,6 @@ export const ParsingProgressScreen: React.FC<ParsingProgressScreenProps> = ({
                             </div>
                             <Progress
                                 value={progress}
-                                size="lg"
-                                radius="xl"
-                                color="violet"
-                                animated
                                 styles={{
                                     root: { background: '#e2e8f0' },
                                 }}

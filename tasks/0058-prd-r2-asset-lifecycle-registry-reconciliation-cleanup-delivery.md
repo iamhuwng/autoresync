@@ -1,6 +1,6 @@
 # PRD 0058: R2 Asset Lifecycle, Registry, Reconciliation, Cleanup, And Delivery
 
-Status: Draft child PRD - B1 Option B bridge ownership and Task 1 planning approved; implementation remains blocked pending deployed/current PRD-0056A proof, child-specific review, dependencies, and explicit implementation authorization
+Status: Draft child PRD - B1 Option B bridge ownership, Task 1 planning, PRD-0055 Task 4 minimum storage foundation, Task 5 local authoring consumption, Task 6.1/6.2 local deletion-governance design/tests, Task 6.3 local reconciliation dry-run/report/checkpoint foundation, Task 6.4 local historical orphan inventory dry-run/report foundation, Task 6.5 local audio-object backup-governance design/tests, Task 6.6-6.8 local authorized delivery/result-review client and Worker route proof, Task 6.9-6.11 local rollout/metrics/rollback proof, Task 6.12 independent verification record, Task 6.13 parent acceptance, and parent Task 6.0 are accepted; cleanup execution, solo/live private cutover, production alerting, deployment proof, and remote-state mutation remain separately gated
 Created: 2026-06-20
 Task number: 0058
 Parent PRD: `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
@@ -12,7 +12,7 @@ Current Listening audio upload uses browser-facing R2 temp upload plus a temp-to
 
 This child PRD defines the storage foundation that later Listening authoring, solo/homework runtime, live-session runtime, and result-review delivery work must depend on. It covers R2 asset lifecycle, trusted registry records, upload sessions, heartbeat eligibility, commit/replacement/reference rules, reconciliation, cleanup, backup/restore coverage, audit logging, metrics, and public-to-authorized delivery transition requirements.
 
-This PRD is planning only. It does not implement source code, Firebase rules, Worker code, R2 lifecycle configuration, deployment, solo/homework runtime cutover, live-session cutover, Reading V2 runtime work, traceability matrix work, or Google Drive cleanup.
+Original Packet 1E scope was planning only. PRD-0055 Task 4 later implemented the minimum local storage foundation from this PRD without deployment, solo/homework runtime cutover, live-session cutover, Reading V2 runtime work, Google Drive cleanup, cleanup execution, private delivery, staging, commit, push, or remote-state mutation.
 
 ## 2. Goals
 
@@ -743,13 +743,15 @@ Historical orphan sweep must:
 
 Unknown ownership blocks deletion until resolved or explicitly approved by a separate governance decision.
 
+Current local Task 6.4 proof adds a dry-run/report/checkpoint-only historical inventory foundation. It classifies past Listening-test deletion leftovers, pre-registry permanent audio, interim/failed rollout objects, missing owner evidence, and ambiguous owner evidence; excludes retained references; records accepted-risk-required entries for unresolved classes; enforces object/list/copy/delete/cost/wall-clock budgets; and keeps copy/delete counts at zero. It does not use production/R2 inventory access and does not approve or execute deletion.
+
 ## 23. Backup, Restore, Tombstone, And Deletion Governance
 
 Current owner:
 
 1. `r2-backup-worker/` owns scheduled backup, media delta, backup history retention, restore, GDPR filter, and admin-auth Worker routes.
 2. Current media backup scans `audio/`, `images/`, and `avatars/`.
-3. Current registry-node backup coverage is missing because no registry exists.
+3. Historical baseline before Task 4: registry-node backup coverage was missing because no registry existed. Current local Task 4 proof covers registry-path backup/restore, and Task 6.5 preserves that acceptance.
 
 Required future governance:
 
@@ -762,9 +764,11 @@ Required future governance:
 7. Tombstones must exclude signed URLs, secrets, raw keys, and audio content.
 8. Durable delete cannot activate until restore coverage is proven.
 
+Current local Task 6.5 proof records `r2-backup-worker/` as the DR worker owner for this local design/test packet, preserves Task 4 registry backup/restore acceptance, proves backup copies are not live product references, filters GDPR-completed/tombstoned/permanently-deleted objects from restore/live retention, blocks teacher-role restore authority, marks permanent-delete resurrection as requiring an approved restore path, proves scheduled backup cron still succeeds, and performs a local backup/restore/deletion-filter drill. It does not run remote backup restore or object deletion.
+
 ## 24. Metrics, Alerts, Owners, And Rollout Stop Actions
 
-No existing dedicated lifecycle metrics/alerting sink was found. The target implementation must add one secured sink before rollout.
+Before the Task 4.15 local packet, no existing dedicated lifecycle metrics/alerting sink was found. The target implementation must add one secured sink before rollout.
 
 Target secured sink:
 
@@ -814,6 +818,30 @@ Stop actions:
 6. URL refresh failure above threshold: keep public delivery, block private cutover.
 7. References blocking deletion spike: stop durable cleanup and inspect indexes.
 8. Budget exceed: abort run, preserve checkpoint, report.
+
+Task 4.15 local status, 2026-06-27:
+
+1. Local source now defines the secured metrics sink as `media_asset_metrics/{metricEventId}` and the schema fields above in `src/features/assessment/listening/storage/listeningAssetMetrics.ts`.
+2. Local tests prove orphan-growth and commit-failure metric event creation, human-dashboard-review metadata, threshold owner/stop actions, deterministic baseline counts/bytes, and zero acceptable new untracked-draft-audio.
+3. `database.rules.json` now includes checked-in `media_asset_metrics/**` indexes and browser write denial; emulator-backed tests prove ordinary teachers and guests cannot read/write metrics, super-admin can read, and browser create/update/delete is denied.
+4. Threshold detection is human dashboard review in this no-deploy packet, not production alerting. Owner is `Frontend Platform / IELTS Assessment storage owner`; cadence is daily during internal/selected-teacher rollout and before each cohort expansion; evidence location is `media_asset_metrics/{metricEventId}` plus Task 4.15/5.21 findings; escalation runbook is encoded in the local metrics module.
+5. Task 4.15 accepted-risk approval is recorded from the 2026-06-27 product-owner user message. The accepted baseline is tracked registry audio `1 object / 10 bytes`, known untracked permanent audio `2 objects / 50 bytes`, and new untracked draft audio `0 objects / 0 bytes`.
+6. The approval treats known untracked permanent Listening audio as legacy risk only and does not permit any new untracked draft audio. The default acceptable new untracked-draft-audio count remains zero.
+
+Task 4.16 local status, 2026-06-27:
+
+1. Local source now defines rollback controls in `src/features/assessment/listening/storage/listeningAssetRollback.ts`.
+2. New registry writes are disabled before registry/R2 mutation when rollback controls set `registryWritesEnabled: false`.
+3. Cleanup/deletion stops with `cleanup-stopped` for immediate cleanup and replacement cleanup when rollback controls set `cleanupDeletionEnabled: false`.
+4. Referenced assets are retained by preserving existing references and skipping `pending-delete` entry when rollback controls forbid existing-audio mutation.
+5. Legacy publish read fields are preserved and existing audio mutation remains prohibited.
+
+Task 6.9-6.11 local status, 2026-06-29:
+
+1. Local source now defines a Task 6 rollout evaluator in `src/features/assessment/listening/storage/listeningTask6LocalRollout.ts`. It accepts only accepted prior selected-teacher Worker proof, local result-review proof, dry-run reconciliation reports with zero write/delete operations, complete metrics, and clean hard boundaries.
+2. Local source extends `src/features/assessment/listening/storage/listeningAssetMetrics.ts` for temp age, reconciliation, delete failure, issuance failure, refresh failure, reclaimed bytes, auth denial, assets blocked by references, and result-playback failure while preserving Task 4 orphan-growth metrics.
+3. Local source extends rollback/public-reader behavior so active rollback controls return asset-ID result-review records to public R2 without invoking the authorized-delivery issuer or mutating records.
+4. No cleanup execution, object deletion, production data read in this packet, new selected-teacher/result-review remote traffic, R2/Firebase/Cloudflare remote mutation, deploy, solo/live private cutover, `AudioPlayer.tsx`, Reading V2 runtime internals, Google Drive behavior, or Task 7 work occurred.
 
 ## 25. Security And Audit Logging
 
@@ -886,13 +914,22 @@ Proposed future modules:
 6. `src/features/assessment/listening/storage/listeningAssetCleanup.service.ts`
    - Owns cleanup planning, reconciliation budgets, and tombstone decisions.
    - Imports registry/reference/R2 adapter interfaces.
-7. `src/features/assessment/listening/storage/listeningAssetDelivery.service.ts`
+7. `src/features/assessment/listening/storage/listeningAssetUploadSessionLifecycle.service.ts`
+   - Owns PRD-0058 lifecycle fields on PRD-0056A upload-session records, including session status, lifecycle-only eligibility, cleanup queue markers, and completion timestamps.
+   - Must not own PRD-0056A create-time upload-session identity, asset identity, canonical temp-key issuance, or Worker bridge grants.
+8. `src/features/assessment/listening/storage/listeningAssetHeartbeat.service.ts`
+   - Owns same-tab heartbeat and lease freshness decisions for upload-session lifecycle eligibility.
+   - Must not create saved drafts, durable references, durable commits, or cleanup deletion side effects.
+9. `src/features/assessment/listening/storage/listeningAssetMetrics.service.ts`
+   - Owns secured metric-event creation for orphan, cleanup, reconciliation, delivery, and stop-action counters.
+   - Imports metric types and the trusted metrics sink adapter only.
+10. `src/features/assessment/listening/storage/listeningAssetDelivery.service.ts`
    - Owns authorized-delivery issuance contract and read-authorization checks.
    - Imports registry/reference types and auth adapter.
-8. `src/features/assessment/listening/adapters/r2StorageCompatibilityAdapter.ts`
+11. `src/features/assessment/listening/adapters/r2StorageCompatibilityAdapter.ts`
    - Bridges existing `src/services/r2Storage.ts` facade to new contracts.
    - Must not expose raw-key authority.
-9. `src/features/assessment/listening/adapters/listeningPersistenceAssetAdapter.ts`
+12. `src/features/assessment/listening/adapters/listeningPersistenceAssetAdapter.ts`
    - Bridges `src/services/listeningTestStorage.ts` facade and PRD-0057 authoring persistence.
    - Must not own draft/publish business behavior.
 
@@ -1083,44 +1120,44 @@ No solo/homework, live-session, or Reading V2 runtime child PRD may start from t
 
 ## 33. Regression Checklist
 
-- [ ] Temp upload does not create retained reference.
-- [ ] Explicit Save draft creates retained reference only after durable commit succeeds.
-- [ ] Publish creates retained immutable version reference only after durable commit succeeds.
-- [ ] Saved records never point to `temp/`.
-- [ ] Move/commit failure preserves old reference and fails closed.
-- [ ] Replacement uses new `assetId`.
-- [ ] Replacement failure preserves old playback.
-- [ ] Second replacement is blocked while first commit is unresolved.
-- [ ] Cross-test reuse requires explicit trusted registry-reference operation.
-- [ ] Public `audioUrl` / `streamUrl` compatibility remains for unchanged readers.
-- [ ] Delivery issuance by known asset ID alone is denied.
-- [ ] Cross-user delivery issuance is denied.
-- [ ] Range, `206`, `Accept-Ranges`, and stable `Content-Length` proof exists before private cutover.
-- [ ] iOS Safari proof exists before private cutover.
+- [x] Temp upload does not create retained reference. Local Task 4.6/4.8 proof keeps lifecycle continuation separate from durable references and creates references only through commit.
+- [x] Explicit Save draft creates retained reference only after durable commit succeeds. Local Task 4.8 proof verifies durable object before reference write and save payload persistence through the optional commit adapter.
+- [x] Publish creates retained immutable version reference only after durable commit succeeds. Local Task 4.8 proof uses the same commit adapter path for published payloads while preserving public-reader fields.
+- [x] Saved records never point to `temp/`. Local Task 4.8 proof writes canonical `assetId` plus durable derived public `audioUrl` / `streamUrl`.
+- [x] Move/commit failure preserves old reference and fails closed. Local Task 4.8 proof keeps temp deletion after durable/reference success and denies invalid commit before copy/delete.
+- [x] Replacement uses new `assetId`. Local Task 4.9 proof added `listeningAssetReplacement.ts` and verifies replacement starts only with a different `assetId`.
+- [x] Replacement failure preserves old playback. Local Task 4.9 proof keeps the old authoritative playback reference on failed save or cancellation, queues only the new temp replacement for cleanup, and returns terminal `nextState` so later replacement can start only after resolution.
+- [x] Second replacement is blocked while first commit is unresolved. Local Task 4.9 proof rejects a second replacement while `pendingReplacement.status` is unresolved and allows a later replacement after success/failure/cancel terminal state.
+- [x] Cross-test reuse requires explicit trusted registry-reference operation. Local Task 4.14 proof records product-owner-approved deferral for implementing reuse now, rejects filename/URL/key/checksum/byte-content implicit reuse, and permits only a future trusted registry-reference operation.
+- [x] Public `audioUrl` / `streamUrl` compatibility remains for unchanged readers. Local Task 4.8 proof preserves both fields without solo/live/result-review runtime changes.
+- [x] Delivery issuance by known asset ID alone is denied. Local Task 6.6 proof rejects asset-ID-only requests when retained result/version authorization is absent.
+- [x] Cross-user delivery issuance is denied. Local Task 6.6 proof rejects another student and another teacher despite valid asset/result IDs.
+- [x] Range, `206`, `Accept-Ranges`, and stable `Content-Length` proof exists before private cutover. Local Task 6.6/6.8 proof validates range headers before signing and passes browser result-review range probes.
+- [x] iOS Safari proof exists before private cutover. Local Task 6.8 Playwright proof passes the iOS-Safari-equivalent WebKit/iPhone result-review range probe; live/solo cutover remains separately gated.
 - [ ] Refresh failure warns teacher monitor before interruption risk and does not pause live session by itself.
-- [ ] Heartbeat runs every 60 seconds.
-- [ ] Heartbeat stale after 3 minutes.
-- [ ] Heartbeat cannot exceed 8 hours.
-- [ ] Multi-tab lease aggregation prevents premature cleanup.
-- [ ] Temp fallback deletes no later than 24 hours.
-- [ ] Zero-reference durable asset enters `pending-delete`.
-- [ ] Seven-day grace is observed.
-- [ ] Immediate pre-delete reference recheck is executed.
-- [ ] Tombstone retained exactly 90 days.
-- [ ] Tombstone excludes forbidden values.
-- [ ] Hourly temp reconciliation is bounded/checkpointed.
-- [ ] Daily durable reconciliation is bounded/checkpointed.
-- [ ] Historical orphan sweep dry-run excludes retained references.
-- [ ] Backup/restore coverage includes registry paths.
-- [ ] Scheduled backup cron still succeeds.
-- [ ] Metrics sink receives required event shape.
-- [ ] Alert/runbook stop actions are verified.
-- [ ] Logs contain actor/asset/operation/outcome/reason only.
-- [ ] No raw secret/token/signed URL/raw key/raw audio/raw content is logged.
-- [ ] No Google Drive behavior changes.
-- [ ] No solo/homework runtime files changed.
-- [ ] No live-session runtime files changed.
-- [ ] No Reading V2 internals changed.
+- [x] Heartbeat runs every 60 seconds. Local Task 4.11 proof returns `nextHeartbeatDueAt = now + 60000` without persisting it as retention authority.
+- [x] Heartbeat stale after 3 minutes. Local Task 4.11 proof returns `heartbeatStaleAt = now + 180000` without persisting it as retention authority.
+- [x] Heartbeat cannot exceed 8 hours. Local Task 4.11 proof keeps equality active and expires/queues cleanup after the 8-hour ceiling.
+- [x] Multi-tab lease aggregation prevents premature cleanup. Local Task 4.12 proof persists PRD-approved session `leaseIds` plus separate lease records, keeps cleanup unqueued when another same-owner/same-draft lease remains fresh, rejects different-draft retention, and queues cleanup when only stale leases remain.
+- [x] Temp fallback deletes no later than 24 hours. Local Task 4.11 proof marks temp/committing fallback due at the 24-hour threshold and excludes committed assets.
+- [x] Zero-reference durable asset enters `pending-delete`. Local Task 4.13 proof moves the asset to `pending-delete` only after the final retained reference is removed.
+- [x] Seven-day grace is observed. Local Task 4.13 proof sets `deleteAfter = pendingDeleteAt + 7 days` and repeated no-op pending-delete reference removal preserves the original timestamps.
+- [x] Immediate pre-delete reference recheck is executed. Local Task 6.2 proof requires a same-asset same-tick reference recheck before an administrative deletion plan can be produced.
+- [x] Tombstone retained exactly 90 days. Local Task 6.2 proof sets `tombstoneExpiresAt = deletedAt + 90 days`.
+- [x] Tombstone excludes forbidden values. Local Task 6.2 proof rejects tombstone leakage of signed URLs, secrets, keys, raw audio, and audio content.
+- [x] Hourly temp reconciliation is bounded/checkpointed. Local Task 6.3 proof adds repository-backed dry-run report/checkpoint boundaries, selected-teacher proof gating, object/R2/Firebase/wall-clock/cost budgets, capacity-stop reporting, no candidate continuation after abort, and report-only temp candidates with `executionAuthorized: false`; cleanup execution and scheduled deployment remain separately gated.
+- [x] Daily durable reconciliation is bounded/checkpointed. Local Task 6.3 proof adds repository-backed dry-run report/checkpoint boundaries, selected-teacher proof gating, object/R2/Firebase/wall-clock/cost budgets, no candidate or recheck continuation after capacity stop, same-tick pre-delete reference recheck, and fail-closed retained-reference/owner/rollback/backup guards; durable delete execution remains separately gated.
+- [x] Historical orphan sweep dry-run excludes retained references. Local Task 6.4 proof excludes retained live product references from candidates and mutation-kill proof fails when retained references are counted as orphans.
+- [x] Backup/restore coverage includes registry paths. Task 4 registry backup/restore acceptance remains current, and local Task 6.5 proof explicitly preserves it rather than deferring it.
+- [x] Scheduled backup cron still succeeds. Local Task 6.5 proof reran the `r2-backup-worker` scheduled auto-backup cron test along with backup/restore and protected Reading V2/homework route regressions.
+- [x] Metrics sink receives required event shape. Local Task 4.15 proof creates `media_asset_metrics/{metricEventId}` events for orphan-growth and commit-failure and records product-owner accepted-risk text for known untracked permanent audio.
+- [x] Alert/runbook stop actions are verified. Local Task 4.15 proof records human-dashboard-review owner/cadence/evidence/runbook and Task 5.21/9.9 stop actions. Production alerting remains unclaimed because the approved mode is human dashboard review.
+- [x] Logs contain actor/asset/operation/outcome/reason only. Local Task 6.2 admin-deletion audit event is limited to actor, asset, owner, operation, outcome, reason, and timestamp metadata.
+- [x] No raw secret/token/signed URL/raw key/raw audio/raw content is logged. Local Task 6.2 tombstone/audit tests exclude those values.
+- [x] No Google Drive behavior changes. Local Task 6.2 touched only Listening storage-governance source/tests and docs; Google Drive remains obsolete unsupported residue.
+- [x] No solo/homework runtime files changed. Local Task 6.6-6.8 touched only bounded Listening delivery/result-review adapter/client/Worker proof, saved-result core consumption, Playwright proof config/spec, task docs, and output artifacts.
+- [x] No live-session runtime files changed. Local Task 6.6-6.8 did not touch live runtime paths or `AudioPlayer.tsx`.
+- [x] No Reading V2 internals changed. Local Task 6.6-6.8 did not touch Reading V2 runtime internals.
 
 ## 34. Risk Register
 
@@ -1210,7 +1247,7 @@ Required bridge evidence before PRD-0058 implementation:
 5. Rollback to the captured pre-bridge `r2-upload-signer` version restores the compatibility path without deleting or moving objects.
 6. No bridge write reaches `media_assets/**`, `listening_authoring/**`, `tests/**`, or generic `drafts/**`.
 
-PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 and Task 1 planning are approved; implementation remains blocked by deployed/current PRD-0056A proof, child-specific review, dependencies, and explicit implementation authorization.
+PRD-0058 rollout must stop if PRD-0056A deployed proof is absent or stale. B1 and Task 1 planning are accepted, PRD-0055 Task 4 minimum local storage foundation is accepted through Task 4.19 parent acceptance after corrective proof for builder metadata carry, fail-closed temp URL persistence, no partial mixed-section commit, committed durable-object reverify, reference-failure reconciliation queueing, full registry-path rules/backup/restore coverage, and facade split boundaries, Task 5 local authoring consumption is accepted, Task 6.1/6.2 local deletion-governance design/tests are accepted without cleanup execution, Task 6.3 local reconciliation dry-run/report/checkpoint foundation is accepted locally with no delete/write authority, Task 6.4 local historical inventory dry-run/report foundation is accepted locally with no production inventory or deletion, Task 6.5 local audio-object backup-governance design/tests are accepted locally with no remote restore or deletion, Task 6.6-6.8 local authorized delivery/result-review client and Worker route proof is accepted locally without solo/live private cutover, Task 6.9-6.11 local rollout/metrics/rollback proof is accepted locally without cleanup execution or remote mutation, Task 6.12 independent verification is recorded, and Task 6.13/parent Task 6.0 acceptance is accepted after owner acceptance plus read-only Firebase shallow proof that the selected-teacher sample had no `/media_assets` rows to reconcile. Cleanup execution, production alerting, deployed lifecycle proof, remote-state mutation, and solo/live runtime cutover remain blocked by child-specific review, later task-specific proof gates, and explicit implementation authorization.
 
 ## 39. Task 1.10 Canonical Dependency Synchronization - 2026-06-20
 

@@ -1,0 +1,151 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\playwright.prd0055-task8-selected-deployed.config.js",
+    "rootDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "prd0055-selected-class-deployed-chromium",
+        "name": "prd0055-selected-class-deployed-chromium",
+        "testDir": "C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/prd0055-task8-selected-class-deployed\\.spec\\.ts/"
+        ],
+        "timeout": 180000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "prd0055-task8-selected-class-deployed.spec.ts",
+      "file": "prd0055-task8-selected-class-deployed.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PRD-0055 selected-class deployed live private delivery",
+          "file": "prd0055-task8-selected-class-deployed.spec.ts",
+          "line": 100,
+          "column": 6,
+          "specs": [
+            {
+              "title": "teacher and selected student load deployed private audio from selected class fixture",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "prd0055-selected-class-deployed-chromium",
+                  "projectName": "prd0055-selected-class-deployed-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 71047,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Audio Control Panel')\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Audio Control Panel')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Audio Control Panel')\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Audio Control Panel')\u001b[22m\n\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task8-selected-class-deployed.spec.ts:119:66",
+                        "location": {
+                          "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task8-selected-class-deployed.spec.ts",
+                          "column": 66,
+                          "line": 119
+                        },
+                        "snippet": "  117 |       await quickLogin(teacherPage, 'teacher');\n  118 |       await teacherPage.goto(`${DEPLOYED_ORIGIN}/teacher-test/${PROOF.fixture.sessionCode}`);\n> 119 |       await expect(teacherPage.getByText('Audio Control Panel')).toBeVisible({ timeout: 60_000 });\n      |                                                                  ^\n  120 |       await expect(teacherPage.getByText(`Session: ${PROOF.fixture.sessionCode}`)).toBeVisible({ timeout: 60_000 });\n  121 |       await expectPrivateAudioReady(teacherPage);\n  122 |       await teacherPage.getByRole('button', { name: 'Resume All Audio' }).last().click();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task8-selected-class-deployed.spec.ts",
+                            "column": 66,
+                            "line": 119
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Audio Control Panel')\nExpected: visible\nTimeout: 60000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Audio Control Panel')\u001b[22m\n\n\n  117 |       await quickLogin(teacherPage, 'teacher');\n  118 |       await teacherPage.goto(`${DEPLOYED_ORIGIN}/teacher-test/${PROOF.fixture.sessionCode}`);\n> 119 |       await expect(teacherPage.getByText('Audio Control Panel')).toBeVisible({ timeout: 60_000 });\n      |                                                                  ^\n  120 |       await expect(teacherPage.getByText(`Session: ${PROOF.fixture.sessionCode}`)).toBeVisible({ timeout: 60_000 });\n  121 |       await expectPrivateAudioReady(teacherPage);\n  122 |       await teacherPage.getByRole('button', { name: 'Resume All Audio' }).last().click();\n    at C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task8-selected-class-deployed.spec.ts:119:66"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-30T17:06:49.813Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-selected-cla-a7150-from-selected-class-fixture-prd0055-selected-class-deployed-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\test-results\\prd0055-task8-selected-cla-a7150-from-selected-class-fixture-prd0055-selected-class-deployed-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\The Lord\\Desktop\\luyentap-writing-import-rebased\\e2e\\prd0055-task8-selected-class-deployed.spec.ts",
+                        "column": 66,
+                        "line": 119
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "f9c5622ca3fb8e49a380-55d658a746a4c5e8355b",
+              "file": "prd0055-task8-selected-class-deployed.spec.ts",
+              "line": 101,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T17:06:47.261Z",
+    "duration": 76002.087,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

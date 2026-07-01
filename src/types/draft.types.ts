@@ -160,6 +160,7 @@ export interface DraftListItem {
 
 /** Steps in the test creation modal */
 export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing' | 'reading-v2-start' | 'reading-v2-import' | 'reading-v2-auto'
+    | 'listening-mode' | 'listening-builder'
     | 'writing-metadata' | 'writing-format' | 'writing-content';
 
 /** Step order for navigation (Reading/Listening) */
@@ -167,6 +168,9 @@ export const MODAL_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'uplo
 
 /** Step order for Reading V2 skill - metadata first, then route into Studio */
 export const READING_V2_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'reading-v2-start', 'reading-v2-import', 'reading-v2-auto'];
+
+/** Step order for Listening skill - metadata and mode are collected before entering builder */
+export const LISTENING_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'listening-mode', 'listening-builder'];
 
 /** Step order for Writing skill — stays in-modal for all steps */
 export const WRITING_STEP_ORDER: ModalStep[] = ['type', 'skill', 'writing-metadata', 'writing-format', 'writing-content'];

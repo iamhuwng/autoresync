@@ -224,6 +224,7 @@ export const MobileListeningSubmitSheet: React.FC<MobileListeningSubmitSheetProp
         role="dialog"
         aria-modal="true"
         aria-labelledby="listening-submit-title"
+        aria-describedby={totalUnanswered > 0 ? 'listening-submit-warning' : undefined}
         style={sheetStyle}
       >
         {/* Drag handle */}
@@ -264,7 +265,12 @@ export const MobileListeningSubmitSheet: React.FC<MobileListeningSubmitSheetProp
 
         {/* Warning — only when unanswered > 0 (PRD FR-32 exact copy) */}
         {totalUnanswered > 0 && (
-          <div data-testid="submit-warning" style={warningStyle}>
+          <div
+            id="listening-submit-warning"
+            data-testid="submit-warning"
+            role="alert"
+            style={warningStyle}
+          >
             You still have {totalUnanswered} unanswered question{totalUnanswered === 1 ? '' : 's'}.
             Are you sure you want to submit?
           </div>
@@ -281,6 +287,7 @@ export const MobileListeningSubmitSheet: React.FC<MobileListeningSubmitSheetProp
               cursor: isSubmitting ? 'default' : 'pointer',
             }}
             onClick={() => { void onConfirmSubmit(); }}
+            aria-busy={isSubmitting ? 'true' : 'false'}
             disabled={isSubmitting}
           >
             {isSubmitting ? 'Submitting...' : 'Confirm Submit'}

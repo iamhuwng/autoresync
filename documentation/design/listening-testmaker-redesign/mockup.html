@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IELTS Listening — Test Maker Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef1f6; --ink:#111827; --body:#374151; --muted:#6b7280; --dim:#9ca3af;
+    --line:#e5e7eb; --line2:#d1d5db; --surface:#fff; --inset:#f8fafc;
+    --indigo:#4f46e5; --indigo-hover:#4338ca; --indigo50:#eef2ff; --indigo200:#c7d2fe;
+    --green:#059669; --green50:#ecfdf5; --amber:#b45309; --amber50:#fffbeb; --red:#dc2626; --red50:#fef2f2;
+    --shadow-card:0 1px 2px rgba(16,24,40,.06);
+    --shadow-modal:0 12px 32px rgba(16,24,40,.12);
+    font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  .canvas{width:1480px;margin:0 auto;padding:44px 44px 56px;}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+  .sub{font-size:15px;color:var(--muted);margin:0 0 4px;font-weight:500}
+  .tokens-line{font-size:12.5px;color:var(--dim);margin:2px 0 0}
+  .band{display:flex;align-items:center;gap:10px;margin:34px 0 16px}
+  .band .n{width:26px;height:26px;border-radius:999px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;flex:0 0 auto}
+  .band h2{font-size:18px;font-weight:700;margin:0}
+  .band .tag{margin-left:8px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+  .row{display:flex;gap:26px;align-items:flex-start}
+  .col{display:flex;flex-direction:column;gap:14px}
+  .caption{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 8px;display:flex;align-items:center;gap:7px}
+  .caption.bad{color:var(--red)} .caption.good{color:var(--green)}
+  .caption .dot{width:8px;height:8px;border-radius:999px;background:currentColor;display:inline-block}
+
+  /* ---------- modal frame ---------- */
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-modal);overflow:hidden}
+  .m-hd{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff}
+  .m-title{display:flex;align-items:center;gap:11px}
+  .m-title .ic{width:34px;height:34px;border-radius:9px;background:var(--indigo50);color:var(--indigo);display:grid;place-items:center;flex:0 0 auto}
+  .m-title h3{margin:0;font-size:15.5px;font-weight:700}
+  .m-title p{margin:1px 0 0;font-size:12px;color:var(--muted);font-weight:500}
+  .x{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);display:grid;place-items:center;flex:0 0 auto}
+  .m-bd{padding:18px}
+  .m-ft{padding:12px 18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--inset)}
+
+  /* segmented step nav */
+  .steps{display:inline-flex;gap:3px;background:var(--inset);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .step{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  .step svg{width:15px;height:15px}
+  .step.active{background:#fff;color:var(--indigo);box-shadow:var(--shadow-card)}
+  .step.done{color:var(--green)}
+
+  /* buttons */
+  .btn{font:600 13px 'Inter';border-radius:999px;padding:9px 16px;border:1px solid transparent;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+  .btn svg{width:15px;height:15px}
+  .btn-primary{background:var(--indigo);color:#fff}
+  .btn-ghost{background:#fff;color:var(--body);border-color:var(--line2)}
+  .btn-sm{padding:7px 13px;font-size:12.5px}
+
+  /* fields */
+  .field{display:flex;flex-direction:column}
+  .field label{font:600 12px 'Inter';color:var(--body);margin-bottom:6px;display:flex;gap:5px}
+  .field label .req{color:var(--red)}
+  .control{width:100%;padding:9px 12px;border:1px solid var(--line2);border-radius:8px;font:500 13px 'Inter';color:var(--ink);background:#fff;display:flex;align-items:center;justify-content:space-between}
+  .control.ph{color:var(--dim);font-weight:500}
+  .control.sel{position:relative}
+  .control.sel svg{width:15px;height:15px;color:var(--muted)}
+  .hint{font-size:11px;color:var(--dim);margin-top:5px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .stack{display:flex;flex-direction:column;gap:13px}
+
+  /* segmented toggle (format / difficulty) */
+  .seg{display:flex;gap:8px}
+  .seg .opt{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 10px;text-align:center;font-size:12.5px;font-weight:600;color:var(--muted);background:#fff}
+  .seg .opt .s{font-size:11px;font-weight:500;color:var(--dim);display:block;margin-top:1px}
+  .seg .opt.sel{border-color:var(--indigo);background:var(--indigo50);color:var(--indigo)}
+  .seg.diff .opt.g.sel{border-color:var(--green);background:var(--green50);color:var(--green)}
+  .seg.diff .opt.a.sel{border-color:var(--amber);background:var(--amber50);color:var(--amber)}
+
+  /* summary chips */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--body);background:var(--inset);font-weight:500}
+  .chip svg{width:14px;height:14px;color:var(--muted)}
+
+  /* mode cards */
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .mode{border:1px solid var(--line);border-radius:12px;padding:18px;background:#fff;display:flex;flex-direction:column;gap:11px}
+  .mode.sel{border-color:var(--indigo);background:var(--indigo50);box-shadow:0 0 0 1px var(--indigo)}
+  .mode .tile{width:42px;height:42px;border-radius:10px;background:var(--indigo50);color:var(--indigo);display:grid;place-items:center}
+  .mode.sel .tile{background:#fff}
+  .mode h4{margin:0;font-size:15px;font-weight:700}
+  .mode .desc{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .mode ul{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+  .mode li{font-size:12px;color:var(--body);display:flex;align-items:center;gap:7px}
+  .mode li svg{width:13px;height:13px;color:var(--indigo);flex:0 0 auto}
+  .mode .cta{margin-top:4px}
+
+  /* guidance strip + status pill */
+  .strip{display:flex;align-items:center;gap:11px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--inset);margin-bottom:14px}
+  .strip .gi{width:26px;height:26px;border-radius:7px;background:#fff;border:1px solid var(--line);color:var(--indigo);display:grid;place-items:center;flex:0 0 auto}
+  .strip p{margin:0;font-size:12.5px;color:var(--muted);font-weight:500}
+  .pill{margin-left:auto;font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 10px;white-space:nowrap}
+  .pill.ok{color:var(--green);background:var(--green50)}
+  .pill.todo{color:var(--amber);background:var(--amber50)}
+
+  /* audio rows */
+  .arow{display:flex;align-items:center;gap:13px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#fff}
+  .arow .si{width:34px;height:34px;border-radius:9px;background:var(--inset);border:1px solid var(--line);display:grid;place-items:center;color:var(--indigo);flex:0 0 auto}
+  .arow .meta b{font-size:13.5px;font-weight:700;display:block}
+  .arow .meta span{font-size:11.5px;color:var(--muted)}
+  .arow .right{margin-left:auto;display:flex;align-items:center;gap:11px}
+  /* slim player */
+  .player{display:flex;align-items:center;gap:9px;padding:6px 8px 6px 6px;border:1px solid var(--line);border-radius:999px;background:var(--inset)}
+  .player .play{width:24px;height:24px;border-radius:999px;background:var(--indigo);color:#fff;display:grid;place-items:center}
+  .player .play svg{width:12px;height:12px;margin-left:1px}
+  .wave{display:flex;align-items:center;gap:2px;height:18px}
+  .wave i{width:2px;border-radius:2px;background:var(--indigo200)}
+  .player .t{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  /* two-pane (image mode questions) */
+  .twopane{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}
+  .viewer{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .viewer .vhd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--inset)}
+  .viewer .vhd b{font-size:12.5px}
+  .viewer .zoom{display:flex;gap:5px}
+  .viewer .zoom span{width:24px;height:24px;border-radius:7px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);background:#fff}
+  .imgstage{height:250px;display:grid;place-items:center;color:var(--dim);
+    background:repeating-linear-gradient(45deg,#fafbfc,#fafbfc 12px,#f3f5f8 12px,#f3f5f8 24px)}
+  .imgstage .ph{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .imgstage .ph svg{width:34px;height:34px;color:#cbd2dc}
+  .imgstage .ph span{font-size:12px;font-weight:600;color:var(--muted)}
+  .answers{border:1px solid var(--line);border-radius:10px;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+  .answers .ahd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--inset)}
+  .answers .ahd b{font-size:12.5px}
+  .answers .ahd .lnk{font-size:11.5px;font-weight:600;color:var(--indigo);display:flex;align-items:center;gap:5px}
+  .qrow{display:flex;align-items:center;gap:10px;padding:7px 12px}
+  .qrow + .qrow{border-top:1px solid var(--line)}
+  .qnum{width:30px;height:26px;border-radius:6px;background:var(--inset);border:1px solid var(--line);display:grid;place-items:center;font-size:11.5px;font-weight:700;color:var(--body);flex:0 0 auto}
+  .qin{flex:1;height:30px;border:1px solid var(--line2);border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px;font-size:12.5px;color:var(--ink)}
+  .qin.filled{color:var(--ink)} .qin.empty{color:var(--dim)}
+
+  /* legend */
+  .legend{margin-top:36px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-card)}
+  .legend h3{margin:0 0 14px;font-size:14px;font-weight:700}
+  .swatches{display:flex;gap:22px;flex-wrap:wrap}
+  .sw{display:flex;align-items:center;gap:9px}
+  .sw .box{width:34px;height:34px;border-radius:8px;border:1px solid rgba(0,0,0,.06)}
+  .sw b{font-size:12.5px;display:block}
+  .sw span{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .rules{margin:16px 0 0;padding:14px 0 0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,1fr);gap:8px 26px}
+  .rules div{font-size:12.5px;color:var(--body);display:flex;gap:8px;align-items:flex-start}
+  .rules svg{width:15px;height:15px;color:var(--green);flex:0 0 auto;margin-top:1px}
+
+  /* before (problem) rendering */
+  .before{background:linear-gradient(135deg,#fff 0%,#f5f3ff 100%);border:1px solid rgba(139,92,246,.25);border-radius:14px;padding:16px;box-shadow:0 10px 26px rgba(139,92,246,.14)}
+  .before .bhead{font-size:13px;font-weight:700;color:#7c3aed;margin:0 0 10px}
+  .before .banner{border-radius:10px;padding:11px 13px;margin-bottom:10px;font-size:12px}
+  .before .b-blue{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.22);color:#1d4ed8;font-weight:700}
+  .before .b-green{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(34,197,94,.12));border:1px solid rgba(16,185,129,.3);color:#059669;font-weight:600}
+  .before .b-info{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);color:#3b82f6}
+  .before .bcards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+  .before .bcard{border:1px solid rgba(37,99,235,.28);border-radius:10px;padding:16px;background:rgba(255,255,255,.9);min-height:150px}
+  .before .bcard.sel{background:#2563eb;color:#fff}
+  .before .bic{width:44px;height:44px;border-radius:10px;background:rgba(37,99,235,.12);color:#1d4ed8;display:grid;place-items:center;font-weight:800;font-size:11px;margin-bottom:12px}
+  .before .bcard.sel .bic{background:rgba(255,255,255,.2);color:#fff}
+  .before .bcard h5{margin:0 0 4px;font-size:15px}
+  .before .bcard p{margin:0;font-size:12px;opacity:.85;line-height:1.5}
+  .before .bcard .go{margin-top:12px;font-size:12.5px;font-weight:700}
+  .anno{font-size:11.5px;color:var(--red);margin:9px 0 0;display:flex;gap:7px;align-items:flex-start}
+  .anno svg{width:14px;height:14px;flex:0 0 auto;margin-top:1px}
+  .foot{margin-top:30px;font-size:11.5px;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 9h1M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 16 4-4 3 3 4-4 5 5"/></symbol>
+  <symbol id="i-head" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.4"/><rect x="17" y="14" width="4" height="6" rx="1.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-zin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-zout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3M8 11h6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></symbol>
+</svg>
+
+<div class="canvas">
+  <h1>IELTS Listening — Test Maker Redesign</h1>
+  <p class="sub">Proposed UI/UX for Create&nbsp;New&nbsp;Test → IELTS → Listening → Details → Choose mode → Builder</p>
+  <p class="tokens-line">Unified flat tokens · Inter · indigo #4f46e5 / slate · hairline borders · inline SVG icons · pill buttons · no glassmorphism · no gradients · no emoji · low-scroll</p>
+
+  <!-- ============ PROBLEM ============ -->
+  <div class="band"><span class="n">!</span><h2>The problem today — “Choose mode” step</h2><span class="tag">Current build</span></div>
+  <div class="row">
+    <div style="width:660px">
+      <div class="before">
+        <p class="bhead">🎧 Listening · mixed blue/purple/green · emoji · big banners</p>
+        <div class="banner b-blue">Listening setup ready<br><span style="font-weight:400;color:#64748b">Untitled Listening test - 30 minutes</span></div>
+        <div class="bcards">
+          <div class="bcard sel">
+            <div class="bic">TXT</div>
+            <h5>Create using Text</h5>
+            <p>Use typed or pasted question text, then parse answers and review questions.</p>
+            <div class="go">Use Text -&gt;</div>
+          </div>
+          <div class="bcard">
+            <div class="bic">IMG</div>
+            <h5>Create using Image</h5>
+            <p>Upload audio first, then set question images and answer keys by range.</p>
+            <div class="go">Use Image -&gt;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;padding-top:6px">
+      <p class="caption bad"><span class="dot"></span>Why it reads as “ugly / off-standard”</p>
+      <p class="anno"><svg><use href="#i-x"/></svg>Three palettes across one flow (purple shell · blue mode step · green/indigo builder).</p>
+      <p class="anno"><svg><use href="#i-x"/></svg>Emoji used as product icons (🎧 ✅ 💡 📤 🤖 🖼️) next to real SVG icons elsewhere.</p>
+      <p class="anno"><svg><use href="#i-x"/></svg>Big “setup ready” banner + ASCII <b>-&gt;</b> arrows; low density.</p>
+      <p class="anno"><svg><use href="#i-x"/></svg>Next screen (builder) jumps to <b>95vw × 90vh</b> — stops feeling “within the modal.”</p>
+      <p class="anno"><svg><use href="#i-x"/></svg>Metadata + audio steps stack 4+ banners → heavy vertical scroll.</p>
+    </div>
+  </div>
+
+  <!-- ============ PROPOSED ============ -->
+  <div class="band"><span class="n">1</span><h2>Proposed — Details &amp; Choose mode</h2><span class="tag">720px modal · no scroll</span></div>
+  <div class="row">
+    <!-- Metadata -->
+    <div style="width:700px">
+      <p class="caption good"><span class="dot"></span>Step 3 · Details (metadata) — compact 2-column</p>
+      <div class="modal">
+        <div class="m-hd">
+          <div class="m-title">
+            <span class="ic"><svg width="18" height="18"><use href="#i-doc"/></svg></span>
+            <div><h3>Test details</h3><p>IELTS · Listening · Step 3 of 5</p></div>
+          </div>
+          <div class="steps">
+            <div class="step done"><svg><use href="#i-check"/></svg>Type</div>
+            <div class="step done"><svg><use href="#i-check"/></svg>Skill</div>
+            <div class="step active"><svg><use href="#i-doc"/></svg>Details</div>
+            <div class="step"><svg><use href="#i-sliders"/></svg>Mode</div>
+            <div class="step"><svg><use href="#i-head"/></svg>Build</div>
+          </div>
+        </div>
+        <div class="m-bd">
+          <div class="stack">
+            <div class="field">
+              <label>Test title <span class="req">*</span></label>
+              <div class="control">IELTS Listening Test — July 2026</div>
+              <div class="hint">Shown to students when they open the test.</div>
+            </div>
+            <div class="field">
+              <label>Format</label>
+              <div class="seg">
+                <div class="opt sel">Academic <span class="s">University admission</span></div>
+                <div class="opt">General <span class="s">Work / migration</span></div>
+              </div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>Duration</label><div class="control sel">30 minutes <svg><use href="#i-chev" style="transform:rotate(90deg)"/></svg></div></div>
+              <div class="field"><label>Target band</label><div class="control sel">Band 7.0 <svg><use href="#i-chev" style="transform:rotate(90deg)"/></svg></div></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>CEFR level</label><div class="control sel">B2 — Upper Intermediate <svg><use href="#i-chev" style="transform:rotate(90deg)"/></svg></div></div>
+              <div class="field"><label>Difficulty</label>
+                <div class="seg diff">
+                  <div class="opt g">Beginner</div>
+                  <div class="opt a sel">Intermediate</div>
+                  <div class="opt">Advanced</div>
+                </div>
+              </div>
+            </div>
+            <div class="field"><label>Description <span style="color:var(--dim);font-weight:500">(optional)</span></label>
+              <div class="control ph" style="height:44px;align-items:flex-start;padding-top:9px">Add a short description or special instructions…</div>
+            </div>
+          </div>
+        </div>
+        <div class="m-ft">
+          <button class="btn btn-ghost">Cancel</button>
+          <button class="btn btn-primary">Continue <svg><use href="#i-chev"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode select -->
+    <div style="flex:1">
+      <p class="caption good"><span class="dot"></span>Step 4 · Choose build method — clean cards + slim summary</p>
+      <div class="modal">
+        <div class="m-hd">
+          <div class="m-title">
+            <span class="ic"><svg width="18" height="18"><use href="#i-sliders"/></svg></span>
+            <div><h3>Choose build method</h3><p>How you’ll add questions · Step 4 of 5</p></div>
+          </div>
+          <div class="steps">
+            <div class="step done"><svg><use href="#i-check"/></svg>Details</div>
+            <div class="step active"><svg><use href="#i-sliders"/></svg>Mode</div>
+            <div class="step"><svg><use href="#i-head"/></svg>Build</div>
+          </div>
+        </div>
+        <div class="m-bd">
+          <div class="chips">
+            <span class="chip"><svg><use href="#i-doc"/></svg>IELTS Listening Test — July 2026</span>
+            <span class="chip"><svg><use href="#i-clock"/></svg>30 min</span>
+            <span class="chip"><svg><use href="#i-target"/></svg>Band 7.0</span>
+          </div>
+          <div class="modes">
+            <div class="mode sel">
+              <span class="tile"><svg width="20" height="20"><use href="#i-doc"/></svg></span>
+              <h4>Text</h4>
+              <p class="desc">Type or paste questions; AI parses them into an editable answer key.</p>
+              <ul>
+                <li><svg><use href="#i-check"/></svg>Paste question text for AI parsing</li>
+                <li><svg><use href="#i-check"/></svg>Word limits &amp; option boxes</li>
+                <li><svg><use href="#i-check"/></svg>Full-width authentic layout</li>
+              </ul>
+              <button class="btn btn-primary btn-sm cta">Use text <svg><use href="#i-chev"/></svg></button>
+            </div>
+            <div class="mode">
+              <span class="tile"><svg width="20" height="20"><use href="#i-image"/></svg></span>
+              <h4>Image</h4>
+              <p class="desc">Upload question-page images; students see the image, you set the answer key.</p>
+              <ul>
+                <li><svg><use href="#i-check"/></svg>Upload page images / PDFs</li>
+                <li><svg><use href="#i-check"/></svg>Two-column student view</li>
+                <li><svg><use href="#i-check"/></svg>Works with any format</li>
+              </ul>
+              <button class="btn btn-ghost btn-sm cta">Use image <svg><use href="#i-chev"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="m-ft">
+          <button class="btn btn-ghost">Back</button>
+          <span style="font-size:12px;color:var(--dim)">Pick a method to open the builder</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BUILDER ============ -->
+  <div class="band"><span class="n">2</span><h2>Proposed — Builder inside the modal</h2><span class="tag">min(960px, 94vw) · pinned header/footer</span></div>
+  <div class="col">
+    <!-- Audio -->
+    <div>
+      <p class="caption good"><span class="dot"></span>Builder · Audio — one guidance strip + compact section rows (was 4 stacked banners)</p>
+      <div class="modal">
+        <div class="m-hd">
+          <div class="m-title">
+            <span class="ic"><svg width="18" height="18"><use href="#i-head"/></svg></span>
+            <div><h3>Audio</h3><p>Upload one file per section</p></div>
+          </div>
+          <div class="steps">
+            <div class="step active"><svg><use href="#i-head"/></svg>Audio</div>
+            <div class="step"><svg><use href="#i-spark"/></svg>Parse</div>
+            <div class="step"><svg><use href="#i-list"/></svg>Questions</div>
+            <div class="step"><svg><use href="#i-check"/></svg>Review</div>
+          </div>
+        </div>
+        <div class="m-bd">
+          <div class="strip">
+            <span class="gi"><svg width="15" height="15"><use href="#i-info"/></svg></span>
+            <p>Upload one audio file per section. Re-upload any missing section before publishing.</p>
+            <span class="pill todo">2 / 4 uploaded</span>
+          </div>
+          <div class="arow">
+            <span class="si"><svg width="17" height="17"><use href="#i-head"/></svg></span>
+            <div class="meta"><b>Section 1</b><span>Questions 1–10</span></div>
+            <div class="right">
+              <div class="player">
+                <span class="play"><svg><use href="#i-play"/></svg></span>
+                <span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:11px"></i><i style="height:16px"></i><i style="height:8px"></i></span>
+                <span class="t">3:42</span>
+              </div>
+              <span class="pill ok">Uploaded</span>
+              <button class="btn btn-ghost btn-sm">Replace</button>
+            </div>
+          </div>
+          <div class="arow">
+            <span class="si"><svg width="17" height="17"><use href="#i-head"/></svg></span>
+            <div class="meta"><b>Section 2</b><span>Questions 11–20</span></div>
+            <div class="right">
+              <div class="player">
+                <span class="play"><svg><use href="#i-play"/></svg></span>
+                <span class="wave"><i style="height:10px"></i><i style="height:15px"></i><i style="height:7px"></i><i style="height:13px"></i><i style="height:16px"></i><i style="height:8px"></i><i style="height:12px"></i><i style="height:6px"></i><i style="height:14px"></i></span>
+                <span class="t">4:05</span>
+              </div>
+              <span class="pill ok">Uploaded</span>
+              <button class="btn btn-ghost btn-sm">Replace</button>
+            </div>
+          </div>
+          <div class="arow" style="border-style:dashed">
+            <span class="si"><svg width="17" height="17"><use href="#i-head"/></svg></span>
+            <div class="meta"><b>Section 3</b><span>Questions 21–30</span></div>
+            <div class="right">
+              <span class="pill todo">No audio yet</span>
+              <button class="btn btn-primary btn-sm"><svg><use href="#i-upload"/></svg>Upload</button>
+            </div>
+          </div>
+          <div class="arow" style="border-style:dashed;margin-bottom:0">
+            <span class="si"><svg width="17" height="17"><use href="#i-head"/></svg></span>
+            <div class="meta"><b>Section 4</b><span>Questions 31–40</span></div>
+            <div class="right">
+              <span class="pill todo">No audio yet</span>
+              <button class="btn btn-primary btn-sm"><svg><use href="#i-upload"/></svg>Upload</button>
+            </div>
+          </div>
+        </div>
+        <div class="m-ft">
+          <button class="btn btn-ghost">Back</button>
+          <div style="display:flex;gap:9px">
+            <button class="btn btn-ghost">Save draft</button>
+            <button class="btn btn-primary">Continue <svg><use href="#i-chev"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Questions image mode -->
+    <div>
+      <p class="caption good"><span class="dot"></span>Builder · Image mode — two-pane (image + answer key) instead of tall stacked cards</p>
+      <div class="modal">
+        <div class="m-hd">
+          <div class="m-title">
+            <span class="ic"><svg width="18" height="18"><use href="#i-image"/></svg></span>
+            <div><h3>Answer key</h3><p>Questions are on the images — set answers only</p></div>
+          </div>
+          <div class="steps">
+            <div class="step done"><svg><use href="#i-check"/></svg>Audio</div>
+            <div class="step done"><svg><use href="#i-check"/></svg>Images</div>
+            <div class="step active"><svg><use href="#i-list"/></svg>Answer key</div>
+            <div class="step"><svg><use href="#i-check"/></svg>Review</div>
+          </div>
+        </div>
+        <div class="m-bd">
+          <div class="twopane">
+            <div class="viewer">
+              <div class="vhd">
+                <b>Section 1 · Questions 1–10</b>
+                <div class="zoom"><span><svg width="14" height="14"><use href="#i-zout"/></svg></span><span><svg width="14" height="14"><use href="#i-zin"/></svg></span></div>
+              </div>
+              <div class="imgstage"><div class="ph"><svg><use href="#i-image"/></svg><span>question-page-1.png</span></div></div>
+            </div>
+            <div class="answers">
+              <div class="ahd"><b>Answer key · 10</b><span class="lnk"><svg width="13" height="13"><use href="#i-spark"/></svg>Bulk paste</span></div>
+              <div class="qrow"><span class="qnum">1</span><div class="qin filled">library</div></div>
+              <div class="qrow"><span class="qnum">2</span><div class="qin filled">9.30</div></div>
+              <div class="qrow"><span class="qnum">3</span><div class="qin filled">receipt</div></div>
+              <div class="qrow"><span class="qnum">4</span><div class="qin filled">B</div></div>
+              <div class="qrow"><span class="qnum">5</span><div class="qin empty">Type answer…</div></div>
+              <div class="qrow"><span class="qnum">6</span><div class="qin empty">Type answer…</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="m-ft">
+          <button class="btn btn-ghost">Back</button>
+          <div style="display:flex;gap:9px">
+            <button class="btn btn-ghost">Save draft</button>
+            <button class="btn btn-primary">Review &amp; publish <svg><use href="#i-chev"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LEGEND ============ -->
+  <div class="legend">
+    <h3>Design tokens</h3>
+    <div class="swatches">
+      <div class="sw"><span class="box" style="background:#4f46e5"></span><div><b>Primary</b><span>#4f46e5</span></div></div>
+      <div class="sw"><span class="box" style="background:#eef2ff"></span><div><b>Selected tint</b><span>#eef2ff</span></div></div>
+      <div class="sw"><span class="box" style="background:#111827"></span><div><b>Ink</b><span>#111827</span></div></div>
+      <div class="sw"><span class="box" style="background:#374151"></span><div><b>Body</b><span>#374151</span></div></div>
+      <div class="sw"><span class="box" style="background:#6b7280"></span><div><b>Muted</b><span>#6b7280</span></div></div>
+      <div class="sw"><span class="box" style="background:#f8fafc"></span><div><b>Inset</b><span>#f8fafc</span></div></div>
+      <div class="sw"><span class="box" style="background:#e5e7eb"></span><div><b>Line</b><span>#e5e7eb</span></div></div>
+      <div class="sw"><span class="box" style="background:#059669"></span><div><b>Success</b><span>#059669</span></div></div>
+      <div class="sw"><span class="box" style="background:#dc2626"></span><div><b>Danger</b><span>#dc2626</span></div></div>
+    </div>
+    <div class="rules">
+      <div><svg><use href="#i-check"/></svg>One controlled modal width per phase — 720px wizard, min(960px,94vw) builder.</div>
+      <div><svg><use href="#i-check"/></svg>Pinned header + footer; scroll confined to the content region.</div>
+      <div><svg><use href="#i-check"/></svg>At most one slim guidance strip per step — never a stack of banners.</div>
+      <div><svg><use href="#i-check"/></svg>Repeated items become one-line rows, not padded cards.</div>
+      <div><svg><use href="#i-check"/></svg>Inline SVG icons only — zero emoji in product chrome.</div>
+      <div><svg><use href="#i-check"/></svg>Flat surfaces — no glassmorphism, no multi-stop gradients.</div>
+    </div>
+  </div>
+
+  <p class="foot">Mockup — static HTML approximation for review. Presentation only; no parsing/upload/publish behaviour changes.</p>
+</div>
+</body>
+</html>
