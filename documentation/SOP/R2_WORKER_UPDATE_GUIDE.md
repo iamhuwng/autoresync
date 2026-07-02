@@ -1,5 +1,11 @@
 # Cloudflare Worker Update Guide - Smart Cleanup Support
 
+> OBSOLETE FOR CURRENT `r2-upload-signer` PRODUCTION WORK.
+>
+> This 2026-era Quick Editor guide is retained as historical context only. Do not replace the Worker from this document and do not use dashboard-only lifecycle setup as final authority. Current production Worker source/config deploys through `cloudflare/worker.js` and `cloudflare/wrangler.jsonc`; current Listening abandoned temp cleanup authority is `documentation/architecture/listening-temp-upload-cleanup-authority.md`; current storage authority is `documentation/architecture/upload-storage-authority.md`.
+>
+> Current R2 lifecycle state, provisioned 2026-07-02: bucket `kahoot-media` has enabled rule `expire-temp-prefix-after-one-day` for prefix `temp/`, action `Expire objects after 1 days`, plus the default multipart abort rule. Future changes must use reviewed source/config/CLI proof, not manual Worker replacement from this page.
+
 ## Step 1: Update Your Worker Code
 
 Replace your current worker code at **r2-upload-signer** with the following:

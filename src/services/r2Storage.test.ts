@@ -25,7 +25,7 @@ const makeResult = (key: string, isTemp = false): UploadResult => ({
 });
 
 const makeClient = () => ({
-    upload: vi.fn<(file: File, operationKind: UploadOperationKind, onProgress?: (percent: number, bytes: number, total: number) => void) => Promise<UploadResult>>(),
+    upload: vi.fn<(file: File, operationKind: UploadOperationKind, onProgress?: (percent: number, bytes: number, total: number) => void, options?: unknown) => Promise<UploadResult>>(),
     uploadWithAssetGrant: vi.fn(),
     move: vi.fn<(key: string) => Promise<MoveResult>>(),
 }) satisfies R2UploadClientContract;
@@ -34,6 +34,7 @@ const makeListeningUploadSessionApi = () => ({
     createSession: vi.fn(),
     issueAsset: vi.fn(),
     probeAsset: vi.fn(),
+    cancelSession: vi.fn(),
 }) satisfies ListeningUploadSessionApi;
 
 describe('R2StorageService compatibility facade', () => {
@@ -128,6 +129,62 @@ describe('R2StorageService compatibility facade', () => {
         expect(client.uploadWithAssetGrant).not.toHaveBeenCalled();
     });
 
+    it('queues Listening temp cleanup through the Worker authority without raw object keys', async () => {
+        const client = makeClient();
+        const bridge = makeListeningUploadSessionApi();
+        bridge.cancelSession.mockResolvedValue({
+            status: 'abandoned',
+            uploadSessionId: 'session-from-backend',
+            deletedCount: 1,
+            preservedCount: 0,
+            skippedCount: 0,
+        });
+        const service = new R2StorageService(client, bridge);
+
+        await expect(service.cancelListeningAuthoringUpload({
+            uploadSessionId: 'session-from-backend',
+            assetId: 'asset-from-backend',
+            reason: 'builder-cancel',
+        })).resolves.toEqual(expect.objectContaining({
+            status: 'abandoned',
+            deletedCount: 1,
+        }));
+        expect(bridge.cancelSession).toHaveBeenCalledWith({
+            uploadSessionId: 'session-from-backend',
+            assetId: 'asset-from-backend',
+            reason: 'builder-cancel',
+        });
+        expect(JSON.stringify(bridge.cancelSession.mock.calls[0][0])).not.toContain('temp/listening/');
+        expect(client.upload).not.toHaveBeenCalled();
+        expect(client.uploadWithAssetGrant).not.toHaveBeenCalled();
+    });
+
+    it('retries trusted Listening temp cleanup before surfacing failure', async () => {
+        const client = makeClient();
+        const bridge = makeListeningUploadSessionApi();
+        bridge.cancelSession
+            .mockRejectedValueOnce(new Error('network-1'))
+            .mockRejectedValueOnce(new Error('network-2'))
+            .mockResolvedValueOnce({
+                status: 'abandoned',
+                uploadSessionId: 'session-from-backend',
+                deletedCount: 1,
+                preservedCount: 0,
+                skippedCount: 0,
+            });
+        const service = new R2StorageService(client, bridge);
+
+        await expect(service.cancelListeningAuthoringUpload({
+            uploadSessionId: 'session-from-backend',
+            assetId: 'asset-from-backend',
+            reason: 'builder-cancel',
+        })).resolves.toEqual(expect.objectContaining({
+            status: 'abandoned',
+            deletedCount: 1,
+        }));
+        expect(bridge.cancelSession).toHaveBeenCalledTimes(3);
+    });
+
     it('creates a canonical Listening upload session, issues an asset, then uploads with its grant', async () => {
         const client = makeClient();
         const bridge = makeListeningUploadSessionApi();
@@ -186,8 +243,53 @@ describe('R2StorageService compatibility facade', () => {
             key: tempKey,
             publicUrl: `${R2_PUBLIC_URL}/${tempKey}`,
             contentType: 'audio/m4a',
-        }, progress);
+        }, progress, undefined);
         expect(client.upload).not.toHaveBeenCalled();
+    });
+
+    it('queues trusted cleanup when an issued Listening upload is aborted', async () => {
+        const client = makeClient();
+        const bridge = makeListeningUploadSessionApi();
+        const tempKey = 'temp/listening/owner-a/session-from-backend/asset-from-backend-audio.m4a';
+        bridge.createSession.mockResolvedValue({
+            uploadSessionId: 'session-from-backend',
+            ownerId: 'owner-a',
+            status: 'active',
+            createdAt: 1,
+            expiresAt: 2,
+            maxEligibilityExpiresAt: 3,
+        });
+        bridge.issueAsset.mockResolvedValue({
+            assetId: 'asset-from-backend',
+            uploadSessionId: 'session-from-backend',
+            tempKey,
+            assetGrant: 'backend-grant',
+            assetGrantExpiresAt: 4,
+        });
+        bridge.cancelSession.mockResolvedValue({
+            status: 'abandoned',
+            uploadSessionId: 'session-from-backend',
+            deletedCount: 1,
+            preservedCount: 0,
+            skippedCount: 0,
+        });
+        client.uploadWithAssetGrant.mockRejectedValue(Object.assign(new Error('aborted'), {
+            code: 'upload_aborted',
+        }));
+        const service = new R2StorageService(client, bridge);
+        const controller = new AbortController();
+        const file = new File(['audio'], 'audio.m4a', { type: 'audio/x-m4a' });
+
+        await expect(service.uploadListeningAuthoringAudio(file, {
+            sessionIdempotencyKey: 'upload-attempt-session',
+            assetIdempotencyKey: 'upload-attempt-asset',
+        }, undefined, { signal: controller.signal })).rejects.toThrow('aborted');
+
+        expect(bridge.cancelSession).toHaveBeenCalledWith({
+            uploadSessionId: 'session-from-backend',
+            assetId: 'asset-from-backend',
+            reason: 'upload-aborted',
+        });
     });
 
     it.each([

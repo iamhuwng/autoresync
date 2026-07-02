@@ -54,6 +54,10 @@ class FakeXMLHttpRequest {
         this.listeners.set(type, listener as Listener);
     }
 
+    abort() {
+        this.listeners.get('abort')?.({} as ProgressEvent);
+    }
+
     send(body: Document | XMLHttpRequestBodyInit | null) {
         this.body = body;
         const response = FakeXMLHttpRequest.responses.shift();
@@ -194,6 +198,29 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(body).not.toHaveProperty('filename');
         expect(body).not.toHaveProperty('sourceKey');
         expect(body).not.toHaveProperty('destKey');
+    });
+
+    it('rejects an already-aborted asset upload without starting XHR', async () => {
+        const endpoint = 'https://canary.example.test';
+        const client = makeClient({ endpoint });
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(client.uploadWithAssetGrant(
+            new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }),
+            {
+                assetGrant: 'asset-grant-sentinel',
+                key: uploadResponse.key,
+                publicUrl: uploadResponse.url,
+                contentType: 'audio/mpeg',
+            },
+            undefined,
+            { signal: controller.signal },
+        )).rejects.toMatchObject({
+            code: 'upload_aborted',
+            recoverable: true,
+        });
+        expect(FakeXMLHttpRequest.instances).toHaveLength(0);
     });
 
     it('returns exact UploadResult and progress compatibility from Worker output', async () => {

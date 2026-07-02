@@ -12,6 +12,10 @@ const {
   createListeningUploadSessionHandlers,
   createListeningUploadSessionService,
 } = await import('../src/upload-worker/listening-upload-session.ts');
+const {
+  createListeningUploadSessionSweepHandler,
+  createListeningUploadSessionSweepService,
+} = await import('../src/upload-worker/listening-upload-session-sweep.ts');
 
 const textEncoder = new TextEncoder();
 const toBase64Url = (value: string) => btoa(value).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
@@ -96,13 +100,26 @@ const requestFor = (
 type ListeningUploadSessionRepository =
   Parameters<typeof createListeningUploadSessionService>[0]['repository'];
 
-const createMemoryRepository = (): ListeningUploadSessionRepository & { writes: string[] } => {
+const createMemoryRepository = (): ListeningUploadSessionRepository & {
+  writes: string[];
+  sweepRecords: any[];
+  metricRecords: any[];
+  referenceAsset: (assetId: string) => void;
+} => {
   const sessions = new Map<string, Record<string, any>>();
   const writes: string[] = [];
+  const sweepRecords: any[] = [];
+  const metricRecords: any[] = [];
+  const durableReferences = new Set<string>();
   const key = (ownerId: string, uploadSessionId: string) => `${ownerId}/${uploadSessionId}`;
 
   return {
     writes,
+    sweepRecords,
+    metricRecords,
+    referenceAsset(assetId: string) {
+      durableReferences.add(assetId);
+    },
     async findByCreationRequest(ownerId, creationRequestIdHash) {
       return [...sessions.values()].find((session) =>
         session.ownerId === ownerId && session.creationRequestIdHash === creationRequestIdHash,
@@ -130,6 +147,61 @@ const createMemoryRepository = (): ListeningUploadSessionRepository & { writes: 
       session.lastGrantIssuedAt = asset.issuedAt;
       writes.push(`media_asset_upload_sessions/${ownerId}/${uploadSessionId}`);
       return { session, asset };
+    },
+    async findDurableAssetReferences({ assetIds }) {
+      return assetIds
+        .filter((assetId) => durableReferences.has(assetId))
+        .map((assetId) => ({ assetId, source: `media_assets/${assetId}` }));
+    },
+    async markCleanupState(input) {
+      const session = sessions.get(key(input.ownerId, input.uploadSessionId));
+      if (!session) return null;
+      session.status = input.status;
+      session.abandonmentReason = input.reason;
+      session.cleanupQueuedAt = input.cleanupQueuedAt;
+      if (input.completedAt !== undefined) {
+        session.completedAt = input.completedAt;
+      }
+      session.deletedAssetIds = {
+        ...(session.deletedAssetIds ?? {}),
+        ...Object.fromEntries(input.deletedAssetIds.map((assetId) => [assetId, true])),
+      };
+      session.preservedAssetIds = {
+        ...(session.preservedAssetIds ?? {}),
+        ...Object.fromEntries(input.preservedAssetIds.map((assetId) => [assetId, true])),
+      };
+      writes.push(`media_asset_upload_sessions/${input.ownerId}/${input.uploadSessionId}`);
+      return session;
+    },
+    async listExpiredCleanupCandidates({ now, notBeforeMs, maxOwners, maxSessions }) {
+      const ownerIds = [...new Set([...sessions.values()].map((session) => session.ownerId))]
+        .sort()
+        .slice(0, maxOwners);
+      return ownerIds.flatMap((ownerId) =>
+        [...sessions.values()]
+          .filter((session) =>
+            session.ownerId === ownerId
+            && (session.status === 'active' || session.status === 'cleanup-queued')
+            && session.purpose === 'listening-authoring'
+            && session.createdAt >= notBeforeMs
+            && session.maxEligibilityExpiresAt <= now)
+          .sort((a, b) => a.uploadSessionId.localeCompare(b.uploadSessionId))
+          .map((session) => ({
+            ownerId: session.ownerId,
+            uploadSessionId: session.uploadSessionId,
+            status: session.status,
+            createdAt: session.createdAt,
+            expiresAt: session.expiresAt,
+            maxEligibilityExpiresAt: session.maxEligibilityExpiresAt,
+            assetCount: Object.keys(session.assetRequests ?? {}).length,
+          })),
+      ).slice(0, maxSessions);
+    },
+    async writeSweepRecord(record) {
+      sweepRecords.push(structuredClone(record));
+    },
+    async writeMetricRecord(record) {
+      metricRecords.push(structuredClone(record));
     },
   };
 };
@@ -592,6 +664,602 @@ describe('PRD-0056A Worker bridge grant', () => {
       }),
     }), env);
     expect(crossOwnerResponse.status).toBe(404);
+  });
+
+  it('cancels abandoned Listening temp uploads through Worker authority and touches no permanent object', async () => {
+    const { repository } = createSessionService();
+    const objects = new Map<string, Uint8Array>();
+    const deletedKeys: string[] = [];
+    const worker = createUploadWorker({
+      now: () => 1_700_000_000_000,
+      firebaseVerifier: {
+        async verifyAuthorizationHeader(header: string | null) {
+          if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
+          return { valid: false };
+        },
+      },
+      listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        repository,
+        idempotencySecret: 'idempotency-secret-test-value',
+        grantSecret: 'listening-upload-session-grant-test-secret',
+        now: () => 1_700_000_000_000,
+        createOpaqueId: (() => {
+          const ids = [
+            'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'nonce-cccccccccccccccccccccccccccccccc',
+          ];
+          return () => ids.shift() ?? 'overflow-dddddddddddddddddddddddddddddddd';
+        })(),
+      }),
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
+      UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
+      PUBLIC_URL: 'https://public.example',
+      UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      R2_BUCKET: {
+        async get(key: string) { return objects.get(key) ?? null; },
+        async put(key: string, body: BodyInit) {
+          objects.set(key, new Uint8Array(await new Response(body).arrayBuffer()));
+        },
+        async delete(key: string) {
+          deletedKeys.push(key);
+          objects.delete(key);
+        },
+      },
+    };
+
+    const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'session-request',
+      },
+      body: JSON.stringify({}),
+    }), env);
+    const sessionPayload = await sessionResponse.json() as Record<string, string>;
+    const assetResponse = await worker.fetch(new Request('https://upload.example/issueListeningUploadAsset', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'asset-request',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        fileName: 'audio.mp3',
+        declaredMimeType: 'audio/mpeg',
+        sizeBytes: 4,
+      }),
+    }), env);
+    const assetPayload = await assetResponse.json() as Record<string, string>;
+    const permanentKey = 'assessment-assets/listening/owner-1/asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/audio.mp3';
+    objects.set(assetPayload.tempKey, new TextEncoder().encode('tone'));
+    objects.set(permanentKey, new TextEncoder().encode('permanent'));
+
+    const cancelResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        assetId: assetPayload.assetId,
+        reason: 'builder-cancel',
+      }),
+    }), env);
+
+    expect(cancelResponse.status).toBe(200);
+    await expect(cancelResponse.json()).resolves.toEqual(expect.objectContaining({
+      status: 'abandoned',
+      uploadSessionId: sessionPayload.uploadSessionId,
+      deletedCount: 1,
+      preservedCount: 0,
+    }));
+    expect(deletedKeys).toEqual([assetPayload.tempKey]);
+    expect(objects.has(assetPayload.tempKey)).toBe(false);
+    expect(objects.has(permanentKey)).toBe(true);
+    await expect(repository.get('owner-1', sessionPayload.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'abandoned',
+        abandonmentReason: 'builder-cancel',
+        deletedAssetIds: { [assetPayload.assetId]: true },
+      }),
+    );
+  });
+
+  it('queues cleanup state before R2 delete so failed deletion does not leave session active', async () => {
+    const { repository } = createSessionService();
+    const objects = new Map<string, Uint8Array>();
+    const deletedKeys: string[] = [];
+    let deleteAttempts = 0;
+    const worker = createUploadWorker({
+      now: () => 1_700_000_000_000,
+      firebaseVerifier: {
+        async verifyAuthorizationHeader(header: string | null) {
+          if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
+          return { valid: false };
+        },
+      },
+      listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        repository,
+        idempotencySecret: 'idempotency-secret-test-value',
+        grantSecret: 'listening-upload-session-grant-test-secret',
+        now: () => 1_700_000_000_000,
+        createOpaqueId: (() => {
+          const ids = [
+            'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'nonce-cccccccccccccccccccccccccccccccc',
+          ];
+          return () => ids.shift() ?? 'overflow-dddddddddddddddddddddddddddddddd';
+        })(),
+      }),
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
+      UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
+      PUBLIC_URL: 'https://public.example',
+      UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      R2_BUCKET: {
+        async get(key: string) { return objects.get(key) ?? null; },
+        async put() {},
+        async delete(key: string) {
+          deleteAttempts += 1;
+          if (deleteAttempts === 1) throw new Error('r2_delete_failed');
+          deletedKeys.push(key);
+          objects.delete(key);
+        },
+      },
+    };
+
+    const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'session-request',
+      },
+      body: JSON.stringify({}),
+    }), env);
+    const sessionPayload = await sessionResponse.json() as Record<string, string>;
+    const assetResponse = await worker.fetch(new Request('https://upload.example/issueListeningUploadAsset', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'asset-request',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        fileName: 'audio.mp3',
+        declaredMimeType: 'audio/mpeg',
+        sizeBytes: 4,
+      }),
+    }), env);
+    const assetPayload = await assetResponse.json() as Record<string, string>;
+    objects.set(assetPayload.tempKey, new TextEncoder().encode('tone'));
+
+    const cancelRequestBody = {
+      uploadSessionId: sessionPayload.uploadSessionId,
+      assetId: assetPayload.assetId,
+      reason: 'builder-cancel',
+    };
+    const firstCancelResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cancelRequestBody),
+    }), env);
+    expect(firstCancelResponse.status).toBe(500);
+    await expect(firstCancelResponse.json()).resolves.toEqual({ code: 'bridge_unexpected_error' });
+    await expect(repository.get('owner-1', sessionPayload.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'cleanup-queued',
+        abandonmentReason: 'builder-cancel',
+      }),
+    );
+    expect(objects.has(assetPayload.tempKey)).toBe(true);
+
+    const retryCancelResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cancelRequestBody),
+    }), env);
+    expect(retryCancelResponse.status).toBe(200);
+    await expect(retryCancelResponse.json()).resolves.toEqual(expect.objectContaining({
+      status: 'abandoned',
+      deletedCount: 1,
+      preservedCount: 0,
+    }));
+    expect(deletedKeys).toEqual([assetPayload.tempKey]);
+    expect(objects.has(assetPayload.tempKey)).toBe(false);
+    await expect(repository.get('owner-1', sessionPayload.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'abandoned',
+        deletedAssetIds: { [assetPayload.assetId]: true },
+      }),
+    );
+  });
+
+  it('queues cleanup state before reference scan so RTDB scan failure does not leave session active', async () => {
+    const { repository } = createSessionService();
+    const objects = new Map<string, Uint8Array>();
+    const repositoryWithFailingScan = {
+      ...repository,
+      async findDurableAssetReferences() {
+        throw new Error('rtdb_reference_scan_failed');
+      },
+    };
+    const worker = createUploadWorker({
+      now: () => 1_700_000_000_000,
+      firebaseVerifier: {
+        async verifyAuthorizationHeader(header: string | null) {
+          if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
+          return { valid: false };
+        },
+      },
+      listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        repository: repositoryWithFailingScan,
+        idempotencySecret: 'idempotency-secret-test-value',
+        grantSecret: 'listening-upload-session-grant-test-secret',
+        now: () => 1_700_000_000_000,
+        createOpaqueId: (() => {
+          const ids = [
+            'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'nonce-cccccccccccccccccccccccccccccccc',
+          ];
+          return () => ids.shift() ?? 'overflow-dddddddddddddddddddddddddddddddd';
+        })(),
+      }),
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
+      UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
+      PUBLIC_URL: 'https://public.example',
+      UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      R2_BUCKET: {
+        async get(key: string) { return objects.get(key) ?? null; },
+        async put() {},
+        async delete(key: string) {
+          objects.delete(key);
+        },
+      },
+    };
+
+    const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'session-request',
+      },
+      body: JSON.stringify({}),
+    }), env);
+    const sessionPayload = await sessionResponse.json() as Record<string, string>;
+    const assetResponse = await worker.fetch(new Request('https://upload.example/issueListeningUploadAsset', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'asset-request',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        fileName: 'audio.mp3',
+        declaredMimeType: 'audio/mpeg',
+        sizeBytes: 4,
+      }),
+    }), env);
+    const assetPayload = await assetResponse.json() as Record<string, string>;
+    objects.set(assetPayload.tempKey, new TextEncoder().encode('tone'));
+
+    const cancelResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        assetId: assetPayload.assetId,
+        reason: 'builder-cancel',
+      }),
+    }), env);
+
+    expect(cancelResponse.status).toBe(500);
+    await expect(cancelResponse.json()).resolves.toEqual({ code: 'bridge_unexpected_error' });
+    expect(objects.has(assetPayload.tempKey)).toBe(true);
+    await expect(repository.get('owner-1', sessionPayload.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'cleanup-queued',
+        abandonmentReason: 'builder-cancel',
+      }),
+    );
+  });
+
+  it('denies cross-owner cleanup and preserves referenced temp audio', async () => {
+    const { repository } = createSessionService();
+    const objects = new Map<string, Uint8Array>();
+    const deletedKeys: string[] = [];
+    const worker = createUploadWorker({
+      now: () => 1_700_000_000_000,
+      firebaseVerifier: {
+        async verifyAuthorizationHeader(header: string | null) {
+          if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
+          if (header === 'Bearer other-owner-token') return { valid: true, uid: 'owner-2' };
+          return { valid: false };
+        },
+      },
+      listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        repository,
+        idempotencySecret: 'idempotency-secret-test-value',
+        grantSecret: 'listening-upload-session-grant-test-secret',
+        now: () => 1_700_000_000_000,
+        createOpaqueId: (() => {
+          const ids = [
+            'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'nonce-cccccccccccccccccccccccccccccccc',
+          ];
+          return () => ids.shift() ?? 'overflow-dddddddddddddddddddddddddddddddd';
+        })(),
+      }),
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
+      UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
+      PUBLIC_URL: 'https://public.example',
+      UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      R2_BUCKET: {
+        async get(key: string) { return objects.get(key) ?? null; },
+        async put() {},
+        async delete(key: string) {
+          deletedKeys.push(key);
+          objects.delete(key);
+        },
+      },
+    };
+
+    const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'session-request',
+      },
+      body: JSON.stringify({}),
+    }), env);
+    const sessionPayload = await sessionResponse.json() as Record<string, string>;
+    const assetResponse = await worker.fetch(new Request('https://upload.example/issueListeningUploadAsset', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'asset-request',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        fileName: 'audio.mp3',
+        declaredMimeType: 'audio/mpeg',
+        sizeBytes: 4,
+      }),
+    }), env);
+    const assetPayload = await assetResponse.json() as Record<string, string>;
+    objects.set(assetPayload.tempKey, new TextEncoder().encode('tone'));
+
+    const crossOwnerResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer other-owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        assetId: assetPayload.assetId,
+        reason: 'builder-cancel',
+      }),
+    }), env);
+    expect(crossOwnerResponse.status).toBe(404);
+    expect(objects.has(assetPayload.tempKey)).toBe(true);
+
+    repository.referenceAsset(assetPayload.assetId);
+    const referencedResponse = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner-token',
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        uploadSessionId: sessionPayload.uploadSessionId,
+        assetId: assetPayload.assetId,
+        reason: 'builder-cancel',
+      }),
+    }), env);
+    expect(referencedResponse.status).toBe(200);
+    await expect(referencedResponse.json()).resolves.toEqual(expect.objectContaining({
+      status: 'cleanup-queued',
+      deletedCount: 0,
+      preservedCount: 1,
+    }));
+    expect(deletedKeys).toEqual([]);
+    expect(objects.has(assetPayload.tempKey)).toBe(true);
+    await expect(repository.get('owner-1', sessionPayload.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'cleanup-queued',
+        preservedAssetIds: { [assetPayload.assetId]: true },
+      }),
+    );
+  });
+
+  it('scheduled sweep cleans only future expired temp sessions and preserves referenced assets', async () => {
+    const repository = createMemoryRepository();
+    const now = 1_800_000_000_000;
+    const notBeforeMs = now - 10_000;
+    const deletedKeys: string[] = [];
+    const makeSession = (input: {
+      ownerId: string;
+      uploadSessionId: string;
+      assetId: string;
+      createdAt: number;
+    }) => {
+      const tempKey = `temp/listening/${input.ownerId}/${input.uploadSessionId}/${input.assetId}-audio.mp3`;
+      return {
+        schemaVersion: 1 as const,
+        ownerId: input.ownerId,
+        uploadSessionId: input.uploadSessionId,
+        purpose: 'listening-authoring' as const,
+        status: 'active' as const,
+        creationRequestIdHash: `${input.assetId.replace(/[^a-f0-9]/g, 'a').slice(0, 63)}0`,
+        createdAt: input.createdAt,
+        createdBy: input.ownerId,
+        expiresAt: now - 1,
+        maxEligibilityExpiresAt: now - 1,
+        assetIds: { [input.assetId]: true },
+        assetRequests: {
+          [`${input.assetId}-request`]: {
+            assetId: input.assetId,
+            fileName: 'audio.mp3',
+            sanitizedFileName: 'audio.mp3',
+            declaredMimeType: 'audio/mpeg',
+            sizeBytes: 4,
+            tempKey,
+            issuedAt: input.createdAt,
+            grantExpiresAt: input.createdAt + 600_000,
+          },
+        },
+        bridgeVersion: '0056A-v1' as const,
+      };
+    };
+    const deletable = makeSession({
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-expired-aaaaaaaaaaaaaaaa',
+      assetId: 'asset-deletable-aaaaaaaaaaaaaaaa',
+      createdAt: notBeforeMs + 1,
+    });
+    const referenced = makeSession({
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-ref-aaaaaaaaaaaaaaaaaaaa',
+      assetId: 'asset-referenced-aaaaaaaaaaaaaaa',
+      createdAt: notBeforeMs + 2,
+    });
+    const historical = makeSession({
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-old-aaaaaaaaaaaaaaaaaaaa',
+      assetId: 'asset-old-aaaaaaaaaaaaaaaaaaaa',
+      createdAt: notBeforeMs - 1,
+    });
+    await repository.create(deletable);
+    await repository.create(referenced);
+    await repository.create(historical);
+    repository.referenceAsset('asset-referenced-aaaaaaaaaaaaaaa');
+
+    const sweep = createListeningUploadSessionSweepService({
+      repository,
+      now: () => now,
+      createOpaqueId: () => 'sweep-proof-aaaaaaaaaaaaaaaaaaaa',
+      grantSecret: 'listening-upload-session-grant-test-secret',
+    });
+    const result = await sweep.sweepExpiredTempSessions({
+      env: {
+        R2_BUCKET: {
+          async delete(key: string) {
+            deletedKeys.push(key);
+          },
+        },
+      },
+      notBeforeMs,
+      maxOwners: 10,
+      maxSessions: 10,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      status: 'complete',
+      scannedCandidateCount: 2,
+      processedSessionCount: 2,
+      deletedAssetCount: 1,
+      preservedAssetCount: 1,
+      failedSessionCount: 0,
+    }));
+    expect(deletedKeys).toEqual([
+      deletable.assetRequests['asset-deletable-aaaaaaaaaaaaaaaa-request'].tempKey,
+    ]);
+    await expect(repository.get('teacher-1', deletable.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'abandoned',
+        abandonmentReason: 'scheduled-expired',
+        deletedAssetIds: { [deletable.assetRequests['asset-deletable-aaaaaaaaaaaaaaaa-request'].assetId]: true },
+      }),
+    );
+    await expect(repository.get('teacher-1', referenced.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({
+        status: 'cleanup-queued',
+        preservedAssetIds: { [referenced.assetRequests['asset-referenced-aaaaaaaaaaaaaaa-request'].assetId]: true },
+      }),
+    );
+    await expect(repository.get('teacher-1', historical.uploadSessionId)).resolves.toEqual(
+      expect.objectContaining({ status: 'active' }),
+    );
+    expect(repository.sweepRecords).toHaveLength(2);
+    expect(repository.metricRecords).toEqual([
+      expect.objectContaining({
+        operation: 'reconciliation',
+        outcome: 'within-threshold',
+        reasonCode: 'scheduled_temp_sweep_complete',
+        runId: result.sweepId,
+      }),
+    ]);
+    expect(JSON.stringify(repository.sweepRecords)).not.toContain('temp/listening/');
+    expect(JSON.stringify(repository.metricRecords)).not.toContain('temp/listening/');
+  });
+
+  it('Worker scheduled handler delegates sweep work through ctx.waitUntil', async () => {
+    const scheduled = vi.fn(async () => ({ status: 'complete' }));
+    const worker = createUploadWorker({
+      listeningUploadSessionSweepHandler: { scheduled },
+    });
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        pending.push(promise);
+      },
+    };
+
+    await worker.scheduled({ cron: '0 * * * *' }, { R2_BUCKET: {} }, ctx);
+
+    expect(scheduled).toHaveBeenCalledWith({
+      env: { R2_BUCKET: {} },
+      cron: '0 * * * *',
+    });
+    expect(pending).toHaveLength(1);
+    await expect(pending[0]).resolves.toEqual({ status: 'complete' });
   });
 
   it('maps bridge dependency failures to sanitized non-secret response codes', async () => {

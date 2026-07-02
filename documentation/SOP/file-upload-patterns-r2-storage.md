@@ -6,6 +6,12 @@
 > **Last Updated**: 2026-02-04
 > **Related**: `r2Storage.ts`, `AvatarUploader.tsx`
 
+> CURRENT LISTENING EXCEPTION (2026-07-02)
+>
+> This SOP's generic temp-to-permanent examples remain useful for older non-Listening upload surfaces, but the `ListeningTestBuilder.tsx` audit rows and `temp/audio/` examples below are obsolete for current canonical IELTS Listening authoring. New Listening authoring audio uses Worker-issued upload sessions/assets under `temp/listening/{ownerId}/{uploadSessionId}/{assetId}-{sanitizedFileName}`, trusted cancel cleanup through `POST /cancelListeningUploadSession`, hourly future-only scheduled cleanup, and R2 `temp/` lifecycle fallback.
+>
+> Current authority: `documentation/architecture/listening-temp-upload-cleanup-authority.md` and `documentation/architecture/upload-storage-authority.md`. Do not give browser/client code raw R2 delete authority.
+
 ---
 
 ## 📋 Summary

@@ -6660,6 +6660,32 @@ Boundaries preserved:
 - No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
 - No staging, commit, push, clean, or revert occurred.
 
+## IELTS Listening abandoned-temp cleanup deployment knowns - 2026-07-02
+
+Verdict: deployed and verified for future IELTS Listening abandoned temp uploads. This bounded packet does not close durable `pending-delete` cleanup, historical orphan cleanup, Task 8 live/private rollout, or final PRD-0055 production acceptance.
+
+Current truth:
+
+- Nine owner-approved objects under `temp/listening/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/` were deleted through trusted Worker authority after owner, canonical temp key, upload-window, and durable-reference checks. R2 readback returned no deleted candidate keys. Permanent object count touched was zero.
+- Browser cancellation now sends session/asset identifiers and a reason to the trusted cleanup route. Browser code never receives raw R2 delete authority.
+- Worker cleanup permits only canonical `temp/listening/{ownerId}/{assetId}/{sessionId}/...` keys, rejects cross-owner requests, preserves referenced objects, and denies permanent prefixes.
+- RTDB sessions move from `active` to terminal cleanup state instead of remaining silently active.
+- Firebase RTDB rules were deployed to `temp-a1437-default-rtdb`.
+- Worker `r2-upload-signer` version `dca3e056-142f-4cb4-9194-3117675f8889` is deployed at 100 percent with hourly cron `0 * * * *`.
+- Scheduled cleanup is future-only from cutoff `1782976636347`; it does not authorize historical orphan deletion.
+- Bucket `kahoot-media` has lifecycle rule `expire-temp-prefix-after-one-day` for prefix `temp/`, expiring objects after one day. Existing multipart-abort fallback remains seven days.
+- Aggregate cleanup evidence uses `/media_asset_sweeps`, `/media_asset_metrics`, and `/media_asset_events` without storing raw object keys.
+
+Supersession note:
+
+- Earlier statements saying no lifecycle rule, no cleanup deployment, or no scheduled cleanup existed remain valid historical evidence for their original packet dates. They are obsolete as descriptions of this Listening abandoned-temp slice after 2026-07-02.
+
+Remaining proof:
+
+- First real hourly scheduled sweep execution has not yet been observed.
+- No historical orphan deletion was authorized or run.
+- Durable registry `pending-delete` cleanup remains separate work.
+
 ## PRD-0055 Task 8.14 localhost-only checkbox closure - 2026-07-01
 
 Verdict: TASK_8_14_LOCALHOST_ONLY_PASS. Task 8.14 is checked for the current localhost-only packet. This is not parent Task 8, parent Task 9, or PRD-0055 PASS.

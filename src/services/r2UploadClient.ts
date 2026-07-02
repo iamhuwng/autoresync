@@ -25,6 +25,10 @@ export interface UploadProgress {
     (percent: number, bytesUploaded: number, totalBytes: number): void;
 }
 
+export interface UploadOptions {
+    signal?: AbortSignal;
+}
+
 export interface MoveResult {
     success: boolean;
     newUrl: string;
@@ -36,11 +40,13 @@ export interface R2UploadClientContract {
         file: File,
         operationKind: UploadOperationKind,
         onProgress?: UploadProgress,
+        options?: UploadOptions,
     ): Promise<UploadResult>;
     uploadWithAssetGrant(
         file: File,
         authorization: AssetGrantUploadAuthorization,
         onProgress?: UploadProgress,
+        options?: UploadOptions,
     ): Promise<UploadResult>;
     move(key: string): Promise<MoveResult>;
 }
@@ -216,6 +222,7 @@ export class R2UploadClient implements R2UploadClientContract {
         file: File,
         operationKind: UploadOperationKind,
         onProgress?: UploadProgress,
+        options: UploadOptions = {},
     ): Promise<UploadResult> {
         const authorization = await this.authorize(file, operationKind);
         const isTemp = temporaryOperations.has(operationKind);
@@ -234,6 +241,7 @@ export class R2UploadClient implements R2UploadClientContract {
             token,
             uploadUrl: authorization.uploadUrl,
             onProgress,
+            signal: options.signal,
         });
 
         if (
@@ -267,6 +275,7 @@ export class R2UploadClient implements R2UploadClientContract {
         file: File,
         authorization: AssetGrantUploadAuthorization,
         onProgress?: UploadProgress,
+        options: UploadOptions = {},
     ): Promise<UploadResult> {
         if (
             !assertString(authorization.assetGrant)
@@ -290,6 +299,7 @@ export class R2UploadClient implements R2UploadClientContract {
             uploadUrl: uploadUrl.toString(),
             contentType: authorization.contentType,
             onProgress,
+            signal: options.signal,
         });
         if (
             uploaded.key !== authorization.key
@@ -436,15 +446,24 @@ export class R2UploadClient implements R2UploadClientContract {
         uploadUrl,
         contentType,
         onProgress,
+        signal,
     }: {
         file: File;
         token: string;
         uploadUrl: string;
         contentType?: string;
         onProgress?: UploadProgress;
+        signal?: AbortSignal;
     }): Promise<UploadResponse> {
         return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
+                return;
+            }
             const xhr = this.xhrFactory();
+            const abortUpload = () => xhr.abort();
+            signal?.addEventListener('abort', abortUpload, { once: true });
+            const cleanupAbortListener = () => signal?.removeEventListener('abort', abortUpload);
             if (onProgress) {
                 xhr.upload.addEventListener('progress', (event) => {
                     if (!event.lengthComputable) return;
@@ -456,6 +475,7 @@ export class R2UploadClient implements R2UploadClientContract {
                 });
             }
             xhr.addEventListener('load', () => {
+                cleanupAbortListener();
                 if (xhr.status < 200 || xhr.status >= 300) {
                     const workerError = readWorkerErrorCode(xhr.responseText);
                     if (import.meta.env.DEV) {
@@ -485,9 +505,11 @@ export class R2UploadClient implements R2UploadClientContract {
                 }
             });
             xhr.addEventListener('error', () => {
+                cleanupAbortListener();
                 reject(new R2UploadClientError('network_error', 'Upload failed; retry', true));
             });
             xhr.addEventListener('abort', () => {
+                cleanupAbortListener();
                 reject(new R2UploadClientError('upload_aborted', 'Upload was cancelled', true));
             });
             xhr.open('PUT', uploadUrl);

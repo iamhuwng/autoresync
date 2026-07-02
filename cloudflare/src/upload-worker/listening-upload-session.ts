@@ -5,6 +5,7 @@ import {
   createOpaqueId,
   hashIdempotencyKey,
   ListeningUploadSessionInputError,
+  parseCancelSessionRequest,
   parseCreateSessionRequest,
   parseIssueAssetRequest,
   parseProbeAssetRequest,
@@ -140,6 +141,23 @@ const probeUploadedAssetRange = async (
     contentRange: `bytes 0-0/${asset.sizeBytes}`,
   };
 };
+
+const deleteUploadedAsset = async (
+  env: Record<string, unknown>,
+  asset: ListeningUploadAssetRecord,
+) => {
+  const bucket = env.R2_BUCKET as {
+    delete?: (key: string) => Promise<unknown>;
+  } | undefined;
+  if (!bucket?.delete) {
+    throw new ListeningUploadSessionError('asset_cleanup_unavailable', 500);
+  }
+  await bucket.delete(asset.tempKey);
+};
+
+const referenceAssetIds = (
+  references: Awaited<ReturnType<NonNullable<ListeningUploadSessionRepository['findDurableAssetReferences']>>>,
+): Set<string> => new Set(references.map((reference) => reference.assetId));
 
 export const createListeningUploadSessionService = (dependencies: {
   repository: ListeningUploadSessionRepository;
@@ -355,6 +373,125 @@ export const createListeningUploadSessionService = (dependencies: {
         asset,
       };
     },
+
+    async cancelSession(input: {
+      uid: string;
+      body: unknown;
+      env: Record<string, unknown>;
+    }) {
+      const request = parseCancelSessionRequest(input.body);
+      let session: ListeningUploadSessionRecord | null;
+      try {
+        session = await dependencies.repository.get(input.uid, request.uploadSessionId);
+      } catch (error) {
+        const safeError = asError(error);
+        if (safeError.code !== 'bridge_unexpected_typeerror') throw safeError;
+        throw new ListeningUploadSessionError('bridge_repository_get_failed', 500);
+      }
+      if (!session || session.ownerId !== input.uid || session.purpose !== 'listening-authoring') {
+        throw new ListeningUploadSessionError('upload_session_not_found', 404);
+      }
+      if (session.status === 'committing' || session.status === 'completed') {
+        throw new ListeningUploadSessionError('upload_session_not_cancellable', 409);
+      }
+      if (session.status === 'abandoned' || session.status === 'expired') {
+        return {
+          status: session.status,
+          uploadSessionId: session.uploadSessionId,
+          deletedCount: 0,
+          preservedCount: Object.keys(session.preservedAssetIds ?? {}).length,
+          skippedCount: 0,
+        };
+      }
+
+      const requestedAssets = Object.values(session.assetRequests ?? {})
+        .filter((asset) => request.assetId === undefined || asset.assetId === request.assetId);
+      if (request.assetId !== undefined && requestedAssets.length === 0) {
+        throw new ListeningUploadSessionError('asset_not_found', 404);
+      }
+      const alreadyDeletedAssetIds = new Set(Object.keys(session.deletedAssetIds ?? {}));
+      const assets = requestedAssets
+        .filter((asset) => !alreadyDeletedAssetIds.has(asset.assetId));
+      if (requestedAssets.length > 0 && assets.length === 0) {
+        return {
+          status: session.status,
+          uploadSessionId: session.uploadSessionId,
+          deletedCount: 0,
+          preservedCount: Object.keys(session.preservedAssetIds ?? {}).length,
+          skippedCount: requestedAssets.length,
+        };
+      }
+
+      for (const asset of assets) {
+        const expectedKey = createListeningTempKey({
+          ownerId: input.uid,
+          uploadSessionId: session.uploadSessionId,
+          assetId: asset.assetId,
+          sanitizedFileName: asset.sanitizedFileName,
+        });
+        if (asset.tempKey !== expectedKey || !asset.tempKey.startsWith('temp/listening/')) {
+          throw new ListeningUploadSessionError('asset_key_mismatch', 409);
+        }
+      }
+
+      if (!dependencies.repository.findDurableAssetReferences || !dependencies.repository.markCleanupState) {
+        throw new ListeningUploadSessionError('bridge_cleanup_repository_unavailable', 500);
+      }
+
+      const cleanupStartedAt = now();
+      const queued = await dependencies.repository.markCleanupState({
+        ownerId: input.uid,
+        uploadSessionId: session.uploadSessionId,
+        status: 'cleanup-queued',
+        reason: request.reason,
+        cleanupQueuedAt: cleanupStartedAt,
+        deletedAssetIds: [],
+        preservedAssetIds: [],
+      });
+      if (!queued) {
+        throw new ListeningUploadSessionError('upload_session_not_found', 404);
+      }
+
+      const references = await dependencies.repository.findDurableAssetReferences({
+        ownerId: input.uid,
+        assetIds: assets.map((asset) => asset.assetId),
+        tempKeys: assets.map((asset) => asset.tempKey),
+      });
+      const referencedAssetIds = referenceAssetIds(references);
+      const deletableAssets = assets.filter((asset) => !referencedAssetIds.has(asset.assetId));
+      const preservedAssetIds = assets
+        .filter((asset) => referencedAssetIds.has(asset.assetId))
+        .map((asset) => asset.assetId);
+      const deletedAssetIds: string[] = [];
+
+      for (const asset of deletableAssets) {
+        await deleteUploadedAsset(input.env, asset);
+        deletedAssetIds.push(asset.assetId);
+      }
+
+      const status = preservedAssetIds.length > 0 ? 'cleanup-queued' : 'abandoned';
+      const updated = await dependencies.repository.markCleanupState({
+        ownerId: input.uid,
+        uploadSessionId: session.uploadSessionId,
+        status,
+        reason: request.reason,
+        cleanupQueuedAt: cleanupStartedAt,
+        ...(status === 'abandoned' ? { completedAt: now() } : {}),
+        deletedAssetIds,
+        preservedAssetIds,
+      });
+      if (!updated) {
+        throw new ListeningUploadSessionError('upload_session_not_found', 404);
+      }
+
+      return {
+        status,
+        uploadSessionId: session.uploadSessionId,
+        deletedCount: deletedAssetIds.length,
+        preservedCount: preservedAssetIds.length,
+        skippedCount: assets.length - deletedAssetIds.length - preservedAssetIds.length,
+      };
+    },
   };
 };
 
@@ -499,6 +636,34 @@ export const createListeningUploadSessionHandlers = (options: {
           sizeBytes: probeTarget.asset.sizeBytes,
           range: await probeUploadedAssetRange(input.env, probeTarget.asset),
         },
+      };
+    } catch (error) {
+      const safeError = asError(error);
+      return { body: { code: safeError.code }, init: { status: safeError.statusCode } };
+    }
+  },
+
+  async cancelSession(input: {
+    request: Request;
+    env: Record<string, unknown>;
+    uid: string;
+    now: () => number;
+  }) {
+    try {
+      const service = createServiceFromEnv({
+        env: input.env,
+        repository: options.repository,
+        now: options.now ?? input.now,
+        createOpaqueId: options.createOpaqueId,
+        idempotencySecret: options.idempotencySecret,
+        grantSecret: options.grantSecret,
+      });
+      return {
+        body: await service.cancelSession({
+          uid: input.uid,
+          body: await readJsonBody(input.request),
+          env: input.env,
+        }),
       };
     } catch (error) {
       const safeError = asError(error);

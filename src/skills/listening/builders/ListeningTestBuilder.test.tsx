@@ -68,6 +68,7 @@ const mocks = vi.hoisted(() => ({
     archivePublishedVersion: vi.fn(),
   uploadAudioReplacement: vi.fn(),
   uploadListeningAuthoringAudio: vi.fn(),
+  cancelListeningAuthoringUpload: vi.fn(),
   probeListeningAuthoringAudio: vi.fn(),
   validateAudioLink: vi.fn(),
   trackAction: vi.fn(),
@@ -157,6 +158,7 @@ vi.mock('../../../features/assessment/listening/authoring/listeningAuthoringWork
     default: {
       uploadAudioReplacement: mocks.uploadAudioReplacement,
       uploadListeningAuthoringAudio: mocks.uploadListeningAuthoringAudio,
+      cancelListeningAuthoringUpload: mocks.cancelListeningAuthoringUpload,
       probeListeningAuthoringAudio: mocks.probeListeningAuthoringAudio,
     },
   }));
@@ -227,6 +229,13 @@ describe('ListeningTestBuilder', () => {
       tempKey: 'temp/listening/teacher-1/session-1/asset-1-audio.mp3',
       contentType: 'audio/mpeg',
       sizeBytes: 5,
+    });
+    mocks.cancelListeningAuthoringUpload.mockResolvedValue({
+      status: 'abandoned',
+      uploadSessionId: 'session-1',
+      deletedCount: 1,
+      preservedCount: 0,
+      skippedCount: 0,
     });
     mocks.probeListeningAuthoringAudio.mockResolvedValue({
       status: 'ready',
@@ -411,6 +420,7 @@ describe('ListeningTestBuilder', () => {
           assetIdempotencyKey: expect.stringContaining('-asset'),
         }),
         expect.any(Function),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
     expect(await screen.findByText('Uploaded')).toBeInTheDocument();
@@ -451,9 +461,17 @@ describe('ListeningTestBuilder', () => {
     testState.seedAudioMetadata = false;
     let resolveFirst: ((value: any) => void) | undefined;
     let resolveSecond: ((value: any) => void) | undefined;
+    let firstUploadOptions: { signal?: AbortSignal } | undefined;
+    let secondUploadOptions: { signal?: AbortSignal } | undefined;
     mocks.uploadListeningAuthoringAudio
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+      .mockImplementationOnce((_file, _input, _progress, options) => {
+        firstUploadOptions = options;
+        return new Promise((resolve) => { resolveFirst = resolve; });
+      })
+      .mockImplementationOnce((_file, _input, _progress, options) => {
+        secondUploadOptions = options;
+        return new Promise((resolve) => { resolveSecond = resolve; });
+      });
     const user = userEvent.setup();
     const { container } = render(<ListeningTestBuilder />);
     await user.click(screen.getByRole('button', { name: 'Next →' }));
@@ -468,6 +486,8 @@ describe('ListeningTestBuilder', () => {
       });
     });
     expect(mocks.uploadListeningAuthoringAudio).toHaveBeenCalledTimes(2);
+    expect(firstUploadOptions?.signal?.aborted).toBe(true);
+    expect(secondUploadOptions?.signal?.aborted).toBe(false);
 
     await act(async () => {
       resolveSecond?.({
@@ -889,6 +909,14 @@ describe('ListeningTestBuilder', () => {
         reasonCode: 'teacher-discard',
       });
     });
+    await waitFor(() => {
+      expect(mocks.cancelListeningAuthoringUpload).toHaveBeenCalledWith({
+        uploadSessionId: 'session-1',
+        assetId: 'asset-1',
+        reason: 'discard-draft',
+      });
+    });
+    expect(JSON.stringify(mocks.cancelListeningAuthoringUpload.mock.calls[0][0])).not.toContain('temp/listening/');
     expect(await screen.findByText('Draft changes discarded.')).toBeInTheDocument();
 
     const restore = screen.getByRole('button', { name: 'Restore draft' });

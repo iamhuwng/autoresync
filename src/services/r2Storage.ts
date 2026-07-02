@@ -2,6 +2,7 @@ import R2UploadClient, {
     type AssetGrantUploadAuthorization,
     type MoveResult,
     type R2UploadClientContract,
+    type UploadOptions,
     type UploadOperationKind,
     type UploadProgress,
     type UploadResult,
@@ -10,11 +11,19 @@ import {
     WorkerListeningUploadSessionApi,
     type ListeningUploadAssetResponse,
     type ListeningUploadAssetProbeResponse,
+    type ListeningUploadCancelResponse,
+    type ListeningUploadCleanupReason,
     type ListeningUploadSessionApi,
     type ListeningUploadSessionResponse,
 } from '../features/assessment/listening/storage/listeningUploadSessionApi';
 
 export const R2_PUBLIC_URL = 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
+
+const LISTENING_CLEANUP_CANCEL_ATTEMPTS = 3;
+
+const retrySoon = async (): Promise<void> => {
+    await Promise.resolve();
+};
 
 export interface ListeningAuthoringUploadInput {
     sessionIdempotencyKey: string;
@@ -94,10 +103,38 @@ class R2StorageService {
         return this.listeningUploadSessionApi.probeAsset(input);
     }
 
+    cancelListeningAuthoringUpload(input: {
+        uploadSessionId: string;
+        assetId?: string;
+        reason: ListeningUploadCleanupReason;
+    }): Promise<ListeningUploadCancelResponse> {
+        return this.retryListeningAuthoringCleanup(input);
+    }
+
+    private async retryListeningAuthoringCleanup(input: {
+        uploadSessionId: string;
+        assetId?: string;
+        reason: ListeningUploadCleanupReason;
+    }): Promise<ListeningUploadCancelResponse> {
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= LISTENING_CLEANUP_CANCEL_ATTEMPTS; attempt += 1) {
+            try {
+                return await this.listeningUploadSessionApi.cancelSession(input);
+            } catch (error) {
+                lastError = error;
+                if (attempt < LISTENING_CLEANUP_CANCEL_ATTEMPTS) {
+                    await retrySoon();
+                }
+            }
+        }
+        throw lastError;
+    }
+
     async uploadListeningAuthoringAudio(
         file: File,
         input: ListeningAuthoringUploadInput,
         onProgress?: UploadProgress,
+        options?: UploadOptions,
     ): Promise<ListeningAuthoringUploadResult> {
         const contentType = listeningContentType(file);
         const session = await this.createListeningUploadSession({
@@ -117,7 +154,25 @@ class R2StorageService {
             publicUrl: `${R2_PUBLIC_URL}/${asset.tempKey}`,
             contentType,
         };
-        const uploaded = await this.client.uploadWithAssetGrant(file, authorization, onProgress);
+        let uploaded: UploadResult;
+        try {
+            uploaded = await this.client.uploadWithAssetGrant(file, authorization, onProgress, options);
+        } catch (error) {
+            const aborted = options?.signal?.aborted
+                || (error instanceof Error && 'code' in error && error.code === 'upload_aborted');
+            if (aborted) {
+                try {
+                    await this.cancelListeningAuthoringUpload({
+                        uploadSessionId: asset.uploadSessionId,
+                        assetId: asset.assetId,
+                        reason: 'upload-aborted',
+                    });
+                } catch {
+                    console.warn('[r2-storage] Listening upload abort cleanup failed');
+                }
+            }
+            throw error;
+        }
         return {
             ...uploaded,
             assetId: asset.assetId,

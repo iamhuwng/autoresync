@@ -29,6 +29,15 @@ const BROWSER_AUTHORITY_FIELDS = [
   'assetRequests',
   'bridgeVersion',
 ];
+const LISTENING_CANCEL_REASONS = new Set([
+  'builder-cancel',
+  'discard-draft',
+  'section-removed',
+  'replacement-cancelled',
+  'upload-aborted',
+  'navigation-away',
+  'scheduled-expired',
+]);
 const LISTENING_UPLOAD_SESSION_ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
   'http://localhost:5173',
@@ -206,6 +215,28 @@ export const parseProbeAssetRequest = (body: unknown) => {
   return {
     uploadSessionId,
     assetId,
+  };
+};
+
+export const parseCancelSessionRequest = (body: unknown) => {
+  const input = asObject(body);
+  assertNoBrowserAuthority(
+    input,
+    BROWSER_AUTHORITY_FIELDS.filter((field) => field !== 'assetId'),
+  );
+  const uploadSessionId = optionalCorrelationId(input.uploadSessionId, 'upload_session_id');
+  if (!uploadSessionId || uploadSessionId.length < 16) fail('invalid_upload_session_id');
+  const assetId = optionalCorrelationId(input.assetId, 'asset_id');
+  if (assetId !== undefined && assetId.length < 16) fail('invalid_asset_id');
+  const reason = input.reason === undefined ? 'builder-cancel' : input.reason;
+  if (typeof reason !== 'string' || !LISTENING_CANCEL_REASONS.has(reason)) {
+    fail('invalid_cleanup_reason');
+  }
+
+  return {
+    uploadSessionId,
+    assetId,
+    reason,
   };
 };
 

@@ -36,6 +36,22 @@ export interface ListeningUploadAssetProbeResponse {
   };
 }
 
+export type ListeningUploadCleanupReason =
+  | 'builder-cancel'
+  | 'discard-draft'
+  | 'section-removed'
+  | 'replacement-cancelled'
+  | 'upload-aborted'
+  | 'navigation-away';
+
+export interface ListeningUploadCancelResponse {
+  status: 'abandoned' | 'cleanup-queued' | 'expired';
+  uploadSessionId: string;
+  deletedCount: number;
+  preservedCount: number;
+  skippedCount: number;
+}
+
 export interface ListeningUploadSessionApi {
   createSession(input: {
     idempotencyKey: string;
@@ -54,6 +70,11 @@ export interface ListeningUploadSessionApi {
     uploadSessionId: string;
     assetId: string;
   }): Promise<ListeningUploadAssetProbeResponse>;
+  cancelSession(input: {
+    uploadSessionId: string;
+    assetId?: string;
+    reason: ListeningUploadCleanupReason;
+  }): Promise<ListeningUploadCancelResponse>;
 }
 
 type ListeningUploadSessionEnv = R2UploadEndpointEnv & {
@@ -118,5 +139,13 @@ export class WorkerListeningUploadSessionApi implements ListeningUploadSessionAp
     assetId: string;
   }): Promise<ListeningUploadAssetProbeResponse> {
     return this.post('probeListeningUploadAsset', input);
+  }
+
+  cancelSession(input: {
+    uploadSessionId: string;
+    assetId?: string;
+    reason: ListeningUploadCleanupReason;
+  }): Promise<ListeningUploadCancelResponse> {
+    return this.post('cancelListeningUploadSession', input);
   }
 }

@@ -2,6 +2,38 @@
 
 Authority/status: canonical architecture now `documentation/architecture/ielts-reading-v2-listening-unification.md`. Historical patch record only; each `Next recommended patch` is point-in-time and obsolete as active work queue.
 
+## IELTS Listening abandoned temp cleanup deployment - 2026-07-02
+
+Status: CURRENT STORAGE CLEANUP DEPLOYED TRUTH. This entry is a separate owner-approved storage cleanup packet and supersedes only prior "no deployed lifecycle / no scheduled cleanup" statements for future Listening abandoned temp uploads. It does not supersede the localhost-only Task 8/9 rollout boundary below for live/private runtime acceptance.
+
+Current deployed setup:
+
+- `POST /cancelListeningUploadSession` is deployed on `r2-upload-signer` and performs trusted cleanup for canonical uncommitted `temp/listening/{ownerId}/{uploadSessionId}/{assetId}-{sanitizedFileName}` objects.
+- Browser code sends only `uploadSessionId`, optional `assetId`, and reason; it never receives raw R2 delete authority.
+- Worker cleanup derives owner/session/asset/temp-key authority from RTDB and Worker contracts, validates canonical temp keys, checks durable references, writes cleanup state, and deletes only unreferenced temp objects through the trusted `R2_BUCKET` binding.
+- Explicit cleanup route first deployed as Worker version `fc4898f5-6acb-4df0-9ee1-bcbebec63d12`.
+- Follow-up permanent setup deployed Worker version `dca3e056-142f-4cb4-9194-3117675f8889` at 100%, cron `0 * * * *`, `LISTENING_UPLOAD_SESSION_SWEEP_ENABLED=true`, and future-only cutoff `LISTENING_UPLOAD_SESSION_SWEEP_NOT_BEFORE_MS=1782976636347`.
+- RTDB rules for `temp-a1437-default-rtdb` were released with the expanded lifecycle metric operation allowlist.
+- R2 bucket `kahoot-media` now has enabled lifecycle rule `expire-temp-prefix-after-one-day` for prefix `temp/`, action `Expire objects after 1 days`, alongside the default multipart abort rule.
+- Current architecture authority: `documentation/architecture/listening-temp-upload-cleanup-authority.md`.
+
+Accepted proof:
+
+- The nine explicitly approved abandoned `temp/listening/glMHCrzMnyS6AqFcb9I0nlOqQ6X2/...` objects were deleted through the trusted Worker route.
+- Post-cleanup R2 HEAD checks returned 404 for all nine candidate keys.
+- Related upload sessions moved to `status:"abandoned"` with `abandonmentReason:"builder-cancel"`.
+- `/media_assets/{assetId}` was null for all nine assets, and durable roots had zero asset/key hits.
+- Permanent object count touched: 0.
+- Focused Cloudflare Worker/lifecycle tests passed 24/24; focused frontend/storage tests passed 69/69; production build and bundle budget passed.
+
+Still out of scope:
+
+- First real scheduled cron run has not yet been observed.
+- Durable `pending-delete` cleanup is not deployed.
+- Historical orphan deletion is not authorized.
+- Permanent prefixes remain forbidden for this cleanup authority.
+- Merge/push remains separately gated unless explicitly requested.
+
 ## PRD-0055 localhost-only scope correction after drift - 2026-07-01
 
 Status: CURRENT GOVERNING BOUNDARY. The current PRD-0055 implementation/proof slice is localhost-only. Use `http://localhost:5173` for teacher proof and `http://localhost:5174` for student proof. Do not use `https://kahut1.web.app` or any live domain as a current unlock path until a future deployment/rollout PRD is explicitly approved.
