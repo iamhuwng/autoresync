@@ -15,6 +15,7 @@
     "check:utf8:staged": "node scripts/check-utf8.mjs --staged",
     "check:utf8:all": "node scripts/check-utf8.mjs --tracked",
     "branch:doctor": "node scripts/branch-doctor.mjs",
+    "sessions:end-active": "node scripts/end-active-sessions.mjs",
     "backfill:ielts-feedback": "vite-node --mode test scripts/backfill-ielts-feedback.ts",
     "backfill:reading-v2-passages": "vite-node --mode test scripts/reading-v2-full-test-passage-backfill.ts",
     "repair:material-catalog": "vite-node --mode test scripts/material-catalog-repair.ts",
