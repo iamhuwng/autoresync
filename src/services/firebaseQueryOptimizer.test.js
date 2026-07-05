@@ -36,7 +36,6 @@ vi.mock('./dataCache', () => ({
   },
   CacheTypes: {
     TEST: 'test',
-    QUIZ: 'quiz',
     SESSION: 'session',
   },
   CacheTTL: {

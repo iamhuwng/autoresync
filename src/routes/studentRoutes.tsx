@@ -3,8 +3,10 @@ import type { RouteObject } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
+import { ROUTES } from '../constants/routes.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
 import StudentShellRoute from './StudentShellRoute.tsx';
+import RetiredMaterialNoticePage from '../pages/RetiredMaterialNoticePage';
 
 const StudentDashboardPage = lazyWithRetry(() => import('../pages/StudentDashboardPage.jsx'));
 const StudentCoursesPage = lazyWithRetry(() => import('../pages/StudentCoursesPage.tsx'));
@@ -14,11 +16,8 @@ const StudentLibraryPage = lazyWithRetry(() => import('../pages/StudentLibraryPa
 const StudentHomeworkListPage = lazyWithRetry(() => import('../pages/StudentHomeworkListPage.tsx'));
 const AcademicRecordPage = lazyWithRetry(() => import('../pages/AcademicRecordPage.tsx'));
 const StudentWaitingRoomPage = lazyWithRetry(() => import('../pages/StudentWaitingRoomPage.jsx'));
-const StudentQuizPage = lazyWithRetry(() => import('../pages/StudentQuizPageNew.jsx'));
 const TestPageRouter = lazyWithRetry(() => import('../pages/TestPageRouter.tsx'));
 const StudentTestResultsPage = lazyWithRetry(() => import('../pages/StudentTestResultsPage.tsx'));
-const StudentFeedbackPage = lazyWithRetry(() => import('../pages/StudentFeedbackPage.jsx'));
-const StudentResultsPage = lazyWithRetry(() => import('../pages/StudentResultsPage.jsx'));
 const StudentPracticePage = lazyWithRetry(() => import('../pages/StudentPracticePage.tsx'));
 const StudentCourseCatalogPage = lazyWithRetry(() => import('../pages/CourseCatalogPage.tsx'));
 const StudentHomeworkDetailPage = lazyWithRetry(() => import('../pages/StudentHomeworkDetailPage.tsx'));
@@ -100,7 +99,7 @@ export const studentRoutes: RouteObject[] = [
   },
   {
     path: '/student-quiz/:gameSessionId',
-    element: asStudentPage(<StudentQuizPage />, 'liveSessions'),
+    element: asStudentPage(<RetiredMaterialNoticePage audience="student" retiredFeature="quiz" />),
   },
   {
     path: '/student-test/:sessionCode',
@@ -112,11 +111,18 @@ export const studentRoutes: RouteObject[] = [
   },
   {
     path: '/student-feedback/:gameSessionId',
-    element: asStudentPage(<StudentFeedbackPage />, 'feedback'),
+    element: asStudentPage(<RetiredMaterialNoticePage audience="student" retiredFeature="quiz" />),
   },
   {
     path: '/student-results/:gameSessionId',
-    element: asStudentPage(<StudentResultsPage />, 'results'),
+    element: asStudentPage(<RetiredMaterialNoticePage audience="student" retiredFeature="quiz" />),
+  },
+  {
+    path: ROUTES.MATERIAL_UNAVAILABLE,
+    element: asStudentPage(
+      <RetiredMaterialNoticePage audience="student" retiredFeature="material" />,
+      'materials',
+    ),
   },
   {
     path: '/student/practice/:materialId',

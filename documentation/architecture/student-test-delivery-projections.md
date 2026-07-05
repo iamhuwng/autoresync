@@ -6,6 +6,8 @@ This document defines how canonical test data becomes student-renderable data fo
 
 The contract exists because teacher/admin storage can contain grading answers, editor metadata, image ranges, audio ranges, and repair history, while student runtime pages need a fresh answer-free render payload.
 
+Retirement boundary: Reading V1 is retired and must not be inferred from missing Reading V2 markers, `skill: Reading`, or `contentKind: ielts_reading`. Reading V2 launches require explicit Reading V2 markers/projections/snapshots; unknown Reading records fail closed. See `documentation/architecture/retired-features-current-state.md`.
+
 ## Storage Nodes
 
 ### `tests/{testId}`

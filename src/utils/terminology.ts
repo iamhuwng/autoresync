@@ -110,7 +110,6 @@ export const CODE_TERMS = {
   SESSION_CODE: 'sessionCode',
   PLAYERS: 'players',
   ACTIVE_TESTS: 'activeTests',
-  ACTIVE_QUIZZES: 'activeQuizzes',
 } as const;
 
 /**

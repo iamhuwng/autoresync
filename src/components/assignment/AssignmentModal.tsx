@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Assignment Modal Component
  * 

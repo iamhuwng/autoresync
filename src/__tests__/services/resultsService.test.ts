@@ -3,7 +3,7 @@
  * Tests for results querying, filtering, and access control
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   getSessionResults,
   getTeacherResults,
@@ -137,6 +137,75 @@ vi.mock('firebase/database', () => ({
   push: mockPush,
 }));
 
+vi.mock('../../services/testResults.service', () => {
+  const listStoredResults = () => Object.values(mockDatabaseStore.test_results || {}) as any[];
+
+  const listSessionPlayerResults = (teacherId?: string) => {
+    const sessions = mockDatabaseStore.game_sessions || {};
+    const records: any[] = [];
+
+    Object.entries(sessions).forEach(([sessionCode, sessionData]) => {
+      const session = sessionData as any;
+      if (!session || typeof session !== 'object') return;
+      if (teacherId && session.teacherId !== teacherId) return;
+
+      Object.entries(session.players || session.students || {}).forEach(([studentId, playerData]) => {
+        const player = playerData as any;
+        if (!player || typeof player !== 'object' || player.score === undefined) return;
+
+        records.push({
+          resultId: `${sessionCode}-${studentId}`,
+          sessionCode,
+          testId: session.testId,
+          studentId,
+          studentName: player.name,
+          totalScore: player.score || 0,
+          maxScore: player.totalQuestions || 0,
+          percentage: player.percentage || 0,
+          bandScore: player.bandScore,
+          questionResults: [],
+          correct: player.correctAnswers || 0,
+          incorrect: 0,
+          partialCredit: 0,
+          totalQuestions: player.totalQuestions || 0,
+          submittedAt: player.completedAt || player.lastActivity || session.createdAt || Date.now(),
+          timeElapsed: player.timeSpent || 0,
+          testDuration: 0,
+          createdAt: session.createdAt || Date.now(),
+          testTitle: session.testTitle,
+          testType: session.mode === 'quiz' ? 'quiz' : 'test',
+          testSkill: session.testSkill,
+          classId: session.classId,
+          className: session.className,
+          isGuest: !!player.isGuest,
+          visibility: {
+            visibilityOwnerTeacherId: session.teacherId,
+          },
+        });
+      });
+    });
+
+    return records;
+  };
+
+  return {
+    getSessionResults: vi.fn(async (sessionCode: string) =>
+      listStoredResults().filter((result) => result.sessionCode === sessionCode)
+    ),
+    getStudentResults: vi.fn(async (studentId: string) =>
+      listStoredResults().filter((result) => result.studentId === studentId)
+    ),
+    getTeacherResults: vi.fn(async (teacherId?: string) => [
+      ...listStoredResults().filter((result) =>
+        !teacherId
+        || result.teacherId === teacherId
+        || result.visibility?.visibilityOwnerTeacherId === teacherId
+      ),
+      ...listSessionPlayerResults(teacherId),
+    ]),
+  };
+});
+
 // Test data
 const TEST_TEACHER_UID = 'teacher-results-test-123';
 const TEST_TEACHER_UID_2 = 'teacher-results-test-456';
@@ -182,7 +251,7 @@ describe('Results Service - Teacher Access Control', () => {
 
     // Create sessions for two different teachers
     const sessionA = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: { allowAnonymous: true },
     });
     teacherASessionCode = sessionA.sessionCode!;
@@ -279,7 +348,7 @@ describe('Results Service - Student Access Control', () => {
 
     // Create a session
     const session = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: { allowAnonymous: true },
     });
     sessionCode = session.sessionCode!;
@@ -616,7 +685,7 @@ describe('Results Service - Session Results', () => {
     await cleanupTestData();
 
     const session = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: { allowAnonymous: true },
     });
     sessionCode = session.sessionCode!;

@@ -1,7 +1,7 @@
 {
     "rules": {
         ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val()",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val() && newData.child('quizzes').val() === data.child('quizzes').val()",
         "users": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$uid": {
@@ -605,14 +605,30 @@
             "$sessionCode": {
                 ".read": "auth != null && data.exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || data.child('players').child(auth.uid).exists() || data.child('students').child(auth.uid).exists() || data.child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(data.child('linkedClassId').val()).child('students').child(auth.uid).exists())",
                 ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || (!data.exists() && (newData.child('createdByUserId').val() === auth.uid || newData.child('createdBy').val() === auth.uid || newData.child('teacherId').val() === auth.uid)))",
+                ".validate": "!newData.exists() || data.exists() || (newData.child('mode').val() !== 'quiz' && !newData.child('quizId').exists() && !newData.child('quizTitle').exists() && !newData.child('activeQuizzes').exists())",
+                "quizId": {
+                    ".validate": false
+                },
+                "quizTitle": {
+                    ".validate": false
+                },
+                "activeQuizzes": {
+                    ".validate": false
+                },
                 "players": {
                     "$playerId": {
-                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($playerId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))"
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($playerId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
+                        "assignedQuizId": {
+                            ".validate": false
+                        }
                     }
                 },
                 "students": {
                     "$studentId": {
-                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($studentId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))"
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($studentId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
+                        "assignedQuizId": {
+                            ".validate": false
+                        }
                     }
                 }
             },
@@ -650,8 +666,8 @@
             }
         },
         "quizzes": {
-            ".read": "auth != null",
-            ".write": "auth != null",
+            ".read": false,
+            ".write": false,
             ".indexOn": [
                 "userId",
                 "createdAt"

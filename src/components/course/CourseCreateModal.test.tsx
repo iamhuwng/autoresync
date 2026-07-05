@@ -63,6 +63,9 @@ describe('CourseCreateModal', () => {
 
         await waitFor(() => expect(generateCourseCode).toHaveBeenCalled());
 
+        const nameInput = screen.getByPlaceholderText('e.g. IELTS Intensive');
+        fireEvent.change(nameInput, { target: { value: 'ab' } });
+
         const submitButton = screen.getByText('Save Course');
         fireEvent.click(submitButton);
 
@@ -153,4 +156,3 @@ describe('CourseCreateModal', () => {
         expect(screen.getByText('Create New Course')).toBeTruthy();
     });
 });
-

@@ -4,6 +4,7 @@ import { IconSearch, IconLink, IconCopy, IconBook, IconWorld } from '@tabler/ico
 import { useAuth } from '../../hooks/useAuth';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
+import { hasGoogleDriveAudio } from '../../services/retirement/retiredMaterialClassifier';
 
 interface MaterialSelectorModalProps {
     opened: boolean;
@@ -16,7 +17,6 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
     const [activeTab, setActiveTab] = useState<string | null>('tests');
     const [searchTerm, setSearchTerm] = useState('');
     const [tests, setTests] = useState<any[]>([]);
-    const [quizzes, setQuizzes] = useState<any[]>([]);
     const [publicMaterials, setPublicMaterials] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState<string | null>(null);
@@ -24,26 +24,19 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
     const loadMaterials = async () => {
         setLoading(true);
         try {
-            const [testList, quizList] = await Promise.all([
-                queryOptimizer.getAllTests(),
-                queryOptimizer.getAllQuizzes()
-            ]);
+            const testList = await queryOptimizer.getAllTests();
+            const assignableTests = testList.filter((item: any) => !hasGoogleDriveAudio(item));
 
             // Filter by ownership
-            const myTests = testList.filter((item: any) => item.ownerId === user?.uid || item.createdBy === user?.uid);
-            const myQuizzes = quizList.filter((item: any) => item.ownerId === user?.uid || item.createdBy === user?.uid);
+            const myTests = assignableTests.filter((item: any) => item.ownerId === user?.uid || item.createdBy === user?.uid);
 
             // Filter public materials (excluding own)
-            const publicTests = testList.filter((item: any) =>
-                item.isPublic && item.ownerId !== user?.uid && item.createdBy !== user?.uid
-            );
-            const publicQuizzes = quizList.filter((item: any) =>
+            const publicTests = assignableTests.filter((item: any) =>
                 item.isPublic && item.ownerId !== user?.uid && item.createdBy !== user?.uid
             );
 
             setTests(myTests);
-            setQuizzes(myQuizzes);
-            setPublicMaterials([...publicTests, ...publicQuizzes]);
+            setPublicMaterials(publicTests);
         } catch (error) {
             console.error('Error loading materials:', error);
         } finally {
@@ -60,7 +53,6 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
     const filteredMaterials = useMemo(() => {
         let list: any[] = [];
         if (activeTab === 'tests') list = tests;
-        else if (activeTab === 'quizzes') list = quizzes;
         else if (activeTab === 'public') list = publicMaterials;
 
         // Phase 3 Task 5.1: Support THCS titles in metadata.title
@@ -68,7 +60,7 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
             const title = item.testType === 'THCS-THPT' ? (item.metadata?.title || item.title) : item.title;
             return (title || '').toLowerCase().includes(searchTerm.toLowerCase());
         });
-    }, [activeTab, tests, quizzes, publicMaterials, searchTerm]);
+    }, [activeTab, tests, publicMaterials, searchTerm]);
 
     const handleSelect = async (materialId: string, type: 'link' | 'copy') => {
         setSubmitting(materialId + type);
@@ -101,7 +93,6 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
                 <Tabs value={activeTab} onChange={setActiveTab}>
                     <Tabs.List>
                         <Tabs.Tab value="tests" leftSection={<IconBook size={14} />}>My Tests</Tabs.Tab>
-                        <Tabs.Tab value="quizzes" leftSection={<IconBook size={14} />}>My Quizzes</Tabs.Tab>
                         <Tabs.Tab value="public" leftSection={<IconWorld size={14} />}>Public Library</Tabs.Tab>
                     </Tabs.List>
 
@@ -109,22 +100,6 @@ export const MaterialSelectorModal = ({ opened, onClose, onSelect }: MaterialSel
                         {loading ? <Loader size="sm" mx="auto" display="block" my="xl" /> : (
                             <Stack gap="xs">
                                 {filteredMaterials.length === 0 && <Text c="dimmed" ta="center" py="xl">No tests found</Text>}
-                                {filteredMaterials.map(item => (
-                                    <MaterialItem
-                                        key={item.id}
-                                        item={item}
-                                        onSelect={handleSelect}
-                                        submitting={submitting}
-                                    />
-                                ))}
-                            </Stack>
-                        )}
-                    </Tabs.Panel>
-
-                    <Tabs.Panel value="quizzes" pt="xs">
-                        {loading ? <Loader size="sm" mx="auto" display="block" my="xl" /> : (
-                            <Stack gap="xs">
-                                {filteredMaterials.length === 0 && <Text c="dimmed" ta="center" py="xl">No quizzes found</Text>}
                                 {filteredMaterials.map(item => (
                                     <MaterialItem
                                         key={item.id}

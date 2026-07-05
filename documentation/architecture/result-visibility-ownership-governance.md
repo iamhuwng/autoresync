@@ -97,6 +97,7 @@ Additional deleted-source display fields may be added only in `src/types/results
 - Current source names are supplemental only.
 - Deleted/archived source rows remain teacher-visible only when submission-time ownership was proven.
 - Deleted source plus unresolved ownership stays excluded from teacher history and teacher result detail.
+- Retired Google Drive, Reading V1, and Quiz materials follow the same deleted-source rule after purge. Their completed results are academic records; their source material is not rehydrated, migrated, or used to infer active ownership. See `documentation/architecture/retired-features-current-state.md`.
 
 ## Solo Practice Rules
 

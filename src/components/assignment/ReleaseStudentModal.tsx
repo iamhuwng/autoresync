@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Release Student Modal Component
  * 

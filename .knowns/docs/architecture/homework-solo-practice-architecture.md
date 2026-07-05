@@ -20,6 +20,8 @@ Two offline/async test-taking modes complementing the live session system:
 
 Both share the same test-taking infrastructure but add context tracking, access control, and deadline management.
 
+Retired Google Drive-backed materials, Reading V1, and Quiz must not be created or launched from homework/solo-practice surfaces. Retained academic results continue to use saved result data; retired source material is not rehydrated. See @doc/architecture/retired-features-current-state.
+
 ## Architecture Diagram
 
 ```

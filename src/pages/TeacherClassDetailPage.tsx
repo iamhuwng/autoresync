@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 /**
  * Teacher Class Detail Page

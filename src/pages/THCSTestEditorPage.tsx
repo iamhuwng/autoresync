@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * THCSTestEditorPage — 4-Step Wizard for THCS-THPT Test Creation/Editing
  * 

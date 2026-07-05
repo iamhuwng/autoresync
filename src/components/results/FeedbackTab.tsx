@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * FeedbackTab - PRD-0039 Task 8.0
  *

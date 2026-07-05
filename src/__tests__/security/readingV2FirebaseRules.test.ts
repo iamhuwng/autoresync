@@ -124,6 +124,7 @@ describe('Reading V2 Firebase rule contract', () => {
 
     expect(studentReadable.sort()).toEqual(
       [
+        'listingIndexes',
         'relationshipIndexes',
         'studentSafeTests',
         'sessionSafePayloads',

@@ -1,7 +1,7 @@
 /**
  * Migration Script: Add Ownership Fields
  * 
- * This script migrates existing tests and quizzes to include:
+ * This script migrates existing tests to include:
  * - ownerId: The UID of the user who created the content
  * - isPublic: Whether the content is publicly accessible
  * 
@@ -16,7 +16,6 @@ import type { TestData } from '../testStorage';
 interface MigrationResult {
   success: boolean;
   testsUpdated: number;
-  quizzesUpdated: number;
   classesUpdated: number;
   errors: string[];
 }
@@ -95,75 +94,6 @@ async function migrateTests(defaultOwnerId: string = 'legacy-admin'): Promise<{ 
 }
 
 /**
- * Migrate all quizzes to include ownership fields
- */
-async function migrateQuizzes(defaultOwnerId: string = 'legacy-admin'): Promise<{ updated: number; errors: string[] }> {
-  const errors: string[] = [];
-  let updated = 0;
-
-  try {
-    const quizzesRef = ref(database, 'quizzes');
-    const snapshot = await get(quizzesRef);
-
-    if (!snapshot.exists()) {
-      console.log('No quizzes found to migrate');
-      return { updated: 0, errors: [] };
-    }
-
-    const quizzes = snapshot.val();
-    const quizIds = Object.keys(quizzes);
-
-    console.log(`Found ${quizIds.length} quizzes to check for migration`);
-
-    for (const quizId of quizIds) {
-      const quiz = quizzes[quizId];
-
-      // Check if quiz already has ownership fields
-      if (quiz.ownerId !== undefined && quiz.isPublic !== undefined) {
-        console.log(`Quiz ${quizId} already has ownership fields, skipping`);
-        continue;
-      }
-
-      try {
-        const updates: any = {};
-
-        // Add ownerId if missing
-        if (quiz.ownerId === undefined) {
-          // Try to use createdBy if it exists and looks like a UID
-          if (quiz.createdBy && quiz.createdBy !== 'teacher-default' && quiz.createdBy.length > 10) {
-            updates.ownerId = quiz.createdBy;
-          } else {
-            updates.ownerId = defaultOwnerId;
-          }
-        }
-
-        // Add isPublic if missing (default to true for legacy content)
-        if (quiz.isPublic === undefined) {
-          updates.isPublic = true;
-        }
-
-        // Update the quiz
-        const quizRef = ref(database, `quizzes/${quizId}`);
-        await update(quizRef, updates);
-
-        console.log(`✅ Migrated quiz ${quizId}:`, updates);
-        updated++;
-      } catch (error) {
-        const errorMsg = `Failed to migrate quiz ${quizId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`❌ ${errorMsg}`);
-        errors.push(errorMsg);
-      }
-    }
-
-    return { updated, errors };
-  } catch (error) {
-    const errorMsg = `Failed to fetch quizzes: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    console.error(`❌ ${errorMsg}`);
-    return { updated, errors: [errorMsg, ...errors] };
-  }
-}
-
-/**
  * Migrate all classes to use authenticated user IDs
  */
 async function migrateClasses(): Promise<{ updated: number; errors: string[] }> {
@@ -228,20 +158,17 @@ export async function runOwnershipMigration(defaultOwnerId: string = 'legacy-adm
   console.log(`Default owner ID: ${defaultOwnerId}`);
 
   const testResults = await migrateTests(defaultOwnerId);
-  const quizResults = await migrateQuizzes(defaultOwnerId);
   const classResults = await migrateClasses();
 
   const result: MigrationResult = {
-    success: testResults.errors.length === 0 && quizResults.errors.length === 0 && classResults.errors.length === 0,
+    success: testResults.errors.length === 0 && classResults.errors.length === 0,
     testsUpdated: testResults.updated,
-    quizzesUpdated: quizResults.updated,
     classesUpdated: classResults.updated,
-    errors: [...testResults.errors, ...quizResults.errors, ...classResults.errors]
+    errors: [...testResults.errors, ...classResults.errors]
   };
 
   console.log('\n📊 Migration Summary:');
   console.log(`Tests updated: ${result.testsUpdated}`);
-  console.log(`Quizzes updated: ${result.quizzesUpdated}`);
   console.log(`Classes updated: ${result.classesUpdated}`);
   console.log(`Errors: ${result.errors.length}`);
 
@@ -262,11 +189,10 @@ export async function runOwnershipMigration(defaultOwnerId: string = 'legacy-adm
 /**
  * Dry run - check what would be migrated without making changes
  */
-export async function dryRunOwnershipMigration(): Promise<{ testsToMigrate: number; quizzesToMigrate: number; classesToMigrate: number }> {
+export async function dryRunOwnershipMigration(): Promise<{ testsToMigrate: number; classesToMigrate: number }> {
   console.log('🔍 Running dry-run migration check...');
 
   let testsToMigrate = 0;
-  let quizzesToMigrate = 0;
   let classesToMigrate = 0;
 
   try {
@@ -278,17 +204,6 @@ export async function dryRunOwnershipMigration(): Promise<{ testsToMigrate: numb
       const tests = testsSnapshot.val();
       testsToMigrate = Object.values(tests).filter((test: any) =>
         test.ownerId === undefined || test.isPublic === undefined
-      ).length;
-    }
-
-    // Check quizzes
-    const quizzesRef = ref(database, 'quizzes');
-    const quizzesSnapshot = await get(quizzesRef);
-
-    if (quizzesSnapshot.exists()) {
-      const quizzes = quizzesSnapshot.val();
-      quizzesToMigrate = Object.values(quizzes).filter((quiz: any) =>
-        quiz.ownerId === undefined || quiz.isPublic === undefined
       ).length;
     }
 
@@ -305,12 +220,11 @@ export async function dryRunOwnershipMigration(): Promise<{ testsToMigrate: numb
 
     console.log(`\n📊 Dry Run Results:`);
     console.log(`Tests needing migration: ${testsToMigrate}`);
-    console.log(`Quizzes needing migration: ${quizzesToMigrate}`);
     console.log(`Classes needing migration: ${classesToMigrate}`);
 
-    return { testsToMigrate, quizzesToMigrate, classesToMigrate };
+    return { testsToMigrate, classesToMigrate };
   } catch (error) {
     console.error('❌ Dry run failed:', error);
-    return { testsToMigrate: 0, quizzesToMigrate: 0, classesToMigrate: 0 };
+    return { testsToMigrate: 0, classesToMigrate: 0 };
   }
 }

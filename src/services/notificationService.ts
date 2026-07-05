@@ -702,13 +702,13 @@ async function getClassStudentIds(classId: string): Promise<string[]> {
  *
  * @param classId     - The class ID to look up students for
  * @param sessionCode - The newly created session code
- * @param sessionMode - 'quiz' or 'test'
+ * @param sessionMode - 'test'
  * @param className   - Optional display name for the class
  */
 export async function sendSessionOpenedNotifications(
     classId: string,
     sessionCode: string,
-    sessionMode: 'quiz' | 'test',
+    sessionMode: 'test',
     className?: string
 ): Promise<void> {
     try {
@@ -716,7 +716,7 @@ export async function sendSessionOpenedNotifications(
         if (studentIds.length === 0) return;
 
         const displayName = className ?? 'Your class';
-        const modeLabel = sessionMode === 'test' ? 'test' : 'quiz';
+        const modeLabel = 'test';
 
         await createBulkNotifications(studentIds, {
             type: 'info',

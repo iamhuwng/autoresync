@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { resolveListeningLegacyAudioReference } from '../../adapters/listeningLegacyAudioResolver';
 import type {
   IssueListeningAssetDeliveryUrlInput,

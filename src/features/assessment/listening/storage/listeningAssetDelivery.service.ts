@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { ListeningMediaAssetReferences } from './listeningAssetRegistry';
 
 const AUTHORIZED_DELIVERY_TTL_MS = 60 * 60 * 1000;

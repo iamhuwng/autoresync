@@ -1,5 +1,7 @@
 # Tasks: PRD-0018 Unified Audio Architecture for Listening Tests
 
+> **Google Drive portions obsolete as of 2026-07-05:** Google Drive upload/playback/import/streaming is retired. Current storage authority is R2 and [Retired Features Current State](../architecture/retired-features-current-state.md). Historical Google Drive-specific task content below is retained as implementation history only.
+
 > **Generated:** 2026-02-04
 > **PRD:** [0018-prd-unified-audio-architecture.md](./0018-prd-unified-audio-architecture.md)
 > **Estimated Effort:** 37-52 hours (5-7 days)

@@ -4,24 +4,21 @@ import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
-import { buildRoute } from '../constants/routes.ts';
+import { buildRoute, ROUTES } from '../constants/routes.ts';
 import {
   isMaterialBookEditorEnabled,
   isReadingV2TeacherRouteExposureAllowed,
 } from '../config/readingV2FeatureFlags.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
 import TeacherMaterialBookRedirect from './TeacherMaterialBookRedirect';
+import RetiredMaterialNoticePage from '../pages/RetiredMaterialNoticePage';
 
 const TeacherLobbyPage = lazyWithRetry(() => import('../pages/TeacherLobbyPage.jsx'));
 const SessionManagementPage = lazyWithRetry(() => import('../pages/SessionManagementPage.tsx'));
 const TeacherResultsDashboard = lazyWithRetry(() => import('../pages/TeacherResultsDashboard.jsx'));
 const TestBuilderRouter = lazyWithRetry(() => import('../pages/TestBuilderRouter'));
-const TeacherWaitingRoomPage = lazyWithRetry(() => import('../pages/TeacherWaitingRoomPage.jsx'));
-const TeacherQuizPage = lazyWithRetry(() => import('../pages/TeacherQuizPage.jsx'));
 const TeacherTestMonitorPage = lazyWithRetry(() => import('../pages/TeacherTestMonitorPage.tsx'));
 const TeacherTestResultsPage = lazyWithRetry(() => import('../pages/TeacherTestResultsPage.tsx'));
-const TeacherFeedbackPage = lazyWithRetry(() => import('../pages/TeacherFeedbackPage.jsx'));
-const TeacherResultsPage = lazyWithRetry(() => import('../pages/TeacherResultsPage.jsx'));
 const TeacherClassesPage = lazyWithRetry(() => import('../pages/TeacherClassesPage.tsx'));
 const TeacherCoursesPage = lazyWithRetry(() => import('../pages/TeacherCoursesPage.tsx'));
 const TeacherCourseProfilePage = lazyWithRetry(() => import('../pages/TeacherCourseProfilePage.tsx'));
@@ -161,11 +158,19 @@ export const createTeacherRoutes = (
   },
   {
     path: '/teacher-wait/:gameSessionId',
-    element: asTeacherPage(<TeacherWaitingRoomPage />, 'liveSessions'),
+    element: asTeacherPage(
+      <RetiredMaterialNoticePage audience="teacher" retiredFeature="quiz" />,
+      undefined,
+      ['teacher', 'super_admin'],
+    ),
   },
   {
     path: '/teacher-quiz/:gameSessionId',
-    element: asTeacherPage(<TeacherQuizPage />, 'liveSessions'),
+    element: asTeacherPage(
+      <RetiredMaterialNoticePage audience="teacher" retiredFeature="quiz" />,
+      undefined,
+      ['teacher', 'super_admin'],
+    ),
   },
   {
     path: '/teacher-test/:sessionCode',
@@ -177,11 +182,27 @@ export const createTeacherRoutes = (
   },
   {
     path: '/teacher-feedback/:gameSessionId',
-    element: asTeacherPage(<TeacherFeedbackPage />, 'feedback'),
+    element: asTeacherPage(
+      <RetiredMaterialNoticePage audience="teacher" retiredFeature="quiz" />,
+      undefined,
+      ['teacher', 'super_admin'],
+    ),
   },
   {
     path: '/teacher-results/:gameSessionId',
-    element: asTeacherPage(<TeacherResultsPage />, 'results'),
+    element: asTeacherPage(
+      <RetiredMaterialNoticePage audience="teacher" retiredFeature="quiz" />,
+      undefined,
+      ['teacher', 'super_admin'],
+    ),
+  },
+  {
+    path: ROUTES.MATERIAL_UNAVAILABLE,
+    element: asTeacherPage(
+      <RetiredMaterialNoticePage audience="teacher" retiredFeature="material" />,
+      'materials',
+      ['teacher', 'super_admin'],
+    ),
   },
   {
     path: '/teacher/classes',

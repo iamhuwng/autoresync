@@ -18,7 +18,6 @@ const baseEnv = {
   VITE_GEMINI_API_KEY_4: '',
   VITE_GEMINI_API_KEY_5: '',
   VITE_GOOGLE_API_KEY: '',
-  VITE_GOOGLE_DRIVE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
 };
 
 function stubBaseEnv() {

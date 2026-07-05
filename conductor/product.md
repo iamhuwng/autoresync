@@ -3,7 +3,7 @@ A Kahoot-style real-time quiz platform specifically designed for IELTS preparati
 # Product Definition
 
 ## Vision
-To build the definitive "Operating System" for IELTS education—a unified platform that seamlessly blends high-fidelity assessment tools (Test Mode) with gamified engagement (Quiz Mode). It empowers teachers with AI-driven content creation and workload automation while providing students with an authentic, Inspera-style testing environment that mirrors the real IELTS Computer-Based Test.
+To build the definitive "Operating System" for IELTS educationÂ—a unified platform that seamlessly blends high-fidelity assessment tools (Test Mode) with gamified engagement (Quiz Mode). It empowers teachers with AI-driven content creation and workload automation while providing students with an authentic, Inspera-style testing environment that mirrors the real IELTS Computer-Based Test.
 
 ## Target Audience
 - **IELTS Education Centers:** Institutions needing to manage classes, assign teachers, and track student progress at scale.

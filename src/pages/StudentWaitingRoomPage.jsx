@@ -34,7 +34,6 @@ import { TestResultsModal } from '../components/test/TestResultsModal';
 const StudentWaitingRoomPage = () => {
   const [gameSession, setGameSession] = useState(null);
   const [players, setPlayers] = useState([]);
-  const [quiz, setQuiz] = useState(null);
   const [test, setTest] = useState(null);
   const [isJoining, setIsJoining] = useState(false);
   const { gameSessionId } = useParams();
@@ -199,19 +198,6 @@ const StudentWaitingRoomPage = () => {
           return;
         }
 
-        if (
-          sessionData.mode === 'quiz' &&
-          sessionData.quizId &&
-          sessionData.quizId !== 'pending' &&
-          sessionData.status === 'in-progress'
-        ) {
-          console.log('🔄 [WaitingRoom] Teacher reset submission, resuming active quiz');
-          navigateTo('STUDENT_QUIZ',
-            { gameSessionId: gameSessionId },
-            { reason: 'submission_reset_resume' }
-          );
-          return;
-        }
       }
 
       const hasPersistentResultTrail = Boolean(
@@ -220,7 +206,6 @@ const StudentWaitingRoomPage = () => {
       );
       const canShowPersistentResults = sessionData.status === 'waiting'
         && !sessionData.testId
-        && !sessionData.quizId
         && hasPersistentResultTrail;
 
       if (canShowPersistentResults) {
@@ -239,7 +224,7 @@ const StudentWaitingRoomPage = () => {
         }
       }
 
-      // Navigate to test/quiz page when content is selected AND status is 'in-progress'
+      // Navigate to test page when content is selected AND status is 'in-progress'
       // CRITICAL: Only navigate when status === 'in-progress' to prevent A→B→A loops
       // StudentTestPage navigates here when status === 'waiting'
       // These conditions are mutually exclusive, preventing loops
@@ -267,16 +252,6 @@ const StudentWaitingRoomPage = () => {
           { sessionCode: gameSessionId },
           { reason: 'test_started' }
         );
-      } else if (sessionData.mode === 'quiz' &&
-        sessionData.quizId &&
-        sessionData.quizId !== 'pending' &&
-        sessionData.status === 'in-progress') {
-        console.log('➡️ Quiz started (status: in-progress), navigating to quiz page');
-
-        navigateTo('STUDENT_QUIZ',
-          { gameSessionId: gameSessionId },
-          { reason: 'quiz_started' }
-        );
       } else if (sessionData.status === 'waiting') {
         console.log('⏸️ Staying in waiting room (status: waiting)');
         // PRD-0019 FIX: Reset completion flag when session goes to 'waiting'
@@ -301,24 +276,10 @@ const StudentWaitingRoomPage = () => {
 
   useEffect(() => {
     if (gameSession) {
-      // Clear test/quiz state when testId/quizId is removed (test/quiz ended)
+      // Clear test state when testId is removed (test ended)
       if (!gameSession.testId && test) {
         setTest(null);
       }
-      if (!gameSession.quizId && quiz) {
-        setQuiz(null);
-      }
-
-      // Load quiz if in quiz mode
-      if (gameSession.quizId && !quiz) {
-        const quizRef = ref(database, `quizzes/${gameSession.quizId}`);
-        get(quizRef).then((quizSnapshot) => {
-          if (quizSnapshot.exists()) {
-            setQuiz({ id: quizSnapshot.key, ...quizSnapshot.val() });
-          }
-        });
-      }
-
       // Load test if in test mode
       if (gameSession.testId && !test) {
         const testRef = ref(database, `tests/${gameSession.testId}`);
@@ -336,7 +297,7 @@ const StudentWaitingRoomPage = () => {
         setPlayers([]);
       }
     }
-  }, [gameSession, quiz, test]);
+  }, [gameSession, test]);
 
   // Handle leaving the session to return to dashboard
   const handleLeaveSession = () => {
@@ -346,8 +307,8 @@ const StudentWaitingRoomPage = () => {
     navigateTo('STUDENT_DASHBOARD', {}, { reason: 'leave_session', replace: true });
   };
 
-  // Show waiting screen if no test or quiz is selected yet
-  if (!gameSession?.testId && !gameSession?.quizId) {
+  // Show waiting screen if no test is selected yet
+  if (!gameSession?.testId) {
     return (
       <Center style={{ height: '100vh', flexDirection: 'column', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', position: 'relative' }}>
         {/* Leave Session Button - Top Right */}
@@ -369,7 +330,7 @@ const StudentWaitingRoomPage = () => {
         </Button>
         <Loader size="xl" color="white" />
         <Text mt="md" c="white" fw={600} size="lg">
-          Waiting for teacher to select a {gameSession?.mode === 'test' ? 'test' : 'quiz'}...
+          Waiting for teacher to select a test...
         </Text>
 
         {/* PRD-TEST-END-FLOW: View Last Results button */}
@@ -403,7 +364,7 @@ const StudentWaitingRoomPage = () => {
   }
 
   // Show loading screen while content is being loaded
-  if ((gameSession?.testId && !test) || (gameSession?.quizId && !quiz)) {
+  if (gameSession?.testId && !test) {
     return (
       <Center style={{ height: '100vh', flexDirection: 'column', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', position: 'relative' }}>
         {/* Leave Session Button - Top Right */}
@@ -425,15 +386,15 @@ const StudentWaitingRoomPage = () => {
         </Button>
         <Loader size="xl" color="white" />
         <Text mt="md" c="white" fw={600} size="lg">
-          Loading {gameSession?.mode === 'test' ? 'test' : 'quiz'}...
+          Loading test...
         </Text>
       </Center>
     );
   }
 
-  // Get the content (test or quiz)
-  const content = test || quiz;
-  const contentType = gameSession?.mode === 'test' ? 'test' : 'quiz';
+  // Get the test content
+  const content = test;
+  const contentType = 'test';
 
   return (
     <AppShell

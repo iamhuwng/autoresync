@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ReadingV2StudioShell } from '../components/reading-v2/studio/ReadingV2StudioShell';

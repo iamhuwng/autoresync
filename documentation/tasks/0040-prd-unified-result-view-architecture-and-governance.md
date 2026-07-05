@@ -51,6 +51,10 @@ This PRD is now paired with a living verification pack and must not be read in i
 
 These artifacts close the static architecture audit for PRD-0040. They do not erase the remaining runtime-proof gap: emulator-backed backend-rule verification and tampering checks still need execution when the local environment can run the Firebase emulators.
 
+### 1.3 2026-07-05 Retired Source Material Change Record
+
+The retired-material cleanup adds a `sourceMaterialRemoved` retained-result display contract. This does not change PRD-0040 ownership, permission, or shell architecture: completed results and indexes remain preserved, saved-result shells continue to own saved-result rendering, and session/post-test surfaces remain separate. The living verification pack was updated in the same change set to record the source-loading/display boundary.
+
 ---
 
 ## 2. Product Vision
@@ -153,7 +157,7 @@ If a fourth active saved-result shell is discovered during the pre-implementatio
 | FR-005 | The result-view map must record domain type: saved-result, session/post-test, guest-result/claim, writing, live-monitoring, or unwired/demo. |
 | FR-005A | For the writing domain, the result-view map must also record lifecycle role for each active surface: `draft`, `monitor`, `queue`, `editor`, `result`, or `alternate/dormant`. |
 | FR-006 | Every future result-related change must update the result-view map and permission matrix in the same change set. |
-| FR-007 | Every future result-related deviation from the PRD must also be recorded in the team’s existing change-tracking habit: conversation log in `documentation`, or Knowns, or Antigravity Knowledge. |
+| FR-007 | Every future result-related deviation from the PRD must also be recorded in the teamÂ’s existing change-tracking habit: conversation log in `documentation`, or Knowns, or Antigravity Knowledge. |
 | FR-008 | Reviewer guidance must state that a result-related merge is blocked if the map, matrix, and required change record are missing. |
 | FR-009 | The reuse rule must require each result-related PRD/task to name the canonical surface, target roles, target entry points, and explicit non-goals before coding starts. |
 | FR-010 | The reuse rule must require a usage/import/route/test audit before any component is treated as active migration scope. |

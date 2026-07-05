@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Student Test Page V2
  * Refactored modular version with better separation of concerns

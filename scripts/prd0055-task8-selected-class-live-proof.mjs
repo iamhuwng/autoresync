@@ -314,7 +314,6 @@ try {
     },
     bannedPlayers: {},
     activeTests: {},
-    activeQuizzes: {},
     masterAudioState,
     audioCommand: {
       schemaVersion: 2,

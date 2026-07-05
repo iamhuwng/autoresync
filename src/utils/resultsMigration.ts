@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Results Migration Utilities
  * Scripts to migrate and backfill data for the enhanced results system

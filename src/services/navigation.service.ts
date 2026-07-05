@@ -90,7 +90,6 @@ class NavigationService {
 
       // For session status changes, queue for retry instead of just failing
       const isSessionCritical = options?.reason?.startsWith('test_') ||
-        options?.reason?.startsWith('quiz_') ||
         options?.reason?.startsWith('session_');
 
       if (isSessionCritical) {
@@ -244,7 +243,7 @@ class NavigationService {
         break;
 
       case 'in-progress':
-        // Test/quiz started - handled by specific components
+        // Test started - handled by specific components
         this.log('ℹ️ Session in progress - component will handle navigation');
         break;
 
@@ -265,7 +264,7 @@ class NavigationService {
         break;
 
       case 'feedback':
-        // Quiz feedback phase - route students to feedback page
+        // Retired legacy feedback status - route students to notice page
         if (this.context.role === 'student') {
           this.navigateTo('STUDENT_FEEDBACK',
             { gameSessionId: sessionCode },
@@ -275,7 +274,7 @@ class NavigationService {
         break;
 
       case 'results':
-        // Quiz results phase - route students to results page
+        // Retired legacy results status - route students to notice page
         if (this.context.role === 'student') {
           this.navigateTo('STUDENT_RESULTS',
             { gameSessionId: sessionCode },

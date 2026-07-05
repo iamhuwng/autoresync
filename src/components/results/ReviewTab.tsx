@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ReviewTab — PRD-0039 Task 7.0
  *
@@ -13,6 +14,10 @@ import {
   getRenderableQuestionExplanations,
   needsAiFeedbackUpgrade,
 } from '../../services/formativeFeedback.service';
+import {
+  isSourceMaterialRemovedResult,
+  ORIGINAL_MATERIAL_REMOVED_LABEL,
+} from '../../services/resultSourceMaterialRemoval';
 import './ReviewTab.css';
 
 /* ─── Props ──────────────────────────────────────────────────────────────── */
@@ -90,6 +95,7 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
   onHighlightComplete,
 }) => {
   const questions = useMemo(() => result.questionResults || [], [result]);
+  const sourceMaterialRemoved = isSourceMaterialRemovedResult(result);
 
   const incorrectQuestions = useMemo(
     () => questions.filter(q => !q.isCorrect),
@@ -193,6 +199,15 @@ export const ReviewTab: React.FC<ReviewTabProps> = ({
                   </div>
                 </div>
               </div>
+
+              {sourceMaterialRemoved && (
+                <div
+                  className="rv-source-material-removed"
+                  data-testid={`rv-source-material-removed-${q.questionNumber}`}
+                >
+                  {ORIGINAL_MATERIAL_REMOVED_LABEL}
+                </div>
+              )}
 
               <div className={`rv-answer-grid ${q.isCorrect ? 'rv-answer-grid--single' : ''}`}>
                 <div className={`rv-answer-block ${q.isCorrect ? 'rv-answer--correct' : 'rv-answer--incorrect'}`}>

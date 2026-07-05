@@ -16,7 +16,7 @@
 export function isNewFormat(sessionData) {
   return !!(
     sessionData &&
-    (sessionData.activeTests || sessionData.activeQuizzes) &&
+    sessionData.activeTests &&
     typeof sessionData.students === 'object'
   );
 }
@@ -31,8 +31,7 @@ export function isOldFormat(sessionData) {
     sessionData &&
     (sessionData.testId || sessionData.quizId) &&
     sessionData.players &&
-    !sessionData.activeTests &&
-    !sessionData.activeQuizzes
+    !sessionData.activeTests
   );
 }
 
@@ -63,9 +62,8 @@ export function migrateToNewFormat(oldSession) {
     className: oldSession.className || `Class ${sessionCode}`,
     teacherId: oldSession.teacherId || `teacher_migrated_${now}`,
     
-    // NEW: Empty multi-test/quiz structure
+    // NEW: Empty multi-test structure
     activeTests: {},
-    activeQuizzes: {},
     
     // NEW: Convert players to students
     students: {},
@@ -101,7 +99,6 @@ export function migrateToNewFormat(oldSession) {
         
         // Assignment tracking (initially null)
         assignedTestId: null,
-        assignedQuizId: null,
       };
       
       // Keep players as alias
@@ -133,28 +130,6 @@ export function migrateToNewFormat(oldSession) {
     });
   }
   
-  // If there's a quizId, create an assignment for all students
-  if (oldSession.quizId) {
-    const assignmentId = `${oldSession.quizId}_migrated_${now}`;
-    const studentIds = Object.keys(newSession.students);
-    
-    newSession.activeQuizzes[assignmentId] = {
-      assignmentId,
-      quizId: oldSession.quizId,
-      assignedStudents: studentIds,
-      status: oldSession.status === 'in-progress' ? 'in-progress' : 'waiting',
-      assignedAt: oldSession.createdAt,
-      startTime: oldSession.startTime || null,
-      currentQuestionIndex: oldSession.currentQuestionIndex || 0,
-      isPaused: oldSession.isPaused || false,
-    };
-    
-    // Assign all students to this quiz
-    studentIds.forEach(studentId => {
-      newSession.students[studentId].assignedQuizId = oldSession.quizId;
-    });
-  }
-  
   console.log('✅ [Migration] Conversion complete');
   return newSession;
 }
@@ -170,29 +145,22 @@ export function addCompatibilityFields(session) {
   if (!session) return session;
   
   // If already has compatibility, return as-is
-  if (session.mode && (session.testId || session.quizId)) {
+  if (session.mode && session.testId) {
     return session;
   }
   
-  // Derive mode from active tests/quizzes
+  // Derive mode from active tests
   const hasActiveTests = session.activeTests && Object.keys(session.activeTests).length > 0;
-  const hasActiveQuizzes = session.activeQuizzes && Object.keys(session.activeQuizzes).length > 0;
   
   if (hasActiveTests) {
     session.mode = 'test';
     // Set testId to first active test
     const firstTest = Object.values(session.activeTests)[0];
     session.testId = firstTest?.testId || null;
-  } else if (hasActiveQuizzes) {
-    session.mode = 'quiz';
-    // Set quizId to first active quiz
-    const firstQuiz = Object.values(session.activeQuizzes)[0];
-    session.quizId = firstQuiz?.quizId || null;
   } else {
     // No active content
     session.mode = session.mode || 'test';
     session.testId = null;
-    session.quizId = null;
   }
   
   // Add players as alias for students
@@ -222,12 +190,12 @@ export function addCompatibilityFields(session) {
 }
 
 /**
- * Get student's assigned test/quiz from session
+ * Get student's assigned test from session
  * Handles both old and new formats
  * 
  * @param {Object} session - Session data
  * @param {string} studentId - Student ID
- * @returns {Object|null} {type: 'test'|'quiz', id: string} or null
+ * @returns {Object|null} {type: 'test', id: string} or null
  */
 export function getStudentAssignment(session, studentId) {
   if (!session || !studentId) return null;
@@ -238,9 +206,6 @@ export function getStudentAssignment(session, studentId) {
     if (student.assignedTestId) {
       return { type: 'test', id: student.assignedTestId };
     }
-    if (student.assignedQuizId) {
-      return { type: 'quiz', id: student.assignedQuizId };
-    }
     return null;
   }
   
@@ -248,10 +213,6 @@ export function getStudentAssignment(session, studentId) {
   if (session.testId) {
     return { type: 'test', id: session.testId };
   }
-  if (session.quizId) {
-    return { type: 'quiz', id: session.quizId };
-  }
-  
   return null;
 }
 

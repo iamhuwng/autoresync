@@ -332,4 +332,31 @@ describe('ResultDetailModal', () => {
     expect(screen.getByTestId('ssrc-teacher-question-feedback')).toBeInTheDocument();
     expect(screen.getByText(/check the passage for the detail/i)).toBeInTheDocument();
   });
+
+  it('renders removed-source retained results from saved question data in the teacher modal', async () => {
+    render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-source-removed" />);
+    simulateOnValueSuccess({
+      ...IELTS_RESULT,
+      resultId: 'res-source-removed',
+      sourceMaterialRemoved: true,
+      testTitle: 'Retired Reading V1 Result',
+      formativeFeedback: {
+        aiFeedback: {
+          summary: 'Saved feedback remains available.',
+          strengths: '',
+          revision: '',
+          critical: '',
+        },
+        totalCorrect: 0,
+        totalQuestions: 1,
+        scaledScore: 0,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ssrc-source-material-removed')).toHaveTextContent('Original material removed');
+    });
+    expect(screen.getByText('Retired Reading V1 Result')).toBeInTheDocument();
+    expect(screen.getAllByText('Saved feedback remains available.').length).toBeGreaterThanOrEqual(1);
+  });
 });

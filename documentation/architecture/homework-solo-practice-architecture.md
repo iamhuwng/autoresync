@@ -24,6 +24,7 @@ Canonical visibility governance for homework and solo-practice results lives in:
 
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
+- Homework and solo-practice material selection must not create or launch retired Google Drive-backed materials, Reading V1, or Quiz. Existing completed academic results from those retired families remain governed by result visibility and answer-review retention rules. See `documentation/architecture/retired-features-current-state.md`.
 
 ## 2026-05-10 Amendment - Homework Result Access Revoked Repair
 

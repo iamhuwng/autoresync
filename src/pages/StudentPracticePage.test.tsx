@@ -262,7 +262,7 @@ describe('StudentPracticePage', () => {
         }
 
         if (target.path.endsWith('/skill')) {
-          return 'Reading';
+          return 'Listening';
         }
 
         return null;
@@ -307,6 +307,29 @@ describe('StudentPracticePage', () => {
   });
 
   it('preserves homework timer and attempt settings from the launch state', async () => {
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === 'tests/material-1') {
+          return {
+            id: 'material-1',
+            testType: 'IELTS',
+            skill: 'Listening',
+          };
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return 'IELTS';
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return 'Listening';
+        }
+
+        return null;
+      },
+      exists: () => target.path === 'tests/material-1',
+    }));
+
     render(
       <MemoryRouter
         initialEntries={[
@@ -329,10 +352,10 @@ describe('StudentPracticePage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('ielts-practice-view')).toBeInTheDocument();
+      expect(screen.getByTestId('listening-practice-view')).toBeInTheDocument();
     });
 
-    expect(ieltsPracticeViewPropsMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(listeningPracticeViewPropsMock).toHaveBeenCalledWith(expect.objectContaining({
       materialId: 'material-1',
       resolvedSettings: expect.objectContaining({
         timerMinutes: 60,
@@ -434,7 +457,6 @@ describe('StudentPracticePage', () => {
   });
 
   it.each([
-    ['IELTS Reading', 'ielts-reading-worker-1', 'IELTS', 'Reading', 'ielts_reading', 'test', 'ielts-practice-view', null],
     ['IELTS Listening', 'ielts-listening-worker-1', 'IELTS', 'Listening', 'ielts_listening', 'test', 'listening-practice-view', null],
     ['IELTS Writing', 'ielts-writing-worker-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', 'homework_student_safe_tests/hw-worker-1'],
     ['legacy IELTS Writing', 'ielts-writing-legacy-1', 'IELTS', 'Writing', 'ielts_writing', 'test', 'writing-practice-view', null],
@@ -538,6 +560,88 @@ describe('StudentPracticePage', () => {
 
     expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
     expect(refMock).toHaveBeenCalledWith({}, studentSafeTestPayloadPath || `student_safe_tests/${materialId}`);
+  });
+
+  it('fails closed for Worker-created IELTS Reading homework without a Reading V2 projection', async () => {
+    const materialId = 'ielts-reading-worker-1';
+
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      val: () => {
+        if (target.path === `student_safe_tests/${materialId}`) {
+          return {
+            id: materialId,
+            testType: 'IELTS',
+            skill: 'Reading',
+            metadata: { title: 'IELTS Reading' },
+          };
+        }
+
+        if (target.path.endsWith('/testType')) {
+          return 'IELTS';
+        }
+
+        if (target.path.endsWith('/skill')) {
+          return 'Reading';
+        }
+
+        return null;
+      },
+      exists: () => target.path === `student_safe_tests/${materialId}`,
+    }));
+    getHomeworkByIdMock.mockResolvedValue({
+      id: 'hw-worker-1',
+      createdBy: 'teacher-1',
+      materialId,
+      materialTitle: 'IELTS Reading',
+      materialType: 'test',
+      materialSkill: 'reading',
+      contentRef: {
+        contentKind: 'ielts_reading',
+        contentId: materialId,
+        title: 'IELTS Reading',
+      },
+      config: {
+        timerMinutes: 30,
+        maxAttempts: 1,
+        feedbackTiming: 'after_completion',
+        lateSubmissionAllowed: false,
+      },
+    });
+    getSubmissionByIdMock.mockResolvedValue({
+      id: 'submission-worker-1',
+      studentId: 'student-1',
+      homeworkId: 'hw-worker-1',
+      teacherId: 'teacher-1',
+      startedAt: 123,
+      status: 'in_progress',
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: `/student/practice/${materialId}`,
+            state: {
+              isHomework: true,
+              homeworkId: 'hw-worker-1',
+              submissionId: 'submission-worker-1',
+              timerMinutes: 30,
+              maxAttempts: 1,
+            },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByTestId('ielts-practice-view')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('listening-practice-view')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('writing-practice-view')).not.toBeInTheDocument();
+    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('launches private Worker-created IELTS Writing homework from its homework-scoped safe projection', async () => {
@@ -726,7 +830,7 @@ describe('StudentPracticePage', () => {
     }));
   });
 
-  it('routes listening-like IELTS materials to ListeningPracticeView even when skill metadata is missing', async () => {
+  it('fails closed when IELTS skill metadata is missing even if the material id looks like listening', async () => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {
         if (target.path.endsWith('/testType')) {
@@ -758,20 +862,12 @@ describe('StudentPracticePage', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId('listening-practice-view')).toBeInTheDocument();
-    });
-
-    expect(listeningPracticeViewPropsMock).toHaveBeenCalledWith(expect.objectContaining({
-      materialId: 'listening-material-1',
-      practiceContext: expect.objectContaining({
-        type: 'self_study',
-      }),
-    }));
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByTestId('listening-practice-view')).not.toBeInTheDocument();
     expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
-  it('keeps legacy IELTS Reading V1 launches on the V1 interface without probing Reading V2 storage', async () => {
+  it('fails closed for legacy IELTS Reading V1 launches without probing Reading V2 storage', async () => {
     getMock.mockImplementation(async (target: { path: string }) => {
       if (target.path.startsWith('reading_v2/')) {
         throw new Error(`Unexpected Reading V2 read for legacy launch: ${target.path}`);
@@ -802,20 +898,13 @@ describe('StudentPracticePage', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId('ielts-practice-view')).toBeInTheDocument();
-    });
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
 
     expect(refMock).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.stringContaining('reading_v2/'),
     );
-    expect(ieltsPracticeViewPropsMock).toHaveBeenCalledWith(expect.objectContaining({
-      materialId: 'legacy-reading-1',
-      practiceContext: expect.objectContaining({
-        type: 'self_study',
-      }),
-    }));
+    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('routes explicitly marked Reading V2 materials to the Reading V2 runtime', async () => {

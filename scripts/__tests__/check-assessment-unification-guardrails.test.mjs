@@ -565,7 +565,7 @@ test('changed-file commands include renamed assessment files', () => {
 });
 
 test('changed-file commands include the full pushed range when provided', () => {
-  const commands = buildChangedFileCommands(undefined, 'abc123');
+  const commands = buildChangedFileCommands('', 'abc123');
 
   assert.deepEqual(commands, [
     'git diff --name-status -z --diff-filter=ACDMR abc123...HEAD',

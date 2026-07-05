@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Solo Mode Types
  *

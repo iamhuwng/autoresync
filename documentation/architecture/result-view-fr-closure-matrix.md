@@ -21,6 +21,10 @@ PRD-0049 is a branch/source-of-truth reconciliation, not a new result-view featu
 
 PRD-0043 adds a Writing queue intake, not a new result-view closure phase. The Writing linked-source ownership and grading-surface row remains `passing`; added verification anchors are `writingExternalSubmissionImport.service.test.ts`, `TeacherGradingPage.test.tsx`, `ImportWritingSubmissionModal.test.tsx`, `writingSubmissionService.test.ts`, and live browser verification of the existing queue/editor path.
 
+## 2026-07-05 Retired Source Material Note
+
+The retired-material cleanup does not reopen or change PRD-0040/PRD-0041 FR closure status. It preserves completed results and indexes while allowing result consumers to render saved answers/scores when retired source material is unavailable. Regression anchors added or reused for this cleanup include `resultSourceMaterialRemoval.test.ts`, `resultFeedbackPayload.service.test.ts`, `ReviewTab.test.tsx`, `SharedSavedResultCore.test.tsx`, `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx`, `ResultDetailModal.test.tsx`, and `AcademicRecordPage.test.tsx`.
+
 Status keys:
 - `planned`
 - `in-progress`

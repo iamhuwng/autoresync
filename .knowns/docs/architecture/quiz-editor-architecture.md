@@ -13,6 +13,8 @@ tags:
 ---
 # Quiz Editor Architecture
 
+> Obsolete as of 2026-07-05: Quiz editor and Quiz runtime surfaces are retired. Current authority: @doc/architecture/retired-features-current-state. Historical architecture below is retained for audit/history only.
+
 ## Overview
 
 Two quiz editing systems exist: the legacy IELTS editor (QuizEditor/EditQuizModal) and the THCS editor (THCSTestEditorModal). Both support question creation, editing, and preview, but with different approaches.

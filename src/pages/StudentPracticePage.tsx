@@ -10,7 +10,8 @@
  *   2. Reads context (solo/homework/course) from location.state
  *   3. Loads settings cascade (if course context)
  *   4. Detects test type (IELTS vs THCS) from test metadata
- *   5. Renders IELTSPracticeView or THCSPracticeView accordingly
+ *   5. Renders explicit Reading V2, Listening, Writing, or THCS runtime.
+ *      Retired Reading V1 and incomplete IELTS metadata fail closed.
  *
  * Key design decisions:
  * - ZERO dependency on game_sessions or sessionService
@@ -19,7 +20,7 @@
  */
 
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
 import { resolvePracticeSettings } from '../services/practiceSettingsResolver';
@@ -31,7 +32,6 @@ import { useNavigation } from '../hooks/useNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
-import { IELTSPracticeView } from '../components/practice/IELTSPracticeView';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import {
     ReadingV2RuntimeShell,
@@ -74,6 +74,7 @@ import { storage } from '../core/platform/storage';
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
 const ListeningPracticeView = lazy(() => import('../components/practice/ListeningPracticeView'));
+const MATERIAL_UNAVAILABLE_MESSAGE = 'Material no longer available';
 
 // ── Location State Shape ───────────────────────────────────────────────────────
 
@@ -123,28 +124,6 @@ const normalizeIeltsSkill = (rawSkill: unknown): CanonicalIeltsSkill | null => {
         default:
             return null;
     }
-};
-
-const inferIeltsSkillFromMaterialId = (materialId: string): CanonicalIeltsSkill | null => {
-    const normalizedMaterialId = materialId.trim().toLowerCase();
-
-    if (normalizedMaterialId.includes('listening')) {
-        return 'Listening';
-    }
-
-    if (normalizedMaterialId.includes('writing')) {
-        return 'Writing';
-    }
-
-    if (normalizedMaterialId.includes('reading')) {
-        return 'Reading';
-    }
-
-    if (normalizedMaterialId.includes('speaking')) {
-        return 'Speaking';
-    }
-
-    return null;
 };
 
 const STUDENT_SAFE_STANDARD_HOMEWORK_KINDS = new Set([
@@ -284,7 +263,6 @@ const isExplicitReadingV2Launch = (testData: unknown): boolean =>
 const StudentPracticePageContent: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
     const location = useLocation();
-    const navigate = useNavigate();
     const { navigateTo } = useNavigation('student');
     const { user } = useAuth();
     const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
@@ -485,24 +463,19 @@ const StudentPracticePageContent: React.FC = () => {
                 // 1. Detect test type + skill from Firebase
                 const rawTestType = launchTestData?.testType ?? null;
                 const rawSkill = launchTestData?.skill ?? null;
-                const normalizedSkill = normalizeIeltsSkill(rawSkill)
-                    ?? (rawTestType === 'IELTS' ? inferIeltsSkillFromMaterialId(materialId) : null);
-                const normalizedTestType = rawTestType === 'THCS-THPT' ? 'THCS' : 'IELTS';
+                const normalizedSkill = normalizeIeltsSkill(rawSkill);
+                const normalizedTestType = rawTestType === 'THCS-THPT'
+                    ? 'THCS'
+                    : rawTestType === 'IELTS'
+                        ? 'IELTS'
+                        : null;
                 const routeTarget = rawTestType === 'IELTS' && normalizedSkill === 'Writing'
                     ? 'WritingPracticeView'
                     : normalizedTestType === 'IELTS' && normalizedSkill === 'Listening'
                         ? 'ListeningPracticeView'
                         : normalizedTestType === 'THCS'
                             ? 'THCSPracticeView'
-                            : 'IELTSPracticeView';
-
-                if (rawTestType === 'IELTS' && !normalizeIeltsSkill(rawSkill) && normalizedSkill) {
-                    console.warn('[StudentPracticePage] Inferred IELTS skill from material id fallback', {
-                        materialId,
-                        rawSkill,
-                        inferredSkill: normalizedSkill,
-                    });
-                }
+                            : 'Unavailable';
 
                 console.info('[StudentPracticePage] Resolved practice route', {
                     materialId,
@@ -529,6 +502,18 @@ const StudentPracticePageContent: React.FC = () => {
                         rawTestType,
                         routeTarget,
                     });
+                }
+
+                if (
+                    !normalizedTestType
+                    || (
+                        normalizedTestType === 'IELTS'
+                        && (!normalizedSkill || normalizedSkill === 'Reading')
+                    )
+                ) {
+                    setError(MATERIAL_UNAVAILABLE_MESSAGE);
+                    setLoading(false);
+                    return;
                 }
 
                 setTestSkill(normalizedSkill);
@@ -863,16 +848,23 @@ const StudentPracticePageContent: React.FC = () => {
 
     // ── Error ──────────────────────────────────────────────────────────────────
     if (error || !materialId || !resolvedSettings) {
+        const title = error === MATERIAL_UNAVAILABLE_MESSAGE
+            ? MATERIAL_UNAVAILABLE_MESSAGE
+            : 'Error Loading Test';
+
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
                 <div style={{ textAlign: 'center', maxWidth: 400, padding: '2rem' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>Error Loading Test</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>{title}</div>
                     <div style={{ color: '#64748b', marginBottom: '1.5rem' }}>{error || 'Something went wrong'}</div>
                     <button
                         onClick={() => {
                             void studentResumeService.clearResume();
-                            navigate(-1);
+                            navigateTo('STUDENT_DASHBOARD', undefined, {
+                                reason: 'practice_unavailable_return',
+                                force: true,
+                            });
                         }}
                         style={{ padding: '0.75rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
                     >
@@ -977,16 +969,6 @@ const StudentPracticePageContent: React.FC = () => {
     }
 
     switch (testType) {
-        case 'IELTS':
-            return (
-                <IELTSPracticeView
-                    materialId={materialId}
-                    resolvedSettings={resolvedSettings}
-                    practiceContext={practiceContext}
-                    autoResume={locationState.autoResume === true}
-                />
-            );
-
         case 'THCS':
             return (
                 <THCSPracticeView
@@ -996,14 +978,7 @@ const StudentPracticePageContent: React.FC = () => {
             );
 
         default:
-            return (
-                <IELTSPracticeView
-                    materialId={materialId}
-                    resolvedSettings={resolvedSettings}
-                    practiceContext={practiceContext}
-                    autoResume={locationState.autoResume === true}
-                />
-            );
+            return null;
     }
 };
 

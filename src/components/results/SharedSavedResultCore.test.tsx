@@ -265,6 +265,34 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     expect(deliveryIssuer.issue).not.toHaveBeenCalled();
   });
 
+  it('does not render or request Listening audio when retained source material was removed', () => {
+    const deliveryIssuer = {
+      issue: vi.fn(),
+    };
+
+    render(
+      <SharedSavedResultCore
+        result={{
+          ...MOCK_RESULT,
+          resultId: 'listening-result-source-removed',
+          sourceMaterialRemoved: true,
+          testSkill: 'listening',
+          testType: 'listening',
+          listeningResultReviewAudio: {
+            audioUrl: 'https://drive.google.com/file/d/legacy-audio/view',
+            streamUrl: 'https://drive.google.com/file/d/legacy-audio/view',
+          },
+        }}
+        variant="modal"
+        listeningResultReviewDeliveryIssuer={deliveryIssuer}
+      />,
+    );
+
+    expect(screen.getByTestId('ssrc-source-material-removed')).toHaveTextContent('Original material removed');
+    expect(screen.queryByTestId('ssrc-listening-review-audio')).not.toBeInTheDocument();
+    expect(deliveryIssuer.issue).not.toHaveBeenCalled();
+  });
+
   it('resolves new Listening asset-ID result-review audio through authorized delivery', async () => {
     const deliveryIssuer = {
       issue: vi.fn(async (input) => ({

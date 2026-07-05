@@ -7,11 +7,21 @@ import { getCoursesByOwner } from '../services/courseManager';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { Course } from '../types/course.types';
 import { MantineProvider } from '@mantine/core';
+import { MemoryRouter } from 'react-router-dom';
 
 // Mocks
 vi.mock('../services/courseManager', () => ({
     getCoursesByOwner: vi.fn(),
+    getAllCourses: vi.fn(),
+    createCourse: vi.fn(),
+    updateCourse: vi.fn(),
     archiveCourse: vi.fn(),
+    restoreCourse: vi.fn(),
+    hardDeleteCourse: vi.fn(),
+    generateCourseCode: vi.fn(() => 'IELTS-TEST'),
+    validateCourseCode: vi.fn(() => Promise.resolve(true)),
+    requestCourseType: vi.fn(),
+    getCourseTypes: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -34,7 +44,9 @@ vi.mock('../components/CourseCard', () => ({
 const renderWithMantine = (ui: React.ReactNode) => {
     return render(
         <MantineProvider>
-            {ui}
+            <MemoryRouter>
+                {ui}
+            </MemoryRouter>
         </MantineProvider>
     );
 };
@@ -70,7 +82,7 @@ describe('TeacherCoursesPage', () => {
 
         await waitFor(() => expect(screen.getAllByTestId('course-card')).toHaveLength(2));
 
-        const searchInput = screen.getByPlaceholderText('Search courses...');
+        const searchInput = screen.getByPlaceholderText('Search courses by name or code...');
         fireEvent.change(searchInput, { target: { value: 'TOEIC' } });
 
         await waitFor(() => {

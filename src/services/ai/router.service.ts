@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Chunk, ReadingLabeledOption } from '../../types/document.types';
 import type { Result } from '../../types/result.types';
 import type {

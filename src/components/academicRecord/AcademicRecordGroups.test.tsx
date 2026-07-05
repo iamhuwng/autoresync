@@ -99,7 +99,7 @@ describe('Academic Record grouped views', () => {
         );
 
         const pendingReviewCard = screen.getByText('Pending Review');
-        const readingBandCard = screen.getByText('Reading Band');
+        const readingBandCard = screen.getByText('Average Overall Band');
         expect(
             pendingReviewCard.compareDocumentPosition(readingBandCard) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();

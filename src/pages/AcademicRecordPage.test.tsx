@@ -20,6 +20,7 @@ const { mockResults, useMediaQueryMock } = vi.hoisted(() => ({
             partialCredit: 0,
             totalQuestions: 20,
             bandScore: 7.0,
+            sourceMaterialRemoved: true,
             courseName: 'IELTS Prep',
             className: 'Class A',
             questionResults: [],
@@ -333,6 +334,21 @@ describe('AcademicRecordPage query-param management', () => {
         });
 
         expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
+    });
+
+    it('keeps removed-source retained results visible and openable from Academic Record summaries', async () => {
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('timeline-result-res-1')).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Reading Test 1')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('timeline-result-res-1'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('result-slide-panel')).toHaveAttribute('data-result-id', 'res-1');
+        });
     });
 
     it('keeps writing results inside the IELTS view and opens them from there', async () => {

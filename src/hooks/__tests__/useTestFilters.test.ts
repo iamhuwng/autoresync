@@ -118,13 +118,13 @@ describe('useTestFilters', () => {
     }
   });
 
-  it('super_admin sees all content in "my" mode', () => {
+  it('super_admin sees all standard test content in "my" mode', () => {
     const { result } = renderHook(() => useTestFilters(mockTests, {
       ...defaultFilters,
       userRole: 'super_admin',
     }));
 
-    expect(result.current.filteredTests.length).toBe(mockTests.length);
+    expect(result.current.filteredTests.map(t => t.id)).toEqual(['1', '2', '3', '4', '5']);
   });
 
   it('returns empty array when tests is empty', () => {

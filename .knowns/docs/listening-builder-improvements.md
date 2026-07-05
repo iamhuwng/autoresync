@@ -10,6 +10,8 @@ tags:
 ---
 # Listening Test Builder - Comprehensive Improvements
 
+> Google Drive portions obsolete as of 2026-07-05: Google Drive upload/playback/import/streaming is retired. Current storage authority is R2 and @doc/architecture/retired-features-current-state. Historical Google Drive-specific content below is retained as implementation history only.
+
 ## 📋 Summary
 
 Created an improved Listening Test Builder with all requested features to match the sophistication of the Reading test builder.

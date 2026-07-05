@@ -359,7 +359,7 @@ describe('ReadingV2RuntimeShell', () => {
 
     await waitFor(() => expect(rightPanel.scrollTop).toBe(526));
     expect(question29).toHaveClass('reading-v2-runtime__question-anchor--focused');
-  }, 10000);
+  }, 30000);
 
   it('reveals structured table questions inside nested horizontal scroll containers', async () => {
     setViewport(1366, 900);

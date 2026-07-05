@@ -1,5 +1,7 @@
 # Listening Test Builder - Comprehensive Improvements
 
+> **Google Drive portions obsolete as of 2026-07-05:** Google Drive upload/playback/import/streaming is retired. Current storage authority is R2 and [Retired Features Current State](architecture/retired-features-current-state.md). Historical Google Drive-specific content below is retained as implementation history only.
+
 > **Obsolete Google Drive notice:** This is a historical implementation record. Google Drive is no longer used by any supported feature. All active uploads use Cloudflare R2. Google Drive text and code examples below are obsolete implementation history; source cleanup is deferred to a separate audit.
 
 ## 📋 Summary

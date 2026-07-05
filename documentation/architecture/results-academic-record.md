@@ -19,6 +19,7 @@ Academic Record feature architecture now has its own packet:
 - Teacher-facing filtering is not allowed inside academic-record-style pages or local UI helpers.
 - Historical display labels must prefer `result.visibility.sourceNameSnapshot`.
 - Deleted-source display is allowed only when ownership was proven at submission time.
+- Retired Google Drive, Reading V1, and Quiz source records may be unavailable after purge. Completed academic results remain retained when access is authorized, but Source Review may be unavailable and Answer Review must rely on saved result snapshots. See `documentation/architecture/retired-features-current-state.md`.
 
 ## Required Consumption Rules
 

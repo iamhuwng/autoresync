@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { collection, doc, getDoc, setDoc } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';

@@ -1,9 +1,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
 import { StudentTestResultsPage } from './StudentTestResultsPage';
-import StudentShellRoute from '../routes/StudentShellRoute';
 // @ts-ignore
 import { database } from '../services/firebase';
 import { get, onValue, ref } from 'firebase/database';
@@ -13,6 +12,8 @@ import * as sessionService from '../services/sessionService';
 const { useMediaQueryMock } = vi.hoisted(() => ({
     useMediaQueryMock: vi.fn(),
 }));
+
+const StudentShellRoute = () => <Outlet />;
 
 // Mock Firebase
 vi.mock('../services/firebase', () => ({
@@ -242,6 +243,55 @@ describe('StudentTestResultsPage', () => {
         await waitFor(() => {
             expect(screen.getByText('Stored AI summary from the saved result.')).toBeInTheDocument();
         });
+    });
+
+    it('renders a retained removed-source result from saved question results without loading test source material', async () => {
+        (testResultsService.getStudentSessionResult as any).mockResolvedValue({
+            resultId: 'res-source-removed',
+            testId: 'retired-reading-v1',
+            testTitle: 'Retired Reading V1 Result',
+            testType: 'reading',
+            testSkill: 'reading',
+            testDuration: 1800,
+            sourceMaterialRemoved: true,
+            totalScore: 0,
+            maxScore: 1,
+            percentage: 0,
+            bandScore: 0,
+            questionResults: [
+                {
+                    questionNumber: 1,
+                    questionType: 'reading-comprehension',
+                    isCorrect: false,
+                    score: 0,
+                    maxScore: 1,
+                    studentAnswer: 'A',
+                    correctAnswer: 'B',
+                    feedback: 'Saved feedback remains available.',
+                },
+            ],
+            correct: 0,
+            incorrect: 1,
+            partialCredit: 0,
+            totalQuestions: 1,
+            submittedAt: Date.now(),
+        });
+
+        render(
+            <MemoryRouter initialEntries={[`/student-test-results/${sessionCode}`]}>
+                <Routes>
+                    <Route path="/student-test-results/:sessionCode" element={<StudentTestResultsPage />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Retired Reading V1 Result')).toBeInTheDocument();
+        });
+
+        expect(screen.getByTestId('student-results-source-material-removed')).toHaveTextContent('Original material removed');
+        expect(screen.getByText('0/1')).toBeInTheDocument();
+        expect(get).not.toHaveBeenCalledWith(expect.stringContaining('tests/retired-reading-v1'));
     });
 
     it('should fallback to calculation if permanent result not found', async () => {

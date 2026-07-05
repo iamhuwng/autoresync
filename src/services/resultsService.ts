@@ -46,6 +46,7 @@ export interface StudentResult {
   // PRD-0016: Result context (class_session, homework, self_study, course_material)
   context?: ResultContext;
   visibility?: TestResultRecord['visibility'];
+  sourceMaterialRemoved?: boolean;
 }
 
 
@@ -81,6 +82,17 @@ export interface ClassResults {
   };
 }
 
+function resolveSessionMode(
+  sessionData?: { mode?: unknown },
+  result?: Pick<TestResultRecord, 'testType'>
+): 'quiz' | 'test' {
+  if (sessionData?.mode === 'quiz' || sessionData?.mode === 'test') {
+    return sessionData.mode;
+  }
+
+  return result?.testType === 'quiz' ? 'quiz' : 'test';
+}
+
 function toStudentResult(
   result: TestResultRecord,
   sessionData?: any
@@ -91,9 +103,7 @@ function toStudentResult(
     studentName: result.studentName || sessionData?.players?.[result.studentId]?.name || 'Unknown',
     studentEmail: sessionData?.players?.[result.studentId]?.email,
     sessionCode: result.sessionCode,
-    sessionMode:
-      sessionData?.mode
-      || ((result.context?.type === 'homework' || result.context?.type === 'self_study') ? 'test' : 'quiz'),
+    sessionMode: resolveSessionMode(sessionData, result),
     testId: result.testId,
     quizId: sessionData?.quizId || result.testId,
     testTitle: result.testTitle || sessionData?.testTitle || sessionData?.quizTitle,
@@ -116,6 +126,7 @@ function toStudentResult(
     moduleId: result.moduleId !== null ? result.moduleId : sessionData?.moduleId,
     context: result.context,
     visibility: result.visibility,
+    sourceMaterialRemoved: result.sourceMaterialRemoved,
   };
 }
 
@@ -125,7 +136,7 @@ function isTeacherVisibleResult(
   hasAssignmentAccess: boolean
 ): boolean {
   return classifyTeacherResultVisibility({
-    result,
+    result: result as any,
     teacherId,
     hasAssignmentAccess,
   }).shouldDisplayInTeacherHistory;
@@ -142,7 +153,7 @@ function buildSessionResultsFromCanonical(
 
   return {
     sessionCode,
-    sessionMode: sessionData?.mode || 'quiz',
+    sessionMode: resolveSessionMode(sessionData, results[0]),
     testTitle: sessionData?.testTitle || sessionData?.quizTitle || results[0]?.testTitle,
     createdAt: sessionData?.createdAt || results[0]?.createdAt || Date.now(),
     completedAt: sessionData?.completedAt,
@@ -204,7 +215,7 @@ export async function getSessionResults(sessionCode: string): Promise<SessionRes
           studentName: permResult?.studentName || player.name || 'Unknown',
           studentEmail: player.email,
           sessionCode,
-          sessionMode: sessionData.mode || 'quiz',
+          sessionMode: resolveSessionMode(sessionData, permResult),
           testId: sessionData.testId,
           quizId: sessionData.quizId,
           testTitle: sessionData.testTitle || sessionData.quizTitle,
@@ -235,10 +246,11 @@ export async function getSessionResults(sessionCode: string): Promise<SessionRes
     // Calculate statistics
     const scores = results.map(r => r.score);
     const percentages = results.map(r => r.percentage);
+    const firstPermanentResult = Object.values(permanentResultsMap)[0];
 
     return {
       sessionCode,
-      sessionMode: sessionData.mode || 'quiz',
+      sessionMode: resolveSessionMode(sessionData, firstPermanentResult),
       testTitle: sessionData.testTitle || sessionData.quizTitle,
       createdAt: sessionData.createdAt || Date.now(),
       completedAt: sessionData.completedAt,
@@ -297,8 +309,6 @@ export async function getTeacherResults(teacherId?: string): Promise<SessionResu
 
     for (const [sessionCode, sessionData] of Object.entries(sessions)) {
       if (!sessionData || typeof sessionData !== 'object') continue;
-
-      const session = sessionData as any;
 
       const sessionResults = await getSessionResults(sessionCode);
       if (sessionResults) {
@@ -585,9 +595,8 @@ export function filterResultsByCourse(
  */
 export interface PublicSession {
   sessionCode: string;
-  sessionMode: 'quiz' | 'test';
+  sessionMode: 'test';
   testId?: string;
-  quizId?: string;
   testTitle?: string;
   status: string;
   createdAt: number;
@@ -621,10 +630,9 @@ function normalizePublicSessions(
 
     publicSessions.push({
       sessionCode,
-      sessionMode: session.mode || 'quiz',
+      sessionMode: 'test',
       testId: session.testId,
-      quizId: session.quizId,
-      testTitle: session.testTitle || session.quizTitle || 'Untitled Session',
+      testTitle: session.testTitle || 'Untitled Session',
       status: session.status,
       createdAt: session.createdAt || Date.now(),
       playerCount,

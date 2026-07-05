@@ -12,6 +12,8 @@ tags:
 
 # 0020-prd-automated-ielts-reading-test-creation
 
+> Obsolete as of 2026-07-05: Reading V1 creation/runtime is retired. Current authority: @doc/architecture/retired-features-current-state. Historical content below is retained as implementation history; unfinished Reading V1 work is cancelled by feature retirement.
+
 > **Status**: Draft - Pending Review  
 > **Created**: 2026-02-05  
 > **Target**: Replace current parser system with new automated test creation flow

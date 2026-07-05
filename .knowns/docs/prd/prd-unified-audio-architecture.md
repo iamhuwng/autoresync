@@ -11,6 +11,8 @@ tags:
 ---
 # PRD: Unified Audio Architecture for Listening Tests
 
+> Google Drive portions obsolete as of 2026-07-05: Google Drive upload/playback/import/streaming is retired. Current storage authority is R2 and @doc/architecture/retired-features-current-state. Historical Google Drive-specific content below is retained as implementation history only.
+
 > **PRD Number:** 0018  
 > **Status:** Final  
 > **Created:** 2026-02-04  

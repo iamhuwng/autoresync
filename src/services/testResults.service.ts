@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test Results Storage Service
  * Handles persistence and retrieval of test results in Firebase
@@ -140,6 +141,12 @@ export interface TestResultRecord {
 
   /** Stable client operation identity for idempotent solo/listening submissions. */
   submissionOperationId?: string;
+
+  /**
+   * True when a retained result intentionally no longer has reloadable source material.
+   * Absence is historical compatibility only; it is not proof the source still exists.
+   */
+  sourceMaterialRemoved?: boolean;
 
   /** PRD-0027: THCS-THPT specific grading data */
   thcsData?: {

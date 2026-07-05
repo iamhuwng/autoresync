@@ -57,7 +57,7 @@ const RESULT_RELATED_PATH_PATTERNS = [
   /^src\/components\/writing-results\/(WritingResultDetailModal|WritingResultView|WritingTestResultsSection)\.(ts|tsx|js|jsx)$/,
   /^src\/hooks\/test\/useTestSubmission\.(ts|tsx)$/,
   /^src\/pages\/StudentClassDetailPage\.(ts|tsx|js|jsx)$/,
-  /^src\/pages\/(AcademicRecordPage|GuestResultsPage|ProfileCompletionPage|ResultDetailPage|StudentDashboardPage(?:\.teachers)?|StudentFeedbackPage|StudentHomeworkDetailPage|StudentHomeworkListPage|StudentResultsPage|StudentTestResultsPage|StudentWaitingRoomPage|SubmissionCompletePage|TeacherFeedbackPage|TeacherGradingPage|TeacherResultsDashboard|TeacherResultsPage|TeacherTestMonitorPage|TeacherTestResultsPage|WritingGradingPage|WritingGradingQueuePage)\.(ts|tsx|js|jsx)$/,
+  /^src\/pages\/(AcademicRecordPage|GuestResultsPage|ProfileCompletionPage|ResultDetailPage|StudentDashboardPage(?:\.teachers)?|StudentHomeworkDetailPage|StudentHomeworkListPage|StudentTestResultsPage|StudentWaitingRoomPage|SubmissionCompletePage|TeacherGradingPage|TeacherResultsDashboard|TeacherTestMonitorPage|TeacherTestResultsPage|WritingGradingPage|WritingGradingQueuePage)\.(ts|tsx|js|jsx)$/,
   /^src\/services\/(guestResultsService|resultFeedbackGeneration\.service|testResults\.service)\.(ts|js)$/,
   /^src\/App\.jsx$/,
   /^src\/config\/featureRegistry\.ts$/,

@@ -90,8 +90,6 @@ const GuestJoinPage = () => {
           const sessionData = sessionSnapshot.val();
           if (sessionData.mode === 'test' && sessionData.testId && sessionData.testId !== 'pending' && sessionData.status !== 'completed' && sessionData.status !== 'expired') {
             navigateTo('STUDENT_TEST', { sessionCode }, { reason: 'rejoin_existing_test' });
-          } else if (sessionData.mode === 'quiz' && sessionData.quizId && sessionData.quizId !== 'pending' && sessionData.status !== 'completed' && sessionData.status !== 'expired') {
-            navigateTo('STUDENT_QUIZ', { gameSessionId: sessionCode }, { reason: 'rejoin_existing_quiz' });
           } else {
             navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'rejoin_waiting_room' });
           }
@@ -243,8 +241,6 @@ const GuestJoinPage = () => {
         const sessionData = sessionSnapshot.val();
         if (sessionData.mode === 'test' && sessionData.testId && sessionData.testId !== 'pending') {
           navigateTo('STUDENT_TEST', { sessionCode }, { reason: 'new_guest_join_test' });
-        } else if (sessionData.mode === 'quiz' && sessionData.quizId && sessionData.quizId !== 'pending') {
-          navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'new_guest_join_quiz' });
         } else {
           navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, { reason: 'new_guest_join_waiting' });
         }

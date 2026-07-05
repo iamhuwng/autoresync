@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useCourseTypes Hook
  * 

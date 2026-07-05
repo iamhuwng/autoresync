@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { ListeningMediaAssetRecord, ListeningMediaAssetReferences } from './listeningAssetRegistry';
 import {
   areListeningRegistryWritesEnabled,

@@ -8,6 +8,8 @@
  * - validateFeatureId(id): checks if a feature ID is registered
  */
 
+import { ROUTES } from '../constants/routes';
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface FeatureDefinition {
@@ -378,11 +380,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     id: 'liveSessions',
     name: 'Live Sessions',
     routes: [
-      '/teacher-wait/:gameSessionId',
       '/teacher-test/:sessionCode',
-      '/teacher-quiz/:gameSessionId',
       '/student-wait/:gameSessionId',
-      '/student-quiz/:gameSessionId',
     ],
     actions: [
       'createSession',
@@ -399,7 +398,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'listeningLive.skipSection',
       'listeningLive.changeSpeed',
     ],
-    description: 'Real-time quiz and game sessions',
+    description: 'Real-time test sessions',
   },
   {
     id: FEATURE_IDS.antiCheat,
@@ -581,8 +580,6 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       '/guest-results',
       '/teacher/results',
       '/teacher/student/:studentId/history',
-      '/teacher-results/:gameSessionId',
-      '/student-results/:gameSessionId',
       '/teacher-test-results/:sessionCode',
       '/student-test-results/:sessionCode',
       '/student/results/:sessionCode',
@@ -620,15 +617,12 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'switchWritingMarkupMode',
       'toggleWritingCriteriaFeedback',
     ],
-    description: 'Quiz and test result viewing',
+    description: 'Test result viewing',
   },
   {
     id: 'feedback',
     name: 'Feedback',
-    routes: [
-      '/teacher-feedback/:gameSessionId',
-      '/student-feedback/:gameSessionId',
-    ],
+    routes: [],
     actions: [
       'viewFeedback',
       'submitFeedback',
@@ -651,12 +645,15 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     name: 'Materials',
     routes: [
       '/material/:materialId',
+      ROUTES.MATERIAL_UNAVAILABLE,
       '/student/library',
     ],
     actions: [
       'viewMaterial',
       'searchMaterials',
       'startPractice',
+      'materialUnavailableNoticeViewed',
+      'materialUnavailableNoticeReturn',
     ],
     description: 'Material browsing and library access',
   },

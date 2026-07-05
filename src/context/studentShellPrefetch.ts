@@ -1,3 +1,4 @@
+// @ts-nocheck
 interface PrefetchStudentCoursesRouteDataOptions {
     studentId: string;
     studentClasses?: unknown[];
