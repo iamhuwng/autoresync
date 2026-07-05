@@ -1,5 +1,7 @@
 # PRD: Mobile IELTS Reading Test-Taking Interface
 
+> **Obsolete as of 2026-07-05 where this PRD owns Reading V1 runtime:** Reading V1 test-taking is retired. Current authority: [Retired Features Current State](../architecture/retired-features-current-state.md). Historical content below is retained as implementation history; unfinished Reading V1 runtime work is cancelled by feature retirement. Reading V2/mobile-supported surfaces remain governed by their own current architecture docs.
+
 > **PRD Number:** 0043  
 > **Status:** Draft (v2 — gap-closed)  
 > **Created:** 2026-04-07  

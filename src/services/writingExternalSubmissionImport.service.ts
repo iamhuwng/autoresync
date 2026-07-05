@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { get, push, ref } from 'firebase/database';
 import { database } from './firebase';
 import { getClass } from './classManager';

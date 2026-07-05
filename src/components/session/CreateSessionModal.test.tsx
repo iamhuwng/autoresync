@@ -36,7 +36,7 @@ vi.mock('../../services/classManager', () => ({
 
 vi.mock('../../services/sessionManager', () => ({
     createSession: vi.fn(),
-    SessionMode: { QUIZ: 'quiz', TEST: 'test' }
+    SessionMode: { TEST: 'test' }
 }));
 
 vi.mock('../../hooks/useAuth', () => ({
@@ -67,7 +67,7 @@ describe('CreateSessionModal', () => {
         (createSession as any).mockResolvedValue({ success: true, sessionCode: '123456' });
     });
 
-    it.skip('should render modal when opened', async () => {
+    it('renders only Test session mode when opened', async () => {
         renderWithMantine(
             <CreateSessionModal
                 opened={true}
@@ -77,8 +77,10 @@ describe('CreateSessionModal', () => {
         );
 
         // Modals might animate or depend on portal rendering, so wait for presence
-        expect(await screen.findByText('Start New Session')).toBeInTheDocument();
-        expect(screen.getByText('Quiz Mode')).toBeInTheDocument();
+        expect(await screen.findByText('Create New Session')).toBeInTheDocument();
+        expect(screen.getByText('Test Mode')).toBeInTheDocument();
+        expect(screen.queryByText('Quiz Mode')).not.toBeInTheDocument();
+        expect(screen.queryByText('DEV ONLY')).not.toBeInTheDocument();
     });
 
     it.skip('should display course name when courseName prop is provided', async () => {
@@ -103,7 +105,7 @@ describe('CreateSessionModal', () => {
         expect(screen.getByText((content) => content.includes('This session is for:'))).toBeInTheDocument();
     });
 
-    it.skip('should pass courseId and moduleId to createSession', async () => {
+    it('creates Test sessions by default and passes courseId/moduleId', async () => {
         renderWithMantine(
             <CreateSessionModal
                 opened={true}
@@ -124,6 +126,7 @@ describe('CreateSessionModal', () => {
         });
 
         expect(createSession).toHaveBeenCalledWith(expect.objectContaining({
+            mode: 'test',
             courseId: 'course-1',
             moduleId: 'module-1'
         }));

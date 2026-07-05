@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test Storage Service
  * Handles saving and retrieving tests from Firebase

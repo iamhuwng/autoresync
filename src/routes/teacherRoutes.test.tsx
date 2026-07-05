@@ -1,5 +1,7 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   createTeacherRoutes,
   TEACHER_MATERIALS_BOOK_EDITOR_DISABLED_NOTICE,
@@ -70,5 +72,93 @@ describe('teacherRoutes', () => {
       replace: true,
       state: { teacherMaterialsNotice: TEACHER_MATERIALS_BOOK_EDITOR_DISABLED_NOTICE },
     });
+  });
+
+  it('routes dedicated teacher Quiz URLs to retirement notice without importing Quiz gameplay', () => {
+    const route = findRoute(
+      createTeacherRoutes({
+        exposeMaterialBookEditorRoutes: false,
+        exposeReadingV2StudioRoutes: false,
+      }),
+      '/teacher-quiz/:gameSessionId',
+    );
+    const notice = findElementByTypeName(route?.element, 'RetiredMaterialNoticePage');
+    const source = readFileSync(resolve('src/routes/teacherRoutes.tsx'), 'utf8');
+
+    expect(notice?.props).toMatchObject({
+      audience: 'teacher',
+      retiredFeature: 'quiz',
+    });
+    expect(findElementByTypeName(route?.element, 'PrivateRoute')?.props.allowedRoles).toEqual([
+      'teacher',
+      'super_admin',
+    ]);
+    expect(source).not.toContain('TeacherQuizPage');
+    expect(source).not.toContain("import('../pages/TeacherQuizPage.jsx')");
+    expect(source).not.toContain('TeacherWaitingRoomPage');
+    expect(source).not.toContain("import('../pages/TeacherWaitingRoomPage.jsx')");
+  });
+
+  it('routes legacy teacher Quiz waiting URLs to retirement notice without importing Quiz waiting room', () => {
+    const route = findRoute(
+      createTeacherRoutes({
+        exposeMaterialBookEditorRoutes: false,
+        exposeReadingV2StudioRoutes: false,
+      }),
+      '/teacher-wait/:gameSessionId',
+    );
+    const notice = findElementByTypeName(route?.element, 'RetiredMaterialNoticePage');
+
+    expect(notice?.props).toMatchObject({
+      audience: 'teacher',
+      retiredFeature: 'quiz',
+    });
+    expect(findElementByTypeName(route?.element, 'PrivateRoute')?.props.allowedRoles).toEqual([
+      'teacher',
+      'super_admin',
+    ]);
+  });
+
+  it('routes legacy teacher Quiz feedback/result URLs to retirement notice', () => {
+    const routes = createTeacherRoutes({
+      exposeMaterialBookEditorRoutes: false,
+      exposeReadingV2StudioRoutes: false,
+    });
+    const feedbackRoute = findRoute(routes, '/teacher-feedback/:gameSessionId');
+    const resultRoute = findRoute(routes, '/teacher-results/:gameSessionId');
+    const source = readFileSync(resolve('src/routes/teacherRoutes.tsx'), 'utf8');
+
+    expect(findElementByTypeName(feedbackRoute?.element, 'RetiredMaterialNoticePage')?.props).toMatchObject({
+      audience: 'teacher',
+      retiredFeature: 'quiz',
+    });
+    expect(findElementByTypeName(resultRoute?.element, 'RetiredMaterialNoticePage')?.props).toMatchObject({
+      audience: 'teacher',
+      retiredFeature: 'quiz',
+    });
+    expect(findElementByTypeName(feedbackRoute?.element, 'PrivateRoute')?.props.allowedRoles)
+      .toEqual(['teacher', 'super_admin']);
+    expect(findElementByTypeName(resultRoute?.element, 'PrivateRoute')?.props.allowedRoles)
+      .toEqual(['teacher', 'super_admin']);
+    expect(source).not.toContain('TeacherFeedbackPage');
+    expect(source).not.toContain('TeacherResultsPage');
+  });
+
+  it('routes generic unavailable material URLs to the teacher notice without retired source reads', () => {
+    const route = findRoute(
+      createTeacherRoutes({
+        exposeMaterialBookEditorRoutes: false,
+        exposeReadingV2StudioRoutes: false,
+      }),
+      '/material-unavailable/:materialId',
+    );
+    const notice = findElementByTypeName(route?.element, 'RetiredMaterialNoticePage');
+
+    expect(notice?.props).toMatchObject({
+      audience: 'teacher',
+      retiredFeature: 'material',
+    });
+    expect(findElementByTypeName(route?.element, 'PrivateRoute')?.props.allowedRoles)
+      .toEqual(['teacher', 'super_admin']);
   });
 });

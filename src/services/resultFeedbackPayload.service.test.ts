@@ -74,6 +74,52 @@ describe('buildResultFeedbackPayload', () => {
     expect(payload?.sections[0]?.questions[0]?.questionText).toBe('Choose the best answer.');
   });
 
+  it('builds removed-source feedback payloads from saved question results without loading source material', async () => {
+    const payload = await buildResultFeedbackPayload(
+      {
+        resultId: 'res-source-removed',
+        sourceMaterialRemoved: true,
+        testId: 'retired-reading-v1',
+        testTitle: 'Retired Reading V1 Result',
+        testType: 'reading',
+        testSkill: 'reading',
+        totalScore: 0,
+        maxScore: 1,
+        percentage: 0,
+        timeElapsed: 120,
+        submittedAt: 1710921600000,
+        totalQuestions: 1,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'reading-comprehension',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'A',
+            correctAnswer: 'B',
+            feedback: 'Saved feedback remains available.',
+          },
+        ],
+      } as any,
+      'res-source-removed',
+    );
+
+    expect(payload).not.toBeNull();
+    expect(mockGetTestFromFirebase).not.toHaveBeenCalled();
+    expect(mockGetThcsTestFromFirebase).not.toHaveBeenCalled();
+    expect(payload?.sections[0]?.instructionText).toBe('Original material removed');
+    expect(payload?.sections[0]?.questions[0]?.questionText).toBe('Original material removed');
+    expect((payload?.gradingResult.questionResults as any)[1]).toEqual(
+      expect.objectContaining({
+        studentAnswer: 'A',
+        correctAnswer: 'B',
+        pointsEarned: 0,
+        pointsMax: 1,
+      }),
+    );
+  });
+
   it('does not misclassify generic reading results as IELTS without IELTS evidence', async () => {
     const payload = await buildResultFeedbackPayload(
       {
@@ -260,6 +306,7 @@ describe('buildResultFeedbackPayload', () => {
 
     expect(payload).not.toBeNull();
     expect(mockGetTestFromFirebase).not.toHaveBeenCalled();
+    expect(mockGetThcsTestFromFirebase).not.toHaveBeenCalled();
     expect(payload?.testMetadata.family).toBe('ielts');
     expect(payload?.testMetadata.kind).toBe('ielts-reading');
     expect(payload?.sections[0]).toEqual(expect.objectContaining({

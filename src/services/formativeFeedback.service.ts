@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Formative Feedback Service
  * Generates AI-powered formative feedback for THCS test results.

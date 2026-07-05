@@ -1,7 +1,7 @@
 /**
  * Session Manager (Hybrid Architecture)
  *
- * INTERNAL: Uses class-based multi-test/quiz architecture
+ * INTERNAL: Uses class-based multi-test architecture
  * EXTERNAL: Maintains backward-compatible session API
  *
  * Key Features:
@@ -40,21 +40,7 @@ export const SessionStatus = {
  * Session mode enum
  */
 export const SessionMode = {
-  QUIZ: 'quiz',
   TEST: 'test',
-};
-
-const isQuizModeEnabled = () => {
-  if (import.meta.env.DEV) {
-    return true;
-  }
-
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const hostname = window.location.hostname;
-  return hostname === 'localhost' || hostname === '127.0.0.1';
 };
 
 const READING_V2_ENGINE = 'reading-v2';
@@ -98,9 +84,8 @@ const getReadingV2SessionMetadata = async (contentId, mode) => {
  * HYBRID ARCHITECTURE: Creates new class-based structure with compatibility layer
  *
  * @param {Object} options - Session creation options
- * @param {string} options.quizId - ID of the quiz (for quiz mode)
  * @param {string} options.testId - ID of the test (for test mode)
- * @param {string} options.mode - Session mode ('quiz' or 'test') [DEPRECATED in favor of multi-test]
+ * @param {string} options.mode - Session mode ('test')
  * @param {Object} options.settings - Additional session settings
  * @param {string} options.classId - Optional class ID to link this session to
  * @param {string} options.courseId - Optional course ID to tag this session with
@@ -108,20 +93,16 @@ const getReadingV2SessionMetadata = async (contentId, mode) => {
  * @returns {Promise<Object>} Created session data with code
  * @throws {Error} If session creation fails
  */
-export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, settings = {}, classId = null, courseId = null, moduleId = null, createdBy = null }) {
+export async function createSession({ testId, mode = SessionMode.TEST, settings = {}, classId = null, courseId = null, moduleId = null, createdBy = null }) {
   try {
-    // Allow creating sessions without content (content selected later by teacher)
-    const contentId = mode === SessionMode.TEST ? testId : quizId;
-    const hasContent = contentId && contentId !== 'pending';
-    const readingV2SessionMetadata = await getReadingV2SessionMetadata(contentId, mode);
-
     if (!Object.values(SessionMode).includes(mode)) {
       throw new Error(`Invalid session mode: ${mode}`);
     }
 
-    if (mode === SessionMode.QUIZ && !isQuizModeEnabled()) {
-      throw new Error('Quiz mode is only available in localhost/development environments');
-    }
+    // Allow creating sessions without content (content selected later by teacher)
+    const contentId = testId;
+    const hasContent = contentId && contentId !== 'pending';
+    const readingV2SessionMetadata = await getReadingV2SessionMetadata(contentId, mode);
 
     // Generate unique session code
     const sessionCode = await generateUniqueCode();
@@ -156,9 +137,8 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
       courseId: courseId || null,
       moduleId: moduleId || null,
 
-      // NEW: Multi-test/quiz structure (empty initially)
+      // NEW: Multi-test structure (empty initially)
       activeTests: {},
-      activeQuizzes: {},
 
       // NEW: Students (replaces "players" concept)
       students: {},
@@ -186,8 +166,8 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
       // ═══════════════════════════════════════════════════════════
       // COMPATIBILITY FIELDS (for old code)
       // ═══════════════════════════════════════════════════════════
-      mode, // Deprecated but kept for compatibility
-      currentQuestionIndex: 0, // For quiz mode
+      mode,
+      currentQuestionIndex: 0,
       isPaused: false,
       players: {}, // Alias for students (kept for backward compatibility)
       bannedPlayers: {}, // Alias for bannedStudents
@@ -195,11 +175,7 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
 
     // If content provided, add it to compatibility fields
     if (hasContent) {
-      if (mode === SessionMode.TEST) {
-        sessionData.testId = contentId;
-      } else {
-        sessionData.quizId = contentId;
-      }
+      sessionData.testId = contentId;
     }
 
     // Save to Firebase under game_sessions/{sessionCode}
@@ -236,7 +212,7 @@ export async function createSession({ quizId, testId, mode = SessionMode.QUIZ, s
 
     // Fire-and-forget: notify enrolled class students that a new session is available
     if (classId) {
-      const sessionMode = mode === SessionMode.TEST ? 'test' : 'quiz';
+      const sessionMode = 'test';
       import('./notificationService').then(({ sendSessionOpenedNotifications }) => {
         // Optionally fetch className for a better message
         get(ref(database, `classes/${classId}/name`)).then(snap => {
@@ -859,64 +835,6 @@ export async function assignTestToStudents(sessionCode, testId, studentIds, opti
 }
 
 /**
- * Assign a quiz to specific students in a session
- * NEW FUNCTIONALITY for multi-quiz support
- *
- * @param {string} sessionCode - The session code
- * @param {string} quizId - ID of the quiz to assign
- * @param {string[]} studentIds - Array of student IDs to assign
- * @param {Object} options - Assignment options
- * @returns {Promise<string>} Assignment ID
- */
-export async function assignQuizToStudents(sessionCode, quizId, studentIds, options = {}) {
-  try {
-    const session = await getSession(sessionCode);
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
-    const now = Date.now();
-    const assignmentId = `${quizId}_${now}`;
-
-    // Create quiz assignment
-    const assignment = {
-      assignmentId,
-      quizId,
-      assignedStudents: studentIds,
-      status: 'waiting',
-      assignedAt: now,
-      startTime: null,
-      currentQuestionIndex: 0,
-      isPaused: false,
-    };
-
-    // Prepare updates
-    const updates = {};
-
-    // Add assignment to activeQuizzes
-    updates[`activeQuizzes/${assignmentId}`] = assignment;
-
-    // Update student assignments
-    studentIds.forEach(studentId => {
-      if (session.students && session.students[studentId]) {
-        updates[`students/${studentId}/assignedQuizId`] = quizId;
-      }
-    });
-
-    // Update session
-    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    await update(sessionRef, updates);
-
-    console.log(`✅ [Session] Quiz assigned: ${quizId} to ${studentIds.length} students`);
-
-    return assignmentId;
-  } catch (error) {
-    console.error('❌ Error assigning quiz:', error);
-    throw error;
-  }
-}
-
-/**
  * Start a test assignment (set status to in-progress)
  * NEW FUNCTIONALITY for multi-test support
  *
@@ -941,12 +859,12 @@ export async function startTestAssignment(sessionCode, assignmentId) {
 }
 
 /**
- * Get student's assigned content (test or quiz)
+ * Get student's assigned test content
  * NEW FUNCTIONALITY for multi-test routing
  *
  * @param {string} sessionCode - The session code
  * @param {string} studentId - The student ID
- * @returns {Promise<Object|null>} {type: 'test'|'quiz', id: string} or null
+ * @returns {Promise<Object|null>} {type: 'test', id: string} or null
  */
 export async function getStudentAssignment(sessionCode, studentId) {
   try {

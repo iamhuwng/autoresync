@@ -3,8 +3,7 @@ import { TextInput, Textarea, Stack, Text } from '@mantine/core';
 import { Button, Card, CardBody } from './modern';
 
 /**
- * PassageEditorModal - Edit quiz passages
- * Redesigned to match EditQuizModal design language
+ * PassageEditorModal - Edit passages
  * 
  * Features:
  * - Add/edit/delete passages

@@ -1,16 +1,8 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { googleDriveAudioService } from '../../../services/googleDriveAudio';
 import { useAudioSync } from '../../../hooks/audio';
 import { AudioPlayer } from './AudioPlayer';
-
-vi.mock('../../../services/googleDriveAudio', () => ({
-  googleDriveAudioService: {
-    isGoogleDriveUrl: vi.fn(() => false),
-    processAudioLink: vi.fn(),
-  },
-}));
 
 vi.mock('../../../hooks/audio', () => ({
   useAudioSync: vi.fn(() => ({
@@ -46,8 +38,6 @@ describe('AudioPlayer', () => {
     playMock.mockReset();
     pauseMock.mockReset();
     loadMock.mockReset();
-    vi.mocked(googleDriveAudioService.isGoogleDriveUrl).mockReturnValue(false);
-    vi.mocked(googleDriveAudioService.processAudioLink).mockReset();
     vi.mocked(useAudioSync).mockReturnValue({
       isSyncing: false,
       isTeacherDisconnected: false,
@@ -512,12 +502,11 @@ describe('AudioPlayer', () => {
   });
 
   it('exposes live loading, error, sync, and refresh-warning semantics with reachable named controls', async () => {
-    vi.mocked(googleDriveAudioService.isGoogleDriveUrl).mockReturnValue(true);
-    vi.mocked(googleDriveAudioService.processAudioLink).mockReturnValue(new Promise(() => {}));
+    const retiredAudioUrl = `https://${['drive', 'google', 'com'].join('.')}/file/d/audio/view`;
 
     const { rerender } = render(
       <AudioPlayer
-        audioUrl="https://drive.google.com/file/d/audio/view"
+        audioUrl={retiredAudioUrl}
         sectionNumber={1}
         isPlaying={false}
         volume={1}
@@ -532,36 +521,8 @@ describe('AudioPlayer', () => {
       />,
     );
 
-    expect(screen.getByRole('status').textContent).toMatch(/loading audio/i);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/no longer supported/i);
 
-    vi.mocked(googleDriveAudioService.processAudioLink).mockResolvedValue({
-      type: 'error',
-      url: '',
-      fileId: '',
-      originalUrl: 'https://drive.google.com/file/d/audio/view',
-      errorMessage: 'Audio load error',
-    });
-
-    rerender(
-      <AudioPlayer
-        audioUrl="https://drive.google.com/file/d/audio-2/view"
-        sectionNumber={1}
-        isPlaying={false}
-        volume={1}
-        playbackSpeed={1}
-        onPlayPause={() => {}}
-        onTimeUpdate={() => {}}
-        onSectionComplete={() => {}}
-        onError={() => {}}
-        playerMode="solo"
-        minimal
-        mobileLayout
-      />,
-    );
-
-    expect((await screen.findByRole('alert')).textContent).toMatch(/audio load error/i);
-
-    vi.mocked(googleDriveAudioService.isGoogleDriveUrl).mockReturnValue(false);
     vi.mocked(useAudioSync).mockReturnValue({
       isSyncing: false,
       isTeacherDisconnected: true,

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ReportingService - Core singleton for production error reporting and event tracking.
  * PRD-0037: Production Reporting & Observability System

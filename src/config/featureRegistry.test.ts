@@ -39,6 +39,10 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/profile/complete')).toBe('results');
     });
 
+    it('maps generic unavailable material routes to materials', () => {
+      expect(resolveFeatureFromRoute('/material-unavailable/removed-material-1')).toBe('materials');
+    });
+
     it('returns null for unknown routes', () => {
       expect(resolveFeatureFromRoute('/unknown/page')).toBeNull();
     });
@@ -109,6 +113,7 @@ describe('featureRegistry', () => {
       const testTaking = FEATURE_REGISTRY.find((feature) => feature.id === 'testTaking');
       const testCreation = FEATURE_REGISTRY.find((feature) => feature.id === 'testCreation');
       const adminPanel = FEATURE_REGISTRY.find((feature) => feature.id === 'adminPanel');
+      const materials = FEATURE_REGISTRY.find((feature) => feature.id === 'materials');
 
       expect(homework?.actions).toContain('viewIntegrityDetails');
       expect(homework?.actions).toEqual(expect.arrayContaining([
@@ -214,6 +219,11 @@ describe('featureRegistry', () => {
           'returnPublicBookToPrivate',
         ]),
       );
+      expect(materials?.routes).toContain('/material-unavailable/:materialId');
+      expect(materials?.actions).toEqual(expect.arrayContaining([
+        'materialUnavailableNoticeViewed',
+        'materialUnavailableNoticeReturn',
+      ]));
     });
 
     it('tracks guest claim completion under results rather than profile', () => {
@@ -233,6 +243,20 @@ describe('featureRegistry', () => {
           '/student/reading-v2/results/:resultId',
         ]),
       );
+    });
+
+    it('does not register retired Quiz notice routes or actions under live sessions', () => {
+      const liveSessions = FEATURE_REGISTRY.find((feature) => feature.id === 'liveSessions');
+
+      expect(liveSessions?.routes).not.toEqual(expect.arrayContaining([
+        '/teacher-wait/:gameSessionId',
+        '/teacher-quiz/:gameSessionId',
+        '/student-quiz/:gameSessionId',
+      ]));
+      expect(liveSessions?.actions).not.toEqual(expect.arrayContaining([
+        'retiredQuizNoticeViewed',
+        'retiredQuizNoticeReturn',
+      ]));
     });
   });
 });

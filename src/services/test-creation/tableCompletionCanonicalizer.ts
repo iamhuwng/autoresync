@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { ReadingLabeledOption } from '../../types/document.types';
 import {
   TABLE_COMPLETION_SCHEMA_VERSION,

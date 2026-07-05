@@ -19,6 +19,8 @@ This doc is the searchable Knowns source of truth for the phone-specific IELTS R
 
 It exists so future Reading, homework, solo-practice, and student-route work can reuse one stable contract instead of re-deriving behavior from task logs.
 
+Reading V1 runtime ownership in this contract is obsolete as of 2026-07-05 because Reading V1 is retired. Use @doc/architecture/retired-features-current-state for the retirement boundary. Reading V2/mobile-supported surfaces remain governed by explicit Reading V2 markers/projections/snapshots and their current architecture docs.
+
 ## Scope
 
 This contract applies to:

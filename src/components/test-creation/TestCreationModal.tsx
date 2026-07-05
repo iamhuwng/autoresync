@@ -2799,7 +2799,6 @@ interface SkillSelectionStepProps {
 
 const SKILL_OPTIONS: Record<TestType, { skill: SkillType; label: string; icon: string; available: boolean; color: { bg: string; text: string; border: string } }[]> = {
     'IELTS': [
-        { skill: 'reading', label: 'Reading', icon: '📖', available: true, color: { bg: 'rgba(34, 197, 94, 0.1)', text: '#16a34a', border: 'rgba(34, 197, 94, 0.3)' } },
         { skill: 'reading-v2', label: 'Reading V2', icon: 'R2', available: isReadingV2TeacherRouteExposureAllowed(), color: { bg: 'rgba(20, 184, 166, 0.1)', text: '#0f766e', border: 'rgba(20, 184, 166, 0.3)' } },
         { skill: 'listening', label: 'Listening', icon: '🎧', available: true, color: { bg: 'rgba(59, 130, 246, 0.1)', text: '#2563eb', border: 'rgba(59, 130, 246, 0.3)' } },
         { skill: 'writing', label: 'Writing', icon: '✍️', available: true, color: { bg: 'rgba(249, 115, 22, 0.1)', text: '#ea580c', border: 'rgba(249, 115, 22, 0.3)' } },

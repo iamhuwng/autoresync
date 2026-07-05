@@ -1,5 +1,7 @@
 # Tasks: 0020-prd-automated-ielts-reading-test-creation
 
+> **Obsolete as of 2026-07-05:** Reading V1 creation/runtime is retired. Current authority: [Retired Features Current State](../architecture/retired-features-current-state.md). Historical task content below is retained as implementation history; unfinished Reading V1 work is cancelled by feature retirement and must not be marked complete.
+
 > **PRD Reference**: [0020-prd-automated-ielts-reading-test-creation.md](./0020-prd-automated-ielts-reading-test-creation.md)  
 > **Status**: ✅ Complete - All Sub-Tasks Generated  
 > **Created**: 2026-02-05  
@@ -433,4 +435,3 @@
 4. **Listening Parser Protected**: Creating `listening.router.ts` before deletion
 
 > **Ready for implementation!** Start with Phase 0 to document current system before building.
-

@@ -87,7 +87,7 @@ import BookEditorModal from '../components/books/BookEditorModal';
 import './TeacherLobbyPage.css';
 
 // Modals kept as direct imports (heavy components)
-// NOTE: QuizEditor removed — no legacy quiz items remain (PRD-0033 Task 2)
+// NOTE: Legacy quiz editor removed — no legacy quiz items remain (PRD-0033 Task 2)
 const TestEditor = lazyWithRetry(() => import('../components/TestEditor.tsx'));
 const TestCreationModal = lazyWithRetry(() => import('../components/test-creation/TestCreationModal'));
 const THCSTestEditorModal = lazyWithRetry(() => import('../components/thcs-editor/THCSTestEditorModal'));
@@ -2369,7 +2369,6 @@ const TeacherLobbyPage = () => {
                 sessionData={session.sessionData}
                 onBackToSessions={() => navigateTo('SESSIONS', {}, { reason: 'lobby_back_to_sessions' })}
                 onReturnToMonitor={(code) => navigateTo('TEACHER_TEST_MONITOR', { sessionCode: code }, { reason: 'lobby_return_monitor' })}
-                onReturnToQuiz={(code) => navigateTo('TEACHER_WAITING', { gameSessionId: code }, { reason: 'lobby_return_quiz' })}
               />
 
               {[teacherMaterialsNotice].filter(Boolean).map((notice) => (
@@ -2668,7 +2667,7 @@ const TeacherLobbyPage = () => {
           onExamModeChange={session.setExamMode}
         />
 
-        {/* IELTS Test Editor — QuizEditor removed (no legacy quiz items, PRD-0033) */}
+        {/* IELTS Test Editor — legacy quiz editor removed (no legacy quiz items, PRD-0033) */}
         {modals.state.editTest.show && modals.state.editTest.test && (
           <Suspense fallback={<OverlayLoader label="Loading IELTS editor..." />}>
             <TestEditor

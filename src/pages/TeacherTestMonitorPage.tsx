@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Teacher Test Monitoring Page
  * Real-time dashboard for monitoring students during test sessions

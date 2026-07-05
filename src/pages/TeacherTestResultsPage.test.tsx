@@ -370,6 +370,39 @@ describe('TeacherTestResultsPage', () => {
     );
   });
 
+  it('renders removed-source retained results without loading retired test source data', async () => {
+    getSessionResultsMock.mockResolvedValue([
+      {
+        ...canonicalResults[0],
+        resultId: 'result-source-removed',
+        testId: 'retired-reading-v1',
+        testTitle: 'Retired Reading V1 Result',
+        sourceMaterialRemoved: true,
+        questionResults: [
+          {
+            questionNumber: 1,
+            questionType: 'reading-comprehension',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            studentAnswer: 'A',
+            correctAnswer: 'B',
+            feedback: 'Saved feedback remains available.',
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    await screen.findByText('Student One');
+    expect(screen.getByText('Retired Reading V1 Result')).toBeInTheDocument();
+    expect(getMock).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'tests/test-1' }));
+
+    fireEvent.click(screen.getAllByText('Re-mark')[0]);
+    expect(await screen.findByTestId('remark-modal')).toHaveTextContent('Re-mark question count 1');
+  });
+
   it('uses normalized owner data for super-admin analytics classification', async () => {
     authState.user = { uid: 'admin-1' };
     authState.profile = { role: 'super_admin' };

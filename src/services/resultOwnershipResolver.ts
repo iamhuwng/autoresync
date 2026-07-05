@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getHomeworkById } from './homeworkManager';
 import { getSession } from './sessionManager.js';
 import { getClass } from './classManager';

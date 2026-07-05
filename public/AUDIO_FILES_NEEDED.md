@@ -16,8 +16,8 @@ This application requires the following audio files to be placed in the `/public
 
 ### 2. correct.wav
 - **Purpose:** Correct answer feedback
-- **Triggered by:** `StudentFeedbackPage.jsx` (line 33)
-- **Usage:** Plays when student answers correctly
+- **Triggered by:** retired legacy Quiz feedback page only
+- **Usage:** No current runtime usage; keep only if restoring archived Quiz feedback sounds.
 - **Recommended specs:**
   - Duration: 500-1000ms
   - Format: WAV or MP3
@@ -26,8 +26,8 @@ This application requires the following audio files to be placed in the `/public
 
 ### 3. incorrect.wav
 - **Purpose:** Incorrect answer feedback
-- **Triggered by:** `StudentFeedbackPage.jsx` (line 33)
-- **Usage:** Plays when student answers incorrectly
+- **Triggered by:** retired legacy Quiz feedback page only
+- **Usage:** No current runtime usage; keep only if restoring archived Quiz feedback sounds.
 - **Recommended specs:**
   - Duration: 500-1000ms
   - Format: WAV or MP3

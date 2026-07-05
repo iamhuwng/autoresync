@@ -31,7 +31,7 @@ class DataCache {
 
   /**
    * Set cache entry with TTL
-   * @param {string} type - Cache type (e.g., 'session', 'quiz', 'test')
+   * @param {string} type - Cache type (e.g., 'session', 'test')
    * @param {string} id - Resource ID
    * @param {*} data - Data to cache
    * @param {number} ttl - Time to live in milliseconds
@@ -211,7 +211,6 @@ export default dataCache;
 
 export const CacheTypes = {
   SESSION: 'session',
-  QUIZ: 'quiz',
   TEST: 'test',
   CLASS: 'class',
   USER: 'user',

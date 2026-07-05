@@ -72,7 +72,6 @@ export const findActiveSessions = (sessions) =>
       status: String(session.status).toLowerCase(),
       mode: session.mode ?? null,
       testId: session.testId ?? null,
-      quizId: session.quizId ?? null,
       linkedClassId: session.linkedClassId ?? null,
       playerCount: Object.keys(session.players ?? {}).length,
       reviewReleaseState: session.reviewReleaseState ?? null,
@@ -93,12 +92,11 @@ export const buildClosureUpdate = (session, now) => ({
 });
 
 const summarize = (sessions) =>
-  sessions.map(({ sessionCode, status, mode, testId, quizId, playerCount }) => ({
+  sessions.map(({ sessionCode, status, mode, testId, playerCount }) => ({
     sessionCode,
     status,
     mode,
     hasTestId: Boolean(testId),
-    hasQuizId: Boolean(quizId),
     playerCount,
   }));
 

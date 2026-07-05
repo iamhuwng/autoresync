@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { READING_V2_ENGINE, READING_V2_ENGINE_FIELDS } from '../config/readingV2FeatureFlags';
@@ -116,10 +117,6 @@ vi.mock('../services/reading-v2/readingV2LaunchIntegration.service', async () =>
     },
   };
 });
-
-vi.mock('../skills/reading/components/ReadingTestPage', () => ({
-  default: () => <div>reading-page</div>,
-}));
 
 vi.mock('../skills/listening/components/ListeningTestPage', () => ({
   default: () => <div>listening-page</div>,
@@ -244,6 +241,13 @@ describe('TestPageRouter', () => {
     });
   });
 
+  it('does not import the retired Reading V1 runtime', () => {
+    const source = readFileSync('src/pages/TestPageRouter.tsx', 'utf8');
+
+    expect(source).not.toContain('ReadingTestPage');
+    expect(source).not.toContain('../skills/reading/components/ReadingTestPage');
+  });
+
   it('routes IELTS writing tests with testType set to the writing page', async () => {
     renderRouter();
 
@@ -251,7 +255,29 @@ describe('TestPageRouter', () => {
     expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
   });
 
-  it('routes listening-like IELTS test ids to ListeningTestPage when skill metadata is missing', async () => {
+  it('fails closed when the live session testId read is denied', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      if (path === 'game_sessions/FMQYME/testId') {
+        throw new Error('Permission denied');
+      }
+      return createSnapshot(null, false);
+    });
+
+    renderRouter();
+
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByText('Failed to load test information')).not.toBeInTheDocument();
+    expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      'Error detecting test skill:',
+      expect.any(Error),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it('fails closed when IELTS skill metadata is missing even if the test id looks like listening', async () => {
     mockGet.mockImplementation(async ({ path }: { path: string }) => {
       switch (path) {
         case 'game_sessions/FMQYME/testId':
@@ -267,7 +293,48 @@ describe('TestPageRouter', () => {
 
     renderRouter();
 
-    expect(await screen.findByText('listening-page')).toBeInTheDocument();
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByText('listening-page')).not.toBeInTheDocument();
+    expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+  });
+
+  it('fails closed for explicit IELTS Reading without a Reading V2 projection', async () => {
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('reading-test-1');
+        case 'tests/reading-test-1/testType':
+          return createSnapshot('IELTS');
+        case 'tests/reading-test-1/skill':
+          return createSnapshot('Reading');
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    renderRouter();
+
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByText('listening-page')).not.toBeInTheDocument();
+    expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
+  });
+
+  it('fails closed when live testType metadata is absent', async () => {
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      switch (path) {
+        case 'game_sessions/FMQYME/testId':
+          return createSnapshot('unknown-test-1');
+        case 'tests/unknown-test-1/testType':
+          return createSnapshot(null, false);
+        default:
+          return createSnapshot(null, false);
+      }
+    });
+
+    renderRouter();
+
+    expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+    expect(screen.queryByText('listening-page')).not.toBeInTheDocument();
     expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
   });
 

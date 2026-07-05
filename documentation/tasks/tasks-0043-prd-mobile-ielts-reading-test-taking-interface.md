@@ -1,5 +1,7 @@
 # Task List: Mobile IELTS Reading Test-Taking Interface
 
+> **Obsolete as of 2026-07-05 where these tasks own Reading V1 runtime:** Reading V1 test-taking is retired. Current authority: [Retired Features Current State](../architecture/retired-features-current-state.md). Historical task content below is retained as implementation history; unfinished Reading V1 runtime work is cancelled by feature retirement and must not be marked complete.
+
 > **Source PRD:** `0043-prd-mobile-ielts-reading-test-taking-interface.md` (v2 gap-closed)  
 > **Generated:** 2026-04-07
 

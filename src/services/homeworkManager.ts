@@ -146,7 +146,7 @@ export async function createHomework(data: CreateHomeworkInput): Promise<string>
         const now = Date.now();
         const availableFrom = data.availableFrom?.getTime() || now;
         const dueDate = data.dueDate.getTime();
-        const materialType = data.materialType || 'quiz';
+        const materialType = data.materialType || 'test';
         const materialId = materialType === 'reading-passage-set'
             ? `reading-passage-set:${homeworkRef.id}`
             : data.materialId;

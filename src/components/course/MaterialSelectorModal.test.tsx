@@ -78,12 +78,10 @@ vi.mock('@mantine/core', async (importOriginal) => {
 
 
 const mockGetAllTests = vi.fn();
-const mockGetAllQuizzes = vi.fn();
 
 vi.mock('../../services/firebaseQueryOptimizer', () => ({
     default: {
         getAllTests: () => mockGetAllTests(),
-        getAllQuizzes: () => mockGetAllQuizzes(),
     }
 }));
 
@@ -103,7 +101,6 @@ describe('MaterialSelectorModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockGetAllTests.mockResolvedValue(mockTests);
-        mockGetAllQuizzes.mockResolvedValue([]);
     });
 
     const renderWithMantine = (ui: React.ReactNode) => {
@@ -181,5 +178,15 @@ describe('MaterialSelectorModal', () => {
         // Should NOT find Test 1 in Public Library tab
         expect(screen.queryByText('Test 1')).not.toBeInTheDocument();
     });
-});
 
+    it('does not load or show retired Quiz materials', async () => {
+        renderWithMantine(
+            <MaterialSelectorModal opened={true} onClose={() => { }} onSelect={async () => { }} />
+        );
+
+        await screen.findByText('Test 1');
+
+        expect(screen.queryByText('My Quizzes')).not.toBeInTheDocument();
+        expect(screen.queryByText('Retired Quiz')).not.toBeInTheDocument();
+    });
+});

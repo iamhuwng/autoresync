@@ -17,8 +17,6 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import './AudioPlayer.css';
-import { googleDriveAudioService } from '../../../services/googleDriveAudio';
-import type { AudioSource } from '../../../services/googleDriveAudio';
 import { useAudioSync } from '../../../hooks/audio';
 import { SyncIndicator } from '../../../components/test/SyncIndicator';
 import type { MasterAudioState, AudioMode, AudioPlayerMode, HeadphoneRequest } from '../../../types/audio.types';
@@ -109,6 +107,14 @@ interface AudioPlayerProps {
   authorizedDelivery?: AuthorizedDeliveryConfig;
 }
 
+interface AudioSource {
+  type: 'direct' | 'error';
+  url: string;
+  fileId: string;
+  originalUrl: string;
+  errorMessage?: string;
+}
+
 const AUTHORIZED_REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
 const AUTHORIZED_REFRESH_RISK_MS = 2 * 60 * 1000;
 const AUTHORIZED_REFRESH_DEFAULT_BACKOFF_MS = [1000, 3000, 5000] as const;
@@ -133,6 +139,21 @@ function sanitizeAudioUrlForDiagnostics(value: string | undefined): string | nul
 
 function getSafeAudioElementSource(audio: HTMLAudioElement): string | null {
   return sanitizeAudioUrlForDiagnostics(audio.currentSrc || audio.src);
+}
+
+function isRetiredExternalAudioUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    const retiredHosts = new Set([
+      ['drive', 'google', 'com'].join('.'),
+      ['docs', 'google', 'com'].join('.'),
+      ['drive', 'usercontent', 'google', 'com'].join('.'),
+    ]);
+
+    return retiredHosts.has(host);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeRefreshResult(result: AuthorizedDeliveryRefreshResult | string): AuthorizedDeliveryRefreshResult {
@@ -218,13 +239,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const showSkipSection = audioControls?.showSkipSection ?? false;
   const showVolumeControl = audioControls?.showVolumeControl ?? true;
   const audioRef = useRef<HTMLAudioElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [audioSource, setAudioSource] = useState<AudioSource | null>(null);
   const [loading, setLoading] = useState(true);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [replaysUsed, setReplaysUsed] = useState(0);
-  const [useEmbed, setUseEmbed] = useState(false);
   // Local speed state for speed control dropdown (must be before any conditional returns)
   const [localSpeed, setLocalSpeed] = useState(playbackSpeed);
   const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
@@ -514,64 +533,52 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       setLoading(true);
 
       try {
-        // Check if this is an R2 URL or other direct URL (not Google Drive)
-        const isR2Url = audioUrl.includes('r2.dev') || audioUrl.includes('cloudflare');
-        const isDirectUrl = audioUrl.startsWith('https://') && !audioUrl.includes('drive.google.com');
-
-        if (isR2Url || isDirectUrl) {
-          // Direct URL (R2 or other CDN)
-          listeningDiagnostics.log('AudioPlayer using direct audio URL', sanitizeAudioUrlForDiagnostics(audioUrl));
-
-          // PROACTIVE CHECK: Detect legacy temp paths that may have been deleted
-          const isLegacyTempPath = audioUrl.includes('-temp/');
-          if (isLegacyTempPath) {
-            listeningDiagnostics.warn('[AudioPlayer] Detected legacy temp path in URL', sanitizeAudioUrlForDiagnostics(audioUrl));
-            listeningDiagnostics.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
-            listeningDiagnostics.warn('⚠️ Expected pattern: temp/folder/file.mp3 or permanent path without -temp/');
-
-            // Try to validate the file exists before attempting playback
-            try {
-              const headResponse = await fetch(audioUrl, { method: 'HEAD' });
-              if (!headResponse.ok) {
-                throw new Error(`File not found (HTTP ${headResponse.status})`);
-              }
-            } catch (fetchError) {
-              console.error('🔴 [AudioPlayer] File validation failed:', fetchError);
-              onError(
-                'Audio file not found. This test may have been created with an older version. ' +
-                'Please re-upload the audio file or contact support.'
-              );
-              setLoading(false);
-              return;
-            }
-          }
-
+        if (isRetiredExternalAudioUrl(audioUrl)) {
+          const errorMessage = 'This audio source is no longer supported. Please use an R2-backed Listening material.';
           setAudioSource({
-            type: 'direct',
-            url: audioUrl,
+            type: 'error',
+            url: '',
             fileId: '',
-            originalUrl: audioUrl
+            originalUrl: audioUrl,
+            errorMessage,
           });
-        } else if (googleDriveAudioService.isGoogleDriveUrl(audioUrl)) {
-          // Google Drive URL - process through the Google Drive service
-          const source = await googleDriveAudioService.processAudioLink(audioUrl);
-          setAudioSource(source);
+          onError(errorMessage);
+          setLoading(false);
+          return;
+        }
 
-          if (source.type === 'error') {
-            onError(source.errorMessage || 'Failed to load audio');
+        listeningDiagnostics.log('AudioPlayer using direct audio URL', sanitizeAudioUrlForDiagnostics(audioUrl));
+
+        // PROACTIVE CHECK: Detect legacy temp paths that may have been deleted
+        const isLegacyTempPath = audioUrl.includes('-temp/');
+        if (isLegacyTempPath) {
+          listeningDiagnostics.warn('[AudioPlayer] Detected legacy temp path in URL', sanitizeAudioUrlForDiagnostics(audioUrl));
+          listeningDiagnostics.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
+          listeningDiagnostics.warn('⚠️ Expected pattern: temp/folder/file.mp3 or permanent path without -temp/');
+
+          // Try to validate the file exists before attempting playback
+          try {
+            const headResponse = await fetch(audioUrl, { method: 'HEAD' });
+            if (!headResponse.ok) {
+              throw new Error(`File not found (HTTP ${headResponse.status})`);
+            }
+          } catch (fetchError) {
+            console.error('🔴 [AudioPlayer] File validation failed:', fetchError);
+            onError(
+              'Audio file not found. This test may have been created with an older version. ' +
+              'Please re-upload the audio file or contact support.'
+            );
             setLoading(false);
             return;
           }
-        } else {
-          // Unknown URL format - try as direct
-          listeningDiagnostics.log('AudioPlayer treating unknown URL as direct', sanitizeAudioUrlForDiagnostics(audioUrl));
-          setAudioSource({
-            type: 'direct',
-            url: audioUrl,
-            fileId: '',
-            originalUrl: audioUrl
-          });
         }
+
+        setAudioSource({
+          type: 'direct',
+          url: audioUrl,
+          fileId: '',
+          originalUrl: audioUrl
+        });
       } catch (error) {
         onError('Failed to process audio URL');
         console.error('Audio processing error:', error);
@@ -848,13 +855,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         originalUrl: sanitizeAudioUrlForDiagnostics(audioSource?.originalUrl),
       });
 
-      // Only try Google Drive embed fallback if it's a Google Drive URL
-      const isGoogleDriveUrl = audioSource?.originalUrl?.includes('drive.google.com');
-
-      if (!useEmbed && audioSource?.type === 'direct' && isGoogleDriveUrl && audioSource.fileId) {
-        listeningDiagnostics.log('Audio streaming failed, switching to Google Drive embed player...');
-        setUseEmbed(true);
-      } else {
+      {
         // For R2 and other direct URLs, implement retry logic
         loadRetryCountRef.current++;
         listeningDiagnostics.log(`🔄 [AudioPlayer] Audio load error (attempt ${loadRetryCountRef.current}/${MAX_LOAD_RETRIES}) - ${errorDescription}`);
@@ -1120,7 +1121,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       } else {
         setReplaysUsed(0);
         setCurrentTime(0);
-        setUseEmbed(false);
         loadRetryCountRef.current = 0; // Reset retry counter for new audio
         audio.currentTime = 0;
       }
@@ -1302,34 +1302,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         <span style={{ fontSize: '14px', color: '#dc2626' }}>
           {audioSource.errorMessage || 'Audio load error'}
         </span>
-      </div>
-    );
-  }
-
-  // Embed fallback mode - compact header-friendly Google Drive iframe player
-  if (useEmbed && audioSource) {
-    const embedUrl = `https://drive.google.com/file/d/${audioSource.fileId}/preview`;
-    return (
-      <div style={{
-        width: '100%',
-        minWidth: '400px',
-        height: '50px',
-        borderRadius: '6px',
-        overflow: 'hidden',
-        backgroundColor: '#f1f5f9',
-      }}>
-        <iframe
-          ref={iframeRef}
-          src={embedUrl}
-          width="100%"
-          height="100%"
-          allow="autoplay"
-          style={{
-            border: 'none',
-            display: 'block',
-          }}
-          title={`Audio Section ${sectionNumber}`}
-        />
       </div>
     );
   }

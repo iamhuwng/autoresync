@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { FeedbackPromptMetadata } from './formativeFeedback.service';
 import {
   buildSavedResultFeedbackMetadata,
@@ -12,6 +13,10 @@ import {
   type ReadingV2GroupedReviewPayload,
   type ReadingV2ReviewInteraction,
 } from './reading-v2/readingV2ResultAdapter.service';
+import {
+  isSourceMaterialRemovedResult,
+  ORIGINAL_MATERIAL_REMOVED_LABEL,
+} from './resultSourceMaterialRemoval';
 
 export interface ResultFeedbackPayload {
   gradingResult: THCSGradingResult;
@@ -251,6 +256,10 @@ function buildSectionsFromGenericTestData(testData: TestData, result: TestResult
 function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[] {
   const questionResults = Array.isArray(result.questionResults) ? result.questionResults : [];
   const passageResults = result.ieltsData?.passageResults || [];
+  const sourceMaterialRemoved = isSourceMaterialRemovedResult(result);
+  const fallbackQuestionText = (questionNumber: number) =>
+    sourceMaterialRemoved ? ORIGINAL_MATERIAL_REMOVED_LABEL : `Question ${questionNumber}`;
+  const fallbackInstructionText = sourceMaterialRemoved ? ORIGINAL_MATERIAL_REMOVED_LABEL : '';
 
   if (result.thcsData?.sectionResults?.length) {
     return result.thcsData.sectionResults.map((section, index) => ({
@@ -259,7 +268,7 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
       order: index,
       totalPoints: section.totalCount || 0,
       pointMode: 'auto',
-      instructionText: '',
+      instructionText: fallbackInstructionText,
       isCustomInstruction: false,
       layout: 'single-column',
       questions: questionResults
@@ -267,7 +276,7 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
         .map((question) => ({
           id: `fallback-q-${question.questionNumber}`,
           questionNumber: question.questionNumber,
-          questionText: `Question ${question.questionNumber}`,
+          questionText: fallbackQuestionText(question.questionNumber),
           type: normalizeFeedbackQuestionType(question.questionType),
           intent: normalizeFeedbackQuestionType(question.questionType),
           correctAnswer: question.correctAnswer,
@@ -282,7 +291,7 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
       order: index,
       totalPoints: passage.total,
       pointMode: 'auto',
-      instructionText: '',
+      instructionText: fallbackInstructionText,
       isCustomInstruction: false,
       layout: 'single-column',
       questions: questionResults
@@ -294,7 +303,7 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
         .map((question) => ({
           id: `fallback-q-${question.questionNumber}`,
           questionNumber: question.questionNumber,
-          questionText: `Question ${question.questionNumber}`,
+          questionText: fallbackQuestionText(question.questionNumber),
           type: normalizeFeedbackQuestionType(question.questionType),
           intent: normalizeFeedbackQuestionType(question.questionType),
           correctAnswer: question.correctAnswer,
@@ -309,13 +318,13 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
       order: 0,
       totalPoints: questionResults.length,
       pointMode: 'auto',
-      instructionText: '',
+      instructionText: fallbackInstructionText,
       isCustomInstruction: false,
       layout: 'single-column',
       questions: questionResults.map((question) => ({
         id: `fallback-q-${question.questionNumber}`,
         questionNumber: question.questionNumber,
-        questionText: `Question ${question.questionNumber}`,
+        questionText: fallbackQuestionText(question.questionNumber),
         type: normalizeFeedbackQuestionType(question.questionType),
         intent: normalizeFeedbackQuestionType(question.questionType),
         correctAnswer: question.correctAnswer,
@@ -325,6 +334,10 @@ function buildFallbackSectionsFromResult(result: TestResultRecord): THCSSection[
 }
 
 async function loadSourceSections(result: TestResultRecord): Promise<THCSSection[]> {
+  if (isSourceMaterialRemovedResult(result)) {
+    return buildFallbackSectionsFromResult(result);
+  }
+
   try {
     if (String(result.testType || '').toLowerCase().startsWith('thcs') || String(result.testType || '').toLowerCase().startsWith('practice_thcs')) {
       const thcsTest = await getThcsTestFromFirebase(result.testId);

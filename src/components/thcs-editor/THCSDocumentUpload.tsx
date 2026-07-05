@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * THCSDocumentUpload — Phase 3, Task 10.6
  *

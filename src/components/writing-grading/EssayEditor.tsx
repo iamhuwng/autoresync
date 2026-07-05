@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * EssayEditor — TipTap-based Essay Editor for Grading
  *

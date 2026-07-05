@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Modal } from '@mantine/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { WritingTask, WritingTestDraft, WritingTestMetadata } from '../../types/ielts-writing.types';

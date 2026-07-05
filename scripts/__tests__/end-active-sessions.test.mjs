@@ -25,7 +25,6 @@ test('findActiveSessions returns only active statuses without exposing player da
     status: 'waiting',
     mode: 'test',
     testId: 'test-1',
-    quizId: null,
     linkedClassId: null,
     playerCount: 1,
     reviewReleaseState: null,

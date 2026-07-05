@@ -11,6 +11,8 @@ tags:
 ---
 # PRD-0021: AI Quiz Creation Wizard
 
+> Obsolete as of 2026-07-05: Quiz creation/runtime is retired. Current authority: @doc/architecture/retired-features-current-state. Historical content below is retained as implementation history; unfinished Quiz work is cancelled by feature retirement.
+
 > **Version**: 1.0  
 > **Created**: 2026-02-06  
 > **Status**: Draft  

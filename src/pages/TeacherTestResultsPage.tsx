@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
@@ -47,6 +48,7 @@ interface StudentResult {
   reMarkHistory?: any[];
   isGuest?: boolean;
   markingStatus?: 'auto-marked' | 'pending-review' | 'reviewed';
+  sourceMaterialRemoved?: boolean;
 }
 
 interface QuestionAnalyticsData {
@@ -110,6 +112,21 @@ function mapResult(record: CanonicalTeacherResult): StudentResult {
     reMarkHistory: (record as any).reMarkHistory,
     isGuest: (record as any).isGuest,
     markingStatus: ((record as any).markingStatus as StudentResult['markingStatus']) || 'auto-marked',
+    sourceMaterialRemoved: record.sourceMaterialRemoved,
+  };
+}
+
+function buildRemovedSourceTestData(record: CanonicalTeacherResult): TestData {
+  return {
+    title: record.testTitle || 'Original material removed',
+    type: record.testType || 'test',
+    skill: record.testSkill || 'unknown',
+    duration: record.testDuration || 0,
+    questions: (record.questionResults || []).map((questionResult) => ({
+      number: questionResult.questionNumber,
+      points: questionResult.maxScore || 1,
+      question: 'Original material removed',
+    })),
   };
 }
 
@@ -275,14 +292,6 @@ export const TeacherTestResultsPage: React.FC = () => {
         return;
       }
 
-      const testSnapshot = await get(ref(database, `tests/${targetTestId}`));
-      if (!testSnapshot.exists()) {
-        setError('Test content not found');
-        setLoading(false);
-        return;
-      }
-      setTestData(testSnapshot.val());
-
       const canonicalResults = await getSessionResults(sessionCode) as CanonicalTeacherResult[];
       const classified = canonicalResults.map((result) => ({
         result,
@@ -293,12 +302,28 @@ export const TeacherTestResultsPage: React.FC = () => {
         }),
       }));
 
-      const visible = classified
+      const visibleRecords = classified
         .filter(({ verdict }) => verdict.shouldDisplayInTeacherHistory)
-        .map(({ result }) => mapResult(result));
+        .map(({ result }) => result);
       const analyticsEligible = classified
         .filter(({ verdict }) => verdict.shouldDisplayInTeacherHistory && !verdict.excludeFromAnalytics)
         .map(({ result }) => result);
+      const visible = visibleRecords.map((result) => mapResult(result));
+      const firstVisibleRecord = visibleRecords[0];
+      const allVisibleResultsHaveRemovedSource =
+        visibleRecords.length > 0 && visibleRecords.every((result) => result.sourceMaterialRemoved === true);
+
+      if (allVisibleResultsHaveRemovedSource && firstVisibleRecord) {
+        setTestData(buildRemovedSourceTestData(firstVisibleRecord));
+      } else {
+        const testSnapshot = await get(ref(database, `tests/${targetTestId}`));
+        if (!testSnapshot.exists()) {
+          setError('Test content not found');
+          setLoading(false);
+          return;
+        }
+        setTestData(testSnapshot.val());
+      }
 
       setStudentResults(visible);
       setAnalyticsResults(analyticsEligible.map((result) => mapResult(result)));

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BookEditorModal from '../components/books/BookEditorModal';

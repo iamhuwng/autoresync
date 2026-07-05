@@ -102,7 +102,7 @@ export function useSessionManager({ sessionCode, userId, userRole, tests, naviga
     if (sessionCode) {
       try {
         const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-        const updateData = { testId: contentId, mode: 'test', quizId: null };
+        const updateData = { testId: contentId, mode: 'test' };
         await dbUpdate(sessionRef, updateData);
         navigateTo('TEACHER_TEST_MONITOR', { sessionCode }, { reason: 'teacher_start_test' });
       } catch (error) {

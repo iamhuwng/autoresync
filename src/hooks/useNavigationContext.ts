@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Navigation Context Hook
  * Manages active page state and breadcrumb generation

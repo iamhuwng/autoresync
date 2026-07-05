@@ -212,11 +212,10 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
                 classId: cls.id,
                 className: cls.name || cls.classCode || 'Class',
                 createdAt,
-                mode: typeof sessionData.mode === 'string' ? sessionData.mode : 'quiz',
+                mode: typeof sessionData.mode === 'string' ? sessionData.mode : 'test',
                 status: typeof sessionData.status === 'string' ? sessionData.status : 'waiting',
                 title:
                     (typeof sessionData.testTitle === 'string' && sessionData.testTitle)
-                    || (typeof sessionData.quizTitle === 'string' && sessionData.quizTitle)
                     || 'Live Session',
             });
 

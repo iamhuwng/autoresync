@@ -15,7 +15,7 @@ const AdminMigrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
-  const [dryRunResults, setDryRunResults] = useState<{ testsToMigrate: number; quizzesToMigrate: number; classesToMigrate: number } | null>(null);
+  const [dryRunResults, setDryRunResults] = useState<{ testsToMigrate: number; classesToMigrate: number } | null>(null);
   const [migrationResults, setMigrationResults] = useState<any>(null);
   const [superAdminUid, setSuperAdminUid] = useState('');
 
@@ -39,7 +39,7 @@ const AdminMigrationPage: React.FC = () => {
     }
 
     if (!window.confirm(
-      `This will migrate all legacy tests and quizzes to be owned by ${superAdminUid} and marked as public. Continue?`
+      `This will migrate all legacy tests to be owned by ${superAdminUid} and marked as public. Continue?`
     )) {
       return;
     }
@@ -91,8 +91,8 @@ const AdminMigrationPage: React.FC = () => {
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem' }}>
           
           <Alert color="blue" title="Migration Purpose" style={{ marginBottom: '2rem' }}>
-            This migration adds <code>ownerId</code> and <code>isPublic</code> fields to existing tests and quizzes.
-            Legacy content will be assigned to a super admin account and marked as public so all teachers can access them.
+            This migration adds <code>ownerId</code> and <code>isPublic</code> fields to existing tests.
+            Legacy tests will be assigned to a super admin account and marked as public so all teachers can access them.
           </Alert>
 
           {/* Super Admin UID Input */}
@@ -153,7 +153,6 @@ const AdminMigrationPage: React.FC = () => {
                   </h4>
                   <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#64748b' }}>
                     <li>Tests needing migration: <strong>{dryRunResults.testsToMigrate}</strong></li>
-                    <li>Quizzes needing migration: <strong>{dryRunResults.quizzesToMigrate}</strong></li>
                     <li>Classes needing migration: <strong>{dryRunResults.classesToMigrate}</strong></li>
                   </ul>
                 </div>
@@ -186,7 +185,6 @@ const AdminMigrationPage: React.FC = () => {
                   </h4>
                   <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#64748b' }}>
                     <li>Tests updated: <strong>{migrationResults.testsUpdated}</strong></li>
-                    <li>Quizzes updated: <strong>{migrationResults.quizzesUpdated}</strong></li>
                     <li>Classes updated: <strong>{migrationResults.classesUpdated}</strong></li>
                     <li>Errors: <strong>{migrationResults.errors.length}</strong></li>
                   </ul>
@@ -213,7 +211,7 @@ const AdminMigrationPage: React.FC = () => {
                 📖 What This Does
               </h3>
               <ol style={{ color: '#64748b', lineHeight: 1.8 }}>
-                <li>Scans all tests and quizzes in Firebase</li>
+                <li>Scans all tests in Firebase</li>
                 <li>For items missing <code>ownerId</code>: Sets to the super admin UID you provide</li>
                 <li>For items missing <code>isPublic</code>: Sets to <code>true</code> (public)</li>
                 <li>Preserves existing ownership data if already set</li>

@@ -99,6 +99,7 @@ export const ROUTES = {
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
   RESULT_DETAIL: '/result/:resultId',
+  MATERIAL_UNAVAILABLE: '/material-unavailable/:materialId',
 } as const;
 
 // Type-safe route names
@@ -108,7 +109,6 @@ export type RouteName = keyof typeof ROUTES;
 export interface RouteParams {
   sessionCode?: string;
   gameSessionId?: string;
-  quizId?: string;
   testId?: string;
   id?: string;
   classId?: string;

@@ -1,4 +1,6 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MantineProvider } from '@mantine/core';
@@ -28,6 +30,7 @@ const {
     setPlayerId: vi.fn(),
     setPlayerName: vi.fn(),
     setSessionCode: vi.fn(),
+    setPlayerData: vi.fn(),
     clearSession: vi.fn(),
   },
 }));
@@ -259,6 +262,17 @@ describe('StudentWaitingRoomPage', () => {
         { reason: 'submission_reset_resume' },
       );
     });
+  });
+
+  it('does not load Quiz data or route to Quiz gameplay from waiting/join flows', () => {
+    const waitingRoomSource = readFileSync(resolve('src/pages/StudentWaitingRoomPage.jsx'), 'utf8');
+    const guestJoinSource = readFileSync(resolve('src/pages/GuestJoinPage.jsx'), 'utf8');
+
+    expect(waitingRoomSource).not.toContain('quizzes/');
+    expect(waitingRoomSource).not.toContain('STUDENT_QUIZ');
+    expect(guestJoinSource).not.toContain('STUDENT_QUIZ');
+    expect(guestJoinSource).not.toContain('new_guest_join_quiz');
+    expect(guestJoinSource).not.toContain('rejoin_existing_quiz');
   });
 
   it('restores recent results from persistent player breadcrumbs when router state is missing', async () => {

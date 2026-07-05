@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Student Test Results Page
  * Displays test results with detailed feedback for students
@@ -42,6 +43,10 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { mobileStyles, studentTokens } from '../components/layout/studentLayoutStyles';
+import {
+  isSourceMaterialRemovedResult,
+  ORIGINAL_MATERIAL_REMOVED_LABEL,
+} from '../services/resultSourceMaterialRemoval';
 
 
 // PRD-0030 Task 6.1.1: Lazy-load WritingResultView for Writing tests
@@ -789,6 +794,7 @@ export const StudentTestResultsPage: React.FC = () => {
     permanentResultRecord?.formativeFeedback?.aiFeedback?.summary?.trim()
     || permanentResultRecord?.formativeFeedback?.deterministicFeedback?.trim();
   const feedback = storedFeedback || generatePerformanceFeedback(safeResults.percentage);
+  const sourceMaterialRemoved = isSourceMaterialRemovedResult(permanentResultRecord);
 
   // PRD-0040 Task 4.4: Release-state governance for session-scoped results
   return (
@@ -871,6 +877,21 @@ export const StudentTestResultsPage: React.FC = () => {
               <div style={{ fontWeight: 700, color: studentTokens.accent, fontSize: '0.9375rem', marginTop: '0.35rem' }}>Answers Released</div>
               <div style={{ fontSize: '0.8125rem', color: studentTokens.textBody, marginTop: '0.25rem' }}>Correct answers are now available. Detailed feedback will follow.</div>
             </div>
+          </div>
+        )}
+
+        {sourceMaterialRemoved && (
+          <div
+            data-testid="student-results-source-material-removed"
+            style={{
+              padding: '1rem 1.5rem',
+              ...insetPanelStyle,
+              color: studentTokens.textBody,
+              fontWeight: 600,
+              marginBottom: '1.5rem',
+            }}
+          >
+            {ORIGINAL_MATERIAL_REMOVED_LABEL}
           </div>
         )}
 

@@ -34,6 +34,7 @@ Required flow:
 3. IELTS Reading continues through the shared parser/draft/review path.
 4. THCS-THPT branches into the THCS setup and editor surface inside the same shared modal shell.
 5. Reading V2 starts from the same modal entry and forwards metadata/start mode into the Studio pipeline.
+6. Reading V1 and Quiz are retired and must not appear as active teacher creation/runtime choices.
 
 Required rules:
 

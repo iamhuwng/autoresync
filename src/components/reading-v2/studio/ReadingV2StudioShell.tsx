@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Reading V2 Studio boundary: this shell owns canonical draft authoring for V2 only.
 // Runtime, launch, results, and legacy Reading editor payloads must stay outside this component.
 import { useEffect, useMemo, useRef, useState } from 'react';

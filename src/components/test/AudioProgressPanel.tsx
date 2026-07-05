@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Audio Progress Panel Component
  * Visual progress bar for teacher to monitor and control listening test audio

@@ -138,6 +138,14 @@ describe('ReviewTab', () => {
     expect(screen.getByTestId('rv-incorrect-count')).toHaveTextContent('2');
   });
 
+  it('renders saved answers with removed-source context when source material is unavailable', () => {
+    render(<ReviewTab result={{ ...baseResult, sourceMaterialRemoved: true } as any} />);
+    expect(screen.getByTestId('rv-source-material-removed-2')).toHaveTextContent('Original material removed');
+    expect(screen.getByTestId('rv-card-2')).toHaveTextContent('Your Answer');
+    expect(screen.getByTestId('rv-card-2')).toHaveTextContent('B');
+    expect(screen.getByTestId('rv-card-2')).toHaveTextContent('C');
+  });
+
   it('renders AI explanation callouts when available', () => {
     render(<ReviewTab result={resultWithExplanations} />);
     expect(screen.getByTestId('rv-explanation-2')).toHaveTextContent('The clue "since 2020" requires the present perfect');

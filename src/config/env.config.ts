@@ -24,9 +24,6 @@ const envSchema = z.object({
   VITE_GEMINI_API_KEY_4: z.string().optional(),
   VITE_GEMINI_API_KEY_5: z.string().optional(),
 
-  // Google Drive OAuth (required for image upload)
-  VITE_GOOGLE_DRIVE_CLIENT_ID: z.string().min(1, 'Google Drive client ID required'),
-
   // Groq group repair keys (optional)
   VITE_GROQ_API_KEY: z.string().optional(),
   VITE_GROQ_API_KEY_1: z.string().optional(),
@@ -73,7 +70,6 @@ export const loadEnv = (): Env => {
     VITE_GEMINI_API_KEY_3: import.meta.env.VITE_GEMINI_API_KEY_3,
     VITE_GEMINI_API_KEY_4: import.meta.env.VITE_GEMINI_API_KEY_4,
     VITE_GEMINI_API_KEY_5: import.meta.env.VITE_GEMINI_API_KEY_5,
-    VITE_GOOGLE_DRIVE_CLIENT_ID: import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID,
     VITE_GROQ_API_KEY: import.meta.env.VITE_GROQ_API_KEY,
     VITE_GROQ_API_KEY_1: import.meta.env.VITE_GROQ_API_KEY_1,
     VITE_GROQ_API_KEY_2: import.meta.env.VITE_GROQ_API_KEY_2,

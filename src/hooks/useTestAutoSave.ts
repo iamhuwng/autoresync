@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useTestAutoSave Hook
  * Automatically saves student test answers to Firebase

@@ -1,7 +1,7 @@
 /**
  * AdminMaterialsPage
  * 
- * Super admin page for managing all materials (tests, quizzes) in the system.
+ * Super admin page for managing supported test materials in the system.
  * Provides full CRUD functionality including delete, edit, and toggle public/private.
  * 
  * Route: /admin/materials
@@ -19,11 +19,10 @@ import {
 } from '@mantine/core';
 import {
     IconSearch, IconPlus, IconEdit, IconTrash, IconPlayerPlay,
-    IconDotsVertical, IconRefresh, IconFileText, IconQuestionMark,
+    IconDotsVertical, IconRefresh, IconFileText,
     IconWorld, IconLock, IconAlertTriangle, IconCopy, IconNotes, IconFilter
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { ref, set, update } from 'firebase/database';
 
 // @ts-ignore - JS module without type declarations
 import firebaseQueryOptimizer, { CacheTypes } from '../services/firebaseQueryOptimizer';
@@ -31,13 +30,10 @@ import firebaseQueryOptimizer, { CacheTypes } from '../services/firebaseQueryOpt
 import { createSession } from '../services/sessionManager';
 import { getClasses } from '../services/classManager';
 // @ts-ignore - firebase.js doesn't have type declarations
-import { database } from '../services/firebase';
 import { deleteTestFromFirebase, updateTestInFirebase } from '../services/testStorage';
 
-// Editor modals for editing tests/quizzes
+// Editor modal for editing tests
 import TestEditor from '../components/TestEditor';
-// @ts-ignore - JS module without type declarations
-import QuizEditor from '../components/QuizEditor';
 // Test Creation Modal for new test flow
 import TestCreationModal from '../components/test-creation/TestCreationModal';
 import { testDraftService } from '../services/draftCloudService';
@@ -48,7 +44,7 @@ interface Material {
     id: string;
     title: string;
     description?: string;
-    type: 'quiz' | 'test';
+    type: 'test';
     testType?: string;
     questionCount?: number;
     isPublic?: boolean;
@@ -70,7 +66,6 @@ const AdminMaterialsPage: React.FC = () => {
     const { navigateTo } = useNavigation('admin');
 
     // State
-    const [quizzes, setQuizzes] = useState<Material[]>([]);
     const [tests, setTests] = useState<Material[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -82,7 +77,7 @@ const AdminMaterialsPage: React.FC = () => {
     const [sessionModal, setSessionModal] = useState<{
         open: boolean;
         material: Material | null;
-        mode: 'quiz' | 'test' | null;
+        mode: 'test' | null;
     }>({ open: false, material: null, mode: null });
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [startingSession, setStartingSession] = useState(false);
@@ -100,8 +95,6 @@ const AdminMaterialsPage: React.FC = () => {
     // Edit modal states
     const [showEditTestModal, setShowEditTestModal] = useState(false);
     const [selectedTest, setSelectedTest] = useState<any>(null);
-    const [showEditQuizModal, setShowEditQuizModal] = useState(false);
-    const [selectedQuiz, setSelectedQuiz] = useState<any>(null);
 
     // Test Creation Modal state
     const [showTestCreationModal, setShowTestCreationModal] = useState(false);
@@ -145,17 +138,10 @@ const AdminMaterialsPage: React.FC = () => {
         setLoading(true);
         try {
             // Always skip cache to ensure fresh data on load/refresh
-            const [quizzesData, testsData, classesData] = await Promise.all([
-                firebaseQueryOptimizer.getAllQuizzes(true).catch(() => []),
+            const [testsData, classesData] = await Promise.all([
                 firebaseQueryOptimizer.getAllTests(true).catch(() => []),
                 getClasses().catch(() => [])
             ]);
-
-            setQuizzes(quizzesData.map((q: any) => ({
-                ...q,
-                type: 'quiz' as const,
-                questionCount: q.questions?.length || 0
-            })));
 
             setTests(testsData.map((t: any) => ({
                 ...t,
@@ -202,7 +188,7 @@ const AdminMaterialsPage: React.FC = () => {
         }
     };
 
-    const handleStartSession = (material: Material, mode: 'quiz' | 'test') => {
+    const handleStartSession = (material: Material, mode: 'test') => {
         setSessionModal({ open: true, material, mode });
         setSelectedClassId('');
     };
@@ -225,12 +211,7 @@ const AdminMaterialsPage: React.FC = () => {
                     color: 'green'
                 });
 
-                // Navigate to appropriate waiting room
-                if (sessionModal.mode === 'quiz') {
-                    navigateTo('TEACHER_WAITING' as any, { gameSessionId: result.sessionCode });
-                } else {
-                    navigateTo('TEACHER_TEST_MONITOR', { sessionCode: result.sessionCode });
-                }
+                navigateTo('TEACHER_TEST_MONITOR', { sessionCode: result.sessionCode });
             } else {
                 throw new Error(result.error || 'Failed to create session');
             }
@@ -272,21 +253,10 @@ const AdminMaterialsPage: React.FC = () => {
     };
 
     const handleEdit = (material: Material) => {
-        // Open the appropriate editor modal based on material type
-        if (material.type === 'test') {
-            // Find the full test data from tests array
-            const fullTest = tests.find(t => t.id === material.id);
-            if (fullTest) {
-                setSelectedTest(fullTest);
-                setShowEditTestModal(true);
-            }
-        } else {
-            // Find the full quiz data from quizzes array
-            const fullQuiz = quizzes.find(q => q.id === material.id);
-            if (fullQuiz) {
-                setSelectedQuiz(fullQuiz);
-                setShowEditQuizModal(true);
-            }
+        const fullTest = tests.find(t => t.id === material.id);
+        if (fullTest) {
+            setSelectedTest(fullTest);
+            setShowEditTestModal(true);
         }
     };
 
@@ -294,13 +264,6 @@ const AdminMaterialsPage: React.FC = () => {
         setShowEditTestModal(false);
         setSelectedTest(null);
         // Refresh data to get updated test
-        loadData();
-    };
-
-    const handleCloseEditQuizModal = () => {
-        setShowEditQuizModal(false);
-        setSelectedQuiz(null);
-        // Refresh data to get updated quiz
         loadData();
     };
 
@@ -315,18 +278,10 @@ const AdminMaterialsPage: React.FC = () => {
         try {
             const material = deleteModal.material;
 
-            const cacheType = material.type === 'test' ? CacheTypes.TEST : CacheTypes.QUIZ;
-
-            if (material.type === 'test') {
-                // Delete test using testStorage service
-                const result = await deleteTestFromFirebase(material.id);
-                if (!result.success) {
-                    throw new Error(result.error || 'Failed to delete test');
-                }
-            } else {
-                // Delete quiz directly from Firebase
-                const quizRef = ref(database, `quizzes/${material.id}`);
-                await set(quizRef, null);
+            const cacheType = CacheTypes.TEST;
+            const result = await deleteTestFromFirebase(material.id);
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to delete test');
             }
 
             notifications.show({
@@ -358,21 +313,10 @@ const AdminMaterialsPage: React.FC = () => {
         setTogglingPublic(material.id);
         try {
             const newIsPublic = !material.isPublic;
-            const cacheType = material.type === 'test' ? CacheTypes.TEST : CacheTypes.QUIZ;
-
-            if (material.type === 'test') {
-                // Update test using testStorage service
-                const result = await updateTestInFirebase(material.id, { isPublic: newIsPublic } as any);
-                if (!result.success) {
-                    throw new Error(result.error || 'Failed to update test');
-                }
-            } else {
-                // Update quiz directly in Firebase
-                const quizRef = ref(database, `quizzes/${material.id}`);
-                await update(quizRef, {
-                    isPublic: newIsPublic,
-                    updatedAt: Date.now()
-                });
+            const cacheType = CacheTypes.TEST;
+            const result = await updateTestInFirebase(material.id, { isPublic: newIsPublic } as any);
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to update test');
             }
 
             notifications.show({
@@ -412,21 +356,17 @@ const AdminMaterialsPage: React.FC = () => {
     }, [visibilityFilter, user?.uid, profile?.uid]);
 
     // Filter materials (search + visibility)
-    const filteredQuizzes = applyVisibilityFilter(
-        quizzes.filter(q => (q.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
-    );
     const filteredTests = applyVisibilityFilter(
         tests.filter(t => (t.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    const allMaterials = [...filteredQuizzes, ...filteredTests].sort((a, b) => {
+    const allMaterials = [...filteredTests].sort((a, b) => {
         const dateA = a.updatedAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
         const dateB = b.updatedAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
         return dateB.getTime() - dateA.getTime();
     });
 
-    const displayMaterials = activeTab === 'quizzes' ? filteredQuizzes :
-        activeTab === 'tests' ? filteredTests :
+    const displayMaterials = activeTab === 'tests' ? filteredTests :
             allMaterials;
 
     if (!isSuperAdmin) {
@@ -466,7 +406,7 @@ const AdminMaterialsPage: React.FC = () => {
                             Materials Management
                         </h1>
                         <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
-                            Create, edit, delete, and manage visibility of quizzes and tests
+                            Create, edit, delete, and manage visibility of supported tests
                         </p>
                     </div>
                     <Group>
@@ -538,9 +478,6 @@ const AdminMaterialsPage: React.FC = () => {
                         allowDeselect={false}
                     />
                     <Group gap="xs">
-                        <Badge size="lg" variant="filled" color="blue">
-                            {filteredQuizzes.length} Quizzes
-                        </Badge>
                         <Badge size="lg" variant="filled" color="teal">
                             {filteredTests.length} Tests
                         </Badge>
@@ -551,7 +488,6 @@ const AdminMaterialsPage: React.FC = () => {
                 <Tabs value={activeTab} onChange={setActiveTab} mb="lg">
                     <Tabs.List>
                         <Tabs.Tab value="all">All ({allMaterials.length})</Tabs.Tab>
-                        <Tabs.Tab value="quizzes">Quizzes ({filteredQuizzes.length})</Tabs.Tab>
                         <Tabs.Tab value="tests">Tests ({filteredTests.length})</Tabs.Tab>
                     </Tabs.List>
                 </Tabs>
@@ -591,14 +527,11 @@ const AdminMaterialsPage: React.FC = () => {
                                 <Group justify="space-between" mb="sm">
                                     <Group gap="xs">
                                         <Badge
-                                            color={material.type === 'quiz' ? 'blue' : 'teal'}
+                                            color="teal"
                                             size="sm"
-                                            leftSection={material.type === 'quiz' ?
-                                                <IconQuestionMark size={12} /> :
-                                                <IconFileText size={12} />
-                                            }
+                                            leftSection={<IconFileText size={12} />}
                                         >
-                                            {material.type === 'quiz' ? 'Quiz' : 'Test'}
+                                            Test
                                         </Badge>
                                         {/* Public/Private Toggle */}
                                         <Tooltip label={material.isPublic ? 'Public - Visible to all teachers' : 'Private - Only visible to owner'}>
@@ -712,7 +645,7 @@ const AdminMaterialsPage: React.FC = () => {
             <Modal
                 opened={sessionModal.open}
                 onClose={() => setSessionModal({ open: false, material: null, mode: null })}
-                title={`Start ${sessionModal.mode === 'quiz' ? 'Quiz' : 'Test'} Session`}
+                title="Start Test Session"
                 centered
             >
                 <Stack gap="md">
@@ -809,15 +742,6 @@ const AdminMaterialsPage: React.FC = () => {
                     show={showEditTestModal}
                     handleClose={handleCloseEditTestModal}
                     test={selectedTest}
-                />
-            )}
-
-            {/* Quiz Editor Modal */}
-            {selectedQuiz && (
-                <QuizEditor
-                    show={showEditQuizModal}
-                    handleClose={handleCloseEditQuizModal}
-                    quiz={selectedQuiz}
                 />
             )}
 
