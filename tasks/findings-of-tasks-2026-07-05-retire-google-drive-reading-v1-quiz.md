@@ -5521,3 +5521,148 @@ Recommended next approval:
 - If product owner wants Gate A completion: approve exact local-main sync/PR/merge/deploy sequence, including whether direct `main` push is forbidden or allowed.
 - If product owner wants Gate B session closure completion: explicitly approve `npm run sessions:end-active -- --project temp-a1437 --apply`; current dry-run shows zero active sessions, so expected write set is empty, but it is still an apply-mode command.
 - If product owner wants destructive purge: do not proceed until Gate C explicit approval after reviewing the manifest and the 87 unknown-blocked paths.
+
+## Phase 12 Gate A PR-Based Integration Evidence - 2026-07-06 local / 2026-07-05 UTC
+
+Scope and authority:
+
+- Product owner approved the recommendation after asking what Gate A would do.
+- Chosen Gate A path: PR-based integration, not direct push to `main`.
+- No merge, deploy, Firebase purge `--apply`, R2 mutation, Firebase rules deployment, destructive purge, or worktree cleanup was run.
+- Subagents remain blocked by product-owner instruction; no subagents were spawned.
+
+Clean PR branch:
+
+- Original PR #10 used `codex/remove-drive-reading-v1-quiz` and inherited unrelated local-main commit `80198085 fix(listening): clean abandoned temp uploads`.
+- PR #10 was closed in favor of clean PR #11.
+- Clean branch `codex/remove-drive-reading-v1-quiz-clean` is based on `origin/main`.
+- Clean branch excludes `80198085`.
+- Clean PR #11: `https://github.com/iamhuwng/autoresync/pull/11`.
+
+Commands and exact results:
+
+```powershell
+rtk git status --short --branch
+```
+
+Result before evidence commit: exit `0`; branch `codex/remove-drive-reading-v1-quiz-clean...origin/codex/remove-drive-reading-v1-quiz-clean`; dirty paths:
+
+- `M tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+- `?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+The untracked PRD remains unrelated and protected; it was not edited, staged, committed, pushed, merged, or claimed.
+
+```powershell
+rtk git diff -- tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md
+```
+
+Result: exit `0`; one evidence-only diff, `49 insertions(+), 1 deletion(-)`. The active duplicate line-budget marker for historical `ListeningTestBuilder.tsx` evidence was renamed to `historical-assessment-line-budget-exception`, and four current active `assessment-line-budget-exception` blocks were recorded for:
+
+- `src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx`: `5743` lines.
+- `src/components/reading-v2/studio/ReadingV2StudioShell.tsx`: `3527` lines.
+- `src/features/assessment/listening/storage/listeningAssetDelivery.service.ts`: `438` lines.
+- `src/skills/listening/builders/ListeningTestBuilder.tsx`: `4606` lines.
+
+Local guardrail proof before staging:
+
+```powershell
+rtk cmd /c "set GITHUB_BASE_REF=main&& node scripts/check-assessment-unification-guardrails.mjs"
+```
+
+Result: exit `0`; `changed files: 296`; protected path annotations for `database.rules.json`, `src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx`, `src/components/test/AudioProgressPanel.tsx`, `src/pages/TeacherTestMonitorPage.tsx`, `src/services/reading-v2/readingV2AutoImport.service.ts`, `src/services/reading-v2/readingV2OperationalMatrix.ts`, `src/services/reading-v2/readingV2PassageClone.service.ts`, and `src/skills/listening/components/AudioPlayer.tsx`; final line `[assessment-guardrails] OK`.
+
+```powershell
+rtk node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs
+```
+
+Result: exit `0`; `34` tests passed, `0` failed.
+
+```powershell
+rtk npm run enforce:check
+```
+
+Result: exit `0`; `All enforcement checks passed.`
+
+```powershell
+rtk npm run check:utf8 -- tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md documentation/architecture/result-view-map.md documentation/architecture/result-view-permission-matrix.md documentation/architecture/result-view-fr-closure-matrix.md scripts/__tests__/check-assessment-unification-guardrails.test.mjs
+```
+
+Result: exit `0`; `UTF-8 check passed for 6 text file(s).`
+
+```powershell
+rtk git diff --check
+```
+
+Result: exit `0`; no output.
+
+Staging and commit:
+
+```powershell
+rtk git add -- tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md
+```
+
+Result: exit `0`; `ok 1 file changed, 49 insertions(+), 1 deletion(-)`.
+
+```powershell
+rtk git status --short
+```
+
+Result after staging: exit `0`; staged only `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`; unrelated PRD remained untracked.
+
+```powershell
+rtk git commit -m "docs(assessment): record gate a line budgets"
+```
+
+Result: exit `0`; commit `5681317`.
+
+```powershell
+rtk git push origin codex/remove-drive-reading-v1-quiz-clean
+```
+
+Result: exit `0`; normal push, no force; `df7b3aff..56813172  codex/remove-drive-reading-v1-quiz-clean -> codex/remove-drive-reading-v1-quiz-clean`.
+
+PR state:
+
+```powershell
+rtk gh pr view 10 --repo iamhuwng/autoresync --json number,state,url,headRefName,baseRefName
+```
+
+Result: exit `0`; PR #10 state `CLOSED`; URL `https://github.com/iamhuwng/autoresync/pull/10`; head `codex/remove-drive-reading-v1-quiz`; base `main`.
+
+```powershell
+rtk gh pr view 11 --repo iamhuwng/autoresync --json number,state,mergeable,headRefName,headRefOid,baseRefName,statusCheckRollup,url
+```
+
+Result: exit `0`; PR #11 state `OPEN`; URL `https://github.com/iamhuwng/autoresync/pull/11`; head `codex/remove-drive-reading-v1-quiz-clean`; base `main`; head OID `56813172f4d415fb0dec2d0f3ecd25f400bc62b6`; mergeable `MERGEABLE`; checks:
+
+- `guardrails`: `SUCCESS`, completed `2026-07-05T19:04:45Z`.
+- `enforce`: `SUCCESS`, completed `2026-07-05T19:03:54Z`.
+
+Local main blocker:
+
+```powershell
+rtk git rev-list --left-right --count origin/main...main
+```
+
+Result: exit `0`; `0 1`.
+
+```powershell
+rtk git log --oneline origin/main..main
+```
+
+Result: exit `0`; local-only `main` commit:
+
+- `80198085 fix(listening): clean abandoned temp uploads`
+
+Gate A current state:
+
+- `12.1` remains complete.
+- `12.2` remains incomplete: PR path is prepared and green, but local `main` sync/merge is blocked by the local-only `main` commit, and no PR merge was run.
+- `12.3` remains incomplete: no deploy was run.
+- `12.4` remains incomplete: no deployed creation/session selector verification was run.
+
+Recommended next approval:
+
+- If product owner wants integration completed: merge PR #11 from GitHub or approve me to merge PR #11, then approve deploy/readback as a separate Gate A continuation.
+- If product owner wants local `main` refreshed afterward: first decide what to do with local-only `main` commit `80198085`; do not fast-forward local `main` over it without a preservation/reconciliation decision.
+- If product owner wants Gate B session closure: separately approve `npm run sessions:end-active -- --project temp-a1437 --apply`.
