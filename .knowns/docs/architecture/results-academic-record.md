@@ -16,6 +16,8 @@ tags:
 
 The results system spans the full pipeline from test submission to long-term academic tracking. It supports multiple viewing contexts (session, student, class, aggregate) and two scoring systems (IELTS bands, THCS scaled scores).
 
+Retired source records may be unavailable after purge. Completed results remain academic records; Source Review is unavailable when source material is gone, and Answer Review must rely only on saved result snapshots. Do not migrate or infer retired source records into supported material families. See @doc/architecture/retired-features-current-state.
+
 ## Result Lifecycle
 
 ```

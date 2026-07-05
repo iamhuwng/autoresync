@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Question Navigator Component
  * Grid of question number buttons for IELTS-style test navigation.

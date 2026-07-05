@@ -19,6 +19,8 @@ tags:
 
 The session system orchestrates real-time test-taking. A teacher creates a session, students join, the timer syncs, and results are collected. Multiple modes change how the session behaves.
 
+Quiz mode is retired. New live sessions are test-mode sessions only; dedicated Quiz URLs route to the retirement notice and must not mount Quiz gameplay or read `/quizzes`. See @doc/architecture/retired-features-current-state.
+
 ## Session Modes
 
 | Mode | Description | Timer | Teacher Monitor | Auto-Submit |

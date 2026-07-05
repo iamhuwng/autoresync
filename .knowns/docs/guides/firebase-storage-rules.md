@@ -11,6 +11,8 @@ tags:
 ---
 # Firebase Storage Security Rules
 
+> Quiz-specific Firebase Storage image rules are obsolete as of 2026-07-05 because Quiz creation/runtime is retired. Current storage authority is R2 and @doc/architecture/retired-features-current-state. Historical content below is retained for audit/history only.
+
 **Feature:** Intelligent Quiz Parser - Image Upload  
 **Created:** October 30, 2025  
 **Status:** Ready for deployment

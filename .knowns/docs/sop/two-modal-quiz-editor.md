@@ -11,6 +11,8 @@ tags:
 ---
 # Two-Modal Quiz Editor Implementation
 
+> Obsolete as of 2026-07-05: Quiz editor and Quiz runtime surfaces are retired. Current authority: @doc/architecture/retired-features-current-state. Historical implementation notes below are retained for audit/history only.
+
 **Date:** October 22, 2025  
 **Type:** Implementation Guide  
 **Status:** Complete

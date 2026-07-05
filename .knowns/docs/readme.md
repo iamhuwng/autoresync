@@ -36,6 +36,7 @@ A **web-based educational platform** for English language teaching (IELTS + THCS
 1. **Test System** — IELTS Reading/Listening + THCS/THPT multi-choice tests
    - Create → Edit → Live Session → Monitor → Grade → Results
    - Solo practice + Homework modes
+   - Retired: Quiz and Reading V1 are not active creation/runtime paths. See @doc/architecture/retired-features-current-state.
    - See @doc/prd/prd-thcs-phase-1, @doc/prd/prd-thcs-phase-2, @doc/prd/prd-thcs-phase-3
 
 2. **User System** — Role-based (Admin, Teacher, Student)
@@ -46,6 +47,7 @@ A **web-based educational platform** for English language teaching (IELTS + THCS
    - See @doc/prd/prd-student-dashboard, @doc/prd/prd-academic-record
 
 4. **Audio/Media** — Listening test audio, file uploads via R2
+   - Retired: Google Drive upload/playback/import support is not active. See @doc/architecture/retired-features-current-state.
    - See @doc/prd/prd-unified-audio-architecture
 
 ## Project Structure

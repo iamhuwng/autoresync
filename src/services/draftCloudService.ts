@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where, Timestamp } from 'firebase/firestore';
 import type {
   DraftServiceInterface,

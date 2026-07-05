@@ -19,6 +19,8 @@ Canonical teacher/admin data can contain answer keys, scoring rules, import evid
 
 Repo architecture mirror: `documentation/architecture/student-test-delivery-projections.md`.
 
+Reading V1 is retired and must not be inferred from absent Reading V2 markers, `skill: Reading`, or `contentKind: ielts_reading`. Reading V2 delivery requires explicit Reading V2 markers/projections/snapshots. Unknown Reading-shaped records fail closed to unsupported routing. See @doc/architecture/retired-features-current-state.
+
 ## Legacy Reading/Listening
 
 Legacy IELTS Reading/Listening uses:

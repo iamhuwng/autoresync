@@ -23,6 +23,14 @@ export interface StudentSidebarProps {
     user?: unknown;
 }
 
+interface StudentSidebarNavItem {
+    id: StudentActivePage;
+    destination: RouteName;
+    label: string;
+    icon: React.ReactNode;
+    badge?: number | null;
+}
+
 const menuStyles = {
     container: {
         position: 'absolute' as const,
@@ -245,11 +253,11 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         return () => doc.removeEventListener('keydown', handleEscape);
     }, [menuOpen]);
 
-    const group1 = [
+    const group1: StudentSidebarNavItem[] = [
         { id: 'feed', destination: 'STUDENT_DASHBOARD', label: 'Dashboard', icon: <IconHome /> },
     ];
 
-    const group2 = [
+    const group2: StudentSidebarNavItem[] = [
         { id: 'homework', destination: 'STUDENT_HOMEWORK', label: 'Homework', icon: <IconHomework />, badge: (pendingHomeworkCount ?? 0) > 0 ? pendingHomeworkCount : null },
         { id: 'courses', destination: 'STUDENT_COURSES', label: 'Courses', icon: <IconCourses /> },
         { id: 'library', destination: 'STUDENT_LIBRARY', label: 'Library', icon: <IconLibrary /> },
@@ -300,7 +308,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
         }
     };
 
-    const renderNavButton = (item: { id: string; destination: RouteName; label: string; icon: React.ReactNode; badge?: number | null }) => {
+    const renderNavButton = (item: StudentSidebarNavItem) => {
         const isActive = activePage === item.id;
         const isHovered = hoveredNav === item.id && !isActive;
 

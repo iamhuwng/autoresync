@@ -31,6 +31,10 @@ import {
   createListeningResultReviewDeliveryIssuer,
 } from '../../features/assessment/listening/adapters/listeningResultReviewDeliveryClient';
 import { WritingSpeakingPlaceholder } from '../test/WritingSpeakingPlaceholder';
+import {
+  isSourceMaterialRemovedResult,
+  ORIGINAL_MATERIAL_REMOVED_LABEL,
+} from '../../services/resultSourceMaterialRemoval';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
@@ -138,6 +142,7 @@ function isListeningSavedResult(result: TestResultRecord): boolean {
 function getListeningResultReviewAudioRecord(
   result: TestResultRecord,
 ): ListeningResultReviewAudioRecord | null {
+  if (isSourceMaterialRemovedResult(result)) return null;
   if (!isListeningSavedResult(result)) return null;
   const record = (result as any).listeningResultReviewAudio;
   const audioUrl = optionalString(record?.audioUrl);
@@ -242,6 +247,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   const showDetailedFeedback = feedbackTiming !== 'never';
   const showQuestionReview = sections.questionReview && showDetailedFeedback;
   const isReadingV2Result = isReadingV2SavedResult(result);
+  const sourceMaterialRemoved = isSourceMaterialRemovedResult(result) && !isReadingV2Result;
   const listeningReviewAudio = useMemo(
     () => getListeningResultReviewAudioRecord(result),
     [result],
@@ -302,6 +308,23 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
       }}
     >
       {/* ── Score Summary + Answer Map + Section Breakdown (Overview) ── */}
+      {sourceMaterialRemoved && (
+        <div
+          data-testid="ssrc-source-material-removed"
+          style={{
+            padding: '0.75rem 1rem',
+            borderRadius: '0.75rem',
+            border: '1px solid #cbd5e1',
+            background: '#f8fafc',
+            color: '#475569',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+          }}
+        >
+          {ORIGINAL_MATERIAL_REMOVED_LABEL}
+        </div>
+      )}
+
       {(sections.scoreSummary || sections.answerMap || sections.sectionBreakdown) && (
         <OverviewTab
           result={result}

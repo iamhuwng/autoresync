@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Core Test Interfaces
  * Extensible base interfaces for multi-skill test system

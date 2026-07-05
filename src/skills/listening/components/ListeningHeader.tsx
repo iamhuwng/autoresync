@@ -1,8 +1,8 @@
 /**
  * ListeningHeader Component - IELTS CBT Style
  * 
- * Header designed to properly accommodate Google Drive audio embed
- * The embed is given full minimum space, and our elements adapt around it.
+ * Header designed to properly accommodate the Listening audio player.
+ * The player is given full minimum space, and our elements adapt around it.
  * 
  * Layout:
  * ┌───────────────────────────────────────────────────────────────────────┐

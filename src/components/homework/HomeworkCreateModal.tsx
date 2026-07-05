@@ -29,6 +29,7 @@ import { getClasses, getClass } from '../../services/classManager';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
 import TemplateSaveModal from './TemplateSaveModal';
 import ToastNotification from '../modern/ToastNotification';
+import { hasGoogleDriveAudio } from '../../services/retirement/retiredMaterialClassifier';
 import './HomeworkCreateModal.css';
 
 interface HomeworkCreateModalProps {
@@ -37,7 +38,7 @@ interface HomeworkCreateModalProps {
     onSuccess: () => void;
     preselectedMaterialId?: string;
     preselectedMaterial?: Material;
-    preselectedMaterialFilter?: 'all' | 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
+    preselectedMaterialFilter?: 'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     preselectedTarget?: HomeworkTarget;
     preselectedReadingPassage?: ReadingPassageHomeworkCandidate;
     preselectedReadingPassageSet?: {
@@ -165,7 +166,7 @@ export function HomeworkCreateModal({
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [materials, setMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
-    const [materialFilter, setMaterialFilter] = useState<'all' | 'quiz' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set'>('all');
+    const [materialFilter, setMaterialFilter] = useState<'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set'>('all');
 
     // Phase 3: THCS homework dialog state
     const [showThcsDialog, setShowThcsDialog] = useState(false);
@@ -314,13 +315,11 @@ export function HomeworkCreateModal({
                 return;
             }
 
-            const [tests, quizzes] = await Promise.all([
-                queryOptimizer.getAllTests(),
-                queryOptimizer.getAllQuizzes(),
-            ]);
+            const tests = await queryOptimizer.getAllTests();
 
-            const visibleMaterials = [...tests, ...quizzes]
+            const visibleMaterials = tests
                 .filter((material: any) => material.solo_enabled !== false) // Only show materials enabled for solo
+                .filter((material: any) => !hasGoogleDriveAudio(material))
                 .filter((material: any) => {
                     const isOwned = isOwnedMaterial(material, user?.uid);
                     const isPublicLibrary = material.isPublic === true && !isOwned;
@@ -642,12 +641,6 @@ export function HomeworkCreateModal({
                                         onClick={() => setMaterialFilter('all')}
                                     >
                                         All
-                                    </button>
-                                    <button
-                                        className={`filter-btn ${materialFilter === 'quiz' ? 'active' : ''}`}
-                                        onClick={() => setMaterialFilter('quiz')}
-                                    >
-                                        Quizzes
                                     </button>
                                     <button
                                         className={`filter-btn ${materialFilter === 'test' ? 'active' : ''}`}

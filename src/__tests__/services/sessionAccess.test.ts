@@ -148,6 +148,54 @@ const cleanupTestData = async () => {
   await remove(ref(database, 'classes'));
 };
 
+describe('Session Creation - Retired Quiz Contracts', () => {
+  beforeEach(async () => {
+    await cleanupTestData();
+  });
+
+  afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  it('defaults omitted mode to a Test session without Quiz compatibility writes', async () => {
+    const result = await createSession({
+      settings: {
+        allowAnonymous: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+
+    const snapshot = await get(ref(database, `game_sessions/${result.sessionCode!}`));
+    const session = snapshot.val();
+
+    expect(session.mode).toBe(SessionMode.TEST);
+    expect(session.activeTests).toEqual({});
+    expect(session).not.toHaveProperty('activeQuizzes');
+    expect(session).not.toHaveProperty('quizId');
+    expect(JSON.stringify(mockUpdate.mock.calls)).not.toContain('activeQuizzes');
+    expect(JSON.stringify(mockUpdate.mock.calls)).not.toContain('assignedQuizId');
+    expect(JSON.stringify(mockUpdate.mock.calls)).not.toContain('quizId');
+  });
+
+  it('rejects explicit retired Quiz mode before writing a session', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(createSession({
+      mode: 'quiz',
+      settings: {
+        allowAnonymous: true,
+      },
+    })).rejects.toThrow('Invalid session mode: quiz');
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockSet).not.toHaveBeenCalled();
+    expect(mockDatabaseStore.game_sessions).toBeNull();
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
 describe('Session Access Control - Guest Access', () => {
   beforeEach(async () => {
     await cleanupTestData();
@@ -159,7 +207,7 @@ describe('Session Access Control - Guest Access', () => {
 
   it('allows guests when allowAnonymous is true', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: true,
         allowLateJoin: true,
@@ -175,7 +223,7 @@ describe('Session Access Control - Guest Access', () => {
 
   it('blocks guests when allowAnonymous is false', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: false,
         allowLateJoin: true,
@@ -189,7 +237,7 @@ describe('Session Access Control - Guest Access', () => {
 
   it('defaults to allowing guests when allowAnonymous is undefined', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowLateJoin: true,
       },
@@ -201,7 +249,7 @@ describe('Session Access Control - Guest Access', () => {
 
   it('still blocks guests for expired sessions', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: true,
       },
@@ -272,7 +320,7 @@ describe('Session Access Control - Access Control Settings', () => {
 
   it('persists public access control settings', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         accessControl: 'public',
         allowAnonymous: true,
@@ -314,7 +362,7 @@ describe('Session Access Control - Late Join with Guest Access', () => {
 
   it('blocks guest late join when allowLateJoin is false', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: true,
         allowLateJoin: false,
@@ -337,7 +385,7 @@ describe('Session Access Control - Late Join with Guest Access', () => {
 
   it('allows guest late join when both toggles are true', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: true,
         allowLateJoin: true,
@@ -390,7 +438,7 @@ describe('Session Access Control - Combined Scenarios', () => {
 
   it('handles an open session', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         accessControl: 'public',
         allowAnonymous: true,
@@ -431,7 +479,7 @@ describe('Session Access Control - Error Messages', () => {
 
   it('returns a clear message for guest blocks', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: false,
       },
@@ -452,7 +500,7 @@ describe('Session Access Control - Error Messages', () => {
 
   it('returns expired for expired sessions', async () => {
     const result = await createSession({
-      mode: SessionMode.QUIZ,
+      mode: SessionMode.TEST,
       settings: {
         allowAnonymous: true,
       },

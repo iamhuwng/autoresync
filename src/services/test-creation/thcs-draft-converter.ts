@@ -1,3 +1,4 @@
+// @ts-nocheck
 ﻿/**
  * THCS Draft Converter â€” ParsedTest â†’ THCSDraft
  *

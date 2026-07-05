@@ -150,6 +150,12 @@ export interface EnhancedTestResultRecord {
     testSkill: string;
     testDuration: number;
 
+    /**
+     * True when retained answer review must not reload retired source material.
+     * Missing means legacy/unknown, not source-present.
+     */
+    sourceMaterialRemoved?: boolean;
+
     // Question details
     questionResults: QuestionResult[];
 

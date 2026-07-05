@@ -10,6 +10,8 @@ All active user-facing file uploads use Cloudflare R2.
 
 Google Drive is obsolete across all product features. It is not an approved upload, import, streaming, playback, validation, or compatibility path.
 
+Retired-feature authority: `documentation/architecture/retired-features-current-state.md`.
+
 Required product truth:
 
 ```text

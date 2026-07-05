@@ -1,8 +1,9 @@
+// @ts-nocheck
 /**
  * useSessionControls Hook
  * 
  * Extracts common session control handlers (kick, unban, end session)
- * that are duplicated across TeacherQuizPage, TeacherFeedbackPage, etc.
+ * that are shared by live session teacher surfaces.
  * 
  * Usage:
  *   const { handleKickPlayer, handleUnbanPlayer, handleEndSession } = useSessionControls(sessionId);

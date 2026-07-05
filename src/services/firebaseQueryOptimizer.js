@@ -274,31 +274,7 @@ class FirebaseQueryOptimizer {
     return allSessions;
   }
 
-  /**
-   * Optimized quiz fetch with caching
-   * @param {string} quizId - Quiz ID
-   * @param {boolean} skipCache - Force fresh fetch
-   * @returns {Promise<Object>} Quiz data
-   */
-  async getQuiz(quizId, skipCache = false) {
-    if (!skipCache) {
-      const cached = dataCache.get(CacheTypes.QUIZ, quizId);
-      if (cached) return cached;
-    }
-
-    const quizRef = ref(database, `quizzes/${quizId}`);
-    const snapshot = await get(quizRef);
-    const data = snapshot.val();
-
-    if (data) {
-      // Cache quizzes for 1 minute (they change less frequently)
-      dataCache.set(CacheTypes.QUIZ, quizId, data, CacheTTL.LONG);
-    }
-
-    return data;
-  }
-
-  /**
+    /**
    * Optimized test fetch with caching
    * @param {string} testId - Test ID
    * @param {boolean} skipCache - Force fresh fetch
@@ -322,42 +298,7 @@ class FirebaseQueryOptimizer {
     return data;
   }
 
-  /**
-   * Batch fetch all quizzes with caching
-   * @param {boolean} skipCache - Force fresh fetch
-   * @returns {Promise<Array>} Array of quizzes
-   */
-  async getAllQuizzes(skipCache = false) {
-    const cacheKey = 'all';
-
-    if (!skipCache) {
-      const cached = dataCache.get(CacheTypes.QUIZ, cacheKey);
-      if (cached) {
-        console.log(`📦 [QueryOptimizer] All quizzes from cache (${cached.length} items)`);
-        return cached;
-      }
-    }
-
-    console.log(`🚀 [QueryOptimizer] Fetching all quizzes from Firebase`);
-    const quizzesRef = ref(database, 'quizzes');
-    const snapshot = await get(quizzesRef);
-    const data = snapshot.val();
-
-    const quizList = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-
-    // Cache for 30 seconds
-    dataCache.set(CacheTypes.QUIZ, cacheKey, quizList, CacheTTL.MEDIUM);
-
-    // Also cache individual quizzes
-    quizList.forEach(quiz => {
-      dataCache.set(CacheTypes.QUIZ, quiz.id, quiz, CacheTTL.LONG);
-    });
-
-    console.log(`✅ [QueryOptimizer] Fetched ${quizList.length} quizzes`);
-    return quizList;
-  }
-
-  /**
+    /**
    * Batch fetch all tests with caching
    * @param {boolean} skipCache - Force fresh fetch
    * @returns {Promise<Array>} Array of tests
@@ -627,8 +568,6 @@ class FirebaseQueryOptimizer {
     const fetchPromises = ids.map(async (id) => {
       if (type === CacheTypes.SESSION) {
         return this.getSession(id);
-      } else if (type === CacheTypes.QUIZ) {
-        return this.getQuiz(id);
       } else if (type === CacheTypes.TEST) {
         return this.getTest(id);
       }

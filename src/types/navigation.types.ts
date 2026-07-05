@@ -10,11 +10,9 @@ export type NavigationState =
   | 'login'
   | 'waiting_room'
   | 'in_test'
-  | 'in_quiz'
   | 'viewing_results'
   | 'teacher_lobby'
-  | 'monitoring_test'
-  | 'monitoring_quiz';
+  | 'monitoring_test';
 
 /**
  * User roles for role-based navigation
@@ -34,7 +32,6 @@ export interface NavigationContext {
   sessionCode?: string;
   gameSessionId?: string;
   testId?: string;
-  quizId?: string;
   role: UserRole;
   isNavigating: boolean;
   lastNavigation?: NavigationRecord;
@@ -95,7 +92,6 @@ export interface SessionChangeEvent {
   status: SessionStatus;
   sessionCode?: string;
   testId?: string | null;
-  quizId?: string | null;
 }
 
 /**

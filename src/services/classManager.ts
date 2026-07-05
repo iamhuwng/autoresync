@@ -23,7 +23,6 @@ import type {
   ClassStatistics,
   ClassStatus,
   TestAssignmentStatus,
-  StudentTestStatus,
 } from '../types/class.types';
 
 // ============================================================================
@@ -572,6 +571,10 @@ export async function deleteClass(classId: string): Promise<boolean> {
  */
 export async function assignTestToClass(request: AssignTestRequest): Promise<{ success: boolean; assignmentId?: string; error?: string }> {
   try {
+    if ((request as { testType?: string }).testType !== 'test') {
+      throw new Error('Retired Quiz assignments are not supported');
+    }
+
     const assignmentId = generateId();
     const now = Date.now();
 
@@ -616,7 +619,7 @@ export async function assignTestToClass(request: AssignTestRequest): Promise<{ s
     // Update legacy session with testId for backward compatibility
     const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${request.classId}`);
     await update(legacyRef, {
-      [request.testType === 'quiz' ? 'quizId' : 'testId']: request.testId,
+      testId: request.testId,
     });
 
     return { success: true, assignmentId };

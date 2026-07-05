@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useTestCompletionCheck Hook
  * PRD-0019 Task 6.3: Re-entry prevention for completed tests

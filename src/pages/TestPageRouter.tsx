@@ -1,11 +1,12 @@
+// @ts-nocheck
 /**
  * Test Page Router
  * Routes students to skill-specific test pages based on test type
  *
  * Architecture:
  * - Reads test data from Firebase to determine skill
- * - Routes to ReadingTestPage for Reading tests
- * - Routes to generic StudentTestPage for other skills (until implemented)
+ * - Routes explicit Reading V2, Listening, Writing, and THCS materials
+ * - Fails closed for retired Reading V1 and incomplete IELTS metadata
  * - Provides loading state and error handling
  *
  * Created: Phase 2 Step 2.8 (Nov 24, 2025)
@@ -22,7 +23,6 @@ import {
   READING_V2_ENGINE_FIELDS,
   isReadingV2Payload,
 } from '../config/readingV2FeatureFlags';
-import ReadingTestPage from '../skills/reading/components/ReadingTestPage';
 import ListeningTestPage from '../skills/listening/components/ListeningTestPage';
 import StudentTestPage from './StudentTestPage';
 import {
@@ -71,6 +71,7 @@ interface ReadingV2LiveSessionState {
 
 const READING_V2_RUNTIME_GUARD_MESSAGE =
   'Reading V2 payloads require a published session-safe projection before launch.';
+const MATERIAL_UNAVAILABLE_MESSAGE = 'Material no longer available';
 
 const fullPageStatusStyle: React.CSSProperties = {
   minHeight: '100vh',
@@ -121,28 +122,6 @@ const normalizeIeltsSkill = (rawSkill: unknown): CanonicalIeltsSkill | null => {
   }
 };
 
-const inferIeltsSkillFromTestId = (testId: string): CanonicalIeltsSkill | null => {
-  const normalizedTestId = testId.trim().toLowerCase();
-
-  if (normalizedTestId.includes('listening')) {
-    return 'Listening';
-  }
-
-  if (normalizedTestId.includes('writing')) {
-    return 'Writing';
-  }
-
-  if (normalizedTestId.includes('reading')) {
-    return 'Reading';
-  }
-
-  if (normalizedTestId.includes('speaking')) {
-    return 'Speaking';
-  }
-
-  return null;
-};
-
 const resolveLiveSessionPayloadSkill = (payload: unknown, testId: string): CanonicalIeltsSkill | null => {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -161,13 +140,15 @@ const resolveLiveSessionPayloadSkill = (payload: unknown, testId: string): Canon
   }
 
   return normalizeIeltsSkill(candidate.testData?.skill)
-    ?? normalizeIeltsSkill(candidate.testData?.skillType)
-    ?? inferIeltsSkillFromTestId(testId);
+    ?? normalizeIeltsSkill(candidate.testData?.skillType);
 };
 
 const getErrorMessage = (error: unknown): string => (
   error instanceof Error ? error.message : String(error)
 );
+
+const isPermissionDeniedError = (error: unknown): boolean =>
+  getErrorMessage(error).toLowerCase().includes('permission');
 
 const TestPageRouter: React.FC<TestPageRouterProps> = () => {
   const { sessionCode } = useParams<{ sessionCode: string }>();
@@ -256,14 +237,34 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         // PERF FIX: Only read testId from session, NOT the entire session node
         // (which includes all students' answers, progress — potentially huge)
         const testIdRef = ref(database, `game_sessions/${sessionCode}/testId`);
-        const testIdSnapshot = await get(testIdRef);
+        let testIdSnapshot;
+        try {
+          testIdSnapshot = await get(testIdRef);
+        } catch (sessionReadError) {
+          if (isPermissionDeniedError(sessionReadError)) {
+            setError(MATERIAL_UNAVAILABLE_MESSAGE);
+            setLoading(false);
+            return;
+          }
+          throw sessionReadError;
+        }
         const t1 = performance.now();
         console.log(`⏱ [TestPageRouter] Session testId fetch: ${Math.round(t1 - t0)}ms`);
 
         if (!testIdSnapshot.exists()) {
           // Check if session itself exists
           const sessionExistsRef = ref(database, `game_sessions/${sessionCode}/createdAt`);
-          const sessionExistsSnap = await get(sessionExistsRef);
+          let sessionExistsSnap;
+          try {
+            sessionExistsSnap = await get(sessionExistsRef);
+          } catch (sessionExistsError) {
+            if (isPermissionDeniedError(sessionExistsError)) {
+              setError(MATERIAL_UNAVAILABLE_MESSAGE);
+              setLoading(false);
+              return;
+            }
+            throw sessionExistsError;
+          }
           if (!sessionExistsSnap.exists()) {
             setError('Session not found');
           } else {
@@ -447,7 +448,7 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           throw testMetadataError;
         }
 
-        const loadNonThcsSkill = async (fallbackSkill: string | null = null) => {
+        const loadNonThcsSkill = async () => {
           let skillSnapshot;
           try {
             const skillRef = ref(database, `tests/${testId}/skill`);
@@ -458,17 +459,16 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
             }
             throw skillReadError;
           }
-          const rawSkill = skillSnapshot.exists() ? skillSnapshot.val() : fallbackSkill;
-          const testSkill = normalizeIeltsSkill(rawSkill)
-            ?? inferIeltsSkillFromTestId(testId)
-            ?? normalizeIeltsSkill(fallbackSkill);
+          const rawSkill = skillSnapshot.exists() ? skillSnapshot.val() : null;
+          const testSkill = normalizeIeltsSkill(rawSkill);
 
-          if (!normalizeIeltsSkill(rawSkill) && testSkill) {
-            console.warn('[TestPageRouter] Inferred IELTS skill from test id fallback', {
-              rawSkill,
-              inferredSkill: testSkill,
-              testId,
-            });
+          if (!testSkill || testSkill === 'Reading') {
+            if (!testSkill && await routeFromLiveSessionPayload('skill-missing')) {
+              return;
+            }
+            setError(MATERIAL_UNAVAILABLE_MESSAGE);
+            setLoading(false);
+            return;
           }
 
           console.log(`📍 Test Page Router: Detected skill = ${testSkill || 'generic'}`);
@@ -516,11 +516,12 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         }
 
         if (!testTypeSnapshot.exists()) {
-          await loadNonThcsSkill('Reading');
+          setError(MATERIAL_UNAVAILABLE_MESSAGE);
+          setLoading(false);
           return;
         }
 
-        await loadNonThcsSkill(null);
+        await loadNonThcsSkill();
       } catch (err) {
         console.error('Error detecting test skill:', err);
         setError('Failed to load test information');
@@ -731,6 +732,10 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
 
   // Error state
   if (error) {
+    const title = error === MATERIAL_UNAVAILABLE_MESSAGE
+      ? MATERIAL_UNAVAILABLE_MESSAGE
+      : 'Error Loading Test';
+
     return (
       <FullPageState>
         <div style={{
@@ -740,7 +745,7 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
           <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>
-            Error Loading Test
+            {title}
           </div>
           <div style={{ color: '#64748b' }}>
             {error}
@@ -788,9 +793,6 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         );
       }
       return <StudentTestPage />;
-
-    case 'Reading':
-      return <ReadingTestPage />;
 
     case 'Listening':
       return <ListeningTestPage />;

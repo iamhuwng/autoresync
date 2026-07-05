@@ -64,11 +64,10 @@ const AdminDashboardPage: React.FC = () => {
     useEffect(() => {
         const loadStats = async () => {
             try {
-                const [users, courses, classes, quizzes, tests] = await Promise.all([
+                const [users, courses, classes, tests] = await Promise.all([
                     getAllUsers().catch(() => []),
                     getAllCourses().catch(() => []),
                     getClasses().catch(() => []),
-                    firebaseQueryOptimizer.getAllQuizzes().catch(() => []),
                     firebaseQueryOptimizer.getAllTests().catch(() => [])
                 ]);
 
@@ -76,7 +75,7 @@ const AdminDashboardPage: React.FC = () => {
                     totalUsers: users.length,
                     totalCourses: courses.length,
                     totalClasses: classes.length,
-                    totalMaterials: quizzes.length + tests.length,
+                    totalMaterials: tests.length,
                     loading: false
                 });
             } catch (error) {
@@ -119,7 +118,7 @@ const AdminDashboardPage: React.FC = () => {
         {
             id: 'materials',
             title: 'Materials',
-            description: 'Create and manage tests & quizzes',
+            description: 'Create and manage tests',
             icon: <IconFileText size={32} />,
             route: 'ADMIN_MATERIALS',
             color: '#6366f1',

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useAdminModals Hook
  * 

@@ -130,9 +130,10 @@ Task 1's canonical classifier exists and passes tests.
    - Do not copy the field loop or create a second Reading V2 discriminator.
    - If marker support changes, update the canonical helper and its tests first.
 
-2. `isReadingV1Material(value)`
-   - Require normalized IELTS/Reading material identity.
-   - Require `isReadingV2Material(value) === false`.
+2. `isReadingV1Material(value, context)`
+   - Require the product-owner-approved positive legacy schema signature discovered by Task 0 inventory.
+   - Require exact root/context plus explicit legacy fields; neither `skill: Reading`, `contentKind: ielts_reading`, nor absence of a Reading V2 marker is positive evidence.
+   - Also require `isReadingV2Material(value) === false`.
    - Never classify THCS reading sections or Reading V2 metadata as Reading V1.
 
 3. `isQuizMaterial(value)`
@@ -150,7 +151,7 @@ Task 1's canonical classifier exists and passes tests.
 **Tests:**
 
 - Reading V2 with `deliveryEngine: reading-v2` is never retired.
-- Reading V1 with `skill: Reading` and no V2 marker is retired.
+- `skill: Reading` or `contentKind: ielts_reading` alone remains `unknown`/blocked; Reading V1 retirement requires the approved positive legacy schema signature from Task 0 inventory.
 - THCS `reading-comprehension` is never retired.
 - Listening with R2 audio is never retired.
 - Each supported Drive URL variant is retired.
@@ -605,10 +606,12 @@ Use exact-path staging only after review. Verify staged paths before commit.
 
 Suggested commits:
 
-1. `chore(sessions): add active-session closure script`
-2. `refactor: retire drive reading-v1 and quiz`
-3. `chore: add retired-material purge tooling`
-4. `docs: mark retired features obsolete`
+1. Existing `ca95aacb chore(sessions): add active-session closure script`
+2. `refactor(retirement): block retired entry points`
+3. `refactor(retirement): remove legacy runtimes`
+4. `feat(results): preserve removed-source review`
+5. `chore(retirement): add purge tooling`
+6. `docs(retirement): mark features obsolete`
 
 Commit, push, PR, deploy, and remote purge remain separate approvals.
 
@@ -618,10 +621,13 @@ Commit, push, PR, deploy, and remote purge remain separate approvals.
 
 These steps do not occur automatically during implementation.
 
-### Gate A: Prevent new retired data
+### Gate A: Main integration and prevention deployment
 
-- Merge/deploy feature-removal UI/runtime first.
-- Verify creation and session selectors expose only supported materials.
+- After explicit approval, inspect source branch `HEAD`, upstream, dirty state, included/excluded paths, commits, diff, and test summary.
+- Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval.
+- Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
+- Deploy the exact merged feature-removal commit and verify deployed revision/readback.
+- Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
 
 ### Gate B: Close sessions and inspect purge
 
@@ -648,10 +654,8 @@ Run full readback and retain only the manifest/proof required for audit; do not 
 - Deploy cleaned Firebase rules only after purge readback passes.
 - Verify `/quizzes` denial and supported feature access against deployed state.
 
-### Gate E: Main integration
+### Gate E: Local main refresh and worktree cleanup
 
-- Follow feature merge/main refresh safety rules.
-- Prefer PR.
-- Direct push to `main` requires explicit approval plus diff, commit, and test summary.
-- Fast-forward local `main` only after remote merge.
-- Remove worktree only after reachability, cleanliness, and user approval.
+- Fetch and fast-forward local `main` after remote merge; prove local `main == origin/main`.
+- Prove every feature commit is reachable from `origin/main` and the feature worktree is clean.
+- Remove the feature worktree only after reachability, cleanliness, and explicit user approval.

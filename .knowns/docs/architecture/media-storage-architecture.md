@@ -18,6 +18,8 @@ tags:
 
 The application uses Cloudflare R2 for file storage, accessed via Cloudflare Workers as a proxy. A two-path strategy separates temporary uploads (auto-deleted after 24hr) from permanent storage.
 
+Google Drive is retired and is not an active upload, import, playback, streaming, validation, OAuth, or compatibility path. See @doc/architecture/retired-features-current-state.
+
 ## Architecture
 
 ```

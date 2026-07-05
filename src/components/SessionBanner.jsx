@@ -2,14 +2,17 @@ import React from 'react';
 import { Card, CardBody, Button } from './modern';
 import './SessionBanner.css';
 
-const SessionBanner = ({ sessionCode, sessionData, onBackToSessions, onReturnToMonitor, onReturnToQuiz }) => {
+const SessionBanner = ({ sessionCode, sessionData, onBackToSessions, onReturnToMonitor }) => {
   if (!sessionCode) return null;
 
-  const isTest = sessionData?.mode === 'test';
+  const hasReadyTest =
+    sessionData?.mode === 'test' &&
+    sessionData?.testId &&
+    sessionData.testId !== 'pending';
+  const hasActiveTest = sessionData?.status === 'in-progress' || hasReadyTest;
 
   return (
     <>
-      {/* Session Code Banner */}
       <Card
         variant="lavender"
         style={{
@@ -29,20 +32,20 @@ const SessionBanner = ({ sessionCode, sessionData, onBackToSessions, onReturnToM
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div className="session-banner__code">{sessionCode}</div>
-                  <div className={`session-banner__mode-badge ${isTest ? 'session-banner__mode-badge--test' : 'session-banner__mode-badge--quiz'}`}>
-                    {isTest ? '📝 Test' : '🎮 Quiz'}
+                  <div className="session-banner__mode-badge session-banner__mode-badge--test">
+                    📝 Test
                   </div>
                 </div>
                 <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.5rem' }}>
                   Share this code with students to join the session
                 </div>
-                {(sessionData?.quizId === 'pending' || sessionData?.testId === 'pending') && (
+                {sessionData?.testId === 'pending' && (
                   <div style={{
                     fontSize: '0.875rem', color: '#f59e0b', marginTop: '0.5rem',
                     fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem'
                   }}>
                     <span>⚠️</span>
-                    <span>Select a quiz or test below to start</span>
+                    <span>Select a test below to start</span>
                   </div>
                 )}
               </div>
@@ -62,23 +65,14 @@ const SessionBanner = ({ sessionCode, sessionData, onBackToSessions, onReturnToM
         </CardBody>
       </Card>
 
-      {/* Active Session Alert */}
-      {sessionData && (
-        sessionData.status === 'in-progress' ||
-        (sessionData.mode === 'test' && sessionData.testId && sessionData.testId !== 'pending') ||
-        (sessionData.mode === 'quiz' && sessionData.quizId && sessionData.quizId !== 'pending')
-      ) && (
+      {sessionData && hasActiveTest && (
         <Card
           variant="glass"
           style={{
             marginBottom: '2rem',
             animation: 'slideUp 0.5s ease-out 0.1s backwards',
-            background: isTest
-              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)'
-              : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
-            border: isTest
-              ? '2px solid rgba(16, 185, 129, 0.3)'
-              : '2px solid rgba(139, 92, 246, 0.3)'
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)',
+            border: '2px solid rgba(16, 185, 129, 0.3)'
           }}
         >
           <CardBody>
@@ -93,43 +87,29 @@ const SessionBanner = ({ sessionCode, sessionData, onBackToSessions, onReturnToM
                   <div
                     className="session-banner__pulse"
                     style={{
-                      background: isTest ? '#10b981' : '#8b5cf6',
-                      boxShadow: `0 0 0 4px ${isTest ? 'rgba(16, 185, 129, 0.2)' : 'rgba(139, 92, 246, 0.2)'}`,
+                      background: '#10b981',
+                      boxShadow: '0 0 0 4px rgba(16, 185, 129, 0.2)',
                     }}
                   />
                   <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1e293b', margin: 0 }}>
-                    {sessionData.status === 'in-progress'
-                      ? `${isTest ? '📝 Test' : '🎮 Quiz'} in Progress`
-                      : `${isTest ? '📝 Test' : '🎮 Quiz'} Ready`
-                    }
+                    {sessionData.status === 'in-progress' ? '📝 Test in Progress' : '📝 Test Ready'}
                   </h3>
                 </div>
                 <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
                   {sessionData.status === 'in-progress'
-                    ? (isTest
-                      ? 'Students are currently taking the test. Click below to return to the monitoring dashboard.'
-                      : 'The quiz session is currently active. Click below to return and continue.')
-                    : (isTest
-                      ? 'Test is selected and ready to start. Click below to return to the monitor page.'
-                      : 'Quiz is selected and ready to start. Click below to return to the quiz page.')
-                  }
+                    ? 'Students are currently taking the test. Click below to return to the monitoring dashboard.'
+                    : 'Test is selected and ready to start. Click below to return to the monitor page.'}
                 </p>
               </div>
               <Button
                 variant="primary"
                 size="lg"
-                onClick={() => {
-                  if (isTest) {
-                    onReturnToMonitor(sessionCode);
-                  } else {
-                    onReturnToQuiz(sessionCode);
-                  }
-                }}
+                onClick={() => onReturnToMonitor(sessionCode)}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 </svg>
-                {sessionData.status === 'in-progress' ? 'Return to' : 'Go to'} {isTest ? 'Monitor' : 'Quiz'}
+                {sessionData.status === 'in-progress' ? 'Return to' : 'Go to'} Monitor
               </Button>
             </div>
           </CardBody>

@@ -16,6 +16,8 @@ This pack does not re-specify session orchestration, grading internals, or unrel
 
 For the Writing domain specifically, use the dedicated packet at `../ielts-writing/README.md`.
 
+For retired Google Drive, Reading V1, and Quiz source behavior, use `../retired-features-current-state.md`. Saved-result shells may show retained answer-review data, but must not re-enable retired source review/runtime paths.
+
 ## Reading Order
 
 1. `surface-map.md`

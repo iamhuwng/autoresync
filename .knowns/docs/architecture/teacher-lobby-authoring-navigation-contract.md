@@ -33,6 +33,7 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 - Teacher Lobby `Create New Test` opens `TestCreationModal`; it must not route to a separate creation page before test-family/skill selection.
 - THCS-THPT creation stays inside the shared creation modal shell; do not add a second THCS-only lobby modal.
 - Reading V2 uses the same modal entry and forwards metadata/start mode into Studio.
+- Reading V1 and Quiz are retired and must not appear as active teacher creation/runtime choices. See @doc/architecture/retired-features-current-state.
 - Successful non-revision Reading V2 publish returns the teacher to the Lobby/Materials context; do not leave the same Studio shell open as if live published content were still being edited there.
 - `SearchFilterBar` search input uses the shared SVG `SearchIcon`; do not use emoji-only input icons.
 - Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.

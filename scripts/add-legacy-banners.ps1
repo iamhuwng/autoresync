@@ -3,13 +3,9 @@ $files = @(
     'src/pages/StudentClassDetailPage.jsx',
     'src/pages/StudentCoursesPage.tsx',
     'src/pages/StudentCourseDetailPage.tsx',
-    'src/pages/StudentFeedbackPage.jsx',
     'src/pages/StudentHomeworkDetailPage.tsx',
     'src/pages/StudentHomeworkListPage.tsx',
     'src/pages/StudentLibraryPage.tsx',
-    'src/pages/StudentQuizPage.jsx',
-    'src/pages/StudentQuizPageNew.jsx',
-    'src/pages/StudentResultsPage.jsx',
     'src/pages/StudentResultsHistoryPage.tsx',
     'src/pages/StudentWaitingRoomPage.jsx',
     'src/components/profile/ProfilePage.tsx'

@@ -149,6 +149,14 @@ export function useMonitorSession(sessionCode: string | undefined): MonitorSessi
       }
 
       setLoading(false);
+    }, (listenerError) => {
+      console.warn('⚠️ [Monitor] Session unavailable:', listenerError);
+      setSession(null);
+      setStudents([]);
+      setTestData(null);
+      setFullTestData(null);
+      setError('Session not found or no longer available');
+      setLoading(false);
     });
 
     return () => {

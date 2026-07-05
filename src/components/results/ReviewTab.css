@@ -132,6 +132,16 @@
   color: #059669;
 }
 
+.rv-source-material-removed {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* Answer blocks */
 .rv-answer-grid {
   display: grid;

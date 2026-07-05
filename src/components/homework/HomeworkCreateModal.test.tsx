@@ -5,7 +5,6 @@ import { HomeworkCreateModal } from './HomeworkCreateModal';
 import { createHomework } from '../../services/homeworkManager';
 
 const mockGetAllTests = vi.fn();
-const mockGetAllQuizzes = vi.fn();
 const mockGetClasses = vi.fn();
 const mockGetClass = vi.fn();
 
@@ -36,7 +35,6 @@ vi.mock('../../services/homeworkTemplateService', () => ({
 vi.mock('../../services/firebaseQueryOptimizer', () => ({
     default: {
         getAllTests: () => mockGetAllTests(),
-        getAllQuizzes: () => mockGetAllQuizzes(),
     },
 }));
 
@@ -107,7 +105,6 @@ describe('HomeworkCreateModal', () => {
                 questions: [{ id: 'q1' }],
             },
         ]);
-        mockGetAllQuizzes.mockResolvedValue([]);
     });
 
     it('includes public library materials from other teachers in the material list', async () => {
@@ -160,7 +157,6 @@ describe('HomeworkCreateModal', () => {
         );
 
         expect(mockGetAllTests).not.toHaveBeenCalled();
-        expect(mockGetAllQuizzes).not.toHaveBeenCalled();
         await waitFor(() => {
             expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
         });
@@ -263,7 +259,6 @@ describe('HomeworkCreateModal', () => {
         );
 
         expect(mockGetAllTests).not.toHaveBeenCalled();
-        expect(mockGetAllQuizzes).not.toHaveBeenCalled();
         await waitFor(() => {
             expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
         });

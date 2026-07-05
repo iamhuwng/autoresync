@@ -1,5 +1,7 @@
 # Quiz Editor Enhancements - October 23, 2025
 
+> **Obsolete as of 2026-07-05:** Quiz editor and Quiz runtime surfaces are retired. Current authority: [Retired Features Current State](../architecture/retired-features-current-state.md). Historical implementation notes below are retained for audit/history only.
+
 **Date:** October 23, 2025  
 **Type:** Implementation Guide  
 **Status:** Complete  

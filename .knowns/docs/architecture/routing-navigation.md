@@ -17,6 +17,8 @@ tags:
 
 React Router v6 with role-based navigation. Routes are defined in `routes.ts`, protected by `PrivateRoute` with RBAC, navigated via `useNavigation` hook, and use a breadcrumb hierarchy config.
 
+Dedicated Quiz routes are retained only as retirement-notice routes. They must not mount Quiz gameplay, editor, result, or source review surfaces, and must not read `/quizzes`. See @doc/architecture/retired-features-current-state.
+
 ## Route Structure
 
 ```

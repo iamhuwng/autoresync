@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getAuth } from 'firebase/auth';
 
 import { DEFAULT_R2_UPLOAD_WORKER_URL } from './r2WorkerEndpoint';

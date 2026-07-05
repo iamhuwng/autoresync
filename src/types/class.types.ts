@@ -58,12 +58,12 @@ export type StudentTestStatus =
 export interface TestAssignment {
   /** Unique ID for this assignment */
   id: string;
-  /** Reference to the test/quiz content */
+  /** Reference to the test content */
   testId: string;
   /** Test title (denormalized for quick display) */
   testTitle: string;
   /** Type of content */
-  testType: 'quiz' | 'test';
+  testType: 'test';
   /** Assignment status */
   status: TestAssignmentStatus;
 
@@ -257,7 +257,7 @@ export interface CreateClassRequest {
   settings?: Partial<ClassSession['settings']>;
   /** Optional initial test to assign */
   initialTestId?: string;
-  initialTestType?: 'quiz' | 'test';
+  initialTestType?: 'test';
 }
 
 /**
@@ -266,7 +266,7 @@ export interface CreateClassRequest {
 export interface AssignTestRequest {
   classId: string;
   testId: string;
-  testType: 'quiz' | 'test';
+  testType: 'test';
   testTitle: string;
 
   /** Optional scheduling */
@@ -339,8 +339,7 @@ export interface LegacySessionFields {
   sessionCode?: string;
   /** Old: players -> New: students */
   players?: Record<string, any>;
-  /** Old: quizId/testId -> New: assignments[0].testId */
-  quizId?: string;
+  /** Old: testId -> New: assignments[0].testId */
   testId?: string;
   /** Old: status values -> New: ClassStatus */
   status?: string;

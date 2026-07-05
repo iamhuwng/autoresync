@@ -70,7 +70,6 @@ const mocks = vi.hoisted(() => ({
   uploadListeningAuthoringAudio: vi.fn(),
   cancelListeningAuthoringUpload: vi.fn(),
   probeListeningAuthoringAudio: vi.fn(),
-  validateAudioLink: vi.fn(),
   trackAction: vi.fn(),
   toast: {
     success: vi.fn(),
@@ -162,12 +161,6 @@ vi.mock('../../../features/assessment/listening/authoring/listeningAuthoringWork
       probeListeningAuthoringAudio: mocks.probeListeningAuthoringAudio,
     },
   }));
-
-vi.mock('../../../services/googleDriveAudio', () => ({
-  googleDriveAudioService: {
-    validateAudioLink: mocks.validateAudioLink,
-  },
-}));
 
 vi.mock('../../../services/parser/listening.router', () => ({
   listeningRouter: {
@@ -313,7 +306,6 @@ describe('ListeningTestBuilder', () => {
     expect(mocks.parseListening).not.toHaveBeenCalled();
     expect(mocks.parseAnswerKey).not.toHaveBeenCalled();
     expect(mocks.saveListeningTestToFirebase).not.toHaveBeenCalled();
-    expect(mocks.validateAudioLink).not.toHaveBeenCalled();
     expect(mocks.uploadAudioReplacement).not.toHaveBeenCalled();
   });
 

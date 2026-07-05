@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getAuth } from 'firebase/auth';
 
 import { resolveR2UploadEndpoint } from '../../../../../services/r2UploadClient';

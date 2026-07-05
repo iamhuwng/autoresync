@@ -24,8 +24,7 @@ const localStyles = {
   successBtn: { background: '#4c5458', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
   disabledBtn: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
   liveSessionCard: { background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12, padding: '16px 24px', marginBottom: 16 },
-  testTag: { background: studentTokens.accentSoft, color: studentTokens.accentHover, padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' },
-  quizTag: { background: '#edf5f9', color: '#4c5458', padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' }
+  testTag: { background: studentTokens.accentSoft, color: studentTokens.accentHover, padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' }
 };
 
 const getResolvedAssignmentResult = (assignment, progress, results) => {
@@ -169,6 +168,13 @@ const StudentClassDetailPage = () => {
   };
 
   const handleStartTest = (assignment) => {
+    if (assignment.testType === 'quiz') {
+      navigate(buildRoute('STUDENT_QUIZ', { gameSessionId: assignment.testId }), {
+        state: { classId, assignmentId: assignment.id }
+      });
+      return;
+    }
+
     if (user) {
       sessionService.setPlayerData(
         user.uid,
@@ -177,15 +183,9 @@ const StudentClassDetailPage = () => {
       );
     }
 
-    if (assignment.testType === 'quiz') {
-      navigate(buildRoute('STUDENT_QUIZ', { gameSessionId: assignment.testId }), {
-        state: { classId, assignmentId: assignment.id }
-      });
-    } else {
-      navigate(buildRoute('STUDENT_TEST', { sessionCode: assignment.testId }), {
-        state: { classId, assignmentId: assignment.id }
-      });
-    }
+    navigate(buildRoute('STUDENT_TEST', { sessionCode: assignment.testId }), {
+      state: { classId, assignmentId: assignment.id }
+    });
   };
 
   const patchAssignmentResultId = (assignmentId, resultId) => {
@@ -439,8 +439,8 @@ const StudentClassDetailPage = () => {
             {activeSessions.map((session) => (
               <div key={session.code} style={localStyles.liveSessionCard}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={session.mode === 'test' ? localStyles.testTag : localStyles.quizTag}>
-                    {session.mode === 'test' ? 'Test' : 'Quiz'}
+                  <span style={localStyles.testTag}>
+                    Test
                   </span>
                   <span style={{ fontFamily: 'monospace', fontWeight: 700, color: studentTokens.textPrimary, fontSize: '0.875rem' }}>
                     Code: {session.code}

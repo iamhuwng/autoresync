@@ -38,7 +38,6 @@ interface SessionData {
     sessionCode: string;
     mode: string;
     status: string;
-    quizId?: string;
     testId?: string;
     createdAt: number;
     expiresAt: number;
@@ -277,7 +276,7 @@ const AdminSessionsPage: React.FC = () => {
                             Session Management
                         </h1>
                         <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
-                            Monitor and manage all active quiz and test sessions
+                            Monitor and manage all active test sessions
                         </p>
                     </div>
                     <Group>
@@ -341,7 +340,7 @@ const AdminSessionsPage: React.FC = () => {
                                             {session.mode === SessionMode.TEST ? '📝' : '🎮'} {session.sessionCode}
                                         </Text>
                                         <Text size="xs" c="dimmed" tt="uppercase">
-                                            {session.mode === SessionMode.TEST ? 'Test Mode' : 'Quiz Mode'}
+                                            Test Mode
                                         </Text>
                                     </div>
                                     <Badge color={getStatusColor(session.status)} size="sm">
