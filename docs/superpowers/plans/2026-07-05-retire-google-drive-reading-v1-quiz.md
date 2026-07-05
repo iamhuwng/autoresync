@@ -76,6 +76,45 @@ Do not edit, stage, commit, or claim this file.
 
 ---
 
+## Task 0: Inventory Code Ownership and Stored Schema
+
+Complete this read-only inventory before changing runtime behavior.
+
+**Map exact code ownership:**
+
+- Google Drive upload, validation, playback, fallback, OAuth, environment, and configuration consumers.
+- Reading V1 creation, routing, practice, live runtime, review, and result consumers.
+- Quiz creation, routing, gameplay, session assignment, feedback, result, and compatibility consumers.
+- Reading V2, THCS, R2 Listening, and Writing owners that must remain untouched.
+
+**Map exact routes and entry points:**
+
+- Teacher creation, editing, assignment, and live-session launch routes.
+- Student library, homework, course, practice, waiting-room, live-session, and result routes.
+- Dedicated Quiz routes, including `/student-quiz/:gameSessionId`.
+- Shared test routes whose missing or incomplete metadata currently triggers fallback behavior.
+
+**Map exact Firebase roots and fields:**
+
+- Material, draft, student-safe projection, catalog/index, homework, course/module reference, launch payload, and notification roots.
+- Active session fields, including `mode`, `quizId`, `activeQuizzes`, and `assignedQuizId`.
+- Completed result records and every student, teacher, class, and course result index.
+- Drive URL-bearing fields in materials, projections, launch payloads, and retained results.
+- Reading V2 engine fields and any malformed or unknown marker shapes.
+
+**Inventory output:**
+
+- Record exact paths and field names, not full material or result payloads.
+- Count supported records missing `testType` or other routing metadata.
+- Count unknown/malformed candidates and explicit Reading V2 marker shapes.
+- Identify every result surface that reads source material after loading a saved result.
+- Keep the inventory read-only. It must contain no mutation function and accept no `--apply` flag.
+
+This Task 0 inventory is a schema/ownership map. Final candidate IDs are produced only after
+Task 1's canonical classifier exists and passes tests.
+
+---
+
 ## Task 1: Freeze Retirement Classifiers with Tests
 
 **Create:**
@@ -87,7 +126,9 @@ Do not edit, stage, commit, or claim this file.
 
 1. `isReadingV2Material(value)`
    - Return true only when one of `engine`, `contentEngine`, `deliveryEngine`, or `runtimeEngine` normalizes to `reading-v2`.
-   - Reuse the canonical Reading V2 discriminator rather than duplicating it.
+   - Delegate to the existing `READING_V2_ENGINE_FIELDS` / `isReadingV2Payload` implementation in `src/config/readingV2FeatureFlags.ts`.
+   - Do not copy the field loop or create a second Reading V2 discriminator.
+   - If marker support changes, update the canonical helper and its tests first.
 
 2. `isReadingV1Material(value)`
    - Require normalized IELTS/Reading material identity.
@@ -139,6 +180,7 @@ npx tsc --noEmit
 
 - Remove Reading V1 from teacher creation skill options.
 - Remove Quiz mode from session creation, including localhost/dev-only controls.
+- Change omitted `createSession` mode from `SessionMode.QUIZ` to `SessionMode.TEST` before removing the Quiz enum member and branches.
 - Remove Quiz and Reading V1 editor/open/start/assign actions.
 - Prevent Drive-backed Listening materials from appearing as usable materials.
 - Keep Reading V2 creation/import/revision routes intact.
@@ -234,7 +276,10 @@ Expected: zero production matches. Retirement classifier tests and purge tooling
 - `TestPageRouter` routes explicit Reading V2 to Reading V2 runtime.
 - Missing/deleted legacy material renders generic unavailable state.
 - `StudentPracticePage` keeps explicit Listening, Writing, THCS, and Reading V2 branches.
-- Legacy Reading is never used as a default fallback for unknown IELTS material.
+- Delete the `loadNonThcsSkill('Reading')` fallback used when `tests/{testId}/testType` is absent.
+- Route supported Listening/Writing content only from explicit session or material metadata.
+- Unknown or incomplete IELTS material fails closed into the generic material-unavailable state.
+- Task 0 must identify supported records missing routing metadata so they can be repaired or explicitly blocked; runtime must never guess Reading V1.
 
 **Tests:**
 
@@ -261,13 +306,17 @@ Expected: zero production matches. Retirement classifier tests and purge tooling
 **Session contracts:**
 
 - Make active session creation test-only.
+- Change `createSession({ ... mode = SessionMode.QUIZ })` to default to `SessionMode.TEST`.
+- Reject explicit Quiz mode before deleting `SessionMode.QUIZ`; omitted mode must create a Test session.
 - Remove Quiz mode, Quiz assignment, `activeQuizzes`, and `assignedQuizId` from active session contracts.
+- Remove Quiz compatibility writes from new session records and notification payloads.
 - Preserve legacy result fields still required to read retained completed results.
 - Do not broadly delete `quizId` from result DTOs until retained-result tests prove it is unnecessary.
 
 **Routes:**
 
-- Keep dedicated Quiz URL patterns only as retirement notice routes.
+- Replace `/student-quiz/:gameSessionId` and every other dedicated Quiz URL with retirement notice routes.
+- Retirement routes must not import `StudentQuizPageNew`, mount Quiz gameplay, or read `/quizzes`.
 - Remove Quiz routes from `liveSessions` feature ownership.
 - Register retirement notice routes/actions under retirement observability.
 
@@ -279,6 +328,8 @@ Expected: zero production matches. Retirement classifier tests and purge tooling
 **Tests:**
 
 - Session creation is test-only.
+- Omitting `mode` creates a Test session.
+- Passing Quiz mode is rejected.
 - Waiting/join flows never load Quiz data.
 - Dedicated Quiz routes render retirement notice.
 - Supported test-mode live sessions remain green.
@@ -294,13 +345,17 @@ Expected: zero production matches. Retirement classifier tests and purge tooling
 - Keep title, skill/type snapshots, score, percentage/band, submission time, question results, student answers, correct answers, and feedback.
 - Keep stable IDs required for grouping attempts.
 - Remove embedded Drive audio URLs and other retired source payloads from retained results.
-- Persist `sourceMaterialRemoved: true` or the agreed equivalent result-level marker.
+- Add and type `sourceMaterialRemoved?: boolean` on saved result contracts before purge tooling can apply.
+- Persist `sourceMaterialRemoved: true` on affected retained results while scrubbing obsolete source fields.
+- Treat an absent marker as historical compatibility, not proof that source material exists.
 
 **UI:**
 
 - Academic Record still shows retained results.
 - Answer Review renders from `questionResults`.
 - Do not fetch deleted material just to render Answer Review.
+- `resultFeedbackPayload.service.ts` must bypass `getTestFromFirebase` and other source loading when `sourceMaterialRemoved` is true.
+- Build removed-source feedback payloads directly from saved result fields and `questionResults`.
 - When original question/passage/audio context is absent, show `Original material removed`.
 - Do not promise Source Review after purge.
 
@@ -309,32 +364,58 @@ Expected: zero production matches. Retirement classifier tests and purge tooling
 - Academic Record retains Reading V1/Quiz/affected Listening result summaries.
 - Answer Review displays saved answers and scores with material absent.
 - No material lookup is required for basic Answer Review.
+- `ResultDetailModal`, `StudentTestResultsPage`, teacher result pages, and feedback payload generation do not fetch retired source material when the marker is true.
+- Feedback payload generation remains valid from saved `questionResults`.
 - Drive audio URL is neither rendered nor requested.
 - Reading V2 review projection behavior remains unchanged.
 
 ---
 
-## Task 7: Add Retired-Material Purge Script
+## Task 7: Add Separate Inspection and Purge Tools
 
 **Create:**
 
-- `scripts/purge-retired-materials.mjs`
-- `scripts/__tests__/purge-retired-materials.test.mjs`
+- `scripts/lib/retiredMaterialInventory.ts`
+- `scripts/inspect-retired-materials.ts`
+- `scripts/purge-retired-materials.ts`
+- `scripts/__tests__/retired-material-inventory.test.ts`
+- `scripts/__tests__/purge-retired-materials.test.ts`
 
-**Package command:**
+Use `vite-node` so both tools import the same TypeScript classifier and the existing canonical
+Reading V2 helper. Do not duplicate classifier logic in a standalone `.mjs` script.
+
+**Package commands:**
 
 ```json
-"materials:purge-retired": "node scripts/purge-retired-materials.mjs"
+"materials:inspect-retired": "vite-node --mode test scripts/inspect-retired-materials.ts",
+"materials:purge-retired": "vite-node --mode test scripts/purge-retired-materials.ts"
 ```
 
-**Commands:**
+**Inspection command:**
 
 ```powershell
-npm run materials:purge-retired -- --project temp-a1437
-npm run materials:purge-retired -- --project temp-a1437 --apply
+npm run materials:inspect-retired -- --project temp-a1437 --out <temporary-manifest-path>
 ```
 
-Default is dry-run. `--apply` is destructive and requires separate approval.
+Inspection is read-only. It must not import Firebase mutation helpers, contain mutation
+branches, or accept `--apply`.
+
+**Purge command:**
+
+```powershell
+npm run materials:purge-retired -- --project temp-a1437 --manifest <reviewed-manifest-path> --apply
+```
+
+Purge is destructive and requires separate approval. It must require both `--manifest` and
+`--apply`; there is no implicit apply mode.
+
+**Tool-boundary tests:**
+
+- Inspection code contains no mutation operation and rejects `--apply`.
+- Inspection and purge import the same classifier/inventory module.
+- Purge rejects missing, malformed, wrong-project, and stale manifests.
+- Purge aborts when recomputed candidates differ from the reviewed manifest.
+- Protected Reading V2 collisions, completed result deletions, and R2 deletions remain hard failures.
 
 **Discovery roots:**
 
@@ -362,13 +443,18 @@ Default is dry-run. `--apply` is destructive and requires separate approval.
 - Classes, courses, and modules themselves.
 - Session records after Session Closure.
 
-**Dry-run manifest must include:**
+**Inspection manifest must include:**
 
 - project ID;
+- schema/classifier version and source revision;
+- generation timestamp;
 - candidate counts by reason: Quiz, Reading V1, Drive-backed Listening;
 - exact material IDs;
+- classification reason and marker evidence for every candidate;
 - every planned deletion path;
 - every planned retained-result scrub path;
+- retained result counts by material and result surface;
+- Drive URL field paths without copying credentials or full retained payloads;
 - unknown/blocked records;
 - active-session count;
 - protected Reading V2 collision count;
@@ -376,6 +462,10 @@ Default is dry-run. `--apply` is destructive and requires separate approval.
 
 **Apply preconditions:**
 
+- Explicit `--apply`.
+- Reviewed manifest path supplied.
+- Recompute current inventory and compare it with the reviewed manifest.
+- Abort if candidate paths, result scrub paths, protected collisions, or active-session state changed after inspection.
 - Re-read all candidates immediately before mutation.
 - Abort on active sessions.
 - Abort on any Reading V2 marker.
@@ -481,7 +571,7 @@ Run focused tests throughout. Final local gate:
 ```powershell
 npm run sessions:end-active -- --project temp-a1437
 node --test scripts/__tests__/end-active-sessions.test.mjs
-node --test scripts/__tests__/purge-retired-materials.test.mjs
+npx vitest run scripts/__tests__/retired-material-inventory.test.ts scripts/__tests__/purge-retired-materials.test.ts
 npx vitest run
 npm run test:security
 npm run lint
@@ -537,10 +627,10 @@ These steps do not occur automatically during implementation.
 
 ```powershell
 npm run sessions:end-active -- --project temp-a1437 --apply
-npm run materials:purge-retired -- --project temp-a1437
+npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest.json"
 ```
 
-- Review dry-run manifest.
+- Review inspection manifest.
 - Confirm zero active sessions, zero protected collisions, zero planned result deletions, and zero R2 deletions.
 
 ### Gate C: Destructive approval
@@ -548,7 +638,7 @@ npm run materials:purge-retired -- --project temp-a1437
 Only after explicit approval:
 
 ```powershell
-npm run materials:purge-retired -- --project temp-a1437 --apply
+npm run materials:purge-retired -- --project temp-a1437 --manifest "$env:TEMP\retired-materials-manifest.json" --apply
 ```
 
 Run full readback and retain only the manifest/proof required for audit; do not retain deleted material payloads.
