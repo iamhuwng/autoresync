@@ -22,6 +22,10 @@ PRD-0049 brings the already-verified live-parity local `main` result and writing
 
 PRD-0043 imported homework Writing submissions remain governed by the existing `writing_submission` linked-result row below. The authoritative owner remains the linked homework assignment (`homework_assignments/{homeworkId}.createdBy`); `context.externalImport`, `administrativeImport`, `importedByTeacherId`, and grading/import teacher metadata are audit signals, not ownership signals.
 
+## 2026-07-05 Retired Source Material Note
+
+`sourceMaterialRemoved: true` is not an ownership, visibility, or permission signal. It only tells result consumers to avoid reloading retired source material and to render retained saved-result data. Teacher/student access continues to use the existing rows in this matrix, and purge tooling must preserve completed results plus every result index.
+
 ## Global Rules
 
 - Teacher access always starts with the outer `student_teacher_assignments` gate.

@@ -38,6 +38,10 @@ PRD-0049 reconciles the live-parity local `main` history back into `origin/main`
 
 PRD-0043 adds an external/admin homework Writing import intake to `TeacherGradingPage`, which is already the active Writing queue surface. The import creates canonical Firestore `writing_submissions` with homework context plus matching homework/result projections, then continues through the existing `/teacher/grading/writing/:submissionId` editor path. No new result shell, saved-result host, or Writing lifecycle role is introduced.
 
+## 2026-07-05 Retired Source Material Note
+
+The retired-material cleanup keeps completed results and result indexes. Retained rows may carry `sourceMaterialRemoved: true` after reviewed purge tooling removes retired source payload references. That marker is a source-loading/display contract only: `SharedSavedResultCore`, `ReviewTab`, `StudentTestResultsPage`, `TeacherTestResultsPage`, and `ResultDetailModal` continue to render saved answers and scores from permanent result data without creating a new result shell or changing the surface inventory below.
+
 ## Surface Inventory
 
 | Surface | Status | Domain | Writing lifecycle | Route / host | Primary data path | Owner / host contract | Coverage anchor | Resolution disposition | Notes |
