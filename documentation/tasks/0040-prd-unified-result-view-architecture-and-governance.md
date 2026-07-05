@@ -51,6 +51,10 @@ This PRD is now paired with a living verification pack and must not be read in i
 
 These artifacts close the static architecture audit for PRD-0040. They do not erase the remaining runtime-proof gap: emulator-backed backend-rule verification and tampering checks still need execution when the local environment can run the Firebase emulators.
 
+### 1.3 2026-07-05 Retired Source Material Change Record
+
+The retired-material cleanup adds a `sourceMaterialRemoved` retained-result display contract. This does not change PRD-0040 ownership, permission, or shell architecture: completed results and indexes remain preserved, saved-result shells continue to own saved-result rendering, and session/post-test surfaces remain separate. The living verification pack was updated in the same change set to record the source-loading/display boundary.
+
 ---
 
 ## 2. Product Vision
