@@ -5364,3 +5364,160 @@ Recommended next approval:
 
 - If the product owner wants code integration: approve exact-path staging and commit only for the intended retirement/cleanup files after reviewing the dirty boundary.
 - If the product owner wants remote purge/deploy: approve Phase 12 Gate A/B explicitly. Do not run purge `--apply`, deploy rules, push, merge, or clean worktrees without separate approval.
+
+## Phase 12 Gate A/B partial evidence after exact-path local commits
+
+Scope and authority:
+
+- Product owner approved exact-path staging/commit, then Phase 12 Gate A/B movement.
+- No purge command, Firebase purge `--apply`, deploy, push, PR, merge, or remote-state mutation was run.
+- Subagents remain blocked by product-owner instruction; no subagents were spawned.
+
+Local commits created:
+
+```powershell
+rtk git commit -m "test(retirement): stabilize phase 11 gates" ...
+```
+
+Result: exit `0`; commit `3f41affff143f5003375a6690e94336a7f8cacb6`.
+
+```powershell
+rtk git commit -m "refactor(retirement): retire legacy material flows" ...
+```
+
+Result: exit `0`; commit `6252b88a8103383b8a9626ab38ee09822afa86f9`.
+
+Staging boundary:
+
+- First commit staged 25 Phase 11 full-suite/security cleanup and evidence paths after `rtk git diff --cached --check` passed.
+- Second commit staged 263 remaining intended retirement/docs/baseline paths after `rtk git diff --cached --check` passed.
+- `rtk git diff --cached --name-only | Select-String -SimpleMatch "documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md"` produced no output before the second commit.
+- Protected unrelated file final state remains untracked and uncommitted:
+
+```powershell
+rtk git status --short -- documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Result: exit `0`; `?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
+Index correction disclosure:
+
+- During the second staging attempt, malformed PowerShell quoting caused the protected unrelated PRD to be staged briefly.
+- It was immediately removed from the index with:
+
+```powershell
+rtk git restore --staged -- documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Result: exit `0`.
+
+- The file was not edited, deleted, committed, pushed, merged, or claimed.
+
+Gate A 12.1 source-branch inspection:
+
+```powershell
+rtk git status --short --branch
+```
+
+Result after implementation commits and before this evidence append: exit `0`; branch `codex/remove-drive-reading-v1-quiz...origin/codex/remove-drive-reading-v1-quiz [ahead 2]`; only dirty/untracked path is `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
+```powershell
+rtk git log --oneline --decorate origin/codex/remove-drive-reading-v1-quiz..HEAD
+```
+
+Result: exit `0`; ahead commits:
+
+- `6252b88a (HEAD -> codex/remove-drive-reading-v1-quiz) refactor(retirement): retire legacy material flows`
+- `3f41afff test(retirement): stabilize phase 11 gates`
+
+```powershell
+rtk git diff --stat origin/codex/remove-drive-reading-v1-quiz..HEAD
+```
+
+Result: exit `0`; cumulative diff `288 files changed, 12193 insertions(+), 10311 deletions(-)`.
+
+Test summary for Gate A:
+
+- Phase 11 local proof remains the current test summary for these commits because commits contain the same working-tree content previously proven.
+- Recorded passing gates: sessions dry-run, active-session unit tests, retirement classifier tests, inventory/purge tests, full Vitest, security tests, lint, TypeScript, build, UTF-8, enforcement, diff check, strict source scans, browser/protected workflow proof.
+- Post-commit `rtk git diff --check` result: exit `0`; no output.
+
+Gate A not completed:
+
+- `12.2` local `main` sync/merge was not run.
+- `12.3` deploy was not run.
+- `12.4` deployed creation/session selector verification was not run.
+- Direct push/merge/deploy still requires separate explicit approval with target/command detail.
+
+Gate B safe read-only/dry-run evidence:
+
+```powershell
+rtk npm run sessions:end-active -- --project temp-a1437
+```
+
+Result: exit `0`; dry-run only; no `--apply`; project `temp-a1437`; `activeSessionCount: 0`; `sessions: []`; `No active sessions found.`
+
+```powershell
+rtk npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest.json"
+```
+
+Result: exit `0`; read-only mode; project `temp-a1437`; output path `C:\Users\The Lord\AppData\Local\Temp\retired-materials-manifest.json`; `rootCount: 22`; `readFailureCount: 0`; `driveUrlFieldPathCount: 0`; `explicitReadingV2PayloadCount: 1114`; `legacyReadingSchemaEvidenceCount: 0`.
+
+Manifest metadata/count review:
+
+```powershell
+rtk powershell -NoProfile -Command '$m = Get-Content -Raw -LiteralPath (Join-Path $env:TEMP "retired-materials-manifest.json") | ConvertFrom-Json; ...'
+```
+
+Results:
+
+- `projectId`: `temp-a1437`
+- `schemaVersion`: `retired-material-inventory-phase-2-v1`
+- `classifierSchemaVersion`: `retired-material-classifier-phase-2-v1`
+- `sourceRevision`: `6252b88a8103383b8a9626ab38ee09822afa86f9`
+- manifest file length: `22997` bytes
+- `readFailureCount`: `0`
+- `activeSessionCount`: `0`
+- `protectedReadingV2CollisionCount`: `0`
+- `plannedR2DeleteCount`: `0`
+- `plannedDeletionPathCount`: `0`
+- `retainedResultScrubPathCount`: `0`
+- `unknownBlockedRecordCount`: `87`
+- candidate IDs by state:
+  - `retire-drive-backed-listening`: `0`
+  - `retire-reading-v1`: `0`
+  - `retire-quiz`: `0`
+  - `protect-r2-listening`: `0`
+  - `protect-reading-v2`: `0`
+  - `protect-thcs`: `0`
+  - `unknown-blocked`: `87`
+- `driveUrlFieldPathCount`: `0`
+- `markerEvidenceCount`: `0`
+
+Unknown-blocked path grouping:
+
+```powershell
+rtk powershell -NoProfile -Command '$m = Get-Content -Raw -LiteralPath (Join-Path $env:TEMP "retired-materials-manifest.json") | ConvertFrom-Json; @($m.manifest.unknownBlockedRecords) | ... | Group-Object ...'
+```
+
+Result: exit `0`; unknown-blocked paths grouped by Firebase root:
+
+- `/tests`: `24`
+- `/notifications`: `20`
+- `/student_safe_tests`: `19`
+- `/course_materials`: `18`
+- `/material_catalog`: `5`
+- `/session_test_payloads`: `1`
+
+Gate B not completed:
+
+- `npm run sessions:end-active -- --project temp-a1437 --apply` was not run.
+- No purge tooling was run.
+- No Firebase/R2 mutation was performed.
+- Because `--apply` did not run, Gate B remains only partially complete even though the manifest review confirms zero active sessions and zero planned destructive work.
+
+Recommended next approval:
+
+- If product owner wants Gate A completion: approve exact local-main sync/PR/merge/deploy sequence, including whether direct `main` push is forbidden or allowed.
+- If product owner wants Gate B session closure completion: explicitly approve `npm run sessions:end-active -- --project temp-a1437 --apply`; current dry-run shows zero active sessions, so expected write set is empty, but it is still an apply-mode command.
+- If product owner wants destructive purge: do not proceed until Gate C explicit approval after reviewing the manifest and the 87 unknown-blocked paths.
