@@ -607,7 +607,7 @@ These steps do not occur automatically during implementation.
 
 ### Gate A - Main Integration And Prevent New Retired Data
 
-- [ ] 12.1 After explicit approval, inspect feature-branch `HEAD`, upstream, dirty status, included/excluded paths, commits, diff, and test summary.
+- [x] 12.1 After explicit approval, inspect feature-branch `HEAD`, upstream, dirty status, included/excluded paths, commits, diff, and test summary.
 - [ ] 12.2 Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval. Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
 - [ ] 12.3 Deploy the exact merged feature-removal commit and verify deployed revision/readback.
 - [ ] 12.4 Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
@@ -617,12 +617,14 @@ These steps do not occur automatically during implementation.
 - [ ] 12.5 Run only after explicit approval:
   - `npm run sessions:end-active -- --project temp-a1437 --apply`
   - `npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest.json"`
-- [ ] 12.6 Review the inspection manifest.
-- [ ] 12.7 Confirm zero active sessions.
-- [ ] 12.8 Confirm zero protected Reading V2 collisions.
-- [ ] 12.9 Confirm zero planned result deletions.
-- [ ] 12.10 Confirm zero planned R2 deletions.
-- [ ] 12.11 Confirm candidate paths, scrub paths, and blocked records are understood.
+- [x] 12.6 Review the inspection manifest.
+- [x] 12.7 Confirm zero active sessions.
+- [x] 12.8 Confirm zero protected Reading V2 collisions.
+- [x] 12.9 Confirm zero planned result deletions.
+- [x] 12.10 Confirm zero planned R2 deletions.
+- [x] 12.11 Confirm candidate paths, scrub paths, and blocked records are understood.
+
+Phase 12 Gate A/B partial note: local exact-path commits exist and read-only Gate B inspection passed. Gate A merge/deploy/push steps remain unchecked and were not run. Gate B `sessions:end-active --apply` remains unchecked and was not run; zero active sessions were confirmed by dry-run, and the read-only inspection manifest reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, and 87 unknown-blocked paths grouped by root for review. See findings for exact commands and the protected-file staging correction.
 
 ### Gate C - Destructive Approval
 
