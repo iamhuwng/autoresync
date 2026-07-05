@@ -8,8 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
+import { MemoryRouter } from 'react-router-dom';
 import AccessDeniedPage from './AccessDeniedPage';
 
 // Mock the useAuth hook
@@ -37,9 +36,7 @@ vi.mock('react-router-dom', async () => {
 const renderWithProviders = (locationState?: { from?: string; reason?: string }) => {
     return render(
         <MemoryRouter initialEntries={[{ pathname: '/access-denied', state: locationState }]}>
-            <MantineProvider>
-                <AccessDeniedPage />
-            </MantineProvider>
+            <AccessDeniedPage />
         </MemoryRouter>
     );
 };
@@ -94,7 +91,7 @@ describe('AccessDeniedPage', () => {
 
         it('should show session message when reason is session', () => {
             renderWithProviders({ reason: 'session' });
-            expect(screen.getByText(/session has expired/i)).toBeInTheDocument();
+            expect(screen.getByText('Your session has expired or is invalid. Please log in again.')).toBeInTheDocument();
         });
 
         it('should show default message when reason is unknown', () => {

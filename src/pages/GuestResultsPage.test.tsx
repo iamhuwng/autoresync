@@ -124,6 +124,8 @@ const renderPage = () => {
     );
 };
 
+const getGuestNameInput = () => screen.getByPlaceholderText(/Enter your guest name/i);
+
 const mockResults = [
     {
         resultId: 'result-1',
@@ -162,7 +164,7 @@ describe('GuestResultsPage', () => {
             renderPage();
 
             expect(screen.getByText('Guest Results')).toBeInTheDocument();
-            expect(screen.getByTestId('guest-name-input')).toBeInTheDocument();
+            expect(getGuestNameInput()).toBeInTheDocument();
             expect(screen.getByText('Search Results')).toBeInTheDocument();
         });
 
@@ -178,7 +180,7 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockResolvedValue(mockResults);
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'John' } });
 
             const searchBtn = screen.getByText('Search Results');
@@ -193,7 +195,7 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockResolvedValue(mockResults);
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'John' } });
             fireEvent.click(screen.getByText('Search Results'));
 
@@ -207,7 +209,7 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockResolvedValue([]);
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'Unknown' } });
             fireEvent.click(screen.getByText('Search Results'));
 
@@ -220,14 +222,12 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockRejectedValue(new Error('Network error'));
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'John' } });
             fireEvent.click(screen.getByText('Search Results'));
 
             await waitFor(() => {
-                expect(screen.getByTestId('input-error')).toHaveTextContent(
-                    'Failed to fetch results. Please try again.'
-                );
+                expect(screen.getByText('Failed to fetch results. Please try again.')).toBeInTheDocument();
             });
         });
 
@@ -236,9 +236,7 @@ describe('GuestResultsPage', () => {
 
             fireEvent.click(screen.getByText('Search Results'));
 
-            expect(screen.getByTestId('input-error')).toHaveTextContent(
-                'Please enter a guest name'
-            );
+            expect(screen.getByText('Please enter a guest name')).toBeInTheDocument();
             expect(mockGetGuestResults).not.toHaveBeenCalled();
         });
     });
@@ -252,7 +250,7 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockResolvedValue(mockResults);
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'John' } });
             fireEvent.click(screen.getByText('Search Results'));
 
@@ -282,7 +280,7 @@ describe('GuestResultsPage', () => {
             mockGetGuestResults.mockResolvedValue(mockResults);
             renderPage();
 
-            const input = screen.getByTestId('guest-name-input');
+            const input = getGuestNameInput();
             fireEvent.change(input, { target: { value: 'John' } });
             fireEvent.click(screen.getByText('Search Results'));
 

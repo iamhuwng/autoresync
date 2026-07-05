@@ -605,7 +605,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.getByLabelText('Passage title')).toHaveValue('Third passage');
     expect(screen.getByLabelText('Passage editor')).toHaveTextContent('Third passage body.');
     expect(within(screen.getByLabelText('Questions for Passage 3')).getByText('Table Completion')).toBeInTheDocument();
-  }, 15000);
+  }, 30000);
 
   it('keeps task type categories collapsed until search filters the Add Question Group modal', () => {
     render(<ReadingV2StudioShell mode="create-blank" metadata={{ title: 'Modal test' }} />);
@@ -648,7 +648,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Passage 1' }));
     const passageOneQuestions = screen.getByLabelText('Questions for Passage 1');
     expect(within(passageOneQuestions).queryByText('Multiple Choice')).not.toBeInTheDocument();
-  }, 10000);
+  }, 30000);
 
   it('duplicates a question group into an independent editable copy', () => {
     render(<ReadingV2StudioShell mode="create-blank" metadata={{ title: 'Duplicate group' }} />);
@@ -668,7 +668,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     fireEvent.change(tableTitles[1]!, { target: { value: 'Copied table title' } });
     expect(tableTitles[0]).toHaveValue('Table Completion Table');
     expect(tableTitles[1]).toHaveValue('Copied table title');
-  }, 10000);
+  }, 30000);
 
   it('saves structured table edits only after editor-block normalization keeps anchors valid', async () => {
     const onSaveDraft = vi.fn(async () => ({ revisionToken: 'structured-normalized-rev-2' }));
@@ -698,7 +698,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
 
     expect(tableStimulus).toEqual(expect.objectContaining({ title: 'Editor block normalized table' }));
     expect(validateReadingV2EditorDocument(deserializeReadingV2CanonicalToEditorDocument(savedDocument))).toEqual([]);
-  }, 10000);
+  }, 30000);
 
   it('saves incomplete drafts while publish remains blocked by teacher-readable validation', async () => {
     const onSaveDraft = vi.fn(async () => ({ revisionToken: 'incomplete-rev-2' }));

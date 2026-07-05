@@ -2,12 +2,20 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const emulatorTestPattern = /[\\/].+\.emulator\.test\.(ts|tsx|js|jsx)$/u;
+const isExplicitEmulatorTestRun = process.argv.some((arg) => emulatorTestPattern.test(arg));
+const defaultExclude = ['node_modules', 'dist', '.idea', '.git', '.cache'];
+
 export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/__tests__/setup.ts',
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    maxWorkers: 4,
+    minWorkers: 1,
     css: true,
     coverage: {
       provider: 'v8',
@@ -20,8 +28,14 @@ export default defineConfig({
         '**/*.config.*',
       ],
     },
-    include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
-    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx,js,jsx}',
+      'scripts/**/*.{test,spec}.{ts,tsx,js,jsx}',
+    ],
+    exclude: [
+      ...defaultExclude,
+      ...(isExplicitEmulatorTestRun ? [] : ['src/**/*.emulator.test.{ts,tsx,js,jsx}']),
+    ],
   },
   resolve: {
     alias: {

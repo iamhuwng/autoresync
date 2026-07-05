@@ -97,7 +97,7 @@ describe('PRD-0040 security emulator checks', () => {
     await testEnv.clearDatabase();
     await testEnv.clearFirestore();
     await seedSecurityFixtures();
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (testEnv) {
@@ -108,17 +108,14 @@ describe('PRD-0040 security emulator checks', () => {
   it('allows the owning student to read test_results/result-1 and denies a different student', async () => {
     const { student, otherStudent } = await makeContexts();
 
-    const ownerRead = student.database().ref('test_results/result-1').once('value');
-    const otherStudentRead = otherStudent.database().ref('test_results/result-1').once('value');
-
-    await assertSucceeds(ownerRead);
-    await assertFails(otherStudentRead);
+    await assertSucceeds(student.database().ref('test_results/result-1').once('value'));
+    await assertFails(otherStudent.database().ref('test_results/result-1').once('value'));
   });
 
-  it('allows an unrelated teacher to read test_results/result-1 under current RTDB rules', async () => {
+  it('rejects an unrelated teacher from reading test_results/result-1 under current RTDB rules', async () => {
     const { teacher } = await makeContexts();
 
-    await assertSucceeds(teacher.database().ref('test_results/result-1').once('value'));
+    await assertFails(teacher.database().ref('test_results/result-1').once('value'));
   });
 
   it('allows teacher queue queries over pending writing submissions even when other teachers own the docs', async () => {

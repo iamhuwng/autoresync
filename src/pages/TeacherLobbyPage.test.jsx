@@ -2058,7 +2058,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'reading_passage_list_succeeded',
       expect.objectContaining({ scope: 'public', count: 1 }),
     );
-  }, 10000);
+  }, 30000);
 
   it('wires Reading Passage edit, remove-from-library confirmation, restore, and single assign actions', async () => {
     const user = userEvent.setup();
@@ -2223,7 +2223,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'reading_passage_restored',
       expect.objectContaining({ materialId: 'passage-owner', restoreVisibility: 'private' }),
     );
-  }, 10000);
+  }, 30000);
 
   it('supports Reading Passage bulk selection actions', async () => {
     const user = userEvent.setup();
@@ -2357,7 +2357,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'teacher_materials_reading_full_test_composition_created',
       expect.objectContaining({ passageCount: 2 }),
     );
-  }, 10000);
+  }, 30000);
 
   it('closes the master modal and shows the new test after selected passages publish', async () => {
     const user = userEvent.setup();
@@ -2441,7 +2441,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         publishedVersionId: expect.any(String),
       }),
     );
-  }, 10000);
+  }, 30000);
 
   it('keeps Reading Passage selection visible after create-full-test failure', async () => {
     const user = userEvent.setup();

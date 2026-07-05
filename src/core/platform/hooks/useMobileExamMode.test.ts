@@ -139,7 +139,7 @@ describe('useMobileExamMode', () => {
     });
   });
 
-  it('returns true with small viewport + coarse pointer even without mobile UA', async () => {
+  it('returns false with small viewport + coarse pointer when desktop UA is definitive', async () => {
     mockScreenSize.current = { isMobile: true, isTablet: false, isDesktop: false, width: 400, height: 800 };
     setUserAgent(DESKTOP_UA);
     setPointerCoarse(true);
@@ -147,11 +147,11 @@ describe('useMobileExamMode', () => {
 
     const { result } = renderHook(() => useMobileExamMode());
     await waitFor(() => {
-      expect(result.current.isMobileExamMode).toBe(true);
+      expect(result.current.isMobileExamMode).toBe(false);
     });
   });
 
-  it('returns true for a phone-sized touch screen even when a desktop site widens the viewport', async () => {
+  it('returns false for touch hardware when desktop UA is definitive', async () => {
     mockScreenSize.current = { isMobile: false, isTablet: true, isDesktop: false, width: 980, height: 844 };
     setUserAgent(DESKTOP_UA);
     setPointerCoarse(true);
@@ -161,7 +161,7 @@ describe('useMobileExamMode', () => {
 
     const { result } = renderHook(() => useMobileExamMode());
     await waitFor(() => {
-      expect(result.current.isMobileExamMode).toBe(true);
+      expect(result.current.isMobileExamMode).toBe(false);
     });
   });
 

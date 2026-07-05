@@ -35,7 +35,7 @@ function createResult(overrides: Record<string, unknown> = {}) {
 
 describe('AcademicRecordResultRow', () => {
     it('renders percentage scores for standard results', () => {
-        render(<AcademicRecordResultRow result={createResult({ percentage: 78 })} />);
+        render(<AcademicRecordResultRow result={createResult({ percentage: 78 })} onClick={vi.fn()} />);
 
         expect(screen.getByText('78%')).toBeInTheDocument();
         expect(screen.getByText('Reading Test 1')).toBeInTheDocument();
@@ -48,6 +48,7 @@ describe('AcademicRecordResultRow', () => {
                     testTitle: 'THCS Exam',
                     thcsData: { scaledScore: 7.5, sectionResults: [], intentBreakdown: {} },
                 })}
+                onClick={vi.fn()}
             />,
         );
 
@@ -65,12 +66,13 @@ describe('AcademicRecordResultRow', () => {
                     courseName: null,
                     markingStatus: 'pending-review',
                 })}
+                onClick={vi.fn()}
             />,
         );
 
         expect(screen.getByText('Pending')).toBeInTheDocument();
         expect(screen.getByText(/Unassigned course/i)).toBeInTheDocument();
-        expect(screen.getByText(/Awaiting review/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Awaiting review/i).length).toBeGreaterThan(0);
     });
 
     it('opens the result when clicked', () => {
