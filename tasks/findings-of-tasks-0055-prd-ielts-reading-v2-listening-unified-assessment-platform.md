@@ -5802,12 +5802,60 @@ Scope boundary: current live line-budget evidence covers the existing Listening 
 5. Current Save draft and Publish handlers call `createListeningAuthoringWorkflow()` and no longer call `saveListeningTestToFirebase` from the builder.
 6. Guardrail proof for this live state is expected through the explicit changed-files run that includes `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 2948
 responsibilities: Listening authoring wizard step orchestration with display-mode controls, audio-section metadata capture, question editing, draft status UI, trusted Save draft calls, and trusted Publish calls retained in the existing builder while backend authority lives in the authoring workflow facade
 split-alternatives: extract the Save draft and Publish command surface into a bounded Listening authoring controller component; extract mode-select audio question and review steps into separate route-local step components
 rejection-reason: extract the Save draft and Publish command surface into a bounded Listening authoring controller component => this foundation fix must remove legacy browser persistence first while preserving current builder state flow and avoiding a second behavior move; extract mode-select audio question and review steps into separate route-local step components => this remains valid future decomposition, but it would widen the current authority fix into a large UI refactor before A-C source test docs reconciliation is complete
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+## 2026-07-05 Retirement Gate A Line-Budget Evidence
+
+Scope boundary: the retired-material cleanup branch touches existing oversized assessment files while removing Google Drive, Reading V1, and Quiz flows, stabilizing TypeScript baselines, and recording protected-feature proof. The touched oversized files are not decomposed in this PR because splitting them would combine retirement/purge safety work with broad Reading V2 or Listening architecture refactors. These records supersede only the active machine-readable line-budget evidence for the current branch; historical line-budget records above remain preserved under historical markers.
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx
+line-count: 5743
+responsibilities: Reading V2 studio workspace orchestration for build-mode state, passage editing, import handling, preview coordination, persistence wiring, and protected Reading V2 authoring behavior; owns legacy large-file coordination that this retirement PR touches only for baseline compatibility while preserving Reading V2 protection
+split-alternatives: extract Reading V2 passage editing and validation into bounded workspace child components; extract import preview and persistence orchestration into route-local controller modules
+rejection-reason: extract Reading V2 passage editing and validation into bounded workspace child components => this retirement gate must avoid broad Reading V2 UI decomposition while proving protected Reading V2 behavior remains unchanged; extract import preview and persistence orchestration into route-local controller modules => this is a valid future refactor but would widen the retired-material branch beyond Google Drive Reading V1 Quiz retirement and source-removal proof
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2StudioShell.tsx
+line-count: 3527
+responsibilities: Reading V2 studio shell composition, authoring navigation, workspace host state, protected route integration, and studio-level display behavior; owns protected Reading V2 shell boundaries that must stay stable while retired legacy material routes are removed
+split-alternatives: extract studio navigation and panel shell into a bounded Reading V2 shell component; extract workspace host state and side-effect coordination into a Reading V2 studio controller hook
+rejection-reason: extract studio navigation and panel shell into a bounded Reading V2 shell component => current Gate A work must preserve Reading V2 authoring flow and avoid unrelated shell surgery; extract workspace host state and side-effect coordination into a Reading V2 studio controller hook => this remains future architecture work and would risk protected Reading V2 regression inside a retirement cleanup branch
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/features/assessment/listening/storage/listeningAssetDelivery.service.ts
+line-count: 438
+responsibilities: Listening asset delivery authorization, retained-result access checks, solo access validation, canonical asset reference validation, and signed delivery request shaping; protects R2 Listening delivery boundaries while retired Google Drive audio paths are removed
+split-alternatives: split retained-result authorization from signed delivery request construction; extract solo-practice access validation into a dedicated Listening delivery policy module
+rejection-reason: split retained-result authorization from signed delivery request construction => this branch already changes retired source loading and must not combine that with R2 delivery service decomposition; extract solo-practice access validation into a dedicated Listening delivery policy module => valid future deepening but outside the Gate A retired-material integration proof
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4606
+responsibilities: Listening authoring wizard orchestration, audio metadata validation, R2 or authorized audio handling, question editing, preview state, draft persistence, publish controls, and retired Google Drive audio rejection; owns legacy builder UI state that this branch touches to remove Drive runtime without changing supported R2 Listening behavior
+split-alternatives: extract audio source validation and preview state into a bounded Listening authoring audio component; extract question editing and review-save workflow into route-local step components
+rejection-reason: extract audio source validation and preview state into a bounded Listening authoring audio component => current retirement work must remove Drive behavior while preserving existing builder state and test coverage rather than redesigning authoring composition; extract question editing and review-save workflow into route-local step components => valid future decomposition but it would widen Gate A beyond retired-material integration and risk unrelated authoring regressions
 approver: The Lord
 approver-role: Task Scope Reviewer
 status: approved
