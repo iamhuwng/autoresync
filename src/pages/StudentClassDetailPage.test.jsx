@@ -83,6 +83,17 @@ vi.mock('../components/layout/StudentSidebar', () => ({
 }));
 
 vi.mock('../components/layout/studentLayoutStyles', () => ({
+  studentTokens: {
+    textPrimary: '#111827',
+    textMuted: '#6b7280',
+    bgSurface: '#ffffff',
+    bgSurfaceAlt: '#f3f4f6',
+    borderWhisper: 'rgba(0,0,0,0.1)',
+    accent: '#4d44e3',
+    accentSoft: '#e2dfff',
+    radiusSoft: 8,
+    radiusPill: 999,
+  },
   S: {
     filterBar: {},
     filterTab: {},

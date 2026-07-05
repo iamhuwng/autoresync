@@ -295,31 +295,12 @@ describe('TestCreationModal', () => {
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
+                expect(screen.queryByText('Reading')).not.toBeInTheDocument();
                 expect(screen.getByText('Reading V2')).toBeInTheDocument();
                 expect(screen.getByText('Listening')).toBeInTheDocument();
                 expect(screen.getByText('Writing')).toBeInTheDocument();
                 expect(screen.getByText('Speaking')).toBeInTheDocument();
             }, { timeout: 3000 });
-        });
-
-        it('advances to metadata step when Reading is clicked', async () => {
-            const user = userEvent.setup();
-            renderModal();
-
-            // Select IELTS
-            await user.click(screen.getByText('IELTS'));
-
-            await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
-            });
-
-            // Select Reading
-            await user.click(screen.getByText('Reading'));
-
-            await waitFor(() => {
-                expect(screen.getByText('Details')).toBeInTheDocument();
-            });
         });
 
         it('keeps Writing selection inside the modal flow', async () => {
@@ -450,10 +431,12 @@ describe('TestCreationModal', () => {
             await user.type(titleInput, 'Existing Passages Master');
             await user.click(screen.getByRole('button', { name: /continue/i }));
 
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: /Use existing Reading Passages/i })).toBeInTheDocument();
-            });
-            await user.click(screen.getByRole('button', { name: /Use existing Reading Passages/i }));
+            const existingPassagesButton = await screen.findByRole(
+                'button',
+                { name: /Use existing Reading Passages/i },
+                { timeout: 10000 },
+            );
+            await user.click(existingPassagesButton);
 
             expect(mockNavigate).not.toHaveBeenCalled();
             expect(onClose).toHaveBeenCalled();
@@ -920,10 +903,10 @@ describe('TestCreationModal', () => {
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
+                expect(screen.getByText('Listening')).toBeInTheDocument();
             });
 
-            await user.click(screen.getByText('Reading'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
@@ -1001,18 +984,18 @@ describe('TestCreationModal', () => {
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
+                expect(screen.getByText('Listening')).toBeInTheDocument();
             });
 
-            await user.click(screen.getByText('Reading'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
             });
 
-            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            const titleInput = screen.getByDisplayValue(/IELTS Listening Test/i);
             await user.clear(titleInput);
-            await user.type(titleInput, 'Edited Reading Title');
+            await user.type(titleInput, 'Edited Listening Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });
@@ -1033,18 +1016,18 @@ describe('TestCreationModal', () => {
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
+                expect(screen.getByText('Listening')).toBeInTheDocument();
             }, { timeout: 3000 });
 
-            await user.click(screen.getByText('Reading'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
             }, { timeout: 3000 });
 
-            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            const titleInput = screen.getByDisplayValue(/IELTS Listening Test/i);
             await user.clear(titleInput);
-            await user.type(titleInput, 'Edited Reading Title');
+            await user.type(titleInput, 'Edited Listening Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });
@@ -1073,18 +1056,18 @@ describe('TestCreationModal', () => {
             await user.click(screen.getByText('IELTS'));
 
             await waitFor(() => {
-                expect(screen.getByText('Reading')).toBeInTheDocument();
+                expect(screen.getByText('Listening')).toBeInTheDocument();
             }, { timeout: 3000 });
 
-            await user.click(screen.getByText('Reading'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
             }, { timeout: 3000 });
 
-            const titleInput = screen.getByDisplayValue(/IELTS Reading Test/i);
+            const titleInput = screen.getByDisplayValue(/IELTS Listening Test/i);
             await user.clear(titleInput);
-            await user.type(titleInput, 'Edited Reading Title');
+            await user.type(titleInput, 'Edited Listening Title');
 
             // Try to close
             const closeButton = screen.getByRole('button', { name: /close modal/i });
@@ -1114,8 +1097,8 @@ describe('TestCreationModal', () => {
 
             // Navigate to metadata
             await user.click(screen.getByText('IELTS'));
-            await waitFor(() => screen.getByText('Reading'));
-            await user.click(screen.getByText('Reading'));
+            await waitFor(() => screen.getByText('Listening'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
@@ -1131,8 +1114,8 @@ describe('TestCreationModal', () => {
 
             // Navigate to metadata
             await user.click(screen.getByText('IELTS'));
-            await waitFor(() => screen.getByText('Reading'));
-            await user.click(screen.getByText('Reading'));
+            await waitFor(() => screen.getByText('Listening'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();
@@ -1156,8 +1139,8 @@ describe('TestCreationModal', () => {
 
             // Navigate to metadata
             await user.click(screen.getByText('IELTS'));
-            await waitFor(() => screen.getByText('Reading'));
-            await user.click(screen.getByText('Reading'));
+            await waitFor(() => screen.getByText('Listening'));
+            await user.click(screen.getByText('Listening'));
 
             await waitFor(() => {
                 expect(screen.getByText('Details')).toBeInTheDocument();

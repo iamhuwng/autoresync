@@ -62,9 +62,9 @@ describe('NotificationBell', () => {
         );
         const button = screen.getByLabelText('Notifications');
         fireEvent.click(button);
-        // Expect panel content (e.g., "Notifications" header from panel)
+        // Expect empty panel content when no notifications are loaded.
         await waitFor(() => {
-            expect(screen.getByText('Mark all read')).toBeInTheDocument();
+            expect(screen.getByText('No notifications yet')).toBeInTheDocument();
         });
     });
 });
