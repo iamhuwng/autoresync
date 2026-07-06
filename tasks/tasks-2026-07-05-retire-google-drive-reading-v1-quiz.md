@@ -614,7 +614,7 @@ These steps do not occur automatically during implementation.
 
 ### Gate B - Close Sessions And Inspect Purge
 
-- [ ] 12.5 Run only after explicit approval:
+- [x] 12.5 Run only after explicit approval:
   - `npm run sessions:end-active -- --project temp-a1437 --apply`
   - `npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest.json"`
 - [x] 12.6 Review the inspection manifest.
@@ -624,7 +624,7 @@ These steps do not occur automatically during implementation.
 - [x] 12.10 Confirm zero planned R2 deletions.
 - [x] 12.11 Confirm candidate paths, scrub paths, and blocked records are understood.
 
-Phase 12 Gate A/B partial note: Gate A is complete through PR merge, local-main refresh, Hosting deploy, live deployed readback, teacher-lobby/create-surface verification, and focused selector/route tests. Clean PR #11 was merged to `main` as merge commit `4b9db726`; local `main == origin/main`. The previous local-only `main` commit `80198085 fix(listening): clean abandoned temp uploads` is preserved on local branch `codex/preserve-local-main-80198085`. Direct-main push was not used. Gate B `sessions:end-active --apply` remains unchecked and was not run; no purge tooling, Firebase data purge, R2 mutation, Firebase rules deploy, or Gate C/D/E action was run. Zero active sessions were previously confirmed by dry-run, and the read-only inspection manifest reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, and 87 unknown-blocked paths grouped by root for review. See findings for exact commands, PR/deploy/readback evidence, and the protected-file staging correction.
+Phase 12 Gate A/B partial note: Gate A is complete through PR merge, local-main refresh, Hosting deploy, live deployed readback, teacher-lobby/create-surface verification, and focused selector/route tests. Clean PR #11 was merged to `main` as merge commit `4b9db726`; local `main == origin/main`. The previous local-only `main` commit `80198085 fix(listening): clean abandoned temp uploads` is preserved on local branch `codex/preserve-local-main-80198085`. Direct-main push was not used. Gate B session closure apply was run after explicit approval and found zero active sessions, so no sessions were closed; the follow-up read-only inspection manifest still reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, zero Drive URL field paths, and 87 unknown-blocked paths grouped by root for review. No purge tooling, Firebase data purge, R2 mutation, Firebase rules deploy, or Gate C/D/E action was run. See findings for exact commands, PR/deploy/readback evidence, Gate B apply evidence, and the protected-file staging correction.
 
 ### Gate C - Destructive Approval
 

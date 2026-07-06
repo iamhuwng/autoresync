@@ -5964,3 +5964,154 @@ Recommended next approval:
 
 - If product owner wants Gate B completion: explicitly approve `npm run sessions:end-active -- --project temp-a1437 --apply` and immediate read-only `materials:inspect-retired` rerun.
 - If product owner wants purge: do not approve until Gate B apply/readback is recorded and the 87 unknown-blocked paths are reviewed.
+
+## Phase 12 Gate B Session Closure Apply And Inspection Evidence - 2026-07-06 local / 2026-07-05 UTC
+
+Scope and authority:
+
+- Product owner approved the recommendation to create an evidence branch/PR, then run Gate B `sessions:end-active --apply`, then rerun read-only retired-material inspection.
+- Evidence branch created from merged `main`: `codex/retirement-gate-evidence`.
+- Gate A evidence was committed first on this branch as `281f904 docs(retirement): record gate a completion`.
+- No destructive retired-material purge was run.
+- No R2 mutation, Firebase rules deploy, direct `main` push, deployment, merge, or worktree cleanup was run during Gate B.
+- Subagents remain blocked by product-owner instruction; no subagents were spawned.
+
+State before Gate B apply:
+
+```powershell
+rtk git status --short --branch
+```
+
+Result before evidence branch: exit `0`; branch `main...origin/main`; dirty paths were only the two task-packet evidence files plus protected unrelated untracked file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
+```powershell
+rtk git switch -c codex/retirement-gate-evidence
+```
+
+Result: exit `0`; switched to new branch `codex/retirement-gate-evidence`.
+
+```powershell
+rtk npm run check:utf8 -- tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+rtk npm run enforce:check
+rtk git diff --check
+```
+
+Results before staging:
+
+- UTF-8 scoped check exit `0`; `UTF-8 check passed for 2 text file(s).`
+- enforcement exit `0`; `All enforcement checks passed.`
+- diff check exit `0`; no output.
+
+```powershell
+rtk git add -- tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+rtk git diff --cached --name-only
+rtk git commit -m "docs(retirement): record gate a completion"
+```
+
+Results:
+
+- exact-path stage exit `0`; `ok 2 files changed, 302 insertions(+), 4 deletions(-)`.
+- staged paths were exactly:
+  - `tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md`
+  - `tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md`
+- commit exit `0`; commit `281f904`.
+
+Gate B apply:
+
+```powershell
+rtk npm run sessions:end-active -- --project temp-a1437 --apply
+```
+
+Result: exit `0`; command ran in apply mode against `temp-a1437`:
+
+```json
+{
+  "project": "temp-a1437",
+  "mode": "apply",
+  "activeSessionCount": 0,
+  "sessions": []
+}
+```
+
+Result note: `No active sessions found.` Because `activeSessionCount` was `0`, the apply command had no session closure writes to perform.
+
+Follow-up read-only retired-material inspection:
+
+```powershell
+rtk npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest-gate-b.json"
+```
+
+Result: exit `0`; read-only mode; output path `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b.json`; script summary:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "mode": "read-only",
+  "rootCount": 22,
+  "readFailureCount": 0,
+  "driveUrlFieldPathCount": 0,
+  "explicitReadingV2PayloadCount": 1114,
+  "legacyReadingSchemaEvidenceCount": 0
+}
+```
+
+Manifest count review:
+
+```powershell
+rtk node -e "const fs=require('fs'); const path=require('path'); const p=path.join(process.env.TEMP,'retired-materials-manifest-gate-b.json'); ..."
+```
+
+Result: exit `0`; selected audit-safe counts:
+
+- manifest bytes: `22997`
+- `projectId`: `temp-a1437`
+- `schemaVersion`: `retired-material-inventory-phase-2-v1`
+- `classifierSchemaVersion`: `retired-material-classifier-phase-2-v1`
+- `sourceRevision`: `281f904e42474437744386ded665fabb67d1dacc`
+- `readFailureCount`: `0`
+- `activeSessionCount`: `0`
+- `protectedReadingV2CollisionCount`: `0`
+- `plannedR2DeleteCount`: `0`
+- `plannedDeletionPathCount`: `0`
+- `retainedResultScrubPathCount`: `0`
+- `unknownBlockedRecordCount`: `87`
+- candidate state counts:
+  - `retire-reading-v1`: `0`
+  - `retire-quiz`: `0`
+  - `retire-drive-backed-listening`: `0`
+  - `protect-reading-v2`: `0`
+  - `protect-thcs`: `0`
+  - `protect-r2-listening`: `0`
+  - `unknown-blocked`: `87`
+- `driveUrlFieldPathCount`: `0`
+- `markerEvidenceCount`: `0`
+
+Unknown-blocked grouping by Firebase root:
+
+- `/course_materials`: `18`
+- `/material_catalog`: `5`
+- `/notifications`: `20`
+- `/session_test_payloads`: `1`
+- `/student_safe_tests`: `19`
+- `/tests`: `24`
+
+Gate B current state:
+
+- `12.5` complete: approved apply-mode active-session closure command ran, and follow-up read-only retired-material inspection ran.
+- `12.6` through `12.11` remain satisfied by the reviewed manifest evidence.
+- No purge candidate was applied.
+- No completed result deletion, result index deletion, R2 deletion, or Reading V2 deletion was planned.
+- The manifest still blocks purge progression on `87` unknown-blocked paths until those are explicitly reviewed/accepted for the destructive Gate C decision.
+
+Remaining Phase 12 scope:
+
+- Gate C destructive purge remains unchecked and requires separate explicit approval:
+  - `npm run materials:purge-retired -- --project temp-a1437 --manifest "$env:TEMP\retired-materials-manifest-gate-b.json" --apply`
+- Gate D Firebase rules deployment remains unchecked and must wait until purge readback passes.
+- Gate E feature-branch/worktree cleanup remains unchecked and requires explicit approval.
+
+Recommended next approval:
+
+- Review the Gate B manifest counts and the 87 unknown-blocked root grouping above.
+- If product owner accepts the manifest boundary and wants destructive purge, explicitly approve Gate C purge using manifest `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b.json`.
+- If product owner is not ready to purge, stop here; no further remote mutation is needed.
