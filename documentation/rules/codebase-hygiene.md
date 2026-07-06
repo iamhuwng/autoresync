@@ -49,6 +49,14 @@ DO NOT import, use, or recommend ANY `@mantine/*` package in new code.
 
 If replacement would expand the task beyond the touched surface, stop and document the deferred Mantine residue with file path, component name, and why it is out of scope. Do not add new Mantine while deferring old Mantine.
 
+**Current enforcement:**
+- `npm run lint` runs `npm run lint:mantine`.
+- `npm run lint:mantine` runs `scripts/check-mantine-boundary.mjs`.
+- `.github/workflows/mantine-boundary.yml` checks changed source on PRs and pushes.
+- The old Vite/browser console Rule 15 warning path is obsolete as an
+  enforcement boundary. Do not rely on runtime console warnings to catch banned
+  imports.
+
 **Self-check:** *"Am I about to write `import { ... } from '@mantine/...'`?"*
 If yes → STOP. Use native HTML/CSS.
 

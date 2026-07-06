@@ -17,6 +17,11 @@ tags:
 
 Firebase Realtime Database is the primary backend. The application uses Firebase Auth, RTDB, and Hosting in production, with Cloudflare R2 Workers for file storage.
 
+Session lifecycle uses Firebase Spark-compatible direct RTDB/Auth/Rules only.
+Expiration is derived from canonical `game_sessions/{sessionCode}.expiresAt`
+and RTDB server `now`. There is no Firebase scheduled Function, Cloudflare
+lifecycle cron, browser cleanup loop, or `r2-backup-worker` lifecycle scan.
+
 ## Firebase Services
 
 | Service | Usage | Config |
@@ -31,9 +36,12 @@ Firebase Realtime Database is the primary backend. The application uses Firebase
 / (root)
 ├── users/{uid}/           — User profiles + roles
 ├── tests/{testId}/        — Test definitions (questions, passages, metadata)
-├── sessions/{sessionId}/  — Active live sessions
-│   ├── participants/      — Connected students
+├── game_sessions/{sessionCode}/  — Canonical live sessions
+│   ├── players/           — Connected students
+│   ├── expiresAt          — Expiry boundary enforced by rules
 │   └── timer/             — Timer state
+├── owner_session_index/{ownerId}/{sessionCode}/  — Active-list discovery
+├── owner_session_migrations/{ownerId}/  — Legacy index cursors
 ├── classes/{classId}/     — Class definitions
 ├── courses/{courseId}/    — Course definitions
 ├── results/
@@ -72,6 +80,13 @@ firebase deploy --only database
 Use raw `firebase deploy --only hosting:kahut1` only when you already have a verified `dist` and want an upload-only step.
 
 **Live URL:** https://kahut1.web.app
+
+### Session Lifecycle Deploy Note
+
+Deploy the client code that reads `owner_session_index` together with the RTDB
+rules that deny unbounded owner scans of `game_sessions`. A rules-only deploy
+can break an older deployed client that still queries active sessions directly.
+See @doc/architecture/session-lifecycle-authority.
 
 ## Backup & Restore System
 

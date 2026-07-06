@@ -47,8 +47,15 @@ This includes but is not limited to:
 |-------|------|
 | **New files** | ❌ ZERO Mantine imports allowed |
 | **New components** | ❌ ZERO Mantine components allowed |
-| **Existing files being modified** | ⚠️ Do NOT add new Mantine imports. Existing usage may remain temporarily. |
+| **Existing files being modified** | Do NOT add new Mantine imports. Replace Mantine encountered in the touched UI component or touched region, or document explicit deferred residue. |
 | **Full rewrites/refactors** | ❌ Replace Mantine with native alternatives |
+
+## Enforcement
+
+- `npm run lint` runs `npm run lint:mantine`.
+- `npm run lint:mantine` runs `scripts/check-mantine-boundary.mjs`.
+- `.github/workflows/mantine-boundary.yml` checks changed source in CI.
+- Runtime/Vite console warnings are obsolete as the enforcement boundary.
 
 ## Why
 

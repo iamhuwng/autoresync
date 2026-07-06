@@ -129,6 +129,19 @@ On 2026-02-25, a backup Worker needed to read 25 RTDB nodes + 9 Firestore collec
 
 **Self-check:** *"Can this Worker complete ALL its work within the platform's time limit?"*
 
+### Session Lifecycle Boundary
+
+Session expiration correctness must not depend on a Worker cron, Firebase
+scheduled Function, browser cleanup loop, or full active-session scan. The
+approved Spark/Workers-Free design derives effective status from
+`game_sessions/{sessionCode}.expiresAt` plus RTDB server-time rules, and uses
+`owner_session_index/{ownerId}/{sessionCode}` only for owner-scoped discovery.
+
+Do not add session lifecycle work to `r2-backup-worker`. That Worker remains a
+backup/trusted-storage boundary. If a future paid reconciler is approved, it
+must materialize status only; it must not change the domain policy that server
+rules enforce expiry at write time.
+
 ---
 
 ## Rule 14 — Never Regenerate Shared IDs
