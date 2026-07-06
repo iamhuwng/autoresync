@@ -4,7 +4,7 @@ import {
 } from '../../config/readingV2FeatureFlags';
 
 export const RETIREMENT_CLASSIFIER_SCHEMA_VERSION =
-  'retired-material-classifier-phase-2-v1';
+  'retired-material-classifier-phase-2-v2';
 
 export type RetirementDecisionState =
   | 'retire-reading-v1'
@@ -13,6 +13,8 @@ export type RetirementDecisionState =
   | 'protect-reading-v2'
   | 'protect-thcs'
   | 'protect-r2-listening'
+  | 'protect-supported-listening'
+  | 'protect-non-candidate'
   | 'unknown-blocked';
 
 export interface RetirementCandidateContext {
@@ -48,6 +50,7 @@ const R2_FIELD_NAMES = new Set([
   'objectKey',
   'storageKey',
   'assetKey',
+  'assetId',
   'r2Url',
 ]);
 
@@ -72,6 +75,13 @@ const hasFields = (value: unknown, fields: readonly string[]): boolean =>
 
 const isTestsRecord = (context: RetirementCandidateContext): boolean =>
   context.root === 'tests' && /^\/tests\/[^/]+$/.test(context.path);
+
+const pathMatchesRootRecord = (
+  context: RetirementCandidateContext,
+  root: string,
+): boolean =>
+  context.root === root
+  && context.path.split('/').filter(Boolean).length === root.split('/').length + 1;
 
 export const isReadingV2Material = (value: unknown): boolean => {
   return isReadingV2Payload(value);
@@ -177,6 +187,36 @@ const isR2ListeningMaterial = (value: unknown): boolean => {
   return skill === 'listening' && hasR2Evidence(value);
 };
 
+const isListeningRecord = (value: unknown): boolean => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return [
+    value.skill,
+    value.skillType,
+    value.testSkill,
+  ].some((candidate) => normalizeText(candidate) === 'listening');
+};
+
+const isSupportedListeningContext = (context: RetirementCandidateContext): boolean =>
+  [
+    'tests',
+    'drafts',
+    'student_safe_tests',
+    'homework_student_safe_tests',
+    'session_test_payloads',
+  ].includes(context.root);
+
+const isSupportedListeningMaterial = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean => {
+  if (!isSupportedListeningContext(context) || !isRecord(value)) {
+    return false;
+  }
+  return isListeningRecord(value) || isListeningRecord(value.testData);
+};
+
 const collectDriveAudioPaths = (
   value: unknown,
   path: string,
@@ -215,6 +255,48 @@ export const getGoogleDriveAudioFieldPaths = (
 
 export const hasGoogleDriveAudio = (value: unknown): boolean =>
   getGoogleDriveAudioFieldPaths(value).length > 0;
+
+const isCourseMaterialReference = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean =>
+  pathMatchesRootRecord(context, 'course_materials')
+  && isRecord(value)
+  && typeof value.courseId === 'string'
+  && typeof value.moduleId === 'string'
+  && typeof value.materialId === 'string';
+
+const isMaterialCatalogIndexContainer = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean =>
+  pathMatchesRootRecord(context, 'material_catalog/material_indexes')
+  && isRecord(value);
+
+const isNotificationMailboxContainer = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean =>
+  pathMatchesRootRecord(context, 'notifications')
+  && isRecord(value);
+
+const isSessionTestPayloadWrapper = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean =>
+  pathMatchesRootRecord(context, 'session_test_payloads')
+  && isRecord(value)
+  && isRecord(value.testData)
+  && typeof value.testId === 'string';
+
+const isNonCandidateContainerOrReference = (
+  value: unknown,
+  context: RetirementCandidateContext,
+): boolean =>
+  isCourseMaterialReference(value, context)
+  || isMaterialCatalogIndexContainer(value, context)
+  || isNotificationMailboxContainer(value, context)
+  || isSessionTestPayloadWrapper(value, context);
 
 const getReadingV2MarkerEvidence = (
   value: unknown,
@@ -304,6 +386,22 @@ export const classifyRetirementCandidate = (
       evidence: driveAudioPaths,
       plannedDeletionPaths: [context.path],
     });
+  }
+
+  if (isSupportedListeningMaterial(value, context)) {
+    return makeDecision(
+      'protect-supported-listening',
+      context,
+      'supported-listening-no-google-drive-audio',
+    );
+  }
+
+  if (isNonCandidateContainerOrReference(value, context)) {
+    return makeDecision(
+      'protect-non-candidate',
+      context,
+      'reference-or-container-not-retired-material',
+    );
   }
 
   return makeDecision('unknown-blocked', context, 'no-approved-retirement-signature');

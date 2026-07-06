@@ -28,6 +28,8 @@ const emptyCandidateIdsByState = () => ({
   'protect-reading-v2': [],
   'protect-thcs': [],
   'protect-r2-listening': [],
+  'protect-supported-listening': [],
+  'protect-non-candidate': [],
   'unknown-blocked': [],
 });
 
@@ -37,7 +39,7 @@ const baseSnapshot = (
   projectId: 'temp-a1437',
   generatedAt: baseGeneratedAt,
   sourceRevision: 'revision-1',
-  classifierSchemaVersion: 'retired-material-classifier-phase-2-v1',
+  classifierSchemaVersion: 'retired-material-classifier-phase-2-v2',
   candidateCountsByReason: {
     'canonical-or-explicit-quiz-reference': 1,
   },

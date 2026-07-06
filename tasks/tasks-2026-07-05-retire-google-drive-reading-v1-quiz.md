@@ -608,13 +608,13 @@ These steps do not occur automatically during implementation.
 ### Gate A - Main Integration And Prevent New Retired Data
 
 - [x] 12.1 After explicit approval, inspect feature-branch `HEAD`, upstream, dirty status, included/excluded paths, commits, diff, and test summary.
-- [ ] 12.2 Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval. Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
-- [ ] 12.3 Deploy the exact merged feature-removal commit and verify deployed revision/readback.
-- [ ] 12.4 Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
+- [x] 12.2 Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval. Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
+- [x] 12.3 Deploy the exact merged feature-removal commit and verify deployed revision/readback.
+- [x] 12.4 Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
 
 ### Gate B - Close Sessions And Inspect Purge
 
-- [ ] 12.5 Run only after explicit approval:
+- [x] 12.5 Run only after explicit approval:
   - `npm run sessions:end-active -- --project temp-a1437 --apply`
   - `npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest.json"`
 - [x] 12.6 Review the inspection manifest.
@@ -624,21 +624,27 @@ These steps do not occur automatically during implementation.
 - [x] 12.10 Confirm zero planned R2 deletions.
 - [x] 12.11 Confirm candidate paths, scrub paths, and blocked records are understood.
 
-Phase 12 Gate A/B partial note: local exact-path commits exist, clean PR #11 is open against `main`, PR #11 checks passed, and read-only Gate B inspection passed. Gate A local-main sync, merge, deploy, deployed selector verification, and direct-main push remain unchecked and were not run; local `main` still has local-only commit `80198085 fix(listening): clean abandoned temp uploads`. Gate B `sessions:end-active --apply` remains unchecked and was not run; zero active sessions were confirmed by dry-run, and the read-only inspection manifest reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, and 87 unknown-blocked paths grouped by root for review. See findings for exact commands, PR evidence, and the protected-file staging correction.
+Phase 12 Gate A/B partial note: Gate A is complete through PR merge, local-main refresh, Hosting deploy, live deployed readback, teacher-lobby/create-surface verification, and focused selector/route tests. Clean PR #11 was merged to `main` as merge commit `4b9db726`; local `main == origin/main`. The previous local-only `main` commit `80198085 fix(listening): clean abandoned temp uploads` is preserved on local branch `codex/preserve-local-main-80198085`. Direct-main push was not used. Gate B session closure apply was run after explicit approval and found zero active sessions, so no sessions were closed; the follow-up read-only inspection manifest still reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, zero Drive URL field paths, and 87 unknown-blocked paths grouped by root for review. No purge tooling, Firebase data purge, R2 mutation, Firebase rules deploy, or Gate C/D/E action was run. See findings for exact commands, PR/deploy/readback evidence, Gate B apply evidence, and the protected-file staging correction.
+
+Phase 12 Gate B blocker-fix note: after product-owner approval for narrow inventory/classifier cleanup, the explained 87 unknown-blocked paths were reclassified as protected/non-candidate shapes without changing purge apply guardrails. The read-only follow-up inspection against `temp-a1437` wrote `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b-cleaned.json` and reported zero read failures, zero active sessions, zero unknown-blocked records, zero unknown shapes, zero planned deletion paths, zero retained-result scrub paths, zero protected Reading V2 collisions, zero R2 deletes, zero Drive URL field paths, and no retired candidates. The 87 records now group as `protect-r2-listening` (27), `protect-supported-listening` (17), and `protect-non-candidate` (43). This cleanup is currently dirty and uncommitted, so the manifest source revision still points at pre-cleanup `HEAD` until exact-path commit and rerun are separately approved. No purge, apply, deploy, push, merge, staging, or commit was run.
 
 ### Gate C - Destructive Approval
 
-- [ ] 12.12 Only after explicit product-owner approval, run:
+- [x] 12.12 Only after explicit product-owner approval, run:
   - `npm run materials:purge-retired -- --project temp-a1437 --manifest "$env:TEMP\retired-materials-manifest.json" --apply`
-- [ ] 12.13 Run full readback.
-- [ ] 12.14 Retain only the manifest/proof required for audit.
-- [ ] 12.15 Do not retain deleted material payloads.
+- [x] 12.13 Run full readback.
+- [x] 12.14 Retain only the manifest/proof required for audit.
+- [x] 12.15 Do not retain deleted material payloads.
+
+Phase 12 Gate C note: after explicit product-owner approval, a reviewed manifest wrapper was created from committed read-only manifest candidate `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-c-candidate.json` and written to `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-reviewed-gate-c-noop.json`. The reviewed manifest source revision was committed cleanup `03946f4dcb7de9f95650e92a6aa8623500337e36`. The first apply command timed out before output at 184 seconds; rerun completed with exit `0`, `mode: applied`, `updateCount: 0`, `deletionPathCount: 0`, `retainedResultScrubPathCount: 0`, and readback counts `activeSessionCount: 0`, `plannedR2DeleteCount: 0`, `protectedReadingV2CollisionCount: 0`, `retainedResultCount: 179`, `driveUrlFieldPathCount: 0`, `readFailureCount: 0`. Independent post-apply read-only inspection wrote `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-c-readback.json` and confirmed zero retired candidates, zero unknown-blocked records, zero planned deletion paths, zero retained-result scrub paths, zero Drive URL field paths, zero R2 deletes, zero protected Reading V2 collisions, and Reading V2 count `1114`. No deleted material payloads were retained because Gate C was a no-op apply. No deploy, push, merge, Firebase rules deploy, R2 mutation, or Gate D/E action was run.
 
 ### Gate D - Rules Deployment
 
-- [ ] 12.16 Deploy cleaned Firebase rules only after purge readback passes.
-- [ ] 12.17 Verify `/quizzes` denial against deployed state.
-- [ ] 12.18 Verify supported feature access against deployed state.
+- [x] 12.16 Deploy cleaned Firebase rules only after purge readback passes.
+- [x] 12.17 Verify `/quizzes` denial against deployed state.
+- [x] 12.18 Verify supported feature access against deployed state.
+
+Phase 12 Gate D note: after explicit product-owner approval and completed Gate C readback, Firebase Realtime Database rules were deployed only with `firebase deploy --only database --project temp-a1437 --non-interactive`. Firebase CLI version was `15.11.0`, active project proof returned `temp-a1437`, and deploy output reported valid syntax and successful release for `temp-a1437-default-rtdb`. Deployed rules readback confirmed `/quizzes` read/write false, root write preserving `quizzes`, supported `/tests` owner-query read rule, `student_safe_tests` authenticated read rule, and Reading V2 metadata delivery-engine validation. Live RTDB REST proof with dev teacher auth and deployed app `Referer` confirmed `/quizzes` read and write both returned permission denied, while supported `student_safe_tests` read and `/tests` owner query returned HTTP 200. No Hosting deploy, push, merge, R2 mutation, purge, or Gate E action was run. See findings for exact commands and proof.
 
 ### Gate E - Local Main Refresh And Worktree Cleanup
 
