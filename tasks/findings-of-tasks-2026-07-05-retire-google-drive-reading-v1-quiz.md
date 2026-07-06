@@ -6115,3 +6115,200 @@ Recommended next approval:
 - Review the Gate B manifest counts and the 87 unknown-blocked root grouping above.
 - If product owner accepts the manifest boundary and wants destructive purge, explicitly approve Gate C purge using manifest `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b.json`.
 - If product owner is not ready to purge, stop here; no further remote mutation is needed.
+
+## Phase 12 Gate B Unknown-Blocked Classifier Cleanup - 2026-07-06
+
+Scope and authority:
+
+- Product owner approved narrow inventory/classifier cleanup to classify or exclude the explained non-candidate containers and protected Listening records, keep purge guardrails strict, and rerun read-only retired-material inspection against Firebase project `temp-a1437`.
+- No destructive purge, `--apply`, deploy, push, merge, R2 mutation, Firebase rules deploy, staging, or commit was run.
+- Subagents remained blocked; no subagents were spawned.
+- Protected unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` remained untracked and untouched.
+
+State proof:
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Location; git rev-parse --show-toplevel; git branch --show-current; git rev-parse HEAD; git rev-parse --abbrev-ref --symbolic-full-name '@{u}'; git status --short --branch --untracked-files=all"
+```
+
+Result: exit `0`; folder and repo root were `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`; branch `codex/retirement-gate-evidence`; `HEAD` `cf29a9c5b87ad03e3022f23cfc5456e3bd68898e`; upstream `origin/codex/retirement-gate-evidence`; dirty/untracked status at start showed only:
+
+```text
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Reconciliation note after task-list update:
+
+- `tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md` was also updated append-only with the Gate B blocker-fix current-state note.
+- Final dirty-path proof must therefore include the six cleanup paths plus the findings file, task-list file, and protected unrelated untracked file.
+
+Required rules and authority read before coding:
+
+- `C:\Users\The Lord\.codex\skills\implement\SKILL.md`.
+- `C:\Users\The Lord\.agents\skills\caveman\SKILL.md`.
+- `AGENTS.md`.
+- `CONTEXT.md`.
+- `docs/superpowers/plans/2026-07-05-retire-google-drive-reading-v1-quiz.md`.
+- `tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md`.
+- `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md`.
+- `documentation/rules/codebase-hygiene.md`.
+- `documentation/rules/infrastructure.md`.
+- `docs/adr/0001-retired-material-purge-boundary.md`.
+- `documentation/architecture/upload-storage-authority.md`.
+
+Implementation:
+
+- `src/services/retirement/retiredMaterialClassifier.ts`
+  - Bumped classifier schema to `retired-material-classifier-phase-2-v2`.
+  - Added protected states `protect-supported-listening` and `protect-non-candidate`.
+  - Added `assetId` as R2 Listening evidence, scoped to Listening records by the existing R2-listening helper.
+  - Protected supported Listening records in `/tests`, `/drafts`, `/student_safe_tests`, `/homework_student_safe_tests`, and `/session_test_payloads` when they do not contain Google Drive audio.
+  - Protected explained non-candidate reference/container roots: `/course_materials/{rowId}`, `/material_catalog/material_indexes/{indexName}`, `/notifications/{userId}`, and `/session_test_payloads/{code}` wrappers.
+  - Kept malformed/non-object records and unsupported unknown records as `unknown-blocked`.
+  - Kept Drive-audio classification before the new generic supported-Listening protection so Drive-backed Listening remains retired.
+- `scripts/lib/retiredMaterialInventory.ts`
+  - Added new protected states to manifest `candidateIdsByState`.
+- `scripts/purge-retired-materials.ts`
+  - Added new protected states to purge manifest normalization/fingerprint state set.
+  - Existing hard-fail guardrails remained unchanged: active sessions, unknown-blocked records, protected Reading V2 collisions, R2 delete count, protected roots, and pre-mutation unknown/Reading V2 reads still abort purge.
+- Tests updated:
+  - `src/services/retirement/retiredMaterialClassifier.test.ts`.
+  - `scripts/__tests__/retired-material-inventory.test.ts`.
+  - `scripts/__tests__/purge-retired-materials.test.ts`.
+
+Focused tests:
+
+```powershell
+rtk npx vitest run src/services/retirement/retiredMaterialClassifier.test.ts scripts/__tests__/retired-material-inventory.test.ts scripts/__tests__/purge-retired-materials.test.ts --reporter=basic
+```
+
+Result: exit `0`; `3` test files passed; `31` tests passed.
+
+Guardrails:
+
+```powershell
+rtk npx tsc --noEmit
+```
+
+Result: exit `0`; `TypeScript: No errors found`.
+
+```powershell
+rtk npm run check:utf8 -- src/services/retirement/retiredMaterialClassifier.ts src/services/retirement/retiredMaterialClassifier.test.ts scripts/lib/retiredMaterialInventory.ts scripts/purge-retired-materials.ts scripts/__tests__/retired-material-inventory.test.ts scripts/__tests__/purge-retired-materials.test.ts
+```
+
+Result: exit `0`; `UTF-8 check passed for 6 text file(s).`
+
+```powershell
+rtk npm run enforce:check
+```
+
+Result: exit `0`; `All enforcement checks passed.`
+
+```powershell
+rtk git diff --check
+```
+
+Result: exit `0`; no whitespace errors.
+
+Read-only remote inspection after cleanup:
+
+```powershell
+rtk npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest-gate-b-cleaned.json"
+```
+
+Result: exit `0`; read-only mode; output path `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b-cleaned.json`; script summary:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "mode": "read-only",
+  "outputPath": "C:\\Users\\THELOR~1\\AppData\\Local\\Temp\\retired-materials-manifest-gate-b-cleaned.json",
+  "rootCount": 22,
+  "readFailureCount": 0,
+  "driveUrlFieldPathCount": 0,
+  "explicitReadingV2PayloadCount": 1114,
+  "legacyReadingSchemaEvidenceCount": 0
+}
+```
+
+Manifest count review:
+
+```powershell
+rtk node -e "const fs=require('fs'),path=require('path'); const p=path.join(process.env.TEMP,'retired-materials-manifest-gate-b-cleaned.json'); ..."
+```
+
+Result: exit `0`; selected audit-safe counts:
+
+- `projectId`: `temp-a1437`
+- `generatedAt`: `2026-07-06T05:21:31.194Z`
+- `sourceRevision`: `cf29a9c5b87ad03e3022f23cfc5456e3bd68898e`
+- `schemaVersion`: `retired-material-inventory-phase-2-v1`
+- `classifierSchemaVersion`: `retired-material-classifier-phase-2-v2`
+- `readFailureCount`: `0`
+- `rootCount`: `22`
+- `activeSessionCount`: `0`
+- `unknownBlockedRecordCount`: `0`
+- `unknownShapeCount`: `0`
+- `plannedDeletionPathCount`: `0`
+- `retainedResultScrubPathCount`: `0`
+- `plannedR2DeleteCount`: `0`
+- `protectedReadingV2CollisionCount`: `0`
+- `driveUrlFieldPathCount`: `0`
+- `markerEvidenceCount`: `0`
+- `candidateCountsByReason`: `{}`
+
+State grouping after cleanup:
+
+```json
+{
+  "protect-r2-listening": {
+    "/student_safe_tests": 12,
+    "/tests": 15
+  },
+  "protect-supported-listening": {
+    "/session_test_payloads": 1,
+    "/student_safe_tests": 7,
+    "/tests": 9
+  },
+  "protect-non-candidate": {
+    "/course_materials": 18,
+    "/material_catalog": 5,
+    "/notifications": 20
+  }
+}
+```
+
+Diff scope:
+
+```powershell
+rtk git diff --stat -- src/services/retirement/retiredMaterialClassifier.ts src/services/retirement/retiredMaterialClassifier.test.ts scripts/lib/retiredMaterialInventory.ts scripts/purge-retired-materials.ts scripts/__tests__/retired-material-inventory.test.ts scripts/__tests__/purge-retired-materials.test.ts
+```
+
+Result: exit `0`; `6 files changed, 252 insertions(+), 4 deletions(-)`.
+
+Changed implementation/test paths:
+
+- `src/services/retirement/retiredMaterialClassifier.ts`
+- `src/services/retirement/retiredMaterialClassifier.test.ts`
+- `scripts/lib/retiredMaterialInventory.ts`
+- `scripts/purge-retired-materials.ts`
+- `scripts/__tests__/retired-material-inventory.test.ts`
+- `scripts/__tests__/purge-retired-materials.test.ts`
+
+Audit caveat:
+
+- The cleanup was not staged or committed in this approved scope. The read-only manifest therefore reports `sourceRevision` as the current branch `HEAD` (`cf29a9c5b87ad03e3022f23cfc5456e3bd68898e`) while the classifier cleanup is still dirty in the working tree.
+- Do not use `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-b-cleaned.json` as the final Gate C reviewed manifest unless the product owner explicitly accepts a dirty-worktree manifest.
+- Recommended safer path: approve exact-path stage/commit of the six cleanup paths plus this evidence update, then rerun read-only inspection once so the manifest `sourceRevision` points at a committed cleanup revision.
+
+Final status after cleanup before any staging/commit:
+
+```powershell
+rtk git status --short --branch --untracked-files=all
+```
+
+Result: tracked dirty paths were the six cleanup paths and this findings file; protected unrelated untracked file remained:
+
+```text
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```

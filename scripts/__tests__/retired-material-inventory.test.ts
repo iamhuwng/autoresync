@@ -307,6 +307,89 @@ describe('buildRetiredMaterialInventory', () => {
     expect(JSON.stringify(report)).not.toContain('notification1');
   });
 
+  it('excludes explained non-candidate containers and protected Listening records from unknown blockers', async () => {
+    const values = baseValues();
+    values.course_materials = {
+      link1: {
+        courseId: 'course-1',
+        moduleId: 'module-1',
+        materialId: 'material-1',
+        order: 1,
+      },
+    };
+    values['material_catalog/material_indexes'] = {
+      by_visibility: { public: { material1: true } },
+    };
+    values.notifications = {
+      user1: {
+        notification1: {
+          createdAt: 1780000000000,
+          id: 'notification1',
+          link: '/tests/listening-1',
+          message: 'Material assigned',
+          read: false,
+          title: 'Assignment',
+          type: 'assignment',
+        },
+      },
+    };
+    values.session_test_payloads = {
+      CODE123: {
+        generatedAt: 1780000000000,
+        testId: 'listening-1',
+        testData: {
+          type: 'IELTS',
+          skill: 'Listening',
+          questions: [],
+          audioSections: [],
+        },
+      },
+    };
+    values.tests = {
+      listening1: {
+        type: 'IELTS',
+        skill: 'Listening',
+        questions: [],
+        audioSections: [],
+      },
+      listeningWithAsset: {
+        type: 'IELTS',
+        skill: 'Listening',
+        audioSections: [{ assetId: 'asset-1', audioUrl: 'https://cdn.test/audio.mp3' }],
+      },
+      stillUnknown: { skill: 'Reading' },
+    };
+    values.student_safe_tests = {
+      listeningCopy: {
+        type: 'IELTS',
+        skill: 'Listening',
+        questions: [],
+        audioSections: [],
+      },
+    };
+
+    const report = await buildRetiredMaterialInventory(makeDatabase(values), {
+      projectId: 'temp-a1437',
+      sourceRevision: 'revision-1',
+      generatedAt: '2026-07-05T00:00:00.000Z',
+    });
+
+    expect(report.manifest.candidateIdsByState['protect-non-candidate']).toEqual([
+      '/course_materials/link1',
+      '/material_catalog/material_indexes/by_visibility',
+      '/notifications/user1',
+    ]);
+    expect(report.manifest.candidateIdsByState['protect-r2-listening']).toEqual([
+      '/tests/listeningWithAsset',
+    ]);
+    expect(report.manifest.candidateIdsByState['protect-supported-listening']).toEqual([
+      '/session_test_payloads/CODE123',
+      '/student_safe_tests/listeningCopy',
+      '/tests/listening1',
+    ]);
+    expect(report.manifest.unknownBlockedRecords).toEqual(['/tests/stillUnknown']);
+  });
+
   it('records ownership, entry points, Firebase roots, source-loading results, and protected owners', async () => {
     const report = await buildRetiredMaterialInventory(makeDatabase(baseValues()), {
       projectId: 'temp-a1437',

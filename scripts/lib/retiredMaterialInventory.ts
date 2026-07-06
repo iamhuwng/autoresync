@@ -198,6 +198,8 @@ const RETIREMENT_STATES: RetirementDecisionState[] = [
   'protect-reading-v2',
   'protect-thcs',
   'protect-r2-listening',
+  'protect-supported-listening',
+  'protect-non-candidate',
   'unknown-blocked',
 ];
 const CLASSIFICATION_READ_PATHS: InventoryReadPath[] = [

@@ -127,7 +127,7 @@ describe('retired material classifier', () => {
     )).toBe(false);
   });
 
-  it('classifies Drive-backed Listening and ignores ordinary Google or HTTPS URLs', () => {
+  it('classifies Drive-backed Listening and protects ordinary HTTPS Listening records', () => {
     expect(hasGoogleDriveAudio({
       skill: 'Listening',
       audioSections: [
@@ -147,7 +147,68 @@ describe('retired material classifier', () => {
     expect(classifyRetirementCandidate(
       { skill: 'Listening', audioSections: [{ audioUrl: 'https://cdn.example.test/audio.mp3' }] },
       { path: '/tests/ordinary-listening', root: 'tests' },
-    ).state).toBe('unknown-blocked');
+    ).state).toBe('protect-supported-listening');
+  });
+
+  it('protects supported Listening records that use asset identifiers or safe delivery copies', () => {
+    expect(classifyRetirementCandidate(
+      {
+        skill: 'Listening',
+        audioSections: [{ assetId: 'asset-1', audioUrl: 'https://cdn.test/audio.mp3' }],
+      },
+      { path: '/tests/r2-asset-listening', root: 'tests' },
+    ).state).toBe('protect-r2-listening');
+
+    expect(classifyRetirementCandidate(
+      {
+        type: 'IELTS',
+        skill: 'Listening',
+        questionCount: 0,
+        audioSections: [],
+      },
+      { path: '/student_safe_tests/listening-copy', root: 'student_safe_tests' },
+    ).state).toBe('protect-supported-listening');
+  });
+
+  it('protects reference and container roots that are not material source records', () => {
+    expect(classifyRetirementCandidate(
+      {
+        courseId: 'course-1',
+        moduleId: 'module-1',
+        materialId: 'material-1',
+        order: 1,
+      },
+      { path: '/course_materials/link-1', root: 'course_materials' },
+    ).state).toBe('protect-non-candidate');
+
+    expect(classifyRetirementCandidate(
+      { public: { materialId: true } },
+      {
+        path: '/material_catalog/material_indexes/by_visibility',
+        root: 'material_catalog/material_indexes',
+      },
+    ).state).toBe('protect-non-candidate');
+
+    expect(classifyRetirementCandidate(
+      {
+        notification1: {
+          id: 'notification1',
+          title: 'Notice',
+          message: 'Message',
+          type: 'info',
+        },
+      },
+      { path: '/notifications/user-1', root: 'notifications' },
+    ).state).toBe('protect-non-candidate');
+
+    expect(classifyRetirementCandidate(
+      {
+        generatedAt: 1780000000000,
+        testId: 'test-1',
+        testData: { skill: 'Listening', questions: [] },
+      },
+      { path: '/session_test_payloads/CODE123', root: 'session_test_payloads' },
+    ).state).toBe('protect-supported-listening');
   });
 
   it('blocks malformed and unknown records', () => {
