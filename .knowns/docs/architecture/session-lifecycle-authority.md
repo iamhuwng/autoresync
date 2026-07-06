@@ -33,6 +33,10 @@ Canonical source: `documentation/architecture/session-lifecycle-authority.md`.
 - Missing or malformed `expiresAt` is legacy-readable and owner/admin
   repairable, but fails closed for student actions and is excluded from the
   active owner index.
+- If the owner index is temporarily unavailable during rollout or repair,
+  teacher clients may use bounded owner-field fallback queries on
+  `game_sessions`; this is not a global scan and canonical lifecycle filtering
+  still applies.
 
 ## Free-Tier Boundary
 

@@ -162,6 +162,9 @@ still reject expired writes.
 `src/services/sessionQuery.ts` owns teacher active-session subscriptions:
 
 - regular teachers read owner index with bounded pagination;
+- if the owner index is temporarily unavailable during rollout or repair, the
+  client may use bounded owner-field fallback queries on `game_sessions`; this
+  is not a global scan and must still filter through canonical lifecycle rules;
 - canonical sessions are revalidated before emission;
 - local timers refresh/remove sessions when they cross expiry;
 - duplicate listeners are cleaned up on unsubscribe;
