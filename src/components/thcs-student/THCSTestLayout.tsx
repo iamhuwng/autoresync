@@ -66,7 +66,8 @@ import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcs
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
 import { sendThcsFullyGradedNotification } from '../../services/notificationService';
-import { Button } from '../modern';
+import { resolveSessionMutationFailure } from '../../services/sessionActionError';
+import { Button, toast } from '../modern';
 import { buildThcsSessionResultContext } from './thcsSessionResultContext';
 
 import type { THCSTest } from '../../types/thcs-test.types';
@@ -126,6 +127,22 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
 
     // Auto-save debounce
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sessionExpiredAnnouncedRef = useRef(false);
+
+    const announceSessionExpired = useCallback((message: string) => {
+        if (!sessionExpiredAnnouncedRef.current) {
+            toast.error(message);
+            sessionExpiredAnnouncedRef.current = true;
+        }
+
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+
+        setSessionStatus('expired');
+        setShowSubmitConfirm(false);
+    }, []);
 
     // CRIT-1 fix: Ref to always call the latest handleSubmit from the timer
     const handleSubmitRef = useRef<() => void>(() => { });
@@ -171,7 +188,13 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
             hasCompletedTest: false,
         }).then(() => {
             console.log(`✅ [THCS] Player registered: ${user.uid}`);
-        }).catch(err => {
+        }).catch(async err => {
+            const resolved = await resolveSessionMutationFailure(err, sessionCode);
+            if (resolved?.code === 'session-expired') {
+                announceSessionExpired(resolved.message);
+                return;
+            }
+
             console.warn('[THCS] Player registration failed:', err);
         });
 
@@ -182,7 +205,13 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 lastActivity: Date.now(),
             }).catch(() => { /* ignore cleanup errors */ });
         };
-    }, [user?.uid, sessionCode]);
+    }, [announceSessionExpired, user?.uid, sessionCode]);
+
+    useEffect(() => {
+        if (sessionStatus === 'waiting' || sessionStatus === 'in-progress') {
+            sessionExpiredAnnouncedRef.current = false;
+        }
+    }, [sessionStatus]);
 
     // ─── Session State Listener ───────────────────────────────
     // Listen for teacher actions: pause, resume, end test, timer sync
@@ -356,9 +385,15 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 currentSection: currentSectionIndex,
             });
         } catch (err) {
+            const resolved = await resolveSessionMutationFailure(err, sessionCode);
+            if (resolved?.code === 'session-expired') {
+                announceSessionExpired(resolved.message);
+                return;
+            }
+
             console.warn('Auto-save failed:', err);
         }
-    }, [user, sessionCode, totalQuestions, currentSectionIndex]);
+    }, [announceSessionExpired, user, sessionCode, totalQuestions, currentSectionIndex]);
     // Keep ref in sync
     saveAnswersToRTDBRef.current = saveAnswersToRTDB;
 
@@ -597,12 +632,18 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 triggerFormativeFeedbackForSavedResult(resultId);
             }).catch(err => console.warn('Failed to load resultFeedbackGeneration service:', err));
         } catch (error) {
+            const resolved = await resolveSessionMutationFailure(error, sessionCode);
+            if (resolved?.code === 'session-expired') {
+                announceSessionExpired(resolved.message);
+                return;
+            }
+
             console.error('Submission failed:', error);
-            alert('Failed to submit. Please try again.');
+            toast.error('Failed to submit. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
-    }, [user, isSubmitting, testData, answers, sessionCode, timeElapsed, teacherEndTriggered]);
+    }, [announceSessionExpired, user, isSubmitting, testData, answers, sessionCode, timeElapsed, teacherEndTriggered]);
     // CRIT-1 fix: Keep handleSubmitRef in sync so the timer always calls the latest version
     handleSubmitRef.current = handleSubmit;
 
@@ -747,7 +788,7 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                         <Button
                             variant="primary"
                             onClick={() => setShowSubmitConfirm(true)}
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || sessionStatus === 'expired'}
                             style={{ padding: isMobile ? '0.25rem 0.5rem' : '0.3rem 0.75rem', fontSize: isMobile ? '0.8rem' : '0.875rem' }}
                         >
                             {isSubmitting ? '⏳' : isMobile ? '📤' : '📤 Submit'}
@@ -835,6 +876,30 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                         </div>
                         <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
                             Your teacher has paused the test. Please wait...
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Expired overlay */}
+            {sessionStatus === 'expired' && !isSubmitted && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 100,
+                    background: 'rgba(0,0,0,0.6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backdropFilter: 'blur(4px)',
+                }}>
+                    <div style={{
+                        background: 'white', borderRadius: '1rem', padding: '3rem',
+                        textAlign: 'center', maxWidth: '400px',
+                        boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+                    }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏰</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
+                            Session Expired
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                            Ask your teacher to extend the session.
                         </div>
                     </div>
                 </div>

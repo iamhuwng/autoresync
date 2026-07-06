@@ -805,7 +805,7 @@
             }
         },
         "game_sessions": {
-            ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdByUserId' && query.equalTo === auth.uid) || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid) || (query.orderByChild === 'teacherId' && query.equalTo === auth.uid))",
+            ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdByUserId' && query.equalTo === auth.uid && query.limitToFirst > 0 && query.limitToFirst <= 26) || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid && query.limitToFirst > 0 && query.limitToFirst <= 26) || (query.orderByChild === 'teacherId' && query.equalTo === auth.uid && query.limitToFirst > 0 && query.limitToFirst <= 26))",
             "$sessionCode": {
                 ".read": "auth != null && data.exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || data.child('players').child(auth.uid).exists() || data.child('students').child(auth.uid).exists() || data.child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(data.child('linkedClassId').val()).child('students').child(auth.uid).exists())",
                 ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdByUserId').val() === auth.uid || data.child('createdBy').val() === auth.uid || data.child('teacherId').val() === auth.uid || (!data.exists() && (newData.child('createdByUserId').val() === auth.uid || newData.child('createdBy').val() === auth.uid || newData.child('teacherId').val() === auth.uid)))",
@@ -821,7 +821,7 @@
                 },
                 "players": {
                     "$playerId": {
-                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($playerId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($playerId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (root.child('game_sessions').child($sessionCode).child('status').val() === 'waiting' || root.child('game_sessions').child($sessionCode).child('status').val() === 'in-progress') && root.child('game_sessions').child($sessionCode).child('expiresAt').isNumber() && root.child('game_sessions').child($sessionCode).child('expiresAt').val() > now && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
                         "assignedQuizId": {
                             ".validate": false
                         }
@@ -829,7 +829,7 @@
                 },
                 "students": {
                     "$studentId": {
-                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($studentId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
+                        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('game_sessions').child($sessionCode).child('createdByUserId').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('createdBy').val() === auth.uid || root.child('game_sessions').child($sessionCode).child('teacherId').val() === auth.uid || ($studentId === auth.uid && root.child('game_sessions').child($sessionCode).exists() && (root.child('game_sessions').child($sessionCode).child('status').val() === 'waiting' || root.child('game_sessions').child($sessionCode).child('status').val() === 'in-progress') && root.child('game_sessions').child($sessionCode).child('expiresAt').isNumber() && root.child('game_sessions').child($sessionCode).child('expiresAt').val() > now && (data.exists() || root.child('game_sessions').child($sessionCode).child('settings').child('restrictToClassMembers').val() !== true || root.child('classes').child(root.child('game_sessions').child($sessionCode).child('linkedClassId').val()).child('students').child(auth.uid).exists())))",
                         "assignedQuizId": {
                             ".validate": false
                         }
@@ -843,6 +843,27 @@
                 "createdBy",
                 "createdAt"
             ]
+        },
+        "owner_session_index": {
+            "$ownerId": {
+                ".read": "auth != null && (auth.uid === $ownerId || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": "auth != null && (auth.uid === $ownerId || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".indexOn": [
+                    "expiresAt"
+                ],
+                "$sessionCode": {
+                    ".validate": "!newData.exists() || (newData.hasChildren(['sessionCode', 'ownerId', 'expiresAt', 'status', 'sourceUpdatedAt']) && newData.child('sessionCode').val() === $sessionCode && newData.child('ownerId').val() === $ownerId && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && (newData.child('status').val() === 'waiting' || newData.child('status').val() === 'in-progress') && newData.child('sourceUpdatedAt').isNumber() && (!newData.child('mode').exists() || newData.child('mode').isString()) && (!newData.child('createdAt').exists() || newData.child('createdAt').isNumber()))"
+                }
+            }
+        },
+        "owner_session_migrations": {
+            "$ownerId": {
+                ".read": "auth != null && (auth.uid === $ownerId || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                ".write": "auth != null && (auth.uid === $ownerId || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                "$field": {
+                    ".validate": "($field === 'createdByUserId' || $field === 'createdBy' || $field === 'teacherId') && newData.hasChildren(['completed', 'updatedAt']) && newData.child('completed').isBoolean() && newData.child('updatedAt').isNumber() && (!newData.child('cursor').exists() || newData.child('cursor').isString())"
+                }
+            }
         },
         "session_test_payloads": {
             ".read": "auth != null",

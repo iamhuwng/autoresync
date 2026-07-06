@@ -1,0 +1,162 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  getMock,
+  refMock,
+  setMock,
+  updateMock,
+} = vi.hoisted(() => ({
+  getMock: vi.fn(),
+  refMock: vi.fn((_database?: unknown, path = '') => ({ path })),
+  setMock: vi.fn(),
+  updateMock: vi.fn(),
+}));
+
+vi.mock('firebase/database', () => ({
+  get: getMock,
+  onValue: vi.fn(),
+  ref: refMock,
+  serverTimestamp: vi.fn(() => ({ '.sv': 'timestamp' })),
+  set: setMock,
+  update: updateMock,
+}));
+vi.mock('./firebase', () => ({ database: {} }));
+vi.mock('./sessionCodeService', () => ({
+  generateUniqueCode: vi.fn(async () => 'ABC123'),
+  normalizeCode: vi.fn((code: string) => code),
+  validateCode: vi.fn(() => true),
+}));
+vi.mock('./sessionHelpers', () => ({
+  addCompatibilityFields: vi.fn((session: unknown) => session),
+  getStudentAssignment: vi.fn(),
+  isOldFormat: vi.fn(() => false),
+  normalizeSessionData: vi.fn((session: unknown) => session),
+}));
+vi.mock('../types/releaseState.types', () => ({
+  getSessionEndReleaseState: vi.fn(() => 'review-released'),
+}));
+
+import {
+  createSession,
+  deleteSession,
+  extendSession,
+  updateSessionStatus,
+  validateSessionForJoin,
+} from './sessionManager.js';
+import { SESSION_EXPIRED_MESSAGE } from './sessionActionError';
+
+const snap = (value: unknown) => ({
+  exists: () => value !== null,
+  val: () => value,
+});
+
+describe('sessionManager lifecycle index writes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    vi.spyOn(Math, 'random').mockReturnValue(0.123456);
+    sessionStorage.clear();
+    updateMock.mockResolvedValue(undefined);
+    setMock.mockResolvedValue(undefined);
+  });
+
+  it('creates canonical session and owner index in one root update', async () => {
+    const result = await createSession({
+      testId: 'pending',
+      createdBy: 'teacher-1',
+    });
+
+    expect(result.sessionCode).toBe('ABC123');
+    expect(updateMock).toHaveBeenCalledWith({ path: '' }, expect.objectContaining({
+      'game_sessions/ABC123': expect.objectContaining({
+        sessionCode: 'ABC123',
+        status: 'waiting',
+        createdByUserId: 'teacher-1',
+        expiresAt: 86_401_000,
+      }),
+      'owner_session_index/teacher-1/ABC123': {
+        sessionCode: 'ABC123',
+        ownerId: 'teacher-1',
+        expiresAt: 86_401_000,
+        status: 'waiting',
+        sourceUpdatedAt: 1_000,
+        mode: 'test',
+        createdAt: 1_000,
+      },
+    }));
+  });
+
+  it('extension reactivates stored expired sessions and refreshes owner index atomically', async () => {
+    getMock.mockResolvedValueOnce(snap({
+      sessionCode: 'ABC123',
+      createdByUserId: 'teacher-1',
+      status: 'expired',
+      expiresAt: 500,
+      createdAt: 100,
+      updatedAt: 500,
+      mode: 'test',
+    }));
+
+    await extendSession('ABC123', 1);
+
+    expect(updateMock).toHaveBeenCalledWith({ path: '' }, {
+      'game_sessions/ABC123/status': 'waiting',
+      'game_sessions/ABC123/expiresAt': 3_601_000,
+      'game_sessions/ABC123/extendedAt': 1_000,
+      'game_sessions/ABC123/updatedAt': 1_000,
+      'owner_session_index/teacher-1/ABC123': {
+        sessionCode: 'ABC123',
+        ownerId: 'teacher-1',
+        expiresAt: 3_601_000,
+        status: 'waiting',
+        sourceUpdatedAt: 1_000,
+        mode: 'test',
+        createdAt: 100,
+      },
+    });
+  });
+
+  it('terminal status and delete remove owner index entries', async () => {
+    getMock
+      .mockResolvedValueOnce(snap({
+        sessionCode: 'ABC123',
+        createdByUserId: 'teacher-1',
+        status: 'waiting',
+        expiresAt: 5_000,
+        createdAt: 100,
+      }))
+      .mockResolvedValueOnce(snap({
+        sessionCode: 'ABC123',
+        createdByUserId: 'teacher-1',
+        linkedClassId: 'class-1',
+      }));
+
+    await updateSessionStatus('ABC123', 'completed');
+    await deleteSession('ABC123');
+
+    expect(updateMock).toHaveBeenNthCalledWith(1, { path: '' }, {
+      'game_sessions/ABC123/status': 'completed',
+      'game_sessions/ABC123/updatedAt': 1_000,
+      'owner_session_index/teacher-1/ABC123': null,
+    });
+    expect(updateMock).toHaveBeenNthCalledWith(2, { path: '' }, {
+      'game_sessions/ABC123': null,
+      'classes/class-1/activeSessions/ABC123': null,
+      'owner_session_index/teacher-1/ABC123': null,
+    });
+  });
+
+  it('keeps legacy records readable but fails student join validation without numeric expiresAt', async () => {
+    getMock.mockResolvedValueOnce(snap({
+      sessionCode: 'ABC123',
+      createdByUserId: 'teacher-1',
+      status: 'waiting',
+      settings: { allowLateJoin: true },
+    }));
+
+    await expect(validateSessionForJoin('ABC123')).resolves.toEqual({
+      valid: false,
+      message: SESSION_EXPIRED_MESSAGE,
+    });
+  });
+});

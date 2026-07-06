@@ -15,6 +15,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { ref, update, serverTimestamp } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations (TODO: convert to TypeScript)
 import { database } from '../services/firebase';
+import { resolveSessionMutationFailure } from '../services/sessionActionError';
 import type { SavedMobileState } from '../types/practice.types';
 
 export interface StudentAnswers {
@@ -163,7 +164,8 @@ export const useTestAutoSave = ({
       return true;
     } catch (err) {
       console.error('❌ [AutoSave] Failed to save answers:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      const resolved = await resolveSessionMutationFailure(err, sessionCode);
+      const errorMsg = resolved?.message ?? (err instanceof Error ? err.message : 'Unknown error');
       setError(errorMsg);
       setStatus('error');
       scheduleStatusReset(5000, true);

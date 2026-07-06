@@ -17,8 +17,10 @@ import { ref, update, get } from 'firebase/database';
 import { saveTestResult } from '../../services/testResults.service';
 import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.service';
 import { sendResultNotification } from '../../services/emailNotification.service';
+import { resolveSessionMutationFailure } from '../../services/sessionActionError';
 import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
+import { toast } from '../../components/modern';
 import type { IntegrityReport } from '../../types/integrity.types'; // PRD-0036
 import { toast } from '../../components/modern';
 
@@ -695,6 +697,12 @@ export const useTestSubmission = ({
         });
       }
     } catch (err) {
+      const resolved = await resolveSessionMutationFailure(err, sessionCode);
+      if (resolved?.code === 'session-expired') {
+        toast.error(resolved.message);
+        return;
+      }
+
       console.error('Error submitting test:', err);
       toast.error('Failed to submit test. Please try again.');
     } finally {
