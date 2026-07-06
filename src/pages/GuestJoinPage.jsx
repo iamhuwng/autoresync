@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
 import { ref, set, get, onDisconnect, runTransaction } from 'firebase/database';
 import { database } from '../services/firebase';
-import { Card, CardBody } from '../components/modern';
-import { Button } from '../components/modern';
-import { Input } from '../components/modern';
+import { Card, CardBody, Button, Input, toast } from '../components/modern';
 import { validateGuestJoin } from '../services/sessionManager';
+import {
+  resolveSessionMutationFailure,
+} from '../services/sessionActionError';
 import { normalizeCode } from '../services/sessionCodeService';
 
 const GuestJoinPage = () => {
@@ -35,10 +36,11 @@ const GuestJoinPage = () => {
   }, [isJoining]);
 
   const rejoinStudent = async (playerId, playerName) => {
+    let sessionCode = '';
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const sessionCode = sessionStorage.getItem('sessionCode');
+      sessionCode = sessionStorage.getItem('sessionCode') || '';
       if (!sessionCode) {
         sessionStorage.removeItem('playerId');
         sessionStorage.removeItem('playerName');
@@ -102,6 +104,16 @@ const GuestJoinPage = () => {
       sessionStorage.removeItem('playerName');
       sessionStorage.removeItem('sessionCode');
     } catch (error) {
+      const resolved = await resolveSessionMutationFailure(error, sessionCode);
+      if (resolved?.code === 'session-expired') {
+        toast.error(resolved.message);
+        setSessionError(resolved.message);
+        sessionStorage.removeItem('playerId');
+        sessionStorage.removeItem('playerName');
+        sessionStorage.removeItem('sessionCode');
+        return;
+      }
+
       console.error('Error rejoining game:', error);
       sessionStorage.removeItem('playerId');
       sessionStorage.removeItem('playerName');
@@ -224,6 +236,8 @@ const GuestJoinPage = () => {
 
       if (!result.committed) {
         setDuplicateNameError(true);
+        setValidatingSession(false);
+        setIsJoining(false);
         return;
       }
 
@@ -250,6 +264,18 @@ const GuestJoinPage = () => {
 
       setValidatingSession(false);
     } catch (error) {
+      const resolved = await resolveSessionMutationFailure(error, sessionCode);
+      if (resolved?.code === 'session-expired') {
+        toast.error(resolved.message);
+        setSessionError(resolved.message);
+        sessionStorage.removeItem('playerId');
+        sessionStorage.removeItem('playerName');
+        sessionStorage.removeItem('sessionCode');
+        setValidatingSession(false);
+        setIsJoining(false);
+        return;
+      }
+
       console.error('Error joining game:', error);
       setSessionError('Failed to join game. Please try again.');
       setValidatingSession(false);

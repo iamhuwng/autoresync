@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
-import { ruleEnforcementPlugin } from './scripts/vite-rule-enforcement.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -35,8 +34,6 @@ export default defineConfig({
           brotliSize: true,
         })]
       : []),
-    // Dev-only: warns in browser console when new files have @mantine imports
-    ruleEnforcementPlugin(),
   ],
   experimental: {},
   optimizeDeps: {

@@ -15,6 +15,7 @@ let testEnv: RulesTestEnvironment;
 const restrictedLiveSession = {
   sessionCode: 'LIVE123',
   status: 'in-progress',
+  expiresAt: Date.now() + 60 * 60 * 1000,
   testId: 'listening-test-1',
   createdAt: 1_700_000_000_000,
   createdByUserId: 'teacher-1',
@@ -40,6 +41,7 @@ const restrictedLiveSession = {
 const openLiveSession = {
   sessionCode: 'OPEN123',
   status: 'waiting',
+  expiresAt: Date.now() + 60 * 60 * 1000,
   testId: 'listening-test-2',
   createdAt: 1_700_000_010_000,
   createdBy: 'teacher-1',
@@ -61,6 +63,9 @@ describe('PRD-0055 live game-session RTDB rules', () => {
     expect(gameSessions?.$sessionCode?.['.read']).toContain("data.child('players').child(auth.uid).exists()");
     expect(gameSessions?.$sessionCode?.['.read']).toContain("data.child('createdByUserId').val() === auth.uid");
     expect(gameSessions?.$sessionCode?.players?.$playerId?.['.write']).toContain('$playerId === auth.uid');
+    expect(gameSessions?.$sessionCode?.players?.$playerId?.['.write']).toContain('expiresAt');
+    expect(gameSessions?.$sessionCode?.players?.$playerId?.['.write']).toContain('now');
+    expect(gameSessions?.['.read']).toContain('query.limitToFirst <= 26');
     expect(gameSessions?.['.indexOn']).toEqual([
       'status',
       'teacherId',
@@ -68,6 +73,9 @@ describe('PRD-0055 live game-session RTDB rules', () => {
       'createdBy',
       'createdAt',
     ]);
+    expect(rules.rules.owner_session_index?.$ownerId?.['.indexOn']).toEqual(['expiresAt']);
+    expect(rules.rules.owner_session_index?.$ownerId?.['.read']).toContain('auth.uid === $ownerId');
+    expect(rules.rules.owner_session_migrations?.$ownerId?.['.write']).toContain('auth.uid === $ownerId');
   });
 
   describeEmulator('emulator enforcement', () => {
@@ -124,18 +132,43 @@ describe('PRD-0055 live game-session RTDB rules', () => {
       const admin = testEnv.authenticatedContext('admin-1').database();
 
       await assertSucceeds(
-        owner.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-1').once('value'),
+        owner.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-1').limitToFirst(26).once('value'),
       );
       await assertSucceeds(
-        owner.ref('game_sessions').orderByChild('createdBy').equalTo('teacher-1').once('value'),
+        owner.ref('game_sessions').orderByChild('createdBy').equalTo('teacher-1').limitToFirst(26).once('value'),
+      );
+      await assertSucceeds(
+        owner.ref('game_sessions').orderByChild('teacherId').equalTo('teacher-1').limitToFirst(26).once('value'),
       );
       await assertSucceeds(admin.ref('game_sessions').once('value'));
       await assertFails(owner.ref('game_sessions').once('value'));
       await assertFails(
-        owner.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-2').once('value'),
+        owner.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-2').limitToFirst(26).once('value'),
       );
       await assertFails(
-        otherTeacher.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-1').once('value'),
+        otherTeacher.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-1').limitToFirst(26).once('value'),
+      );
+      await assertFails(
+        otherTeacher.ref('game_sessions').orderByChild('teacherId').equalTo('teacher-1').limitToFirst(26).once('value'),
+      );
+      await assertFails(
+        owner.ref('game_sessions').orderByChild('createdByUserId').equalTo('teacher-1').once('value'),
+      );
+      await assertSucceeds(
+        owner.ref('game_sessions')
+          .orderByChild('createdByUserId')
+          .startAt('teacher-1')
+          .endAt('teacher-1')
+          .limitToFirst(26)
+          .once('value'),
+      );
+      await assertFails(
+        owner.ref('game_sessions')
+          .orderByChild('createdByUserId')
+          .startAt('teacher-1')
+          .endAt('teacher-1')
+          .limitToFirst(27)
+          .once('value'),
       );
     });
 
@@ -188,6 +221,121 @@ describe('PRD-0055 live game-session RTDB rules', () => {
       await assertSucceeds(owner.ref('game_sessions/LIVE123/players/student-2').set({
         joinedAt: 1_700_000_000_007,
         isConnected: true,
+      }));
+    });
+
+    it('uses server time to block participant writes after expiry while preserving owner control', async () => {
+      const owner = testEnv.authenticatedContext('teacher-1').database();
+      const player = testEnv.authenticatedContext('student-1').database();
+
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('game_sessions/LIVE123/expiresAt').set(Date.now() - 1_000);
+      });
+
+      await assertFails(player.ref('game_sessions/LIVE123/players/student-1').update({
+        isConnected: false,
+      }));
+      await assertFails(player.ref('game_sessions/LIVE123/students/student-1').set({
+        joinedAt: Date.now(),
+      }));
+      await assertSucceeds(owner.ref('game_sessions/LIVE123').update({
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }));
+    });
+
+    it('fails closed for missing or malformed expiry and at the exact expiry boundary', async () => {
+      const player = testEnv.authenticatedContext('student-1').database();
+
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.database();
+        await db.ref('game_sessions/LIVE123/expiresAt').remove();
+      });
+      await assertFails(player.ref('game_sessions/LIVE123/players/student-1').update({
+        isConnected: false,
+      }));
+
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('game_sessions/LIVE123/expiresAt').set('not-a-number');
+      });
+      await assertFails(player.ref('game_sessions/LIVE123/players/student-1').update({
+        isConnected: false,
+      }));
+
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('game_sessions/LIVE123/expiresAt').set(Date.now());
+      });
+      await assertFails(player.ref('game_sessions/LIVE123/players/student-1').update({
+        isConnected: false,
+      }));
+    });
+
+    it('keeps owner index discovery bounded, owner-only, and independent from authorization', async () => {
+      const owner = testEnv.authenticatedContext('teacher-1').database();
+      const otherTeacher = testEnv.authenticatedContext('teacher-2').database();
+      const expiresAt = Date.now() + 60 * 60 * 1000;
+      const record = {
+        sessionCode: 'LIVE123',
+        ownerId: 'teacher-1',
+        expiresAt,
+        status: 'in-progress',
+        sourceUpdatedAt: Date.now(),
+      };
+
+      await assertSucceeds(owner.ref('owner_session_index/teacher-1/LIVE123').set(record));
+      await assertSucceeds(
+        owner.ref('owner_session_index/teacher-1')
+          .orderByChild('expiresAt')
+          .startAt(Date.now())
+          .limitToFirst(25)
+          .once('value'),
+      );
+      await assertFails(otherTeacher.ref('owner_session_index/teacher-1').once('value'));
+      await assertFails(owner.ref('owner_session_index/teacher-2/LIVE123').set({
+        ...record,
+        ownerId: 'teacher-2',
+      }));
+      await assertFails(owner.ref('owner_session_index/teacher-1/TAMPERED').set({
+        ...record,
+        sessionCode: 'TAMPERED',
+        ownerId: 'teacher-2',
+      }));
+      await assertFails(owner.ref('owner_session_index/teacher-1/MALFORMED').set({
+        sessionCode: 'MALFORMED',
+        ownerId: 'teacher-1',
+        status: 'waiting',
+        sourceUpdatedAt: Date.now(),
+      }));
+    });
+
+    it('allows one atomic canonical/index create and terminal removal by the owner', async () => {
+      const owner = testEnv.authenticatedContext('teacher-1').database();
+      const now = Date.now();
+      const expiresAt = now + 60 * 60 * 1000;
+
+      await assertSucceeds(owner.ref().update({
+        'game_sessions/ATOMIC1': {
+          sessionCode: 'ATOMIC1',
+          createdByUserId: 'teacher-1',
+          createdAt: now,
+          updatedAt: now,
+          expiresAt,
+          status: 'waiting',
+          mode: 'test',
+        },
+        'owner_session_index/teacher-1/ATOMIC1': {
+          sessionCode: 'ATOMIC1',
+          ownerId: 'teacher-1',
+          createdAt: now,
+          sourceUpdatedAt: now,
+          expiresAt,
+          status: 'waiting',
+          mode: 'test',
+        },
+      }));
+      await assertSucceeds(owner.ref().update({
+        'game_sessions/ATOMIC1/status': 'completed',
+        'game_sessions/ATOMIC1/updatedAt': Date.now(),
+        'owner_session_index/teacher-1/ATOMIC1': null,
       }));
     });
   });

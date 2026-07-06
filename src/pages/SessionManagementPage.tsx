@@ -12,10 +12,6 @@ import { Card, CardBody, CardFooter } from '../components/modern';
 import { Button } from '../components/modern';
 import { Input } from '../components/modern';
 import { CreateSessionModal } from '../components/session/CreateSessionModal';
-// @ts-ignore - Firebase is a .js file
-import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database';
-// @ts-ignore - Firebase is a .js file
-import { database } from '../services/firebase';
 // @ts-ignore - sessionManager.js doesn't have type declarations (TODO: convert to TypeScript)
 import {
   deleteSession,
@@ -25,8 +21,10 @@ import {
   SessionStatus,
   SessionMode,
 } from '../services/sessionManager.js';
-// @ts-ignore - firebaseQueryOptimizer.js doesn't have type declarations
-import queryOptimizer from '../services/firebaseQueryOptimizer.js';
+import {
+  subscribeTeacherSessions,
+  type TeacherSession,
+} from '../services/sessionQuery';
 
 interface SessionData {
   sessionCode: string;
@@ -46,6 +44,7 @@ const SessionManagementPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0);
 
   const handleLogout = async () => {
     try {
@@ -67,114 +66,39 @@ const SessionManagementPage: React.FC = () => {
     navigateTo('TEACHER_LOBBY', { sessionCode }, { reason: 'admin_session_created' });
   };
 
-  // Auto-cleanup expired sessions on mount and periodically
+  // Expiration is derived from canonical session data and RTDB rules.
+  // This page subscribes only to indexed sessions the current teacher may manage.
   useEffect(() => {
-    const runCleanup = async () => {
-      try {
-        // Import cleanup function dynamically
-        const { cleanupExpiredSessions } = await import('../services/sessionManager.js');
-        const result = await cleanupExpiredSessions(false); // Mark as expired, don't delete
-
-        if (result.marked > 0) {
-          console.log(`🧹 Auto-cleanup: ${result.marked} sessions marked as expired`);
-        }
-      } catch (error) {
-        console.error('Error during auto-cleanup:', error);
-      }
-    };
-
-    // Run cleanup immediately on mount
-    runCleanup();
-
-    // Run cleanup every 5 minutes while page is open
-    const cleanupInterval = setInterval(runCleanup, 5 * 60 * 1000);
-
-    return () => clearInterval(cleanupInterval);
-  }, []);
-
-  // Load active sessions with OPTIMIZED realtime queries
-  useEffect(() => {
-    console.log('📊 [SessionMgmt] Setting up efficient realtime listeners');
-
-    let unsubWaiting: (() => void) | null = null;
-    let unsubInProgress: (() => void) | null = null;
-
-    // Local storage only for this effect closure to merge updates
-    let waitingData: Record<string, any> = {};
-    let inProgressData: Record<string, any> = {};
-
-    const updateSessionsState = () => {
-      const realtimeNow = Date.now();
-
-      const combined = [
-        ...Object.entries(waitingData).map(([code, data]) => ({ ...data, sessionCode: code })),
-        ...Object.entries(inProgressData).map(([code, data]) => ({ ...data, sessionCode: code }))
-      ];
-
-      const filtered = combined
-        .filter((session: any) => {
-          if (session.status === SessionStatus.EXPIRED || session.status === SessionStatus.COMPLETED) return false;
-          if (session.expiresAt && realtimeNow > session.expiresAt) return false;
-
-          // Privacy Filter: 
-          // 1. Super Admin sees EVERYTHING (including other teachers' sessions and system sessions)
-          // 2. Regular Teachers see ONLY their own sessions
-          // Check both createdByUserId (new) and teacherId (legacy) for backwards compatibility
-          if (!isAdmin && user?.uid) {
-            const isOwner = session.createdByUserId === user.uid || session.teacherId === user.uid;
-            if (!isOwner) return false;
-          }
-
-          return true;
-        })
-        .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-
-      const sessionsWithStats = filtered.map((session: any) => {
-        const stats = calculateSessionStatsFromData(session, session.sessionCode);
-        return {
-          ...session,
-          playerCount: stats?.playerCount || 0,
-        };
-      });
-
-      setSessions(sessionsWithStats);
+    if (!user?.uid) {
+      setSessions([]);
       setLoading(false);
-    };
+      return undefined;
+    }
 
-    const setupListeners = () => {
-      setLoading(true);
+    setLoading(true);
 
-      try {
-        const sessionsRef = ref(database, 'game_sessions');
-
-        // Query 1: Waiting sessions
-        const waitingQuery = query(sessionsRef, orderByChild('status'), equalTo(SessionStatus.WAITING));
-        unsubWaiting = onValue(waitingQuery, (snapshot) => {
-          waitingData = snapshot.val() || {};
-          updateSessionsState();
+    return subscribeTeacherSessions({
+      teacherId: user.uid,
+      canReadAll: isAdmin,
+      onSessions: (managedSessions: TeacherSession[], context) => {
+        setServerTimeOffsetMs(context.serverTimeOffsetMs);
+        const sessionsWithStats = managedSessions.map((session) => {
+          const stats = calculateSessionStatsFromData(session, session.sessionCode);
+          return {
+            ...session,
+            playerCount: stats?.playerCount || 0,
+          } as SessionData;
         });
 
-        // Query 2: In-Progress sessions
-        const inProgressQuery = query(sessionsRef, orderByChild('status'), equalTo(SessionStatus.IN_PROGRESS));
-        unsubInProgress = onValue(inProgressQuery, (snapshot) => {
-          inProgressData = snapshot.val() || {};
-          updateSessionsState();
-        });
-
-      } catch (error) {
-        console.error('📊 [Error] Failed to set up listeners:', error);
+        setSessions(sessionsWithStats);
         setLoading(false);
-      }
-    };
-
-    setupListeners();
-
-    return () => {
-      console.log('🧹 [SessionMgmt] Cleaning up session listeners');
-      if (unsubWaiting) unsubWaiting();
-      if (unsubInProgress) unsubInProgress();
-    };
-  }, [refreshTrigger]);
+      },
+      onError: (error) => {
+        console.error('📊 [SessionMgmt] Session subscription failed:', error);
+        setLoading(false);
+      },
+    });
+  }, [isAdmin, refreshTrigger, user?.uid]);
 
   const handleRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -273,7 +197,7 @@ const SessionManagementPage: React.FC = () => {
   };
 
   const formatTimeRemaining = (expiresAt: number) => {
-    const now = Date.now();
+    const now = Date.now() + serverTimeOffsetMs;
     const remaining = expiresAt - now;
 
     if (remaining <= 0) return 'Expired';

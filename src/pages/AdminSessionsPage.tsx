@@ -10,20 +10,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import { AdminLayout } from '../components/navigation';
-import { Card, Button, Input } from '../components/modern';
+import { Card, Button, Input, toast } from '../components/modern';
 import { CreateSessionModal } from '../components/session/CreateSessionModal';
-import { Group, Badge, Loader, Text, Stack } from '@mantine/core';
 import {
     IconRefresh, IconPlus, IconPlayerPlay, IconClock,
     IconTrash, IconPlayerStop
 } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
-
-// @ts-ignore - Firebase is a .js file
-import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database';
-// @ts-ignore - Firebase is a .js file
-import { database } from '../services/firebase';
 // @ts-ignore - sessionManager.js doesn't have type declarations
 import {
     deleteSession,
@@ -33,35 +28,40 @@ import {
     SessionStatus,
     SessionMode,
 } from '../services/sessionManager.js';
+import {
+    subscribeTeacherSessions,
+    type TeacherSession,
+} from '../services/sessionQuery';
 
-interface SessionData {
-    sessionCode: string;
-    mode: string;
-    status: string;
+interface SessionData extends TeacherSession {
+    mode?: string;
+    status?: string;
     testId?: string;
-    createdAt: number;
-    expiresAt: number;
     playerCount?: number;
     teacherId?: string;
 }
 
 const AdminSessionsPage: React.FC = () => {
     const { navigateTo } = useNavigation('admin');
-    const { logout, profile } = useAuth();
+    const { logout, profile, user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.adminPanel);
     const [sessions, setSessions] = useState<SessionData[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0);
 
     const isSuperAdmin = profile?.role === 'super_admin';
 
     const handleLogout = async () => {
+        trackAction('adminLogout');
         await logout();
         navigateTo('LOGIN', {}, { reason: 'admin_logout', replace: true });
     };
 
     const handleSidebarNavigate = (page: string) => {
+        trackAction('navigateAdminSection', { page });
         const pageRoutes: Record<string, string> = {
             dashboard: 'ADMIN_DASHBOARD',
             materials: 'ADMIN_MATERIALS',
@@ -81,98 +81,60 @@ const AdminSessionsPage: React.FC = () => {
     };
 
     const handleSessionCreated = (sessionCode: string, mode: string) => {
-        console.log(`✅ Session created: ${sessionCode} (mode: ${mode})`);
+        trackAction('createSession', { mode, sessionCode });
         navigateTo('TEACHER_LOBBY' as any, { sessionCode }, { reason: 'admin_session_created' });
     };
 
-    // Auto-cleanup expired sessions
+    const handleOpenCreateSession = () => {
+        trackAction('openCreateSession');
+        setShowCreateModal(true);
+    };
+
+    const handleCloseCreateSession = () => {
+        trackAction('closeCreateSession');
+        setShowCreateModal(false);
+    };
+
+    // Global reads are explicit and restricted to the super-admin surface.
     useEffect(() => {
-        const runCleanup = async () => {
-            try {
-                const { cleanupExpiredSessions } = await import('../services/sessionManager.js');
-                const result = await cleanupExpiredSessions(false);
-                if (result.marked > 0) {
-                    console.log(`🧹 Auto-cleanup: ${result.marked} sessions marked as expired`);
-                }
-            } catch (error) {
-                console.error('Error during auto-cleanup:', error);
-            }
-        };
-
-        runCleanup();
-        const cleanupInterval = setInterval(runCleanup, 5 * 60 * 1000);
-        return () => clearInterval(cleanupInterval);
-    }, []);
-
-    // Load sessions with realtime listeners
-    useEffect(() => {
-        if (!isSuperAdmin) return;
-
-        let unsubWaiting: (() => void) | null = null;
-        let unsubInProgress: (() => void) | null = null;
-        let waitingData: Record<string, any> = {};
-        let inProgressData: Record<string, any> = {};
-
-        const updateSessionsState = () => {
-            const realtimeNow = Date.now();
-            const combined = [
-                ...Object.entries(waitingData).map(([code, data]) => ({ ...data, sessionCode: code })),
-                ...Object.entries(inProgressData).map(([code, data]) => ({ ...data, sessionCode: code }))
-            ];
-
-            const filtered = combined
-                .filter((session: any) => {
-                    if (session.status === SessionStatus.EXPIRED || session.status === SessionStatus.COMPLETED) return false;
-                    if (session.expiresAt && realtimeNow > session.expiresAt) return false;
-                    return true;
-                })
-                .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-
-            const sessionsWithStats = filtered.map((session: any) => {
-                const stats = calculateSessionStatsFromData(session, session.sessionCode);
-                return {
-                    ...session,
-                    playerCount: stats?.playerCount || 0,
-                };
-            });
-
-            setSessions(sessionsWithStats);
+        if (!isSuperAdmin || !user?.uid) {
+            setSessions([]);
             setLoading(false);
-        };
+            return undefined;
+        }
 
-        const setupListeners = () => {
-            setLoading(true);
-            try {
-                const sessionsRef = ref(database, 'game_sessions');
+        setLoading(true);
 
-                const waitingQuery = query(sessionsRef, orderByChild('status'), equalTo(SessionStatus.WAITING));
-                unsubWaiting = onValue(waitingQuery, (snapshot) => {
-                    waitingData = snapshot.val() || {};
-                    updateSessionsState();
+        return subscribeTeacherSessions({
+            teacherId: user.uid,
+            canReadAll: true,
+            onSessions: (managedSessions: TeacherSession[], context) => {
+                setServerTimeOffsetMs(context.serverTimeOffsetMs);
+                const sessionsWithStats = managedSessions.map((session) => {
+                    const stats = calculateSessionStatsFromData(session, session.sessionCode);
+                    return {
+                        ...session,
+                        playerCount: stats?.playerCount || 0,
+                    } as SessionData;
                 });
 
-                const inProgressQuery = query(sessionsRef, orderByChild('status'), equalTo(SessionStatus.IN_PROGRESS));
-                unsubInProgress = onValue(inProgressQuery, (snapshot) => {
-                    inProgressData = snapshot.val() || {};
-                    updateSessionsState();
-                });
-            } catch (error) {
-                console.error('Failed to set up listeners:', error);
+                setSessions(sessionsWithStats);
                 setLoading(false);
-            }
-        };
+            },
+            onError: (error) => {
+                console.error('[AdminSessions] Session subscription failed:', error);
+                setLoading(false);
+            },
+        });
+    }, [isSuperAdmin, refreshTrigger, user?.uid]);
 
-        setupListeners();
-
-        return () => {
-            if (unsubWaiting) unsubWaiting();
-            if (unsubInProgress) unsubInProgress();
-        };
-    }, [refreshTrigger, isSuperAdmin]);
-
-    const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
+    const handleRefresh = () => {
+        trackAction('refreshSessions');
+        setRefreshTrigger((prev) => prev + 1);
+    };
 
     const handleJoinSession = (sessionCode: string) => {
+        trackAction('joinSession', { sessionCode });
         navigateTo('TEACHER_LOBBY' as any, { sessionCode }, { reason: 'admin_join_session' });
     };
 
@@ -180,10 +142,12 @@ const AdminSessionsPage: React.FC = () => {
         if (window.confirm(`End session ${sessionCode}? This will complete it for all students.`)) {
             try {
                 await endSession(sessionCode);
-                notifications.show({ title: 'Session Ended', message: `Session ${sessionCode} has been ended`, color: 'green' });
-                handleRefresh();
+                trackAction('endSession', { outcome: 'success', sessionCode });
+                toast.success(`Ended session ${sessionCode}.`);
+                setRefreshTrigger((prev) => prev + 1);
             } catch (error) {
-                notifications.show({ title: 'Error', message: 'Failed to end session', color: 'red' });
+                trackAction('endSession', { outcome: 'failure', sessionCode });
+                toast.error(`Could not end session ${sessionCode}.`);
             }
         }
     };
@@ -193,16 +157,18 @@ const AdminSessionsPage: React.FC = () => {
         let confirmMessage = `Delete session ${sessionCode}? This cannot be undone.`;
 
         if (session && (session.status === SessionStatus.WAITING || session.status === SessionStatus.IN_PROGRESS)) {
-            confirmMessage = `⚠️ Session ${sessionCode} is ${session.status.toUpperCase()} with ${session.playerCount || 0} player(s). Delete anyway?`;
+            confirmMessage = `⚠️ Session ${sessionCode} is ${String(session.status).toUpperCase()} with ${session.playerCount || 0} player(s). Delete anyway?`;
         }
 
         if (window.confirm(confirmMessage)) {
             try {
                 await deleteSession(sessionCode);
-                notifications.show({ title: 'Session Deleted', message: `Session ${sessionCode} deleted`, color: 'green' });
-                handleRefresh();
+                trackAction('deleteSession', { outcome: 'success', sessionCode });
+                toast.success(`Deleted session ${sessionCode}.`);
+                setRefreshTrigger((prev) => prev + 1);
             } catch (error) {
-                notifications.show({ title: 'Error', message: 'Failed to delete session', color: 'red' });
+                trackAction('deleteSession', { outcome: 'failure', sessionCode });
+                toast.error(`Could not delete session ${sessionCode}.`);
             }
         }
     };
@@ -210,25 +176,28 @@ const AdminSessionsPage: React.FC = () => {
     const handleExtendSession = async (sessionCode: string) => {
         try {
             await extendSession(sessionCode, 24);
-            notifications.show({ title: 'Session Extended', message: `Session ${sessionCode} extended by 24 hours`, color: 'green' });
-            handleRefresh();
+            trackAction('extendSession', { hours: 24, outcome: 'success', sessionCode });
+            toast.success(`Extended session ${sessionCode} by 24 hours.`);
+            setRefreshTrigger((prev) => prev + 1);
         } catch (error) {
-            notifications.show({ title: 'Error', message: 'Failed to extend session', color: 'red' });
+            trackAction('extendSession', { hours: 24, outcome: 'failure', sessionCode });
+            toast.error(`Could not extend session ${sessionCode}.`);
         }
     };
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status?: string) => {
         switch (status) {
-            case SessionStatus.WAITING: return 'blue';
-            case SessionStatus.IN_PROGRESS: return 'green';
-            case SessionStatus.COMPLETED: return 'gray';
-            case SessionStatus.EXPIRED: return 'red';
-            default: return 'gray';
+            case SessionStatus.WAITING: return '#2563eb';
+            case SessionStatus.IN_PROGRESS: return '#15803d';
+            case SessionStatus.COMPLETED: return '#64748b';
+            case SessionStatus.EXPIRED: return '#dc2626';
+            default: return '#64748b';
         }
     };
 
-    const formatTimeRemaining = (expiresAt: number) => {
-        const remaining = expiresAt - Date.now();
+    const formatTimeRemaining = (expiresAt?: number) => {
+        if (typeof expiresAt !== 'number') return 'No expiry';
+        const remaining = expiresAt - (Date.now() + serverTimeOffsetMs);
         if (remaining <= 0) return 'Expired';
         const hours = Math.floor(remaining / (1000 * 60 * 60));
         const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
@@ -279,49 +248,75 @@ const AdminSessionsPage: React.FC = () => {
                             Monitor and manage all active test sessions
                         </p>
                     </div>
-                    <Group>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <Button variant="glass" onClick={handleRefresh} disabled={loading}>
                             <IconRefresh size={16} style={{ marginRight: '0.5rem' }} />
                             Refresh
                         </Button>
-                        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+                        <Button variant="primary" onClick={handleOpenCreateSession}>
                             <IconPlus size={16} style={{ marginRight: '0.5rem' }} />
                             Create Session
                         </Button>
-                    </Group>
+                    </div>
                 </div>
 
                 {/* Search and Stats */}
-                <Group mb="lg" gap="md">
+                <div style={{
+                    alignItems: 'center',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                    marginBottom: '1.5rem',
+                }}>
                     <Input
                         placeholder="Search by session code..."
                         value={searchTerm}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                         style={{ flex: 1, maxWidth: 400 }}
                     />
-                    <Group gap="xs">
-                        <Badge size="lg" variant="filled" color="blue">
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <span style={{
+                            background: '#2563eb',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            padding: '0.4rem 0.65rem',
+                        }}>
                             {sessions.filter(s => s.status === SessionStatus.WAITING).length} Waiting
-                        </Badge>
-                        <Badge size="lg" variant="filled" color="green">
+                        </span>
+                        <span style={{
+                            background: '#15803d',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            padding: '0.4rem 0.65rem',
+                        }}>
                             {sessions.filter(s => s.status === SessionStatus.IN_PROGRESS).length} In Progress
-                        </Badge>
-                    </Group>
-                </Group>
+                        </span>
+                    </div>
+                </div>
 
                 {/* Sessions Grid */}
                 {loading ? (
-                    <Group justify="center" py="xl">
-                        <Loader size="lg" />
-                    </Group>
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        style={{ color: '#64748b', padding: '2rem', textAlign: 'center' }}
+                    >
+                        Loading sessions…
+                    </div>
                 ) : filteredSessions.length === 0 ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center' }}>
                         <IconPlayerPlay size={48} style={{ color: '#94a3b8', marginBottom: '1rem' }} />
-                        <Text size="lg" fw={500} c="dimmed">No active sessions</Text>
-                        <Text size="sm" c="dimmed" mb="lg">
+                        <p style={{ color: '#64748b', fontSize: '1.125rem', fontWeight: 500, margin: 0 }}>
+                            No active sessions
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.5rem 0 1.5rem' }}>
                             Create a new session to get started
-                        </Text>
-                        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+                        </p>
+                        <Button variant="primary" onClick={handleOpenCreateSession}>
                             <IconPlus size={16} style={{ marginRight: '0.5rem' }} />
                             Create Session
                         </Button>
@@ -334,35 +329,62 @@ const AdminSessionsPage: React.FC = () => {
                     }}>
                         {filteredSessions.map((session) => (
                             <Card key={session.sessionCode} variant="glass" style={{ padding: '1.25rem' }}>
-                                <Group justify="space-between" mb="sm">
+                                <div style={{
+                                    alignItems: 'flex-start',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginBottom: '0.75rem',
+                                }}>
                                     <div>
-                                        <Text fw={700} size="xl" style={{ letterSpacing: '0.05em' }}>
+                                        <p style={{
+                                            fontSize: '1.25rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.05em',
+                                            margin: 0,
+                                        }}>
                                             {session.mode === SessionMode.TEST ? '📝' : '🎮'} {session.sessionCode}
-                                        </Text>
-                                        <Text size="xs" c="dimmed" tt="uppercase">
+                                        </p>
+                                        <p style={{
+                                            color: '#64748b',
+                                            fontSize: '0.75rem',
+                                            margin: '0.25rem 0 0',
+                                            textTransform: 'uppercase',
+                                        }}>
                                             Test Mode
-                                        </Text>
+                                        </p>
                                     </div>
-                                    <Badge color={getStatusColor(session.status)} size="sm">
+                                    <span style={{
+                                        background: getStatusColor(session.status),
+                                        borderRadius: '5px',
+                                        color: '#fff',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 600,
+                                        padding: '0.3rem 0.5rem',
+                                    }}>
                                         {session.status}
-                                    </Badge>
-                                </Group>
+                                    </span>
+                                </div>
 
-                                <Stack gap="xs" mb="md">
-                                    <Group gap="xs">
-                                        <Text size="sm">👥 <strong>{session.playerCount || 0}</strong> players</Text>
-                                    </Group>
-                                    <Group gap="xs">
-                                        <Text size="sm">⏰ Expires in <strong>{formatTimeRemaining(session.expiresAt)}</strong></Text>
-                                    </Group>
-                                    <Group gap="xs">
-                                        <Text size="xs" c="dimmed">
-                                            Created {new Date(session.createdAt).toLocaleString()}
-                                        </Text>
-                                    </Group>
-                                </Stack>
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.5rem',
+                                    marginBottom: '1rem',
+                                }}>
+                                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
+                                        👥 <strong>{session.playerCount || 0}</strong> players
+                                    </p>
+                                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
+                                        ⏰ Expires in <strong>{formatTimeRemaining(session.expiresAt)}</strong>
+                                    </p>
+                                    <p style={{ color: '#64748b', fontSize: '0.75rem', margin: 0 }}>
+                                        Created {typeof session.createdAt === 'number'
+                                            ? new Date(session.createdAt).toLocaleString()
+                                            : 'date unavailable'}
+                                    </p>
+                                </div>
 
-                                <Stack gap="xs">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     {(session.status === SessionStatus.WAITING || session.status === SessionStatus.IN_PROGRESS) && (
                                         <Button
                                             variant="primary"
@@ -373,7 +395,7 @@ const AdminSessionsPage: React.FC = () => {
                                             Join Session
                                         </Button>
                                     )}
-                                    <Group grow>
+                                    <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                                         <Button variant="glass" size="sm" onClick={() => handleExtendSession(session.sessionCode)}>
                                             <IconClock size={14} />
                                         </Button>
@@ -385,8 +407,8 @@ const AdminSessionsPage: React.FC = () => {
                                         <Button variant="danger" size="sm" onClick={() => handleDeleteSession(session.sessionCode)}>
                                             <IconTrash size={14} />
                                         </Button>
-                                    </Group>
-                                </Stack>
+                                    </div>
+                                </div>
                             </Card>
                         ))}
                     </div>
@@ -396,7 +418,7 @@ const AdminSessionsPage: React.FC = () => {
             {/* Create Session Modal */}
             <CreateSessionModal
                 opened={showCreateModal}
-                onClose={() => setShowCreateModal(false)}
+                onClose={handleCloseCreateSession}
                 onSessionCreated={handleSessionCreated}
             />
         </AdminLayout>

@@ -1,0 +1,77 @@
+name: Session Lifecycle
+
+on:
+  pull_request:
+    paths:
+      - 'src/services/sessionQuery.ts'
+      - 'src/services/sessionQuery.test.ts'
+      - 'src/services/sessionLifecycle.ts'
+      - 'src/services/sessionLifecycle.test.ts'
+      - 'src/services/serverClock.ts'
+      - 'src/services/serverClock.test.ts'
+      - 'src/services/sessionOwnerIndex.ts'
+      - 'src/services/sessionOwnerIndex.test.ts'
+      - 'src/services/sessionOwnerIndexMigration.ts'
+      - 'src/services/sessionOwnerIndexMigration.test.ts'
+      - 'src/services/sessionActionError.ts'
+      - 'src/services/sessionActionError.test.ts'
+      - 'src/services/sessionManager.js'
+      - 'src/services/sessionManager.lifecycle.test.ts'
+      - 'src/pages/SessionManagementPage.tsx'
+      - 'src/pages/AdminSessionsPage.tsx'
+      - 'src/pages/GuestJoinPage.jsx'
+      - 'src/hooks/useTestAutoSave.ts'
+      - 'src/hooks/test/useTestSubmission.ts'
+      - 'src/components/thcs-student/THCSTestLayout.tsx'
+      - 'database.rules.json'
+      - 'src/__tests__/security/prd0055-live-session-rules.emulator.test.ts'
+      - '.github/workflows/session-lifecycle.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/services/sessionQuery.ts'
+      - 'src/services/sessionQuery.test.ts'
+      - 'src/services/sessionLifecycle.ts'
+      - 'src/services/sessionLifecycle.test.ts'
+      - 'src/services/serverClock.ts'
+      - 'src/services/serverClock.test.ts'
+      - 'src/services/sessionOwnerIndex.ts'
+      - 'src/services/sessionOwnerIndex.test.ts'
+      - 'src/services/sessionOwnerIndexMigration.ts'
+      - 'src/services/sessionOwnerIndexMigration.test.ts'
+      - 'src/services/sessionActionError.ts'
+      - 'src/services/sessionActionError.test.ts'
+      - 'src/services/sessionManager.js'
+      - 'src/services/sessionManager.lifecycle.test.ts'
+      - 'src/pages/SessionManagementPage.tsx'
+      - 'src/pages/AdminSessionsPage.tsx'
+      - 'src/pages/GuestJoinPage.jsx'
+      - 'src/hooks/useTestAutoSave.ts'
+      - 'src/hooks/test/useTestSubmission.ts'
+      - 'src/components/thcs-student/THCSTestLayout.tsx'
+      - 'database.rules.json'
+      - 'src/__tests__/security/prd0055-live-session-rules.emulator.test.ts'
+      - '.github/workflows/session-lifecycle.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Verify lifecycle derivation and client queries
+        run: npx vitest run src/services/sessionLifecycle.test.ts src/services/serverClock.test.ts src/services/sessionOwnerIndex.test.ts src/services/sessionOwnerIndexMigration.test.ts src/services/sessionQuery.test.ts src/services/sessionActionError.test.ts src/services/sessionManager.lifecycle.test.ts
+
+      - name: Verify RTDB server-time enforcement
+        run: npx firebase-tools emulators:exec --only database "npx vitest run src/__tests__/security/prd0055-live-session-rules.emulator.test.ts"

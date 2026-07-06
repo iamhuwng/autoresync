@@ -1,0 +1,46 @@
+name: Mantine Boundary
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/check-mantine-boundary.mjs'
+      - 'scripts/__tests__/check-mantine-boundary.test.mjs'
+      - '.github/workflows/mantine-boundary.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'scripts/check-mantine-boundary.mjs'
+      - 'scripts/__tests__/check-mantine-boundary.test.mjs'
+      - '.github/workflows/mantine-boundary.yml'
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test Mantine boundary parser
+        run: node --test scripts/__tests__/check-mantine-boundary.test.mjs
+
+      - name: Enforce pull-request boundary
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-mantine-boundary.mjs --base "origin/${{ github.base_ref }}"
+
+      - name: Enforce pushed change boundary
+        if: github.event_name == 'push'
+        run: node scripts/check-mantine-boundary.mjs --base "${{ github.event.before }}"

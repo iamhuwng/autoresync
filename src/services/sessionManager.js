@@ -11,9 +11,8 @@
  * - Zero breaking changes to existing code
  */
 
-import { ref, set, get, update, remove, onValue, serverTimestamp } from 'firebase/database';
+import { ref, set, get, update, onValue, serverTimestamp } from 'firebase/database';
 import { database } from './firebase';
-import queryOptimizer from './firebaseQueryOptimizer';
 import { generateUniqueCode, validateCode, normalizeCode } from './sessionCodeService';
 import {
   normalizeSessionData,
@@ -22,9 +21,28 @@ import {
   getStudentAssignment as getStudentAssignmentHelper
 } from './sessionHelpers';
 import { getSessionEndReleaseState } from '../types/releaseState.types';
+import { getEffectiveSessionStatus } from './sessionLifecycle';
+import { SESSION_EXPIRED_MESSAGE } from './sessionActionError';
+import {
+  buildOwnerSessionIndexRecord,
+  ownerSessionIndexPath,
+  resolveSessionOwnerId,
+} from './sessionOwnerIndex';
 
 // Session expiration time (24 hours in milliseconds)
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
+const MAX_EXTENSION_HOURS = 24 * 7;
+const MAX_EXPIRY_FROM_NOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+const addOwnerIndexUpdate = (updates, sessionCode, session, now) => {
+  const ownerId = resolveSessionOwnerId(session);
+  if (!ownerId) {
+    return;
+  }
+
+  updates[ownerSessionIndexPath(ownerId, sessionCode)] =
+    buildOwnerSessionIndexRecord(sessionCode, session, now);
+};
 
 /**
  * Session status enum
@@ -181,6 +199,15 @@ export async function createSession({ testId, mode = SessionMode.TEST, settings 
     // Save to Firebase under game_sessions/{sessionCode}
     const updates = {};
     updates[`game_sessions/${sessionCode}`] = sessionData;
+    if (typeof createdBy === 'string' && createdBy.trim()) {
+      const indexRecord = buildOwnerSessionIndexRecord(sessionCode, {
+        ...sessionData,
+        createdByUserId: createdBy,
+      }, now);
+      if (indexRecord) {
+        updates[ownerSessionIndexPath(createdBy, sessionCode)] = indexRecord;
+      }
+    }
 
     // If linked to a class, add to classes/{classId}/activeSessions
     if (classId) {
@@ -265,14 +292,10 @@ export async function getSession(sessionCode) {
     // AUTO-MIGRATION: Normalize session data (converts old format if needed)
     session = normalizeSessionData(session);
 
-    // Check if session is expired
-    if (session.expiresAt && Date.now() > session.expiresAt) {
+    const effectiveStatus = getEffectiveSessionStatus(session);
+    if (effectiveStatus === SessionStatus.EXPIRED && session.status !== SessionStatus.EXPIRED) {
       console.warn(`⚠️ Session ${normalizedCode} has expired`);
-      // Mark as expired (but don't delete yet - allows viewing results)
-      if (session.status !== SessionStatus.EXPIRED) {
-        await updateSessionStatus(normalizedCode, SessionStatus.EXPIRED);
-        session.status = SessionStatus.EXPIRED;
-      }
+      session = { ...session, status: effectiveStatus };
     }
 
     return session;
@@ -321,6 +344,16 @@ export async function validateSessionForJoin(sessionCode) {
     return {
       valid: false,
       message: 'This session has already ended.',
+    };
+  }
+
+  if (
+    (session.status === SessionStatus.WAITING || session.status === SessionStatus.IN_PROGRESS)
+    && (typeof session.expiresAt !== 'number' || !Number.isFinite(session.expiresAt))
+  ) {
+    return {
+      valid: false,
+      message: SESSION_EXPIRED_MESSAGE,
     };
   }
 
@@ -448,10 +481,23 @@ export async function validateStudentClassMembership(sessionCode, studentId) {
 export async function updateSessionStatus(sessionCode, newStatus) {
   try {
     const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    await update(sessionRef, {
+    const snapshot = await get(sessionRef);
+    if (!snapshot.exists()) {
+      throw new Error('Session not found');
+    }
+
+    const now = Date.now();
+    const nextSession = {
+      ...snapshot.val(),
       status: newStatus,
-      updatedAt: Date.now(),
-    });
+      updatedAt: now,
+    };
+    const updates = {
+      [`game_sessions/${sessionCode}/status`]: newStatus,
+      [`game_sessions/${sessionCode}/updatedAt`]: now,
+    };
+    addOwnerIndexUpdate(updates, sessionCode, nextSession, now);
+    await update(ref(database), updates);
 
     console.log(`✅ Session ${sessionCode} status updated to: ${newStatus}`);
   } catch (error) {
@@ -514,6 +560,10 @@ export async function endSession(sessionCode, finalData = {}) {
     if (sessionData.linkedClassId) {
       updates[`classes/${sessionData.linkedClassId}/activeSessions/${sessionCode}`] = null;
     }
+    const ownerId = resolveSessionOwnerId(sessionData);
+    if (ownerId) {
+      updates[ownerSessionIndexPath(ownerId, sessionCode)] = null;
+    }
 
     await update(ref(database), updates);
 
@@ -537,81 +587,24 @@ export async function deleteSession(sessionCode) {
 
     if (snapshot.exists()) {
       const sessionData = snapshot.val();
+      const updates = {
+        [`game_sessions/${sessionCode}`]: null,
+      };
 
       // If linked to a class, remove from classes/{classId}/activeSessions
       if (sessionData.linkedClassId) {
-        const classRef = ref(database, `classes/${sessionData.linkedClassId}/activeSessions/${sessionCode}`);
-        await remove(classRef);
+        updates[`classes/${sessionData.linkedClassId}/activeSessions/${sessionCode}`] = null;
       }
+      const ownerId = resolveSessionOwnerId(sessionData);
+      if (ownerId) {
+        updates[ownerSessionIndexPath(ownerId, sessionCode)] = null;
+      }
+
+      await update(ref(database), updates);
     }
-
-    await remove(sessionRef);
-
     console.log(`🗑️ Session ${sessionCode} deleted`);
   } catch (error) {
     console.error(`Error deleting session:`, error);
-    throw error;
-  }
-}
-
-/**
- * Get all active sessions (waiting or in-progress)
- * Useful for teacher dashboard
- *
- * @returns {Promise<Array>} Array of active session objects
- */
-export async function getActiveSessions() {
-  try {
-    return await queryOptimizer.getAllActiveSessions();
-  } catch (error) {
-    console.error('Error fetching active sessions:', error);
-    return [];
-  }
-}
-
-/**
- * Cleanup expired sessions (run periodically)
- * Marks sessions as expired if past expiration time
- *
- * @param {boolean} deleteExpired - Whether to delete expired sessions or just mark them
- * @returns {Promise<Object>} Cleanup results
- */
-export async function cleanupExpiredSessions(deleteExpired = false) {
-  try {
-    const sessionsRef = ref(database, 'game_sessions');
-    const snapshot = await get(sessionsRef);
-
-    if (!snapshot.exists()) {
-      return { marked: 0, deleted: 0 };
-    }
-
-    const sessionsData = snapshot.val();
-    const now = Date.now();
-    let markedCount = 0;
-    let deletedCount = 0;
-
-    // Process each session
-    for (const [sessionCode, sessionData] of Object.entries(sessionsData)) {
-      if (sessionData.expiresAt && now > sessionData.expiresAt) {
-        if (deleteExpired) {
-          // Delete the session completely
-          await deleteSession(sessionCode);
-          deletedCount++;
-        } else {
-          // Just mark as expired
-          if (sessionData.status !== SessionStatus.EXPIRED) {
-            await updateSessionStatus(sessionCode, SessionStatus.EXPIRED);
-            markedCount++;
-          }
-        }
-      }
-    }
-
-    console.log(`🧹 Cleanup complete: ${markedCount} marked, ${deletedCount} deleted`);
-
-    return { marked: markedCount, deleted: deletedCount };
-  } catch (error) {
-    console.error('Error cleaning up sessions:', error);
     throw error;
   }
 }
@@ -648,19 +641,51 @@ export function subscribeToSession(sessionCode, callback) {
  */
 export async function extendSession(sessionCode, additionalHours = 24) {
   try {
-    const session = await getSession(sessionCode);
-    if (!session) {
+    if (
+      !Number.isFinite(additionalHours)
+      || additionalHours <= 0
+      || additionalHours > MAX_EXTENSION_HOURS
+    ) {
+      throw new Error(`Extension must be between 0 and ${MAX_EXTENSION_HOURS} hours.`);
+    }
+
+    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
+    const snapshot = await get(sessionRef);
+    if (!snapshot.exists()) {
       throw new Error('Session not found');
     }
 
-    const additionalMs = additionalHours * 60 * 60 * 1000;
-    const newExpiresAt = session.expiresAt + additionalMs;
+    const session = snapshot.val();
+    if (session.status === SessionStatus.COMPLETED) {
+      throw new Error('Completed sessions cannot be reactivated by extension.');
+    }
 
-    const sessionRef = ref(database, `game_sessions/${sessionCode}`);
-    await update(sessionRef, {
+    const now = Date.now();
+    const additionalMs = additionalHours * 60 * 60 * 1000;
+    const currentExpiresAt = typeof session.expiresAt === 'number' ? session.expiresAt : now;
+    const newExpiresAt = Math.max(currentExpiresAt, now) + additionalMs;
+    if (newExpiresAt > now + MAX_EXPIRY_FROM_NOW_MS) {
+      throw new Error('Session expiry cannot be extended beyond 30 days from now.');
+    }
+    const nextStatus = session.status === SessionStatus.EXPIRED
+      ? SessionStatus.WAITING
+      : session.status;
+    const nextSession = {
+      ...session,
+      status: nextStatus,
       expiresAt: newExpiresAt,
-      extendedAt: Date.now(),
-    });
+      extendedAt: now,
+      updatedAt: now,
+    };
+    const updates = {
+      [`game_sessions/${sessionCode}/status`]: nextStatus,
+      [`game_sessions/${sessionCode}/expiresAt`]: newExpiresAt,
+      [`game_sessions/${sessionCode}/extendedAt`]: now,
+      [`game_sessions/${sessionCode}/updatedAt`]: now,
+    };
+    addOwnerIndexUpdate(updates, sessionCode, nextSession, now);
+
+    await update(ref(database), updates);
 
     console.log(`⏰ Session ${sessionCode} extended by ${additionalHours} hours`);
   } catch (error) {
