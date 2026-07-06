@@ -630,11 +630,13 @@ Phase 12 Gate B blocker-fix note: after product-owner approval for narrow invent
 
 ### Gate C - Destructive Approval
 
-- [ ] 12.12 Only after explicit product-owner approval, run:
+- [x] 12.12 Only after explicit product-owner approval, run:
   - `npm run materials:purge-retired -- --project temp-a1437 --manifest "$env:TEMP\retired-materials-manifest.json" --apply`
-- [ ] 12.13 Run full readback.
-- [ ] 12.14 Retain only the manifest/proof required for audit.
-- [ ] 12.15 Do not retain deleted material payloads.
+- [x] 12.13 Run full readback.
+- [x] 12.14 Retain only the manifest/proof required for audit.
+- [x] 12.15 Do not retain deleted material payloads.
+
+Phase 12 Gate C note: after explicit product-owner approval, a reviewed manifest wrapper was created from committed read-only manifest candidate `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-c-candidate.json` and written to `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-reviewed-gate-c-noop.json`. The reviewed manifest source revision was committed cleanup `03946f4dcb7de9f95650e92a6aa8623500337e36`. The first apply command timed out before output at 184 seconds; rerun completed with exit `0`, `mode: applied`, `updateCount: 0`, `deletionPathCount: 0`, `retainedResultScrubPathCount: 0`, and readback counts `activeSessionCount: 0`, `plannedR2DeleteCount: 0`, `protectedReadingV2CollisionCount: 0`, `retainedResultCount: 179`, `driveUrlFieldPathCount: 0`, `readFailureCount: 0`. Independent post-apply read-only inspection wrote `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-c-readback.json` and confirmed zero retired candidates, zero unknown-blocked records, zero planned deletion paths, zero retained-result scrub paths, zero Drive URL field paths, zero R2 deletes, zero protected Reading V2 collisions, and Reading V2 count `1114`. No deleted material payloads were retained because Gate C was a no-op apply. No deploy, push, merge, Firebase rules deploy, R2 mutation, or Gate D/E action was run.
 
 ### Gate D - Rules Deployment
 

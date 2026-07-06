@@ -6142,6 +6142,143 @@ Reconciliation note after task-list update:
 - `tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md` was also updated append-only with the Gate B blocker-fix current-state note.
 - Final dirty-path proof must therefore include the six cleanup paths plus the findings file, task-list file, and protected unrelated untracked file.
 
+## Phase 12 Gate C No-Op Apply And Readback Evidence - 2026-07-06
+
+Scope and authority:
+
+- Product owner approved Gate C no-op/destructive-capable apply and readback using the committed manifest candidate.
+- Explicit constraints: no deploy, no push, no merge, no Firebase rules deploy.
+- No R2 mutation, Hosting deploy, rules deploy, push, merge, or worktree cleanup was run.
+- Subagents remained blocked; no subagents were spawned.
+- Protected unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` remained untracked and untouched.
+
+State before Gate C:
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Location; git branch --show-current; git rev-parse HEAD; git rev-parse --abbrev-ref --symbolic-full-name '@{u}'; git status --short --branch --untracked-files=all"
+```
+
+Result: exit `0`; branch `codex/retirement-gate-evidence`; `HEAD` `03946f4dcb7de9f95650e92a6aa8623500337e36`; upstream `origin/codex/retirement-gate-evidence`; branch ahead by one commit; dirty status contained only protected unrelated untracked file:
+
+```text
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Reviewed manifest creation:
+
+```powershell
+rtk node -e "const fs=require('fs'),path=require('path'),cp=require('child_process'); const input=path.join(process.env.TEMP,'retired-materials-manifest-gate-c-candidate.json'); const output=path.join(process.env.TEMP,'retired-materials-reviewed-gate-c-noop.json'); ..."
+```
+
+Result: exit `0`; wrote reviewed manifest `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-reviewed-gate-c-noop.json` after asserting:
+
+- `sourceRevision`: `03946f4dcb7de9f95650e92a6aa8623500337e36`
+- `projectId`: `temp-a1437`
+- `plannedDeletionPathCount`: `0`
+- `retainedResultScrubPathCount`: `0`
+- `unknownBlockedRecordCount`: `0`
+- `activeSessionCount`: `0`
+- `plannedR2DeleteCount`: `0`
+- `protectedReadingV2CollisionCount`: `0`
+
+Gate C apply:
+
+```powershell
+rtk npm run materials:purge-retired -- --project temp-a1437 --manifest "$env:TEMP\retired-materials-reviewed-gate-c-noop.json" --apply
+```
+
+First run result: command timed out at `184` seconds before output; rerun was required for full proof.
+
+Second run result: exit `0`; purge tool reported:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "mode": "applied",
+  "manifestPath": "C:\\Users\\THELOR~1\\AppData\\Local\\Temp\\retired-materials-reviewed-gate-c-noop.json",
+  "updateCount": 0,
+  "deletionPathCount": 0,
+  "retainedResultScrubPathCount": 0,
+  "retainedResultRootCount": 0,
+  "readback": {
+    "activeSessionCount": 0,
+    "plannedR2DeleteCount": 0,
+    "protectedReadingV2CollisionCount": 0,
+    "retainedResultCount": 179,
+    "driveUrlFieldPathCount": 0,
+    "readFailureCount": 0
+  }
+}
+```
+
+Gate C readback expectations listed by purge tool:
+
+- zero Quiz materials;
+- zero Reading V1 materials;
+- zero Drive-backed Listening materials;
+- zero stale active assignment/catalog/delivery references;
+- zero active sessions;
+- retained result counts unchanged;
+- zero Drive URLs in retained result source fields;
+- Reading V2 counts unchanged;
+- R2 delete count zero.
+
+Independent post-apply read-only inspection:
+
+```powershell
+rtk npm run materials:inspect-retired -- --project temp-a1437 --out "$env:TEMP\retired-materials-manifest-gate-c-readback.json"
+```
+
+Result: exit `0`; output path `C:\Users\THELOR~1\AppData\Local\Temp\retired-materials-manifest-gate-c-readback.json`; read-only summary:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "mode": "read-only",
+  "rootCount": 22,
+  "readFailureCount": 0,
+  "driveUrlFieldPathCount": 0,
+  "explicitReadingV2PayloadCount": 1114,
+  "legacyReadingSchemaEvidenceCount": 0
+}
+```
+
+Independent post-apply manifest count review:
+
+- `sourceRevision`: `03946f4dcb7de9f95650e92a6aa8623500337e36`
+- `activeSessionCount`: `0`
+- `unknownBlockedRecordCount`: `0`
+- `unknownShapeCount`: `0`
+- `plannedDeletionPathCount`: `0`
+- `retainedResultScrubPathCount`: `0`
+- `plannedR2DeleteCount`: `0`
+- `protectedReadingV2CollisionCount`: `0`
+- `driveUrlFieldPathCount`: `0`
+- `explicitReadingV2PayloadCount`: `1114`
+- `retainedResultCount`: `179`
+- candidate state counts:
+  - `retire-reading-v1`: `0`
+  - `retire-quiz`: `0`
+  - `retire-drive-backed-listening`: `0`
+  - `protect-reading-v2`: `0`
+  - `protect-thcs`: `0`
+  - `protect-r2-listening`: `27`
+  - `protect-supported-listening`: `17`
+  - `protect-non-candidate`: `43`
+  - `unknown-blocked`: `0`
+
+Gate C retention boundary:
+
+- Because `updateCount` was `0`, no Firebase deletion or retained-result scrub was performed.
+- No deleted material payloads were retained; only audit-safe manifest/proof files in `%TEMP%` were created.
+- Gate C completed as a no-op apply with passed purge-tool readback and independent read-only readback.
+
+Remaining Phase 12 scope:
+
+- Gate D Firebase rules deployment remains unchecked and requires separate approval.
+- Gate E local main refresh/worktree cleanup remains unchecked and requires separate approval.
+- Evidence append is currently uncommitted until separately approved.
+
 Required rules and authority read before coding:
 
 - `C:\Users\The Lord\.codex\skills\implement\SKILL.md`.
