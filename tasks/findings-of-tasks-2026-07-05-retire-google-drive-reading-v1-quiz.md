@@ -6137,6 +6137,149 @@ Result: exit `0`; folder and repo root were `C:\Users\The Lord\Desktop\luyentap-
 ?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
 ```
 
+## Phase 12 Gate E Main Refresh And Reachability Evidence - 2026-07-06
+
+Scope and authority:
+
+- Product owner approved Gate E evidence docs update on a new branch.
+- Explicit boundary: treat `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` as an excluded unrelated file.
+- Explicit negative scope: no worktree removal, branch deletion, deploy, purge, merge, or Firebase/R2 mutation in this evidence-doc update.
+- New evidence branch: `codex/gate-e-evidence-docs`.
+
+State before evidence update:
+
+```powershell
+rtk git status --short --branch --untracked-files=all
+```
+
+Result before branch creation:
+
+```text
+## main...origin/main
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+```powershell
+rtk git rev-parse HEAD
+```
+
+Result: `c4f01b4515b08e2e1023de7787a40a306e618900`.
+
+Branch creation:
+
+```powershell
+rtk git switch -c codex/gate-e-evidence-docs
+```
+
+Result: exit `0`; switched to new branch `codex/gate-e-evidence-docs`.
+
+PR merge proof:
+
+```powershell
+rtk gh pr view 12 --json number,state,mergedAt,mergeCommit,url
+```
+
+Result:
+
+```json
+{
+  "mergeCommit": {
+    "oid": "c4f01b4515b08e2e1023de7787a40a306e618900"
+  },
+  "mergedAt": "2026-07-06T08:29:59Z",
+  "number": 12,
+  "state": "MERGED",
+  "url": "https://github.com/iamhuwng/autoresync/pull/12"
+}
+```
+
+Local main refresh proof:
+
+```powershell
+rtk git rev-parse main
+rtk git rev-parse origin/main
+rtk git rev-list --left-right --count main...origin/main
+```
+
+Results:
+
+```text
+c4f01b4515b08e2e1023de7787a40a306e618900
+c4f01b4515b08e2e1023de7787a40a306e618900
+0	0
+```
+
+Feature commit reachability proof:
+
+```powershell
+rtk node -e "const {spawnSync}=require('child_process'); const commits=['de1f424344a9662a4e1629226e73c05e6ef50305','079cbf9d819fa42f35dbc8292400fcd9ef44f00b','03946f4dcb7de9f95650e92a6aa8623500337e36','cf29a9c5b87ad03e3022f23cfc5456e3bd68898e','281f904e']; for (const c of commits) { const r=spawnSync('git',['merge-base','--is-ancestor',c,'origin/main'],{stdio:'ignore'}); console.log(c + ' reachable=' + (r.status===0)); }"
+```
+
+Result:
+
+```text
+de1f424344a9662a4e1629226e73c05e6ef50305 reachable=true
+079cbf9d819fa42f35dbc8292400fcd9ef44f00b reachable=true
+03946f4dcb7de9f95650e92a6aa8623500337e36 reachable=true
+cf29a9c5b87ad03e3022f23cfc5456e3bd68898e reachable=true
+281f904e reachable=true
+```
+
+Feature branch and tracked-worktree cleanliness proof:
+
+```powershell
+rtk git rev-list --left-right --count codex/retirement-gate-evidence...origin/codex/retirement-gate-evidence
+rtk git status --short --untracked-files=no
+rtk git status --short --branch --untracked-files=all
+```
+
+Results:
+
+```text
+0	0
+ok
+## codex/gate-e-evidence-docs
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Gate E acceptance:
+
+- 12.19 is complete: PR #12 is merged and local `main == origin/main` at `c4f01b4515b08e2e1023de7787a40a306e618900`.
+- 12.20 is complete under the product-owner-approved unrelated-file boundary: all named feature evidence commits are reachable from `origin/main`, the feature branch matches its remote, and tracked worktree status is clean.
+- The unrelated untracked file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` remained untouched and excluded from the feature-worktree cleanliness claim.
+- 12.21 remains incomplete: no worktree, branch, or file removal was approved or performed.
+
+Evidence-doc guardrails:
+
+```powershell
+rtk npm run check:utf8 -- tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+```
+
+Result: exit `0`; `UTF-8 check passed for 2 text file(s).`
+
+```powershell
+rtk npm run enforce:check
+```
+
+Result: exit `0`; `All enforcement checks passed.`
+
+```powershell
+rtk git diff --check
+```
+
+Result: exit `0`; no whitespace errors.
+
+Review:
+
+- `code-review` skill normally uses subagents, but subagents remain blocked by product-owner instruction in this conversation.
+- Manual two-axis review of the docs-only diff found no spec drift: only Gate E 12.19 and 12.20 were checked, 12.21 stayed unchecked, and the excluded unrelated file stayed untouched.
+- Manual standards review found no hard issue in the two-file Markdown evidence diff.
+
+Recommended next approval after this evidence branch is committed:
+
+- Push/open a PR for `codex/gate-e-evidence-docs` if the evidence update should land on `main`.
+- Keep 12.21 separate: worktree or branch removal still needs explicit approval and must not touch `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
 Reconciliation note after task-list update:
 
 - `tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md` was also updated append-only with the Gate B blocker-fix current-state note.

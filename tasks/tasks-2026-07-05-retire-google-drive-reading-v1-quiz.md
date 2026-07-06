@@ -648,9 +648,11 @@ Phase 12 Gate D note: after explicit product-owner approval and completed Gate C
 
 ### Gate E - Local Main Refresh And Worktree Cleanup
 
-- [ ] 12.19 Fetch and fast-forward local `main` after remote merge; prove local `main == origin/main`.
-- [ ] 12.20 Prove all feature commits are reachable from `origin/main` and the feature worktree is clean.
+- [x] 12.19 Fetch and fast-forward local `main` after remote merge; prove local `main == origin/main`.
+- [x] 12.20 Prove all feature commits are reachable from `origin/main` and the feature worktree is clean.
 - [ ] 12.21 Remove the feature worktree only after reachability, cleanliness, and explicit user approval.
+
+Phase 12 Gate E note: after explicit product-owner approval, PR #12 was merged remotely and local `main` was fast-forwarded to `origin/main` at merge commit `c4f01b4515b08e2e1023de7787a40a306e618900`. `main...origin/main` returned `0 0`. Feature evidence commits through `de1f424344a9662a4e1629226e73c05e6ef50305` are reachable from `origin/main`, and `codex/retirement-gate-evidence...origin/codex/retirement-gate-evidence` returned `0 0`. Tracked worktree status was clean. The untracked `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` file remains an excluded unrelated boundary by product-owner instruction and was not edited, staged, committed, deleted, or claimed as feature work. 12.21 remains unchecked because no worktree or branch removal was approved or performed.
 
 ## Codex Run Pattern
 
