@@ -4462,6 +4462,12 @@ rtk git diff --check
 
 Result: exit `0`; no whitespace errors.
 
+Review:
+
+- `code-review` skill normally uses subagents; subagents remain blocked by product-owner instruction in this conversation.
+- Manual spec review found the diff limited to evidence-backed Gate E cleanup closure and final checkbox reconciliation.
+- Manual standards review found no hard issue in the two-file Markdown-only diff.
+
 Task-list reconciliation:
 
 - Newly checked from this blocker-fix/proof:
@@ -6279,6 +6285,196 @@ Recommended next approval after this evidence branch is committed:
 
 - Push/open a PR for `codex/gate-e-evidence-docs` if the evidence update should land on `main`.
 - Keep 12.21 separate: worktree or branch removal still needs explicit approval and must not touch `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
+## Phase 12 Gate E Cleanup Closure Evidence - 2026-07-06
+
+Scope and authority:
+
+- Product owner granted autonomy to continue until the task list is done.
+- Recommended safe cleanup path was used: delete merged branch refs only; do not remove the active workspace or any worktree containing the protected unrelated file.
+- Protected unrelated file remained excluded and untouched: `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+- No deploy, purge, Firebase mutation, R2 mutation, feature worktree deletion, or protected-file operation was performed.
+
+Merged PR and reachability proof before cleanup:
+
+```powershell
+rtk gh pr view 12 --json number,state,mergedAt,mergeCommit,headRefName,url
+rtk gh pr view 13 --json number,state,mergedAt,mergeCommit,headRefName,url
+```
+
+Results:
+
+```json
+{
+  "headRefName": "codex/retirement-gate-evidence",
+  "mergeCommit": {
+    "oid": "c4f01b4515b08e2e1023de7787a40a306e618900"
+  },
+  "mergedAt": "2026-07-06T08:29:59Z",
+  "number": 12,
+  "state": "MERGED",
+  "url": "https://github.com/iamhuwng/autoresync/pull/12"
+}
+```
+
+```json
+{
+  "headRefName": "codex/gate-e-evidence-docs",
+  "mergeCommit": {
+    "oid": "0a227c9a646e5df4a8f58794ba6ebc76f927aefc"
+  },
+  "mergedAt": "2026-07-06T08:45:38Z",
+  "number": 13,
+  "state": "MERGED",
+  "url": "https://github.com/iamhuwng/autoresync/pull/13"
+}
+```
+
+```powershell
+rtk node -e "const {spawnSync}=require('child_process'); const refs=['codex/retirement-gate-evidence','codex/gate-e-evidence-docs','origin/codex/retirement-gate-evidence','origin/codex/gate-e-evidence-docs']; for (const ref of refs) { const rev=spawnSync('git',['rev-parse','--verify',ref],{encoding:'utf8'}); if (rev.status!==0) { console.log(ref+' missing'); continue; } const sha=rev.stdout.trim(); const anc=spawnSync('git',['merge-base','--is-ancestor',sha,'origin/main'],{stdio:'ignore'}); console.log(ref+' '+sha+' reachable='+String(anc.status===0)); }"
+```
+
+Result:
+
+```text
+codex/retirement-gate-evidence de1f424344a9662a4e1629226e73c05e6ef50305 reachable=true
+codex/gate-e-evidence-docs efd0c4e4c1131cf90cd5a19c7a12f5558936bd8e reachable=true
+origin/codex/retirement-gate-evidence de1f424344a9662a4e1629226e73c05e6ef50305 reachable=true
+origin/codex/gate-e-evidence-docs efd0c4e4c1131cf90cd5a19c7a12f5558936bd8e reachable=true
+```
+
+Worktree topology before cleanup:
+
+```powershell
+rtk git worktree list --porcelain
+```
+
+Result included no worktree checked out on `codex/retirement-gate-evidence` or `codex/gate-e-evidence-docs`. The current workspace was:
+
+```text
+C:/Users/The Lord/Desktop/luyentap-writing-import-rebased 0a227c9a [main]
+```
+
+Closure branch:
+
+```powershell
+rtk git switch -c codex/gate-e-cleanup-closure
+```
+
+Result: exit `0`; switched to new branch `codex/gate-e-cleanup-closure`.
+
+Cleanup actions:
+
+```powershell
+rtk git branch -d codex/retirement-gate-evidence codex/gate-e-evidence-docs
+```
+
+Result: exit `0`; `ok`.
+
+```powershell
+rtk git push origin --delete codex/retirement-gate-evidence codex/gate-e-evidence-docs
+```
+
+Result: exit `0`:
+
+```text
+To https://github.com/iamhuwng/autoresync.git
+ - [deleted]           codex/gate-e-evidence-docs
+ - [deleted]           codex/retirement-gate-evidence
+ok
+```
+
+Absence proof after cleanup:
+
+```powershell
+rtk node -e "const {spawnSync}=require('child_process'); const refs=['refs/heads/codex/retirement-gate-evidence','refs/heads/codex/gate-e-evidence-docs','refs/remotes/origin/codex/retirement-gate-evidence','refs/remotes/origin/codex/gate-e-evidence-docs']; for (const ref of refs) { const r=spawnSync('git',['rev-parse','--verify',ref],{encoding:'utf8'}); console.log(ref+' exists='+(r.status===0)); }"
+```
+
+Result:
+
+```text
+refs/heads/codex/retirement-gate-evidence exists=false
+refs/heads/codex/gate-e-evidence-docs exists=false
+refs/remotes/origin/codex/retirement-gate-evidence exists=false
+refs/remotes/origin/codex/gate-e-evidence-docs exists=false
+```
+
+Post-cleanup status before evidence docs update:
+
+```powershell
+rtk git status --short --branch --untracked-files=all
+```
+
+Result:
+
+```text
+## codex/gate-e-cleanup-closure
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+12.21 closure:
+
+- No separate feature worktree existed for the merged retirement/evidence branches, so no worktree directory was deleted.
+- The active workspace was retained because it is the current `main` workspace and contains the protected unrelated untracked file.
+- Cleanup removed only the merged local and remote branch refs for PR #12 and PR #13.
+- Task `12.21` is complete under this no-worktree-to-remove/protected-file boundary.
+- Protected unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` remained untracked and untouched.
+
+## Task List Final Checkbox Reconciliation - 2026-07-06
+
+Scope and authority:
+
+- Product owner granted autonomy to continue until the task list is done.
+- Reconciliation was limited to evidence-backed task-list bookkeeping; no runtime behavior, Firebase data, R2 object, deployment, purge, or protected user file changed.
+
+Remaining unchecked boxes before reconciliation:
+
+```powershell
+rtk rg -n "^- \[ \]" tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+```
+
+Result included only these categories:
+
+- Execution contract guardrail boxes at lines `19`-`40`.
+- Phase 0 known-current-anchor group boxes for Google Drive, Reading V1, Reading V2, Quiz, homework lookup, retained result/feedback, and Firebase/delivery roots.
+- `11.19` suggested commit split.
+- Run-pattern bookkeeping boxes `Run 1` and `Run 13`.
+
+Reconciliation:
+
+- Execution contract boxes were checked because findings show phased approvals, HARD STOPs, exact-path commits, separate remote gates, protected-file boundary preservation, and no unauthorized destructive mutation.
+- Known-current-anchor group boxes were checked because Phase 0 findings recorded the relevant anchors and later phases recorded removal/protection outcomes.
+- `11.19` was checked as resolved/obsolete because the actual authorized commits and PRs already superseded the suggested split; no further split is pending.
+- `Run 1` was checked because Phase 0 findings and HARD STOP evidence exist.
+- `Run 13` was checked because all Phase 12 gates are now evidence-backed and Gate E cleanup closure is recorded.
+
+Post-reconciliation unchecked scan should return no task-list checkboxes.
+
+Final reconciliation proof:
+
+```powershell
+rtk rg -n "^- \[ \]" tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+```
+
+Result: exit `1`; no output, meaning no unchecked task-list checkboxes matched.
+
+```powershell
+rtk npm run check:utf8 -- tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+```
+
+Result: exit `0`; `UTF-8 check passed for 2 text file(s).`
+
+```powershell
+rtk npm run enforce:check
+```
+
+Result: exit `0`; `All enforcement checks passed.`
+
+```powershell
+rtk git diff --check
+```
+
+Result: exit `0`; no whitespace errors.
 
 Reconciliation note after task-list update:
 
