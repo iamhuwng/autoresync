@@ -640,9 +640,11 @@ Phase 12 Gate C note: after explicit product-owner approval, a reviewed manifest
 
 ### Gate D - Rules Deployment
 
-- [ ] 12.16 Deploy cleaned Firebase rules only after purge readback passes.
-- [ ] 12.17 Verify `/quizzes` denial against deployed state.
-- [ ] 12.18 Verify supported feature access against deployed state.
+- [x] 12.16 Deploy cleaned Firebase rules only after purge readback passes.
+- [x] 12.17 Verify `/quizzes` denial against deployed state.
+- [x] 12.18 Verify supported feature access against deployed state.
+
+Phase 12 Gate D note: after explicit product-owner approval and completed Gate C readback, Firebase Realtime Database rules were deployed only with `firebase deploy --only database --project temp-a1437 --non-interactive`. Firebase CLI version was `15.11.0`, active project proof returned `temp-a1437`, and deploy output reported valid syntax and successful release for `temp-a1437-default-rtdb`. Deployed rules readback confirmed `/quizzes` read/write false, root write preserving `quizzes`, supported `/tests` owner-query read rule, `student_safe_tests` authenticated read rule, and Reading V2 metadata delivery-engine validation. Live RTDB REST proof with dev teacher auth and deployed app `Referer` confirmed `/quizzes` read and write both returned permission denied, while supported `student_safe_tests` read and `/tests` owner query returned HTTP 200. No Hosting deploy, push, merge, R2 mutation, purge, or Gate E action was run. See findings for exact commands and proof.
 
 ### Gate E - Local Main Refresh And Worktree Cleanup
 

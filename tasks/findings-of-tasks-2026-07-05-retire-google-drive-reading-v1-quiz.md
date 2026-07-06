@@ -6279,6 +6279,152 @@ Remaining Phase 12 scope:
 - Gate E local main refresh/worktree cleanup remains unchecked and requires separate approval.
 - Evidence append is currently uncommitted until separately approved.
 
+## Phase 12 Gate D Firebase Rules Deployment Evidence - 2026-07-06
+
+Scope and authority:
+
+- Product owner approved Gate D Firebase rules deployment.
+- Explicit scope: deploy Firebase rules only; no push, merge, Hosting deploy, R2 mutation, purge, or worktree cleanup.
+- `firebase-cli-first` skill was used; Firebase CLI was the deployment and inspection surface.
+- Subagents remained blocked; no subagents were spawned.
+- Protected unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` remained untracked and untouched.
+
+State before deploy:
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Location; git rev-parse --show-toplevel; git branch --show-current; git rev-parse HEAD; git rev-parse --abbrev-ref --symbolic-full-name '@{u}'; git status --short --branch --untracked-files=all"
+```
+
+Result: exit `0`; branch `codex/retirement-gate-evidence`; `HEAD` `079cbf9d819fa42f35dbc8292400fcd9ef44f00b`; upstream `origin/codex/retirement-gate-evidence`; branch ahead by two commits; status clean except:
+
+```text
+?? documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md
+```
+
+Firebase config inspection:
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Content -LiteralPath 'firebase.json' -Raw"
+rtk powershell -NoProfile -Command "Get-Content -LiteralPath '.firebaserc' -Raw"
+rtk node node_modules/firebase-tools/lib/bin/firebase.js --version
+rtk node node_modules/firebase-tools/lib/bin/firebase.js use --project temp-a1437 --json
+```
+
+Results:
+
+- `firebase.json` database rules path is `database.rules.json`.
+- `.firebaserc` default project is `temp-a1437`.
+- Firebase CLI version `15.11.0`.
+- Firebase CLI active project command returned `"temp-a1437"`.
+
+Local focused pre-deploy rule proof:
+
+```powershell
+rtk npx vitest run src/__tests__/security/retired-material-rules.emulator.test.ts --reporter=basic
+```
+
+Result: exit `0`; `1` test file passed; `1` structural test passed; `5` emulator cases skipped by the test harness in this invocation. The structural test asserts local `/quizzes` read/write false, root super-admin write preserves `quizzes`, supported `/tests` ownership rule remains present, Reading V2 metadata validation remains present, retained result access remains present, and test-mode session validation remains present.
+
+Rules deployment:
+
+```powershell
+rtk node node_modules/firebase-tools/lib/bin/firebase.js deploy --only database --project temp-a1437 --non-interactive
+```
+
+Result: exit `0`; deployed only `database`; Firebase CLI reported:
+
+```text
+database: rules syntax for database temp-a1437-default-rtdb is valid
+database: rules for database temp-a1437-default-rtdb released successfully
+Deploy complete!
+```
+
+Deployed rules readback:
+
+```powershell
+rtk node node_modules/firebase-tools/lib/bin/firebase.js database:get /.settings/rules --project temp-a1437 --json
+```
+
+Result: exit `0`; deployed rules included `/quizzes` freeze and active supported-feature rules.
+
+Concise deployed rule assertions:
+
+```powershell
+rtk cmd /c node -e "... database:get /.settings/rules --project temp-a1437 ..."
+```
+
+Result: exit `0`:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "rootWriteIncludesQuizzesFreeze": true,
+  "quizzesRead": false,
+  "quizzesWrite": false,
+  "testsParentReadIncludesOwnerQuery": true,
+  "studentSafeTestsRead": "auth != null",
+  "readingV2MaterialMetadataValidateIncludesDeliveryEngine": true
+}
+```
+
+Live deployed RTDB REST proof:
+
+```powershell
+rtk cmd /c node -e "... sign in teacher@test.com through Identity Toolkit with Referer https://kahut1.web.app/; probe deployed RTDB ..."
+```
+
+First attempt without a `Referer` header failed before RTDB probes with:
+
+```text
+signIn failed 403 Requests from referer <empty> are blocked.
+```
+
+Retry with deployed app `Referer` header succeeded. Result: exit `0`:
+
+```json
+{
+  "projectId": "temp-a1437",
+  "databaseUrlHost": "temp-a1437-default-rtdb.firebaseio.com",
+  "teacherUid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+  "referer": "https://kahut1.web.app/",
+  "probes": {
+    "quizReadDenied": {
+      "status": 401,
+      "permissionDenied": true
+    },
+    "quizWriteDenied": {
+      "status": 401,
+      "permissionDenied": true
+    },
+    "studentSafeTestsRead": {
+      "status": 200,
+      "ok": true,
+      "keyCount": 19,
+      "firstKey": "prd0055-final-live-private-1782847310086-test"
+    },
+    "testsOwnerQuery": {
+      "status": 200,
+      "ok": true,
+      "resultCount": 1,
+      "firstKey": "codex_mobile_listening_image_1782942892988"
+    }
+  }
+}
+```
+
+Gate D acceptance:
+
+- `/quizzes` client read denied against deployed RTDB rules.
+- `/quizzes` client write denied against deployed RTDB rules.
+- Supported `student_safe_tests` authenticated read remained allowed.
+- Supported `/tests` owner query remained allowed.
+- Reading V2 metadata validation rule remained present in deployed rules.
+
+Remaining Phase 12 scope:
+
+- Gate E local main refresh and worktree cleanup remain unchecked and require separate approval.
+- Gate D evidence append is currently uncommitted until separately approved.
+
 Required rules and authority read before coding:
 
 - `C:\Users\The Lord\.codex\skills\implement\SKILL.md`.
