@@ -5666,3 +5666,301 @@ Recommended next approval:
 - If product owner wants integration completed: merge PR #11 from GitHub or approve me to merge PR #11, then approve deploy/readback as a separate Gate A continuation.
 - If product owner wants local `main` refreshed afterward: first decide what to do with local-only `main` commit `80198085`; do not fast-forward local `main` over it without a preservation/reconciliation decision.
 - If product owner wants Gate B session closure: separately approve `npm run sessions:end-active -- --project temp-a1437 --apply`.
+
+## Phase 12 Gate A Completion Evidence - 2026-07-06 local / 2026-07-05 UTC
+
+Scope and authority:
+
+- Product owner approved the next recommended steps after Gate A PR #11 was green.
+- Implemented Gate A only: preserve local-only `main` commit, sync local `main`, merge PR #11, deploy Hosting target `kahut1`, verify deployed readback and selector exposure.
+- No direct push to `main` was used.
+- No Firebase data purge, R2 mutation, purge tooling, `sessions:end-active --apply`, Firebase rules deploy, Gate C destructive purge, Gate D rules deploy, or worktree cleanup was run.
+- Subagents remain blocked by product-owner instruction; no subagents were spawned.
+
+Rules/skills loaded:
+
+- `$implement`: `C:\Users\The Lord\.codex\skills\implement\SKILL.md`.
+- Git sync/Firebase/deploy rule: `documentation/rules/infrastructure.md`.
+- Task packet/closure rule: `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md`.
+- Firebase CLI first: `C:\Users\The Lord\.codex\skills\firebase-cli-first\SKILL.md`.
+- Browser control: `C:\Users\The Lord\.codex\plugins\cache\openai-bundled\browser\26.623.101652\skills\control-in-app-browser\SKILL.md`.
+
+Initial state proof:
+
+```powershell
+rtk git status --short --branch
+```
+
+Result before Gate A continuation: exit `0`; branch `codex/remove-drive-reading-v1-quiz-clean...origin/codex/remove-drive-reading-v1-quiz-clean`; only untracked path was protected unrelated file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`.
+
+```powershell
+rtk git rev-parse main
+rtk git rev-parse origin/main
+rtk git log --oneline origin/main..main
+```
+
+Results before reconciliation:
+
+- local `main`: `8019808551bb72b348a5bbe4bea03e798a13e810`
+- `origin/main`: `288e1007711c194a0aae23a3c517b988fe6063ca`
+- local-only main commit: `80198085 fix(listening): clean abandoned temp uploads`
+
+Local-only main preservation and sync:
+
+```powershell
+rtk git fetch origin main
+```
+
+Result: exit `0`; `ok fetched (1 new refs)`.
+
+```powershell
+rtk git branch codex/preserve-local-main-80198085 main
+```
+
+Result: exit `0`; `ok`.
+
+```powershell
+rtk git branch --force main origin/main
+```
+
+Result: exit `0`; `ok`.
+
+```powershell
+rtk git rev-parse main
+rtk git rev-parse origin/main
+rtk git rev-parse codex/preserve-local-main-80198085
+rtk git log --oneline -1 codex/preserve-local-main-80198085
+rtk git rev-list --left-right --count origin/main...main
+```
+
+Results:
+
+- `main`: `288e1007711c194a0aae23a3c517b988fe6063ca`
+- `origin/main`: `288e1007711c194a0aae23a3c517b988fe6063ca`
+- preserve branch: `8019808551bb72b348a5bbe4bea03e798a13e810`
+- preserve branch subject: `80198085 fix(listening): clean abandoned temp uploads`
+- ahead/behind: `0 0`
+
+PR merge:
+
+```powershell
+rtk gh pr view 11 --repo iamhuwng/autoresync --json number,state,mergeable,headRefName,headRefOid,baseRefName,statusCheckRollup,url
+```
+
+Result before merge: exit `0`; PR #11 `OPEN`, `MERGEABLE`, head `8c05333cb7968f48c8253d8def14295d810b1c6b`, checks `guardrails: SUCCESS` and `enforce: SUCCESS`.
+
+```powershell
+rtk gh pr merge 11 --repo iamhuwng/autoresync --merge --match-head-commit 8c05333cb7968f48c8253d8def14295d810b1c6b --subject "Merge PR #11: retire legacy material flows" --body "Gate A PR merge for retired Google Drive, Reading V1, and Quiz cleanup. Checks passed: guardrails and enforce. No purge or deploy performed by this merge command."
+```
+
+Result: exit `0`; no output.
+
+```powershell
+rtk git fetch origin main
+rtk git switch main
+rtk git merge --ff-only origin/main
+```
+
+Results:
+
+- fetch exit `0`; `ok fetched (2 new refs)`.
+- switch exit `0`; switched to `main`, behind `origin/main` by `10` commits.
+- ff-only merge exit `0`; fast-forward `288e1007..4b9db726`; `295 files changed, 13507 insertions(+), 10293 deletions(-)`.
+
+```powershell
+rtk gh pr view 11 --repo iamhuwng/autoresync --json number,state,mergedAt,mergeCommit,url,headRefOid,baseRefName
+```
+
+Result: exit `0`; PR #11 `MERGED`; merged at `2026-07-05T19:21:41Z`; merge commit `4b9db726e46ecec30ce5d415a557b92e8443d44f`; URL `https://github.com/iamhuwng/autoresync/pull/11`.
+
+```powershell
+rtk git status --short --branch
+rtk git rev-parse HEAD
+rtk git rev-parse origin/main
+rtk git rev-list --left-right --count origin/main...main
+```
+
+Results after sync:
+
+- branch `main...origin/main`
+- only untracked path: `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+- `HEAD`: `4b9db726e46ecec30ce5d415a557b92e8443d44f`
+- `origin/main`: `4b9db726e46ecec30ce5d415a557b92e8443d44f`
+- ahead/behind: `0 0`
+
+Post-merge local proof before deploy:
+
+```powershell
+rtk cmd /c "set GITHUB_BASE_REF=main&& node scripts/check-assessment-unification-guardrails.mjs"
+```
+
+Result: exit `0`; `changed files: 296`; protected path annotations reported for reviewer attention; final line `[assessment-guardrails] OK`.
+
+```powershell
+rtk npm run enforce:check
+```
+
+Result: exit `0`; `Checking 23 result-related changed file(s) for PRD-0040 governance artifacts...`; `All enforcement checks passed.`
+
+```powershell
+rtk npm run check:utf8 -- tasks/tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md tasks/findings-of-tasks-2026-07-05-retire-google-drive-reading-v1-quiz.md
+```
+
+Result: exit `0`; `UTF-8 check passed for 2 text file(s).`
+
+```powershell
+rtk git diff --check
+```
+
+Result: exit `0`; no output.
+
+Deploy target inspection:
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Content -LiteralPath 'firebase.json' -Raw"
+rtk powershell -NoProfile -Command "if (Test-Path '.firebaserc') { Get-Content -LiteralPath '.firebaserc' -Raw } else { 'NO .firebaserc' }"
+rtk node -e "const p=require('./package.json'); console.log(JSON.stringify(p.scripts,null,2))"
+rtk firebase --version
+rtk firebase use --json
+```
+
+Results:
+
+- `firebase.json`: Hosting target `kahut1`, public dir `dist`, SPA rewrite to `/index.html`.
+- `.firebaserc`: default project `temp-a1437`; hosting target `kahut1` maps to site `kahut1`.
+- `package.json`: `deploy:hosting` builds then deploys `hosting:kahut1`.
+- Firebase CLI version: `15.0.0`.
+- active Firebase project: `temp-a1437`.
+
+Build and Hosting deploy:
+
+```powershell
+rtk npm run build
+```
+
+Result: exit `0`; Vite built `9305` modules in `1m 25s`; bundle budget passed with `[bundle-budget] OK - root entry 233KB; public preloads are within budget.`
+
+```powershell
+rtk node node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting:kahut1 --project temp-a1437 --non-interactive
+```
+
+Result: exit `0`; deployed Hosting only to `temp-a1437`; `hosting[kahut1]: found 394 files in dist`; upload/finalize/release complete; Hosting URL `https://kahut1.web.app`.
+
+Deploy readback:
+
+```powershell
+rtk node node_modules/firebase-tools/lib/bin/firebase.js hosting:releases:list --site kahut1 --project temp-a1437 --limit 3 --json
+```
+
+Result: exit `1`; Firebase CLI `15.0.0` does not support this command form: `Error: hosting:releases:list is not a Firebase command`.
+
+```powershell
+rtk node node_modules/firebase-tools/lib/bin/firebase.js hosting:sites:list --project temp-a1437 --json
+```
+
+Result: exit `0`; site `kahut1` present with `defaultUrl` `https://kahut1.web.app`.
+
+```powershell
+rtk powershell -NoProfile -Command "Get-Content -LiteralPath 'dist/index.html' -Raw"
+rtk curl.exe -L -H "Cache-Control: no-cache" -H "Pragma: no-cache" "https://kahut1.web.app/?gate-a-readback=20260706"
+```
+
+Results: exit `0`; local and remote index both reference current built assets:
+
+- `/assets/index-wAXdVeFK.js`
+- `/assets/react-vendor-By12h6Zw.js`
+- `/assets/firebase-vendor-BTBOTtPV.js`
+- `/assets/index-BEQm8bTc.css`
+
+```powershell
+rtk node -e "const fs=require('fs'); const local=fs.readFileSync('dist/index.html','utf8').trimEnd(); fetch('https://kahut1.web.app/?gate-a-compare=20260706',{headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}}).then(r=>r.text()).then(t=>{const ok=local===t.trimEnd(); console.log(ok?'MATCH':'DIFFER'); if(!ok) process.exit(1);}).catch(e=>{console.error(e); process.exit(1);});"
+```
+
+Result: exit `0`; `MATCH`.
+
+```powershell
+rtk curl.exe -I -L -H "Cache-Control: no-cache" "https://kahut1.web.app/material-unavailable/gate-a-readback"
+```
+
+Result: exit `0`; HTTP `200 OK`; `Content-Type: text/html; charset=utf-8`; `Last-Modified: Sun, 05 Jul 2026 19:24:58 GMT`.
+
+```powershell
+rtk powershell -NoProfile -Command "(Get-ChildItem -LiteralPath 'dist/assets' -Filter 'RetiredMaterialNoticePage-*.js' | Select-Object -First 1 -ExpandProperty Name)"
+rtk curl.exe -I -L -H "Cache-Control: no-cache" "https://kahut1.web.app/assets/RetiredMaterialNoticePage-DNFQa3Xn.js"
+rtk curl.exe -I -L -H "Cache-Control: no-cache" "https://kahut1.web.app/assets/index-wAXdVeFK.js"
+```
+
+Results:
+
+- local retired notice asset: `RetiredMaterialNoticePage-DNFQa3Xn.js`.
+- deployed retired notice asset returned HTTP `200 OK`, `Content-Length: 2421`, `Last-Modified: Sun, 05 Jul 2026 19:24:58 GMT`.
+- deployed main app asset returned HTTP `200 OK`, `Content-Length: 238272`, `Last-Modified: Sun, 05 Jul 2026 19:24:58 GMT`.
+
+Live deployed browser proof:
+
+- In-app browser opened `https://kahut1.web.app/?gate-a-browser=20260706`.
+- Login page rendered `Welcome`, `Sign in with Google`, and hidden dev quick-login button.
+- Dev quick-login panel rendered `Teacher`, `Teacher 2`, and `Student`.
+- Teacher quick-login was clicked. This uses the previously approved authenticated browser verification path and may write login/profile metadata in Firebase project `temp-a1437`.
+- Teacher lobby loaded at `https://kahut1.web.app/lobby`; title `Materials | MySTUdent Workspace`; visible primary surfaces included `Materials`, `Students`, `Classes`, `Courses`, `Homework`, `Grading`, `Sessions`.
+- Teacher materials creation surface showed `My Content`, `Public Library`, `Drafts`, `Reading Passage`, `Book`, and `Create New Test`.
+- Visible material rows were supported test/material shapes such as IELTS Listening fixtures; row actions were `Edit`, `Delete`, `Start Test`, and `Assign HW`.
+- `Create New Test` opened the creation modal without submitting/saving. Step 1 showed `IELTS`, `TOEIC COMING SOON`, `SAT COMING SOON`, `THCS-THPT`, and `Custom Test COMING SOON`; no Quiz or Reading V1 creation option was exposed.
+- Browser runtime caveat: one deeper IELTS-step click hung and hit the browser control timeout. I did not claim that deeper live modal step as evidence. The focused local tests below cover the deeper selector/routing behavior, and deployed readback proves the tested build is the one deployed.
+
+Focused selector/route tests:
+
+```powershell
+rtk npx vitest run src/components/test-creation/TestCreationModal.test.tsx src/components/session/CreateSessionModal.test.tsx src/components/course/MaterialSelectorModal.test.tsx src/components/homework/HomeworkCreateModal.test.tsx src/pages/RetiredMaterialNoticePage.test.tsx src/pages/TestPageRouter.test.tsx src/routes/teacherRoutes.test.tsx src/routes/studentRoutes.test.tsx --reporter=basic
+```
+
+Result: exit `0`; `8` test files passed; `86` tests passed; `2` skipped. Relevant passing evidence included:
+
+- `TestCreationModal` shows unavailable test types as `COMING SOON`.
+- `TestCreationModal` advances from IELTS to supported skill steps and routes Reading through Reading V2 flows.
+- `CreateSessionModal` renders only Test session mode and creates Test sessions by default.
+- `MaterialSelectorModal` lists and selects supported tests.
+- `HomeworkCreateModal` assigns supported material shapes and rejects unsafe/missing delivery projections.
+- `TestPageRouter` fails closed for retired Reading V1/incomplete IELTS metadata and routes supported Listening/Reading V2/Writing paths.
+- Retired material notice and teacher/student route tests passed.
+
+Production/source scans:
+
+```powershell
+rtk rg -n -i "create quiz|quiz mode|google drive|reading v1|legacy reading|drive audio|drive url" src --glob "!**/*.test.*" --glob "!**/__tests__/**"
+```
+
+Result: exit `0`; hits were comments/guardrails/retirement notices only, including Reading V2 boundary comments, `RetiredMaterialNoticePage.tsx` retired Quiz notice, and fail-closed comments in student/test router code.
+
+```powershell
+rtk rg -n -i "quiz|reading v1|google drive|drive-backed" src/routes src/components src/pages src/services --glob "!**/*.test.*" --glob "!**/__tests__/**"
+```
+
+Result: exit `0`; hits include retired-route mappings to `RetiredMaterialNoticePage`, retained historical/result vocabulary, parser vocabulary, academic-record compatibility, and explicit retirement classifier/tooling references. No executable deployed Quiz creation/runtime was identified in the Gate A checked surfaces.
+
+```powershell
+rtk rg -n -i "quiz|reading v1|google drive|drive-backed" dist/assets/index-wAXdVeFK.js dist/assets/RetiredMaterialNoticePage-DNFQa3Xn.js
+```
+
+Result: exit `0`; deployed bundle hits include `RetiredMaterialNoticePage-DNFQa3Xn.js` text proving Quiz routes render retired notice, and main bundle retained compatibility/reporting strings. This scan is not a standalone absence proof because minified app bundles include compatibility strings; it is recorded as deployed-surface evidence only.
+
+Final Gate A state:
+
+- `12.2` complete: local `main` synced, PR #11 merged by merge commit, no direct main push.
+- `12.3` complete: exact merged commit `4b9db726` deployed to Hosting target `kahut1` for project `temp-a1437`; live index and assets verified.
+- `12.4` complete: deployed teacher lobby/create surface verified live; deeper selector/routing behavior verified by focused tests against the exact deployed build.
+- Local `main == origin/main == 4b9db726e46ecec30ce5d415a557b92e8443d44f`.
+- Previous local-only main commit remains preserved on local branch `codex/preserve-local-main-80198085`.
+- Protected unrelated PRD remains untracked and untouched.
+
+Remaining Phase 12 scope:
+
+- Gate B `12.5` remains unchecked: `npm run sessions:end-active -- --project temp-a1437 --apply` was not run.
+- Gate C destructive purge remains unchecked and requires explicit approval after manifest review.
+- Gate D Firebase rules deployment remains unchecked and must wait until purge readback passes.
+- Gate E feature branch/worktree cleanup remains unchecked and requires explicit approval.
+
+Recommended next approval:
+
+- If product owner wants Gate B completion: explicitly approve `npm run sessions:end-active -- --project temp-a1437 --apply` and immediate read-only `materials:inspect-retired` rerun.
+- If product owner wants purge: do not approve until Gate B apply/readback is recorded and the 87 unknown-blocked paths are reviewed.

@@ -608,9 +608,9 @@ These steps do not occur automatically during implementation.
 ### Gate A - Main Integration And Prevent New Retired Data
 
 - [x] 12.1 After explicit approval, inspect feature-branch `HEAD`, upstream, dirty status, included/excluded paths, commits, diff, and test summary.
-- [ ] 12.2 Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval. Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
-- [ ] 12.3 Deploy the exact merged feature-removal commit and verify deployed revision/readback.
-- [ ] 12.4 Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
+- [x] 12.2 Sync local `main` according to repository merge safety, prefer PR, and merge only after explicit approval. Direct push to `main` requires separate explicit approval plus diff, commit, and test summary.
+- [x] 12.3 Deploy the exact merged feature-removal commit and verify deployed revision/readback.
+- [x] 12.4 Verify creation and session selectors expose only supported materials and no retired content can be newly created, assigned, or launched.
 
 ### Gate B - Close Sessions And Inspect Purge
 
@@ -624,7 +624,7 @@ These steps do not occur automatically during implementation.
 - [x] 12.10 Confirm zero planned R2 deletions.
 - [x] 12.11 Confirm candidate paths, scrub paths, and blocked records are understood.
 
-Phase 12 Gate A/B partial note: local exact-path commits exist, clean PR #11 is open against `main`, PR #11 checks passed, and read-only Gate B inspection passed. Gate A local-main sync, merge, deploy, deployed selector verification, and direct-main push remain unchecked and were not run; local `main` still has local-only commit `80198085 fix(listening): clean abandoned temp uploads`. Gate B `sessions:end-active --apply` remains unchecked and was not run; zero active sessions were confirmed by dry-run, and the read-only inspection manifest reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, and 87 unknown-blocked paths grouped by root for review. See findings for exact commands, PR evidence, and the protected-file staging correction.
+Phase 12 Gate A/B partial note: Gate A is complete through PR merge, local-main refresh, Hosting deploy, live deployed readback, teacher-lobby/create-surface verification, and focused selector/route tests. Clean PR #11 was merged to `main` as merge commit `4b9db726`; local `main == origin/main`. The previous local-only `main` commit `80198085 fix(listening): clean abandoned temp uploads` is preserved on local branch `codex/preserve-local-main-80198085`. Direct-main push was not used. Gate B `sessions:end-active --apply` remains unchecked and was not run; no purge tooling, Firebase data purge, R2 mutation, Firebase rules deploy, or Gate C/D/E action was run. Zero active sessions were previously confirmed by dry-run, and the read-only inspection manifest reports zero planned deletion paths, zero result scrub paths, zero protected Reading V2 collisions, zero planned result deletions, zero planned R2 deletions, and 87 unknown-blocked paths grouped by root for review. See findings for exact commands, PR/deploy/readback evidence, and the protected-file staging correction.
 
 ### Gate C - Destructive Approval
 
