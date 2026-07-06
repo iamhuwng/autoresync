@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   limitToFirstMock,
+  equalToMock,
   migrateMock,
   onValueMock,
   orderByChildMock,
@@ -19,6 +20,7 @@ const {
 
   return {
     limitToFirstMock: vi.fn((value: number) => ({ kind: 'limitToFirst', value })),
+    equalToMock: vi.fn((value: unknown) => ({ kind: 'equalTo', value })),
     migrateMock: vi.fn().mockResolvedValue(undefined),
     onValueMock: vi.fn((
       target: Record<string, unknown>,
@@ -44,6 +46,7 @@ const {
 });
 
 vi.mock('firebase/database', () => ({
+  equalTo: equalToMock,
   limitToFirst: limitToFirstMock,
   onValue: onValueMock,
   orderByChild: orderByChildMock,
@@ -195,5 +198,73 @@ describe('subscribeTeacherSessions', () => {
       { path: '.info/serverTimeOffset' },
     ]);
     stopAdmin();
+  });
+
+  it('falls back to bounded owner queries when owner index is unavailable', () => {
+    const onSessions = vi.fn();
+    const onError = vi.fn();
+    const localNow = Date.now();
+    const expiresAt = localNow + 60_000;
+
+    const unsubscribe = subscribeTeacherSessions({
+      teacherId: 'teacher-1',
+      canReadAll: false,
+      onSessions,
+      onError,
+    });
+
+    subscriptions[0].onData(snapshot(0));
+    subscriptions[1].onError(new Error('permission_denied at /owner_session_index/teacher-1'));
+
+    expect(subscriptions.slice(2, 5).map(({ target }) => target)).toEqual([
+      {
+        path: 'game_sessions',
+        constraints: [
+          { field: 'createdByUserId', kind: 'orderByChild' },
+          { kind: 'equalTo', value: 'teacher-1' },
+          { kind: 'limitToFirst', value: 25 },
+        ],
+      },
+      {
+        path: 'game_sessions',
+        constraints: [
+          { field: 'createdBy', kind: 'orderByChild' },
+          { kind: 'equalTo', value: 'teacher-1' },
+          { kind: 'limitToFirst', value: 25 },
+        ],
+      },
+      {
+        path: 'game_sessions',
+        constraints: [
+          { field: 'teacherId', kind: 'orderByChild' },
+          { kind: 'equalTo', value: 'teacher-1' },
+          { kind: 'limitToFirst', value: 25 },
+        ],
+      },
+    ]);
+
+    subscriptions[2].onData(snapshot({
+      OWN123: {
+        createdAt: 10,
+        createdByUserId: 'teacher-1',
+        expiresAt,
+        status: 'waiting',
+      },
+      FOREIGN: {
+        createdAt: 20,
+        createdByUserId: 'other-teacher',
+        createdBy: 'teacher-1',
+        expiresAt,
+        status: 'waiting',
+      },
+    }));
+
+    expect(onSessions).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ sessionCode: 'OWN123' })],
+      { isServerTimeSynchronized: true, serverTimeOffsetMs: 0 },
+    );
+    expect(onError).not.toHaveBeenCalled();
+
+    unsubscribe();
   });
 });
