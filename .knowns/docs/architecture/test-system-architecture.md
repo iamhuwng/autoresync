@@ -62,7 +62,7 @@ The test system is the core feature of the platform. It supports two test types 
 ├──────────────────────────────────────────────────────────────────┤
 │                    3. SESSION MANAGEMENT                        │
 │                                                                  │
-│  Teacher starts session → /sessions/{sessionId} in RTDB         │
+│  Teacher starts session → /game_sessions/{sessionCode} in RTDB  │
 │  Session modes:                                                  │
 │    • Live (online class) — real-time sync                       │
 │    • Offline class — teacher-paced                              │
@@ -167,8 +167,9 @@ The test system is the core feature of the platform. It supports two test types 
 
 ```
 /tests/{testId}                          — Test definition (questions, passages, metadata)
-/sessions/{sessionId}                    — Active session state
-/sessions/{sessionId}/participants/      — Connected students
+/game_sessions/{sessionCode}             — Canonical active session state
+/game_sessions/{sessionCode}/players/    — Connected students
+/owner_session_index/{ownerId}/{sessionCode} — Owner active-list discovery
 /test_results/{resultId}                 — Individual result records
 /test_results_by_session/{sessionId}/    — Session → results index
 /test_results_by_student/{studentId}/    — Student → results index
@@ -178,10 +179,19 @@ The test system is the core feature of the platform. It supports two test types 
 ## Known Patterns & Gotchas
 
 ### Timer Synchronization
-- Timer state lives in RTDB `/sessions/{id}/timer`
+- Timer state lives in RTDB `/game_sessions/{sessionCode}/timer`
 - Both teacher and student read same timer
 - ⚠️ `TimerDisplay` must NOT render with `totalTime=0` (causes instant `onTimeUp`)
 - See @doc/sop/timer-bug-fix-retrospective
+
+### Session Expiration
+- Effective session status is derived from stored status plus `expiresAt`.
+- RTDB rules use server `now` to reject student joins, answers, progress, and
+  submissions when `expiresAt <= now`.
+- Teacher active lists query `owner_session_index` by `expiresAt` and then
+  re-read canonical `game_sessions` records.
+- Browser cleanup, Firebase scheduled Functions, and Cloudflare lifecycle cron
+  are obsolete. See @doc/architecture/session-lifecycle-authority.
 
 ### Auto-Submit Pipeline
 - Teacher clicks "End Test" → `endFullSession()` in `useMonitorControls`

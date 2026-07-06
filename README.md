@@ -110,6 +110,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 | Firebase RTDB over Firestore | Real-time sync critical for live test sessions |
 | Cloudflare R2 over Firebase Storage | Cost-effective file storage with Workers proxy |
 | Vanilla CSS over Mantine/Tailwind | Bundle size control; Mantine is **banned** in new code |
+| Derived session lifecycle | Session expiry comes from `game_sessions.expiresAt` plus RTDB server `now`; no browser cleanup, Firebase scheduled Function, or Cloudflare lifecycle cron |
 | Zustand over Redux | Simpler state management for this scale |
 | Role-prefixed pages | Easy file-to-feature mapping by user role |
 | Feature-sliced skills modules | `src/skills/listening/` and `src/skills/reading/` as target pattern |
@@ -219,6 +220,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Hosting | Firebase Hosting |
 | File Storage | Cloudflare R2 (via Workers) |
 | Trusted Backend | Cloudflare Worker (`r2-backup-worker`); Firebase Functions wrappers are deprecated/off-limit for new Reading V2 work |
+| Session Lifecycle | Direct Firebase RTDB/Auth/Rules only; no lifecycle Worker cron or scheduled Function |
 | AI Primary | Google Gemini 2.5 Flash (`@google/generative-ai`) |
 | AI Fallback | Groq Llama 3.1 70B (`groq-sdk`) |
 
@@ -244,7 +246,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Playwright | E2E testing |
 | React Testing Library | Component testing |
 | ESLint | Linting |
-| Custom Vite Plugin | No-Mantine enforcement |
+| Mantine boundary script + CI | No-Mantine enforcement |
 
 ---
 
@@ -309,6 +311,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | `npm test` | Run Vitest unit tests |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run lint` | ESLint check |
+| `npm run lint:mantine` | Check changed source for banned `@mantine/*` imports |
 | `npm run enforce` | Pre-commit rule enforcement |
 | `npm run enforce:check` | Dry-run enforcement check |
 
@@ -377,8 +380,8 @@ kahoot/
 ├── e2e/                         # Playwright E2E tests
 ├── scripts/                     # Build & utility scripts
 ├── documentation/               # Project documentation
-│   └── .knowns/                 # 178 structured docs
 ├── .agent/                      # AI agent configuration
+├── .knowns/                     # Structured Known docs mirror
 └── public/                      # Static assets
 ```
 
@@ -394,6 +397,9 @@ kahoot/
 | `thcsTestStorage.ts` | THCS test CRUD operations | Core |
 | `listeningTestStorage.ts` | Listening test storage | Core |
 | `sessionService.ts` | Live session management | Real-time |
+| `sessionLifecycle.ts` | Derived session status and expiry helpers | Real-time |
+| `sessionOwnerIndex.ts` | Owner-scoped active-session discovery rows | Real-time |
+| `sessionQuery.ts` | Teacher active-session subscriptions | Real-time |
 | `notificationService.ts` | In-app notifications | Real-time |
 | `resultsService.ts` | Test results & scoring | Core |
 | `homeworkManager.ts` | Assignment lifecycle | Core |
@@ -465,7 +471,8 @@ npm run enforce:check
 - Off-canvas mobile sidebars with mutual exclusion
 
 ### Critical UI Rules
-- **No Mantine** — All new UI must use vanilla HTML/CSS. Existing Mantine imports remain temporarily.
+- **No Mantine** — All new UI must use vanilla HTML/CSS. Existing Mantine imports remain transitional residue.
+- **Rule 15 enforcement** — `npm run lint:mantine` and `.github/workflows/mantine-boundary.yml` block changed source that imports `@mantine/*`; old runtime console warnings are obsolete enforcement.
 - **No Tailwind** — Not used in this project.
 - CSS Modules or inline styles; custom design tokens in `src/styles/`
 
@@ -473,7 +480,7 @@ npm run enforce:check
 
 ## 🛡️ Coding Safety Rules
 
-16 rules derived from real production bugs. Full reference: [`documentation/integration-safety-rules.md`](./documentation/integration-safety-rules.md)
+Integration safety rules are category-indexed production bug guardrails. Full reference: [`documentation/integration-safety-rules.md`](./documentation/integration-safety-rules.md)
 
 | # | Trigger Condition | Rule |
 |---|-------------------|------|
@@ -492,15 +499,15 @@ npm run enforce:check
 | 13 | Serverless function with heavy workloads | Client-Driven Multi-Step |
 | 14 | Shared ID between creator and consumer | Never Regenerate Shared IDs |
 | 15 | Writing ANY `import` or `npm install` | No Mantine — Absolute Import Ban |
-| 16 | Creating ANY new user-facing feature | WebMCP Tool Registration |
+| 16 | WebMCP tool registration | Retired; WebMCP removed 2026-03-14 |
 
 ---
 
 ## 📚 Documentation
 
-This project maintains **178 structured documents** via [Knowns](https://github.com/nicholasgriffintn/knowns), organized as:
+This project maintains structured documents via [Knowns](https://github.com/nicholasgriffintn/knowns), organized as:
 
-### Architecture Docs (18 docs)
+### Architecture Docs
 | Document | Description |
 |----------|-------------|
 | `architecture` | System overview, layer diagram, data flow |
@@ -509,6 +516,7 @@ This project maintains **178 structured documents** via [Knowns](https://github.
 | `architecture/routing-navigation` | Route map, PrivateRoute, useNavigation hook |
 | `architecture/auth-rbac-architecture` | Auth flow, role-based access, route protection |
 | `architecture/session-test-modes` | Live/offline/solo/homework modes, timer sync |
+| `architecture/session-lifecycle-authority` | Current no-cron session expiry authority, owner index, Spark/Workers-Free boundary |
 | `architecture/student-experience-architecture` | 20 student pages, design standard, UX patterns |
 | `architecture/ui-design-standards` | Teacher & student design systems, CSS enforcement |
 | `architecture/firebase-infrastructure` | RTDB schema, deployment, backup/restore |

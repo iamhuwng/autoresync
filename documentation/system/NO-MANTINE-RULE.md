@@ -43,6 +43,13 @@ This includes but is not limited to:
 
 If replacing encountered Mantine would expand beyond the requested surface, document the deferred residue with file path, component name, and reason. Do not add new Mantine while deferring old Mantine.
 
+## Enforcement
+
+- `npm run lint` runs `npm run lint:mantine`.
+- `npm run lint:mantine` runs `scripts/check-mantine-boundary.mjs`.
+- `.github/workflows/mantine-boundary.yml` checks changed source in CI.
+- Runtime/Vite console warnings are obsolete as the enforcement boundary.
+
 ## Why
 
 We are migrating away from Mantine to reduce bundle size, eliminate dependency lock-in, and gain full control over our component styling. Existing Mantine usage will be gradually replaced.

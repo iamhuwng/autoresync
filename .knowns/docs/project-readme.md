@@ -15,6 +15,7 @@ This folder contains all the documentation for the project.
 ## Latest Updates
 
 *   **[July 7, 2026 - Firebase Hosting And Worker Endpoint Policy](./architecture/firebase-hosting-worker-endpoint-policy.md)** - Firebase Hosting serves the app; Listening/R2 upload, authoring, and delivery calls use the deployed `r2-upload-signer` Worker, with no browser fallback to `localhost:8787`.
+*   **[July 6, 2026 - Session Lifecycle Authority](./architecture/session-lifecycle-authority.md)** - Current authority for live-session expiry: derived status from canonical `game_sessions` plus RTDB server-time rules, owner-scoped `owner_session_index` discovery, no browser cleanup, no Firebase scheduled Functions, and no Cloudflare lifecycle cron.
 *   **[July 5, 2026 - Retired Features Current State](./architecture/retired-features-current-state.md)** - Current authority for retired Google Drive support, Reading V1, and Quiz. Active product flows use R2, Reading V2, test/Listening/Writing/THCS paths, retained academic results, and retirement notices where applicable.
 *   **[November 11, 2025 - Text Highlighter Bug Fix](./SOP/0031-text-highlighter-bug-fix-nov11.md)** - Fixed critical bug where highlighting text above previous highlights failed. Changed from DOM path-based to character position-based approach for reliable sorting and rendering.
 *   **[November 11, 2025 - Comprehensive Development Session](./SOP/0023-november-11-2025-comprehensive-session.md)** - Historical record containing obsolete Google Drive OAuth2 work; current uploads are R2-only.

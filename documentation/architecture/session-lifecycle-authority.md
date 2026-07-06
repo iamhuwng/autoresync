@@ -27,6 +27,26 @@ This fits Firebase Spark and Cloudflare Workers Free:
 - No automatic destructive cleanup.
 - The existing Cloudflare backup Worker remains backup-only.
 
+## Current Data Paths
+
+Canonical session records live at:
+
+```text
+game_sessions/{sessionCode}
+```
+
+Active-list discovery lives at:
+
+```text
+owner_session_index/{ownerId}/{sessionCode}
+owner_session_migrations/{ownerId}/{field}
+```
+
+`owner_session_index` is query/discovery data only. It is never an
+authorization boundary and it is never the canonical state. Student access and
+session mutations must be rechecked against `game_sessions/{sessionCode}` and
+RTDB security rules.
+
 ## Enforcement Boundary
 
 RTDB rules are the security boundary. Student writes under session participation
@@ -109,6 +129,23 @@ Existing sessions use an owner-scoped, resumable fallback migration:
 
 Migration is a compatibility bridge. Steady-state correctness comes from the
 canonical write/update pipeline and RTDB rules.
+
+## Retired / Obsolete Lifecycle Designs
+
+The following designs are obsolete for session expiration correctness:
+
+- browser-driven cleanup loops from teacher/admin pages;
+- `cleanupExpiredSessions`, `getActiveSessions`, and `getAllActiveSessions`
+  as active-list authority;
+- Firebase scheduled Functions for lifecycle mutation;
+- Cloudflare lifecycle cron or full active-session scans;
+- overloading `r2-backup-worker` with session lifecycle reconciliation;
+- storing expiration correctness in a scheduled mutation instead of deriving it
+  from canonical session data plus server-time rules.
+
+Older notes or conversation logs may mention those approaches. Treat them as
+historical only. This document is the current authority for live-session
+expiration, active-list discovery, and Spark/Workers-Free lifecycle boundaries.
 
 ## Client Behavior
 
@@ -213,3 +250,5 @@ rtk npm run lint
 rtk npx tsc --noEmit
 rtk npm run build
 ```
+
+CI mirrors the lifecycle boundary in `.github/workflows/session-lifecycle.yml`.
