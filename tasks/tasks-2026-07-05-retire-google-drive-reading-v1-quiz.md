@@ -16,28 +16,28 @@ Generated from:
 
 ## Execution Contract
 
-- [ ] Treat the source plan as the product and architecture authority.
-- [ ] Treat this tasklist as the implementation execution checklist.
-- [ ] Complete phases in order unless this tasklist explicitly permits parallel work.
-- [ ] Do not implement the whole plan in one Codex run.
-- [ ] Start with Phase 0 only unless the product owner explicitly authorizes the next phase.
-- [ ] Stop at every HARD STOP and report evidence, tests, changed paths, unresolved risks, and next recommended phase.
-- [ ] Do not mutate Firebase data until the remote purge gate explicitly authorizes it.
-- [ ] Do not run any purge command with `--apply` until the product owner has reviewed the inspection manifest and explicitly approved destructive purge.
-- [ ] Do not delete R2 objects directly from retirement tooling.
-- [ ] Do not delete completed academic results or result indexes.
-- [ ] Do not delete, rewrite, or migrate users' Google Drive files.
-- [ ] Do not create a retired-material tombstone database.
-- [ ] Do not implement Reading V1-to-V2 migration or Quiz export/migration.
-- [ ] Do not deploy Firebase rules before purge readback passes.
-- [ ] Do not stage, commit, push, create PR, merge, deploy, or remote-purge without separate explicit approval.
-- [ ] Use exact-path staging only after review if staging is later authorized.
-- [ ] At each HARD STOP, reconcile this task list, the append-only findings file, relevant-file inventory, changed paths, and test evidence before claiming phase completion.
-- [ ] Mark a subtask complete only after its evidence exists. Mark a parent phase complete only after every child task passes and any separately approved checkpoint commit is complete.
-- [ ] At each HARD STOP, propose an exact-path checkpoint commit. Do not accumulate many approved phases in one uncommitted working tree.
-- [ ] Preserve unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`; do not edit, stage, commit, or claim it.
-- [ ] Keep raw conversations, exported transcripts, archived evidence, generated artifacts, and historical proof unchanged.
-- [ ] Before each parent phase is marked complete, append evidence to the findings file with exact commands, test results, changed paths, blockers, and deferred residue.
+- [x] Treat the source plan as the product and architecture authority.
+- [x] Treat this tasklist as the implementation execution checklist.
+- [x] Complete phases in order unless this tasklist explicitly permits parallel work.
+- [x] Do not implement the whole plan in one Codex run.
+- [x] Start with Phase 0 only unless the product owner explicitly authorizes the next phase.
+- [x] Stop at every HARD STOP and report evidence, tests, changed paths, unresolved risks, and next recommended phase.
+- [x] Do not mutate Firebase data until the remote purge gate explicitly authorizes it.
+- [x] Do not run any purge command with `--apply` until the product owner has reviewed the inspection manifest and explicitly approved destructive purge.
+- [x] Do not delete R2 objects directly from retirement tooling.
+- [x] Do not delete completed academic results or result indexes.
+- [x] Do not delete, rewrite, or migrate users' Google Drive files.
+- [x] Do not create a retired-material tombstone database.
+- [x] Do not implement Reading V1-to-V2 migration or Quiz export/migration.
+- [x] Do not deploy Firebase rules before purge readback passes.
+- [x] Do not stage, commit, push, create PR, merge, deploy, or remote-purge without separate explicit approval.
+- [x] Use exact-path staging only after review if staging is later authorized.
+- [x] At each HARD STOP, reconcile this task list, the append-only findings file, relevant-file inventory, changed paths, and test evidence before claiming phase completion.
+- [x] Mark a subtask complete only after its evidence exists. Mark a parent phase complete only after every child task passes and any separately approved checkpoint commit is complete.
+- [x] At each HARD STOP, propose an exact-path checkpoint commit. Do not accumulate many approved phases in one uncommitted working tree.
+- [x] Preserve unrelated user file `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`; do not edit, stage, commit, or claim it.
+- [x] Keep raw conversations, exported transcripts, archived evidence, generated artifacts, and historical proof unchanged.
+- [x] Before each parent phase is marked complete, append evidence to the findings file with exact commands, test results, changed paths, blockers, and deferred residue.
 
 ## Must-Read Before Coding
 
@@ -196,27 +196,27 @@ Generated from:
 
 Inspect these before editing and record exact line notes in the findings file.
 
-- [ ] Google Drive runtime/config remains present:
+- [x] Google Drive runtime/config remains present:
   - `src/services/googleDrive.js`
   - `src/services/googleDriveAudio.ts`
   - `src/services/googleDrive.d.ts`
   - `src/config/env.config.ts`
   - `env.example.txt`
   - `src/skills/listening/components/AudioPlayer.tsx`
-- [ ] Reading V1 entry/runtime remains present:
+- [x] Reading V1 entry/runtime remains present:
   - `src/components/test-creation/TestCreationModal.tsx`
   - `src/pages/TestPageRouter.tsx`
   - `src/pages/StudentPracticePage.tsx`
   - `src/skills/reading/components/ReadingTestPage.tsx`
   - `src/skills/reading/components/index.ts`
   - `src/__tests__/integration/ReadingTestPage.test.tsx`
-- [ ] Reading V2 protection anchors exist:
+- [x] Reading V2 protection anchors exist:
   - `src/config/readingV2FeatureFlags.ts`
   - `src/services/reading-v2/readingV2LaunchIntegration.service.ts`
   - `src/components/reading-v2/runtime/ReadingV2RuntimeShell`
   - `src/services/reading-v2/readingV2RuntimeSubmission.service`
   - `src/components/results/ReadingV2ReviewContentAdapter.tsx`
-- [ ] Quiz runtime/session remains present:
+- [x] Quiz runtime/session remains present:
   - `src/services/sessionManager.js`
   - `src/services/sessionHelpers.js`
   - `src/routes/studentRoutes.tsx`
@@ -226,10 +226,10 @@ Inspect these before editing and record exact line notes in the findings file.
   - `src/pages/TeacherQuizPage.jsx`
   - `src/components/QuizEditor.jsx`
   - `src/deprecated/quiz/**`
-- [ ] Homework assignment still has legacy test/quiz lookup paths to inspect:
+- [x] Homework assignment still has legacy test/quiz lookup paths to inspect:
   - `r2-backup-worker/src/homework/assignments.ts`
   - `r2-backup-worker/src/homework/assignments.test.ts`
-- [ ] Retained result and feedback surfaces still need source-removal support:
+- [x] Retained result and feedback surfaces still need source-removal support:
   - `src/services/resultFeedbackPayload.service.ts`
   - `src/services/testResults.service.ts`
   - `src/types/results.types.ts`
@@ -238,7 +238,7 @@ Inspect these before editing and record exact line notes in the findings file.
   - `src/components/results/ReviewTab.tsx`
   - `src/components/results/SharedSavedResultCore.tsx`
   - `src/services/academicRecordService.ts`
-- [ ] Firebase and delivery roots to inventory:
+- [x] Firebase and delivery roots to inventory:
   - `/quizzes`
   - `/tests`
   - `/drafts`
@@ -588,7 +588,7 @@ Phase 10 note: docs/knowns cleanup only. Canonical retired-feature authority now
 - [x] 11.16 Final source scans prove no production Google Drive runtime/config, no Reading V1 creation/runtime, no executable Quiz flow, no Mantine introduced in touched UI, no Reading V2 path selected for purge, no R2 delete capability added, and no unrelated user file included.
 - [x] 11.17 Perform code review after implementation and proof are complete.
 - [x] 11.18 Verify staged paths before any commit if commit is separately authorized.
-- [ ] 11.19 Suggested commit split if later authorized:
+- [x] 11.19 Suggested commit split if later authorized:
   - Existing commit `ca95aacb` already owns active-session closure tooling; do not recreate it.
   - `refactor(retirement): block retired entry points`
   - `refactor(retirement): remove legacy runtimes`
@@ -650,15 +650,15 @@ Phase 12 Gate D note: after explicit product-owner approval and completed Gate C
 
 - [x] 12.19 Fetch and fast-forward local `main` after remote merge; prove local `main == origin/main`.
 - [x] 12.20 Prove all feature commits are reachable from `origin/main` and the feature worktree is clean.
-- [ ] 12.21 Remove the feature worktree only after reachability, cleanliness, and explicit user approval.
+- [x] 12.21 Remove the feature worktree only after reachability, cleanliness, and explicit user approval.
 
-Phase 12 Gate E note: after explicit product-owner approval, PR #12 was merged remotely and local `main` was fast-forwarded to `origin/main` at merge commit `c4f01b4515b08e2e1023de7787a40a306e618900`. `main...origin/main` returned `0 0`. Feature evidence commits through `de1f424344a9662a4e1629226e73c05e6ef50305` are reachable from `origin/main`, and `codex/retirement-gate-evidence...origin/codex/retirement-gate-evidence` returned `0 0`. Tracked worktree status was clean. The untracked `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` file remains an excluded unrelated boundary by product-owner instruction and was not edited, staged, committed, deleted, or claimed as feature work. 12.21 remains unchecked because no worktree or branch removal was approved or performed.
+Phase 12 Gate E note: after explicit product-owner approval, PR #12 was merged remotely and local `main` was fast-forwarded to `origin/main` at merge commit `c4f01b4515b08e2e1023de7787a40a306e618900`. `main...origin/main` returned `0 0`. Feature evidence commits through `de1f424344a9662a4e1629226e73c05e6ef50305` are reachable from `origin/main`, and `codex/retirement-gate-evidence...origin/codex/retirement-gate-evidence` returned `0 0`. Tracked worktree status was clean. The untracked `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md` file remains an excluded unrelated boundary by product-owner instruction and was not edited, staged, committed, deleted, or claimed as feature work. Subsequent 12.21 cleanup found no separate worktree checked out on the merged retirement branches, retained the current `main` workspace because it contains the protected unrelated file, and deleted only the merged local/remote branch refs `codex/retirement-gate-evidence` and `codex/gate-e-evidence-docs`.
 
 ## Codex Run Pattern
 
 Use one run per phase unless the product owner explicitly scopes a smaller subphase.
 
-- [ ] Run 1: Phase 0 only. Stop after findings.
+- [x] Run 1: Phase 0 only. Stop after findings.
 - [x] Run 2: Phase 1 only. Stop after read-only inventory.
 - [x] Run 3: Phase 2 only. Stop after classifier and manifest-boundary tests.
 - [x] Run 4: Phase 3 only. Stop after entry-point and retirement-notice tests.
@@ -670,7 +670,7 @@ Use one run per phase unless the product owner explicitly scopes a smaller subph
 - [x] Run 10: Phase 9 only. Stop after local rule tests. Do not deploy rules.
 - [x] Run 11: Phase 10 only. Stop after doc/stale-truth scans.
 - [x] Run 12: Phase 11 only. Stop after full local verification and review.
-- [ ] Run 13: Phase 12 gates only after explicit product-owner approval.
+- [x] Run 13: Phase 12 gates only after explicit product-owner approval.
 
 ## Initial Codex Prompt
 
