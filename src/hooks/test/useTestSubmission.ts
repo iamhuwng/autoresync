@@ -22,7 +22,6 @@ import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { toast } from '../../components/modern';
 import type { IntegrityReport } from '../../types/integrity.types'; // PRD-0036
-import { toast } from '../../components/modern';
 
 interface Question {
   number: number;

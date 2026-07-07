@@ -119,6 +119,7 @@ export interface ReadingV2FullTestSummarySource {
   readonly questionCount?: number;
   readonly durationMinutes?: number;
   readonly sourceSnapshotVersionId?: string;
+  readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
   readonly updatedAt: string;
@@ -149,6 +150,7 @@ export const createReadingV2FullTestMaterialSummary = (
   questionCount: source.questionCount,
   durationMinutes: source.durationMinutes,
   sourceSnapshotVersionId: source.sourceSnapshotVersionId,
+  sourceFullTestId: source.sourceFullTestId,
   hasBrokenRefs: source.hasBrokenRefs,
   brokenRefCount: source.brokenRefCount,
   updatedAt: source.updatedAt,
