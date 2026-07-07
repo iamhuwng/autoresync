@@ -1,7 +1,7 @@
 ---
 title: Project README
 createdAt: '2026-02-27T15:25:16.583Z'
-updatedAt: '2026-02-27T15:25:17.970Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 description: 'Main project README with overview, setup instructions, and architecture'
 tags:
   - overview
@@ -14,6 +14,7 @@ This folder contains all the documentation for the project.
 
 ## Latest Updates
 
+*   **[July 7, 2026 - Teacher Class Management Lifecycle](./architecture/teacher-class-management-lifecycle.md)** - Current authority for class delete success, best-effort `student_classes` cleanup, and retired class-backed `game_sessions` delete writes.
 *   **[July 6, 2026 - Session Lifecycle Authority](./architecture/session-lifecycle-authority.md)** - Current authority for live-session expiry: derived status from canonical `game_sessions` plus RTDB server-time rules, owner-scoped `owner_session_index` discovery, no browser cleanup, no Firebase scheduled Functions, and no Cloudflare lifecycle cron.
 *   **[July 5, 2026 - Retired Features Current State](./architecture/retired-features-current-state.md)** - Current authority for retired Google Drive support, Reading V1, and Quiz. Active product flows use R2, Reading V2, test/Listening/Writing/THCS paths, retained academic results, and retirement notices where applicable.
 *   **[November 11, 2025 - Text Highlighter Bug Fix](./SOP/0031-text-highlighter-bug-fix-nov11.md)** - Fixed critical bug where highlighting text above previous highlights failed. Changed from DOM path-based to character position-based approach for reliable sorting and rendering.

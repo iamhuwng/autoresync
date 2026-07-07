@@ -109,6 +109,29 @@ reading_v2/audit_events/{eventId}
 
 This node is append-only. Do not reuse legacy `audit_logs` for PRD-0054 Reading V2 archive, restore, repair, or duplicate-decision audit events. Rule tests must prove create is allowed only for valid authenticated state-changing events, update/delete are denied, reads are super-admin only, and unsafe payload fields are denied.
 
+### Class Management Coupled Paths
+
+Class lifecycle changes must review these RTDB paths together:
+
+```text
+classes/{classId}
+student_classes/{studentId}/{classId}
+game_sessions/{classId}
+```
+
+Rules:
+- `classes/{classId}` is class lifecycle authority
+- `student_classes` is a student-shell projection and may be cleaned up
+  best-effort after canonical lifecycle writes
+- class-backed `game_sessions/{classId}` rows are legacy compatibility shadows,
+  not class lifecycle authority
+- do not place optional projection cleanup or legacy shadow cleanup in the same
+  must-succeed write as the canonical class lifecycle update when rules differ
+- focused class-management tests must cover source-of-truth success plus
+  projection-cleanup failure
+
+Canonical doc: `documentation/architecture/teacher-class-management-lifecycle.md`
+
 ---
 
 ## Rule 13 — Client-Driven Multi-Step for Heavy Serverless Workloads

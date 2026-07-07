@@ -2,7 +2,7 @@
 title: Student Shell Data Loading Architecture
 description: 'Canonical ownership and loading contract for student shell routes: one persistent shell data owner, shared consumers, and route-safe page loading boundaries.'
 createdAt: '2026-03-31T02:54:47.750Z'
-updatedAt: '2026-04-12T00:46:37.186Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - architecture
   - student
@@ -203,6 +203,8 @@ Shell-owned student class summaries are approval-filtered, not raw-roster mirror
 Required rules:
 - shell-owned enrolled class membership summaries must include only student-visible memberships
 - `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
+- stale `student_classes` projection rows must stay out of shell-owned class summaries when the canonical `classes/{classId}` row is missing or has `status: 'deleted'`
+- student page loads must not repair or delete stale projection rows while reading
 - helper services receiving shell-owned class summaries must treat them as already approval-filtered
 - self-service join requests must not trigger downstream coursework visibility before teacher approval
 
@@ -212,6 +214,7 @@ Dashboard-specific rule:
 
 Related doc:
 - @doc/architecture/class-code-join-approval-gating
+- @doc/architecture/teacher-class-management-lifecycle
 
 ## PRD-0044 Hosting Clarification (2026-04-12)
 

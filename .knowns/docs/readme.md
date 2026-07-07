@@ -2,7 +2,7 @@
 title: README
 description: Project overview, tech stack, key domains, and critical rules. The primary entry point for understanding this project.
 createdAt: '2026-02-27T15:56:46.139Z'
-updatedAt: '2026-04-05T14:27:03.306Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - core
   - overview
@@ -42,6 +42,9 @@ A **web-based educational platform** for English language teaching (IELTS + THCS
 
 2. **User System** — Role-based (Admin, Teacher, Student)
    - Class enrollment, course management
+   - Class delete authority is `classes/{classId}.status`; `student_classes`
+     cleanup is best-effort and class-backed `game_sessions/{classId}` rows are
+     legacy shadows. See @doc/architecture/teacher-class-management-lifecycle.
    - See @doc/prd/prd-login-system, @doc/prd/prd-rbac-security
 
 3. **Student Experience** — Dashboard, academic record, solo practice

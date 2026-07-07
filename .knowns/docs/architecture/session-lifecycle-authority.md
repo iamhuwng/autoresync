@@ -1,7 +1,7 @@
 ---
 title: Session Lifecycle Authority
 createdAt: '2026-07-06T00:00:00.000Z'
-updatedAt: '2026-07-06T00:00:00.000Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 description: >-
   Current authority for Spark-compatible live-session expiration, owner-scoped
   active-session discovery, RTDB server-time enforcement, and obsolete cleanup
@@ -37,6 +37,10 @@ Canonical source: `documentation/architecture/session-lifecycle-authority.md`.
   teacher clients may use bounded owner-field fallback queries on
   `game_sessions`; this is not a global scan and canonical lifecycle filtering
   still applies.
+- Class management may create legacy class-backed shadows at
+  `game_sessions/{classId}`. Those rows are not class lifecycle authority.
+  Class delete state comes from `classes/{classId}.status`, and delete flows
+  must not update class-backed `game_sessions/{classId}` rows.
 
 ## Free-Tier Boundary
 
@@ -60,6 +64,8 @@ Treat older notes that mention these designs as historical only:
 - Cloudflare lifecycle cron or full active-session scans;
 - mixing lifecycle reconciliation into `r2-backup-worker`;
 - deleting or mutating history automatically on expiration.
+- using class-backed `game_sessions/{classId}` updates as proof or mechanism of
+  class deletion.
 
 ## Deployment / Migration
 

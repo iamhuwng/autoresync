@@ -2,7 +2,7 @@
 title: 'Pattern: RTDB Multi-Path Write Obligation'
 description: When saving RTDB records that use index-based lookups, ALL required paths must be written — not just the index. Missing writes cause silent data loss.
 createdAt: '2026-02-28T12:13:04.062Z'
-updatedAt: '2026-03-28T12:50:02.713Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - pattern
   - rtdb
@@ -201,3 +201,26 @@ If you add a fallback from projection -> canonical source, also add a best-effor
 ### Related incident
 
 - @doc/sop/solo-practice-ielts-student-safe-payload-runtime-state
+
+## Important Exception: Canonical Write Before Optional Cleanup
+
+The multi-path obligation applies when all paths are required for a new durable
+record or read model. It does not mean every adjacent compatibility or cleanup
+path belongs in the same must-succeed write.
+
+2026-07-07 class delete lesson:
+- `classes/{classId}` is the class lifecycle source of truth
+- `student_classes/{studentId}/{classId}` is projection cleanup and can be
+  best-effort after canonical delete
+- class-backed `game_sessions/{classId}` is legacy compatibility shadow data
+  and must not be updated during delete
+
+Rule:
+- put required producer-consumer paths in the same durable write when rules and
+  ownership align
+- separate optional cleanup when a failed cleanup write must not invalidate the
+  source-of-truth state transition
+- do not write legacy shadows just to make lifecycle state look synchronized
+
+Related doc:
+- @doc/architecture/teacher-class-management-lifecycle
