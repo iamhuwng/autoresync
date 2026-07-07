@@ -20,6 +20,7 @@ import { sendResultNotification } from '../../services/emailNotification.service
 import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import type { IntegrityReport } from '../../types/integrity.types'; // PRD-0036
+import { toast } from '../../components/modern';
 
 interface Question {
   number: number;
@@ -695,7 +696,7 @@ export const useTestSubmission = ({
       }
     } catch (err) {
       console.error('Error submitting test:', err);
-      alert('Failed to submit test. Please try again.');
+      toast.error('Failed to submit test. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
