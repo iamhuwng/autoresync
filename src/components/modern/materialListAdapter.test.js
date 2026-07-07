@@ -3,6 +3,7 @@ import { buildTestMaterialListRow, toReadingPassageRowModel } from './materialLi
 
 describe('materialListAdapter', () => {
   it('maps regular IELTS tests into compact list rows', () => {
+    const onToggleSelection = vi.fn();
     const row = buildTestMaterialListRow({
       id: 'ielts-1',
       title: 'IELTS Reading Practice',
@@ -13,7 +14,9 @@ describe('materialListAdapter', () => {
       deliveryProjectionReady: true,
       updatedAt: '2026-05-12T10:15:00Z',
     }, {
-      handlers: { onEdit: vi.fn(), onDelete: vi.fn(), onStartTest: vi.fn() },
+      selectable: true,
+      selected: true,
+      handlers: { onEdit: vi.fn(), onDelete: vi.fn(), onStartTest: vi.fn(), onToggleSelection },
     });
 
     expect(row).toMatchObject({
@@ -25,6 +28,10 @@ describe('materialListAdapter', () => {
       durationLabel: '60 min',
       updatedLabel: 'May 12, 2026',
       statusKind: 'ready',
+      selection: {
+        checked: true,
+        label: 'Select IELTS Reading Practice',
+      },
     });
     expect(row.badges.map((badge) => badge.label)).toEqual([
       '40 questions',
@@ -40,6 +47,8 @@ describe('materialListAdapter', () => {
         contentId: 'ielts-1',
       },
     });
+    row.selection.onChange();
+    expect(onToggleSelection).toHaveBeenCalledWith(row.source);
   });
 
   it('maps IELTS Listening and Writing tests into the shared assignment slot', () => {
@@ -214,6 +223,21 @@ describe('materialListAdapter', () => {
     expect(row.actions.map((item) => item.label)).toEqual(['View', 'Start Test', 'Assign HW']);
     expect(row.actions.map((item) => item.slot)).toEqual([1, 3, 4]);
     expect(row.actions.map((item) => item.label)).not.toContain('Delete');
+  });
+
+  it('wires row action errors to the caller fallback', () => {
+    const onActionError = vi.fn();
+    const row = buildTestMaterialListRow({
+      id: 'owned-regular',
+      title: 'Owned Reading',
+      testType: 'IELTS',
+      skill: 'Reading',
+    }, {
+      handlers: { onActionError },
+    });
+
+    expect(row.actions.find((item) => item.key === 'delete')?.onError).toBe(onActionError);
+    expect(row.actions.find((item) => item.key === 'edit')?.onError).toBe(onActionError);
   });
 
   it('hides homework action when safe projection readiness is missing', () => {
@@ -593,10 +617,17 @@ describe('materialListAdapter', () => {
         { key: 'assign-homework', label: 'Assign homework' },
         { key: 'edit', label: 'Edit', ownerOnly: true },
       ],
+      selectable: true,
+    }, {
+      selected: true,
     });
 
     const assign = row.actions.find((item) => item.key === 'assign-homework');
 
+    expect(row.selection).toMatchObject({
+      checked: true,
+      label: 'Select Unsafe Passage',
+    });
     expect(assign).toMatchObject({
       disabled: true,
       disabledReason: 'Publish this passage with a student-safe projection before assignment.',

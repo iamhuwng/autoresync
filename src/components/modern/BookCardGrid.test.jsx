@@ -98,6 +98,28 @@ describe('BookCardGrid', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
   });
 
+  it('passes Book selection state and toggles selected Books', async () => {
+    const user = userEvent.setup();
+    const onToggleBookSelection = vi.fn();
+    const book = makeBook({ bookId: 'book-select', id: 'book-select', title: 'Selectable Book' });
+
+    render(
+      <BookCardGrid
+        books={[book]}
+        selectedBookIds={['book-select']}
+        isBookSelectable={() => true}
+        onToggleBookSelection={onToggleBookSelection}
+      />,
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Selectable Book' });
+    expect(checkbox).toBeChecked();
+
+    await user.click(checkbox);
+
+    expect(onToggleBookSelection).toHaveBeenCalledWith(book);
+  });
+
   it('shows broken-ref badge from safe Book index metadata and opens existing editor for repair', async () => {
     const user = userEvent.setup();
     const onOpenBook = vi.fn();

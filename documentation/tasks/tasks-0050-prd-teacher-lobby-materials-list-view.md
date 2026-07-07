@@ -59,12 +59,13 @@ Status: Implemented
 
 - Branch: `codex/0050-teacher-materials-list-view-rebased` in `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`.
 - Visual checklist preserved in implementation: toolbar search/create/toggle geometry, 112px grid/list toggle, column order `Material / Items / Updated / Actions`, 68px row height, fixed icon tiles, accent strips, compact badges, fixed action rail, and no horizontal overflow across required desktop widths.
-- V1 decisions: Drafts stays grid-only; view mode is memory-only; status/folder filters are omitted because no backed handlers/data exist; existing public-library filters remain public-only.
+- V1 decisions: Drafts stays grid-only for list rendering; view mode is memory-only; status/folder filters are omitted because no backed handlers/data exist; existing public-library filters remain public-only.
 - Mantine: touched Teacher Lobby `AppShell` import was removed and replaced with native wrapper/main markup. No new `@mantine/*` imports were added.
 - Intentional deviations from approved artifacts: My Content toolbar does not show `All Types`, `All Statuses`, or `All Folders` because those would be fake controls in current production data; `Duration` is badge-only rather than a scan column; row actions are icon-only in a fixed four-slot rail so `Assign HW` cannot shift layout; live screenshot footer is below the first viewport because the teacher account has 16 rows rather than the 7-row mockup sample.
 - Post-review layout correction: the list now uses one shared fixed grid contract for header and row columns, removes the separate `Duration` column because duration remains a badge, and renders row actions as icon-only controls in a fixed four-slot rail so `Assign HW` cannot shift action geometry. Action slot ownership lives in the row view model from `materialListAdapter.js`.
 - Post-review typography correction: list text now uses a restrained hierarchy instead of blanket bold. Titles are `600`, headers/badges/action fallback text are `500`, metrics/dates/footer are `400`, and icon-only action text remains visually hidden for accessibility only.
-- Browser QA caveat: Drafts remains grid-only as planned, but opening Drafts in the live local session still logs an existing Firestore missing-index error for `writing_drafts` (`userId`, `updatedAt`, `__name__`). This task did not change the draft query path.
+- Browser QA caveat: Drafts remains grid-only for PRD-0050 list rendering, but opening Drafts in the live local session still logs an existing Firestore missing-index error for `writing_drafts` (`userId`, `updatedAt`, `__name__`). This task did not change the draft query path.
+- 2026-07-06 current-state note: selected-material actions were added later through the shared bulk-selection toolbar. Drafts still do not have list rows, but Draft cards can now expose selection for supported actions. See `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 - Screenshot evidence captured:
   - `output/playwright/prd0050-materials-list-view/list-1366.png`
   - `output/playwright/prd0050-materials-list-view/list-1586.png`
@@ -81,7 +82,7 @@ Status: Implemented
   - [x] 1.6 Inspect `TeacherLobbyPage.jsx`, `SearchFilterBar.jsx`, `TestCard.jsx`, `ThcsTestCard.jsx`, and `DraftCard.jsx`.
   - [x] 1.7 Identify exact action handlers currently used by grid cards and record which handlers list rows must reuse.
   - [x] 1.8 Confirm My Content, Public Library, and Drafts loading contracts from `useTeacherTests.ts` and draft hook usage.
-  - [x] 1.9 Decide whether Drafts list support is included in V1. If not, record that Drafts remains grid-only in the implementation notes.
+  - [x] 1.9 Decide whether Drafts list support is included in V1. If not, record that Drafts remains grid-only for list rendering in the implementation notes.
   - [x] 1.10 Decide whether current Mantine `AppShell` replacement is in scope. If not, document as deferred residue without adding Mantine usage.
   - [x] 1.11 Create a short visual contract checklist from the mockup image, mockup HTML, and component HTML before coding.
   - [x] 1.12 Record any planned deviation from the approved artifacts before implementation, including reason and expected user impact.
@@ -192,7 +193,7 @@ Status: Implemented
 - [x] 10.0 Final documentation and handoff
   - [x] 10.1 Update this tasklist with completed files and final verification commands.
   - [x] 10.2 Update the design proposal MD if implementation intentionally deviates from the approved mockup.
-  - [x] 10.3 Record any deferred items: Drafts list support, status/folder filters, view-mode persistence, or Mantine shell replacement.
+  - [x] 10.3 Record any deferred items: Drafts list support, status/folder filters, view-mode persistence, or Mantine shell replacement. Later selected-material Draft actions do not change this PRD-0050 list-view deferral.
   - [x] 10.4 Confirm no accidental data-contract, route, or schema changes were included.
   - [x] 10.5 Include the visual contract checklist and accepted/deferred deviations in final handoff.
   - [x] 10.6 Provide final summary with changed files, tests, screenshots, and residual risk.

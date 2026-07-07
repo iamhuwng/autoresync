@@ -77,6 +77,7 @@ import TestTypeBlockModule from '../components/modern/TestTypeBlockModule';
 import TestTypePreferenceModal from '../components/modern/TestTypePreferenceModal';
 import MaterialListView from '../components/modern/MaterialListView';
 import BookCardGrid from '../components/modern/BookCardGrid';
+import MaterialSelectionToolbar from '../components/modern/MaterialSelectionToolbar';
 import { buildTestMaterialListRow, toReadingPassageRowModel } from '../components/modern/materialListAdapter';
 import SessionBanner from '../components/SessionBanner';
 import ClassSelectionModal from '../components/ClassSelectionModal';
@@ -167,6 +168,15 @@ const toTeacherLobbyHomeworkMaterial = (item, contentRef) => ({
   gradeLevel: item?.metadata?.gradeLevel,
   isPublicLibrary: item?.isPublic === true || item?.isPublicLibrary === true,
 });
+
+const getTestSelectionId = (item) => String(item?.id || item?.materialId || '');
+const getDraftSelectionId = (draft) => String(draft?.id || '');
+const getBookSelectionId = (book) => String(book?.bookId || book?.id || '');
+const getReadingPassageSelectionId = (passage) => String(passage?.materialId || passage?.id || '');
+
+const sameIdList = (left, right) => (
+  left.length === right.length && left.every((value, index) => value === right[index])
+);
 
 const isReadingV2MasterMaterial = (material) => {
   if (!isReadingV2Payload(material)) {
@@ -448,7 +458,7 @@ const TeacherLobbyPage = () => {
   const [readingPassageRows, setReadingPassageRows] = useState([]);
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
   const [readingPassageError, setReadingPassageError] = useState(null);
-  const [selectedReadingPassageIds, setSelectedReadingPassageIds] = useState([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState([]);
   const [readingV2MasterModalState, setReadingV2MasterModalState] = useState({
     open: false,
     mode: 'published',
@@ -487,7 +497,14 @@ const TeacherLobbyPage = () => {
   // ---------- Hooks ----------
   const modals = useModalManager();
   const shouldLoadTeacherTests = contentFilter === 'my' || contentFilter === 'public';
-  const { tests, loading: contentLoading, loadedScope, deleteTest, refresh: refreshTests } = useTeacherTests({
+  const {
+    tests,
+    loading: contentLoading,
+    error: contentError,
+    loadedScope,
+    deleteTest,
+    refresh: refreshTests,
+  } = useTeacherTests({
     enabled: shouldLoadTeacherTests,
     ownerId: user?.uid,
     userRole: profile?.role,
@@ -515,19 +532,25 @@ const TeacherLobbyPage = () => {
     thcsGradeFilter,
     thcsExamTypeFilter,
   });
-  const visibleTests = filteredTests
-    .filter((test) => shouldShowReadingV2TeacherLobbyItem(test))
-    .filter((test) => {
-      if (!activeTestTypeId) {
-        return true;
-      }
+  const visibleTests = useMemo(() => (
+    filteredTests
+      .filter((test) => shouldShowReadingV2TeacherLobbyItem(test))
+      .filter((test) => {
+        if (!activeTestTypeId) {
+          return true;
+        }
 
-      return matchesActiveTestType(test, activeTestTypeId, testTypeConfigs);
-    });
-  const visibleDrafts = drafts
-    .filter((draft) => !isReadingV2Payload(draft))
-    .filter((draft) => draftMatchesSearchTerm(draft, searchTerm));
-  const visibleReadingV2Count = visibleTests.filter((test) => test?.deliveryEngine === 'reading-v2').length;
+        return matchesActiveTestType(test, activeTestTypeId, testTypeConfigs);
+      })
+  ), [activeTestTypeId, filteredTests, testTypeConfigs]);
+  const visibleDrafts = useMemo(() => (
+    drafts
+      .filter((draft) => !isReadingV2Payload(draft))
+      .filter((draft) => draftMatchesSearchTerm(draft, searchTerm))
+  ), [drafts, searchTerm]);
+  const visibleReadingV2Count = useMemo(() => (
+    visibleTests.filter((test) => test?.deliveryEngine === 'reading-v2').length
+  ), [visibleTests]);
   const activeTestScope = contentFilter === 'public'
     ? 'public'
     : profile?.role === 'super_admin' && contentFilter === 'my'
@@ -747,7 +770,7 @@ const TeacherLobbyPage = () => {
     if (contentFilter === 'reading-passage' && !teacherMaterialsCapabilities.canUseReadingPassageLibrary) {
       setContentFilter('my');
       setReadingPassageRows([]);
-      setSelectedReadingPassageIds([]);
+      setSelectedMaterialIds([]);
       return;
     }
 
@@ -768,7 +791,7 @@ const TeacherLobbyPage = () => {
 
     if (!teacherMaterialsCapabilities.canUseReadingPassageLibrary) {
       setReadingPassageRows([]);
-      setSelectedReadingPassageIds([]);
+      setSelectedMaterialIds([]);
       return undefined;
     }
 
@@ -1034,14 +1057,42 @@ const TeacherLobbyPage = () => {
 
   useEffect(() => {
     if (contentFilter !== 'reading-passage') {
-      setSelectedReadingPassageIds([]);
-      setReadingPassageFullTestCreateState({ status: 'idle', message: null });
-      return;
+      setReadingPassageFullTestCreateState((current) => (
+        current.status === 'idle' && current.message === null
+          ? current
+          : { status: 'idle', message: null }
+      ));
     }
 
-    const visibleIds = new Set(readingPassageRows.map((row) => row.materialId || row.id));
-    setSelectedReadingPassageIds((currentIds) => currentIds.filter((id) => visibleIds.has(id)));
-  }, [contentFilter, readingPassageRows]);
+    const visibleIds = new Set();
+
+    if (contentFilter === 'my' || contentFilter === 'public') {
+      visibleTests.forEach((test) => {
+        const id = getTestSelectionId(test);
+        if (id) visibleIds.add(id);
+      });
+    } else if (contentFilter === 'drafts') {
+      visibleDrafts.forEach((draft) => {
+        const id = getDraftSelectionId(draft);
+        if (id) visibleIds.add(id);
+      });
+    } else if (contentFilter === 'reading-passage') {
+      readingPassageRows.forEach((row) => {
+        const id = getReadingPassageSelectionId(row);
+        if (id) visibleIds.add(id);
+      });
+    } else if (contentFilter === 'book') {
+      bookRows.forEach((book) => {
+        const id = getBookSelectionId(book);
+        if (id) visibleIds.add(id);
+      });
+    }
+
+    setSelectedMaterialIds((currentIds) => {
+      const nextIds = currentIds.filter((id) => visibleIds.has(id));
+      return sameIdList(currentIds, nextIds) ? currentIds : nextIds;
+    });
+  }, [bookRows, contentFilter, readingPassageRows, visibleDrafts, visibleTests]);
 
   useEffect(() => {
     if (!shouldLogTestGridRender || contentLoading || loadedScope !== activeTestScope) {
@@ -1281,26 +1332,37 @@ const TeacherLobbyPage = () => {
     modals.openEditTest(test);
   }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, readingV2CompositionRepository, trackAction, user?.uid]);
 
-  const handleDeleteTest = useCallback(async (test) => {
-    if (isReadingV2MasterMaterial(test)) {
-      const master = await resolveReadingV2MasterModalRecord(test, readingV2CompositionRepository);
-      setReadingV2MasterRemoveRequest(master);
-      setReadingV2MasterRemoveAcknowledged(false);
-      setReadingV2MasterRemoveError(null);
-      setReadingV2MasterRemoveStatus('idle');
-      trackAction('master_delete_requested', {
-        materialId: master?.testMaterialId || master?.materialId || master?.id,
-        compositionId: master?.compositionId,
-        source: 'teacher_materials_test_card',
-      });
-      return;
-    }
-
+  const handleDeleteTest = useCallback(async (test, options = {}) => {
+    const source = options.source || 'teacher_materials_test_card';
     const isThcs = test.testType === 'THCS-THPT';
     const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
     const testTitle = isThcs || isWritingTest ? test.metadata?.title : test.title;
-    if (window.confirm(`Are you sure you want to delete "${testTitle || 'this test'}"?`)) {
+    try {
+      if (isReadingV2MasterMaterial(test)) {
+        const master = await resolveReadingV2MasterModalRecord(test, readingV2CompositionRepository);
+        setReadingV2MasterRemoveRequest(master);
+        setReadingV2MasterRemoveAcknowledged(false);
+        setReadingV2MasterRemoveError(null);
+        setReadingV2MasterRemoveStatus('idle');
+        trackAction('master_delete_requested', {
+          materialId: master?.testMaterialId || master?.materialId || master?.id,
+          compositionId: master?.compositionId,
+          source,
+        });
+        return 'reviewing-reading-v2-master';
+      }
+
+      if (!window.confirm(`Are you sure you want to delete "${testTitle || 'this test'}"?`)) {
+        return 'cancelled';
+      }
       await deleteTest(test);
+      toast.success(`Deleted "${testTitle || 'test'}".`);
+      return 'deleted';
+    } catch (error) {
+      console.error('Failed to delete material:', error);
+      const message = error instanceof Error ? error.message : 'Failed to delete material.';
+      toast.error(message);
+      return 'failed';
     }
   }, [deleteTest, readingV2CompositionRepository, trackAction]);
 
@@ -1478,18 +1540,33 @@ const TeacherLobbyPage = () => {
     String(passage?.materialId || passage?.id || '')
   ), []);
 
-  const handleToggleReadingPassageSelection = useCallback((passage) => {
-    const passageId = getReadingPassageId(passage);
-    if (!passageId) {
+  const handleToggleMaterialSelection = useCallback((materialId) => {
+    if (!materialId) {
       return;
     }
 
-    setSelectedReadingPassageIds((currentIds) => (
-      currentIds.includes(passageId)
-        ? currentIds.filter((id) => id !== passageId)
-        : [...currentIds, passageId]
+    setSelectedMaterialIds((currentIds) => (
+      currentIds.includes(materialId)
+        ? currentIds.filter((id) => id !== materialId)
+        : [...currentIds, materialId]
     ));
-  }, [getReadingPassageId]);
+  }, []);
+
+  const handleToggleTestSelection = useCallback((test) => {
+    handleToggleMaterialSelection(getTestSelectionId(test));
+  }, [handleToggleMaterialSelection]);
+
+  const handleToggleDraftSelection = useCallback((draft) => {
+    handleToggleMaterialSelection(getDraftSelectionId(draft));
+  }, [handleToggleMaterialSelection]);
+
+  const handleToggleBookSelection = useCallback((book) => {
+    handleToggleMaterialSelection(getBookSelectionId(book));
+  }, [handleToggleMaterialSelection]);
+
+  const handleToggleReadingPassageSelection = useCallback((passage) => {
+    handleToggleMaterialSelection(getReadingPassageId(passage));
+  }, [getReadingPassageId, handleToggleMaterialSelection]);
 
   const handleOpenReadingPassage = useCallback((passage) => {
     const materialId = getReadingPassageId(passage);
@@ -1596,7 +1673,7 @@ const TeacherLobbyPage = () => {
         },
       });
       setReadingPassageRows((currentRows) => currentRows.filter((row) => getReadingPassageId(row) !== materialId));
-      setSelectedReadingPassageIds((currentIds) => currentIds.filter((id) => id !== materialId));
+      setSelectedMaterialIds((currentIds) => currentIds.filter((id) => id !== materialId));
       setReadingPassageArchiveRequest(null);
       setReadingPassageArchiveAcknowledged(false);
       trackAction('teacher_materials_reading_passage_archived', {
@@ -1911,7 +1988,7 @@ const TeacherLobbyPage = () => {
       await refreshTests();
       if (isDraftPublish) {
         setContentFilter('my');
-        setSelectedReadingPassageIds([]);
+        setSelectedMaterialIds([]);
         toast.success(
           `Published "${publishedTitle}". It is now visible in My Content.`,
         );
@@ -2028,10 +2105,95 @@ const TeacherLobbyPage = () => {
     setBookListVersion((version) => version + 1);
   }, [bookValidationContext, materialBooksRepository, trackAction]);
 
+  const canBulkEditTest = useCallback((item) => {
+    if (!user) return false;
+    const ownsItem = item.ownerId === user.uid || item.createdBy === user.uid || (!item.ownerId && !item.createdBy);
+    return ownsItem || profile?.role === 'super_admin';
+  }, [profile?.role, user]);
+
+  const canBulkSelectTest = useCallback((test) => {
+    const assignability = resolveTeacherLobbyAssignability(test, { family: 'test' });
+    if (contentFilter === 'public') {
+      return true;
+    }
+    const canDeleteFromCurrentScope = contentFilter !== 'public' && canBulkEditTest(test);
+    return assignability.assignable || canDeleteFromCurrentScope;
+  }, [canBulkEditTest, contentFilter]);
+
+  const canBulkSelectBook = useCallback((book) => Boolean(book?.isOwner), []);
+
+  const selectedMaterialIdSet = useMemo(() => new Set(selectedMaterialIds), [selectedMaterialIds]);
+
+  const selectedTests = useMemo(() => (
+    visibleTests.filter((test) => selectedMaterialIdSet.has(getTestSelectionId(test)))
+  ), [selectedMaterialIdSet, visibleTests]);
+
+  const selectedDrafts = useMemo(() => (
+    visibleDrafts.filter((draft) => selectedMaterialIdSet.has(getDraftSelectionId(draft)))
+  ), [selectedMaterialIdSet, visibleDrafts]);
+
   const selectedReadingPassages = useMemo(() => {
-    const selectedIds = new Set(selectedReadingPassageIds);
-    return readingPassageRows.filter((row) => selectedIds.has(getReadingPassageId(row)));
-  }, [getReadingPassageId, readingPassageRows, selectedReadingPassageIds]);
+    return readingPassageRows.filter((row) => selectedMaterialIdSet.has(getReadingPassageId(row)));
+  }, [getReadingPassageId, readingPassageRows, selectedMaterialIdSet]);
+
+  const selectedBooks = useMemo(() => (
+    bookRows.filter((book) => selectedMaterialIdSet.has(getBookSelectionId(book)))
+  ), [bookRows, selectedMaterialIdSet]);
+
+  const selectedActiveMaterials = useMemo(() => {
+    if (contentFilter === 'my' || contentFilter === 'public') {
+      return selectedTests;
+    }
+    if (contentFilter === 'drafts') {
+      return selectedDrafts;
+    }
+    if (contentFilter === 'reading-passage') {
+      return selectedReadingPassages;
+    }
+    if (contentFilter === 'book') {
+      return selectedBooks;
+    }
+    return [];
+  }, [contentFilter, selectedBooks, selectedDrafts, selectedReadingPassages, selectedTests]);
+
+  const selectedTestAssignments = useMemo(() => (
+    selectedTests.map((test) => ({
+      item: test,
+      assignability: resolveTeacherLobbyAssignability(test, { family: 'test' }),
+    }))
+  ), [selectedTests]);
+
+  const assignableSelectedTests = useMemo(() => (
+    selectedTestAssignments.filter(({ assignability }) => assignability.assignable && assignability.contentRef)
+  ), [selectedTestAssignments]);
+
+  const selectedDeletableTests = useMemo(() => (
+    selectedTests.filter((test) => canBulkEditTest(test))
+  ), [canBulkEditTest, selectedTests]);
+
+  const selectedNonDeletableTests = useMemo(() => (
+    selectedTests.filter((test) => !canBulkEditTest(test))
+  ), [canBulkEditTest, selectedTests]);
+
+  const selectedReadingV2MasterTests = useMemo(() => (
+    selectedDeletableTests.filter(isReadingV2MasterMaterial)
+  ), [selectedDeletableTests]);
+
+  const selectedSimpleDeletableTests = useMemo(() => (
+    selectedDeletableTests.filter((test) => !isReadingV2MasterMaterial(test))
+  ), [selectedDeletableTests]);
+
+  const selectedReadingPassageAssignments = useMemo(() => (
+    selectedReadingPassages.map((passage) => ({
+      item: passage,
+      assignability: resolveTeacherLobbyAssignability(passage, { family: 'reading_passage' }),
+    }))
+  ), [selectedReadingPassages]);
+
+  const assignableSelectedReadingPassages = useMemo(() => (
+    selectedReadingPassageAssignments.filter(({ assignability }) => assignability.assignable && assignability.contentRef)
+  ), [selectedReadingPassageAssignments]);
+
   const isCreatingReadingPassageFullTest = readingPassageFullTestCreateState.status === 'creating';
   const readingPassageFullTestCreateError =
     readingPassageFullTestCreateState.status === 'failed'
@@ -2084,14 +2246,124 @@ const TeacherLobbyPage = () => {
     });
   }, [modals, trackAction]);
 
+  const handleAssignSelectedTests = useCallback(() => {
+    if (selectedTests.length !== 1 || assignableSelectedTests.length !== 1) {
+      toast.error('Select one assignable test to assign homework.');
+      return;
+    }
+
+    const { item, assignability } = assignableSelectedTests[0];
+    trackAction('assignSelectedMaterials', {
+      count: 1,
+      materialKind: 'test',
+      source: 'teacher_materials_selection_toolbar',
+    });
+    handleAssignHomework(item, assignability);
+  }, [assignableSelectedTests, handleAssignHomework, selectedTests.length, trackAction]);
+
+  const handleDeleteSelectedTests = useCallback(async () => {
+    if (selectedSimpleDeletableTests.length === 0) {
+      return;
+    }
+
+    if (selectedSimpleDeletableTests.length === 1) {
+      trackAction('deleteSelectedMaterials', {
+        count: 1,
+        materialKind: 'test',
+        source: 'teacher_materials_selection_toolbar',
+      });
+      const deleteResult = await handleDeleteTest(selectedSimpleDeletableTests[0], {
+        source: 'teacher_materials_selection_toolbar',
+      });
+      if (deleteResult === 'deleted') {
+        const deletedId = getTestSelectionId(selectedSimpleDeletableTests[0]);
+        setSelectedMaterialIds((currentIds) => currentIds.filter((id) => id !== deletedId));
+        await refreshTests();
+      }
+      return;
+    }
+
+    if (!window.confirm(`Delete ${selectedSimpleDeletableTests.length} selected tests? This cannot be undone.`)) {
+      return;
+    }
+
+    trackAction('deleteSelectedMaterials', {
+      count: selectedSimpleDeletableTests.length,
+      materialKind: 'test',
+      source: 'teacher_materials_selection_toolbar',
+    });
+
+    try {
+      await Promise.all(selectedSimpleDeletableTests.map((test) => deleteTest(test)));
+      const deletedIds = new Set(selectedSimpleDeletableTests.map(getTestSelectionId));
+      setSelectedMaterialIds((currentIds) => currentIds.filter((id) => !deletedIds.has(id)));
+      await refreshTests();
+      toast.success(`Deleted ${selectedSimpleDeletableTests.length} tests.`);
+    } catch (error) {
+      console.error('Failed to delete selected tests:', error);
+      toast.error('Failed to delete selected tests.');
+    }
+  }, [deleteTest, handleDeleteTest, refreshTests, selectedSimpleDeletableTests, trackAction]);
+
+  const handleReviewSelectedReadingV2MasterRemoval = useCallback(async () => {
+    if (selectedReadingV2MasterTests.length === 0) {
+      return;
+    }
+
+    trackAction('deleteSelectedMaterials', {
+      count: selectedReadingV2MasterTests.length,
+      materialKind: 'reading-v2-master',
+      source: 'teacher_materials_selection_toolbar',
+    });
+    await handleDeleteTest(selectedReadingV2MasterTests[0], {
+      source: 'teacher_materials_selection_toolbar',
+    });
+  }, [handleDeleteTest, selectedReadingV2MasterTests, trackAction]);
+
+  const handleDeleteSelectedDrafts = useCallback(async () => {
+    if (selectedDrafts.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Delete ${selectedDrafts.length} selected drafts? This cannot be undone.`)) {
+      return;
+    }
+
+    trackAction('deleteSelectedMaterials', {
+      count: selectedDrafts.length,
+      materialKind: 'draft',
+      source: 'teacher_materials_selection_toolbar',
+    });
+
+    try {
+      await Promise.all(selectedDrafts.map((draft) => deleteDraft(draft.id)));
+      setSelectedMaterialIds([]);
+      await refreshDrafts();
+      toast.success(`Deleted ${selectedDrafts.length} drafts.`);
+    } catch (error) {
+      console.error('Failed to delete selected drafts:', error);
+      toast.error('Failed to delete selected drafts.');
+    }
+  }, [deleteDraft, refreshDrafts, selectedDrafts, trackAction]);
+
   const handleAssignSelectedReadingPassages = useCallback(() => {
     if (selectedReadingPassages.length === 0) {
+      return;
+    }
+
+    if (assignableSelectedReadingPassages.length !== selectedReadingPassages.length) {
+      toast.error('Only published, student-safe Reading Passages can be assigned.');
       return;
     }
 
     trackAction('assignSelectedReadingPassages', {
       passageIds: selectedReadingPassages.map((passage) => getReadingPassageId(passage)),
       source: 'teacher_materials_reading_passage_selection_toolbar',
+    });
+    trackAction('assignSelectedMaterials', {
+      count: selectedReadingPassages.length,
+      materialKind: 'reading-passage',
+      source: 'teacher_materials_selection_toolbar',
     });
     trackAction(
       selectedReadingPassages.length === 1
@@ -2106,7 +2378,121 @@ const TeacherLobbyPage = () => {
       mode: selectedReadingPassages.length === 1 ? 'single' : 'set',
       passages: selectedReadingPassages,
     });
-  }, [getReadingPassageId, selectedReadingPassages, trackAction]);
+  }, [assignableSelectedReadingPassages.length, getReadingPassageId, selectedReadingPassages, trackAction]);
+
+  const handleArchiveSelectedReadingPassages = useCallback(async () => {
+    const ownedPassages = selectedReadingPassages.filter((passage) => passage?.isOwner);
+    if (ownedPassages.length === 0 || !user?.uid) {
+      return;
+    }
+
+    if (ownedPassages.length === 1) {
+      handleArchiveReadingPassage(ownedPassages[0]);
+      return;
+    }
+
+    if (!window.confirm(`Remove ${ownedPassages.length} selected Reading Passages from your library? Existing assignments and results stay available from frozen snapshots.`)) {
+      return;
+    }
+
+    trackAction('archiveSelectedMaterials', {
+      count: ownedPassages.length,
+      materialKind: 'reading-passage',
+      source: 'teacher_materials_selection_toolbar',
+    });
+
+    try {
+      for (const passage of ownedPassages) {
+        const materialId = getReadingPassageId(passage);
+        const usageCounts = getReadingPassageUsageCounts(passage);
+        const usedElsewhere = usageCounts.masterRefCount > 0 || usageCounts.bookRefCount > 0 || usageCounts.activeHomeworkCount > 0;
+        await archiveReadingV2PassageMaterial({
+          teacherId: user.uid,
+          passage: {
+            materialId,
+            ownerId: passage.ownerId,
+            title: passage.title || 'Untitled Reading Passage',
+            visibility: passage.visibility || passage.scope || 'private',
+            materialKind: 'reading-passage',
+            testTypeIds: passage.testTypeIds || passage.testTypes?.map((testType) => testType.testTypeId).filter(Boolean) || [],
+            sourceFullTestId: passage.sourceFullTestId,
+            updatedAt: passage.updatedAt || new Date().toISOString(),
+            publishedSnapshotVersionId: passage.publishedSnapshotVersionId || passage.currentVersionId,
+            questionCount: passage.questionCount,
+          },
+          repository: readingV2PassageArchiveRepository,
+          usageSummary: {
+            usedElsewhere,
+            usageCategories: [
+              usageCounts.masterRefCount ? 'master' : null,
+              usageCounts.bookRefCount ? 'book' : null,
+              usageCounts.activeHomeworkCount ? 'homework' : null,
+            ].filter(Boolean),
+          },
+        });
+        trackAction('teacher_materials_reading_passage_archived', {
+          materialId,
+          source: 'teacher_materials_selection_toolbar',
+        });
+      }
+
+      const archivedIds = new Set(ownedPassages.map(getReadingPassageId));
+      setReadingPassageRows((currentRows) => currentRows.filter((row) => !archivedIds.has(getReadingPassageId(row))));
+      setSelectedMaterialIds([]);
+      toast.success(`Removed ${ownedPassages.length} Reading Passages from library.`);
+    } catch (error) {
+      console.error('Failed to archive selected Reading Passages:', error);
+      toast.error('Failed to remove selected Reading Passages.');
+    }
+  }, [
+    getReadingPassageId,
+    getReadingPassageUsageCounts,
+    handleArchiveReadingPassage,
+    readingV2PassageArchiveRepository,
+    selectedReadingPassages,
+    trackAction,
+    user?.uid,
+  ]);
+
+  const handleArchiveSelectedBooks = useCallback(async () => {
+    const ownedBooks = selectedBooks.filter((book) => book?.isOwner);
+    if (ownedBooks.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Archive ${ownedBooks.length} selected Books?`)) {
+      return;
+    }
+
+    trackAction('archiveSelectedMaterials', {
+      count: ownedBooks.length,
+      materialKind: 'book',
+      source: 'teacher_materials_selection_toolbar',
+    });
+
+    try {
+      await Promise.all(ownedBooks.map((book) => (
+        updateBookMetadata(
+          getBookSelectionId(book),
+          { status: 'archived' },
+          materialBooksRepository,
+          bookValidationContext,
+        )
+      )));
+      ownedBooks.forEach((book) => {
+        trackAction('archiveBook', {
+          bookId: getBookSelectionId(book),
+          source: 'teacher_materials_selection_toolbar',
+        });
+      });
+      setSelectedMaterialIds([]);
+      setBookListVersion((version) => version + 1);
+      toast.success(`Archived ${ownedBooks.length} Books.`);
+    } catch (error) {
+      console.error('Failed to archive selected Books:', error);
+      toast.error('Failed to archive selected Books.');
+    }
+  }, [bookValidationContext, materialBooksRepository, selectedBooks, trackAction]);
 
   const handleCreateFullTestFromSelectedReadingPassages = useCallback(async () => {
     if (isCreatingReadingPassageFullTest || !user?.uid || selectedReadingPassages.length === 0) {
@@ -2149,7 +2535,7 @@ const TeacherLobbyPage = () => {
         mode: 'draft',
       });
       setReadingPassageFullTestCreateState({ status: 'idle', message: null });
-      setSelectedReadingPassageIds([]);
+      setSelectedMaterialIds([]);
       setReadingV2ExistingPassageDraftMetadata(null);
       setReadingV2MasterModalState({
         open: true,
@@ -2176,6 +2562,159 @@ const TeacherLobbyPage = () => {
     selectedReadingPassages,
     trackAction,
     user?.uid,
+  ]);
+
+  const selectedItemLabel = useMemo(() => {
+    if (contentFilter === 'reading-passage') return 'Reading Passages';
+    if (contentFilter === 'book') return 'Books';
+    if (contentFilter === 'drafts') return 'Drafts';
+    if (contentFilter === 'public') return 'public tests';
+    return 'tests';
+  }, [contentFilter]);
+
+  const bulkSelectionActions = useMemo(() => {
+    if (selectedActiveMaterials.length === 0) {
+      return [];
+    }
+
+    if (contentFilter === 'drafts') {
+      return [
+        {
+          key: 'delete-selected-drafts',
+          label: 'Delete selected',
+          variant: 'danger',
+          iconKind: 'delete',
+          onClick: handleDeleteSelectedDrafts,
+        },
+      ];
+    }
+
+    if (contentFilter === 'book') {
+      const hasOnlyOwnedBooks = selectedBooks.length > 0 && selectedBooks.every((book) => book?.isOwner);
+      return [
+        {
+          key: 'archive-selected-books',
+          label: 'Archive selected',
+          variant: 'danger',
+          iconKind: 'archive',
+          disabled: !hasOnlyOwnedBooks,
+          disabledReason: 'Only owned Books can be archived.',
+          onClick: handleArchiveSelectedBooks,
+        },
+      ];
+    }
+
+    if (contentFilter === 'reading-passage') {
+      const allSelectedAssignable = selectedReadingPassages.length > 0
+        && assignableSelectedReadingPassages.length === selectedReadingPassages.length;
+      const hasOnlyOwnedPassages = selectedReadingPassages.length > 0
+        && selectedReadingPassages.every((passage) => passage?.isOwner);
+
+      return [
+        {
+          key: 'assign-selected-reading-passages',
+          label: 'Assign selected',
+          variant: 'primary',
+          iconKind: 'assign',
+          disabled: !allSelectedAssignable,
+          disabledReason: 'Only published, student-safe Reading Passages can be assigned.',
+          onClick: handleAssignSelectedReadingPassages,
+        },
+        {
+          key: 'create-full-test-from-selected',
+          label: readingPassageFullTestCreateLabel,
+          variant: 'secondary',
+          iconKind: 'create',
+          disabled: isCreatingReadingPassageFullTest,
+          disabledReason: 'Creating full test...',
+          onClick: handleCreateFullTestFromSelectedReadingPassages,
+        },
+        {
+          key: 'archive-selected-reading-passages',
+          label: 'Archive selected',
+          variant: 'danger',
+          iconKind: 'archive',
+          disabled: !hasOnlyOwnedPassages,
+          disabledReason: 'Only owned Reading Passages can be archived.',
+          onClick: handleArchiveSelectedReadingPassages,
+        },
+      ];
+    }
+
+    const canAssignSingleTest = selectedTests.length === 1 && assignableSelectedTests.length === 1;
+    const selectedSingleTestAssignment = selectedTestAssignments.length === 1
+      ? selectedTestAssignments[0]
+      : null;
+    const assignSelectedTestsDisabledReason = selectedSingleTestAssignment && !selectedSingleTestAssignment.assignability.assignable
+      ? homeworkAssignmentReasonMessage(selectedSingleTestAssignment.assignability.reasonCode)
+      : 'Select one assignable test to assign homework.';
+    const hasReadingV2MasterTests = selectedReadingV2MasterTests.length > 0;
+    const hasSimpleDeletableTests = selectedSimpleDeletableTests.length > 0;
+    const hasNonDeletableTests = selectedNonDeletableTests.length > 0;
+
+    return [
+      {
+        key: 'assign-selected-tests',
+        label: 'Assign homework',
+        variant: 'primary',
+        iconKind: 'assign',
+        disabled: !canAssignSingleTest,
+        disabledReason: assignSelectedTestsDisabledReason,
+        onClick: handleAssignSelectedTests,
+      },
+      ...(contentFilter === 'my' && hasReadingV2MasterTests ? [
+        {
+          key: 'review-selected-reading-v2-masters',
+          label: 'Review Reading V2 removal',
+          variant: 'danger',
+          iconKind: 'delete',
+          disabled: selectedReadingV2MasterTests.length > 1,
+          disabledReason: 'Select one Reading V2 master at a time so linked-passage choices stay explicit.',
+          onClick: handleReviewSelectedReadingV2MasterRemoval,
+        },
+      ] : []),
+      ...(contentFilter === 'my' && hasSimpleDeletableTests ? [
+        {
+          key: 'delete-selected-tests',
+          label: hasReadingV2MasterTests ? 'Delete simple selected' : 'Delete selected',
+          variant: 'danger',
+          iconKind: 'delete',
+          onClick: handleDeleteSelectedTests,
+        },
+      ] : []),
+      ...(contentFilter === 'my' && hasNonDeletableTests ? [
+        {
+          key: 'delete-unavailable-tests',
+          label: `${selectedNonDeletableTests.length} cannot be deleted`,
+          variant: 'secondary',
+          iconKind: 'delete',
+          disabled: true,
+          disabledReason: 'Only owned materials can be deleted.',
+        },
+      ] : []),
+    ];
+  }, [
+    assignableSelectedReadingPassages.length,
+    assignableSelectedTests.length,
+    contentFilter,
+    handleArchiveSelectedBooks,
+    handleArchiveSelectedReadingPassages,
+    handleAssignSelectedReadingPassages,
+    handleAssignSelectedTests,
+    handleCreateFullTestFromSelectedReadingPassages,
+    handleDeleteSelectedDrafts,
+    handleDeleteSelectedTests,
+    handleReviewSelectedReadingV2MasterRemoval,
+    isCreatingReadingPassageFullTest,
+    readingPassageFullTestCreateLabel,
+    selectedActiveMaterials.length,
+    selectedBooks,
+    selectedNonDeletableTests.length,
+    selectedReadingPassages,
+    selectedReadingV2MasterTests,
+    selectedSimpleDeletableTests.length,
+    selectedTestAssignments,
+    selectedTests,
   ]);
 
   const toReadingPassageHomeworkCandidate = useCallback((passage) => ({
@@ -2248,11 +2787,18 @@ const TeacherLobbyPage = () => {
     return isOwner(item) || profile?.role === 'super_admin';
   }, [isOwner, profile]);
 
+  const handleMaterialListActionError = useCallback((error) => {
+    console.error('Material list action failed:', error);
+    toast.error(error instanceof Error ? error.message : 'Material action failed.');
+  }, []);
+
   const materialListRows = visibleTests.map((test, index) => buildTestMaterialListRow(test, {
     index,
     canEdit: canEdit(test),
     isOwner: isOwner(test),
     isPublicLibrary: contentFilter === 'public',
+    selectable: canBulkSelectTest(test),
+    selected: selectedMaterialIdSet.has(getTestSelectionId(test)),
     handlers: {
       onEdit: handleEditTest,
       onDelete: handleDeleteTest,
@@ -2260,10 +2806,12 @@ const TeacherLobbyPage = () => {
       onUseAsIs: modals.openUseAsIs,
       onClone: handleCloneTest,
       onAssignHw: handleAssignHomework,
+      onToggleSelection: handleToggleTestSelection,
+      onActionError: handleMaterialListActionError,
     },
   }));
   const readingPassageListRows = readingPassageRows.map((passage) => toReadingPassageRowModel(passage, {
-    selected: selectedReadingPassageIds.includes(getReadingPassageId(passage)),
+    selected: selectedMaterialIdSet.has(getReadingPassageId(passage)),
     handlers: {
       onOpenReadingPassage: handleOpenReadingPassage,
       onEditReadingPassage: handleEditReadingPassage,
@@ -2403,6 +2951,12 @@ const TeacherLobbyPage = () => {
                     </CardBody>
                   </Card>
 
+                  <MaterialSelectionToolbar
+                    selectedCount={selectedActiveMaterials.length}
+                    itemLabel={selectedItemLabel}
+                    actions={bulkSelectionActions}
+                  />
+
                   {draftsLoading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                       <div style={{
@@ -2439,6 +2993,11 @@ const TeacherLobbyPage = () => {
                           key={draft.id}
                           draft={draft}
                           index={index}
+                          selection={{
+                            checked: selectedMaterialIdSet.has(getDraftSelectionId(draft)),
+                            label: `Select ${draft.metadata?.title || 'Untitled Draft'}`,
+                            onChange: () => handleToggleDraftSelection(draft),
+                          }}
                           onResume={(draftToResume) => {
                             if (draftToResume?.draftKind === 'writing') {
                               openWritingDraftEditor(draftToResume, 'teacher_lobby_draft_card');
@@ -2509,31 +3068,12 @@ const TeacherLobbyPage = () => {
                     </CardBody>
                   </Card>
 
-                  {contentFilter === 'reading-passage' && selectedReadingPassages.length > 0 && (
-                    <div className="reading-passage-library-tools">
-                      <div className="reading-passage-selection-toolbar" aria-label="Reading Passage selection actions">
-                        <span>{selectedReadingPassages.length} selected</span>
-                        <button
-                          type="button"
-                          onClick={handleAssignSelectedReadingPassages}
-                        >
-                          Assign selected
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCreateFullTestFromSelectedReadingPassages}
-                          disabled={isCreatingReadingPassageFullTest}
-                        >
-                          {readingPassageFullTestCreateLabel}
-                        </button>
-                        {readingPassageFullTestCreateError && (
-                          <span className="reading-passage-selection-toolbar__error" role="status">
-                            {readingPassageFullTestCreateError}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  <MaterialSelectionToolbar
+                    selectedCount={selectedActiveMaterials.length}
+                    itemLabel={selectedItemLabel}
+                    actions={bulkSelectionActions}
+                    error={contentFilter === 'reading-passage' ? readingPassageFullTestCreateError : null}
+                  />
 
                   {/* Content Loading */}
                   {contentFilter === 'reading-passage' ? (
@@ -2601,6 +3141,9 @@ const TeacherLobbyPage = () => {
                         emptyTitle={bookScope === 'public' ? 'No public Books found' : 'No Books yet'}
                         emptyDescription={bookScope === 'public' ? 'No public Books match this view.' : 'Create a Book draft to start organizing materials.'}
                         canOpenBookEditor={teacherMaterialsCapabilities.canUseMaterialBookEditor}
+                        selectedBookIds={selectedMaterialIds}
+                        isBookSelectable={canBulkSelectBook}
+                        onToggleBookSelection={handleToggleBookSelection}
                         onOpenBook={handleOpenBook}
                         onArchiveBook={handleArchiveBook}
                       />
@@ -2617,26 +3160,33 @@ const TeacherLobbyPage = () => {
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
                       }} />
-                      <p style={{ color: '#64748b' }}>Loading tests...</p>
+                      <p style={{ color: '#64748b' }}>Loading materials...</p>
                     </div>
+                  ) : contentError ? (
+                    <Card variant="glass" style={{ padding: '3rem', textAlign: 'center', marginTop: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#991b1b', marginBottom: '0.5rem' }}>
+                        Materials unavailable
+                      </h3>
+                      <p style={{ color: '#64748b' }}>{contentError}</p>
+                    </Card>
                   ) : visibleTests.length === 0 ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center', marginTop: '1.5rem' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
                         {contentFilter === 'public' ? '🌐' : '📝'}
                       </div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                        {contentFilter === 'public' ? 'No public tests found' : 'No tests yet'}
+                        {contentFilter === 'public' ? 'No public materials found' : 'No materials yet'}
                       </h3>
                       <p style={{ color: '#64748b' }}>
                         {contentFilter === 'public'
-                          ? 'Check back later or create your own tests'
-                          : 'Create your first test to get started'}
+                          ? 'No public materials match this view.'
+                          : 'Create your first material to get started.'}
                       </p>
                     </Card>
                   ) : (
                     <MaterialListView
                       rows={materialListRows}
-                      itemLabel={contentFilter === 'public' ? 'public tests' : 'tests'}
+                      itemLabel={contentFilter === 'public' ? 'public materials' : 'materials'}
                     />
                   )}
                 </>
@@ -2950,7 +3500,7 @@ const TeacherLobbyPage = () => {
             onClose={() => setReadingPassageHomeworkRequest(null)}
             onSuccess={() => {
               setReadingPassageHomeworkRequest(null);
-              setSelectedReadingPassageIds([]);
+              setSelectedMaterialIds([]);
             }}
             {...readingPassageHomeworkModalProps}
           />

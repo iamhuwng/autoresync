@@ -1,7 +1,34 @@
 /* DraftCard styles */
 
 .draft-card {
+  position: relative;
   border-left: 4px solid rgba(139, 92, 246, 0.5);
+}
+
+.draft-card--selected {
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.34), 0 12px 28px rgba(79, 70, 229, 0.14);
+}
+
+.draft-card__selection {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.draft-card__selection input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #4f46e5;
 }
 
 .draft-card__status {

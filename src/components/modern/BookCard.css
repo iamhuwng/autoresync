@@ -1,4 +1,5 @@
 .book-card {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(176px, 1fr) auto auto;
   min-width: 0;
@@ -7,6 +8,33 @@
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 16px 42px rgba(15, 23, 42, 0.1);
   overflow: hidden;
+}
+
+.book-card--selected {
+  border-color: rgba(79, 70, 229, 0.48);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.24), 0 16px 42px rgba(79, 70, 229, 0.16);
+}
+
+.book-card__selection {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.book-card__selection input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #4f46e5;
 }
 
 .book-card__cover {

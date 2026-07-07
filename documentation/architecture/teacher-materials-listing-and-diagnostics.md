@@ -2,111 +2,133 @@
 
 ## Purpose
 
-This document defines the current Teacher Lobby materials-listing contract after the May 2026 performance repair.
+This document defines the current Teacher Lobby materials-listing contract.
 
-It exists because the old Teacher Lobby loading model was too broad: normal teachers could trigger full `/tests` reads and then filter client-side. That was slow, noisy, and easy to regress when new material types such as Reading V2 were added.
+The Teacher Materials list is backed by the shared universal MaterialSummary
+catalog. `/tests` is runtime and legacy compatibility storage only. It is not
+the Teacher Materials listing authority.
 
-## Current Ownership
+The detailed summary schema, producer registry, lifecycle, repair, and rollout
+contract is defined in
+`documentation/architecture/universal-material-summary-integration.md`.
+
+## Runtime Ownership
 
 Runtime surfaces:
 
 - `src/pages/TeacherLobbyPage.jsx`
 - `src/hooks/test/useTeacherTests.ts`
-- `src/services/firebaseQueryOptimizer.js`
+- `src/hooks/test/useTestFilters.ts`
+- `src/services/materialCatalog/materialSummaryPort.service.ts`
+- `src/services/materialCatalog/materialSummaryCardAdapter.service.ts`
 - `src/utils/teacherMaterialsDiagnostics.js`
 
 Database/index anchors:
 
-- RTDB `/tests/{testId}`
-- RTDB `material_catalog/material_indexes/*` for PRD-0052 Reading Passage and Book material-summary rows
-- `database.rules.json` `.indexOn` for `/tests`: `ownerId`, `createdBy`, `isPublic`, `createdAt`, `updatedAt`
+- `material_catalog/material_summary_indexes/v1/by_owner/{teacherId}`
+- `material_catalog/material_summary_indexes/v1/by_visibility/public`
+- `material_catalog/material_summary_indexes/v1/by_id/{materialId}`
+- `material_catalog/material_summary_indexes/v1/by_material_kind/{materialKind}/{materialId}`
+- `material_catalog/material_summary_indexes/v1/by_test_type/{testTypeId}/{materialId}`
 
-The Teacher Lobby list is a material index/read surface. It must not hydrate canonical Reading V2 drafts, passage assets, student-safe payloads, session-safe payloads, or result projections just to render cards.
+The Teacher Lobby list is a summary read surface. It must not hydrate canonical
+Reading V2 drafts, passage assets, Book nodes, student-safe payloads,
+session-safe payloads, result projections, answer keys, scoring rules, or import
+evidence just to render cards.
 
-UI chrome, modal authoring entry, card title clamp, search icon, and responsive teacher navigation are governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+UI chrome, modal authoring entry, card title clamp, search icon, and responsive
+teacher navigation are governed by
+`documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
 
-Compact Materials list-view layout, fixed row grid, action slots, and typography are governed by `documentation/architecture/teacher-materials-list-view-contract.md`.
+Compact Materials list-view layout, fixed row grid, action slots, and
+typography are governed by
+`documentation/architecture/teacher-materials-list-view-contract.md`.
 
-Leading material icon and accent semantics are governed by `documentation/architecture/teacher-material-visual-taxonomy.md`.
-
-Keep this document focused on data loading, cache scope, realtime scope, and diagnostics.
+Bulk selection and tab-specific selected-material actions are governed by
+`documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 
 ## Listing Contract
 
 ### My Content
 
-For normal teachers, My Content must load only owned material rows:
+My Content reads active summaries from:
 
-1. Query `/tests` by `ownerId == teacherUid`.
-2. Query `/tests` by `createdBy == teacherUid`.
-3. Merge and de-duplicate by material id.
-4. Sort by recent update/create time.
-5. Cache under `test:owner:{teacherUid}`.
+```text
+material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
+```
 
-Reason for dual ownership query:
-
-- newer rows should use `ownerId`
-- older rows may only have `createdBy`
-- the lobby cannot safely drop either field until a complete migration/backfill proves it
-
-### Super Admin My Content
-
-Super admin My Content may still use the broad all-tests path because the role explicitly owns global inspection.
-
-This is the exception, not the normal teacher path.
+This scope includes all supported active material kinds owned by that teacher,
+including private and public rows. The hook must not read all `/tests`, read
+another teacher's owner bucket, or convert permission/contract failures into an
+empty list.
 
 ### Public Library
 
-Public Library must load by the public index:
+Public Library reads active public summaries from:
 
-1. Query `/tests` by `isPublic == true`.
-2. Sort by recent update/create time.
-3. Cache under `test:public`.
+```text
+material_catalog/material_summary_indexes/v1/by_visibility/public
+```
 
-It must not read all tests and then filter public rows client-side.
+This scope includes all public active rows, including rows owned by the current
+teacher. It must not read private visibility buckets and must not read all
+canonical stores to filter public rows client-side.
 
-### Drafts
+### Drafts, Reading Passage, And Book Tabs
 
-Drafts remain separate from the published-material list. `useTeacherDrafts` owns draft loading and should only run when the Drafts tab is active.
+Drafts remain separate from the published-material list. `useTeacherDrafts`
+owns draft loading and should only run when the Drafts tab is active.
 
-### Reading Passage And Book Material Summaries
+Dedicated Reading Passage and Book views may keep their specialized UI and
+archive/editor behavior, but discoverability must remain connected to registered
+summary kinds. Active private/public listing rows start from
+`material_summary_indexes/v1`; legacy material/book indexes are not active
+Teacher Materials discovery authority.
 
-PRD-0052 Reading Passage rows and Book material-picker candidates must load from `material_catalog/material_indexes`, not from canonical Reading V2 documents.
+Archive rows are a separate lifecycle surface. Active My Content and Public
+Library buckets must contain active summaries only.
 
-Canonical Reading Passage list buckets:
+## Permission Contract
 
-- `material_catalog/material_indexes/by_owner/{teacherId}`
-- `material_catalog/material_indexes/by_visibility/{visibility}`
-- `material_catalog/material_indexes/by_material_kind/reading-passage`
-- `material_catalog/material_indexes/by_test_type/{testTypeId}`
-- `material_catalog/material_indexes/by_source_full_test/{fullTestMaterialId}`
+- Teacher owner reads `by_owner/{auth.uid}` only.
+- Teacher Public Library reads `by_visibility/public` only.
+- Teacher `by_id` reads are limited to active owned rows or active public rows.
+- `by_owner/{auth.uid}` includes both private and public summaries owned by that
+  teacher. Private-only feature subscopes must filter after the owner summary
+  read, not by replacing My Content with a private visibility query.
+- Students and unauthenticated users cannot browse Teacher Materials summary
+  indexes.
+- Super admin may read/write diagnostic and repair buckets.
+- Public Book summary create, update, delete, and demotion are admin-only across
+  all universal summary buckets.
 
-These rows are safe summaries only. They must not include passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
-
-Reading Passage material filters include an Archive subtab for owned archived Reading Passage rows. Active Reading Passage lists and add-existing pickers must exclude archived rows. Archive rows are still safe summary rows; they may expose title, source, owner, visibility, test types, version ids, archived state, broken-ref summary counts, and restore eligibility, but never canonical bodies, answer keys, projections, or review payloads.
-
-Broken-ref badges in listing surfaces must come from safe summary fields already present on material index or Book summary rows, such as `hasBrokenRefs`, `brokenRefCount`, and reason-code summaries. Listing code must not hydrate full canonical Reading V2 payloads to compute badges at render time. If a safe summary is unavailable, the detailed modal may compute and display the broken-ref state after explicit open/edit action.
-
-### Removal And Stale Index Cleanup
-
-Teacher Lobby delete for Reading V2 master rows must not call the legacy generic delete path. It must use the Reading V2 master removal lifecycle and show the PRD-0054 modal choices.
-
-Material index cleanup is allowed to be idempotent. Rules and services must tolerate stale or missing active Material Catalog rows when canonical `reading_v2/material_metadata/{materialId}/ownerId` proves the authenticated teacher owns the Reading V2 material. This protects archive/remove retries and partial-cleanup recovery without hydrating unsafe canonical payloads for list rendering.
+Every universal summary row is closed with `$other.validate=false`. Unknown
+fields and canonical payload fields such as `content`, `document`, `questions`,
+`answerKey`, `studentAnswers`, `hiddenProvenance`, and `importEvidence` are
+rejected by rules and by the shared port.
 
 ## Realtime Contract
 
-Realtime listeners must match the active listing scope:
+Realtime listeners must match the active summary scope:
 
-- owned scope: indexed `ownerId` and `createdBy` listeners
-- public scope: indexed `isPublic` listener
-- all scope: super-admin-only broad listener
-- non-test tabs such as Reading Passage, Book, and Drafts do not start `/tests` hook loads or `/tests` realtime listeners
+- owned scope: `material_summary_indexes/v1/by_owner/{teacherId}`
+- public scope: `material_summary_indexes/v1/by_visibility/public`
 
-Initial RTDB listener snapshots are skipped because the initial indexed fetch already loaded the same data. Later realtime events invalidate the matching scoped cache and reload with `skipCache=true`.
+Initial RTDB listener snapshots are skipped because the initial indexed fetch
+already loaded the same data. Later realtime events reload the same scoped
+summary query.
 
-The page exposes `loadedScope` from `useTeacherTests` and only emits rendered-grid diagnostics when `loadedScope` matches the active tab. This prevents stale owned data from being logged as a completed public render during tab switches.
+Any initial load, refresh, realtime reload, or realtime listener error must:
 
-`grid_rendered` is reserved for the `/tests`-backed My Content and Public Library surfaces. Reading Passage and Book tabs use their dedicated `reading_passage_list_*` and `book_list_*` diagnostics instead of re-emitting `grid_rendered`.
+1. expose the error,
+2. clear stale rows,
+3. clear `loadedScope`, and
+4. avoid rendering a believable empty list.
+
+The page exposes `loadedScope` from `useTeacherTests` and only emits rendered
+grid/list diagnostics when `loadedScope` matches the active tab. This prevents
+stale owned data from being logged as a completed public render during tab
+switches.
 
 ## Diagnostics Contract
 
@@ -115,7 +137,8 @@ Diagnostics are intentionally scoped to Teacher Lobby materials loading.
 Enablement:
 
 - dev mode: enabled automatically
-- production mode: enabled only with `?diagTeacherMaterials=1` or `?diagTeacherMaterials=true`
+- production mode: enabled only with `?diagTeacherMaterials=1` or
+  `?diagTeacherMaterials=true`
 - test mode: disabled by default
 
 Stable prefix:
@@ -124,73 +147,76 @@ Stable prefix:
 [Diag][TeacherMaterials]
 ```
 
-Required event families:
-
-- `optimizer_fetch_requested`
-- `optimizer_fetch_succeeded`
-- `optimizer_cache_hit`
-- `optimizer_fetch_skipped`
-- `hook_load_requested`
-- `hook_load_succeeded`
-- `hook_load_failed`
-- `realtime_listener_registered`
-- `realtime_initial_snapshot_skipped`
-- `realtime_reload_succeeded`
-- `realtime_reload_failed`
-- `grid_rendered`
-
 Diagnostic payload rules:
 
-- include scope, strategy, branch names, counts, and duration
-- include only a short uid tail, never full uid or user profile data
+- include scope, counts, kind/producer counts, and duration
+- include only short uid tails when user identity is useful
 - do not log material payloads, answers, passages, draft bodies, or student data
 
 ## Retired Patterns
 
-These patterns are obsolete for normal Teacher Lobby material loading:
+These patterns are obsolete for Teacher Lobby material cards:
 
-- `queryOptimizer.getAllTests()` for normal teacher My Content
-- reading the full `/tests` table and filtering by ownership client-side
-- reading the full `/tests` table and filtering public rows client-side
-- hydrating Reading V2 canonical documents or projections just to render material cards
-- computing archive, restore, or broken-ref list badges by hydrating canonical payloads in the lobby list
-- using `reading_v2/listing_indexes` as production QA proof for Reading Passage list rows
+- `queryOptimizer.getAllTests()` for normal Teacher Materials My Content
+- reading full `/tests` and filtering by ownership client-side
+- reading full `/tests` and filtering public rows client-side
+- treating `/tests` as the universal material discovery source
+- hydrating Reading V2 canonical documents or projections just to render cards
+- computing archive, restore, or broken-ref list badges by hydrating canonical
+  payloads in the lobby list
+- using `reading_v2/listing_indexes` as production QA proof for Teacher
+  Materials rows
 - using legacy `/tests` delete alone for Reading V2 master full-test removal
-- requiring an existing Material Catalog index row as the only proof for owner cleanup when canonical Reading V2 metadata proves ownership
+- treating selected-material bulk actions as a generic force-delete surface
 - logging grid readiness before the loaded data scope matches the active tab
 - adding always-on console timing logs outside the gated diagnostics helper
-- treating the compact list view as a data-contract rewrite or as permission to hydrate heavier payloads
 
-Old PRD-0033 references to `useTeacherTests` using `queryOptimizer.getAllTests()` are historical extraction requirements, not current architecture.
+Old PRD-0033 and PRD-0052 references to `/tests` or
+`reading_v2/listing_indexes` are historical unless a future migration explicitly
+rewires readers, writers, rules, tests, docs, and browser proof.
 
-Old PRD-0052 references to `reading_v2/listing_indexes` are historical or compatibility-only unless a future migration deliberately moves production readers back to that family and updates rules/tests/browser proof.
+## Current Evidence
 
-## Live Evidence
+Local proof on 2026-07-07:
 
-Local browser verification on 2026-05-11 against the diagnostic build showed:
+- `useTeacherTests` reads `material_summary_indexes/v1/by_owner/{teacherId}` for
+  My Content.
+- `useTeacherTests` reads `material_summary_indexes/v1/by_visibility/public`
+  for Public Library.
+- Hook tests prove malformed rows, missing owner, scope-switch failures, refresh
+  failures, and realtime listener failures are surfaced and clear stale rows.
+- Emulator tests prove teacher owner/public reads, student/unauth denial, closed
+  row validation, unsafe-field rejection, public Book moderation, and
+  `by_test_type` membership validation.
+- Browser proof on `http://localhost:5173/lobby` after rules and approved repair
+  showed My Content, Public Library, Reading Passage, and Book tabs rendering
+  from the expected scopes without permission errors or fake empty states.
+- Reading V2 `/tests` compatibility bridge repair is separate from Teacher
+  Materials listing. It has a reviewed-report write gate and must not be used
+  as listing authority.
 
-- My Content: indexed `ownerId` + `createdBy`, 16 rows loaded, 16 visible, `optimizer_fetch_succeeded` around 1.5s.
-- Public Library: indexed `isPublic`, 23 rows loaded, 17 visible, `optimizer_fetch_succeeded` around 1.16s.
-- No app console errors.
-- No app network failures.
+## Healthy System Rules
 
-This was committed as `f57580c chore(teacher): add materials diagnostics` and deployed to Firebase Hosting `kahut1`.
-
-## Healthy System Plan
-
-Keep this path healthy with these rules:
-
-1. Add list-scope tests whenever a new Teacher Lobby tab, material family, or card source is added.
-2. Treat any normal-teacher full `/tests` scan as a regression unless a documented migration window explicitly allows it.
-3. Add RTDB indexes before adding a new query branch.
-4. Keep lobby cards on summary/index rows. Move heavy canonical payloads behind explicit open/edit/preview actions.
-5. Preserve gated diagnostics so live browser checks can prove query scope, row counts, and render readiness without leaking payloads.
-6. Add pagination or a dedicated material-summary index before public/owned row counts become large enough that indexed reads still exceed the UI budget.
+1. Add list-scope tests for every new Teacher Lobby tab, material family, or
+   card source.
+2. Treat normal-teacher full `/tests` scans as regressions.
+3. Add producer registry entries and summary lifecycle tests before a producer
+   claims Teacher Materials integration.
+4. Keep lobby cards on summary rows. Move heavy canonical payloads behind
+   explicit open/edit/preview actions.
+5. Preserve gated diagnostics so live browser checks can prove query scope, row
+   counts, and render readiness without leaking payloads.
+6. Run reconciliation dry-runs before and after live rules/backfill work.
+7. Keep `/tests` bridge repair evidence separate from summary-catalog listing
+   evidence. Bridge write mode requires `--write --approved --from-report` and
+   post-write zero-op verification.
 
 ## Related Docs
 
+- `documentation/architecture/universal-material-summary-integration.md`
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
+- `documentation/architecture/teacher-materials-bulk-selection-actions.md`
 - `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 - `documentation/architecture/reading-v2-material-removal-lifecycle.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`

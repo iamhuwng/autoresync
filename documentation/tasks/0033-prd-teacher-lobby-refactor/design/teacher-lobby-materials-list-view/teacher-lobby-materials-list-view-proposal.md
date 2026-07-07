@@ -328,7 +328,7 @@ PRD-0050 shipped the list view as opt-in, memory-only view state on Teacher Lobb
 Accepted deviations from the concept artifacts:
 
 - My Content keeps only backed toolbar controls: search, view toggle, and create. `All Types`, `All Statuses`, and `All Folders` were not added because current production data/handlers do not back those filters.
-- Drafts remains grid-only for V1. Draft list rows are deferred until draft-specific row behavior is product-approved.
+- Drafts remains grid-only for PRD-0050 list rendering. Draft list rows are deferred until draft-specific row behavior is product-approved; later Draft card selected-material actions are governed separately by `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 - The live implementation uses one shared CSS grid contract for the header and every row via `--material-list-grid`, so column labels and cells cannot drift by row content.
 - The `Duration` scan column was removed because duration is already carried as a compact badge. The remaining desktop columns are `Material`, `Items`, `Updated`, and a fixed-width action rail.
 - Row actions are icon-only controls with accessible names and a four-slot fixed rail. Slot ownership lives in the row view model from `materialListAdapter.js`: slot 1 is edit/view/use-as-is/complete, slot 2 is delete, slot 3 is start/clone, and slot 4 is assign homework.

@@ -23,6 +23,8 @@ Current anchors:
 
 The Teacher Lobby is both a material listing surface and the normal teacher entry point for creating tests. Data-loading scope is documented separately in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Compact list-view rendering is documented separately in `documentation/architecture/teacher-materials-list-view-contract.md`.
 
+Selected-material toolbar actions are documented separately in `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
+
 ## Creation Entry Contract
 
 Teachers start new material creation from the lobby `Create New Test` action.
@@ -82,6 +84,8 @@ Required rules:
 
 List mode is not a widened card implementation. It must follow `documentation/architecture/teacher-materials-list-view-contract.md` for grid columns, action slots, typography, and desktop overflow gates.
 
+Selected-material actions must stay inside the Materials content area. Do not move selection toolbar controls into `TeacherHeader`, and do not let bulk action state rewrite card/list loading contracts.
+
 ## Teacher Header Responsive Contract
 
 `TeacherHeader` keeps teacher chrome visible while preventing tab overflow.
@@ -127,6 +131,8 @@ These patterns are obsolete for the current Teacher Lobby create/navigation flow
 - wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
 - replacing the shared teacher header visual language when only compact density was requested
 - moving page-level library tabs or filter controls into `TeacherHeader`
+- keeping selected-material actions Reading Passage-only after another tab has a supported selected-material action
+- using selected-material actions to bypass material-specific confirmation or lifecycle modals
 
 Historical docs may still mention these patterns as original PRD targets or pre-refactor behavior. Treat those references as historical unless this document explicitly delegates ownership elsewhere.
 
@@ -146,6 +152,7 @@ Use these checks when changing this surface:
 
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
+- `documentation/architecture/teacher-materials-bulk-selection-actions.md`
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`

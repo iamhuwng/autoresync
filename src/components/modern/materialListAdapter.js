@@ -197,6 +197,7 @@ function action({
   variant = 'secondary',
   iconKind,
   onSelect,
+  onError,
   disabled = false,
   disabledReason,
   assignability,
@@ -209,6 +210,7 @@ function action({
     variant,
     iconKind,
     onSelect,
+    onError,
     disabled,
     disabledReason,
     assignability,
@@ -227,6 +229,7 @@ function buildPublicActions(item, handlers) {
         variant: 'secondary',
         iconKind: 'use-as-is',
         onSelect: () => handlers?.onUseAsIs?.(item),
+        onError: handlers?.onActionError,
       }),
       action({
         key: 'clone',
@@ -234,6 +237,7 @@ function buildPublicActions(item, handlers) {
         variant: 'primary',
         iconKind: 'clone',
         onSelect: () => handlers?.onClone?.(item),
+        onError: handlers?.onActionError,
       }),
       ...(assignability.assignable ? [
         action({
@@ -242,6 +246,7 @@ function buildPublicActions(item, handlers) {
           variant: 'outline',
           iconKind: 'assign-homework',
           onSelect: () => handlers?.onAssignHw?.(item, assignability),
+          onError: handlers?.onActionError,
           assignability,
           priority: 'secondary',
         }),
@@ -256,6 +261,7 @@ function buildPublicActions(item, handlers) {
       variant: 'secondary',
       iconKind: 'view',
       onSelect: () => handlers?.onEdit?.(item),
+      onError: handlers?.onActionError,
     }),
     ...(item?.isComplete === false ? [] : [
       action({
@@ -264,6 +270,7 @@ function buildPublicActions(item, handlers) {
         variant: 'primary',
         iconKind: 'play',
         onSelect: () => handlers?.onStartTest?.(item.id),
+        onError: handlers?.onActionError,
       }),
     ]),
   ];
@@ -275,6 +282,7 @@ function buildPublicActions(item, handlers) {
       variant: 'outline',
       iconKind: 'assign-homework',
       onSelect: () => handlers?.onAssignHw?.(item, assignability),
+      onError: handlers?.onActionError,
       assignability,
       priority: 'secondary',
     }));
@@ -294,6 +302,7 @@ function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
       variant: 'secondary',
       iconKind: canEdit ? 'edit' : 'view',
       onSelect: () => handlers?.onEdit?.(item),
+      onError: handlers?.onActionError,
     }),
   ];
 
@@ -304,6 +313,7 @@ function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
       variant: 'danger',
       iconKind: 'delete',
       onSelect: () => handlers?.onDelete?.(item),
+      onError: handlers?.onActionError,
     }));
   }
 
@@ -314,6 +324,7 @@ function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
       variant: 'primary',
       iconKind: 'play',
       onSelect: () => handlers?.onStartTest?.(item.id),
+      onError: handlers?.onActionError,
     }));
   }
 
@@ -324,6 +335,7 @@ function buildOwnedActions(item, { canEdit = true, handlers = {} } = {}) {
       variant: 'outline',
       iconKind: 'assign-homework',
       onSelect: () => handlers?.onAssignHw?.(item, assignability),
+      onError: handlers?.onActionError,
       assignability,
       priority: 'secondary',
     }));
@@ -338,16 +350,20 @@ export function buildTestMaterialListRow(item, options = {}) {
     canEdit = true,
     isOwner = true,
     isPublicLibrary = false,
+    selectable = false,
+    selected = false,
+    selectionDisabled = false,
     handlers = {},
   } = options;
 
   const assignability = resolveTeacherLobbyAssignability(item, { family: 'test' });
+  const title = getTitle(item);
 
   return {
     id: String(item?.id || item?.materialId || `material-${index}`),
     source: item,
-    title: getTitle(item),
-    titleTooltip: getTitle(item),
+    title,
+    titleTooltip: title,
     iconKind: getIconKind(item),
     accentKind: getAccentKind(item, index),
     badges: buildBadges(item),
@@ -358,6 +374,12 @@ export function buildTestMaterialListRow(item, options = {}) {
     isOwner,
     disabledReason: item?.isComplete === false ? 'Complete the material before starting a session' : undefined,
     assignability,
+    selection: selectable ? {
+      checked: selected,
+      label: `Select ${title}`,
+      disabled: selectionDisabled,
+      onChange: () => handlers?.onToggleSelection?.(item),
+    } : undefined,
     actions: isPublicLibrary
       ? buildPublicActions(item, handlers)
       : buildOwnedActions(item, { canEdit, handlers }),
@@ -639,7 +661,6 @@ export function toReadingPassageRowModel(record, options = {}) {
     selection: record?.archived === true || record?.scope === 'archived' || record?.selectable === false ? undefined : {
       checked: selected,
       label: `Select ${title}`,
-      disabled: Boolean(assignmentBlocker),
       onChange: () => handlers.onToggleReadingPassageSelection?.(rowSource),
     },
     actions,

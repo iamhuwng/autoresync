@@ -13,12 +13,15 @@ It exists because the list view is not a widened one-column card grid. It is a s
 - `src/components/modern/MaterialViewModeToggle.jsx`
 - `src/components/modern/MaterialListView.jsx`
 - `src/components/modern/MaterialListRow.jsx`
+- `src/components/modern/MaterialSelectionToolbar.jsx`
 - `src/components/modern/materialListAdapter.js`
 - `src/components/modern/materialVisualTaxonomy.js`
 
 Data-loading scope remains owned by `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
 
 Authoring entry, search bar ownership, grid-card behavior, and teacher navigation remain owned by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`.
+
+Selected-material toolbar policy is owned by `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 
 ## View Mode Contract
 
@@ -94,6 +97,12 @@ Buttons are icon-only visually, with `aria-label` and `title` preserving accessi
 
 Reading Passage archive uses the teacher-facing action label `Remove from library`, not hard-delete language. The restore action appears only in archived Reading Passage scope and occupies the fixed restore/action slot without changing row geometry.
 
+## Selection Contract
+
+Rows may expose an optional `selection` view-model object. Selection affordance must not resize fixed action slots, add a new scan column, or move row actions out of the action rail.
+
+Selected-row state is only an input to the page-level `MaterialSelectionToolbar`. Bulk action policy belongs in `TeacherLobbyPage.jsx` and `documentation/architecture/teacher-materials-bulk-selection-actions.md`, not in row CSS.
+
 ## Typography Contract
 
 The list view uses restrained hierarchy. Do not make every visible text element bold.
@@ -132,7 +141,7 @@ Rows must not hydrate:
 
 My Content and Public Library support grid and list modes.
 
-Drafts remain grid-only in PRD-0050. `useTeacherDrafts` still loads only when the Drafts tab is active.
+Drafts remain grid-only for PRD-0050 list rendering. `useTeacherDrafts` still loads only when the Drafts tab is active, and Draft card-level selected-material actions are governed by `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 
 Public Library rows must not expose owner-only actions such as `Delete`.
 
@@ -150,6 +159,8 @@ These patterns are obsolete for Teacher Lobby Materials list mode:
 - optional action overflow menus used to hide a broken action rail at desktop widths
 - fake status or folder filters without backed data and handlers
 - hard-delete wording for reversible Reading Passage archive actions
+- Reading Passage-only selected-material tooling when other tabs have supported selected-material actions
+- changing list row geometry to host selected-material toolbar controls
 
 Historical PRD/mockup text may still mention some of these ideas as design exploration. Treat this architecture contract as the release-source of truth after PRD-0050 implementation review.
 

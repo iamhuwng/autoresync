@@ -2,7 +2,7 @@
 title: Teacher Lobby Authoring Navigation Contract
 description: Current Teacher Lobby authoring, material-card, search, compact header, and responsive teacher-header contract.
 createdAt: '2026-05-11T17:29:15.396Z'
-updatedAt: '2026-06-15T00:00:00.000Z'
+updatedAt: '2026-07-06T00:00:00.000Z'
 tags:
   - architecture
   - teacher-lobby
@@ -35,6 +35,8 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 - Reading V2 uses the same modal entry and forwards metadata/start mode into Studio.
 - Reading V1 and Quiz are retired and must not appear as active teacher creation/runtime choices. See @doc/architecture/retired-features-current-state.
 - Successful non-revision Reading V2 publish returns the teacher to the Lobby/Materials context; do not leave the same Studio shell open as if live published content were still being edited there.
+- Selected-material toolbar actions stay inside the Materials content area and are governed by @doc/architecture/teacher-materials-bulk-selection-actions.
+- Selected-material actions must choose actions from selected material type and state, not from tab name alone.
 - `SearchFilterBar` search input uses the shared SVG `SearchIcon`; do not use emoji-only input icons.
 - Material-card titles clamp to two visible lines and expose the full title through native title/tooltip text.
 - `TeacherHeader` owns the shared teacher header design and must render as a top-level page/shell child attached to the top edge.
@@ -59,11 +61,14 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 - wrapping `TeacherHeader` in per-page padding/margins that detach it from the top page edge
 - replacing the shared teacher header visual language when only compact density was requested
 - moving page-level library tabs or filter controls into `TeacherHeader`
+- keeping selected-material actions Reading Passage-only after other tabs have supported selected-material actions
+- bypassing material-specific confirmation or lifecycle modals from selected-material actions
 
 ## Repo Docs
 
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
+- `documentation/architecture/teacher-materials-bulk-selection-actions.md`
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`
