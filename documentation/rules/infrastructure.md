@@ -109,6 +109,29 @@ reading_v2/audit_events/{eventId}
 
 This node is append-only. Do not reuse legacy `audit_logs` for PRD-0054 Reading V2 archive, restore, repair, or duplicate-decision audit events. Rule tests must prove create is allowed only for valid authenticated state-changing events, update/delete are denied, reads are super-admin only, and unsafe payload fields are denied.
 
+### Class Management Coupled Paths
+
+Class lifecycle changes must review these RTDB paths together:
+
+```text
+classes/{classId}
+student_classes/{studentId}/{classId}
+game_sessions/{classId}
+```
+
+Rules:
+- `classes/{classId}` is class lifecycle authority
+- `student_classes` is a student-shell projection and may be cleaned up
+  best-effort after canonical lifecycle writes
+- class-backed `game_sessions/{classId}` rows are legacy compatibility shadows,
+  not class lifecycle authority
+- do not place optional projection cleanup or legacy shadow cleanup in the same
+  must-succeed write as the canonical class lifecycle update when rules differ
+- focused class-management tests must cover source-of-truth success plus
+  projection-cleanup failure
+
+Canonical doc: `documentation/architecture/teacher-class-management-lifecycle.md`
+
 ---
 
 ## Rule 13 — Client-Driven Multi-Step for Heavy Serverless Workloads
@@ -128,6 +151,19 @@ On 2026-02-25, a backup Worker needed to read 25 RTDB nodes + 9 Firestore collec
 5. Each step must be independently completable and idempotent
 
 **Self-check:** *"Can this Worker complete ALL its work within the platform's time limit?"*
+
+### Session Lifecycle Boundary
+
+Session expiration correctness must not depend on a Worker cron, Firebase
+scheduled Function, browser cleanup loop, or full active-session scan. The
+approved Spark/Workers-Free design derives effective status from
+`game_sessions/{sessionCode}.expiresAt` plus RTDB server-time rules, and uses
+`owner_session_index/{ownerId}/{sessionCode}` only for owner-scoped discovery.
+
+Do not add session lifecycle work to `r2-backup-worker`. That Worker remains a
+backup/trusted-storage boundary. If a future paid reconciler is approved, it
+must materialize status only; it must not change the domain policy that server
+rules enforce expiry at write time.
 
 ---
 

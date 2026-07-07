@@ -130,9 +130,10 @@ const withoutUndefined = <T extends Record<string, unknown>>(value: T): T =>
 
 export const createLegacyTestMaterialSummary = (
   materialIdInput: string,
-  test: LegacyTestRecord,
+  testInput: Readonly<object>,
   lifecycleState?: MaterialSummary['lifecycleState'],
 ): MaterialSummary => {
+  const test = record(testInput);
   const materialId = materialIdInput.trim();
   const ownerId = (
     nonEmpty(test.ownerId) ??

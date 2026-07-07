@@ -21,6 +21,7 @@ export interface FeatureDefinition {
 }
 
 export const FEATURE_IDS = {
+  adminPanel: 'adminPanel',
   antiCheat: 'antiCheat',
   classes: 'classes',
   grading: 'grading',
@@ -499,7 +500,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'User authentication and authorization',
   },
   {
-    id: 'adminPanel',
+    id: FEATURE_IDS.adminPanel,
     name: 'Admin Panel',
     routes: ['/admin/*'],
     actions: [
@@ -526,6 +527,16 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'approvePublicBookReview',
       'rejectPublicBookReview',
       'returnPublicBookToPrivate',
+      'adminLogout',
+      'navigateAdminSection',
+      'refreshSessions',
+      'openCreateSession',
+      'closeCreateSession',
+      'createSession',
+      'joinSession',
+      'endSession',
+      'deleteSession',
+      'extendSession',
     ],
     description: 'Super admin management panel',
   },

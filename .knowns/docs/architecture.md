@@ -16,6 +16,13 @@ tags:
 
 A React 19 SPA with Firebase backend. 3 user roles (Admin, Teacher, Student) with route-level RBAC.
 
+Current session lifecycle authority lives in
+@doc/architecture/session-lifecycle-authority. Session expiry is derived from
+canonical `game_sessions/{sessionCode}` plus RTDB server `now`; active teacher
+lists use `owner_session_index/{ownerId}/{sessionCode}` for owner-scoped
+discovery only. Browser cleanup, Firebase scheduled Functions, Cloudflare
+lifecycle cron, and `r2-backup-worker` lifecycle scans are obsolete.
+
 ## Architecture Layers
 
 ```
@@ -83,8 +90,9 @@ A React 19 SPA with Firebase backend. 3 user roles (Admin, Teacher, Student) wit
 ### Test Lifecycle
 ```
 Teacher creates test → Stored in RTDB /tests/{id}
-Teacher starts session → Session created at /sessions/{id}
-Students join → Status tracked at /sessions/{id}/participants
+Teacher starts session → Session created at /game_sessions/{code}
+Students join → Status tracked at /game_sessions/{code}/players
+Teacher active list → Discovered via /owner_session_index/{ownerId}/{code}
 Timer runs → Synced via RTDB real-time listeners
 Student submits → Results at /results/{id} → Scores computed
 ```
@@ -119,6 +127,7 @@ Source: @doc/system/architecture-assessment-2026-02
 
 1. **Firebase RTDB over Firestore** — Chosen for real-time sync in live test sessions
 2. **Cloudflare R2 over Firebase Storage** — Cost-effective file storage with Workers proxy
-3. **No Mantine** — Migrating to vanilla CSS/HTML for bundle size and control (@doc/system/no-mantine-rule)
-4. **Zustand over Redux** — Simpler state management for this scale
-5. **Role-prefixed pages** — Trade-off: easy to find by role, hard to navigate at scale
+3. **Derived session lifecycle** — Expiry is enforced by RTDB rules using server `now`; no lifecycle cron or browser cleanup loop
+4. **No Mantine** — Migrating to vanilla CSS/HTML for bundle size and control (@doc/system/no-mantine-rule)
+5. **Zustand over Redux** — Simpler state management for this scale
+6. **Role-prefixed pages** — Trade-off: easy to find by role, hard to navigate at scale

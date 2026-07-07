@@ -2,7 +2,7 @@
 title: README
 description: Project overview, tech stack, key domains, and critical rules. The primary entry point for understanding this project.
 createdAt: '2026-02-27T15:56:46.139Z'
-updatedAt: '2026-04-05T14:27:03.306Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - core
   - overview
@@ -36,11 +36,15 @@ A **web-based educational platform** for English language teaching (IELTS + THCS
 1. **Test System** — IELTS Reading/Listening + THCS/THPT multi-choice tests
    - Create → Edit → Live Session → Monitor → Grade → Results
    - Solo practice + Homework modes
+   - Live-session expiry is derived from `game_sessions.expiresAt` and RTDB server `now`; owner active lists use `owner_session_index` discovery. See @doc/architecture/session-lifecycle-authority.
    - Retired: Quiz and Reading V1 are not active creation/runtime paths. See @doc/architecture/retired-features-current-state.
    - See @doc/prd/prd-thcs-phase-1, @doc/prd/prd-thcs-phase-2, @doc/prd/prd-thcs-phase-3
 
 2. **User System** — Role-based (Admin, Teacher, Student)
    - Class enrollment, course management
+   - Class delete authority is `classes/{classId}.status`; `student_classes`
+     cleanup is best-effort and class-backed `game_sessions/{classId}` rows are
+     legacy shadows. See @doc/architecture/teacher-class-management-lifecycle.
    - See @doc/prd/prd-login-system, @doc/prd/prd-rbac-security
 
 3. **Student Experience** — Dashboard, academic record, solo practice
@@ -70,13 +74,13 @@ See @doc/architecture for detailed architecture breakdown.
 ## Critical Rules
 
 - **NO MANTINE** — See @doc/system/no-mantine-rule
-- **Integration Safety** — See @doc/integration-safety-rules (12 rules from production bugs)
+- **Integration Safety** — See @doc/integration-safety-rules (category-indexed production bug rules)
 - **Student View Design** — See @doc/design/student-view-design-standard
 
 ## Firebase Structure
 
 - **Auth** — Email/password, role stored in RTDB `/users/{uid}/role`
-- **Realtime Database** — Primary data store (tests, classes, sessions, results)
+- **Realtime Database** — Primary data store (tests, classes, `game_sessions`, `owner_session_index`, results)
 - **Hosting** — Production deployment
 - **R2 Workers** — File upload proxy to Cloudflare R2
 

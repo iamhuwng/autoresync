@@ -31,6 +31,15 @@ The teacher-materials bulk-library branch touches two result-related files witho
 
 Required governance docs updated in the same branch: `result-view-map.md`, `result-view-permission-matrix.md`, and `result-view-fr-closure-matrix.md`. No PRD-0040 FR closure status changed.
 
+## 0.2 2026-07-08 Session Lifecycle Recovery Governance Note
+
+The session lifecycle recovery branch touches the same result-related files without changing result-view architecture:
+
+- `src/config/featureRegistry.ts`: restores admin panel session-management action names. This remains observability metadata and does not add a result route, result host, or result surface.
+- `src/hooks/test/useTestSubmission.ts`: handles `session-expired` mutation failures through `resolveSessionMutationFailure()`, shows the shared toast error, and returns before the player-submitted mutation. The canonical session/post-test result writer contract is unchanged.
+
+Required governance docs updated in the same branch: `result-view-map.md`, `result-view-permission-matrix.md`, and `result-view-fr-closure-matrix.md`. No PRD-0040 FR closure status changed.
+
 ## 1. Saved-Result Shells
 
 ### 1.1 ResultSlidePanel (Student Shell)

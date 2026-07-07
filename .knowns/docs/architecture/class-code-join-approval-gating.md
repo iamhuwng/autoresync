@@ -2,7 +2,7 @@
 title: Class-Code Join Approval Gating
 description: Defines the pending-approval versus active enrollment contract for class-code joins, teacher approval actions, student shell visibility, and linked class-course inheritance.
 createdAt: '2026-04-09T07:59:09.751Z'
-updatedAt: '2026-04-09T07:59:09.751Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - architecture
   - enrollment
@@ -101,6 +101,21 @@ Teacher class management owns the transition out of `pending_approval`.
 - remove the projection entry
 - clean up class-based course inheritance
 
+### Delete Class
+
+`deleteClass()` is a class lifecycle action, not a per-student approval action.
+
+Required rules:
+- soft-delete `classes/{classId}` as the canonical success boundary
+- remove `student_classes/{studentId}/{classId}` projection entries
+  best-effort only
+- do not update class-backed `game_sessions/{classId}` shadow rows during
+  delete
+- student-facing readers must hide stale projections whose canonical class row
+  is missing or deleted
+
+Deleting a class must not be implemented as a legacy session status update.
+
 ## Student Shell Read Contract
 
 Student shell pages consume class membership through the shared shell owner.
@@ -136,5 +151,6 @@ Current regression anchors:
 ## Related Docs
 
 - @doc/architecture/course-class-management
+- @doc/architecture/teacher-class-management-lifecycle
 - @doc/architecture/student-shell-data-loading-architecture
 - @doc/architecture/architecture-student-teacher-assignment-class-enrollment

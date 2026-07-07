@@ -106,6 +106,7 @@ Current repo anchor for student class surfaces:
 - `getStudentClasses()` should read `student_classes/{studentId}/{classId}` as the student-owned membership projection
 - fallback scans of top-level `classes` are legacy compatibility behavior only and must not be the long-term steady-state design
 - class enrollment, approval, removal, and delete flows own projection maintenance; student page loads must not repair missing membership rows
+- `student_classes` rows may outlive a soft-deleted or missing canonical class if best-effort cleanup fails; student readers must verify `classes/{classId}` exists and is not `status: 'deleted'` before exposing the class
 
 ## 7. Bulk Enrichment, Never Per Card
 

@@ -14,6 +14,21 @@ tags:
 ---
 # Integration Safety Rules
 
+## Current Authority Note (2026-07-06)
+
+This Known mirror is historical but still useful. The active rule index is
+`documentation/integration-safety-rules.md`, which routes to category files
+under `documentation/rules/`.
+
+Current session lifecycle rule: do not use browser cleanup, Firebase scheduled
+Functions, Cloudflare lifecycle cron, or `r2-backup-worker` scans for expiry
+correctness. Use derived status from canonical `game_sessions` plus RTDB server
+`now`; use `owner_session_index` only for owner-scoped active-list discovery.
+
+Current Rule 15 enforcement: `npm run lint:mantine` and
+`.github/workflows/mantine-boundary.yml`. Runtime/Vite console warnings are
+obsolete as an enforcement boundary.
+
 > Derived from real production bugs discovered on **2026-02-22**.
 > Updated **2026-02-25** with backup system rules (Rules 11-14).
 > These rules apply to ALL navigation, notification, session-entry, data-service, and **serverless Worker** code in this project.

@@ -63,6 +63,11 @@ The shared shell owner is responsible for:
 Visibility rule:
 - shell-owned enrolled class membership summaries must include only student-visible memberships
 - `pending_approval` and `removed` membership states must stay out of shell-owned class summaries even if the raw roster or projection record already exists
+- stale `student_classes` projection rows must stay out of shell-owned class
+  summaries when the canonical `classes/{classId}` row is missing or has
+  `status: 'deleted'`
+- student page loads must not repair or delete stale projection rows while
+  reading
 
 Right-rail upcoming, live-session, and class summary projections remain shell-owned even when dashboard-specific components restate them in a page-shaped composition.
 
@@ -216,6 +221,7 @@ For startup-sensitive changes on the student path, also verify:
 - `documentation/architecture/student-startup-bundle-segmentation.md`
 - `documentation/architecture/academic-record/page-architecture.md`
 - `documentation/architecture/class-code-join-approval-gating.md`
+- `documentation/architecture/teacher-class-management-lifecycle.md`
 - `documentation/architecture/course-class-management.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/rules/student-data-loading.md`
