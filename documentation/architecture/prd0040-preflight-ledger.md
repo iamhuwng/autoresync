@@ -22,6 +22,15 @@ This file contains both a frozen preflight baseline and historical verification 
 - `useTestSubmission.ts` now persists `resultId` back onto class-assignment progress when class-assignment context is available, so new submissions repair the canonical deep-link path automatically.
 - `featureRegistry.ts` and `App.jsx` now cover `/guest-results`, `/teacher/results`, `/submission-complete`, and `/profile/complete` as result-domain surfaces; the registry remains observability metadata, not the authoritative surface inventory.
 
+## 0.1 2026-07-07 Teacher Materials Bulk Library Governance Note
+
+The teacher-materials bulk-library branch touches two result-related files without changing result-view architecture:
+
+- `src/config/featureRegistry.ts`: adds Teacher Materials bulk action names for selected-material assign/delete/archive tracking. This is observability metadata only and does not add a result route, result host, or result surface.
+- `src/hooks/test/useTestSubmission.ts`: replaces the failed canonical persistence `alert()` with `toast.error('Failed to submit test. Please try again.')`. The submission flow still aborts before marking the player submitted when `saveTestResult()` fails, preserving the existing canonical writer contract.
+
+Required governance docs updated in the same branch: `result-view-map.md`, `result-view-permission-matrix.md`, and `result-view-fr-closure-matrix.md`. No PRD-0040 FR closure status changed.
+
 ## 1. Saved-Result Shells
 
 ### 1.1 ResultSlidePanel (Student Shell)

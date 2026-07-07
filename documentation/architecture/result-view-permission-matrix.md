@@ -26,6 +26,10 @@ PRD-0043 imported homework Writing submissions remain governed by the existing `
 
 `sourceMaterialRemoved: true` is not an ownership, visibility, or permission signal. It only tells result consumers to avoid reloading retired source material and to render retained saved-result data. Teacher/student access continues to use the existing rows in this matrix, and purge tooling must preserve completed results plus every result index.
 
+## 2026-07-07 Teacher Materials Bulk Library Note
+
+Teacher Materials bulk assign/delete/archive action registration in `featureRegistry.ts` is observability metadata only. The `useTestSubmission` change in the same branch replaces a failure-path browser alert with the shared toast announcement after canonical result persistence fails. It does not change ownership source precedence, teacher include/exclude rules, teacher indexing, analytics classification, archived/deleted behavior, or backend rule dependencies in the matrix below.
+
 ## Global Rules
 
 - Teacher access always starts with the outer `student_teacher_assignments` gate.
