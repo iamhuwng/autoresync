@@ -1,27 +1,14 @@
-import { getAuth } from 'firebase/auth';
-
 import type {
   ListeningAuthoringDocumentV1,
   ListeningAuthoringIssue,
   ListeningRetainedPins,
 } from '../types/listeningAuthoring.types';
-import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../../../../services/r2WorkerEndpoint';
+import { createTrustedPost } from './listeningAuthoringTransport';
+import type { ListeningAuthoringWorkflowDependencies } from './listeningAuthoringTransport';
 
-type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
-type ObservabilitySink = (actionName: string, metadata: Record<string, unknown>) => void;
-
-export interface ListeningAuthoringEndpointEnv {
-  readonly DEV?: boolean;
-  readonly VITE_LISTENING_AUTHORING_WORKER_URL?: string;
-  readonly VITE_R2_UPLOAD_WORKER_URL?: string;
-}
-
-export interface ListeningAuthoringWorkflowDependencies {
-  readonly endpoint?: string;
-  readonly getIdToken?: () => Promise<string | null | undefined>;
-  readonly fetchImpl?: FetchLike;
-  readonly onObservabilityEvent?: ObservabilitySink;
-}
+export type { ListeningAuthoringEndpointEnv } from './listeningAuthoringEndpoint';
+export { resolveListeningAuthoringEndpoint } from './listeningAuthoringEndpoint';
+export type { ListeningAuthoringWorkflowDependencies } from './listeningAuthoringTransport';
 
 export interface SaveListeningDraftRequest {
   readonly idempotencyKey: string;
@@ -141,138 +128,6 @@ export type ListeningLifecycleResult =
       readonly requiredOperation?: string;
       readonly operationId?: string;
     };
-
-const defaultEnv = (): ListeningAuthoringEndpointEnv =>
-  (import.meta.env ?? {}) as ListeningAuthoringEndpointEnv;
-
-const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, '');
-
-const readBrowserHostname = (): string | undefined => {
-  const browserGlobal = globalThis as typeof globalThis & {
-    readonly location?: { readonly hostname?: unknown };
-  };
-
-  return typeof browserGlobal.location?.hostname === 'string'
-    ? browserGlobal.location.hostname
-    : undefined;
-};
-
-const isLocalDevHost = (hostname: string | undefined): boolean =>
-  hostname === 'localhost'
-  || hostname === '127.0.0.1'
-  || hostname === '::1'
-  || hostname === '[::1]';
-
-const readEndpointDiagnostics = (env: ListeningAuthoringEndpointEnv = defaultEnv()) => {
-  const hostname = readBrowserHostname();
-  return {
-    dev: env.DEV === true,
-    hasAuthoringWorkerUrl: Boolean(env.VITE_LISTENING_AUTHORING_WORKER_URL?.trim()),
-    hasR2UploadWorkerUrl: Boolean(env.VITE_R2_UPLOAD_WORKER_URL?.trim()),
-    hostname,
-    isLocalDevHost: isLocalDevHost(hostname),
-  };
-};
-
-export function resolveListeningAuthoringEndpoint(
-  env: ListeningAuthoringEndpointEnv = defaultEnv(),
-  hostname: string | undefined = readBrowserHostname(),
-): string {
-  const explicit = (
-    env.VITE_LISTENING_AUTHORING_WORKER_URL?.trim()
-    || env.VITE_R2_UPLOAD_WORKER_URL?.trim()
-  );
-  if (explicit) {
-    return trimTrailingSlashes(explicit);
-  }
-
-  return DEFAULT_R2_UPLOAD_WORKER_URL;
-}
-
-const defaultGetIdToken = async (): Promise<string | null | undefined> =>
-  getAuth().currentUser?.getIdToken();
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-
-const readErrorMessage = (body: unknown, fallback: string): string => {
-  if (isRecord(body) && typeof body.message === 'string' && body.message.trim()) {
-    return body.message;
-  }
-  return fallback;
-};
-
-const readStatus = (body: unknown): string | null =>
-  isRecord(body) && typeof body.status === 'string' ? body.status : null;
-
-const readIdempotencyHeaders = (body: unknown): Record<string, string> => {
-  if (!isRecord(body) || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.trim()) {
-    return {};
-  }
-
-  return { 'Idempotency-Key': body.idempotencyKey };
-};
-
-async function readJsonBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function createTrustedPost(dependencies: ListeningAuthoringWorkflowDependencies) {
-  return async <T>(
-    path: string,
-    body: unknown,
-    recoverableStatuses: readonly string[],
-  ): Promise<T> => {
-    const endpoint = trimTrailingSlashes(
-      dependencies.endpoint?.trim() || resolveListeningAuthoringEndpoint(),
-    );
-    if (!endpoint) {
-      if (defaultEnv().DEV === true) {
-        console.error('[listening-authoring] endpoint missing', readEndpointDiagnostics());
-      }
-      throw new Error('listening_authoring_endpoint_missing');
-    }
-
-    const token = await (dependencies.getIdToken ?? defaultGetIdToken)();
-    if (!token) {
-      throw new Error('listening_authoring_auth_required');
-    }
-
-    const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch?.bind(globalThis);
-    if (!fetchImpl) {
-      throw new Error('listening_authoring_fetch_unavailable');
-    }
-
-    const response = await fetchImpl(`${endpoint}/${path}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...readIdempotencyHeaders(body),
-      },
-      body: JSON.stringify(body),
-    });
-    const responseBody = await readJsonBody(response);
-
-    if (response.ok) {
-      return responseBody as T;
-    }
-
-    const status = readStatus(responseBody);
-    if (status && recoverableStatuses.includes(status)) {
-      return responseBody as T;
-    }
-
-    throw new Error(readErrorMessage(
-      responseBody,
-      `Listening authoring request failed with HTTP ${response.status}.`,
-    ));
-  };
-}
 
 export function createListeningAuthoringWorkflow(
   dependencies: ListeningAuthoringWorkflowDependencies = {},
