@@ -9,6 +9,8 @@
 
 ---
 
+> **2026-07-07 supersession note:** The universal MaterialSummary architecture now supersedes the V1 duplicate-exclusion clauses that kept Books and Reading Passages out of top-level `My Content` and `Public Library`. Dedicated Book and Reading Passage tabs still own specialized editing, scope controls, archive, and package workflows, but universal Teacher Materials discovery must include every supported active summary through `material_summary_indexes/v1`.
+
 ## 1. Introduction / Overview
 
 ### 1.1 Problem Statement
@@ -827,8 +829,9 @@ Rules:
 - `Public` shows public Reading Passages available to the teacher.
 - This control does not navigate to the top-level `My Content` or `Public Library` Materials tabs.
 - Public Reading Passages in V1 remain Reading Passage rows, not normal material rows in the top-level `Public Library` tab.
+- 2026-07-06 current-state note: the selected-material toolbar is now shared across Teacher Materials tabs; this PRD section describes the Reading Passage-specific actions within that toolbar.
 - `Assign selected` creates one combined homework set from selected Reading Passages.
-- `Create full test from selected` creates a saved reusable full Reading test composition/material.
+- `Create full test from selected` creates a saved reusable full Reading test composition/material and remains Reading Passage-only.
 - The tab still has no primary `Create Reading Passage` CTA.
 
 Book row actions:

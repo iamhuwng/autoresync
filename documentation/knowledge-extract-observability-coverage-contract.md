@@ -55,6 +55,8 @@ Rule:
 - If a user-facing action changes, update `actions`
 - If the feature no longer exists, remove the registry entry instead of leaving stale observability metadata behind
 
+Teacher Materials selected-material actions follow the same registry rule. Use generic action names for the shared toolbar surface (`assignSelectedMaterials`, `deleteSelectedMaterials`, `archiveSelectedMaterials`) and keep type-specific workflows as separate action names when the user sees a distinct path (`assignSelectedReadingPassages`, `createReadingFullTestFromSelectedPassages`, `teacher_materials_reading_passage_archived`, `master_delete_requested`, `archiveBook`).
+
 ### 2.2 Page Views Should Be Automatic at the Route Boundary
 
 `src/components/TrackedRoute.tsx` is intentionally thin:

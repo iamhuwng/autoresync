@@ -17,7 +17,7 @@ function timeAgo(updatedAt) {
   return 'Just now';
 }
 
-const DraftCard = ({ draft, index, onResume, onDelete }) => {
+const DraftCard = ({ draft, index, onResume, onDelete, selection }) => {
   const meta = draft.metadata || {};
   const isWritingDraft = draft?.draftKind === 'writing' || (draft?.testType === 'IELTS' && String(draft?.skill || '').toLowerCase() === 'writing');
   const taskCount = Array.isArray(draft?.tasks)
@@ -33,6 +33,7 @@ const DraftCard = ({ draft, index, onResume, onDelete }) => {
       key={draft.id}
       variant={variant}
       hover
+      className={`draft-card${selection?.checked ? ' draft-card--selected' : ''}`}
       style={{
         height: '100%',
         display: 'flex',
@@ -42,6 +43,17 @@ const DraftCard = ({ draft, index, onResume, onDelete }) => {
       }}
     >
       <CardBody style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {selection && (
+          <label className="draft-card__selection">
+            <input
+              type="checkbox"
+              checked={selection.checked}
+              disabled={selection.disabled}
+              aria-label={selection.label}
+              onChange={selection.onChange}
+            />
+          </label>
+        )}
         <div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <h3

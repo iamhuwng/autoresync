@@ -181,7 +181,7 @@ Status: Draft
 - Reading V2 full-test composition contract: a composition-backed full Reading test is required. Add a canonical `ReadingV2FullTestComposition` record with ordered `passageRefs[]`; new full-test metadata must point to this composition. Compatibility reads may keep old full tests working, but new V2 full-test publish/composition flow must not store duplicate passage payload as the only source of truth.
 - Reading Passage source-order contract: source order must support `numeric`, `label`, and `unknown` states. Store a structured kind, raw value, label snapshot, and display fallback. Never invent `Passage 1` when source order is unknown.
 - Reading Passage edit contract: opening/editing a published Reading Passage directly must create or open a draft revision. Live published snapshot/version remains unchanged until republish. Editing a referenced passage from inside a full test defaults to a test-specific fork/new version.
-- Reading Passage selection contract: multi-select in the `Reading Passage` tab is required in V1. The selection toolbar must expose `Assign selected` and `Create full test from selected`.
+- Reading Passage selection contract: multi-select in the `Reading Passage` tab is required in PRD-0052 V1. As of 2026-07-06, this Reading Passage-only toolbar scope is superseded by the shared Teacher Materials selected-material toolbar in `documentation/architecture/teacher-materials-bulk-selection-actions.md`; `Create full test from selected` remains Reading Passage-only.
 - Reading Passage default scope: default `Reading Passage` tab scope is `Private`.
 - Reading Passage row actions contract: every row supports `Open` or `View`, `Assign homework`, selection checkbox, owner-only `Archive`, owner-only `Delete` only if existing shared material deletion with confirmation already exists, and revision/fork entry when the user can edit.
 - Reading Passage homework result contract: single-passage and set homework results must identify material kind, passage title, source order/source full-test metadata when available, assigned snapshot/version, attempt number, and existing retake/attempt policy.
@@ -515,6 +515,7 @@ Status: Draft
   - [x] 12.11 Add edit/revision entry for owned published Reading Passages; it must create/open a draft revision, not mutate live published content.
   - [x] 12.12 Add required multi-select checkboxes for Reading Passage rows.
   - [x] 12.13 Add selection toolbar actions `Assign selected` and `Create full test from selected`.
+  - [x] 12.13a 2026-07-06 current-state note: PRD-0052 Reading Passage selection shipped first, but selected-material tooling now also exists on My Content, Public Library, Drafts, and Book tabs with tab-specific actions. See `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
   - [x] 12.14 Bulk-selected Reading Passages can create one combined homework set.
   - [x] 12.15 Bulk-selected Reading Passages can create a reusable full Reading test composition.
   - [x] 12.16 Do not add blank/manual `Create Reading Passage` CTA.
