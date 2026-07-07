@@ -1,8 +1,8 @@
 ---
 title: Reading V2 Material Publish And Passage Library
-description: Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, Material Catalog indexes, safe projections, homework completion, and Reading V1 boundary.
+description: Reading V2 PRD-0052 publish contract for full-test master materials, generated Reading Passage materials, universal MaterialSummary discovery, legacy helper indexes, safe projections, homework completion, and Reading V1 boundary.
 createdAt: '2026-06-03T00:00:00.000Z'
-updatedAt: '2026-06-16T00:00:00.000Z'
+updatedAt: '2026-07-07T00:00:00.000Z'
 tags:
   - architecture
   - reading-v2
@@ -36,7 +36,8 @@ Each generated Reading Passage must have:
 - `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`
 - `reading_v2/projections/review/{materialId}:{snapshotVersionId}`
 - `reading_v2/material_metadata/{materialId}`
-- safe summary rows under `material_catalog/material_indexes/*`
+- safe universal summary rows under `material_catalog/material_summary_indexes/v1/*`
+- legacy `material_catalog/material_indexes/*` helper rows only where still required for compatibility, archive/repair, source-full-test lookup, or bounded pickers
 
 Each composition-first full Reading V2 test must also have:
 
@@ -66,19 +67,29 @@ Obsolete as of 2026-06-15: leaving create/import-style publish success inside th
 
 ## Material Catalog Decision
 
-`material_catalog/material_indexes` is the production Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.
+2026-07-07 update: `material_catalog/material_summary_indexes/v1` is the active
+Teacher Materials discovery authority. My Content reads
+`by_owner/{teacherId}`. Public Library reads `by_visibility/public`. Active
+Reading Passage and Book dedicated tabs are filtered views of registered
+summary kinds, not separate discovery authorities.
+
+`material_catalog/material_indexes` and `material_catalog/book_indexes` are
+legacy or feature-specific helper paths. They may remain for source-full-test
+lookup, archive, repair, older publish/runtime compatibility, or bounded
+material pickers, but not as the universal active Teacher Materials listing
+source.
 
 `reading_v2/listing_indexes` is obsolete/compatibility-only for PRD-0052 QA unless a future migration updates readers, writers, rules, tests, and browser proof.
 
 Index rows must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
 
-Archive/remove cleanup may use canonical `reading_v2/material_metadata/{materialId}/ownerId === auth.uid` as fallback owner proof when active Material Catalog index rows are stale or missing.
+Archive/remove cleanup may use canonical `reading_v2/material_metadata/{materialId}/ownerId === auth.uid` as fallback owner proof when active universal summary or legacy helper rows are stale or missing.
 
 ## Master Removal Lifecycle
 
 Reading V2 master full-test removal is soft removal. Teacher Lobby delete opens a modal with `Remove master only`, `Remove master and linked passages`, and `Cancel`.
 
-Master-only removal sets master composition/metadata state to `removed`, removes active Material Catalog rows, removes legacy `/tests/{masterMaterialId}`, writes `reading_master_removed` audit, and does not archive linked passages.
+Master-only removal sets master composition/metadata state to `removed`, removes active universal MaterialSummary rows and legacy helper rows where still present, removes legacy `/tests/{masterMaterialId}`, writes `reading_master_removed` audit, and does not archive linked passages.
 
 Linked-passage removal archives only actor-owned linked Reading Passages through the Reading Passage archive service, then removes the master. It blocks when any linked passage is not owned by the actor.
 
@@ -155,7 +166,7 @@ This keeps publish success aligned with the committed RTDB write instead of the 
 
 - publish plan includes canonical per-passage `published_snapshots`
 - full-test publish plan includes master student-safe, session-safe, and review projections
-- generated Reading Passage rows appear from `material_catalog/material_indexes`
+- generated Reading Passage rows appear from `material_catalog/material_summary_indexes/v1`; legacy helper rows are compatibility-only
 - student-safe/list paths contain no answer keys or provenance
 - student homework detail loads Reading V2 summary from `tests/{materialId}` plus student-safe projection, not owner-only metadata
 - single Reading Passage Studio hides `Add Passage`

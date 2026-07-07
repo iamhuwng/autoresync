@@ -62,7 +62,11 @@ Each generated Reading Passage material must have:
 - student-safe projection under `reading_v2/projections/student_safe_tests/{materialId}:{snapshotVersionId}`
 - review projection under `reading_v2/projections/review/{materialId}:{snapshotVersionId}`
 - metadata under `reading_v2/material_metadata/{materialId}`
-- safe Material Catalog summary rows under `material_catalog/material_indexes/*`
+- safe universal MaterialSummary rows under
+  `material_catalog/material_summary_indexes/v1/*`
+- legacy Material Catalog rows under `material_catalog/material_indexes/*` only
+  where compatibility, source-full-test lookup, archive/repair, or still-live
+  helper flows require them
 
 Each composition-first full Reading V2 test must also have:
 
@@ -109,16 +113,30 @@ Single-passage published-revision flows may attempt to discover update targets a
 That discovery step is best-effort only:
 
 - a denied discovery read must not convert a committed publish into a publish failure
-- the committed material and material indexes remain authoritative
+- the committed material and universal summary rows remain authoritative
 - the update-references modal may be skipped when discovery cannot read target data
 
 This keeps publish success aligned with the committed RTDB write instead of the follow-up discovery phase.
 
-## Material Catalog Index Contract
+## Universal Summary And Legacy Index Boundary
 
-`material_catalog/material_indexes` is the canonical lightweight Teacher Materials index family for Reading Passage and Book material selection.
+2026-07-07 update: `material_catalog/material_summary_indexes/v1` is the
+active Teacher Materials discovery authority for My Content, Public Library,
+and active dedicated Reading Passage/Book views. `material_catalog/material_indexes`
+and `material_catalog/book_indexes` are legacy or feature-specific helper
+families. They may remain for source-full-test relationship lookup, archive
+flows, repair, older publish/runtime compatibility, or bounded material pickers,
+but they are not the universal active Teacher Materials listing authority.
 
-Required buckets:
+Universal active discovery buckets:
+
+- `material_summary_indexes/v1/by_owner/{teacherId}/{materialId}`
+- `material_summary_indexes/v1/by_visibility/{visibility}/{materialId}`
+- `material_summary_indexes/v1/by_material_kind/{materialKind}/{materialId}`
+- `material_summary_indexes/v1/by_test_type/{testTypeId}/{materialId}`
+- `material_summary_indexes/v1/by_source_full_test/{fullTestMaterialId}/{materialId}`
+
+Legacy helper buckets, where still required:
 
 - `by_owner/{teacherId}/{materialId}`
 - `by_visibility/{visibility}/{materialId}`
@@ -126,19 +144,31 @@ Required buckets:
 - `by_test_type/{testTypeId}/{materialId}`
 - `by_source_full_test/{fullTestMaterialId}/{materialId}`
 
-Index rows are summary rows only. They must not contain passage bodies, questions, answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers.
+All listing/helper rows are summary rows only. They must not contain passage
+bodies, questions, answer keys, scoring rules, import evidence, hidden
+provenance, draft payloads, or student answers.
 
-Archive/remove cleanup must be idempotent for stale or missing active index rows. RTDB rules may use canonical Reading V2 metadata ownership as fallback proof for owner cleanup:
+Archive/remove cleanup must be idempotent for stale or missing active universal
+summary rows and legacy helper rows. RTDB rules may use canonical Reading V2
+metadata ownership as fallback proof for owner cleanup:
 
 - `reading_v2/material_metadata/{materialId}/ownerId === auth.uid`
 
-This fallback is required when active index rows are already missing or malformed but canonical metadata still proves the actor owns the Reading V2 material. It does not allow arbitrary material catalog deletion and does not bypass super-admin role checks.
+This fallback is required when active rows are already missing or malformed but
+canonical metadata still proves the actor owns the Reading V2 material. It does
+not allow arbitrary material catalog deletion and does not bypass super-admin
+role checks.
 
 `reading_v2/listing_indexes` is obsolete for production Teacher Materials proof. It may remain as a compatibility/internal helper, but it is not the source for PRD-0052 Reading Passage list QA or Book material picker QA.
 
 ## Archive, Restore, And Broken References
 
-Reading Passage archive is reversible soft removal from active teacher selection surfaces. Archive sets the current material state to archived and removes active Material Catalog rows. It must not delete canonical teacher data, immutable snapshots, published versions, student-safe projections, review projections, publish commits, assignment payloads, or completed result records.
+Reading Passage archive is reversible soft removal from active teacher
+selection surfaces. Archive sets the current material state to archived and
+removes active universal MaterialSummary rows plus legacy helper rows where
+still present. It must not delete canonical teacher data, immutable snapshots,
+published versions, student-safe projections, review projections, publish
+commits, assignment payloads, or completed result records.
 
 Restore validates owner permission and reconstructs active summary/index rows from canonical metadata only when the current version and projections are valid. Restore must not rebuild active rows from stale UI state.
 
@@ -164,7 +194,11 @@ Teacher Lobby delete for a Reading V2 master must open a modal with three outcom
 - `Remove master and linked passages`
 - `Cancel`
 
-Master-only removal sets the master composition and master metadata state to `removed`, removes active Material Catalog rows for the master, removes legacy `/tests/{masterMaterialId}`, and writes `reading_master_removed` audit. It does not archive linked Reading Passage materials.
+Master-only removal sets the master composition and master metadata state to
+`removed`, removes active universal MaterialSummary rows for the master, removes
+legacy helper rows where still present, removes legacy
+`/tests/{masterMaterialId}`, and writes `reading_master_removed` audit. It does
+not archive linked Reading Passage materials.
 
 The linked-passage option archives each owned linked Reading Passage through the Reading Passage archive service before removing the master. It is blocked when any linked passage is not owned by the actor. Existing assignments, frozen assignment payloads, immutable snapshots, projections, and completed results are not mutated by either option.
 
@@ -222,7 +256,7 @@ The existing edit-test modal and material edit surfaces must treat Reading V2 ma
 
 Do not merge this contract into the legacy Reading V1 pipeline.
 
-Reading V1 still uses legacy `/tests/{testId}` and `/student_safe_tests/{testId}` projection contracts. Reading V2 uses `reading_v2/*` namespaced material, snapshot, projection, publish, and result paths plus Material Catalog summary indexes.
+Reading V1 still uses legacy `/tests/{testId}` and `/student_safe_tests/{testId}` projection contracts. Reading V2 uses `reading_v2/*` namespaced material, snapshot, projection, publish, and result paths plus universal MaterialSummary rows and bounded legacy helper indexes where still required.
 
 Shared outer features can launch, assign, or review both systems, but the publish and runtime storage planes are different.
 
@@ -232,7 +266,9 @@ Required proof for changes touching this contract:
 
 - publish plan includes canonical per-passage `published_snapshots`
 - full-test publish plan includes master student-safe, session-safe, and review projections
-- generated Reading Passage rows appear from `material_catalog/material_indexes`
+- generated Reading Passage rows appear in
+  `material_catalog/material_summary_indexes/v1`, and any required legacy helper
+  rows are compatibility-only
 - student-safe projections contain no answer keys, scoring rules, import evidence, hidden provenance, draft payloads, or student answers
 - student homework detail loads Reading V2 summary from `tests/{materialId}` plus student-safe projection, not owner-only metadata
 - individual Reading Passage Studio hides `Add Passage` while manual blank, paste/import, and Auto V4 creation modes keep it available

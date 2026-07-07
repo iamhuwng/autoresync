@@ -5,6 +5,7 @@ import {
   type MaterialBookNode,
 } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from './testTypeConfig.service';
+import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
   approvePublicBook,
   buildMaterialBookIndexCleanup,
@@ -100,19 +101,43 @@ const createRepo = (
     async listBookNodes(bookId) {
       return [...(nodeMap.get(bookId) ?? [])];
     },
+    async listBookSummaries(query) {
+      const values = [...bookMap.values()];
+      const summaries = values.map(createMaterialBookSummary);
+      return query.scope === 'private'
+        ? summaries.filter((summary) => summary.ownerId === query.teacherId)
+        : summaries.filter((summary) => summary.visibility === 'public');
+    },
     async listBooksByIndex(query) {
       const values = [...bookMap.values()];
-
-      if (query.scope === 'private') {
-        return values.filter((book) => book.ownerId === query.teacherId && book.visibility === 'private');
-      }
-
-      return values.filter((book) => book.visibility.startsWith('public-library-'));
+      return values.filter((book) => book.visibility === 'public-library-pending-review');
     },
     async write(path, value) {
       writes.push({ path, value });
       applyWrite(path, value);
     },
+    readPublicBookProjection: vi.fn(async (bookId: string) => {
+      const book = bookMap.get(bookId);
+      return book?.visibility === 'public-library-published'
+        ? {
+            bookId: book.bookId,
+            title: book.title,
+            subtitle: book.subtitle,
+            authors: book.authors,
+            publisher: book.publisher,
+            series: book.series,
+            coverUrl: book.coverUrl,
+            testTypeIds: book.testTypeIds,
+            tags: book.tags,
+            visibility: 'public-library-published' as const,
+            status: 'ready' as const,
+            updatedAt: book.updatedAt,
+            approvedAt: book.publicReview?.reviewedAt ?? NOW,
+            approvedBy: book.publicReview?.reviewedBy ?? 'admin-1',
+            nodes: [],
+          }
+        : null;
+    }),
     readPublicMaterialSummary: vi.fn(async () => null),
     async remove(path) {
       removals.push(path);
@@ -313,11 +338,66 @@ describe('materialBooks.service', () => {
     expect(publicRows[0]?.visibility).toBe('public-library-published');
   });
 
-  it('lists Book grid rows from indexes without loading underlying Book nodes', async () => {
+  it('keeps owned non-public Book lifecycle states in the owner summary scope', async () => {
+    const repo = createRepo([
+      metadata({
+        bookId: materialCatalogIds.bookId('pending-book'),
+        title: 'Pending Book',
+        visibility: 'public-library-pending-review',
+        status: 'ready',
+      }),
+    ]);
+
+    const rows = await listTeacherBooks({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      repository: repo,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        bookId: 'pending-book',
+        visibility: 'public-library-pending-review',
+        isOwner: true,
+      }),
+    ]);
+  });
+
+  it('keeps owned public Books in the owner summary scope', async () => {
+    const repo = createRepo([
+      metadata({
+        bookId: materialCatalogIds.bookId('owned-public-book'),
+        title: 'Owned Public Book',
+        visibility: 'public-library-published',
+        status: 'ready',
+      }),
+    ]);
+
+    const rows = await listTeacherBooks({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      repository: repo,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        bookId: 'owned-public-book',
+        visibility: 'public-library-published',
+        isOwner: true,
+      }),
+    ]);
+  });
+
+  it('lists Book grid rows from summary rows without loading legacy Book indexes or nodes', async () => {
     const repo = {
       ...createRepo([
         metadata({ bookId: materialCatalogIds.bookId('book-index-only'), title: 'Index Only Book' }),
       ]),
+      listBooksByIndex: vi.fn(async () => {
+        throw new Error('Teacher Book grid must not discover from book_indexes.');
+      }),
       listBookNodes: vi.fn(async () => {
         throw new Error('Book grid must not hydrate Book nodes.');
       }),
@@ -331,7 +411,50 @@ describe('materialBooks.service', () => {
     });
 
     expect(rows.map((row) => row.bookId)).toEqual(['book-index-only']);
+    expect(repo.listBooksByIndex).not.toHaveBeenCalled();
     expect(repo.listBookNodes).not.toHaveBeenCalled();
+  });
+
+  it('fails loudly when an owned Book summary has no canonical Book record', async () => {
+    const book = metadata({ bookId: materialCatalogIds.bookId('missing-book') });
+    const repo: MaterialBooksRepository = {
+      readBook: vi.fn(async () => null),
+      readPublicBookProjection: vi.fn(async () => null),
+      listBookNodes: vi.fn(async () => []),
+      listBookSummaries: vi.fn(async () => [createMaterialBookSummary(book)]),
+      listBooksByIndex: vi.fn(async () => []),
+      write: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+      update: vi.fn(async () => undefined),
+    };
+
+    await expect(listTeacherBooks({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      repository: repo,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    })).rejects.toThrow(/missing its owned canonical record: missing-book/);
+  });
+
+  it('fails loudly when a public Book summary has no public projection', async () => {
+    const repo = {
+      ...createRepo([
+        metadata({
+          bookId: materialCatalogIds.bookId('public-book'),
+          title: 'Public Book',
+          visibility: 'public-library-published',
+          status: 'ready',
+        }),
+      ]),
+      readPublicBookProjection: vi.fn(async () => null),
+    };
+
+    await expect(listTeacherBooks({
+      teacherId: 'teacher-1',
+      scope: 'public',
+      repository: repo,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    })).rejects.toThrow(/missing its public projection: public-book/);
   });
 
   it('lists pending public Book review queue from the pending-review visibility index', async () => {

@@ -4,6 +4,8 @@ import {
   type MaterialCatalogIndexRow,
   type MaterialCatalogIndexSummary,
 } from '../materialCatalog/materialCatalogIndexes.service';
+import { createReadingV2PassageMaterialSummary } from '../materialCatalog/materialSummaryAdapters.service';
+import { buildMaterialSummaryUpdatePayload } from '../materialCatalog/materialSummaryPort.service';
 import type {
   MaterialCatalogMaterialKind,
   MaterialTestTypeId,
@@ -128,6 +130,25 @@ const toIndexSummary = (
   testTypeIds: passage.testTypeIds as readonly MaterialTestTypeId[],
   sourceFullTestId: passage.sourceFullTestId,
   updatedAt: passage.updatedAt,
+});
+
+const toUniversalSummary = (
+  passage: ReadingV2PassageArchiveMaterial,
+  lifecycleState: 'active' | 'archived' | 'removed',
+  updatedAt: string,
+  visibility = normalizeActiveVisibility(String(passage.visibility)),
+) => createReadingV2PassageMaterialSummary({
+  materialId: passage.materialId,
+  ownerId: passage.ownerId,
+  title: passage.title,
+  visibility,
+  lifecycleState,
+  testTypeIds: passage.testTypeIds as readonly MaterialTestTypeId[],
+  questionCount: passage.questionCount,
+  sourceSnapshotVersionId:
+    passage.currentVersionId ?? passage.publishedSnapshotVersionId,
+  sourceFullTestId: passage.sourceFullTestId,
+  updatedAt,
 });
 
 export const getReadingV2ArchiveIndexPath = (ownerId: string, materialId: string): string =>
@@ -360,6 +381,13 @@ export const archiveReadingV2PassageMaterial = async (
     ...(duplicateIndexWrite ? [duplicateIndexWrite] : []),
     auditWrite,
   ]);
+  Object.assign(
+    updatePayload,
+    buildMaterialSummaryUpdatePayload(
+      toUniversalSummary(input.passage, 'archived', archivedAt),
+      toUniversalSummary(input.passage, 'active', input.passage.updatedAt),
+    ),
+  );
 
   await input.repository.update(updatePayload);
 
@@ -446,6 +474,18 @@ export const restoreReadingV2PassageMaterial = async (
     ...(duplicateIndexWrite ? [duplicateIndexWrite] : []),
     auditWrite,
   ]);
+  Object.assign(
+    updatePayload,
+    buildMaterialSummaryUpdatePayload(
+      toUniversalSummary(
+        input.passage,
+        'active',
+        restoredAt,
+        input.restoreVisibility,
+      ),
+      toUniversalSummary(input.passage, 'archived', input.passage.updatedAt),
+    ),
+  );
 
   await input.repository.update(updatePayload);
 

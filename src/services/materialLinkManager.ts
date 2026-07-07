@@ -2,6 +2,8 @@ import { database } from './firebase';
 import { ref, set, get, remove, query, orderByChild, equalTo, update } from 'firebase/database';
 import type { CourseMaterial } from '../types/course.types';
 import { getTestFromFirebase, generateTestId } from './testStorage';
+import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 
 const COURSE_MATERIALS_REF = 'course_materials';
 
@@ -68,7 +70,12 @@ export async function copyMaterialToModule(
     };
 
     // 3. Save the copy
-    await set(ref(database, `tests/${copyId}`), copyData);
+    await update(ref(database), {
+        [`tests/${copyId}`]: copyData,
+        ...buildMaterialSummaryUpdatePayload(
+            createLegacyTestMaterialSummary(copyId, copyData),
+        ),
+    });
 
     // 4. Create the junction
     const id = generateId();
@@ -194,7 +201,13 @@ export async function syncMaterialContentWithOriginal(linkId: string): Promise<C
     };
 
     // 5. Save updated test
-    await set(ref(database, `tests/${currentCopy.id}`), updatedTestData);
+    await update(ref(database), {
+        [`tests/${currentCopy.id}`]: updatedTestData,
+        ...buildMaterialSummaryUpdatePayload(
+            createLegacyTestMaterialSummary(currentCopy.id, updatedTestData),
+            createLegacyTestMaterialSummary(currentCopy.id, currentCopy),
+        ),
+    });
 
     // 6. Update junction record with syncedAt timestamp
     const updatedLink: CourseMaterial = {
@@ -249,4 +262,3 @@ export async function getMaterialUsageCount(materialId: string): Promise<number>
         return 0;
     }
 }
-

@@ -5,13 +5,9 @@ import type {
 import type { ReadingV2FullTestComposition } from '../../types/readingV2.types';
 import {
   buildMaterialCatalogIndexWrites,
-  type MaterialCatalogIndexRow,
   type MaterialCatalogIndexSummary,
 } from './materialCatalogIndexes.service';
-import {
-  buildMaterialBookIndexWrites,
-  type MaterialBooksIndexRow,
-} from './materialBooks.service';
+import { buildMaterialBookIndexWrites } from './materialBooks.service';
 import { materialCatalogPaths } from './materialCatalogPaths';
 import { readingV2StoragePaths } from '../reading-v2/readingV2StoragePaths.service';
 
@@ -92,12 +88,6 @@ const omitUndefinedForFirebase = (value: unknown): unknown => {
   return value;
 };
 
-const isMaterialIndexRow = (value: unknown): value is MaterialCatalogIndexRow =>
-  isRecord(value) && typeof value.materialId === 'string';
-
-const isBookIndexRow = (value: unknown): value is MaterialBooksIndexRow =>
-  isRecord(value) && typeof value.bookId === 'string';
-
 const isBookNode = (value: unknown): value is MaterialBookNode =>
   isRecord(value) &&
   typeof value.nodeId === 'string' &&
@@ -117,16 +107,9 @@ const planIndexRepairs = (input: {
   readonly removeKind: MaterialCatalogRepairOperationKind;
   readonly rowReason: MaterialCatalogRepairOperation['reason'];
   readonly pathReason: MaterialCatalogRepairOperation['reason'];
-  readonly getExpectedId: (value: unknown | null) => string | undefined;
-  readonly getActualId: (value: unknown) => string | undefined;
 }): MaterialCatalogRepairOperation[] => {
   const operations: MaterialCatalogRepairOperation[] = [];
   const expectedByPath = new Map(input.expectedWrites.map((write) => [write.path, write.value]));
-  const expectedIds = new Set(
-    input.expectedWrites
-      .map((write) => input.getExpectedId(write.value))
-      .filter((id): id is string => Boolean(id)),
-  );
 
   input.expectedWrites.forEach((write) => {
     if (!sameJson(input.actualRowsByPath[write.path], write.value)) {
@@ -139,9 +122,8 @@ const planIndexRepairs = (input: {
     }
   });
 
-  Object.entries(input.actualRowsByPath).forEach(([path, row]) => {
-    const rowId = input.getActualId(row);
-    if (!rowId || !expectedIds.has(rowId) || expectedByPath.has(path)) {
+  Object.keys(input.actualRowsByPath).forEach((path) => {
+    if (expectedByPath.has(path)) {
       return;
     }
 
@@ -160,35 +142,27 @@ const planMaterialIndexRepairs = (
   summaries: readonly MaterialCatalogIndexSummary[],
   actualRowsByPath: Readonly<Record<string, unknown>>,
 ): MaterialCatalogRepairOperation[] =>
-  summaries.flatMap((summary) =>
-    planIndexRepairs({
-      expectedWrites: buildMaterialCatalogIndexWrites(summary),
-      actualRowsByPath,
-      writeKind: 'material-index-write',
-      removeKind: 'material-index-remove',
-      rowReason: 'stale-material-index-row',
-      pathReason: 'stale-material-index-path',
-      getExpectedId: (value) => isMaterialIndexRow(value) ? value.materialId : undefined,
-      getActualId: (value) => isMaterialIndexRow(value) ? value.materialId : undefined,
-    }),
-  );
+  planIndexRepairs({
+    expectedWrites: summaries.flatMap(buildMaterialCatalogIndexWrites),
+    actualRowsByPath,
+    writeKind: 'material-index-write',
+    removeKind: 'material-index-remove',
+    rowReason: 'stale-material-index-row',
+    pathReason: 'stale-material-index-path',
+  });
 
 const planBookIndexRepairs = (
   books: readonly MaterialBookMetadata[],
   actualRowsByPath: Readonly<Record<string, unknown>>,
 ): MaterialCatalogRepairOperation[] =>
-  books.flatMap((book) =>
-    planIndexRepairs({
-      expectedWrites: buildMaterialBookIndexWrites(book),
-      actualRowsByPath,
-      writeKind: 'book-index-write',
-      removeKind: 'book-index-remove',
-      rowReason: 'stale-book-index-row',
-      pathReason: 'stale-book-index-path',
-      getExpectedId: (value) => isBookIndexRow(value) ? value.bookId : undefined,
-      getActualId: (value) => isBookIndexRow(value) ? value.bookId : undefined,
-    }),
-  );
+  planIndexRepairs({
+    expectedWrites: books.flatMap(buildMaterialBookIndexWrites),
+    actualRowsByPath,
+    writeKind: 'book-index-write',
+    removeKind: 'book-index-remove',
+    rowReason: 'stale-book-index-row',
+    pathReason: 'stale-book-index-path',
+  });
 
 type RepairBookNode = MaterialBookNode & {
   readonly pathNodeId: string;

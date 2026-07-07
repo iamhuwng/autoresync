@@ -116,6 +116,45 @@ describe('materialCatalogRepair.service', () => {
     ]));
   });
 
+  it('removes material index rows for ids no longer present in canonical summaries', () => {
+    const operations = planMaterialCatalogRepairOperations({
+      materialSummaries: [
+        {
+          materialId: 'current-passage',
+          ownerId: 'teacher-1',
+          title: 'Current Passage',
+          visibility: 'private',
+          materialKind: 'reading-passage',
+          testTypeIds: ['ielts' as any],
+          updatedAt: '2026-06-02T00:00:00.000Z',
+        },
+      ],
+      materialIndexRowsByPath: {
+        'material_catalog/material_indexes/by_owner/teacher-9/orphan-passage': {
+          materialId: 'orphan-passage',
+          ownerId: 'teacher-9',
+          title: 'Orphan Passage',
+          visibility: 'private',
+          materialKind: 'reading-passage',
+          testTypeIds: ['ielts'],
+          testTypeMembership: { ielts: true },
+          updatedAt: '2026-06-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    expect(operations).toContainEqual({
+      kind: 'material-index-remove',
+      path: 'material_catalog/material_indexes/by_owner/teacher-9/orphan-passage',
+      value: null,
+      reason: 'stale-material-index-path',
+    });
+    expect(operations).toContainEqual(expect.objectContaining({
+      kind: 'material-index-write',
+      path: 'material_catalog/material_indexes/by_owner/teacher-1/current-passage',
+    }));
+  });
+
   it('plans Book index and orphan-node cleanup from canonical Book metadata', () => {
     const operations = planMaterialCatalogRepairOperations({
       books: [book()],
@@ -181,6 +220,37 @@ describe('materialCatalogRepair.service', () => {
     ]));
     expect(operations).not.toContainEqual(expect.objectContaining({
       path: 'material_catalog/book_nodes/book-1/node-1',
+    }));
+  });
+
+  it('removes Book index rows for books no longer present in canonical metadata', () => {
+    const operations = planMaterialCatalogRepairOperations({
+      books: [book()],
+      bookIndexRowsByPath: {
+        'material_catalog/book_indexes/by_owner/teacher-9/orphan-book': {
+          bookId: 'orphan-book',
+          ownerId: 'teacher-9',
+          title: 'Orphan Book',
+          authors: [],
+          visibility: 'private',
+          status: 'ready',
+          testTypeIds: ['ielts'],
+          testTypeMembership: { ielts: true },
+          tags: [],
+          updatedAt: '2026-06-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    expect(operations).toContainEqual({
+      kind: 'book-index-remove',
+      path: 'material_catalog/book_indexes/by_owner/teacher-9/orphan-book',
+      value: null,
+      reason: 'stale-book-index-path',
+    });
+    expect(operations).toContainEqual(expect.objectContaining({
+      kind: 'book-index-write',
+      path: 'material_catalog/book_indexes/by_owner/teacher-1/book-1',
     }));
   });
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal } from '@mantine/core';
 import { EditorTab } from './test/editor/EditTestFrame';
 import { ReadingEditorLayout } from './test/editor/layouts/ReadingEditorLayout';
 import { ListeningEditorLayout } from './test/editor/layouts/ListeningEditorLayout';
@@ -29,6 +28,8 @@ import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } 
 import { getGroupQuestions } from '../utils/summaryGroupUtils';
 import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
+import { createLegacyTestMaterialSummary } from '../services/materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from '../services/materialCatalog/materialSummaryPort.service';
 
 interface TestEditorProps {
   test: TestData;
@@ -44,6 +45,119 @@ const logTablePresentationDiag = (event: string, payload: Record<string, unknown
   }
 
   console.log(`${TABLE_PRESENTATION_DIAG_PREFIX} ${event}`, payload);
+};
+
+interface NativeModalProps {
+  opened: boolean;
+  onClose: () => void;
+  title?: React.ReactNode;
+  size?: 'auto' | 'md' | string;
+  padding?: number;
+  withCloseButton?: boolean;
+  centered?: boolean;
+  styles?: {
+    body?: React.CSSProperties;
+    content?: React.CSSProperties;
+    inner?: React.CSSProperties;
+  };
+  children: React.ReactNode;
+}
+
+const NativeModal: React.FC<NativeModalProps> = ({
+  opened,
+  onClose,
+  title,
+  size = 'auto',
+  padding = 16,
+  withCloseButton = true,
+  centered = false,
+  styles,
+  children,
+}) => {
+  if (!opened) return null;
+
+  const modalWidth = size === 'md'
+    ? { width: 'min(92vw, 520px)' }
+    : { width: 'auto', maxWidth: '96vw' };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: centered ? 'center' : 'flex-start',
+        justifyContent: 'center',
+        padding: centered ? '2rem 1rem' : '4rem 1rem 1rem',
+        overflow: 'auto',
+        background: 'rgba(15, 23, 42, 0.52)',
+        ...styles?.inner,
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
+        style={{
+          ...modalWidth,
+          maxHeight: '92vh',
+          overflow: 'auto',
+          borderRadius: '8px',
+          background: '#ffffff',
+          boxShadow: '0 24px 80px rgba(15, 23, 42, 0.25)',
+          ...styles?.content,
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        {(title || withCloseButton) && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              padding: '1rem 1rem 0.5rem',
+            }}
+          >
+            {title ? (
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                {title}
+              </h2>
+            ) : <span />}
+            {withCloseButton && (
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={onClose}
+                style={{
+                  width: 32,
+                  height: 32,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  background: '#ffffff',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  fontSize: '1.25rem',
+                }}
+              >
+                x
+              </button>
+            )}
+          </div>
+        )}
+        <div style={{ padding, ...styles?.body }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const TestEditor: React.FC<TestEditorProps> = (props) => {
@@ -682,7 +796,8 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         }
 
         // Update timestamp
-        updates[`/tests/${test.id}/updatedAt`] = Date.now();
+        const updatedAt = Date.now();
+        updates[`/tests/${test.id}/updatedAt`] = updatedAt;
 
         // Recalculate isComplete based on edited questions
         const allQuestions = Object.values(editedQuestions);
@@ -696,6 +811,32 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
 
         updates[`/tests/${test.id}/isComplete`] = isComplete;
         updates[`/tests/${test.id}/missingAnswerCount`] = missingAnswerCount;
+
+        const nextTestData = {
+          ...test,
+          title: titleModified ? editedTitle : test.title,
+          isPublic: isPublicModified ? editedIsPublic : test.isPublic,
+          duration: editedDuration,
+          questions: Object.values(editedQuestions),
+          ...(resourceUpdates.passages
+            ? { passages: resourceUpdates.passages }
+            : {}),
+          ...(resourceUpdates.audioSections
+            ? { audioSections: resourceUpdates.audioSections }
+            : {}),
+          ...(resourceUpdates.questionImages
+            ? { questionImages: resourceUpdates.questionImages }
+            : {}),
+          isComplete,
+          missingAnswerCount,
+          updatedAt,
+        };
+        Object.entries(buildMaterialSummaryUpdatePayload(
+          createLegacyTestMaterialSummary(test.id, nextTestData),
+          createLegacyTestMaterialSummary(test.id, test),
+        )).forEach(([path, value]) => {
+          updates[`/${path}`] = value;
+        });
 
         console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
 
@@ -959,7 +1100,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   const isListening = (test as any).skill === 'Listening';
 
   return (
-    <Modal
+    <NativeModal
       opened={show}
       onClose={handleCancel}
       size="auto"
@@ -1011,7 +1152,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       )}
 
       {showValidationPopup && (
-        <Modal
+        <NativeModal
           opened={showValidationPopup}
           onClose={() => setShowValidationPopup(false)}
           title="Validation Errors"
@@ -1038,7 +1179,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
               Close
             </Button>
           </div>
-        </Modal>
+        </NativeModal>
       )}
 
       {/* PRD-0025 Practice Settings Modal */}
@@ -1050,7 +1191,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
           readOnly={isReadOnly}
         />
       )}
-    </Modal>
+    </NativeModal>
   );
 };
 

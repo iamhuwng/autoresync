@@ -4,6 +4,10 @@ import { database as defaultDatabase } from '../firebase';
 import {
   type MaterialCatalogIndexRow,
 } from '../materialCatalog/materialCatalogIndexes.service';
+import {
+  listActiveMaterialSummaries,
+  type MaterialSummary,
+} from '../materialCatalog/materialSummaryPort.service';
 import type {
   MaterialTestTypeConfig,
   MaterialTestTypeId,
@@ -29,9 +33,9 @@ export interface ReadingV2PassageLibraryIndexQuery {
 }
 
 export interface ReadingV2PassageLibraryReader {
-  readonly listIndexRows: (
+  readonly listSummaryRows: (
     query: ReadingV2PassageLibraryIndexQuery,
-  ) => Promise<readonly MaterialCatalogIndexRow[]>;
+  ) => Promise<readonly (MaterialSummary | MaterialCatalogIndexRow)[]>;
   readonly readMetadata: (materialId: string) => Promise<ReadingV2MaterialMetadata | null>;
   readonly readStudentSafeProjection?: (
     materialId: string,
@@ -133,18 +137,6 @@ export interface ReadingV2PassageArchiveInput {
   readonly usageSummary?: ReadingV2PassageArchiveUsageSummary;
 }
 
-const materialIndexPath = (
-  bucket: 'by_owner' | 'by_visibility',
-  key: string,
-): string => `material_catalog/material_indexes/${bucket}/${key}`;
-
-const isIndexRow = (value: unknown): value is MaterialCatalogIndexRow =>
-  Boolean(value) &&
-  typeof value === 'object' &&
-  typeof (value as MaterialCatalogIndexRow).materialId === 'string' &&
-  typeof (value as MaterialCatalogIndexRow).ownerId === 'string' &&
-  (value as MaterialCatalogIndexRow).materialKind === 'reading-passage';
-
 const isReadingPassageMetadata = (value: unknown): value is ReadingV2MaterialMetadata =>
   Boolean(value) &&
   typeof value === 'object' &&
@@ -152,9 +144,6 @@ const isReadingPassageMetadata = (value: unknown): value is ReadingV2MaterialMet
   (value as ReadingV2MaterialMetadata).materialKind === 'reading-passage' &&
   typeof (value as ReadingV2MaterialMetadata).materialId === 'string' &&
   typeof (value as ReadingV2MaterialMetadata).ownerId === 'string';
-
-const listRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexRow[] =>
-  Object.values(value ?? {}).filter(isIndexRow);
 
 const listArchiveRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexRow[] =>
   Object.values(value ?? {})
@@ -173,21 +162,29 @@ const listArchiveRowsFromSnapshotValue = (value: unknown): MaterialCatalogIndexR
 export const createReadingV2PassageLibraryFirebaseReader = (
   database: Database = defaultDatabase,
 ): ReadingV2PassageLibraryReader => ({
-  async listIndexRows(queryInput) {
-    const path = queryInput.scope === 'archived'
-      ? `material_catalog/material_archive_indexes/by_owner/${queryInput.teacherId}/reading-passage`
-      : queryInput.scope === 'private'
-      ? materialIndexPath('by_owner', queryInput.teacherId)
-      : materialIndexPath('by_visibility', 'public');
+  async listSummaryRows(queryInput) {
+    if (queryInput.scope !== 'archived') {
+      return listActiveMaterialSummaries(
+        queryInput.scope === 'private'
+          ? { scope: 'owned', ownerId: queryInput.teacherId }
+          : { scope: 'public' },
+        {
+          async read(path) {
+            const snapshot = await get(ref(database, path));
+            return snapshot.exists() ? snapshot.val() : null;
+          },
+        },
+      );
+    }
+
+    const path = `material_catalog/material_archive_indexes/by_owner/${queryInput.teacherId}/reading-passage`;
     const snapshot = await get(ref(database, path));
 
     if (!snapshot.exists()) {
       return [];
     }
 
-    return queryInput.scope === 'archived'
-      ? listArchiveRowsFromSnapshotValue(snapshot.val())
-      : listRowsFromSnapshotValue(snapshot.val());
+    return listArchiveRowsFromSnapshotValue(snapshot.val());
   },
   async readMetadata(materialId) {
     const snapshot = await get(ref(database, readingV2StoragePaths.materialMetadata(materialId)));
@@ -239,7 +236,7 @@ const metadataListVisibility = (
 };
 
 const rowMatchesScope = (
-  row: MaterialCatalogIndexRow,
+  row: MaterialSummary | MaterialCatalogIndexRow,
   metadata: ReadingV2MaterialMetadata,
   input: ListTeacherReadingPassagesInput,
 ): boolean => {
@@ -259,8 +256,7 @@ const rowMatchesScope = (
   if (input.scope === 'private') {
     return row.ownerId === input.teacherId &&
       metadata.ownerId === input.teacherId &&
-      row.visibility === 'private' &&
-      metadataScope === 'private';
+      metadataScope !== null;
   }
 
   return row.visibility === 'public' && metadataScope === 'public';
@@ -416,7 +412,7 @@ export const listTeacherReadingPassages = async (
 
   const teacherId = input.teacherId;
   const reader = input.reader ?? createReadingV2PassageLibraryFirebaseReader();
-  const indexRows = await reader.listIndexRows({
+  const indexRows = await reader.listSummaryRows({
     scope: input.scope,
     teacherId,
   });
@@ -429,12 +425,18 @@ export const listTeacherReadingPassages = async (
 
         try {
           metadata = await reader.readMetadata(indexRow.materialId);
-        } catch {
-          return null;
+        } catch (error) {
+          throw new Error(
+            `Reading Passage summary could not hydrate metadata for ${indexRow.materialId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
         }
 
         if (!metadata || !isReadingPassageMetadata(metadata)) {
-          return null;
+          throw new Error(
+            `Reading Passage summary is missing valid metadata: ${indexRow.materialId}`,
+          );
         }
 
         if (!rowMatchesScope(indexRow, metadata, input)) {

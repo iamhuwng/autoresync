@@ -13,6 +13,12 @@ import {
   type MaterialTestTypeId,
 } from '../../types/materialCatalog.types';
 import type { MaterialCatalogIndexRow } from './materialCatalogIndexes.service';
+import { createMaterialBookSummary } from './materialSummaryAdapters.service';
+import {
+  buildMaterialSummaryUpdatePayload,
+  listActiveMaterialSummaries,
+  type MaterialSummary,
+} from './materialSummaryPort.service';
 import { materialCatalogPaths } from './materialCatalogPaths';
 import {
   deriveMaterialBookStatus,
@@ -50,9 +56,13 @@ export interface MaterialBooksRepository {
   readonly readBook: (bookId: string) => Promise<MaterialBookMetadata | null>;
   readonly readPublicBookProjection?: (bookId: string) => Promise<MaterialBookPublicProjection | null>;
   readonly listBookNodes: (bookId: string) => Promise<readonly MaterialBookNode[]>;
-  readonly listBooksByIndex: (query: {
+  readonly listBookSummaries: (query: {
     readonly teacherId: string;
     readonly scope: BookListScope;
+  }) => Promise<readonly MaterialSummary[]>;
+  readonly listBooksByIndex: (query: {
+    readonly teacherId: string;
+    readonly scope: 'public-review-pending';
   }) => Promise<readonly MaterialBookMetadata[]>;
   readonly readPublicMaterialSummary?: (materialId: string) => Promise<MaterialCatalogIndexRow | null>;
   readonly write: (path: string, value: unknown) => Promise<void>;
@@ -286,12 +296,22 @@ export const createMaterialBooksRepository = (
     const value = await adapter.read(`material_catalog/book_nodes/${bookId}`);
     return Object.values(value ?? {}).filter(isBookNode).map(normalizeBookNode);
   },
+  async listBookSummaries(query) {
+    if (query.scope === 'public-review-pending') {
+      return [];
+    }
+
+    const summaries = await listActiveMaterialSummaries(
+      query.scope === 'private'
+        ? { scope: 'owned', ownerId: query.teacherId }
+        : { scope: 'public' },
+      { read: adapter.read },
+    );
+
+    return summaries.filter((summary) => summary.materialKind === 'book');
+  },
   async listBooksByIndex(query) {
-    const path = query.scope === 'private'
-      ? `material_catalog/book_indexes/by_owner/${query.teacherId}`
-      : query.scope === 'public-review-pending'
-        ? 'material_catalog/book_indexes/by_visibility/public-library-pending-review'
-        : 'material_catalog/book_indexes/by_visibility/public-library-published';
+    const path = 'material_catalog/book_indexes/by_visibility/public-library-pending-review';
     const value = await adapter.read(path);
     return Object.values(value ?? {}).filter(isBook);
   },
@@ -323,6 +343,10 @@ const buildBookWithIndexesUpdate = (
   [materialCatalogPaths.books(book.bookId)]: book,
   ...Object.fromEntries(buildMaterialBookIndexCleanup(previous, book).map((path) => [path, null])),
   ...Object.fromEntries(buildMaterialBookIndexWrites(book).map((write) => [write.path, write.value])),
+  ...buildMaterialSummaryUpdatePayload(
+    createMaterialBookSummary(book),
+    previous ? createMaterialBookSummary(previous) : null,
+  ),
 });
 
 const requireBook = async (
@@ -691,7 +715,10 @@ const testTypeSummary = (
 };
 
 const matchesSearch = (
-  book: MaterialBookMetadata,
+  book: Pick<
+    MaterialBookListRow,
+    'title' | 'subtitle' | 'authors' | 'publisher' | 'series' | 'tags'
+  >,
   searchTerm: string | undefined,
   testTypes: readonly ReturnType<typeof testTypeSummary>[],
 ): boolean => {
@@ -728,47 +755,97 @@ export const listTeacherBooks = async (input: {
     return [];
   }
 
-  const books = await input.repository.listBooksByIndex({
+  const summaries = await input.repository.listBookSummaries({
     teacherId: input.teacherId,
     scope: input.scope,
   });
 
-  return books
-    .filter((book) =>
-      input.scope === 'private'
-        ? book.ownerId === input.teacherId && book.visibility === 'private'
-        : book.visibility.startsWith('public-library-') && book.visibility !== 'private',
-    )
-    .filter((book) => !input.testTypeId || book.testTypeIds.includes(input.testTypeId))
-    .map((book) => {
-      const testTypes = book.testTypeIds.map((testTypeId) =>
-        testTypeSummary(testTypeId, input.testTypeConfigs),
-      );
+  const rows = await Promise.all(
+    summaries
+      .filter((summary) =>
+        input.scope === 'private'
+          ? summary.ownerId === input.teacherId
+          : summary.visibility === 'public',
+      )
+      .filter((summary) =>
+        !input.testTypeId || summary.testTypeIds.includes(input.testTypeId))
+      .map(async (summary) => {
+        if (input.scope === 'private') {
+          const book = await input.repository.readBook(summary.materialId);
+          if (
+            !book ||
+            book.ownerId !== input.teacherId
+          ) {
+            throw new Error(
+              `Material Book summary is missing its owned canonical record: ${summary.materialId}`,
+            );
+          }
 
-      return {
-        id: book.bookId,
-        bookId: book.bookId,
-        ownerId: book.ownerId,
-        title: book.title,
-        subtitle: book.subtitle,
-        authors: book.authors,
-        publisher: book.publisher,
-        series: book.series,
-        coverUrl: book.coverUrl,
-        visibility: book.visibility,
-        status: book.status,
-        publicReview: book.publicReview,
-        testTypeIds: book.testTypeIds,
-        testTypes,
-        tags: book.tags,
-        hasBrokenRefs: book.hasBrokenRefs,
-        brokenRefCount: book.brokenRefCount,
-        brokenRefReasons: book.brokenRefReasons,
-        updatedAt: book.updatedAt,
-        isOwner: book.ownerId === input.teacherId,
-      };
-    })
-    .filter((row) => matchesSearch(row as unknown as MaterialBookMetadata, input.searchTerm, row.testTypes))
+          const testTypes = book.testTypeIds.map((testTypeId) =>
+            testTypeSummary(testTypeId, input.testTypeConfigs),
+          );
+
+          return {
+            id: book.bookId,
+            bookId: book.bookId,
+            ownerId: book.ownerId,
+            title: book.title,
+            subtitle: book.subtitle,
+            authors: book.authors,
+            publisher: book.publisher,
+            series: book.series,
+            coverUrl: book.coverUrl,
+            visibility: book.visibility,
+            status: book.status,
+            publicReview: book.publicReview,
+            testTypeIds: book.testTypeIds,
+            testTypes,
+            tags: book.tags,
+            hasBrokenRefs: book.hasBrokenRefs,
+            brokenRefCount: book.brokenRefCount,
+            brokenRefReasons: book.brokenRefReasons,
+            updatedAt: book.updatedAt,
+            isOwner: true,
+          } satisfies MaterialBookListRow;
+        }
+
+        const projection = await input.repository.readPublicBookProjection?.(summary.materialId);
+        if (!projection) {
+          throw new Error(
+            `Material Book public summary is missing its public projection: ${summary.materialId}`,
+          );
+        }
+
+        const testTypes = projection.testTypeIds.map((testTypeId) =>
+          testTypeSummary(testTypeId, input.testTypeConfigs),
+        );
+
+        return {
+          id: projection.bookId,
+          bookId: projection.bookId,
+          ownerId: summary.ownerId,
+          title: projection.title,
+          subtitle: projection.subtitle,
+          authors: projection.authors,
+          publisher: projection.publisher,
+          series: projection.series,
+          coverUrl: projection.coverUrl,
+          visibility: projection.visibility,
+          status: projection.status,
+          testTypeIds: projection.testTypeIds,
+          testTypes,
+          tags: projection.tags,
+          hasBrokenRefs: summary.hasBrokenRefs,
+          brokenRefCount: summary.brokenRefCount,
+          updatedAt: projection.updatedAt,
+          isOwner: summary.ownerId === input.teacherId,
+        } satisfies MaterialBookListRow;
+      }),
+  );
+
+  return rows
+    .filter((row): row is MaterialBookListRow => row !== null)
+    .filter((row) => matchesSearch(row, input.searchTerm, row.testTypes))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 };
 

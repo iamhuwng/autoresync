@@ -84,6 +84,16 @@ const hasReadingV2MetadataShape = (value: unknown): value is ReadingV2MaterialMe
   typeof (value as ReadingV2MaterialMetadata).ownerId === 'string' &&
   typeof (value as ReadingV2MaterialMetadata).title === 'string';
 
+const isFullTestMaterialKind = (materialKind: string): boolean =>
+  materialKind === 'full-test' ||
+  materialKind === 'reading-v2-full-test-composition';
+
+const isActiveFullTestMetadata = (
+  metadata: ReadingV2MaterialMetadata,
+): boolean =>
+  isFullTestMaterialKind(metadata.materialKind) &&
+  (metadata.state === undefined || metadata.state === 'published');
+
 const createTeacherLobbyCardRecord = (
   metadata: ReadingV2MaterialMetadata,
   summary: ReadingV2LaunchMaterialSummary,
@@ -149,6 +159,30 @@ const readProjection = async (
     : null;
 };
 
+const hydrateTeacherLobbyMaterial = async (
+  database: Database,
+  metadata: ReadingV2MaterialMetadata,
+  snapshotVersionId: string,
+  expectedOwnerId?: string,
+): Promise<ReadingV2TeacherLobbyTestCardRecord | null> => {
+  if (!isActiveFullTestMetadata(metadata)) {
+    return null;
+  }
+  if (expectedOwnerId && metadata.ownerId !== expectedOwnerId) {
+    throw new Error(
+      `Reading V2 teacher lobby index owner mismatch for ${metadata.materialId}.`,
+    );
+  }
+
+  const projection = await readProjection(database, metadata.materialId, snapshotVersionId);
+  const summary = createReadingV2LaunchMaterialSummary({
+    metadata,
+    projection,
+  });
+
+  return createTeacherLobbyCardRecord(metadata, summary, projection);
+};
+
 const readTeacherLobbyMaterial = async (
   database: Database,
   entry: ReadingV2TeacherLobbyRelationshipIndex,
@@ -167,16 +201,23 @@ const readTeacherLobbyMaterial = async (
   const metadata = metadataSnapshot.exists() ? metadataSnapshot.val() : null;
 
   if (!hasReadingV2MetadataShape(metadata)) {
-    return null;
+    throw new Error(
+      `Reading V2 teacher lobby index is missing valid metadata for ${entry.materialId}.`,
+    );
   }
 
-  const projection = await readProjection(database, entry.materialId, entry.snapshotVersionId);
-  const summary = createReadingV2LaunchMaterialSummary({
-    metadata,
-    projection,
-  });
+  if (metadata.materialId !== entry.materialId) {
+    throw new Error(
+      `Reading V2 teacher lobby index materialId mismatch for ${entry.materialId}.`,
+    );
+  }
 
-  return createTeacherLobbyCardRecord(metadata, summary, projection);
+  return hydrateTeacherLobbyMaterial(
+    database,
+    metadata,
+    entry.snapshotVersionId,
+    entry.ownerId,
+  );
 };
 
 export const getReadingV2TeacherLobbyIndexQuery = (
@@ -197,15 +238,9 @@ export const getReadingV2TeacherLobbyTests = async (
   }
 
   const targetDatabase = options.database ?? defaultDatabase;
-  let indexSnapshot: Awaited<ReturnType<typeof get>>;
-
-  try {
-    indexSnapshot = await get(
-      getReadingV2TeacherLobbyIndexQuery(ownerId, { database: targetDatabase }),
-    );
-  } catch {
-    return [];
-  }
+  const indexSnapshot = await get(
+    getReadingV2TeacherLobbyIndexQuery(ownerId, { database: targetDatabase }),
+  );
 
   if (!indexSnapshot.exists()) {
     return [];

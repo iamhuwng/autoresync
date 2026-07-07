@@ -119,10 +119,18 @@ The following decisions are confirmed:
 
 The production data-plane decision for this PRD is now explicit:
 
-- `material_catalog/material_indexes` is the canonical lightweight Teacher Materials summary index for Reading Passage rows and Book material-picker candidates.
+- Historical 2026-06-03 decision, superseded 2026-07-07:
+  `material_catalog/material_indexes` was the lightweight Teacher Materials
+  summary index for Reading Passage rows and Book material-picker candidates at
+  the time of PRD-0052 closure. Current active Teacher Materials discovery uses
+  `material_catalog/material_summary_indexes/v1`; legacy material/book indexes
+  remain helper/compatibility surfaces only.
 - `reading_v2/listing_indexes` is not the PRD-0052 production listing proof path. Treat it as compatibility/internal unless a future migration updates readers, writers, rules, tests, and browser proof.
 - Reading V2 full-test publish creates a master full-test material plus generated Reading Passage materials. The master stores ordered passage material/version refs.
-- Each generated Reading Passage must write canonical material/version data, `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}`, student-safe projection, review projection, material metadata, and Material Catalog summary rows.
+- Each generated Reading Passage must write canonical material/version data,
+  `reading_v2/published_snapshots/{passageMaterialId}/{snapshotVersionId}`,
+  student-safe projection, review projection, material metadata, universal
+  MaterialSummary rows, and any required legacy helper rows.
 - Auto V4, paste/import, and normal Studio authoring converge before publish; none get a separate publish shortcut.
 - Reading Passage homework is not complete when only the trusted Reading V2 result exists. The linked Firestore `homework_submissions/{submissionId}` row must also move through the existing homework completion lifecycle.
 - Reading V1 stays on the legacy `/tests` and root `/student_safe_tests` contract. Reading V2 uses the namespaced `reading_v2/*` publish/projection/result plane.

@@ -3,6 +3,8 @@ import {
   buildMaterialCatalogIndexWrites,
   listMaterialCatalogIndexPaths,
 } from '../materialCatalog/materialCatalogIndexes.service';
+import { createReadingV2FullTestMaterialSummary } from '../materialCatalog/materialSummaryAdapters.service';
+import { buildMaterialSummaryUpdatePayload } from '../materialCatalog/materialSummaryPort.service';
 import { materialCatalogIds, type MaterialTestTypeId } from '../../types/materialCatalog.types';
 import {
   READING_V2_SCHEMA_VERSION,
@@ -44,6 +46,7 @@ export interface ReadingV2TeacherCompositionRepository {
 export interface ReadingV2MasterRemoveRepository {
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove: (path: string) => Promise<void>;
+  readonly update?: (updates: Readonly<Record<string, unknown | null>>) => Promise<void>;
 }
 
 export interface ReadingV2TeacherCompositionPassageInput {
@@ -1297,11 +1300,6 @@ export const removeReadingV2MasterComposition = async (input: {
     { path: `${metadataPath}/updatedAt`, value: removedAt },
   ];
 
-  for (const write of materialStateWrites) {
-    await input.repository.write(write.path, write.value);
-    changedPaths.push(write.path);
-  }
-
   const indexSummary = {
     materialId: input.composition.testMaterialId,
     ownerId: input.composition.ownerId,
@@ -1312,15 +1310,7 @@ export const removeReadingV2MasterComposition = async (input: {
     updatedAt: input.composition.updatedAt,
   };
 
-  for (const path of listMaterialCatalogIndexPaths(indexSummary)) {
-    await input.repository.remove(path);
-    changedPaths.push(path);
-  }
-
   const legacyTestPath = `tests/${input.composition.testMaterialId}`;
-  await input.repository.remove(legacyTestPath);
-  changedPaths.push(legacyTestPath);
-
   const eventId = `${input.correlationId}:reading_master_removed:${input.composition.compositionId}`;
   const auditPath = getReadingV2AuditEventPath(eventId);
   const event = buildReadingV2AuditEvent({
@@ -1344,8 +1334,49 @@ export const removeReadingV2MasterComposition = async (input: {
     sourceFeatureId: input.sourceFeatureId,
     sourceRoute: input.sourceRoute,
   });
-  await input.repository.write(auditPath, event);
-  changedPaths.push(auditPath);
+  const activeSummary = createReadingV2FullTestMaterialSummary({
+    materialId: input.composition.testMaterialId,
+    ownerId: input.composition.ownerId,
+    title: input.composition.title,
+    visibility: input.composition.visibility,
+    lifecycleState: 'active',
+    primaryTestTypeId: input.composition.primaryTestTypeId,
+    testTypeIds: input.composition.testTypeIds,
+    questionCount: input.composition.passageRefs.reduce(
+      (total, passage) => total + Number(passage.questionCountSnapshot ?? 0),
+      0,
+    ),
+    durationMinutes: input.composition.durationMinutes,
+    sourceSnapshotVersionId: input.composition.publishedVersionId,
+    updatedAt: input.composition.updatedAt,
+  });
+  const removedSummary = {
+    ...activeSummary,
+    lifecycleState: 'removed' as const,
+    updatedAt: removedAt,
+  };
+  const updatePayload: Record<string, unknown | null> = {
+    ...Object.fromEntries(materialStateWrites.map((write) => [write.path, write.value])),
+    ...Object.fromEntries(
+      listMaterialCatalogIndexPaths(indexSummary).map((path) => [path, null]),
+    ),
+    [legacyTestPath]: null,
+    [auditPath]: event,
+    ...buildMaterialSummaryUpdatePayload(removedSummary, activeSummary),
+  };
+
+  if (input.repository.update) {
+    await input.repository.update(updatePayload);
+  } else {
+    for (const [path, value] of Object.entries(updatePayload)) {
+      if (value === null) {
+        await input.repository.remove(path);
+      } else {
+        await input.repository.write(path, value);
+      }
+    }
+  }
+  changedPaths.push(...Object.keys(updatePayload));
 
   return { changedPaths };
 };

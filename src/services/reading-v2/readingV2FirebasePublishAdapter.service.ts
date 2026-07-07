@@ -1,5 +1,4 @@
 import { get, ref, update, type Database } from 'firebase/database';
-import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { database as defaultDatabase } from '../firebase';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
 import type {
@@ -7,9 +6,11 @@ import type {
   ReadingV2PublishCommitOperation,
   ReadingV2PublishRelationshipIndexWrite,
 } from './readingV2PublishPipeline.service';
-import { resolveLegacyTestTypeLabelFromMaterialTestTypeIds } from '../materialCatalog/materialTestTypeMapping.service';
-import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import { buildReadingV2TestBridgeRecord } from './readingV2TestBridge.service';
+import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
+import { createReadingV2MaterialSummary } from '../materialCatalog/materialSummaryAdapters.service';
+import { buildMaterialSummaryIndexPlan } from '../materialCatalog/materialSummaryPort.service';
 
 export interface ReadingV2FirebasePublishUpdates {
   readonly commitPath: string;
@@ -98,15 +99,6 @@ const relationshipIndexValue = (
   updatedAt,
 });
 
-const countProjectionInteractions = (projection: ReadingV2DerivedProjection | undefined): number =>
-  projection?.content?.taskGroups?.reduce(
-    (total, taskGroup) => total + (taskGroup.interactions?.length ?? 0),
-    0,
-  ) ?? 0;
-
-const countProjectionSections = (projection: ReadingV2DerivedProjection | undefined): number =>
-  projection?.content?.sections?.length ?? 0;
-
 const omitUndefinedForFirebase = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((entry) => (entry === undefined ? null : omitUndefinedForFirebase(entry)));
@@ -132,6 +124,25 @@ const isProjectionOperation = (
   operation: ReadingV2PublishCommitOperation,
 ): operation is Extract<ReadingV2PublishCommitOperation, { readonly kind: 'projection' }> =>
   operation.kind === 'projection';
+
+const universalSummaryPathForLegacyIndex = (
+  path: string,
+): string | null => {
+  const prefix = 'material_catalog/material_indexes/';
+  if (!path.startsWith(prefix)) {
+    return null;
+  }
+  const relative = path.slice(prefix.length);
+  if (
+    relative.startsWith('by_owner/') ||
+    relative.startsWith('by_visibility/') ||
+    relative.startsWith('by_material_kind/') ||
+    relative.startsWith('by_test_type/')
+  ) {
+    return `material_catalog/material_summary_indexes/v1/${relative}`;
+  }
+  return null;
+};
 
 export const buildReadingV2FirebasePublishUpdates = (
   commitPlan: ReadingV2PublishCommitPlan,
@@ -193,68 +204,52 @@ export const buildReadingV2FirebasePublishUpdates = (
 
     if (operation.kind === 'storage-write') {
       updates[operation.path] = operation.value;
+      const universalPath = universalSummaryPathForLegacyIndex(operation.path);
+      if (universalPath && operation.value === null) {
+        updates[universalPath] = null;
+      }
       return;
     }
   });
+
+  const studentSafeProjections = new Map(
+    commitPlan.operations
+      .filter(isProjectionOperation)
+      .filter((operation) => operation.projection.projectionKind === 'student-safe')
+      .map((operation) => [
+        operation.projection.materialId ?? commitPlan.materialId,
+        operation.projection,
+      ]),
+  );
+  commitPlan.operations
+    .filter((operation): operation is Extract<
+      ReadingV2PublishCommitOperation,
+      { readonly kind: 'material-metadata' }
+    > => operation.kind === 'material-metadata')
+    .forEach((operation) => {
+      const summary = createReadingV2MaterialSummary(
+        operation.metadata,
+        studentSafeProjections.get(operation.metadata.materialId),
+      );
+      if (!summary) {
+        return;
+      }
+
+      buildMaterialSummaryIndexPlan(summary).forEach((write) => {
+        updates[write.path] = write.value;
+      });
+    });
 
   whereUsedByAsset.forEach((value, passageAssetId) => {
     updates[readingV2StoragePaths.whereUsedGraph(passageAssetId)] = value;
   });
 
-  const legacyTestType = resolveLegacyTestTypeLabelFromMaterialTestTypeIds([
-    metadataOperation.metadata.primaryTestTypeId,
-    ...metadataOperation.metadata.testTypeIds,
-  ]);
-  const hasStudentSafeProjection = Boolean(studentSafeProjection);
-  const passageRefCount = countProjectionSections(studentSafeProjection);
-
-  updates[`tests/${metadataOperation.metadata.materialId}`] = {
-    id: metadataOperation.metadata.materialId,
-    materialId: metadataOperation.metadata.materialId,
-    ownerId,
-    compositionId: metadataOperation.metadata.compositionId,
-    deliveryEngine: READING_V2_ENGINE,
-    contentEngine: READING_V2_ENGINE,
-    runtimeEngine: READING_V2_ENGINE,
-    title: metadataOperation.metadata.title,
-    testType: legacyTestType,
-    type: legacyTestType,
-    skill: 'Reading',
-    skillType: 'reading-v2',
-    duration: metadataOperation.metadata.durationMinutes,
-    questionCount: countProjectionInteractions(studentSafeProjection),
-    isPublic: isReadingV2PublicVisibility(metadataOperation.metadata.visibility),
-    materialKind: metadataOperation.metadata.materialKind,
-    productLabel: metadataOperation.metadata.productLabel,
-    publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
-    primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
-    testTypeIds: metadataOperation.metadata.testTypeIds,
-    hasStudentSafeProjection,
-    deliveryProjectionReady: hasStudentSafeProjection,
-    studentSafeProjectionReady: hasStudentSafeProjection,
-    passageRefCount,
-    updatedAt: committedAt,
-    metadata: {
-      compositionId: metadataOperation.metadata.compositionId,
-      title: metadataOperation.metadata.title,
-      duration: metadataOperation.metadata.durationMinutes,
-      difficulty: metadataOperation.metadata.difficulty,
-      targetBand: metadataOperation.metadata.targetBand,
-      description: metadataOperation.metadata.description,
-      tags: metadataOperation.metadata.tags,
-      visibility: metadataOperation.metadata.visibility,
-      productLabel: metadataOperation.metadata.productLabel,
-      materialKind: metadataOperation.metadata.materialKind,
-      deliveryEngine: READING_V2_ENGINE,
-      publishedSnapshotVersionId: metadataOperation.metadata.publishedSnapshotVersionId,
-      primaryTestTypeId: metadataOperation.metadata.primaryTestTypeId,
-      testTypeIds: metadataOperation.metadata.testTypeIds,
-      hasStudentSafeProjection,
-      deliveryProjectionReady: hasStudentSafeProjection,
-      studentSafeProjectionReady: hasStudentSafeProjection,
-      passageRefCount,
-    },
-  };
+  updates[`tests/${metadataOperation.metadata.materialId}`] =
+    buildReadingV2TestBridgeRecord({
+      metadata: metadataOperation.metadata,
+      studentSafeProjection,
+      updatedAt: committedAt,
+    });
 
   const commitPath = readingV2StoragePaths.publishCommits(commitPlan.materialId, commitPlan.snapshotVersionId);
   const writePaths = sorted(Object.keys(updates));

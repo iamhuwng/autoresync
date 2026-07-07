@@ -708,8 +708,9 @@ describe('testStorage', () => {
     });
 
     it('should persist wordLimit in formatted questions when saving to Firebase', async () => {
-      const { set } = await import('firebase/database');
+      const { set, update } = await import('firebase/database');
       (set as any).mockResolvedValueOnce(undefined);
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Word Limit Test',
@@ -739,14 +740,17 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const rootUpdates = (update as any).mock.calls[0][1];
+      const savedData = Object.entries(rootUpdates)
+        .find(([path]) => path.startsWith('tests/'))?.[1] as any;
       expect(savedData.questions[0].wordLimit).toBe(3);
       expect(savedData.questions[1].wordLimit).toBeUndefined();
     });
 
     it('should not persist wordLimit when value is 0 or negative', async () => {
-      const { set } = await import('firebase/database');
+      const { set, update } = await import('firebase/database');
       (set as any).mockResolvedValueOnce(undefined);
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Edge Case Test',
@@ -767,13 +771,16 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const rootUpdates = (update as any).mock.calls[0][1];
+      const savedData = Object.entries(rootUpdates)
+        .find(([path]) => path.startsWith('tests/'))?.[1] as any;
       expect(savedData.questions[0].wordLimit).toBeUndefined();
     });
 
     it('omits empty matching-information section metadata when publishing', async () => {
-      const { set } = await import('firebase/database');
+      const { set, update } = await import('firebase/database');
       (set as any).mockResolvedValueOnce(undefined);
+      (update as any).mockResolvedValueOnce(undefined);
 
       const metadata: TestMetadata = {
         title: 'Matching Information Test',
@@ -805,7 +812,9 @@ describe('testStorage', () => {
 
       await saveTestToFirebase(metadata, passages as any, questions as any, 'user1');
 
-      const savedData = (set as any).mock.calls[0][1];
+      const rootUpdates = (update as any).mock.calls[0][1];
+      const savedData = Object.entries(rootUpdates)
+        .find(([path]) => path.startsWith('tests/'))?.[1] as any;
       expect(savedData.questions[0].sectionReferences).toEqual([
         { label: 'A' },
         { label: 'B' },
@@ -815,8 +824,9 @@ describe('testStorage', () => {
     });
 
     it('persists canonical questionGroups and derives flat table member questions from them', async () => {
-      const { set } = await import('firebase/database');
+      const { set, update } = await import('firebase/database');
       (set as any).mockResolvedValue(undefined);
+      (update as any).mockResolvedValue(undefined);
 
       const metadata: TestMetadata = {
         title: 'Canonical Table Test',
@@ -846,7 +856,9 @@ describe('testStorage', () => {
         [CANONICAL_TABLE_GROUP as any],
       );
 
-      const savedData = (set as any).mock.calls[0][1];
+      const rootUpdates = (update as any).mock.calls[0][1];
+      const savedData = Object.entries(rootUpdates)
+        .find(([path]) => path.startsWith('tests/'))?.[1] as any;
       expect(savedData.questionGroups).toEqual([CANONICAL_TABLE_GROUP]);
       expect(savedData.tableCompletionDiagnostics).toEqual([
         expect.objectContaining({
@@ -879,7 +891,7 @@ describe('testStorage', () => {
     });
 
     it('rewrites canonical IELTS table groups and regenerates the student-safe projection', async () => {
-      const { get, set } = await import('firebase/database');
+      const { get, set, update } = await import('firebase/database');
       (get as any).mockResolvedValueOnce({
         exists: () => true,
         val: () => ({
@@ -934,16 +946,17 @@ describe('testStorage', () => {
         }),
       });
       (set as any).mockResolvedValue(undefined);
+      (update as any).mockResolvedValue(undefined);
 
       const result = await persistIELTSCanonicalQuestionGroupsToFirebase('test-1', [
         CANONICAL_TABLE_GROUP as any,
       ]);
 
       expect(result).toEqual({ success: true });
-      expect(set).toHaveBeenNthCalledWith(
-        1,
-        { path: 'tests/test-1' },
+      expect(update).toHaveBeenCalledWith(
+        { path: undefined },
         expect.objectContaining({
+          'tests/test-1': expect.objectContaining({
           questionGroups: [CANONICAL_TABLE_GROUP],
           tableCompletionDiagnostics: [
             expect.objectContaining({
@@ -959,10 +972,12 @@ describe('testStorage', () => {
               type: 'table-completion',
             }),
           ],
+          }),
+          'material_catalog/material_summary_indexes/v1/by_owner/user-1/test-1':
+            expect.objectContaining({ materialId: 'test-1' }),
         }),
       );
-      expect(set).toHaveBeenNthCalledWith(
-        2,
+      expect(set).toHaveBeenCalledWith(
         { path: 'student_safe_tests/test-1' },
         expect.objectContaining({
           questionGroups: [

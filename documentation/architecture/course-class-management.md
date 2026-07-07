@@ -73,3 +73,24 @@ Current repo anchors:
 - `src/hooks/useHomeworkList.ts`
 - `src/components/homework/HomeworkCreateModal.tsx`
 - `src/config/featureRegistry.ts`
+
+## Legacy And Fixture Class Row Resilience
+
+Teacher class list/detail pages must tolerate historical class rows and tagged
+live-proof fixtures that predate current normalized fields.
+
+Required rules:
+- service reads normalize class `status`, student membership status, timestamps,
+  and session dates before page components render
+- missing class `status` defaults to an inactive-safe display state instead of
+  letting UI call string methods on `undefined`
+- invalid or absent timestamps render as absent metadata, not `Invalid Date`
+- fixture rows such as PRD-0055 live-proof classes must be visibly tagged in
+  data (`prd0055Fixture: true`) and treated as real database artifacts, not UI
+  mockups
+- cleanup or hiding of fixture rows is a separate data-governance action; page
+  stability must not depend on fixture deletion
+
+Current repo anchors:
+- `src/services/classManager.ts`
+- `src/__tests__/services/classManager.test.ts`

@@ -100,6 +100,14 @@ migration rewires readers, writers, rules, tests, docs, and browser proof.
   from expected scopes without permission errors or fake empty states.
 - Reading V2 `/tests` bridge repair has a reviewed-report write gate and remains
   separate from Teacher Materials listing authority.
+- 2026-07-07 approved material-summary repair artifacts live under
+  `output/material-summary-reconciliation/`; prewrite planned 204 operations and
+  postwrite verification reported zero remaining operations.
+- 2026-07-07 approved Reading V2 bridge repair artifacts live under
+  `output/reading-v2-test-bridge-repair/`; prewrite planned 12 operations and
+  postwrite verification reported zero remaining operations.
+- The class-page regression in the same session was legacy/fixture class-row
+  normalization. It does not weaken the fail-loud material-summary rule.
 
 See `documentation/architecture/universal-material-summary-integration.md` for
 the producer registry, lifecycle, repair, reconciliation, and rollout contract.

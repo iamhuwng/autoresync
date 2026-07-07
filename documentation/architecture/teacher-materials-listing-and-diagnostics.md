@@ -194,6 +194,16 @@ Local proof on 2026-07-07:
 - Reading V2 `/tests` compatibility bridge repair is separate from Teacher
   Materials listing. It has a reviewed-report write gate and must not be used
   as listing authority.
+- The 2026-07-07 approved material-summary repair artifacts live under
+  `output/material-summary-reconciliation/`; prewrite planned 204 operations and
+  postwrite verification reported zero remaining operations.
+- The 2026-07-07 approved Reading V2 bridge repair artifacts live under
+  `output/reading-v2-test-bridge-repair/`; prewrite planned 12 operations and
+  postwrite verification reported zero remaining operations.
+- The class-page regression discovered during browser QA was caused by legacy
+  class rows missing normalized status/date fields. That fix belongs to
+  `documentation/architecture/course-class-management.md`; it is not a reason to
+  weaken material-summary error handling.
 
 ## Healthy System Rules
 

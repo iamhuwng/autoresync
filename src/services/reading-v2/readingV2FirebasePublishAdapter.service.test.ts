@@ -147,7 +147,15 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     expect(firebaseUpdates.commitPath).toBe(
       readingV2StoragePaths.publishCommits('material-firebase', 'snapshot-firebase'),
     );
-    expect(updatePaths.filter((path) => !path.startsWith('reading_v2/'))).toEqual(['tests/material-firebase']);
+    expect(updatePaths.filter((path) => !path.startsWith('reading_v2/'))).toEqual(
+      expect.arrayContaining([
+        'tests/material-firebase',
+        'material_catalog/material_summary_indexes/v1/by_id/material-firebase',
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/material-firebase',
+        'material_catalog/material_summary_indexes/v1/by_visibility/private/material-firebase',
+        'material_catalog/material_summary_indexes/v1/by_material_kind/full-test/material-firebase',
+      ]),
+    );
     expect(updatePaths).toEqual(
       expect.arrayContaining([
         'tests/material-firebase',
@@ -303,6 +311,37 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     expect(JSON.stringify(firebaseUpdates.updates['material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1']))
       .not.toMatch(/acceptableAnswers|scoringRule|document|provenance/);
     expect(containsUndefined(firebaseUpdates.updates)).toBe(false);
+  });
+
+  it('mirrors legacy material-index cleanup into universal summary cleanup', () => {
+    const commitPlan = createPassagePublishPlan();
+    const firebaseUpdates = buildReadingV2FirebasePublishUpdates({
+      ...commitPlan,
+      operations: [
+        ...commitPlan.operations,
+        {
+          kind: 'storage-write',
+          operationKey: 'material-firebase-passages/cleanup/owner',
+          path: 'material_catalog/material_indexes/by_owner/old-teacher/material-firebase-passages-passage-1',
+          value: null,
+          writeKind: 'reading-passage-listing-index',
+        },
+        {
+          kind: 'storage-write',
+          operationKey: 'material-firebase-passages/cleanup/source',
+          path: 'material_catalog/material_indexes/by_source_full_test/old-full-test/material-firebase-passages-passage-1',
+          value: null,
+          writeKind: 'reading-passage-listing-index',
+        },
+      ],
+    }, '2026-06-01T01:00:00.000Z');
+
+    expect(firebaseUpdates.updates[
+      'material_catalog/material_summary_indexes/v1/by_owner/old-teacher/material-firebase-passages-passage-1'
+    ]).toBeNull();
+    expect(firebaseUpdates.updates[
+      'material_catalog/material_summary_indexes/v1/by_source_full_test/old-full-test/material-firebase-passages-passage-1'
+    ]).toBeUndefined();
   });
 
   it('treats an existing matching commit marker as an idempotent retry', async () => {
