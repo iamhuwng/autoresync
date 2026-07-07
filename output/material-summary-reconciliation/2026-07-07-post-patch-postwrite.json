@@ -1,0 +1,45 @@
+{
+  "dryRun": true,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-07-07T11:40:29.360Z",
+  "totals": {
+    "operations": 0,
+    "operationDigest": "fnv1a-741638a5",
+    "readFailures": 0
+  },
+  "reconciliation": {
+    "expectedSummaryCount": 60,
+    "currentRowCount": 204,
+    "operationCount": 0,
+    "operationDigest": "fnv1a-741638a5",
+    "countsByReason": {
+      "missing": 0,
+      "stale": 0,
+      "malformed": 0,
+      "orphan": 0
+    },
+    "expectedCountsByProducer": {
+      "material-book": 3,
+      "reading-v2-passage": 35,
+      "reading-v2-full-test": 22
+    },
+    "expectedCountsByKind": {
+      "book": 3,
+      "reading-passage": 35,
+      "full-test": 22
+    },
+    "operations": []
+  },
+  "parity": {
+    "expectedCount": 60,
+    "currentCount": 60,
+    "missingIds": [],
+    "orphanIds": [],
+    "parity": true
+  },
+  "operations": [],
+  "readFailures": [],
+  "mutation": {
+    "status": "not-run"
+  }
+}

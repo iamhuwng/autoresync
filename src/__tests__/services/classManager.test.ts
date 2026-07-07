@@ -192,7 +192,7 @@ import {
   updateClassStatus,
 } from '../../services/classManager';
 import { database } from '../../services/firebase';
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 
 // Test data
 const TEST_TEACHER_UID = 'teacher-test-uid-123';
@@ -233,6 +233,13 @@ describe('Class Manager - Class Creation', () => {
     expect(classData?.createdBy).toBe(TEST_TEACHER_UID);
     expect(classData?.name).toBe('Test Class - Math 101');
     expect(classData?.status).toBe('active');
+
+    const legacySessionSnapshot = await get(ref(database, `game_sessions/${result.classId}`));
+    expect(legacySessionSnapshot.val()).toMatchObject({
+      createdByUserId: TEST_TEACHER_UID,
+      createdBy: TEST_TEACHER_UID,
+      teacherId: TEST_TEACHER_UID,
+    });
   });
 
   it('should generate unique class codes', async () => {
@@ -398,6 +405,73 @@ describe('Class Manager - Teacher Access Control', () => {
     await getClasses(TEST_TEACHER_UID);
 
     expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
+  it('normalizes legacy class rows missing status before returning list summaries', async () => {
+    await set(ref(database, 'classes/legacy-no-status'), {
+      id: 'legacy-no-status',
+      createdBy: TEST_TEACHER_UID,
+      name: 'Legacy No Status',
+      createdAt: 1700000000000,
+      students: {},
+      assignments: {},
+    });
+
+    const classes = await getClasses(TEST_TEACHER_UID);
+    const legacyClass = classes.find((entry) => entry.id === 'legacy-no-status');
+
+    expect(legacyClass).toMatchObject({
+      id: 'legacy-no-status',
+      classCode: 'legacy-no-status',
+      name: 'Legacy No Status',
+      status: 'active',
+    });
+  });
+
+  it('normalizes legacy class rows before returning detail records', async () => {
+    await set(ref(database, 'classes/legacy-waiting'), {
+      createdBy: TEST_TEACHER_UID,
+      name: 'Legacy Waiting',
+      status: 'waiting',
+      createdAt: 1700000000000,
+    });
+
+    const classData = await getClass('legacy-waiting');
+
+    expect(classData).toMatchObject({
+      id: 'legacy-waiting',
+      classCode: 'legacy-waiting',
+      name: 'Legacy Waiting',
+      status: 'active',
+      students: {},
+      assignments: {},
+    });
+  });
+
+  it('normalizes legacy student rows before returning detail records', async () => {
+    await set(ref(database, 'classes/legacy-students'), {
+      createdBy: TEST_TEACHER_UID,
+      name: 'Legacy Students',
+      status: 'active',
+      createdAt: 1_700_000_000_000,
+      students: {
+        'student-with-missing-fields': {
+          email: 'student@example.com',
+        },
+      },
+    });
+
+    const classData = await getClass('legacy-students');
+
+    expect(classData?.students['student-with-missing-fields']).toMatchObject({
+      id: 'student-with-missing-fields',
+      name: 'student@example.com',
+      joinedAt: 1_700_000_000_000,
+      lastActiveAt: 1_700_000_000_000,
+      isOnline: false,
+      assignments: {},
+    });
+    expect(classData?.stats.activeStudents).toBe(1);
   });
 
   it('should verify teacher can only manage their own classes', async () => {
@@ -790,6 +864,80 @@ describe('Class Manager - Student Membership Projection', () => {
     expect(deleted).toBe(true);
     expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(false);
     expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID_2}/${testClassId}`))).exists()).toBe(false);
+  });
+
+  it('should not touch legacy game-session rows when a class is deleted', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    const updateMock = vi.mocked(update);
+    const originalUpdate = updateMock.getMockImplementation();
+
+    if (!originalUpdate) {
+      throw new Error('Expected mocked firebase update implementation');
+    }
+
+    const touchedPaths: string[] = [];
+
+    updateMock.mockImplementation(async (target, updates) => {
+      const targetPath = (target as { path: string }).path;
+      touchedPaths.push(...Object.keys(updates).map((key) => (
+        [targetPath, normalizePath(key)].filter(Boolean).join('/')
+      )));
+
+      return originalUpdate(target, updates);
+    });
+
+    try {
+      const deleted = await deleteClass(testClassId);
+
+      expect(deleted).toBe(true);
+      expect((await get(ref(database, `classes/${testClassId}/status`))).val()).toBe('deleted');
+      expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(false);
+      expect(touchedPaths.some((path) => path.startsWith(`game_sessions/${testClassId}`))).toBe(false);
+    } finally {
+      updateMock.mockImplementation(originalUpdate);
+    }
+  });
+
+  it('should still delete the class when student membership projection cleanup is denied', async () => {
+    await enrollStudent(testClassId, TEST_STUDENT_UID, 'Projected Student', 'student@test.com');
+
+    const updateMock = vi.mocked(update);
+    const originalUpdate = updateMock.getMockImplementation();
+
+    if (!originalUpdate) {
+      throw new Error('Expected mocked firebase update implementation');
+    }
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    updateMock.mockImplementation(async (target, updates) => {
+      const targetPath = (target as { path: string }).path;
+      const touchedPaths = Object.keys(updates).map((key) => (
+        [targetPath, normalizePath(key)].filter(Boolean).join('/')
+      ));
+
+      if (touchedPaths.includes(`student_classes/${TEST_STUDENT_UID}/${testClassId}`)) {
+        throw new Error('permission_denied');
+      }
+
+      return originalUpdate(target, updates);
+    });
+
+    try {
+      const deleted = await deleteClass(testClassId);
+
+      expect(deleted).toBe(true);
+      expect((await get(ref(database, `classes/${testClassId}/status`))).val()).toBe('deleted');
+      expect((await get(ref(database, `student_classes/${TEST_STUDENT_UID}/${testClassId}`))).exists()).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`Failed to clean up student class projections for deleted class ${testClassId}`),
+        expect.any(Error),
+      );
+    } finally {
+      updateMock.mockImplementation(originalUpdate);
+      warnSpy.mockRestore();
+    }
   });
 });
 

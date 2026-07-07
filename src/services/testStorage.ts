@@ -32,6 +32,8 @@ import {
   stripTableCompletionReviewOnlyProvenanceFromField,
 } from './test-creation/tableCompletionTransforms';
 import { buildPersistedTableCompletionDiagnostics } from './test-creation/tableCompletionValidator';
+import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 
 /** Link to source material (legacy - Materials feature removed) */
 export interface MaterialLink {
@@ -451,8 +453,11 @@ export const saveTestToFirebase = async (
     };
 
     // Save to Firebase
-    const testRef = ref(database, `tests/${testId}`);
-    await set(testRef, testData);
+    const summary = createLegacyTestMaterialSummary(testId, testData);
+    await update(ref(database), {
+      [`tests/${testId}`]: testData,
+      ...buildMaterialSummaryUpdatePayload(summary),
+    });
     await writeStudentSafeTestData(testId, testData);
 
     console.log('✅ Test saved to Firebase:', testId);
@@ -895,7 +900,12 @@ export const persistIELTSCanonicalQuestionGroupsToFirebase = async (
       ...(nextDiagnostics.length === 0 ? { tableCompletionDiagnostics: [] } : {}),
     };
 
-    await set(ref(database, `tests/${testId}`), nextTestData);
+    const previousSummary = createLegacyTestMaterialSummary(testId, existingTest);
+    const nextSummary = createLegacyTestMaterialSummary(testId, nextTestData);
+    await update(ref(database), {
+      [`tests/${testId}`]: nextTestData,
+      ...buildMaterialSummaryUpdatePayload(nextSummary, previousSummary),
+    });
     await writeStudentSafeTestData(testId, nextTestData);
 
     return {
@@ -939,20 +949,30 @@ export const updateTestInFirebase = async (
       }
     }
 
-    const testRef = ref(database, `tests/${testId}`);
-
     // Add updatedAt timestamp
     const updatedData = {
       ...remainingUpdates,
       updatedAt: Date.now(),
     };
 
-    await update(testRef, updatedData);
-
-    const result = await getTestFromFirebase(testId);
-    if (result.success && result.data) {
-      await writeStudentSafeTestData(testId, result.data);
+    const currentResult = await getTestFromFirebase(testId);
+    if (!currentResult.success || !currentResult.data) {
+      return {
+        success: false,
+        error: currentResult.error ?? 'Test not found',
+      };
     }
+    const nextTestData = { ...currentResult.data, ...updatedData };
+    const previousSummary = createLegacyTestMaterialSummary(
+      testId,
+      currentResult.data,
+    );
+    const nextSummary = createLegacyTestMaterialSummary(testId, nextTestData);
+    await update(ref(database), {
+      [`tests/${testId}`]: nextTestData,
+      ...buildMaterialSummaryUpdatePayload(nextSummary, previousSummary),
+    });
+    await writeStudentSafeTestData(testId, nextTestData);
 
     console.log('✅ Test updated in Firebase:', testId);
 
@@ -973,9 +993,21 @@ export const updateTestInFirebase = async (
  */
 export const deleteTestFromFirebase = async (testId: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    const testRef = ref(database, `tests/${testId}`);
-    await set(testRef, null);
-    await set(ref(database, `student_safe_tests/${testId}`), null);
+    const currentResult = await getTestFromFirebase(testId);
+    const summaryUpdates = currentResult.success && currentResult.data
+      ? buildMaterialSummaryUpdatePayload(
+          createLegacyTestMaterialSummary(testId, {
+            ...currentResult.data,
+            updatedAt: Date.now(),
+          }, 'removed'),
+          createLegacyTestMaterialSummary(testId, currentResult.data),
+        )
+      : {};
+    await update(ref(database), {
+      [`tests/${testId}`]: null,
+      [`student_safe_tests/${testId}`]: null,
+      ...summaryUpdates,
+    });
 
     console.log('✅ Test deleted from Firebase:', testId);
 

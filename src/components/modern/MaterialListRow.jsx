@@ -45,6 +45,28 @@ const getSortedActions = (actions = []) =>
     return leftSlot - rightSlot;
   });
 
+const reportActionError = (item, error) => {
+  if (typeof item.onError === 'function') {
+    item.onError(error, item);
+    return;
+  }
+  console.error('Material row action failed:', error);
+};
+
+const runAction = (item) => {
+  if (item.disabled) {
+    return;
+  }
+  try {
+    const result = item.onSelect?.();
+    if (result && typeof result.then === 'function') {
+      Promise.resolve(result).catch((error) => reportActionError(item, error));
+    }
+  } catch (error) {
+    reportActionError(item, error);
+  }
+};
+
 const MaterialListRow = ({ row }) => {
   const RowIcon = ROW_ICONS[row.iconKind] || FileIcon;
   const canSelect = Boolean(row.selection && !row.selection.disabled);
@@ -89,11 +111,7 @@ const MaterialListRow = ({ row }) => {
         aria-label={item.label}
         disabled={item.disabled}
         title={item.disabled ? item.disabledReason : item.label}
-        onClick={() => {
-          if (!item.disabled) {
-            item.onSelect?.();
-          }
-        }}
+        onClick={() => runAction(item)}
       >
         {ActionIcon && <ActionIcon size={14} />}
         <span className="material-list-row__action-label">{item.label}</span>

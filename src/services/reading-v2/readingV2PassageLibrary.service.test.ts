@@ -74,8 +74,29 @@ const indexRow = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const summaryRow = (overrides: Record<string, unknown> = {}) => ({
+  schemaVersion: 1,
+  materialId: 'passage-1',
+  producerId: 'reading-v2-passage',
+  materialKind: 'reading-passage',
+  surfaceFamily: 'passage',
+  ownerId: 'teacher-1',
+  title: 'Academic Reading Test 1 - Passage 2',
+  visibility: 'private',
+  lifecycleState: 'active',
+  skillId: 'reading',
+  primaryTestTypeId: 'ielts',
+  testTypeIds: ['ielts'],
+  testTypeMembership: { ielts: true },
+  tags: ['reading-passage'],
+  sourceFullTestId: 'full-test-1',
+  sourceSnapshotVersionId: 'snapshot-1',
+  updatedAt: '2026-06-01T00:00:00.000Z',
+  ...overrides,
+});
+
 const reader = (overrides: Partial<ReadingV2PassageLibraryReader> = {}): ReadingV2PassageLibraryReader => ({
-  listIndexRows: vi.fn(async () => [indexRow() as any]),
+  listSummaryRows: vi.fn(async () => [indexRow() as any]),
   readMetadata: vi.fn(async () => metadata() as any),
   readStudentSafeProjection: vi.fn(async () => projection(13) as any),
   readCanonicalMaterial: vi.fn(async () => {
@@ -94,7 +115,7 @@ describe('readingV2PassageLibrary.service', () => {
     vi.clearAllMocks();
   });
 
-  it('lists teacher-owned private Reading Passages from indexes, metadata, and student-safe projection', async () => {
+  it('lists teacher-owned private Reading Passages from summary rows, metadata, and student-safe projection', async () => {
     const testReader = reader();
 
     const rows = await listTeacherReadingPassages({
@@ -104,7 +125,7 @@ describe('readingV2PassageLibrary.service', () => {
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
     });
 
-    expect(testReader.listIndexRows).toHaveBeenCalledWith({
+    expect(testReader.listSummaryRows).toHaveBeenCalledWith({
       scope: 'private',
       teacherId: 'teacher-1',
     });
@@ -141,9 +162,45 @@ describe('readingV2PassageLibrary.service', () => {
     ]);
   });
 
+  it('keeps teacher-owned public Reading Passages in the owner summary scope', async () => {
+    const testReader = reader({
+      listSummaryRows: vi.fn(async () => [
+        indexRow({
+          materialId: 'owned-public-passage',
+          ownerId: 'teacher-1',
+          visibility: 'public',
+        }) as any,
+      ]),
+      readMetadata: vi.fn(async () =>
+        metadata({
+          materialId: 'owned-public-passage',
+          ownerId: 'teacher-1',
+          visibility: 'public' as any,
+        }) as any,
+      ),
+      readStudentSafeProjection: vi.fn(async () => projection(9) as any),
+    });
+
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      materialId: 'owned-public-passage',
+      scope: 'private',
+      visibility: 'public',
+      isOwner: true,
+      questionCount: 9,
+    });
+  });
+
   it('lists canonically public Reading Passages without mixing them into top-level Public Library semantics', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({
           materialId: 'public-passage',
           ownerId: 'teacher-2',
@@ -183,7 +240,7 @@ describe('readingV2PassageLibrary.service', () => {
 
   it('keeps legacy library-eligible Reading Passages readable in public scope until migration', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({
           materialId: 'public-passage',
           ownerId: 'teacher-2',
@@ -212,7 +269,7 @@ describe('readingV2PassageLibrary.service', () => {
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
     });
 
-    expect(testReader.listIndexRows).toHaveBeenCalledWith({
+    expect(testReader.listSummaryRows).toHaveBeenCalledWith({
       scope: 'public',
       teacherId: 'teacher-1',
     });
@@ -230,9 +287,9 @@ describe('readingV2PassageLibrary.service', () => {
     ]);
   });
 
-  it('skips unreadable public index rows instead of failing the whole public list', async () => {
+  it('fails loudly when a public summary row cannot hydrate metadata', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({
           materialId: 'stale-public-passage',
           ownerId: 'teacher-2',
@@ -259,25 +316,35 @@ describe('readingV2PassageLibrary.service', () => {
       readStudentSafeProjection: vi.fn(async () => projection(8) as any),
     });
 
-    const rows = await listTeacherReadingPassages({
+    await expect(listTeacherReadingPassages({
       teacherId: 'teacher-1',
       scope: 'public',
       reader: testReader,
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    })).rejects.toThrow(
+      /could not hydrate metadata for stale-public-passage: permission_denied/,
+    );
+  });
+
+  it('fails loudly when a Reading Passage summary row has no valid metadata', async () => {
+    const testReader = reader({
+      listSummaryRows: vi.fn(async () => [
+        indexRow({ materialId: 'missing-metadata-passage' }) as any,
+      ]),
+      readMetadata: vi.fn(async () => null),
     });
 
-    expect(rows.map((row) => row.materialId)).toEqual(['valid-public-passage']);
-    expect(rows[0]).toMatchObject({
-      scope: 'public',
-      isOwner: false,
-      visibility: 'public',
-      questionCount: 8,
-    });
+    await expect(listTeacherReadingPassages({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      reader: testReader,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    })).rejects.toThrow(/missing valid metadata: missing-metadata-passage/);
   });
 
   it('does not expose stale private rows when index and metadata are not owned by the current teacher', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({
           materialId: 'other-private-passage',
           ownerId: 'teacher-2',
@@ -305,7 +372,7 @@ describe('readingV2PassageLibrary.service', () => {
 
   it('combines search and active Test Type filter with AND semantics over summary fields only', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({ materialId: 'passage-ielts', title: 'Environment passage', testTypeIds: ['ielts'] }) as any,
         indexRow({ materialId: 'passage-toeic', title: 'Business passage', testTypeIds: ['toeic'] }) as any,
       ]),
@@ -428,7 +495,7 @@ describe('readingV2PassageLibrary.service', () => {
 
   it('returns archived owner rows only from the explicit Archive scope', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({ materialId: 'passage-archived', visibility: 'private' }) as any,
       ]),
       readMetadata: vi.fn(async () =>
@@ -448,7 +515,7 @@ describe('readingV2PassageLibrary.service', () => {
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
     });
 
-    expect(testReader.listIndexRows).toHaveBeenCalledWith({
+    expect(testReader.listSummaryRows).toHaveBeenCalledWith({
       scope: 'archived',
       teacherId: 'teacher-1',
     });
@@ -466,7 +533,7 @@ describe('readingV2PassageLibrary.service', () => {
 
   it('excludes full tests and non-Reading-Passage metadata from the dedicated Reading Passage list', async () => {
     const testReader = reader({
-      listIndexRows: vi.fn(async () => [
+      listSummaryRows: vi.fn(async () => [
         indexRow({ materialId: 'passage-1', materialKind: 'reading-passage' }) as any,
         indexRow({ materialId: 'full-test-1', materialKind: 'full-test' }) as any,
       ]),
@@ -503,10 +570,10 @@ describe('readingV2PassageLibrary.service', () => {
     expect(canonicalRead).not.toHaveBeenCalled();
   });
 
-  it('provides a Firebase reader that targets owner/visibility indexes and safe Reading V2 paths', async () => {
+  it('provides a Firebase reader that targets universal summary indexes and safe Reading V2 paths', async () => {
     const valueByPath: Record<string, unknown> = {
-      'material_catalog/material_indexes/by_owner/teacher-1': {
-        'passage-1': indexRow(),
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1': {
+        'passage-1': summaryRow(),
       },
       [readingV2StoragePaths.materialMetadata('passage-1')]: metadata(),
       [readingV2StoragePaths.studentSafeTests('passage-1', 'snapshot-1')]: projection(5),
@@ -522,7 +589,14 @@ describe('readingV2PassageLibrary.service', () => {
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
     });
 
-    expect(ref).toHaveBeenCalledWith({}, 'material_catalog/material_indexes/by_owner/teacher-1');
+    expect(ref).toHaveBeenCalledWith(
+      {},
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+    );
+    expect(ref).not.toHaveBeenCalledWith(
+      {},
+      'material_catalog/material_indexes/by_owner/teacher-1',
+    );
     expect(ref).toHaveBeenCalledWith({}, readingV2StoragePaths.materialMetadata('passage-1'));
     expect(ref).toHaveBeenCalledWith({}, readingV2StoragePaths.studentSafeTests('passage-1', 'snapshot-1'));
     expect(rows[0]?.questionCount).toBe(5);

@@ -441,6 +441,210 @@
                     ".validate": "!newData.exists() || (newData.hasChildren(['teacherId', 'pinnedTestTypeIds', 'updatedAt', 'updatedBy']) && newData.child('teacherId').val() === $teacherId && newData.child('updatedAt').isString() && newData.child('updatedBy').isString())"
                 }
             },
+            "material_summary_indexes": {
+                "v1": {
+                    "by_id": {
+                        "$materialId": {
+                            ".read": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'teacher' && data.child('lifecycleState').val() === 'active' && (data.child('ownerId').val() === auth.uid || data.child('visibility').val() === 'public')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && (newData.child('producerId').val() !== 'material-book' || newData.child('visibility').val() !== 'public') && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')) || (!newData.exists() && data.child('ownerId').val() === auth.uid && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')))))",
+                            ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'materialId', 'producerId', 'materialKind', 'surfaceFamily', 'ownerId', 'title', 'visibility', 'lifecycleState', 'testTypeIds', 'testTypeMembership', 'tags', 'updatedAt']) && newData.child('schemaVersion').val() === 1 && newData.child('materialId').val() === $materialId && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('updatedAt').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && (newData.child('lifecycleState').val() === 'active' || newData.child('lifecycleState').val() === 'archived' || newData.child('lifecycleState').val() === 'removed') && (newData.child('producerId').val() === 'reading-v2-full-test' || newData.child('producerId').val() === 'reading-v2-passage' || newData.child('producerId').val() === 'material-book' || newData.child('producerId').val() === 'writing' || newData.child('producerId').val() === 'thcs-thpt' || newData.child('producerId').val() === 'generic-test' || newData.child('producerId').val() === 'listening') && !newData.child('document').exists() && !newData.child('questions').exists() && !newData.child('tasks').exists() && !newData.child('passages').exists() && !newData.child('audioSections').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('studentAnswers').exists() && !newData.child('canonicalPayload').exists() && !newData.child('canonicalEditableDraft').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                            "schemaVersion": { ".validate": "newData.val() === 1" },
+                            "materialId": { ".validate": "newData.isString()" },
+                            "producerId": { ".validate": "newData.isString()" },
+                            "materialKind": { ".validate": "newData.isString()" },
+                            "surfaceFamily": { ".validate": "newData.isString()" },
+                            "ownerId": { ".validate": "newData.isString()" },
+                            "title": { ".validate": "newData.isString()" },
+                            "description": { ".validate": "newData.isString()" },
+                            "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+                            "lifecycleState": { ".validate": "newData.val() === 'active' || newData.val() === 'archived' || newData.val() === 'removed'" },
+                            "skillId": { ".validate": "newData.isString()" },
+                            "primaryTestTypeId": { ".validate": "newData.isString()" },
+                            "testTypeIds": {
+                                "$index": { ".validate": "newData.isString()" }
+                            },
+                            "testTypeMembership": {
+                                "$testTypeId": { ".validate": "newData.val() === true" }
+                            },
+                            "tags": {
+                                "$index": { ".validate": "newData.isString()" }
+                            },
+                            "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                            "durationMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                            "sourceSnapshotVersionId": { ".validate": "newData.isString()" },
+                            "sourceFullTestId": { ".validate": "newData.isString()" },
+                            "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
+                            "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                            "updatedAt": { ".validate": "newData.isString()" },
+                            "$other": { ".validate": false }
+                        }
+                    },
+                    "by_owner": {
+                        "$ownerId": {
+                            ".read": "auth != null && (($ownerId === auth.uid && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".indexOn": [
+                                "updatedAt"
+                            ],
+                            "$materialId": {
+                                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && $ownerId === auth.uid && ((newData.exists() && newData.child('ownerId').val() === $ownerId && (newData.child('producerId').val() !== 'material-book' || newData.child('visibility').val() !== 'public') && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')) || (!newData.exists() && data.child('ownerId').val() === $ownerId && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')))))",
+                                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'materialId', 'producerId', 'materialKind', 'surfaceFamily', 'ownerId', 'title', 'visibility', 'lifecycleState', 'testTypeIds', 'testTypeMembership', 'tags', 'updatedAt']) && newData.child('schemaVersion').val() === 1 && newData.child('materialId').val() === $materialId && newData.child('ownerId').val() === $ownerId && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('lifecycleState').val() === 'active' && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public') && !newData.child('document').exists() && !newData.child('questions').exists() && !newData.child('tasks').exists() && !newData.child('passages').exists() && !newData.child('audioSections').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('studentAnswers').exists() && !newData.child('canonicalPayload').exists() && !newData.child('canonicalEditableDraft').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                                "schemaVersion": { ".validate": "newData.val() === 1" },
+                                "materialId": { ".validate": "newData.isString()" },
+                                "producerId": { ".validate": "newData.isString()" },
+                                "materialKind": { ".validate": "newData.isString()" },
+                                "surfaceFamily": { ".validate": "newData.isString()" },
+                                "ownerId": { ".validate": "newData.isString()" },
+                                "title": { ".validate": "newData.isString()" },
+                                "description": { ".validate": "newData.isString()" },
+                                "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+                                "lifecycleState": { ".validate": "newData.val() === 'active' || newData.val() === 'archived' || newData.val() === 'removed'" },
+                                "skillId": { ".validate": "newData.isString()" },
+                                "primaryTestTypeId": { ".validate": "newData.isString()" },
+                                "testTypeIds": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "testTypeMembership": {
+                                    "$testTypeId": { ".validate": "newData.val() === true" }
+                                },
+                                "tags": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "durationMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "sourceSnapshotVersionId": { ".validate": "newData.isString()" },
+                                "sourceFullTestId": { ".validate": "newData.isString()" },
+                                "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
+                                "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "updatedAt": { ".validate": "newData.isString()" },
+                                "$other": { ".validate": false }
+                            }
+                        }
+                    },
+                    "by_visibility": {
+                        "$visibility": {
+                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".indexOn": [
+                                "updatedAt"
+                            ],
+                            "$materialId": {
+                                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && newData.child('visibility').val() === $visibility && (newData.child('producerId').val() !== 'material-book' || $visibility !== 'public') && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')) || (!newData.exists() && data.child('ownerId').val() === auth.uid && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')))))",
+                                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'materialId', 'producerId', 'materialKind', 'surfaceFamily', 'ownerId', 'title', 'visibility', 'lifecycleState', 'testTypeIds', 'testTypeMembership', 'tags', 'updatedAt']) && newData.child('schemaVersion').val() === 1 && newData.child('materialId').val() === $materialId && newData.child('visibility').val() === $visibility && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('lifecycleState').val() === 'active' && ($visibility === 'private' || $visibility === 'public') && ($visibility !== 'public' || (newData.child('materialKind').val() === 'full-test' || newData.child('materialKind').val() === 'reading-passage' || newData.child('materialKind').val() === 'book' || newData.child('materialKind').val() === 'listening-part' || newData.child('materialKind').val() === 'writing-prompt' || newData.child('materialKind').val() === 'thcs-thpt-test')) && !newData.child('document').exists() && !newData.child('questions').exists() && !newData.child('tasks').exists() && !newData.child('passages').exists() && !newData.child('audioSections').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('studentAnswers').exists() && !newData.child('canonicalPayload').exists() && !newData.child('canonicalEditableDraft').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                                "schemaVersion": { ".validate": "newData.val() === 1" },
+                                "materialId": { ".validate": "newData.isString()" },
+                                "producerId": { ".validate": "newData.isString()" },
+                                "materialKind": { ".validate": "newData.isString()" },
+                                "surfaceFamily": { ".validate": "newData.isString()" },
+                                "ownerId": { ".validate": "newData.isString()" },
+                                "title": { ".validate": "newData.isString()" },
+                                "description": { ".validate": "newData.isString()" },
+                                "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+                                "lifecycleState": { ".validate": "newData.val() === 'active' || newData.val() === 'archived' || newData.val() === 'removed'" },
+                                "skillId": { ".validate": "newData.isString()" },
+                                "primaryTestTypeId": { ".validate": "newData.isString()" },
+                                "testTypeIds": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "testTypeMembership": {
+                                    "$testTypeId": { ".validate": "newData.val() === true" }
+                                },
+                                "tags": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "durationMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "sourceSnapshotVersionId": { ".validate": "newData.isString()" },
+                                "sourceFullTestId": { ".validate": "newData.isString()" },
+                                "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
+                                "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "updatedAt": { ".validate": "newData.isString()" },
+                                "$other": { ".validate": false }
+                            }
+                        }
+                    },
+                    "by_material_kind": {
+                        "$materialKind": {
+                            ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".indexOn": [
+                                "updatedAt"
+                            ],
+                            "$materialId": {
+                                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && newData.child('materialKind').val() === $materialKind && (newData.child('producerId').val() !== 'material-book' || newData.child('visibility').val() !== 'public') && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')) || (!newData.exists() && data.child('ownerId').val() === auth.uid && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')))))",
+                                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'materialId', 'producerId', 'materialKind', 'surfaceFamily', 'ownerId', 'title', 'visibility', 'lifecycleState', 'testTypeIds', 'testTypeMembership', 'tags', 'updatedAt']) && newData.child('schemaVersion').val() === 1 && newData.child('materialId').val() === $materialId && newData.child('materialKind').val() === $materialKind && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('lifecycleState').val() === 'active' && !newData.child('document').exists() && !newData.child('questions').exists() && !newData.child('tasks').exists() && !newData.child('passages').exists() && !newData.child('audioSections').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('studentAnswers').exists() && !newData.child('canonicalPayload').exists() && !newData.child('canonicalEditableDraft').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                                "schemaVersion": { ".validate": "newData.val() === 1" },
+                                "materialId": { ".validate": "newData.isString()" },
+                                "producerId": { ".validate": "newData.isString()" },
+                                "materialKind": { ".validate": "newData.isString()" },
+                                "surfaceFamily": { ".validate": "newData.isString()" },
+                                "ownerId": { ".validate": "newData.isString()" },
+                                "title": { ".validate": "newData.isString()" },
+                                "description": { ".validate": "newData.isString()" },
+                                "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+                                "lifecycleState": { ".validate": "newData.val() === 'active' || newData.val() === 'archived' || newData.val() === 'removed'" },
+                                "skillId": { ".validate": "newData.isString()" },
+                                "primaryTestTypeId": { ".validate": "newData.isString()" },
+                                "testTypeIds": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "testTypeMembership": {
+                                    "$testTypeId": { ".validate": "newData.val() === true" }
+                                },
+                                "tags": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "durationMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "sourceSnapshotVersionId": { ".validate": "newData.isString()" },
+                                "sourceFullTestId": { ".validate": "newData.isString()" },
+                                "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
+                                "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "updatedAt": { ".validate": "newData.isString()" },
+                                "$other": { ".validate": false }
+                            }
+                        }
+                    },
+                    "by_test_type": {
+                        "$testTypeId": {
+                            ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+                            ".indexOn": [
+                                "updatedAt"
+                            ],
+                            "$materialId": {
+                                ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && ((newData.exists() && newData.child('ownerId').val() === auth.uid && (newData.child('producerId').val() !== 'material-book' || newData.child('visibility').val() !== 'public') && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')) || (!newData.exists() && data.child('ownerId').val() === auth.uid && (data.child('producerId').val() !== 'material-book' || data.child('visibility').val() !== 'public')))))",
+                                ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'materialId', 'producerId', 'materialKind', 'surfaceFamily', 'ownerId', 'title', 'visibility', 'lifecycleState', 'testTypeIds', 'testTypeMembership', 'tags', 'updatedAt']) && newData.child('schemaVersion').val() === 1 && newData.child('materialId').val() === $materialId && newData.child('testTypeMembership').child($testTypeId).val() === true && newData.child('title').isString() && newData.child('updatedAt').isString() && newData.child('lifecycleState').val() === 'active' && !newData.child('document').exists() && !newData.child('questions').exists() && !newData.child('tasks').exists() && !newData.child('passages').exists() && !newData.child('audioSections').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('scoringRule').exists() && !newData.child('scoringRules').exists() && !newData.child('studentAnswers').exists() && !newData.child('canonicalPayload').exists() && !newData.child('canonicalEditableDraft').exists() && !newData.child('authorDiagnostics').exists() && !newData.child('importEvidence').exists() && !newData.child('hiddenProvenance').exists())",
+                                "schemaVersion": { ".validate": "newData.val() === 1" },
+                                "materialId": { ".validate": "newData.isString()" },
+                                "producerId": { ".validate": "newData.isString()" },
+                                "materialKind": { ".validate": "newData.isString()" },
+                                "surfaceFamily": { ".validate": "newData.isString()" },
+                                "ownerId": { ".validate": "newData.isString()" },
+                                "title": { ".validate": "newData.isString()" },
+                                "description": { ".validate": "newData.isString()" },
+                                "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+                                "lifecycleState": { ".validate": "newData.val() === 'active' || newData.val() === 'archived' || newData.val() === 'removed'" },
+                                "skillId": { ".validate": "newData.isString()" },
+                                "primaryTestTypeId": { ".validate": "newData.isString()" },
+                                "testTypeIds": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "testTypeMembership": {
+                                    "$testTypeId": { ".validate": "newData.val() === true" }
+                                },
+                                "tags": {
+                                    "$index": { ".validate": "newData.isString()" }
+                                },
+                                "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "durationMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "sourceSnapshotVersionId": { ".validate": "newData.isString()" },
+                                "sourceFullTestId": { ".validate": "newData.isString()" },
+                                "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
+                                "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "updatedAt": { ".validate": "newData.isString()" },
+                                "$other": { ".validate": false }
+                            }
+                        }
+                    }
+                }
+            },
             "material_indexes": {
                 "by_owner": {
                     "$ownerId": {
@@ -999,15 +1203,16 @@
             },
             "relationship_indexes": {
                 "$surface": {
+                    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($surface === 'teacher-lobby' && query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",
+                    ".indexOn": [
+                        "snapshotVersionId",
+                        "source",
+                        "ownerId"
+                    ],
                     "$materialId": {
                         ".read": "auth != null",
                         ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
-                        ".validate": "!newData.exists() || (newData.hasChildren(['surface', 'materialId', 'snapshotVersionId', 'source', 'ownerId', 'deliveryEngine']) && newData.child('surface').val() === $surface && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')",
-                        ".indexOn": [
-                            "snapshotVersionId",
-                            "source",
-                            "ownerId"
-                        ]
+                        ".validate": "!newData.exists() || (newData.hasChildren(['surface', 'materialId', 'snapshotVersionId', 'source', 'ownerId', 'deliveryEngine']) && newData.child('surface').val() === $surface && newData.child('materialId').val() === $materialId && newData.child('deliveryEngine').val() === 'reading-v2')"
                     }
                 }
             },

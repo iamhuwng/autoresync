@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { buildMaterialCatalogIndexWrites } from '../materialCatalog/materialCatalogIndexes.service';
+import { createReadingV2MaterialSummary } from '../materialCatalog/materialSummaryAdapters.service';
+import { buildMaterialSummaryUpdatePayload } from '../materialCatalog/materialSummaryPort.service';
 import {
   READING_V2_SCHEMA_VERSION,
   readingV2Ids,
@@ -299,6 +301,10 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
     sourceFullTestId: material.sourceFullTestId,
     updatedAt: clonedAt,
   });
+  const summary = createReadingV2MaterialSummary(metadata, studentSafeProjection);
+  if (!summary) {
+    throw new Error('Reading Passage clone could not build its material summary.');
+  }
 
   assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
 
@@ -312,6 +318,7 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
     [readingV2StoragePaths.materialMetadata(clonedMaterialId)]: metadata,
     [getReadingV2DuplicateIndexPath(actorTeacherId, clonedMaterialId)]: duplicateIndexRow,
     ...Object.fromEntries(indexWrites.map((write) => [write.path, write.value])),
+    ...buildMaterialSummaryUpdatePayload(summary),
   });
 
   await input.repository.update(updates);

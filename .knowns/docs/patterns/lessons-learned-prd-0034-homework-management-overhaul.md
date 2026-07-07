@@ -123,8 +123,39 @@ tags:
 
 **Standard:** Visibility rules for the same material domain must be treated as a shared contract, not per-component behavior. If one teacher-facing selector supports owned + public-shareable materials, every other teacher-facing selector for the same action domain must be audited for the same split.
 
+**2026-07 Teacher Materials boundary:** Teacher Materials Public Library is a
+visibility query over universal summaries and includes all active public rows,
+including rows owned by the current teacher. Homework/course selectors that show
+a merged owned-plus-shared list may still label or group current-teacher owned
+rows separately, but must not redefine Public Library as "public and not mine."
+
 **Self-check for future work:**
 - [ ] Does this new teacher-facing selector use the same owned/public split as existing teacher surfaces?
 - [ ] Are foreign private materials still excluded?
 - [ ] If owned and public materials are merged, is the source visible in the UI?
 - [ ] Have all other selectors for the same material domain been grep-audited for drift?
+
+## L15: Runtime Stores Are Not Listing Authority
+
+**What happened:** Teacher Materials mixed several discovery sources: legacy
+`/tests`, Reading V2 relationship overlays, Reading Passage `material_indexes`,
+Book `book_indexes`, and feature-specific loaders. After retiring Reading V1,
+quiz, Google Drive, and session-tab paths, My Content and Public Library looked
+plausible but were incomplete because no single active-list contract covered
+every supported producer.
+
+**Standard:** Teacher Materials discovery must use the shared universal
+MaterialSummary catalog. Feature-specific stores remain canonical/runtime
+stores, but every supported producer needs a registry entry, lifecycle summary
+writes, rules coverage, reconciliation, and tests before it can claim Teacher
+Materials integration.
+
+**Visibility rule:** My Content is an owner query over active summaries and
+includes private plus public rows owned by the teacher. Public Library is a
+visibility query over active public summaries and includes current-teacher
+public rows too. Do not redefine Public Library as "public and not mine."
+
+**Repair rule:** Backfill/repair writes require a reviewed dry-run report,
+explicit approval, matching digest/count checks, a bounded multi-location
+update, and post-write zero-op verification. `/tests` bridge repair is separate
+from summary-catalog repair and must never become listing authority again.

@@ -21,12 +21,14 @@ import {
     orderBy,
     Timestamp,
 } from 'firebase/firestore';
-import { ref, set, push, update as dbUpdate } from 'firebase/database';
+import { get, ref, set, push, update as dbUpdate } from 'firebase/database';
 // @ts-ignore — JS service file
 import { database, firestore as db } from './firebase';
 import { deepRemoveUndefined } from './draftCloudService';
 import { withRestoreGuard } from './restoreGuard';
 import type { WritingTestDraft, IELTSWritingTest } from '../types/ielts-writing.types';
+import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 
 // ═══════════════════════════════════════════════════════════════
 // DRAFT OPERATIONS (Firestore: writing_drafts/{draftId})
@@ -322,7 +324,23 @@ export const publishWritingTest = withRestoreGuard<{ success: boolean; testId?: 
 
         // Deep-clean before writing to RTDB (undefined not allowed)
         const sanitized = deepRemoveUndefined(testData);
-        await set(ref(database, 'tests/' + testId), sanitized);
+        const isRepublish = Boolean(
+            draft.publishedTestId || existingDraftData?.publishedTestId,
+        );
+        const existingTestSnapshot = isRepublish
+            ? await get(ref(database, `tests/${testId}`))
+            : null;
+        const existingTest = existingTestSnapshot?.exists()
+            ? existingTestSnapshot.val() as Record<string, unknown>
+            : null;
+        const nextSummary = createLegacyTestMaterialSummary(testId, sanitized);
+        const previousSummary = existingTest
+            ? createLegacyTestMaterialSummary(testId, existingTest)
+            : null;
+        await dbUpdate(ref(database), {
+            [`tests/${testId}`]: sanitized,
+            ...buildMaterialSummaryUpdatePayload(nextSummary, previousSummary),
+        });
 
         try {
             const draftDoc = await buildWritingDraftDocument(sourceDraftId, ownerId, {
@@ -378,9 +396,19 @@ export const ensureWritingEditableDraft = withRestoreGuard<{ success: boolean; d
         }
 
         if (!test.sourceDraftId) {
-            await dbUpdate(ref(database, `tests/${test.id}`), {
+            const updatedAt = Date.now();
+            const nextTest = {
+                ...test,
                 sourceDraftId: draftId,
-                updatedAt: Date.now(),
+                updatedAt,
+            };
+            await dbUpdate(ref(database), {
+                [`tests/${test.id}/sourceDraftId`]: draftId,
+                [`tests/${test.id}/updatedAt`]: updatedAt,
+                ...buildMaterialSummaryUpdatePayload(
+                    createLegacyTestMaterialSummary(test.id, nextTest),
+                    createLegacyTestMaterialSummary(test.id, test),
+                ),
             });
         }
 

@@ -1,0 +1,28 @@
+{
+  "dryRun": true,
+  "projectId": "temp-a1437",
+  "generatedAt": "2026-07-07T11:44:16.399Z",
+  "totals": {
+    "activeFullTests": 12,
+    "currentBridges": 12,
+    "missingBridges": 0,
+    "staleBridges": 0,
+    "skippedMissingProjection": 0,
+    "skippedOutOfScope": 45,
+    "skippedInvalidMetadata": 0,
+    "operations": 0,
+    "readFailures": 0,
+    "publicWrites": 0,
+    "privateWrites": 0
+  },
+  "operations": [],
+  "readFailures": [],
+  "mutation": {
+    "status": "not-run"
+  },
+  "storagePaths": {
+    "metadata": "/reading_v2/material_metadata",
+    "studentSafeProjections": "/reading_v2/projections/student_safe_tests",
+    "tests": "/tests"
+  }
+}

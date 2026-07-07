@@ -4,6 +4,15 @@ Created: 2026-06-01
 Source PRD: `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md`
 Status: Draft
 
+> **2026-07-07 supersession note:** This task list contains historical V1
+> guardrails that kept Reading Passage and Book rows out of top-level My
+> Content/Public Library. Current Teacher Materials discovery is governed by
+> `documentation/architecture/universal-material-summary-integration.md` and
+> `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
+> My Content reads all owned active supported summaries; Public Library reads
+> all public active summaries. Dedicated Reading Passage and Book tabs are
+> filtered/specialized views, not separate discovery authorities.
+
 ## Relevant Files
 
 - `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md` - Product requirements and closed decisions for Books, Reading Passage library, Test Type blocks, and Teacher Materials tab behavior.
@@ -95,7 +104,7 @@ Status: Draft
 - `src/services/materialCatalog/bookValidation.service.test.ts` - Tests for all Book validation edge cases.
 - `src/services/materialCatalog/materialCatalogIndexes.service.ts` - New index writer/reader for material listing by owner, visibility, Test Type, material kind, and Book refs.
 - `src/services/materialCatalog/materialCatalogIndexes.service.test.ts` - Tests for index fanout and cleanup.
-- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; PRD-0052 production listing rows use `material_catalog/material_indexes`.
+- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; historical PRD-0052 production listing rows used `material_catalog/material_indexes`. Superseded 2026-07-07: active Teacher Materials discovery uses `material_summary_indexes/v1`.
 - `src/services/reading-v2/readingV2StoragePaths.service.test.ts` - Tests for new paths and legacy-overlap assertions.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.ts` - Extend material kinds, visibility, Test Type fields, source order display, and public/private behavior.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.test.ts` - Tests for Reading Passage metadata and source-order display.
@@ -242,7 +251,7 @@ Status: Draft
   - [x] 2.17 Define `ReadingV2ReadingPassageMaterial` with one stimulus/passage, task groups, interactions/questions, scoring/answer key in canonical or snapshot-safe location, metadata, structured source order (`numeric | label | unknown`), owner, visibility, state, current snapshot/version, and provenance.
   - [x] 2.18 Define `ReadingV2PassageRef` with `refId`, `passageMaterialId`, `snapshotVersionId`, `order`, `sourcePassageNumber`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `titleSnapshot`, `questionRangeSnapshot`, `questionCountSnapshot`, `durationSnapshot`, and `testTypeIdsSnapshot`.
   - [x] 2.19 Add required `ReadingV2FullTestComposition` with `compositionId`, `testMaterialId`, `title`, `primaryTestTypeId`, `testTypeIds`, `skill`, `passageRefs[]`, `questionCount`, `durationMinutes`, `visibility`, `ownerId`, `publishedVersionId`, `createdAt`, and `updatedAt`. New V2 full tests must reference this composition; compatibility reads only support legacy rows.
-  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows use `material_catalog/material_indexes`.
+  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows used `material_catalog/material_indexes`. Superseded 2026-07-07: active Teacher Materials discovery uses `material_summary_indexes/v1`.
   - [x] 2.21 Keep existing Reading V2 projection helpers for `studentSafeTests`, `sessionSafePayloads`, and `reviewProjections`; add only the new passage/composition helpers above unless tests prove a missing path class.
   - [x] 2.22 Add storage path tests in `readingV2StoragePaths.service.test.ts`, including assertions that new paths stay under `reading_v2/` and do not overlap legacy path prefixes.
   - [x] 2.23 Create `src/services/materialCatalog/materialCatalogPaths.ts`.

@@ -11,6 +11,8 @@ import { ref, set, get, update, runTransaction } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
 import type { THCSTest } from '../types/thcs-test.types';
+import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 
 /**
  * Generate unique THCS-THPT test ID
@@ -51,7 +53,13 @@ export const saveThcsTestToFirebase = async (
         }
 
         // First-time publish — direct set (no changelog entry)
-        await set(testRef, { ...testData, publishedAt: Date.now() });
+        const firstPublishedData = { ...testData, publishedAt: Date.now() };
+        await update(ref(database), {
+            [`tests/${testId}`]: firstPublishedData,
+            ...buildMaterialSummaryUpdatePayload(
+                createLegacyTestMaterialSummary(testId, firstPublishedData),
+            ),
+        });
 
         console.log('✅ THCS-THPT test saved to Firebase:', testId);
 
@@ -139,6 +147,11 @@ export const updateThcsTestInFirebase = async (
 ): Promise<{ success: boolean; error?: string }> => {
     try {
         const testRef = ref(database, `tests/${testId}`);
+        const currentSnapshot = await get(testRef);
+        if (!currentSnapshot.exists()) {
+            return { success: false, error: 'Test not found' };
+        }
+        const currentData = currentSnapshot.val() as THCSTest;
 
         const updatedData = {
             ...updates,
@@ -157,7 +170,14 @@ export const updateThcsTestInFirebase = async (
             isPublic: updates.isPublic,
         });
 
-        await update(testRef, updatedData);
+        const nextData = { ...currentData, ...updatedData };
+        await update(ref(database), {
+            [`tests/${testId}`]: nextData,
+            ...buildMaterialSummaryUpdatePayload(
+                createLegacyTestMaterialSummary(testId, nextData),
+                createLegacyTestMaterialSummary(testId, currentData),
+            ),
+        });
 
         console.log('✅ THCS-THPT test updated in Firebase:', testId);
 
@@ -197,7 +217,22 @@ export const deleteThcsTestFromFirebase = async (
 ): Promise<{ success: boolean; error?: string }> => {
     try {
         const testRef = ref(database, `tests/${testId}`);
-        await set(testRef, null);
+        const currentSnapshot = await get(testRef);
+        const currentData = currentSnapshot.exists()
+            ? currentSnapshot.val() as THCSTest
+            : null;
+        await update(ref(database), {
+            [`tests/${testId}`]: null,
+            ...(currentData
+                ? buildMaterialSummaryUpdatePayload(
+                    createLegacyTestMaterialSummary(testId, {
+                        ...currentData,
+                        updatedAt: Date.now(),
+                    }, 'removed'),
+                    createLegacyTestMaterialSummary(testId, currentData),
+                )
+                : {}),
+        });
 
         console.log('✅ THCS-THPT test deleted from Firebase:', testId);
 
@@ -339,11 +374,18 @@ export const publishTestUpdate = async (
 
     // Overwrite test data while preserving _changelog
     const preservedChangelog = { ...existingChangelog, [`v_${timestamp}`]: entry };
-    await set(testRef, {
+    const nextData = {
         ...newData,
         publishedAt: currentData.publishedAt,
         updatedAt: timestamp,
         _changelog: preservedChangelog,
+    };
+    await update(ref(database), {
+        [`tests/${testId}`]: nextData,
+        ...buildMaterialSummaryUpdatePayload(
+            createLegacyTestMaterialSummary(testId, nextData),
+            createLegacyTestMaterialSummary(testId, currentData),
+        ),
     });
 
     console.log(`✅ [publishTestUpdate] Changelog v_${timestamp} created: ${entry.label}`);
