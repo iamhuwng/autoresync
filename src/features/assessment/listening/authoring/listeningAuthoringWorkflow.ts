@@ -5,6 +5,7 @@ import type {
   ListeningAuthoringIssue,
   ListeningRetainedPins,
 } from '../types/listeningAuthoring.types';
+import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../../../../services/r2WorkerEndpoint';
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 type ObservabilitySink = (actionName: string, metadata: Record<string, unknown>) => void;
@@ -144,8 +145,6 @@ export type ListeningLifecycleResult =
 const defaultEnv = (): ListeningAuthoringEndpointEnv =>
   (import.meta.env ?? {}) as ListeningAuthoringEndpointEnv;
 
-const LOCAL_LISTENING_AUTHORING_WORKER_URL = 'http://localhost:8787';
-
 const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, '');
 
 const readBrowserHostname = (): string | undefined => {
@@ -187,11 +186,7 @@ export function resolveListeningAuthoringEndpoint(
     return trimTrailingSlashes(explicit);
   }
 
-  if (env.DEV === true && isLocalDevHost(hostname)) {
-    return LOCAL_LISTENING_AUTHORING_WORKER_URL;
-  }
-
-  return '';
+  return DEFAULT_R2_UPLOAD_WORKER_URL;
 }
 
 const defaultGetIdToken = async (): Promise<string | null | undefined> =>

@@ -298,7 +298,7 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(fetchImpl.mock.calls[1][0]).toBe(`${normalizedEndpoint}/move`);
     });
 
-    it('uses production endpoint when VITE_R2_UPLOAD_WORKER_URL is absent outside local development', async () => {
+    it('uses production endpoint when VITE_R2_UPLOAD_WORKER_URL is absent', async () => {
         vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', '');
         vi.stubGlobal('location', { hostname: 'teacher.example.com' });
         const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(authorization(DEFAULT_R2_UPLOAD_WORKER_URL)));
@@ -314,9 +314,9 @@ describe('R2UploadClient authenticated grant flow', () => {
         expect(fetchImpl.mock.calls[0][0]).toBe(`${DEFAULT_R2_UPLOAD_WORKER_URL}/upload/authorize`);
     });
 
-    it('uses the local Worker fallback only in Vite local development', () => {
-        expect(resolveR2UploadEndpoint({ DEV: true }, 'localhost')).toBe('http://localhost:8787');
-        expect(resolveR2UploadEndpoint({ DEV: true }, '127.0.0.1')).toBe('http://localhost:8787');
+    it('uses the deployed Worker fallback even in Vite local development', () => {
+        expect(resolveR2UploadEndpoint({ DEV: true }, 'localhost')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+        expect(resolveR2UploadEndpoint({ DEV: true }, '127.0.0.1')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
         expect(resolveR2UploadEndpoint({ DEV: false }, 'localhost')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
         expect(resolveR2UploadEndpoint({ DEV: true }, 'teacher.example.com')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
     });
@@ -328,8 +328,8 @@ describe('R2UploadClient authenticated grant flow', () => {
         }, 'localhost')).toBe('https://canary.example.test/base');
     });
 
-    it('requests the browser-visible upload transport only for localhost development', async () => {
-        const endpoint = 'http://localhost:8787';
+    it('does not request a browser-visible upload transport override', async () => {
+        const endpoint = 'https://canary.example.test';
         vi.stubGlobal('location', {
             hostname: 'localhost',
             origin: 'http://localhost:5173',
@@ -341,7 +341,7 @@ describe('R2UploadClient authenticated grant flow', () => {
         await client.upload(new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }), 'test_audio_temp');
 
         const requestBody = JSON.parse(String((fetchImpl.mock.calls[0][1] as RequestInit).body));
-        expect(requestBody.uploadTransportOrigin).toBe(endpoint);
+        expect(requestBody.uploadTransportOrigin).toBeUndefined();
     });
 
     it.each([

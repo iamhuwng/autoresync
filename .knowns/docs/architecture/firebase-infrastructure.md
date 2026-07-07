@@ -2,7 +2,7 @@
 title: Firebase Infrastructure
 description: Firebase RTDB schema, deployment, backup/restore, error handling patterns, development workflows.
 createdAt: '2026-02-27T16:33:56.072Z'
-updatedAt: '2026-04-05T14:27:51.551Z'
+updatedAt: '2026-07-07T16:20:00.000Z'
 tags:
   - architecture
   - firebase
@@ -24,6 +24,19 @@ Firebase Realtime Database is the primary backend. The application uses Firebase
 | **Auth** | Email/password login, user management | `src/services/firebase.js` |
 | **Realtime Database** | Primary data store (tests, sessions, results, users) | Rules in `database.rules.json` |
 | **Hosting** | Production web hosting | `firebase.json`, deploys to `kahut1.web.app` |
+
+## Hosting And Worker Boundary
+
+Firebase Hosting serves the static app only. It does not own or proxy Listening/R2 upload traffic.
+
+Current production split:
+
+```text
+App host: https://kahut1.web.app
+Upload/listening Worker: https://r2-upload-signer.iamhuwng.workers.dev
+```
+
+Do not configure browser app builds to use `http://localhost:8787` as a fallback. For real users, `localhost` points to the user's own computer and will break upload/authoring/delivery calls. See @doc/architecture/firebase-hosting-worker-endpoint-policy.
 
 ## RTDB Schema (Key Paths)
 

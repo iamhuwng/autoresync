@@ -3,8 +3,10 @@
 > **Purpose**: Document the correct patterns for file uploads to prevent data loss and ensure proper storage lifecycle management.
 > 
 > **Created**: 2026-02-04
-> **Last Updated**: 2026-02-04
+> **Last Updated**: 2026-07-07
 > **Related**: `r2Storage.ts`, `AvatarUploader.tsx`
+
+> **Current authority notice (2026-07-07):** This SOP is retained for the temp-vs-permanent storage pattern. Current Worker endpoint policy, Listening bridge behavior, and deployed/default browser URL rules are owned by `documentation/architecture/upload-storage-authority.md` and `documentation/architecture/firebase-hosting-worker-endpoint-policy.md`. Do not use this historical SOP to infer Worker deployment code or a local `localhost:8787` browser default.
 
 ---
 
