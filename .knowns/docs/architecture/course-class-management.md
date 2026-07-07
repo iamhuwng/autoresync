@@ -2,7 +2,7 @@
 title: Course Class Management
 description: Course and class CRUD, enrollment flow, student-teacher assignments, access control, 8 services mapped.
 createdAt: '2026-02-27T17:02:32.879Z'
-updatedAt: '2026-04-09T07:59:21.823Z'
+updatedAt: '2026-07-07T15:12:12.695Z'
 tags:
   - architecture
   - course
@@ -147,6 +147,29 @@ Current repo anchors:
 
 Related doc:
 - @doc/architecture/class-code-join-approval-gating
+
+## Teacher Class Lifecycle And Delete Boundary
+
+Repo source: `documentation/architecture/course-class-management.md`.
+
+Class lifecycle authority is `classes/{classId}`.
+
+Required rules:
+- `deleteClass(classId)` soft-deletes the canonical class row with
+  `status: 'deleted'`
+- `student_classes/{studentId}/{classId}` cleanup is best-effort projection
+  maintenance and must not roll back a successful class soft-delete
+- student class readers must filter stale projections whose canonical class row
+  is missing or deleted
+- class-backed `game_sessions/{classId}` rows are legacy compatibility shadows,
+  not class lifecycle authority
+- delete flows must not update class-backed `game_sessions/{classId}` rows
+
+Retired contract:
+- deleting a class must also update `game_sessions/{classId}`
+
+Related doc:
+- @doc/architecture/teacher-class-management-lifecycle
 
 ## Legacy And Fixture Class Row Resilience
 

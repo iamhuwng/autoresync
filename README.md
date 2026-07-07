@@ -111,6 +111,7 @@ A full-featured, real-time educational platform built with **React 19**, **Fireb
 | Cloudflare R2 over Firebase Storage | Cost-effective file storage with Workers proxy |
 | Vanilla CSS over Mantine/Tailwind | Bundle size control; Mantine is **banned** in new code |
 | Derived session lifecycle | Session expiry comes from `game_sessions.expiresAt` plus RTDB server `now`; no browser cleanup, Firebase scheduled Function, or Cloudflare lifecycle cron |
+| Class lifecycle authority | Class deletion is owned by `classes/{classId}.status`; `student_classes` cleanup is best-effort and class-backed `game_sessions/{classId}` rows are legacy shadows |
 | Zustand over Redux | Simpler state management for this scale |
 | Role-prefixed pages | Easy file-to-feature mapping by user role |
 | Feature-sliced skills modules | `src/skills/listening/` and `src/skills/reading/` as target pattern |
@@ -517,6 +518,7 @@ This project maintains structured documents via [Knowns](https://github.com/nich
 | `architecture/auth-rbac-architecture` | Auth flow, role-based access, route protection |
 | `architecture/session-test-modes` | Live/offline/solo/homework modes, timer sync |
 | `architecture/session-lifecycle-authority` | Current no-cron session expiry authority, owner index, Spark/Workers-Free boundary |
+| `architecture/teacher-class-management-lifecycle` | Current class delete boundary, projection cleanup, and legacy `game_sessions` shadow rules |
 | `architecture/student-experience-architecture` | 20 student pages, design standard, UX patterns |
 | `architecture/ui-design-standards` | Teacher & student design systems, CSS enforcement |
 | `architecture/firebase-infrastructure` | RTDB schema, deployment, backup/restore |

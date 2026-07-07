@@ -18,6 +18,11 @@ Canonical source of truth stays in `game_sessions/{sessionCode}`. The
 expiration boundary is `expiresAt` plus Firebase RTDB server time (`now`) in
 security rules. Client clocks are display hints only.
 
+Class management creates legacy class-backed shadow rows under
+`game_sessions/{classId}` for backward compatibility. Those rows are not class
+lifecycle authority. Class delete state comes from `classes/{classId}.status`,
+and `deleteClass()` must not update `game_sessions/{classId}`.
+
 This fits Firebase Spark and Cloudflare Workers Free:
 
 - Firebase direct RTDB/Auth/Rules only.
@@ -142,6 +147,11 @@ The following designs are obsolete for session expiration correctness:
 - overloading `r2-backup-worker` with session lifecycle reconciliation;
 - storing expiration correctness in a scheduled mutation instead of deriving it
   from canonical session data plus server-time rules.
+
+The following class-management design is also obsolete:
+
+- using class-backed `game_sessions/{classId}` updates as proof or mechanism of
+  class deletion.
 
 Older notes or conversation logs may mention those approaches. Treat them as
 historical only. This document is the current authority for live-session

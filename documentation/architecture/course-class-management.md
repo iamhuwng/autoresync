@@ -7,6 +7,9 @@ Canonical result visibility governance for course and class contexts lives in:
 Canonical join-by-code approval behavior now lives in:
 - `documentation/architecture/class-code-join-approval-gating.md`
 
+Canonical teacher class lifecycle and delete behavior now lives in:
+- `documentation/architecture/teacher-class-management-lifecycle.md`
+
 ## Class-Linked Course Material
 
 - When a result belongs to class-linked course material and no stronger context exists, ownership resolves from `classes/{classId}`.
@@ -37,6 +40,28 @@ Required rules:
 
 Current repo anchor:
 - enrollment enrichment accepts `getEnrollmentsByStudent(studentId, { studentClasses })`
+
+## Teacher Class Lifecycle And Delete Boundary
+
+`classes/{classId}` is the class lifecycle source of truth.
+
+Required rules:
+- `deleteClass(classId)` soft-deletes the canonical class row with
+  `status: 'deleted'`
+- `student_classes/{studentId}/{classId}` cleanup is best-effort projection
+  maintenance and must not roll back a successful class soft-delete
+- student class readers must filter stale projections whose canonical class row
+  is missing or deleted
+- class-backed `game_sessions/{classId}` rows are legacy compatibility shadows,
+  not class lifecycle authority
+- delete flows must not update class-backed `game_sessions/{classId}` rows
+
+Retired contract:
+- deleting a class must also update `game_sessions/{classId}`
+
+Current repo anchors:
+- `src/services/classManager.ts`
+- `src/__tests__/services/classManager.test.ts`
 
 ## Class-Code Enrollment Approval Contract
 
