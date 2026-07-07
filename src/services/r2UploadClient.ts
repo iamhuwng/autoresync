@@ -93,48 +93,13 @@ const temporaryOperations = new Set<UploadOperationKind>([
 
 const basename = (name: string) => name.split(/[\\/]/).pop() || 'upload';
 
-const LOCAL_R2_UPLOAD_WORKER_URL = 'http://localhost:8787';
-const LOCAL_APP_ORIGINS = new Set([
-    'http://localhost:5173',
-    'http://localhost:5174',
-]);
-
-const readBrowserHostname = (): string | undefined => {
-    const location = globalThis.location;
-    return location && typeof location.hostname === 'string'
-        ? location.hostname
-        : undefined;
-};
-
-const isLocalDevHost = (hostname: string | undefined): boolean =>
-    hostname === 'localhost'
-    || hostname === '127.0.0.1'
-    || hostname === '::1'
-    || hostname === '[::1]';
-
 export const resolveR2UploadEndpoint = (
     env: R2UploadEndpointEnv = import.meta.env,
-    hostname: string | undefined = readBrowserHostname(),
+    _hostname?: string,
 ): string => {
     const override = env.VITE_R2_UPLOAD_WORKER_URL?.trim();
     if (override) return override.replace(/\/+$/, '');
-    if (env.DEV === true && isLocalDevHost(hostname)) return LOCAL_R2_UPLOAD_WORKER_URL;
     return DEFAULT_R2_UPLOAD_WORKER_URL;
-};
-
-const resolveLocalUploadTransportOrigin = (endpoint: string): string | undefined => {
-    if (import.meta.env.DEV !== true || !LOCAL_APP_ORIGINS.has(globalThis.location?.origin)) {
-        return undefined;
-    }
-    try {
-        const parsed = new URL(endpoint);
-        return parsed.origin === LOCAL_R2_UPLOAD_WORKER_URL
-            && (parsed.pathname === '' || parsed.pathname === '/')
-            ? parsed.origin
-            : undefined;
-    } catch {
-        return undefined;
-    }
 };
 
 const readJson = async <T>(response: Response): Promise<T> => {
@@ -371,7 +336,6 @@ export class R2UploadClient implements R2UploadClientContract {
                     fileName: basename(file.name),
                     contentType: file.type || 'application/octet-stream',
                     sizeBytes: file.size,
-                    uploadTransportOrigin: resolveLocalUploadTransportOrigin(this.endpoint),
                 }),
             });
         } catch {

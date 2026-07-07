@@ -1,7 +1,7 @@
 ---
 title: Media Storage Architecture
 createdAt: '2026-02-27T16:33:46.887Z'
-updatedAt: '2026-02-27T16:34:06.672Z'
+updatedAt: '2026-07-07T16:20:00.000Z'
 description: >-
   Cloudflare R2 storage: two-path strategy (temp vs permanent), upload patterns,
   listening audio, common pitfalls.
@@ -19,6 +19,16 @@ tags:
 The application uses Cloudflare R2 for file storage, accessed via Cloudflare Workers as a proxy. A two-path strategy separates temporary uploads (auto-deleted after 24hr) from permanent storage.
 
 Google Drive is retired and is not an active upload, import, playback, streaming, validation, OAuth, or compatibility path. See @doc/architecture/retired-features-current-state.
+
+## Current Endpoint Boundary
+
+Firebase Hosting serves the app at `https://kahut1.web.app`; it is not the upload backend. Upload, Listening authoring, upload-session, live-delivery, solo-delivery, and result-review delivery calls use the deployed Cloudflare Worker:
+
+```text
+https://r2-upload-signer.iamhuwng.workers.dev
+```
+
+Browser app code must not fall back to `http://localhost:8787`. That URL is only valid for explicit Worker-local tests or manual local Worker development. Current authority: @doc/architecture/firebase-hosting-worker-endpoint-policy and @doc/architecture/upload-storage-authority.
 
 ## Architecture
 

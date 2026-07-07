@@ -1,7 +1,7 @@
 ---
 title: File Upload Patterns R2 Storage
 createdAt: '2026-02-27T15:26:30.741Z'
-updatedAt: '2026-02-27T15:26:32.133Z'
+updatedAt: '2026-07-07T16:20:00.000Z'
 description: Patterns and best practices for file uploads to R2 storage
 tags:
   - sop
@@ -14,8 +14,10 @@ tags:
 > **Purpose**: Document the correct patterns for file uploads to prevent data loss and ensure proper storage lifecycle management.
 > 
 > **Created**: 2026-02-04
-> **Last Updated**: 2026-02-04
+> **Last Updated**: 2026-07-07
 > **Related**: `r2Storage.ts`, `AvatarUploader.tsx`
+
+> **Current authority notice (2026-07-07):** This SOP is retained for the temp-vs-permanent storage pattern. Current Worker endpoint policy, Listening bridge behavior, and deployed/default browser URL rules are owned by @doc/architecture/upload-storage-authority and @doc/architecture/firebase-hosting-worker-endpoint-policy. Do not use this historical SOP to infer Worker deployment code or a local `localhost:8787` browser default.
 
 ---
 

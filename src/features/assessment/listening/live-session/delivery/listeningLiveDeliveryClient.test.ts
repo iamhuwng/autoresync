@@ -42,11 +42,11 @@ describe('listeningLiveDeliveryClient', () => {
     expect(resolveListeningLiveDeliveryEndpoint({})).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
   });
 
-  it('uses the local upload Worker endpoint for localhost dev live delivery', () => {
+  it('uses the deployed upload Worker endpoint for localhost dev live delivery', () => {
     expect(resolveListeningLiveDeliveryEndpoint({
       DEV: true,
       VITE_R2_UPLOAD_WORKER_URL: '',
-    })).toBe('http://localhost:8787');
+    })).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
   });
 
   it('posts asset and live scope with a Firebase token while deriving student authority from auth', async () => {
