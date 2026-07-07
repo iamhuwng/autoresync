@@ -29,6 +29,10 @@ The retired-material cleanup does not reopen or change PRD-0040/PRD-0041 FR clos
 
 The teacher-materials bulk-library branch keeps every PRD-0040/PRD-0041 FR closure row at its prior status. The branch registers Teacher Materials bulk action telemetry and changes the failed canonical persistence announcement in `useTestSubmission` from `alert()` to `toast.error()`. The canonical writer-normalization row remains verified by `src/hooks/test/useTestSubmission.test.ts`; no result-view FR is reopened or newly closed.
 
+## 2026-07-08 Session Lifecycle Recovery Note
+
+The session lifecycle recovery branch keeps every PRD-0040/PRD-0041 FR closure row at its prior status. It restores admin session action telemetry and adds expired-session failure handling to `useTestSubmission`, but does not change saved-result shell reuse, result visibility policy, teacher ownership, guest-result claim behavior, Writing lifecycle ownership, or release-state visibility. No result-view FR is reopened or newly closed.
+
 Status keys:
 - `planned`
 - `in-progress`

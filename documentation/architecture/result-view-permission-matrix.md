@@ -30,6 +30,10 @@ PRD-0043 imported homework Writing submissions remain governed by the existing `
 
 Teacher Materials bulk assign/delete/archive action registration in `featureRegistry.ts` is observability metadata only. The `useTestSubmission` change in the same branch replaces a failure-path browser alert with the shared toast announcement after canonical result persistence fails. It does not change ownership source precedence, teacher include/exclude rules, teacher indexing, analytics classification, archived/deleted behavior, or backend rule dependencies in the matrix below.
 
+## 2026-07-08 Session Lifecycle Recovery Note
+
+Session lifecycle recovery action names added to `featureRegistry.ts` are admin-panel observability metadata only. The `useTestSubmission` expired-session handling reads the existing session mutation failure classification and stops the failed submit path before player-submitted mutation. It does not change ownership source precedence, teacher include/exclude rules, teacher indexing, analytics classification, archived/deleted behavior, or backend rule dependencies in the matrix below.
+
 ## Global Rules
 
 - Teacher access always starts with the outer `student_teacher_assignments` gate.

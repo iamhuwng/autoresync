@@ -46,6 +46,10 @@ The retired-material cleanup keeps completed results and result indexes. Retaine
 
 The teacher-materials bulk-library branch adds Teacher Materials observability action names for selected-material assign/delete/archive controls and replaces the `useTestSubmission` failure-path `alert()` with the shared toast announcement. These result-related file touches do not add a new result shell, route owner, result domain, lifecycle role, data path, or result-view reader. `useTestSubmission` still writes canonical session/post-test results through the existing saved-result writer contract before marking a player submitted.
 
+## 2026-07-08 Session Lifecycle Recovery Note
+
+The session lifecycle recovery branch restores derived session expiry handling and admin-session observability metadata. `featureRegistry.ts` adds admin session action names under the existing admin panel feature, and `useTestSubmission.ts` converts expired-session mutation failures into the shared toast error before aborting the submit flow. These touches do not add a result shell, route owner, result domain, lifecycle role, result data path, or result-view reader. The canonical session/post-test writer contract remains unchanged: failed or expired writes do not mark the player submitted.
+
 ## Surface Inventory
 
 | Surface | Status | Domain | Writing lifecycle | Route / host | Primary data path | Owner / host contract | Coverage anchor | Resolution disposition | Notes |
