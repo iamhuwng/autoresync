@@ -4,6 +4,15 @@ Created: 2026-06-01
 Source PRD: `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md`
 Status: Draft
 
+> **2026-07-07 supersession note:** This task list contains historical V1
+> guardrails that kept Reading Passage and Book rows out of top-level My
+> Content/Public Library. Current Teacher Materials discovery is governed by
+> `documentation/architecture/universal-material-summary-integration.md` and
+> `documentation/architecture/teacher-materials-listing-and-diagnostics.md`.
+> My Content reads all owned active supported summaries; Public Library reads
+> all public active summaries. Dedicated Reading Passage and Book tabs are
+> filtered/specialized views, not separate discovery authorities.
+
 ## Relevant Files
 
 - `documentation/tasks/0052-prd-teacher-materials-books-and-reading-passage-library.md` - Product requirements and closed decisions for Books, Reading Passage library, Test Type blocks, and Teacher Materials tab behavior.
@@ -95,7 +104,7 @@ Status: Draft
 - `src/services/materialCatalog/bookValidation.service.test.ts` - Tests for all Book validation edge cases.
 - `src/services/materialCatalog/materialCatalogIndexes.service.ts` - New index writer/reader for material listing by owner, visibility, Test Type, material kind, and Book refs.
 - `src/services/materialCatalog/materialCatalogIndexes.service.test.ts` - Tests for index fanout and cleanup.
-- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; PRD-0052 production listing rows use `material_catalog/material_indexes`.
+- `src/services/reading-v2/readingV2StoragePaths.service.ts` - Add path helpers for `reading_passage_materials` and `full_test_compositions`. Historical `reading_v2/listing_indexes` helpers are compatibility-only; historical PRD-0052 production listing rows used `material_catalog/material_indexes`. Superseded 2026-07-07: active Teacher Materials discovery uses `material_summary_indexes/v1`.
 - `src/services/reading-v2/readingV2StoragePaths.service.test.ts` - Tests for new paths and legacy-overlap assertions.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.ts` - Extend material kinds, visibility, Test Type fields, source order display, and public/private behavior.
 - `src/services/reading-v2/readingV2MaterialMetadata.service.test.ts` - Tests for Reading Passage metadata and source-order display.
@@ -181,7 +190,7 @@ Status: Draft
 - Reading V2 full-test composition contract: a composition-backed full Reading test is required. Add a canonical `ReadingV2FullTestComposition` record with ordered `passageRefs[]`; new full-test metadata must point to this composition. Compatibility reads may keep old full tests working, but new V2 full-test publish/composition flow must not store duplicate passage payload as the only source of truth.
 - Reading Passage source-order contract: source order must support `numeric`, `label`, and `unknown` states. Store a structured kind, raw value, label snapshot, and display fallback. Never invent `Passage 1` when source order is unknown.
 - Reading Passage edit contract: opening/editing a published Reading Passage directly must create or open a draft revision. Live published snapshot/version remains unchanged until republish. Editing a referenced passage from inside a full test defaults to a test-specific fork/new version.
-- Reading Passage selection contract: multi-select in the `Reading Passage` tab is required in V1. The selection toolbar must expose `Assign selected` and `Create full test from selected`.
+- Reading Passage selection contract: multi-select in the `Reading Passage` tab is required in PRD-0052 V1. As of 2026-07-06, this Reading Passage-only toolbar scope is superseded by the shared Teacher Materials selected-material toolbar in `documentation/architecture/teacher-materials-bulk-selection-actions.md`; `Create full test from selected` remains Reading Passage-only.
 - Reading Passage default scope: default `Reading Passage` tab scope is `Private`.
 - Reading Passage row actions contract: every row supports `Open` or `View`, `Assign homework`, selection checkbox, owner-only `Archive`, owner-only `Delete` only if existing shared material deletion with confirmation already exists, and revision/fork entry when the user can edit.
 - Reading Passage homework result contract: single-passage and set homework results must identify material kind, passage title, source order/source full-test metadata when available, assigned snapshot/version, attempt number, and existing retake/attempt policy.
@@ -242,7 +251,7 @@ Status: Draft
   - [x] 2.17 Define `ReadingV2ReadingPassageMaterial` with one stimulus/passage, task groups, interactions/questions, scoring/answer key in canonical or snapshot-safe location, metadata, structured source order (`numeric | label | unknown`), owner, visibility, state, current snapshot/version, and provenance.
   - [x] 2.18 Define `ReadingV2PassageRef` with `refId`, `passageMaterialId`, `snapshotVersionId`, `order`, `sourcePassageNumber`, `sourceOrderLabelSnapshot`, `sourceOrderDisplaySnapshot`, `titleSnapshot`, `questionRangeSnapshot`, `questionCountSnapshot`, `durationSnapshot`, and `testTypeIdsSnapshot`.
   - [x] 2.19 Add required `ReadingV2FullTestComposition` with `compositionId`, `testMaterialId`, `title`, `primaryTestTypeId`, `testTypeIds`, `skill`, `passageRefs[]`, `questionCount`, `durationMinutes`, `visibility`, `ownerId`, `publishedVersionId`, `createdAt`, and `updatedAt`. New V2 full tests must reference this composition; compatibility reads only support legacy rows.
-  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows use `material_catalog/material_indexes`.
+  - [x] 2.20 Extend `src/services/reading-v2/readingV2StoragePaths.service.ts` with these exact helpers: `readingPassageMaterials(materialId)` -> `reading_v2/reading_passage_materials/{materialId}`, `readingPassageMaterialVersions(materialId, versionId)` -> `reading_v2/reading_passage_material_versions/{materialId}/{versionId}`, `fullTestCompositions(compositionId)` -> `reading_v2/full_test_compositions/{compositionId}`, and `fullTestCompositionVersions(compositionId, versionId)` -> `reading_v2/full_test_composition_versions/{compositionId}/{versionId}`. 2026-06-03 note: `reading_v2/listing_indexes` was retired from production PRD-0052 proof; Reading Passage list and Book material-picker rows used `material_catalog/material_indexes`. Superseded 2026-07-07: active Teacher Materials discovery uses `material_summary_indexes/v1`.
   - [x] 2.21 Keep existing Reading V2 projection helpers for `studentSafeTests`, `sessionSafePayloads`, and `reviewProjections`; add only the new passage/composition helpers above unless tests prove a missing path class.
   - [x] 2.22 Add storage path tests in `readingV2StoragePaths.service.test.ts`, including assertions that new paths stay under `reading_v2/` and do not overlap legacy path prefixes.
   - [x] 2.23 Create `src/services/materialCatalog/materialCatalogPaths.ts`.
@@ -515,6 +524,7 @@ Status: Draft
   - [x] 12.11 Add edit/revision entry for owned published Reading Passages; it must create/open a draft revision, not mutate live published content.
   - [x] 12.12 Add required multi-select checkboxes for Reading Passage rows.
   - [x] 12.13 Add selection toolbar actions `Assign selected` and `Create full test from selected`.
+  - [x] 12.13a 2026-07-06 current-state note: PRD-0052 Reading Passage selection shipped first, but selected-material tooling now also exists on My Content, Public Library, Drafts, and Book tabs with tab-specific actions. See `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
   - [x] 12.14 Bulk-selected Reading Passages can create one combined homework set.
   - [x] 12.15 Bulk-selected Reading Passages can create a reusable full Reading test composition.
   - [x] 12.16 Do not add blank/manual `Create Reading Passage` CTA.

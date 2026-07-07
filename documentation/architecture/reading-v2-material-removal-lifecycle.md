@@ -20,7 +20,8 @@ Teacher Lobby delete for a Reading V2 master opens a modal with these choices:
 
 - sets `reading_v2/full_test_compositions/{compositionId}/state` to `removed`
 - sets `reading_v2/material_metadata/{masterMaterialId}/state` to `removed`
-- removes active Material Catalog index rows for the master
+- removes active universal MaterialSummary rows for the master and legacy helper
+  rows where still present
 - removes legacy `/tests/{masterMaterialId}` so the master no longer appears in legacy-backed Teacher Lobby lists
 - writes append-only `reading_master_removed` audit event
 - does not archive linked Reading Passage materials
@@ -32,7 +33,8 @@ Linked passage archive through this flow:
 
 - uses the existing Reading Passage archive service
 - sets the passage material state to `archived`
-- removes active Material Catalog index rows for the passage
+- removes active universal MaterialSummary rows for the passage and legacy
+  helper rows where still present
 - writes normal archive/audit rows
 - does not delete canonical passage data, immutable snapshots, published versions, projections, assignments, or completed results
 
@@ -40,19 +42,27 @@ Linked passage archive is blocked when any linked passage is not owned by the ac
 
 Obsolete interpretation retired 2026-06-15: removing a Reading V2 master always leaves all linked generated passages active. The current contract is master-only by default, with an explicit optional archive of owned linked passages.
 
-## Material Catalog Cleanup Rules
+## Summary And Legacy Cleanup Rules
 
-Removal and archive flows must be idempotent against stale or missing active Material Catalog rows.
+Removal and archive flows must be idempotent against stale or missing active
+universal summary rows and legacy Material Catalog helper rows.
 
-Teacher-owned cleanup of `material_catalog/material_indexes/*/{materialId}` may use canonical Reading V2 metadata ownership as fallback proof:
+Teacher-owned cleanup of `material_catalog/material_summary_indexes/v1/*/{materialId}`
+and remaining `material_catalog/material_indexes/*/{materialId}` helper rows may
+use canonical Reading V2 metadata ownership as fallback proof:
 
 ```text
 reading_v2/material_metadata/{materialId}/ownerId === auth.uid
 ```
 
-This fallback is required because cleanup often happens after an earlier partial delete, stale index, or missing index row. The rule must not rely only on the index row's own `ownerId` to allow delete.
+This fallback is required because cleanup often happens after an earlier partial
+delete, stale index, or missing index row. The rule must not rely only on the
+row's own `ownerId` to allow delete.
 
-The fallback does not make arbitrary material catalog deletes public. It only allows the authenticated owner to clean up indexes for Reading V2 materials whose canonical metadata proves ownership. Super-admin behavior remains rule-governed by the existing role branch.
+The fallback does not make arbitrary material catalog deletes public. It only
+allows the authenticated owner to clean up summary/helper rows for Reading V2
+materials whose canonical metadata proves ownership. Super-admin behavior
+remains rule-governed by the existing role branch.
 
 ## Audit And Diagnostics
 
@@ -85,7 +95,8 @@ Changes touching this lifecycle must prove:
 - master-only removal soft-removes the master and legacy `/tests` row
 - linked-passage option archives only actor-owned linked passages
 - non-owned linked passage removal is blocked
-- Material Catalog stale/missing active-index cleanup is accepted when canonical metadata proves ownership
+- universal summary and legacy helper stale/missing active-row cleanup is
+  accepted when canonical metadata proves ownership
 - append-only audit event is written for master removal
 - immutable snapshots, published versions, projections, assignments, and completed results are not deleted or rewritten
 - remote RTDB rules are deployed before live retry proof

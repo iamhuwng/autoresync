@@ -7,11 +7,13 @@
  * Each skill has its own storage logic to prevent cross-contamination
  */
 
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
 import r2StorageService, { R2_PUBLIC_URL } from './r2Storage';
 import type { ParsedQuestion } from '../types/document.types';
+import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
+import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 import type {
   ListeningAssetCommitInput,
   ListeningAssetCommitResult,
@@ -504,8 +506,11 @@ export const saveListeningTestToFirebase = async (
     };
 
     // Save to Firebase under tests/ (same path as reading for now)
-    const testRef = ref(database, `tests/${testId}`);
-    await set(testRef, testData);
+    const summary = createLegacyTestMaterialSummary(testId, testData);
+    await update(ref(database), {
+      [`tests/${testId}`]: testData,
+      ...buildMaterialSummaryUpdatePayload(summary),
+    });
 
     console.log('Listening test saved to Firebase:', testId);
 
@@ -642,15 +647,19 @@ export const updateListeningTestInFirebase = async (
       };
     }
 
-    const testRef = ref(database, `tests/${testId}`);
-
     const updatedData: ListeningTestData = {
       ...existing.data,
       ...updates,
       updatedAt: Date.now(),
     };
 
-    await set(testRef, updatedData);
+    await update(ref(database), {
+      [`tests/${testId}`]: updatedData,
+      ...buildMaterialSummaryUpdatePayload(
+        createLegacyTestMaterialSummary(testId, updatedData),
+        createLegacyTestMaterialSummary(testId, existing.data),
+      ),
+    });
 
     console.log('Listening test updated in Firebase:', testId);
 

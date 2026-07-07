@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   trackAction: vi.fn(),
   refreshTests: vi.fn(),
   refreshDrafts: vi.fn(),
+  deleteTest: vi.fn(),
+  deleteDraft: vi.fn(),
   openEditTest: vi.fn(),
   openEditThcsTest: vi.fn(),
   openTestCreation: vi.fn(),
@@ -168,7 +170,7 @@ vi.mock('../hooks/test/useTeacherTests', () => ({
     tests: mocks.tests,
     loading: false,
     loadedScope: mocks.loadedScope,
-    deleteTest: vi.fn(),
+    deleteTest: mocks.deleteTest,
     togglePublic: vi.fn(),
     refresh: mocks.refreshTests,
   }),
@@ -179,7 +181,7 @@ vi.mock('../hooks/thcs/useTeacherDrafts', () => ({
     drafts: mocks.drafts,
     loading: false,
     error: null,
-    deleteDraft: vi.fn(),
+    deleteDraft: mocks.deleteDraft,
     refreshDrafts: mocks.refreshDrafts,
   }),
 }));
@@ -241,10 +243,16 @@ vi.mock('../components/modern/ThcsTestCard', () => ({
 }));
 
 vi.mock('../components/modern/DraftCard', () => ({
-  default: ({ draft, onResume }) => (
+  default: ({ draft, onResume, onDelete, selection }) => (
     <article data-testid={`draft-card-${draft.id}`}>
+      {selection && (
+        <button type="button" aria-pressed={selection.checked} onClick={selection.onChange}>
+          {selection.label}
+        </button>
+      )}
       <h2>{draft.metadata?.title || 'Untitled Draft'}</h2>
       <button type="button" onClick={() => onResume(draft)}>Resume Editing</button>
+      <button type="button" onClick={() => onDelete(draft)}>Delete Draft</button>
     </article>
   ),
 }));
@@ -310,7 +318,15 @@ vi.mock('../components/modern/MaterialListView', () => ({
   default: ({ rows }) => (
     <section data-testid="material-list-view">
       {rows.map((row) => (
-        <article key={row.id} data-testid={`material-list-row-${row.id}`}>
+        <article
+          key={row.id}
+          data-testid={`material-list-row-${row.id}`}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              row.selection?.onChange?.();
+            }
+          }}
+        >
           <h2>{row.title}</h2>
           {row.badges?.map((badge) => (
             <span key={badge.key}>{badge.label}</span>
@@ -454,6 +470,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.listBookNodes.mockResolvedValue([]);
     mocks.createBookDraft.mockReset();
     mocks.updateBookMetadata.mockReset();
+    mocks.deleteTest.mockReset();
+    mocks.deleteDraft.mockReset();
+    mocks.refreshTests.mockReset();
+    mocks.refreshDrafts.mockReset();
     mocks.confirm.mockReturnValue(true);
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
   });
@@ -496,6 +516,233 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         contentKind: 'ielts_reading',
         materialId: 'ielts-reading-1',
       }),
+    );
+  });
+
+  it('surfaces single material delete failures in a toast', async () => {
+    const user = userEvent.setup();
+    mocks.deleteTest.mockRejectedValueOnce(new Error('Summary write failed'));
+    mocks.tests = [
+      {
+        id: 'delete-failure-test',
+        title: 'Delete Failure Test',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        hasStudentSafeProjection: true,
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-delete-failure-test');
+    await user.click(within(row).getByRole('button', { name: 'Delete' }));
+
+    expect(mocks.confirm).toHaveBeenCalledWith('Are you sure you want to delete "Delete Failure Test"?');
+    await waitFor(() => {
+      expect(screen.getByText('Summary write failed').closest('.toast-card')).toBeInTheDocument();
+    });
+    expect(mocks.deleteTest).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete-failure-test' }));
+  });
+
+  it('assigns one selected My Content test from the bulk toolbar', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'ielts-reading-bulk',
+        title: 'Bulk IELTS Reading',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-ielts-reading-bulk');
+    await user.click(row);
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assign homework' }));
+
+    expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
+    expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+      preselectedMaterialId: 'ielts-reading-bulk',
+      preselectedContentRef: expect.objectContaining({
+        contentKind: 'ielts_reading',
+        contentId: 'ielts-reading-bulk',
+      }),
+    }));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'assignSelectedMaterials',
+      expect.objectContaining({ count: 1, materialKind: 'test' }),
+    );
+  });
+
+  it('shows selected-material assignment toolbar on Public Library rows', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'public-thcs-bulk',
+        testType: 'THCS-THPT',
+        title: 'Public THCS Bulk',
+        metadata: {
+          title: 'Public THCS Bulk',
+          gradeLevel: 10,
+        },
+        ownerId: 'teacher-2',
+        isPublic: true,
+        status: 'published',
+        published: true,
+        isComplete: true,
+        questionCount: 20,
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('tab', { name: 'Public Library' }));
+    const row = await screen.findByTestId('material-list-row-public-thcs-bulk');
+    await user.click(row);
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign homework' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Assign homework' }));
+
+    expect(mocks.openHwDialog).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'public-thcs-bulk',
+      _assignmentContentRef: expect.objectContaining({
+        contentKind: 'thcs_test',
+        contentId: 'public-thcs-bulk',
+        title: 'Public THCS Bulk',
+      }),
+    }));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'assignSelectedMaterials',
+      expect.objectContaining({ count: 1, materialKind: 'test' }),
+    );
+  });
+
+  it('deletes selected My Content tests from the bulk toolbar', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'delete-test-a',
+        title: 'Delete Test A',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        hasStudentSafeProjection: true,
+      },
+      {
+        id: 'delete-test-b',
+        title: 'Delete Test B',
+        testType: 'IELTS',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    const rowA = await screen.findByTestId('material-list-row-delete-test-a');
+    const rowB = await screen.findByTestId('material-list-row-delete-test-b');
+    await user.click(rowA);
+    await user.click(rowB);
+
+    await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+
+    expect(mocks.confirm).toHaveBeenCalledWith('Delete 2 selected tests? This cannot be undone.');
+    await waitFor(() => {
+      expect(mocks.deleteTest).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.deleteTest).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete-test-a' }));
+    expect(mocks.deleteTest).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete-test-b' }));
+    expect(mocks.refreshTests).toHaveBeenCalled();
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'deleteSelectedMaterials',
+      expect.objectContaining({ count: 2, materialKind: 'test' }),
+    );
+  });
+
+  it('separates simple test delete from Reading V2 master removal review in mixed selection', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'simple-delete-test',
+        title: 'Simple Delete Test',
+        testType: 'IELTS',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+      },
+      {
+        id: 'reading-master-delete',
+        materialId: 'reading-master-delete',
+        title: 'Reading Master Delete',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        compositionId: 'composition-reading-master-delete',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        publishedSnapshotVersionId: 'snapshot-reading-master-delete',
+        hasStudentSafeProjection: true,
+        passageRefs: [
+          {
+            passageMaterialId: 'passage-linked',
+            ownerId: 'teacher-1',
+            title: 'Linked Passage',
+          },
+        ],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(await screen.findByTestId('material-list-row-simple-delete-test'));
+    await user.click(await screen.findByTestId('material-list-row-reading-master-delete'));
+
+    expect(screen.getByRole('button', { name: 'Delete simple selected' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review Reading V2 removal' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete simple selected' }));
+    expect(mocks.confirm).toHaveBeenCalledWith('Are you sure you want to delete "Simple Delete Test"?');
+    await waitFor(() => {
+      expect(mocks.deleteTest).toHaveBeenCalledWith(expect.objectContaining({ id: 'simple-delete-test' }));
+    });
+    expect(mocks.deleteTest).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'reading-master-delete' }));
+
+    await user.click(screen.getByRole('button', { name: 'Review Reading V2 removal' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Remove Reading V2 master?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove master only' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove master and linked passages' })).toBeInTheDocument();
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'master_delete_requested',
+      expect.objectContaining({ source: 'teacher_materials_selection_toolbar' }),
     );
   });
 
@@ -1674,6 +1921,47 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
+  it('archives selected Books from the bulk toolbar', async () => {
+    const user = userEvent.setup();
+    mocks.listTeacherBooks.mockResolvedValue([
+      {
+        id: 'book-bulk-archive',
+        bookId: 'book-bulk-archive',
+        ownerId: 'teacher-1',
+        title: 'Bulk Archive Book',
+        authors: [],
+        visibility: 'private',
+        status: 'draft-empty',
+        testTypeIds: ['ielts'],
+        testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+        tags: [],
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        isOwner: true,
+      },
+    ]);
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Select Bulk Archive Book' }));
+    await user.click(screen.getByRole('button', { name: 'Archive selected' }));
+
+    expect(mocks.confirm).toHaveBeenCalledWith('Archive 1 selected Books?');
+    await waitFor(() => {
+      expect(mocks.updateBookMetadata).toHaveBeenCalledWith(
+        'book-bulk-archive',
+        { status: 'archived' },
+        expect.any(Object),
+        expect.any(Object),
+      );
+    });
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'archiveSelectedMaterials',
+      expect.objectContaining({ count: 1, materialKind: 'book' }),
+    );
+  });
+
   it('disables Book editor opening when the Teacher Materials capability is off', async () => {
     const user = userEvent.setup();
     mocks.capabilities = {
@@ -1974,6 +2262,34 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(screen.queryByTestId('draft-card-draft-v2')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
     expect(mocks.navigateTo).not.toHaveBeenCalled();
+  });
+
+  it('deletes selected Drafts from the bulk toolbar', async () => {
+    const user = userEvent.setup();
+    mocks.drafts = [
+      {
+        id: 'draft-bulk-delete',
+        draftId: 'draft-bulk-delete',
+        metadata: { title: 'Bulk Draft Delete' },
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('tab', { name: 'Drafts' }));
+    await user.click(await screen.findByRole('button', { name: 'Select Bulk Draft Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+
+    expect(mocks.confirm).toHaveBeenCalledWith('Delete 1 selected drafts? This cannot be undone.');
+    await waitFor(() => {
+      expect(mocks.deleteDraft).toHaveBeenCalledWith('draft-bulk-delete');
+    });
+    expect(mocks.refreshDrafts).toHaveBeenCalled();
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'deleteSelectedMaterials',
+      expect.objectContaining({ count: 1, materialKind: 'draft' }),
+    );
   });
 
   it('loads Reading Passage private scope by default and keeps scope separate from top-level public tab', async () => {

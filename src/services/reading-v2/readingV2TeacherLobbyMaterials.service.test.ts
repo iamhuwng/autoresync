@@ -164,6 +164,197 @@ describe('readingV2TeacherLobbyMaterials.service', () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it('propagates owned index failures instead of reporting a false empty library', async () => {
+    vi.mocked(get).mockRejectedValueOnce(new Error('Index not defined'));
+
+    await expect(getReadingV2TeacherLobbyTests('teacher-1')).rejects.toThrow(
+      'Index not defined',
+    );
+  });
+
+  it('rejects cross-owner Reading V2 lobby index rows instead of hiding them', async () => {
+    vi.mocked(get).mockImplementation(async (target: any) => {
+      const path = typeof target === 'string' ? target : target.path;
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/relationship_indexes/teacher-lobby/': {
+          'material-v2': {
+            materialId: 'material-v2',
+            snapshotVersionId: 'snapshot-v2',
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+        },
+        'reading_v2/material_metadata/material-v2': {
+          materialId: 'material-v2',
+          ownerId: 'teacher-2',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Cross Owner',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          tags: [],
+          visibility: 'private',
+          publishedSnapshotVersionId: 'snapshot-v2',
+        },
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined && value !== null,
+        val: () => value,
+      } as any;
+    });
+
+    await expect(getReadingV2TeacherLobbyTests('teacher-1')).rejects.toThrow(
+      /owner mismatch/i,
+    );
+  });
+
+  it('rejects material-id mismatches in Reading V2 lobby index rows', async () => {
+    vi.mocked(get).mockImplementation(async (target: any) => {
+      const path = typeof target === 'string' ? target : target.path;
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/relationship_indexes/teacher-lobby/': {
+          'material-v2': {
+            materialId: 'material-v2',
+            snapshotVersionId: 'snapshot-v2',
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+        },
+        'reading_v2/material_metadata/material-v2': {
+          materialId: 'other-material',
+          ownerId: 'teacher-1',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Wrong Id',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          tags: [],
+          visibility: 'private',
+          publishedSnapshotVersionId: 'snapshot-v2',
+        },
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined && value !== null,
+        val: () => value,
+      } as any;
+    });
+
+    await expect(getReadingV2TeacherLobbyTests('teacher-1')).rejects.toThrow(
+      /materialId mismatch/i,
+    );
+  });
+
+  it('rejects lobby index rows with missing canonical metadata', async () => {
+    vi.mocked(get).mockImplementation(async (target: any) => {
+      const path = typeof target === 'string' ? target : target.path;
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/relationship_indexes/teacher-lobby/': {
+          'material-v2': {
+            materialId: 'material-v2',
+            snapshotVersionId: 'snapshot-v2',
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+        },
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined && value !== null,
+        val: () => value,
+      } as any;
+    });
+
+    await expect(getReadingV2TeacherLobbyTests('teacher-1')).rejects.toThrow(
+      /missing valid metadata/i,
+    );
+  });
+
+  it('excludes removed and archived full tests from owned lobby rows', async () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+
+    vi.mocked(get).mockImplementation(async (target: any) => {
+      const path = typeof target === 'string' ? target : target.path;
+      const valueByPath: Record<string, unknown> = {
+        'reading_v2/relationship_indexes/teacher-lobby/': {
+          active: {
+            materialId: 'active',
+            snapshotVersionId: projection.sourceSnapshotVersionId,
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+          removed: {
+            materialId: 'removed',
+            snapshotVersionId: projection.sourceSnapshotVersionId,
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+          archived: {
+            materialId: 'archived',
+            snapshotVersionId: projection.sourceSnapshotVersionId,
+            source: 'published-metadata',
+            ownerId: 'teacher-1',
+          },
+        },
+        'reading_v2/material_metadata/active': {
+          materialId: 'active',
+          ownerId: 'teacher-1',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Active',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'private',
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+        },
+        'reading_v2/material_metadata/removed': {
+          materialId: 'removed',
+          ownerId: 'teacher-1',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Removed',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'private',
+          state: 'removed',
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+        },
+        'reading_v2/material_metadata/archived': {
+          materialId: 'archived',
+          ownerId: 'teacher-1',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: 'Reading V2',
+          title: 'Archived',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'private',
+          state: 'archived',
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+        },
+        [`reading_v2/projections/student_safe_tests/active:${projection.sourceSnapshotVersionId}`]: projection,
+      };
+      const value = valueByPath[path];
+      return {
+        exists: () => value !== undefined && value !== null,
+        val: () => value,
+      } as any;
+    });
+
+    const materials = await getReadingV2TeacherLobbyTests('teacher-1');
+
+    expect(materials.map((material) => material.id)).toEqual(['active']);
+  });
+
   it('prefers canonical Reading V2 rows when a legacy test bridge already uses the same id', () => {
     const merged = mergeReadingV2TeacherLobbyTests(
       [{ id: 'material-v2', title: 'Legacy row' }],

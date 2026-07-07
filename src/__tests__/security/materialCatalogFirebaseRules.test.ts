@@ -75,6 +75,30 @@ const materialSummary = (
   updatedAt: '2026-06-04T00:00:00.000Z',
 });
 
+const universalMaterialSummary = (
+  materialId: string,
+  overrides: Record<string, unknown> = {},
+) => ({
+  schemaVersion: 1,
+  materialId,
+  producerId: 'generic-test',
+  materialKind: 'full-test',
+  surfaceFamily: 'assessment',
+  ownerId: 'teacher-1',
+  title: 'Universal Material',
+  visibility: 'private',
+  lifecycleState: 'active',
+  skillId: 'reading',
+  primaryTestTypeId: 'ielts',
+  testTypeIds: ['ielts'],
+  testTypeMembership: { ielts: true },
+  tags: ['reading'],
+  questionCount: 40,
+  durationMinutes: 60,
+  updatedAt: '2026-07-07T00:00:00.000Z',
+  ...overrides,
+});
+
 const bookMetadata = (overrides: Record<string, unknown> = {}) => ({
   bookId: 'book-2',
   ownerId: 'teacher-1',
@@ -128,6 +152,7 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(materialCatalog?.test_types).toBeDefined();
     expect(materialCatalog?.teacher_test_type_preferences).toBeDefined();
     expect(materialCatalog?.material_indexes).toBeDefined();
+    expect(materialCatalog?.material_summary_indexes).toBeDefined();
     expect(materialCatalog?.books).toBeDefined();
     expect(materialCatalog?.book_nodes).toBeDefined();
     expect(materialCatalog?.public_book_projections).toBeDefined();
@@ -319,6 +344,52 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(asText).toContain("!newData.child('canonicalEditableDraft').exists()");
   });
 
+  it('defines versioned universal summary ownership, public-read, and schema rules', () => {
+    const materialCatalog = databaseRules.rules.material_catalog as Record<string, any>;
+    const indexes = materialCatalog.material_summary_indexes.v1;
+    expect(indexes.by_source_full_test).toBeUndefined();
+
+    const ownerBucket = indexes.by_owner.$ownerId;
+    const publicBucket = indexes.by_visibility.$visibility;
+    const byIdRule = indexes.by_id.$materialId;
+    const universalRowRules = [
+      byIdRule,
+      ownerBucket.$materialId,
+      publicBucket.$materialId,
+      indexes.by_material_kind.$materialKind.$materialId,
+      indexes.by_test_type.$testTypeId.$materialId,
+    ];
+    const asText = JSON.stringify(indexes);
+
+    expect(ownerBucket['.read']).toContain('$ownerId === auth.uid');
+    expect(ownerBucket['.indexOn']).toContain('updatedAt');
+    expect(publicBucket['.read']).toContain("$visibility === 'public'");
+    expect(publicBucket['.read']).toContain("role').val() === 'teacher'");
+    expect(byIdRule['.read']).toContain("data.child('lifecycleState').val() === 'active'");
+    expect(byIdRule['.validate']).toContain("newData.child('schemaVersion').val() === 1");
+    expect(byIdRule['.validate']).toContain("newData.child('materialId').val() === $materialId");
+    expect(byIdRule['.validate']).toContain('testTypeMembership');
+    expect(byIdRule.$other['.validate']).toBe(false);
+    universalRowRules.forEach((rule) => {
+      expect(rule.$other['.validate']).toBe(false);
+    });
+    expect(byIdRule.description['.validate']).toBe('newData.isString()');
+    expect(byIdRule.questionCount['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
+    expect(byIdRule.durationMinutes['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
+    expect(byIdRule.brokenRefCount['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
+    expect(byIdRule.testTypeMembership.$testTypeId['.validate']).toBe('newData.val() === true');
+    expect(asText).toContain("newData.child('lifecycleState').val() === 'active'");
+    expect(asText).toContain("newData.child('testTypeMembership').child($testTypeId).val() === true");
+    expect(asText).toContain("!newData.child('document').exists()");
+    expect(asText).toContain("!newData.child('questions').exists()");
+    expect(asText).toContain("!newData.child('answerKey').exists()");
+    expect(asText).toContain("!newData.child('studentAnswers').exists()");
+    universalRowRules.forEach((rule) => {
+      expect(rule['.write']).toContain("data.child('producerId').val() !== 'material-book'");
+      expect(rule['.write']).toContain("data.child('visibility').val() !== 'public'");
+    });
+  });
+
   it('defines owner-scoped archive indexes as safe lightweight rows only', () => {
     const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
     const archiveIndexes = materialCatalog.material_archive_indexes as Record<string, any>;
@@ -448,6 +519,199 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
         hiddenProvenance: { source: 'draft-1' },
       }),
     );
+  });
+
+  it('enforces universal summary owner/public reads and rejects unsafe rows', async () => {
+    const {
+      admin,
+      otherTeacher,
+      student,
+      teacher,
+      unauthenticated,
+    } = makeMaterialCatalogRuleContexts();
+    const ownerPath =
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/material-1';
+    const publicPath =
+      'material_catalog/material_summary_indexes/v1/by_visibility/public/material-public';
+    const byIdPrivatePath =
+      'material_catalog/material_summary_indexes/v1/by_id/material-by-id-private';
+    const byIdPublicPath =
+      'material_catalog/material_summary_indexes/v1/by_id/material-by-id-public';
+    const byIdArchivedPath =
+      'material_catalog/material_summary_indexes/v1/by_id/material-by-id-archived';
+    const byIdRemovedPath =
+      'material_catalog/material_summary_indexes/v1/by_id/material-by-id-removed';
+    const privateInPublicPath =
+      'material_catalog/material_summary_indexes/v1/by_visibility/public/material-private-in-public';
+    const kindPrivatePath =
+      'material_catalog/material_summary_indexes/v1/by_material_kind/full-test/material-kind-private';
+    const testTypePrivatePath =
+      'material_catalog/material_summary_indexes/v1/by_test_type/ielts/material-test-type-private';
+
+    await assertSucceeds(
+      teacher.database().ref(ownerPath).set(
+        universalMaterialSummary('material-1'),
+      ),
+    );
+    await assertSucceeds(teacher.database().ref(ownerPath).once('value'));
+    await assertSucceeds(admin.database().ref(ownerPath).once('value'));
+    await assertFails(otherTeacher.database().ref(ownerPath).once('value'));
+    await assertFails(student.database().ref(ownerPath).once('value'));
+    await assertFails(unauthenticated.database().ref(ownerPath).once('value'));
+
+    await assertSucceeds(
+      teacher.database().ref(publicPath).set(
+        universalMaterialSummary('material-public', {
+          visibility: 'public',
+        }),
+      ),
+    );
+    await assertSucceeds(otherTeacher.database().ref(publicPath).once('value'));
+    await assertFails(student.database().ref(publicPath).once('value'));
+    await assertFails(unauthenticated.database().ref(publicPath).once('value'));
+    await assertFails(
+      teacher.database().ref(privateInPublicPath).set(
+        universalMaterialSummary('material-private-in-public'),
+      ),
+    );
+
+    await assertSucceeds(
+      teacher.database().ref(byIdPrivatePath).set(
+        universalMaterialSummary('material-by-id-private'),
+      ),
+    );
+    await assertSucceeds(teacher.database().ref(byIdPrivatePath).once('value'));
+    await assertFails(otherTeacher.database().ref(byIdPrivatePath).once('value'));
+    await assertFails(student.database().ref(byIdPrivatePath).once('value'));
+
+    await assertSucceeds(
+      teacher.database().ref(byIdPublicPath).set(
+        universalMaterialSummary('material-by-id-public', {
+          visibility: 'public',
+        }),
+      ),
+    );
+    await assertSucceeds(otherTeacher.database().ref(byIdPublicPath).once('value'));
+    await assertFails(student.database().ref(byIdPublicPath).once('value'));
+
+    await assertSucceeds(
+      admin.database().ref(byIdArchivedPath).set(
+        universalMaterialSummary('material-by-id-archived', {
+          lifecycleState: 'archived',
+        }),
+      ),
+    );
+    await assertFails(teacher.database().ref(byIdArchivedPath).once('value'));
+    await assertSucceeds(admin.database().ref(byIdArchivedPath).once('value'));
+
+    await assertSucceeds(
+      teacher.database().ref(byIdRemovedPath).set(
+        universalMaterialSummary('material-by-id-removed', {
+          lifecycleState: 'removed',
+        }),
+      ),
+    );
+    await assertFails(teacher.database().ref(byIdRemovedPath).once('value'));
+    await assertSucceeds(admin.database().ref(byIdRemovedPath).once('value'));
+
+    await assertSucceeds(
+      teacher.database().ref(kindPrivatePath).set(
+        universalMaterialSummary('material-kind-private'),
+      ),
+    );
+    await assertSucceeds(admin.database().ref(kindPrivatePath).once('value'));
+    await assertFails(teacher.database().ref(kindPrivatePath).once('value'));
+    await assertFails(otherTeacher.database().ref(kindPrivatePath).once('value'));
+    await assertFails(student.database().ref(kindPrivatePath).once('value'));
+
+    await assertSucceeds(
+      teacher.database().ref(testTypePrivatePath).set(
+        universalMaterialSummary('material-test-type-private'),
+      ),
+    );
+    await assertSucceeds(admin.database().ref(testTypePrivatePath).once('value'));
+    await assertFails(teacher.database().ref(testTypePrivatePath).once('value'));
+    await assertFails(otherTeacher.database().ref(testTypePrivatePath).once('value'));
+    await assertFails(student.database().ref(testTypePrivatePath).once('value'));
+
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/unsafe',
+      ).set(universalMaterialSummary('unsafe', {
+        questions: [{ answer: 'A' }],
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/review-payload',
+      ).set(universalMaterialSummary('review-payload', {
+        reviewPayload: { private: true },
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/unknown-extra',
+      ).set(universalMaterialSummary('unknown-extra', {
+        content: 'private source text',
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_visibility/public/unknown-public-extra',
+      ).set(universalMaterialSummary('unknown-public-extra', {
+        visibility: 'public',
+        content: 'private source text',
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/bad-description',
+      ).set(universalMaterialSummary('bad-description', {
+        description: { text: 'not allowed' },
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/negative-count',
+      ).set(universalMaterialSummary('negative-count', {
+        questionCount: -1,
+      })),
+    );
+    await assertFails(
+      teacher.database().ref(
+        'material_catalog/material_summary_indexes/v1/by_test_type/toeic/material-1',
+      ).set(universalMaterialSummary('material-1')),
+    );
+  });
+
+  it('prevents teachers from publishing Book summaries without admin moderation', async () => {
+    const { admin, teacher } = makeMaterialCatalogRuleContexts();
+    const publicBookPaths = [
+      'material_catalog/material_summary_indexes/v1/by_id/book-public',
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/book-public',
+      'material_catalog/material_summary_indexes/v1/by_visibility/public/book-public',
+      'material_catalog/material_summary_indexes/v1/by_material_kind/book/book-public',
+      'material_catalog/material_summary_indexes/v1/by_test_type/ielts/book-public',
+    ];
+    const publicBookSummary = universalMaterialSummary('book-public', {
+      producerId: 'material-book',
+      materialKind: 'book',
+      surfaceFamily: 'book',
+      visibility: 'public',
+      tags: ['book'],
+    });
+    const privateBookSummary = {
+      ...publicBookSummary,
+      visibility: 'private',
+    };
+
+    for (const path of publicBookPaths) {
+      await assertFails(teacher.database().ref(path).set(publicBookSummary));
+      await assertSucceeds(admin.database().ref(path).set(publicBookSummary));
+      await assertFails(teacher.database().ref(path).set(privateBookSummary));
+      await assertFails(teacher.database().ref(path).remove());
+      await assertSucceeds(admin.database().ref(path).remove());
+    }
   });
 
   it('allows only owners/super admins to write Books and keeps published public state admin-only', async () => {

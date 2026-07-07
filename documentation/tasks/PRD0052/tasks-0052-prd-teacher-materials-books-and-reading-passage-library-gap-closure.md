@@ -27,6 +27,14 @@ The old implementation contains useful foundations, but it is not product-comple
 
 All checkboxes below start unchecked on purpose. Do not mark an item complete because a visual shell, type, service stub, test fixture, or isolated unit test exists. Mark it complete only after the user-facing workflow, persistence path, rules, and verification evidence are real.
 
+> **2026-07-07 supersession note:** Rows below that describe
+> `material_catalog/material_indexes` or `material_catalog/book_indexes` as the
+> canonical active Teacher Materials listing source are historical PRD-0052 gap
+> closure evidence. Current active discovery is universal
+> `material_catalog/material_summary_indexes/v1`. Reading Passage and Book tabs
+> remain specialized views, but My Content/Public Library must include every
+> registered supported active summary in their owner/public scopes.
+
 ## Assessment Inputs Used
 
 This tasklist combines these assessment approaches:
@@ -48,8 +56,14 @@ Do not violate these while closing gaps.
 - Whole-Book assignment is not in V1.
 - Students do not get a Book player, Book progress, Book unlocks, or Book aggregate results in V1.
 - Teachers can assign individual materials from inside a Book.
-- `Reading Passage` rows appear only in the `Reading Passage` tab, not in `My Content`.
-- `Book` tab shows only Book records.
+- Historical V1 note, superseded 2026-07-07: `Reading Passage` rows originally
+  appeared only in the `Reading Passage` tab, not in `My Content`. Current
+  universal discovery includes owned active Reading Passage summaries in My
+  Content and public active Reading Passage summaries in Public Library.
+- Historical V1 note, superseded 2026-07-07: `Book` discovery originally lived
+  only in the Book tab. Current universal discovery includes active Book
+  summaries in My Content/Public Library according to owner/public scope, while
+  the Book tab keeps specialized Book editing and organization workflows.
 - No direct blank/manual `Create Reading Passage` exists in V1.
 - Reading Passage entities are auto-created from Reading V2 full-test publish/import/extraction flows.
 - Teachers can bulk-select Reading Passages and assign them as one combined homework set.
@@ -161,14 +175,14 @@ Rules and verification:
 - [ ] Reopen the prior PRD-0052 handoff status. Downgrade any row that depends on fixture mode, skipped emulator proof, denied RTDB proof, no-op actions, or route-only scaffolds.
 - [ ] Create a fresh gap-closure evidence note in `documentation/tasks/PRD0052/` listing the exact P0/P1/P2 gaps accepted from the reports.
 - [ ] Preserve the correction that the Drafts-tab regression was likely false positive unless a fresh targeted regression reproduces it.
-- [ ] Preserve the correction that the Book material picker is not public-only; the real defect is missing `material_catalog/material_indexes` rules and proof.
+- [ ] Preserve the correction that the Book material picker is not public-only. Historical 2026-06-03 defect: missing `material_catalog/material_indexes` rules and proof. Current 2026-07-07 active discovery authority is `material_summary_indexes/v1`; legacy material indexes remain helper/compatibility surfaces.
 - [ ] Add a merge gate: PRD-0052 cannot be called faithful while any P0 or P1 item in this tasklist remains open.
 
 ## Phase 1 - Canonical Data Plane And Index Rules
 
-- [ ] Record the index-family decision before code edits. Default decision: use `material_catalog/material_indexes` as the canonical Teacher Materials lightweight listing index because current Reading Passage library and Book picker already use it.
+- [ ] Record the index-family decision before code edits. Historical 2026-06-03 default decision used `material_catalog/material_indexes` as the canonical Teacher Materials lightweight listing index because the Reading Passage library and Book picker already used it. Superseded 2026-07-07: active Teacher Materials discovery uses `material_summary_indexes/v1`.
 - [x] Remove production reliance on unused `reading_v2/listing_indexes`, or document it as a deprecated/internal compatibility path with no QA proof value.
-  - 2026-06-03 update: production Reading Passage list and Book material-picker proof uses `material_catalog/material_indexes`. `documentation/architecture/reading-v2-material-publish-and-passage-library.md` and `documentation/architecture/teacher-materials-listing-and-diagnostics.md` now mark `reading_v2/listing_indexes` as obsolete/compatibility-only for PRD-0052 QA.
+  - 2026-06-03 update, superseded 2026-07-07 for active discovery: production Reading Passage list and Book material-picker proof used `material_catalog/material_indexes`. `documentation/architecture/reading-v2-material-publish-and-passage-library.md` and `documentation/architecture/teacher-materials-listing-and-diagnostics.md` now mark `reading_v2/listing_indexes` as obsolete/compatibility-only for PRD-0052 QA. Current active discovery is `material_summary_indexes/v1`.
 - [ ] Align `materialCatalogPaths.ts`, `materialCatalogIndexes.service.ts`, `readingV2StoragePaths.service.ts`, Reading Passage writers, Reading Passage readers, Book picker readers, tests, and docs to one canonical listing-index contract.
 - [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_owner/{teacherId}/{materialId}`.
 - [x] Add `database.rules.json` rules for `material_catalog/material_indexes/by_visibility/public/{materialId}`.
@@ -219,7 +233,7 @@ Rules and verification:
 - [x] Ensure every published Reading V2 full test creates standalone Reading Passage entities for each passage.
 - [x] Ensure each generated Reading Passage stores canonical passage content, question/task groups, answer rules, scoring rules, source metadata, Test Type ids, version metadata, owner, visibility, and publication state.
 - [x] Ensure each generated Reading Passage also stores a student-safe projection with no answer key, hidden provenance, import evidence, or draft-only payload.
-- [x] Ensure each generated Reading Passage writes a safe Teacher Materials summary index row under the canonical `material_catalog/material_indexes` path.
+  - [x] Ensure each generated Reading Passage writes a safe Teacher Materials summary row. Historical 2026-06-03 implementation wrote canonical `material_catalog/material_indexes` rows; current 2026-07-07 active discovery requires `material_summary_indexes/v1` rows, with legacy rows only where helper/compatibility flows still need them.
 - [x] Ensure each generated Reading Passage writes relationship data needed by the full-test composition, without exposing unsafe metadata to students.
 - [x] Ensure the full Reading V2 test stores ordered references to generated Reading Passage entity ids and versions.
 - [x] Ensure source order display preserves original order and configured label for IELTS and non-IELTS Test Types.
@@ -231,7 +245,7 @@ Rules and verification:
   - 2026-06-03 update: read-only Clippings proof used `C:\Users\The Lord\Desktop\luyentap\Clippings\Practice Cam 10 Reading Test 04.md`. Live Auto V4 import parsed 3 passages / 40 questions. First run found a real answer-key merge bug where local/source and provider-copied equivalent rows with slash-spacing differences became duplicate publish blockers. `readingV2AutoImport.service.ts` now dedupes equivalent rows by question id plus slash-normalized answer text, with a RED-first test in `readingV2AutoImport.service.test.ts`.
   - 2026-06-03 update: after the fix, live Auto V4 import returned 3 passages, 40 questions, 40 answer values, no missing/extra questions, no missing/mismatched answer values, no silent question loss, and no publish blockers. It still returns `needs_review` because source-coverage diagnostics require teacher review.
   - 2026-06-03 update: a temporary no-DB in-memory publish probe fed that Clippings full-test candidate into `publishReadingV2Material` with `materialKind: full-test`. Output staged 3 Reading Passage entities, 3 ordered composition refs, and write kinds for Reading Passage material/version/student-safe projection/review projection/metadata/listing indexes plus full-test composition/version. This was later superseded by live browser publish/RTDB proof.
-  - 2026-06-03 update: live browser publish of `PRD0052 QA Reading V2 Full Test 2026-06-03` succeeded after the publish-plan fix. RTDB verified 3 generated Reading Passage rows under `material_catalog/material_indexes/by_source_full_test/studio-material-mpxjmklq`, 3 canonical passage `reading_v2/published_snapshots/*`, and 3 `reading_v2/projections/student_safe_tests/*` rows. Leak check for answer-key/provenance strings across list and student-safe paths returned false.
+  - 2026-06-03 update, historical index evidence: live browser publish of `PRD0052 QA Reading V2 Full Test 2026-06-03` succeeded after the publish-plan fix. RTDB verified 3 generated Reading Passage rows under `material_catalog/material_indexes/by_source_full_test/studio-material-mpxjmklq`, 3 canonical passage `reading_v2/published_snapshots/*`, and 3 `reading_v2/projections/student_safe_tests/*` rows. Leak check for answer-key/provenance strings across list and student-safe paths returned false. Current active listing proof must target `material_summary_indexes/v1`.
 
 ## Phase 5 - Operational Backfill
 

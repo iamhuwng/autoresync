@@ -43,6 +43,9 @@ const BookCardGrid = ({
   emptyTitle = 'No Books yet',
   emptyDescription = 'Books will appear here.',
   canOpenBookEditor = true,
+  selectedBookIds = [],
+  onToggleBookSelection,
+  isBookSelectable,
   onOpenBook,
   onArchiveBook,
   loadCanonicalPayload: _loadCanonicalPayload,
@@ -58,15 +61,25 @@ const BookCardGrid = ({
 
   return (
     <section className="book-card-grid" aria-label="Book grid">
-      {books.map((book) => (
-        <BookCard
-          key={book.bookId || book.id}
-          book={book}
-          canOpenBookEditor={canOpenBookEditor}
-          onOpenBook={onOpenBook}
-          onArchiveBook={onArchiveBook}
-        />
-      ))}
+      {books.map((book) => {
+        const bookId = String(book.bookId || book.id || '');
+        const selectable = typeof onToggleBookSelection === 'function' && (isBookSelectable?.(book) ?? false);
+
+        return (
+          <BookCard
+            key={bookId}
+            book={book}
+            canOpenBookEditor={canOpenBookEditor}
+            selection={selectable ? {
+              checked: selectedBookIds.map(String).includes(bookId),
+              label: `Select ${book.title}`,
+              onChange: () => onToggleBookSelection(book),
+            } : undefined}
+            onOpenBook={onOpenBook}
+            onArchiveBook={onArchiveBook}
+          />
+        );
+      })}
     </section>
   );
 };

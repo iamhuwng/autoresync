@@ -62,6 +62,113 @@ function generateId(): string {
 }
 
 const CLASS_STATS_WRITE_ROLES = new Set(['teacher', 'super_admin']);
+const ACTIVE_ASSIGNMENT_STATUSES = new Set(['available', 'in_progress']);
+const COMPLETED_ASSIGNMENT_STATUSES = new Set(['completed', 'graded']);
+
+function normalizeClassStatus(status: unknown): ClassStatus {
+  switch (status) {
+    case 'active':
+    case 'paused':
+    case 'archived':
+    case 'deleted':
+      return status;
+    case 'waiting':
+    case 'in-progress':
+    case 'inactive':
+      return 'active';
+    case 'completed':
+    case 'results':
+      return 'archived';
+    default:
+      return 'active';
+  }
+}
+
+function normalizeTimestamp(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function normalizeClassStudentStatus(
+  status: unknown,
+): ClassStudent['status'] | undefined {
+  return status === 'pending_approval' || status === 'active' || status === 'removed'
+    ? status
+    : undefined;
+}
+
+function normalizeClassStudent(
+  studentId: string,
+  student: Partial<ClassStudent>,
+  fallbackTimestamp: number,
+): ClassStudent {
+  const joinedAt = normalizeTimestamp(student.joinedAt, fallbackTimestamp);
+  const status = normalizeClassStudentStatus(student.status);
+
+  return {
+    ...student,
+    id: student.id || studentId,
+    name: student.name || student.email || student.uid || studentId,
+    ...(status ? { status } : {}),
+    joinedAt,
+    lastActiveAt: normalizeTimestamp(student.lastActiveAt, joinedAt),
+    isOnline: typeof student.isOnline === 'boolean' ? student.isOnline : false,
+    assignments: student.assignments || {},
+  };
+}
+
+function normalizeClassStudents(
+  students: ClassSession['students'] | undefined,
+  fallbackTimestamp: number,
+): ClassSession['students'] {
+  return Object.fromEntries(
+    Object.entries(students || {}).map(([studentId, student]) => [
+      studentId,
+      normalizeClassStudent(studentId, student, fallbackTimestamp),
+    ]),
+  );
+}
+
+function normalizeClassSession(classId: string, cls: ClassSession): ClassSession {
+  const classCode = cls.classCode || classId;
+  const createdAt = normalizeTimestamp(cls.createdAt, 0);
+  const updatedAt = normalizeTimestamp(cls.updatedAt, createdAt);
+  const students = normalizeClassStudents(cls.students, createdAt || updatedAt);
+  const assignments = cls.assignments || {};
+
+  return {
+    ...cls,
+    id: cls.id || classId,
+    classCode,
+    name: cls.name || classCode,
+    status: normalizeClassStatus(cls.status),
+    createdAt,
+    updatedAt,
+    students,
+    assignments,
+    settings: cls.settings || {
+      allowLateJoin: true,
+      requireEmail: false,
+    },
+    stats: cls.stats || {
+      totalStudents: Object.keys(students).length,
+      activeStudents: Object.values(students).filter((student) =>
+        !student.status || student.status === 'active').length,
+      totalAssignments: Object.keys(assignments).length,
+      completedAssignments: Object.values(assignments).filter(
+        (assignment) => COMPLETED_ASSIGNMENT_STATUSES.has(assignment.status),
+      ).length,
+    },
+  };
+}
 
 async function getCurrentActorUid(): Promise<string | undefined> {
   try {
@@ -124,18 +231,19 @@ async function updateEnrollmentStatsIfAuthorized(
 }
 
 function buildClassSummary(classId: string, cls: ClassSession): ClassSummary {
+  const normalized = normalizeClassSession(classId, cls);
   return {
-    id: cls.id || classId,
-    classCode: cls.classCode || classId,
-    name: cls.name,
-    status: cls.status,
-    createdAt: cls.createdAt,
-    studentCount: Object.keys(cls.students || {}).length,
-    activeAssignments: Object.values(cls.assignments || {}).filter(
-      (assignment) => assignment.status === 'available' || assignment.status === 'in_progress'
+    id: normalized.id,
+    classCode: normalized.classCode,
+    name: normalized.name,
+    status: normalized.status,
+    createdAt: normalized.createdAt,
+    studentCount: Object.keys(normalized.students).length,
+    activeAssignments: Object.values(normalized.assignments).filter(
+      (assignment) => ACTIVE_ASSIGNMENT_STATUSES.has(assignment.status)
     ).length,
-    completedAssignments: Object.values(cls.assignments || {}).filter(
-      (assignment) => assignment.status === 'completed' || assignment.status === 'graded'
+    completedAssignments: Object.values(normalized.assignments).filter(
+      (assignment) => COMPLETED_ASSIGNMENT_STATUSES.has(assignment.status)
     ).length,
   };
 }
@@ -346,6 +454,11 @@ export async function createClass(request: CreateClassRequest, ownerId?: string)
       sessionCode: classCode,
       status: 'waiting',
       mode: 'class',
+      ...(ownerId ? {
+        createdByUserId: ownerId,
+        createdBy: ownerId,
+        teacherId: ownerId,
+      } : {}),
       createdAt: now,
       players: {},
       // Link to class
@@ -441,7 +554,7 @@ export async function getClass(classId: string): Promise<ClassSession | null> {
     const snapshot = await get(classRef);
 
     if (snapshot.exists()) {
-      return snapshot.val() as ClassSession;
+      return normalizeClassSession(classId, snapshot.val() as ClassSession);
     }
 
     return null;
@@ -538,23 +651,31 @@ export async function deleteClass(classId: string): Promise<boolean> {
       return false;
     }
 
-    const legacyStatus = 'waiting';
-    const updates: Record<string, unknown> = {
-      [`${CLASSES_REF}/${classId}/status`]: 'deleted',
-      [`${CLASSES_REF}/${classId}/updatedAt`]: Date.now(),
-      [`${GAME_SESSIONS_REF}/${classId}/status`]: legacyStatus,
-    };
+    const now = Date.now();
+    await update(ref(database, `${CLASSES_REF}/${classId}`), {
+      status: 'deleted',
+      updatedAt: now,
+    });
 
+    const projectionUpdates: Record<string, unknown> = {};
     for (const [studentId, student] of Object.entries(classData.students || {})) {
       const membershipStudentId = student.uid || studentId;
       if (!student.uid || membershipStudentId !== studentId) {
         continue;
       }
 
-      updates[`${STUDENT_CLASSES_REF}/${membershipStudentId}/${classId}`] = null;
+      projectionUpdates[`${STUDENT_CLASSES_REF}/${membershipStudentId}/${classId}`] = null;
     }
 
-    await update(ref(database), updates);
+    if (Object.keys(projectionUpdates).length > 0) {
+      try {
+        await update(ref(database), projectionUpdates);
+      } catch (projectionError) {
+        console.warn(`[ClassManager] Failed to clean up student class projections for deleted class ${classId}:`, projectionError);
+      }
+    }
+
+    // Do not update class-backed game_sessions here; old shadow rows may be ownerless and trigger RTDB permission warnings.
     return true;
   } catch (error) {
     console.error('Error deleting class:', error);
@@ -1276,7 +1397,7 @@ export function subscribeToClass(
 
   const listener = onValue(classRef, (snapshot) => {
     if (snapshot.exists()) {
-      callback(snapshot.val() as ClassSession);
+      callback(normalizeClassSession(classId, snapshot.val() as ClassSession));
     } else {
       callback(null);
     }
@@ -1375,4 +1496,3 @@ export const classManager = {
 };
 
 export default classManager;
-

@@ -1,14 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { database } from '../../services/firebase';
-import { firestore as db } from '../../services/firebase';
-import { ref, onValue, remove, update as dbUpdate, query, orderByChild, equalTo } from 'firebase/database';
-import { doc, deleteDoc } from 'firebase/firestore';
-import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import {
-  getReadingV2TeacherLobbyIndexQuery,
-  getReadingV2TeacherLobbyTests,
-  mergeReadingV2TeacherLobbyTests,
-} from '../../services/reading-v2/readingV2TeacherLobbyMaterials.service';
+  get,
+  onValue,
+  ref,
+  update as dbUpdate,
+} from 'firebase/database';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { database, firestore as db } from '../../services/firebase';
+import {
+  adaptMaterialSummariesToTeacherCards,
+} from '../../services/materialCatalog/materialSummaryCardAdapter.service';
+import {
+  buildMaterialSummaryUpdatePayload,
+  getMaterialSummaryListPath,
+  listActiveMaterialSummaries,
+  type MaterialSummaryListQuery,
+} from '../../services/materialCatalog/materialSummaryPort.service';
+import {
+  createLegacyTestMaterialSummary,
+} from '../../services/materialCatalog/legacyTestMaterialSummary.service';
 import {
   getTeacherMaterialsDiagnosticTime,
   getTeacherMaterialsElapsedMs,
@@ -26,99 +36,78 @@ interface UseTeacherTestsOptions {
   contentFilter?: TeacherContentFilter;
 }
 
-function summarizeTestsForDiagnostics(testList: any[]) {
-  return {
-    count: testList.length,
-    readingV2Count: testList.filter((test) => test?.deliveryEngine === 'reading-v2').length,
-    publicCount: testList.filter((test) => test?.isPublic === true).length,
-    thcsCount: testList.filter((test) => test?.testType === 'THCS-THPT').length,
-    writingCount: testList.filter((test) => String(test?.skill || '').toLowerCase() === 'writing').length,
-  };
-}
+const errorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
+
+const isListeningLegacyRuntimeRecord = (
+  runtime: Record<string, unknown>,
+  card: Record<string, unknown>,
+): boolean => {
+  const skill = String(runtime.skill ?? card.skill ?? '').trim().toLowerCase();
+  return skill === 'listening';
+};
+
+const summarizeMaterialsForDiagnostics = (materials: any[]) => ({
+  count: materials.length,
+  producerCounts: Object.fromEntries(
+    [...new Set(materials.map((material) => material.producerId))]
+      .filter(Boolean)
+      .map((producerId) => [
+        producerId,
+        materials.filter((material) => material.producerId === producerId).length,
+      ]),
+  ),
+  kindCounts: Object.fromEntries(
+    [...new Set(materials.map((material) => material.materialKind))]
+      .filter(Boolean)
+      .map((materialKind) => [
+        materialKind,
+        materials.filter((material) => material.materialKind === materialKind).length,
+      ]),
+  ),
+});
+
+const readMaterialSummaries = async (
+  query: MaterialSummaryListQuery,
+): Promise<any[]> => adaptMaterialSummariesToTeacherCards(
+  await listActiveMaterialSummaries(query, {
+    read: async (path) => {
+      const snapshot = await get(ref(database, path));
+      return snapshot.exists() ? snapshot.val() : null;
+    },
+  }),
+);
 
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   const {
     enabled = true,
     ownerId,
-    userRole = '',
     contentFilter = 'my',
     realtime = true,
-    skipCache = false,
   } = options;
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedScope, setLoadedScope] = useState<string | null>(null);
 
-  const isSuperAdminMyContent = userRole === 'super_admin' && contentFilter === 'my';
-  const listScope = contentFilter === 'public'
-    ? 'public'
-    : isSuperAdminMyContent
-      ? 'all'
-      : 'owned';
-
-  const loadTeacherTests = useCallback(async (nextSkipCache = skipCache) => {
+  const listScope = contentFilter === 'public' ? 'public' : 'owned';
+  const buildQuery = useCallback((): MaterialSummaryListQuery => {
     if (listScope === 'public') {
-      return queryOptimizer.getPublicTests(nextSkipCache);
+      return { scope: 'public' };
     }
-
-    if (listScope === 'all') {
-      return queryOptimizer.getAllTests(nextSkipCache);
-    }
-
     if (!ownerId) {
-      return [];
+      throw new Error('My Content requires an authenticated owner.');
     }
-
-    const [legacyTests, readingV2Tests] = await Promise.all([
-      queryOptimizer.getTeacherOwnedTests(ownerId, nextSkipCache),
-      getReadingV2TeacherLobbyTests(ownerId),
-    ]);
-    return mergeReadingV2TeacherLobbyTests(legacyTests, readingV2Tests);
-  }, [listScope, ownerId, skipCache]);
-
-  const invalidateScopedCache = useCallback(() => {
-    if (listScope === 'public') {
-      queryOptimizer.invalidate('test', 'public');
-      return;
-    }
-
-    if (listScope === 'all') {
-      queryOptimizer.invalidate('test', 'all');
-      return;
-    }
-
-    if (ownerId) {
-      queryOptimizer.invalidate('test', `owner:${ownerId}`);
-    }
+    return { scope: 'owned', ownerId };
   }, [listScope, ownerId]);
 
-  const getRealtimeQueries = useCallback(() => {
-    const testsRef = ref(database, 'tests');
-
-    if (listScope === 'public') {
-      return [query(testsRef, orderByChild('isPublic'), equalTo(true))];
-    }
-
-    if (listScope === 'all') {
-      return [testsRef];
-    }
-
-    if (!ownerId) {
-      return [];
-    }
-
-    return [
-      query(testsRef, orderByChild('ownerId'), equalTo(ownerId)),
-      query(testsRef, orderByChild('createdBy'), equalTo(ownerId)),
-      getReadingV2TeacherLobbyIndexQuery(ownerId),
-    ];
-  }, [listScope, ownerId]);
+  const loadTeacherMaterials = useCallback(async () =>
+    readMaterialSummaries(buildQuery()), [buildQuery]);
 
   useEffect(() => {
-    const unsubscribers: Array<() => void> = [];
     let isSubscribed = true;
-    let realtimeReloadScheduled = false;
+    let unsubscribe: (() => void) | undefined;
+    let initialSnapshot = true;
 
     if (!enabled) {
       setTests([]);
@@ -130,130 +119,97 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       };
     }
 
-    const scheduleRealtimeReload = () => {
-      if (realtimeReloadScheduled || !isSubscribed) {
-        return;
+    const load = async (source: 'initial' | 'realtime') => {
+      const startedAt = getTeacherMaterialsDiagnosticTime();
+      if (source === 'initial') {
+        setLoading(true);
+        setLoadedScope(null);
       }
-
-      realtimeReloadScheduled = true;
-
-      void Promise.resolve().then(() => {
-        realtimeReloadScheduled = false;
-
+      try {
+        const materials = await loadTeacherMaterials();
         if (!isSubscribed) {
           return;
         }
-
-        invalidateScopedCache();
-        const reloadStartedAt = getTeacherMaterialsDiagnosticTime();
-        void loadTeacherTests(true).then((list) => {
-          if (!isSubscribed) return;
-          logTeacherMaterialsDiagnostic('realtime_reload_succeeded', {
-            scope: listScope,
-            contentFilter,
-            durationMs: getTeacherMaterialsElapsedMs(reloadStartedAt),
-            ...summarizeTestsForDiagnostics(list),
-          });
-          setTests(list);
-          setLoadedScope(listScope);
-          setLoading(false);
-        }).catch((error: any) => {
-          if (!isSubscribed) return;
-          logTeacherMaterialsDiagnostic('realtime_reload_failed', {
-            scope: listScope,
-            message: error instanceof Error ? error.message : String(error),
-          });
-          console.error('Error loading indexed tests:', error);
-          setLoading(false);
-        });
-      });
-    };
-
-    const loadData = async () => {
-      const startedAt = getTeacherMaterialsDiagnosticTime();
-      logTeacherMaterialsDiagnostic('hook_load_requested', {
-        scope: listScope,
-        contentFilter,
-        realtime,
-        skipCache,
-        ownerPresent: Boolean(ownerId),
-        ownerTail: ownerId?.slice(-6) ?? null,
-      });
-      setLoading(true);
-      setLoadedScope(null);
-      try {
-        const testList = await loadTeacherTests(skipCache);
-        logTeacherMaterialsDiagnostic('hook_load_succeeded', {
-          scope: listScope,
-          contentFilter,
-          realtime,
-          durationMs: getTeacherMaterialsElapsedMs(startedAt),
-          ...summarizeTestsForDiagnostics(testList),
-        });
-        if (isSubscribed) {
-          setTests(testList);
-          setLoadedScope(listScope);
-          setLoading(false);
-          setError(null);
-        }
-
-        if (realtime) {
-          const realtimeQueries = getRealtimeQueries();
-          let initialListenerCallsRemaining = realtimeQueries.length;
-          logTeacherMaterialsDiagnostic('realtime_listener_registered', {
-            scope: listScope,
-            contentFilter,
-            listenerCount: realtimeQueries.length,
-          });
-
-          realtimeQueries.forEach((testsQuery) => {
-            unsubscribers.push(onValue(testsQuery, () => {
-              if (!isSubscribed) return;
-
-              if (initialListenerCallsRemaining > 0) {
-                initialListenerCallsRemaining -= 1;
-                logTeacherMaterialsDiagnostic('realtime_initial_snapshot_skipped', {
-                  scope: listScope,
-                  remainingInitialSnapshots: initialListenerCallsRemaining,
-                });
-                return;
-              }
-
-              scheduleRealtimeReload();
-            }, (error: any) => {
-              if (error.code === 'PERMISSION_DENIED') {
-                console.log('[REALTIME] Test listener stopped (user logged out)');
-                return;
-              }
-              console.error('Error loading tests:', error);
-              if (isSubscribed) setLoading(false);
-            }));
-          });
-        }
-      } catch (error) {
-        logTeacherMaterialsDiagnostic('hook_load_failed', {
+        logTeacherMaterialsDiagnostic(`${source}_load_succeeded`, {
           scope: listScope,
           contentFilter,
           durationMs: getTeacherMaterialsElapsedMs(startedAt),
-          message: error instanceof Error ? error.message : String(error),
+          ...summarizeMaterialsForDiagnostics(materials),
         });
-        console.error('Error in data loading:', error);
-        if (isSubscribed) {
-          setError(error instanceof Error ? error.message : 'Failed to load tests');
-          setLoading(false);
+        setTests(materials);
+        setLoadedScope(listScope);
+        setError(null);
+        setLoading(false);
+      } catch (loadError) {
+        if (!isSubscribed) {
+          return;
         }
+        const message = errorMessage(
+          loadError,
+          'Failed to load material summaries.',
+        );
+        logTeacherMaterialsDiagnostic(`${source}_load_failed`, {
+          scope: listScope,
+          contentFilter,
+          durationMs: getTeacherMaterialsElapsedMs(startedAt),
+          message,
+        });
+        setTests([]);
+        setLoadedScope(null);
+        setError(message);
+        setLoading(false);
       }
     };
 
-    loadData();
+    void load('initial').then(() => {
+      if (!isSubscribed || !realtime) {
+        return;
+      }
+      let query: MaterialSummaryListQuery;
+      try {
+        query = buildQuery();
+      } catch (queryError) {
+        setError(errorMessage(queryError, 'Invalid material summary query.'));
+        return;
+      }
+      unsubscribe = onValue(
+        ref(database, getMaterialSummaryListPath(query)),
+        () => {
+          if (initialSnapshot) {
+            initialSnapshot = false;
+            return;
+          }
+          void load('realtime');
+        },
+        (listenerError) => {
+          if (!isSubscribed) {
+            return;
+          }
+          setTests([]);
+          setLoadedScope(null);
+          setError(errorMessage(
+            listenerError,
+            'Material summary realtime listener failed.',
+          ));
+          setLoading(false);
+        },
+      );
+    });
 
     return () => {
       isSubscribed = false;
-      unsubscribers.forEach((unsubscribe) => {
-        if (typeof unsubscribe === 'function') unsubscribe();
-      });
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
-  }, [contentFilter, enabled, loadTeacherTests, getRealtimeQueries, invalidateScopedCache, listScope, ownerId, realtime, skipCache]);
+  }, [
+    buildQuery,
+    contentFilter,
+    enabled,
+    listScope,
+    loadTeacherMaterials,
+    realtime,
+  ]);
 
   const refresh = async () => {
     if (!enabled) {
@@ -263,63 +219,92 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       setLoading(false);
       return;
     }
-
-    const startedAt = getTeacherMaterialsDiagnosticTime();
-    logTeacherMaterialsDiagnostic('refresh_requested', {
-      scope: listScope,
-      contentFilter,
-      ownerPresent: Boolean(ownerId),
-    });
-    invalidateScopedCache();
-    const testList = await loadTeacherTests(true);
-    logTeacherMaterialsDiagnostic('refresh_succeeded', {
-      scope: listScope,
-      contentFilter,
-      durationMs: getTeacherMaterialsElapsedMs(startedAt),
-      ...summarizeTestsForDiagnostics(testList),
-    });
-    setTests(testList);
-    setLoadedScope(listScope);
+    setLoading(true);
+    try {
+      const materials = await loadTeacherMaterials();
+      setTests(materials);
+      setLoadedScope(listScope);
+      setError(null);
+    } catch (refreshError) {
+      setTests([]);
+      setLoadedScope(null);
+      setError(errorMessage(refreshError, 'Failed to refresh materials.'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const deleteTest = async (test: any) => {
-    const testRef = ref(database, `tests/${test.id}`);
-    await remove(testRef);
-    const isWritingTest = test?.testType === 'IELTS' && String(test?.skill || '').toLowerCase() === 'writing';
+    const snapshot = await get(ref(database, `tests/${test.id}`));
+    if (!snapshot.exists()) {
+      throw new Error(`Material runtime record not found: ${test.id}`);
+    }
+    const current = snapshot.val() as Record<string, unknown>;
+    if (isListeningLegacyRuntimeRecord(current, test)) {
+      throw new Error(
+        'Listening material deletion is blocked until the audited deletion flow is available.',
+      );
+    }
+    const previousSummary = createLegacyTestMaterialSummary(test.id, current);
+    const removedSummary = createLegacyTestMaterialSummary(test.id, {
+      ...current,
+      updatedAt: Date.now(),
+    }, 'removed');
+    await dbUpdate(ref(database), {
+      [`tests/${test.id}`]: null,
+      ...buildMaterialSummaryUpdatePayload(removedSummary, previousSummary),
+    });
 
-    const isThcs = test.testType === 'THCS-THPT';
-    if (isThcs) {
-      try {
-        await deleteDoc(doc(db, 'thcs_library', test.id));
-      } catch { }
+    const isWritingTest =
+      test?.testType === 'IELTS' &&
+      String(test?.skill || '').toLowerCase() === 'writing';
+    if (test.testType === 'THCS-THPT') {
+      await deleteDoc(doc(db, 'thcs_library', test.id));
       if (test.sourceDraftId) {
-        try {
-          await deleteDoc(doc(db, 'thcs_drafts', test.sourceDraftId));
-        } catch { }
+        await deleteDoc(doc(db, 'thcs_drafts', test.sourceDraftId));
       }
       return;
     }
-
     if (isWritingTest && test.sourceDraftId) {
-      try {
-        await deleteDoc(doc(db, 'writing_drafts', test.sourceDraftId));
-      } catch { }
+      await deleteDoc(doc(db, 'writing_drafts', test.sourceDraftId));
     }
   };
 
-  const togglePublic = async (id: string, currentIsPublic: boolean, type: string = 'test') => {
-    try {
-      const itemRef = ref(database, `${type}s/${id}`);
-      await dbUpdate(itemRef, {
-        isPublic: !currentIsPublic,
-        updatedAt: Date.now()
-      });
-      console.log(`${type} ${id} isPublic toggled to ${!currentIsPublic}`);
-    } catch (error) {
-      console.error(`Error toggling isPublic for ${type}:`, error);
-      alert(`Failed to update ${type}. Please try again.`);
+  const togglePublic = async (
+    id: string,
+    currentIsPublic: boolean,
+    type: string = 'test',
+  ) => {
+    if (type !== 'test') {
+      throw new Error(`Unsupported universal material visibility adapter: ${type}`);
     }
+    const snapshot = await get(ref(database, `tests/${id}`));
+    if (!snapshot.exists()) {
+      throw new Error(`Material runtime record not found: ${id}`);
+    }
+    const current = snapshot.val() as Record<string, unknown>;
+    const next = {
+      ...current,
+      isPublic: !currentIsPublic,
+      updatedAt: Date.now(),
+    };
+    await dbUpdate(ref(database), {
+      [`tests/${id}/isPublic`]: next.isPublic,
+      [`tests/${id}/updatedAt`]: next.updatedAt,
+      ...buildMaterialSummaryUpdatePayload(
+        createLegacyTestMaterialSummary(id, next),
+        createLegacyTestMaterialSummary(id, current),
+      ),
+    });
   };
 
-  return { tests, loading, error, loadedScope, refresh, deleteTest, togglePublic };
+  return {
+    tests,
+    loading,
+    error,
+    loadedScope,
+    refresh,
+    deleteTest,
+    togglePublic,
+  };
 }

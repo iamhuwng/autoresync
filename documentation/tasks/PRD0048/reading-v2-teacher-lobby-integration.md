@@ -23,7 +23,7 @@ Reading V2 must integrate with the existing Teacher Lobby material-card workflow
 
 The Teacher Lobby is not a new Reading V2 discovery product in PRD-0048. It remains the current `/lobby` shell where teachers already see material cards and draft cards for other test families.
 
-Current data-loading architecture is defined in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Reading V2 lobby integration must use the same scoped material-listing contract as every other family: normal teachers read owned `/tests` rows by `ownerId` and `createdBy`; public library reads `/tests` by `isPublic`; drafts stay on the draft path. The lobby must not hydrate Reading V2 canonical documents, passage assets, projections, or result payloads just to render cards.
+Current data-loading architecture is defined in `documentation/architecture/teacher-materials-listing-and-diagnostics.md`. Reading V2 lobby integration must use the same scoped material-listing contract as every other family: My Content reads owned active universal summaries from `material_catalog/material_summary_indexes/v1/by_owner/{teacherId}`; Public Library reads active public summaries from `material_catalog/material_summary_indexes/v1/by_visibility/public`; drafts stay on the draft path. The lobby must not hydrate Reading V2 canonical documents, passage assets, projections, or result payloads just to render cards.
 
 Current lobby chrome, card-title, search-icon, create-modal, and responsive header behavior is defined in `documentation/architecture/teacher-lobby-authoring-and-navigation.md`. Reading V2 integration must fit that surface instead of creating a parallel lobby shell.
 
@@ -145,7 +145,7 @@ Teacher Lobby integration tests must prove:
 
 - Reading V2 cards use the existing material-card pattern.
 - Normal teacher My Content uses indexed owned material reads instead of full `/tests` scans.
-- Public Library uses the indexed `isPublic` read instead of full `/tests` scans.
+- Public Library uses the universal public summary index instead of full `/tests` scans.
 - Card rendering does not require Reading V2 canonical draft/projection hydration.
 - Clicking a Reading V2 material does not open legacy `TestEditor`.
 - Clicking a Reading V2 material opens the Reading V2 modal adapter or approved Studio entry.

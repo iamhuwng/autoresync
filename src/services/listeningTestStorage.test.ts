@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   ref: vi.fn((_database: unknown, path: string) => ({ path })),
   set: vi.fn(),
   get: vi.fn(),
+  update: vi.fn(),
   database: { app: 'test-db' },
   r2StorageService: {
     isTempFile: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('firebase/database', () => ({
   ref: mocks.ref,
   set: mocks.set,
   get: mocks.get,
+  update: mocks.update,
 }));
 
 vi.mock('./firebase', () => ({
@@ -75,11 +77,13 @@ describe('saveListeningTestToFirebase baseline compatibility', () => {
     mocks.ref.mockClear();
     mocks.set.mockReset();
     mocks.get.mockReset();
+    mocks.update.mockReset();
     mocks.r2StorageService.isTempFile.mockReset();
     mocks.r2StorageService.getKeyFromUrl.mockReset();
     mocks.r2StorageService.moveToPermanent.mockReset();
 
     mocks.set.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(undefined);
     mocks.r2StorageService.isTempFile.mockReturnValue(false);
     mocks.r2StorageService.getKeyFromUrl.mockReturnValue(null);
   });
@@ -169,7 +173,7 @@ describe('saveListeningTestToFirebase baseline compatibility', () => {
   });
 
   it('maps Firebase permission and network failures without changing save semantics', async () => {
-    mocks.set.mockRejectedValueOnce(new Error('permission denied'));
+    mocks.update.mockRejectedValueOnce(new Error('permission denied'));
 
     await expect(
       saveListeningTestToFirebase(metadata, [audioSection()], questions, 'teacher-1')
@@ -178,7 +182,7 @@ describe('saveListeningTestToFirebase baseline compatibility', () => {
       error: 'Permission denied. Please check Firebase database rules.',
     });
 
-    mocks.set.mockRejectedValueOnce(new Error('network unavailable'));
+    mocks.update.mockRejectedValueOnce(new Error('network unavailable'));
 
     await expect(
       saveListeningTestToFirebase(metadata, [audioSection()], questions, 'teacher-1')
@@ -240,8 +244,12 @@ describe('saveListeningTestToFirebase baseline compatibility', () => {
     }));
     expect(mocks.r2StorageService.moveToPermanent).not.toHaveBeenCalled();
 
-    const savedTest = mocks.set.mock.calls[0][1];
-    expect(mocks.set).toHaveBeenCalledTimes(1);
+    const rootUpdates = mocks.update.mock.calls[0][1];
+    const savedTest = rootUpdates['tests/listening-1700000000000-4fzzzxj'];
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(rootUpdates).toHaveProperty(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/listening-1700000000000-4fzzzxj',
+    );
     expect(savedTest.isPublished).toBe(true);
     expect(savedTest.audioSections[0]).toMatchObject({
       assetId: 'asset-1',
@@ -353,5 +361,6 @@ describe('saveListeningTestToFirebase baseline compatibility', () => {
       error: 'Published Listening test physical deletion is blocked until the approved Task 6 audited deletion operation exists.',
     });
     expect(mocks.set).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

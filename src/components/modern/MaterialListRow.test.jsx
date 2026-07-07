@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import MaterialListRow from './MaterialListRow';
@@ -163,5 +163,34 @@ describe('MaterialListRow', () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('routes rejected async row actions to the action error handler', async () => {
+    const user = userEvent.setup();
+    const onError = vi.fn();
+    const failure = new Error('delete failed');
+
+    render(
+      <MaterialListRow
+        row={makeRow({
+          actions: [
+            {
+              key: 'delete',
+              label: 'Delete',
+              variant: 'danger',
+              iconKind: 'delete',
+              onSelect: () => Promise.reject(failure),
+              onError,
+            },
+          ],
+        })}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(failure, expect.objectContaining({ key: 'delete' }));
+    });
   });
 });

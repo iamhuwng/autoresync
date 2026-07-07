@@ -98,7 +98,7 @@ Acceptance:
 - Incomplete items show recovery actions such as `Complete`, not `Start Test`.
 - Actions render in a fixed four-slot icon rail so row layout does not change when `Assign HW` is present or absent.
 - Public Library rows do not expose owner-only edit/delete actions.
-- Drafts remain grid-only in PRD-0050.
+- Drafts remain grid-only for PRD-0050 list rendering. Later Draft card selected-material actions are outside this list-view PRD and are governed by `documentation/architecture/teacher-materials-bulk-selection-actions.md`.
 
 ### US-4: Keep Existing Teacher Data Contracts
 
@@ -305,7 +305,7 @@ Retired pre-release layout idea:
 
 ## Open Decisions
 
-1. Closed: Drafts stay grid-only in PRD-0050.
+1. Closed: Drafts stay grid-only for PRD-0050 list rendering. Later selected-material actions on Draft cards do not reopen this list-view decision.
 2. Closed: `All Statuses` and `All Folders` remain design-only until backed metadata and handlers exist.
 3. Closed: list/grid mode is memory-only in PRD-0050. Any persistence needs a separate portability review.
 4. Closed: touched `TeacherLobbyPage.jsx` Mantine `AppShell` was replaced with native wrapper markup.

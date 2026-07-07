@@ -1,392 +1,293 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
-// --- Mocks ---
-
-// Mock Firebase database
-const mockRemove = vi.fn().mockResolvedValue(undefined);
-const mockDbUpdate = vi.fn().mockResolvedValue(undefined);
-const mockRef = vi.fn((_db: any, path: string) => ({ path }));
-const mockQuery = vi.fn((target: any, ...constraints: any[]) => ({
-  path: target.path,
-  constraints,
-}));
-const mockOrderByChild = vi.fn((child: string) => ({ type: 'orderByChild', child }));
-const mockEqualTo = vi.fn((value: unknown) => ({ type: 'equalTo', value }));
-let onValueCallback: ((snapshot: any) => void) | null = null;
-let onValueErrorCallback: ((error: any) => void) | null = null;
-const onValueCallbacks: Array<(snapshot: any) => void> = [];
-const onValueErrorCallbacks: Array<(error: any) => void> = [];
-const mockUnsubscribe = vi.fn();
-const mockOnValue = vi.fn((ref: any, successCb: any, errorCb?: any) => {
-  onValueCallback = successCb;
-  onValueErrorCallback = errorCb || null;
-  onValueCallbacks.push(successCb);
-  if (errorCb) onValueErrorCallbacks.push(errorCb);
-  return mockUnsubscribe;
+const values = new Map<string, unknown>();
+const mockGet = vi.fn(async (target: { path?: string }) => {
+  const value = values.get(target.path ?? '');
+  return {
+    exists: () => value !== undefined && value !== null,
+    val: () => value,
+  };
+});
+const mockUpdate = vi.fn().mockResolvedValue(undefined);
+const unsubscribe = vi.fn();
+let realtimeSuccess: (() => void) | undefined;
+let realtimeError: ((error: Error) => void) | undefined;
+const mockOnValue = vi.fn((
+  _target: unknown,
+  success: () => void,
+  error: (failure: Error) => void,
+) => {
+  realtimeSuccess = success;
+  realtimeError = error;
+  return unsubscribe;
 });
 
 vi.mock('firebase/database', () => ({
-  ref: (...args: any[]) => mockRef(...args),
-  query: (...args: any[]) => mockQuery(...args),
-  orderByChild: (...args: any[]) => mockOrderByChild(...args),
-  equalTo: (...args: any[]) => mockEqualTo(...args),
+  ref: (_database: unknown, path?: string) => ({ path }),
+  get: (target: { path?: string }) => mockGet(target),
+  update: (...args: unknown[]) => mockUpdate(...args),
   onValue: (...args: any[]) => mockOnValue(...args),
-  remove: (...args: any[]) => mockRemove(...args),
-  update: (...args: any[]) => mockDbUpdate(...args),
 }));
 
-// Mock Firebase Firestore
-const mockDeleteDoc = vi.fn().mockResolvedValue(undefined);
-const mockDoc = vi.fn((_db: any, collection: string, id: string) => ({ collection, id }));
+const deleteDoc = vi.fn().mockResolvedValue(undefined);
 vi.mock('firebase/firestore', () => ({
-  deleteDoc: (...args: any[]) => mockDeleteDoc(...args),
-  doc: (...args: any[]) => mockDoc(...args),
+  deleteDoc: (...args: unknown[]) => deleteDoc(...args),
+  doc: (_db: unknown, collection: string, id: string) => ({ collection, id }),
 }));
 
-// Mock firebase service
 vi.mock('../../services/firebase', () => ({
-  database: { fake: 'database' },
-  firestore: { fake: 'firestore' },
+  database: {},
+  firestore: {},
 }));
 
-// Mock queryOptimizer
-const mockGetAllTests = vi.fn();
-const mockGetTeacherOwnedTests = vi.fn();
-const mockGetPublicTests = vi.fn();
-const mockInvalidate = vi.fn();
-vi.mock('../../services/firebaseQueryOptimizer', () => ({
-  default: {
-    getAllTests: (...args: any[]) => mockGetAllTests(...args),
-    getTeacherOwnedTests: (...args: any[]) => mockGetTeacherOwnedTests(...args),
-    getPublicTests: (...args: any[]) => mockGetPublicTests(...args),
-    invalidate: (...args: any[]) => mockInvalidate(...args),
-  },
-}));
-
-const mockGetReadingV2TeacherLobbyTests = vi.fn();
-vi.mock('../../services/reading-v2/readingV2TeacherLobbyMaterials.service', () => ({
-  getReadingV2TeacherLobbyTests: (...args: any[]) => mockGetReadingV2TeacherLobbyTests(...args),
-  getReadingV2TeacherLobbyIndexQuery: (ownerId: string) => ({
-    path: 'reading_v2/relationship_indexes/teacher-lobby/',
-    ownerId,
-  }),
-  mergeReadingV2TeacherLobbyTests: (legacyTests: any[], readingV2Tests: any[]) => {
-    const readingV2ById = new Map(readingV2Tests.map((test) => [test.id, test]));
-    const mergedLegacyRows = legacyTests.map((test) => readingV2ById.get(test.id) || test);
-    const seenIds = new Set(mergedLegacyRows.map((test) => test.id));
-    return [
-      ...mergedLegacyRows,
-      ...readingV2Tests.filter((test) => !seenIds.has(test.id)),
-    ];
-  },
-}));
-
-// Import AFTER mocks
 import { useTeacherTests } from '../test/useTeacherTests';
 
-describe('useTeacherTests', () => {
-  const mockTests = [
-    { id: 'test-1', title: 'IELTS Reading', testType: 'IELTS' },
-    { id: 'test-2', title: 'Grade 9 Final', testType: 'THCS-THPT', sourceDraftId: 'draft-2' },
-  ];
+const summary = (overrides: Record<string, unknown> = {}) =>
+  Object.fromEntries(Object.entries({
+    schemaVersion: 1,
+    materialId: 'material-1',
+    producerId: 'generic-test',
+    materialKind: 'full-test',
+    surfaceFamily: 'assessment',
+    ownerId: 'teacher-1',
+    title: 'Material',
+    visibility: 'private',
+    lifecycleState: 'active',
+    skillId: 'reading',
+    testTypeIds: ['ielts'],
+    tags: ['material'],
+    updatedAt: '2026-07-07T00:00:00.000Z',
+    ...overrides,
+  }).filter(([, value]) => value !== undefined));
 
+describe('useTeacherTests universal material summaries', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    onValueCallback = null;
-    onValueErrorCallback = null;
-    onValueCallbacks.length = 0;
-    onValueErrorCallbacks.length = 0;
-    mockGetAllTests.mockResolvedValue(mockTests);
-    mockGetTeacherOwnedTests.mockResolvedValue(mockTests);
-    mockGetPublicTests.mockResolvedValue(mockTests);
-    mockGetReadingV2TeacherLobbyTests.mockResolvedValue([]);
-    mockRemove.mockResolvedValue(undefined);
-    mockDbUpdate.mockResolvedValue(undefined);
-    mockDeleteDoc.mockResolvedValue(undefined);
+    values.clear();
+    realtimeSuccess = undefined;
+    realtimeError = undefined;
   });
 
-  it('loads teacher-owned tests initially via indexed owner queries', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
+  it('loads all owned private and public material kinds from one universal index', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      {
+        test: summary(),
+        publicTest: summary({
+          materialId: 'public-test',
+          visibility: 'public',
+        }),
+        passage: summary({
+          materialId: 'passage-1',
+          producerId: 'reading-v2-passage',
+          materialKind: 'reading-passage',
+          surfaceFamily: 'passage',
+        }),
+        book: summary({
+          materialId: 'book-1',
+          producerId: 'material-book',
+          materialKind: 'book',
+          surfaceFamily: 'book',
+          skillId: undefined,
+        }),
+      },
+    );
 
-    // Initially loading
-    expect(result.current.loading).toBe(true);
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(mockGetTeacherOwnedTests).toHaveBeenCalledWith('teacher-1', false);
-    expect(mockGetAllTests).not.toHaveBeenCalled();
-    expect(result.current.tests).toEqual(mockTests);
-    expect(result.current.error).toBeNull();
-  });
-
-  it('hydrates owned Reading V2 cards from the canonical Teacher Lobby index and prefers them over stale bridge rows', async () => {
-    const staleBridgeRow = {
-      id: 'reading-v2-material-1',
-      materialId: 'reading-v2-material-1',
-      title: 'Stale Bridge Row',
-      deliveryEngine: 'reading-v2',
-      ownerId: 'teacher-1',
-    };
-    const canonicalReadingV2Material = {
-      id: 'reading-v2-material-1',
-      materialId: 'reading-v2-material-1',
-      title: 'Published Reading V2',
-      deliveryEngine: 'reading-v2',
-      ownerId: 'teacher-1',
-      hasStudentSafeProjection: true,
-      deliveryProjectionReady: true,
-      studentSafeProjectionReady: true,
-      passageRefCount: 3,
-    };
-    mockGetTeacherOwnedTests.mockResolvedValueOnce([staleBridgeRow]);
-    mockGetReadingV2TeacherLobbyTests.mockResolvedValueOnce([canonicalReadingV2Material]);
-
-    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(mockGetTeacherOwnedTests).toHaveBeenCalledWith('teacher-1', false);
-    expect(mockGetReadingV2TeacherLobbyTests).toHaveBeenCalledWith('teacher-1');
-    expect(result.current.tests).toEqual([canonicalReadingV2Material]);
-  });
-
-  it('exposes error state when initial load fails', async () => {
-    mockGetTeacherOwnedTests.mockRejectedValue(new Error('Network failed'));
-
-    const { result } = renderHook(() => useTeacherTests({ realtime: false, ownerId: 'teacher-1' }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(result.current.error).toBe('Network failed');
-    expect(result.current.tests).toEqual([]);
-  });
-
-  it('stays idle when disabled for non-test surfaces', async () => {
     const { result } = renderHook(() => useTeacherTests({
-      enabled: false,
-      realtime: true,
       ownerId: 'teacher-1',
-      contentFilter: 'reading-passage',
+      realtime: false,
     }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+    expect(result.current.tests.map((row) => row.materialKind)).toEqual(expect.arrayContaining([
+      'book',
+      'full-test',
+      'reading-passage',
+    ]));
+    expect(result.current.tests.map((row) => row.materialId)).toEqual(expect.arrayContaining([
+      'material-1',
+      'public-test',
+      'passage-1',
+      'book-1',
+    ]));
+    expect(result.current.tests.map((row) => row.visibility).sort()).toEqual([
+      'private',
+      'private',
+      'private',
+      'public',
+    ]);
+    expect(result.current.error).toBeNull();
+    expect(mockGet).toHaveBeenCalledWith({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
     });
+  });
 
+  it('loads Public Library from the public summary index', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_visibility/public',
+      {
+        ownedPublic: summary({ visibility: 'public' }),
+      },
+    );
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      contentFilter: 'public',
+      realtime: false,
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.tests).toHaveLength(1);
+    expect(result.current.tests[0].ownerId).toBe('teacher-1');
+  });
+
+  it('surfaces malformed rows and missing owner instead of believable empties', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      { malformed: { title: 'Missing contract' } },
+    );
+    const malformed = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      realtime: false,
+    }));
+    await waitFor(() => expect(malformed.result.current.loading).toBe(false));
+    expect(malformed.result.current.error).toMatch(/shared listing contract/i);
+    malformed.unmount();
+
+    const missingOwner = renderHook(() => useTeacherTests({ realtime: false }));
+    await waitFor(() => expect(missingOwner.result.current.loading).toBe(false));
+    expect(missingOwner.result.current.error).toMatch(/authenticated owner/i);
+  });
+
+  it('clears stale rows when a new material scope fails to load', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      { owned: summary() },
+    );
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_visibility/public',
+      { malformed: { title: 'Missing contract' } },
+    );
+
+    const { result, rerender } = renderHook(
+      ({ contentFilter }: { contentFilter: 'my' | 'public' }) => useTeacherTests({
+        ownerId: 'teacher-1',
+        contentFilter,
+        realtime: false,
+      }),
+      { initialProps: { contentFilter: 'my' as 'my' | 'public' } },
+    );
+
+    await waitFor(() => expect(result.current.tests).toHaveLength(1));
+    rerender({ contentFilter: 'public' });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toMatch(/shared listing contract/i);
     expect(result.current.tests).toEqual([]);
     expect(result.current.loadedScope).toBeNull();
-    expect(mockGetTeacherOwnedTests).not.toHaveBeenCalled();
-    expect(mockGetPublicTests).not.toHaveBeenCalled();
-    expect(mockGetAllTests).not.toHaveBeenCalled();
-    expect(mockOnValue).not.toHaveBeenCalled();
   });
 
-  it('skips first onValue call and processes second call for real-time updates', async () => {
-    mockGetPublicTests
-      .mockResolvedValueOnce(mockTests)
-      .mockResolvedValueOnce([{ id: 'test-3', title: 'New Test' }]);
-
-    const { result } = renderHook(() => useTeacherTests({ realtime: true, contentFilter: 'public' }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    // onValue should have been set up
-    expect(mockOnValue).toHaveBeenCalled();
-    expect(onValueCallback).not.toBeNull();
-
-    // First call should be skipped (skipFirstCall pattern)
-    const snapshotFirst = { val: () => ({ 'x': { title: 'should-skip' } }) };
-    act(() => { onValueCallback!(snapshotFirst); });
-    // Tests should NOT have changed to the snapshot data
-    expect(result.current.tests).toEqual(mockTests);
-
-    // Second call should be processed
-    const updatedData = { 'test-3': { title: 'New Test' } };
-    const snapshotSecond = { val: () => updatedData };
-    act(() => { onValueCallback!(snapshotSecond); });
-
-    await waitFor(() => {
-      expect(result.current.tests).toEqual([{ id: 'test-3', title: 'New Test' }]);
-    });
-    expect(mockInvalidate).toHaveBeenCalledWith('test', 'public');
-    expect(mockGetAllTests).not.toHaveBeenCalled();
-    expect(mockOrderByChild).toHaveBeenCalledWith('isPublic');
-    expect(mockEqualTo).toHaveBeenCalledWith(true);
-  });
-
-  it('coalesces owned realtime listener bursts into one reload', async () => {
-    const updatedTests = [{ id: 'test-3', title: 'New Test' }];
-    mockGetTeacherOwnedTests
-      .mockResolvedValueOnce(mockTests)
-      .mockResolvedValue(updatedTests);
-
-    const { result } = renderHook(() => useTeacherTests({
-      realtime: true,
+  it('surfaces realtime listener failures and unsubscribes', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      { owned: summary() },
+    );
+    const { result, unmount } = renderHook(() => useTeacherTests({
       ownerId: 'teacher-1',
-      contentFilter: 'my',
     }));
+    await waitFor(() => expect(mockOnValue).toHaveBeenCalledOnce());
+    await waitFor(() => expect(result.current.tests).toHaveLength(1));
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(onValueCallbacks).toHaveLength(3);
-
-    act(() => {
-      onValueCallbacks.forEach((callback) => callback({ val: () => ({}) }));
-    });
-
-    expect(result.current.tests).toEqual(mockTests);
-
-    act(() => {
-      onValueCallbacks.forEach((callback) => callback({ val: () => ({ 'test-3': { title: 'New Test' } }) }));
-    });
-
-    await waitFor(() => {
-      expect(result.current.tests).toEqual(updatedTests);
-    });
-
-    expect(mockGetTeacherOwnedTests).toHaveBeenCalledTimes(2);
-    expect(mockInvalidate).toHaveBeenCalledTimes(1);
-    expect(mockInvalidate).toHaveBeenCalledWith('test', 'owner:teacher-1');
-  });
-
-  it('cleans up subscription on unmount', async () => {
-    const { result, unmount } = renderHook(() => useTeacherTests({ realtime: true }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
+    act(() => realtimeError?.(new Error('Permission denied')));
+    expect(result.current.error).toBe('Permission denied');
+    expect(result.current.tests).toEqual([]);
+    expect(result.current.loadedScope).toBeNull();
     unmount();
-
-    // The unsubscribe function should have been preserved for cleanup
-    // (the hook returns a cleanup function that calls unsubscribe)
-    // After unmount, onValue callback should not update state
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it('handles PERMISSION_DENIED error silently', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const { result } = renderHook(() => useTeacherTests({ realtime: true, contentFilter: 'public' }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(onValueErrorCallback).not.toBeNull();
-
-    // Simulate permission denied error (expected after logout)
-    act(() => {
-      onValueErrorCallback!({ code: 'PERMISSION_DENIED' });
-    });
-
-    // Should log silently, not throw
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Test listener stopped')
-    );
-    // Should NOT log as an error
-    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
-      'Error loading tests:',
-      expect.anything()
-    );
-
-    consoleSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
-  });
-
-  it('deleteTest calls remove and cleans up Firestore for THCS tests', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    const thcsTest = { id: 'thcs-1', testType: 'THCS-THPT', sourceDraftId: 'draft-1' };
-
-    await act(async () => {
-      await result.current.deleteTest(thcsTest);
-    });
-
-    // Should call RTDB remove
-    expect(mockRemove).toHaveBeenCalledWith({ path: 'tests/thcs-1' });
-
-    // Should clean up Firestore thcs_library
-    expect(mockDeleteDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'thcs_library', id: 'thcs-1' })
-    );
-
-    // Should clean up Firestore thcs_drafts (because sourceDraftId exists)
-    expect(mockDeleteDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'thcs_drafts', id: 'draft-1' })
-    );
-  });
-
-  it('deleteTest does NOT clean Firestore for non-THCS tests', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    const ieltsTest = { id: 'ielts-1', testType: 'IELTS' };
-
-    await act(async () => {
-      await result.current.deleteTest(ieltsTest);
-    });
-
-    expect(mockRemove).toHaveBeenCalledWith({ path: 'tests/ielts-1' });
-    expect(mockDeleteDoc).not.toHaveBeenCalled();
-  });
-
-  it('deleteTest cleans up linked writing drafts for IELTS writing tests', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    const writingTest = {
+  it('atomically removes a legacy runtime record and active summary rows', async () => {
+    const current = {
       id: 'writing-1',
+      ownerId: 'teacher-1',
+      title: 'Writing',
       testType: 'IELTS',
       skill: 'Writing',
-      sourceDraftId: 'writing-draft-1',
+      sourceDraftId: 'draft-1',
+      updatedAt: 1_700_000_000_000,
     };
+    values.set('tests/writing-1', current);
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
 
     await act(async () => {
-      await result.current.deleteTest(writingTest);
+      await result.current.deleteTest(current);
     });
-
-    expect(mockRemove).toHaveBeenCalledWith({ path: 'tests/writing-1' });
-    expect(mockDeleteDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'writing_drafts', id: 'writing-draft-1' })
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: undefined },
+      expect.objectContaining({
+        'tests/writing-1': null,
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/writing-1':
+          null,
+        'material_catalog/material_summary_indexes/v1/by_id/writing-1':
+          expect.objectContaining({ lifecycleState: 'removed' }),
+      }),
     );
+    expect(deleteDoc).toHaveBeenCalledWith({
+      collection: 'writing_drafts',
+      id: 'draft-1',
+    });
   });
 
-  it('togglePublic updates the RTDB record', async () => {
-    const { result } = renderHook(() => useTeacherTests({ realtime: false }));
+  it('blocks legacy Listening deletion until the audited removal flow exists', async () => {
+    const current = {
+      id: 'listening-1',
+      ownerId: 'teacher-1',
+      title: 'Listening',
+      testType: 'IELTS',
+      skill: 'Listening',
+      updatedAt: 1_700_000_000_000,
+    };
+    values.set('tests/listening-1', current);
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+    await expect(result.current.deleteTest(current)).rejects.toThrow(/audited deletion flow/i);
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(deleteDoc).not.toHaveBeenCalled();
+  });
+
+  it('atomically changes public visibility and summary membership', async () => {
+    values.set('tests/test-1', {
+      id: 'test-1',
+      ownerId: 'teacher-1',
+      title: 'Test',
+      type: 'IELTS',
+      skill: 'Reading',
+      isPublic: false,
+      updatedAt: 1_700_000_000_000,
     });
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
 
     await act(async () => {
-      await result.current.togglePublic('test-1', false, 'test');
+      await result.current.togglePublic('test-1', false);
     });
-
-    expect(mockDbUpdate).toHaveBeenCalledWith(
-      { path: 'tests/test-1' },
-      expect.objectContaining({ isPublic: true })
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: undefined },
+      expect.objectContaining({
+        'tests/test-1/isPublic': true,
+        'material_catalog/material_summary_indexes/v1/by_visibility/private/test-1':
+          null,
+        'material_catalog/material_summary_indexes/v1/by_visibility/public/test-1':
+          expect.objectContaining({ visibility: 'public' }),
+      }),
     );
   });
 });

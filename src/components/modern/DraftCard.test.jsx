@@ -39,4 +39,36 @@ describe('DraftCard', () => {
     await user.click(screen.getByRole('button', { name: /resume editing/i }));
     expect(onResume).toHaveBeenCalledWith(draft);
   });
+
+  it('renders and toggles selection state when supplied', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const draft = {
+      id: 'draft-select',
+      metadata: { title: 'Selectable Draft' },
+      tasks: [],
+      status: 'editing',
+    };
+
+    render(
+      <DraftCard
+        draft={draft}
+        index={0}
+        onResume={vi.fn()}
+        onDelete={vi.fn()}
+        selection={{
+          checked: true,
+          label: 'Select Selectable Draft',
+          onChange,
+        }}
+      />
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Selectable Draft' });
+    expect(checkbox).toBeChecked();
+
+    await user.click(checkbox);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });

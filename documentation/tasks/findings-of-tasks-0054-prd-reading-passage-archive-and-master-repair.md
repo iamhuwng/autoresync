@@ -793,17 +793,23 @@ Result: 3 files passed, 22 tests passed.
 
 ## 2026-06-15 Master Removal Wiring And Rule Repair
 
+> **2026-07-07 supersession note:** This section is historical PRD-0054
+> evidence. References to Material Catalog active indexes describe the
+> 2026-06-15 cleanup surface. Current active Teacher Materials discovery uses
+> `material_catalog/material_summary_indexes/v1`; legacy Material Catalog
+> indexes remain helper/compatibility cleanup surfaces where still present.
+
 - Status: COMPLETE.
 - Trigger: live teacher delete for `IELTS Cambridge 10 - Test 02` removed only legacy `/tests/{materialId}` and left canonical `reading_v2/material_metadata`, `reading_v2/full_test_compositions`, and linked generated Reading Passages active.
 - Root cause 1: `TeacherLobbyPage` still routed Reading V2 master delete through generic legacy `deleteTest`, which removes only `/tests/{testId}`.
 - Root cause 2: `removeReadingV2MasterComposition` existed but did not remove legacy `/tests/{masterMaterialId}`, so a properly soft-removed Reading V2 master could still leak through legacy-backed Teacher Lobby rows.
-- Root cause 3: RTDB Material Catalog cleanup rules required the existing index row's own `ownerId` to permit delete. Stale/missing active index rows caused owner cleanup to fail with `PERMISSION_DENIED` before canonical `reading_v2/material_metadata/{materialId}` ownership was considered.
+- Root cause 3: then-active RTDB Material Catalog cleanup rules required the existing index row's own `ownerId` to permit delete. Stale/missing active index rows caused owner cleanup to fail with `PERMISSION_DENIED` before canonical `reading_v2/material_metadata/{materialId}` ownership was considered. Current active-list cleanup must also cover universal MaterialSummary rows.
 
 ### Implementation Evidence
 
 - `TeacherLobbyPage` now opens a PRD-0054 modal for Reading V2 master delete instead of legacy `window.confirm`.
 - Modal choices: `Remove master only`, `Remove master and linked passages`, and `Cancel`.
-- Master-only path calls `removeReadingV2MasterComposition`, soft-removes master composition/metadata, removes active Material Catalog index rows, removes legacy `/tests/{masterMaterialId}`, writes audit, and refreshes the list.
+- Master-only path calls `removeReadingV2MasterComposition`, soft-removes master composition/metadata, removes the then-active Material Catalog index rows, removes legacy `/tests/{masterMaterialId}`, writes audit, and refreshes the list. Current active discovery additionally requires universal MaterialSummary cleanup.
 - Linked-passage path first archives actor-owned linked Reading Passages through `archiveReadingV2PassageMaterial`; it blocks when any linked passage is not owner-owned.
 - `database.rules.json` now permits owner cleanup of stale/missing Material Catalog active-index rows when canonical `reading_v2/material_metadata/{materialId}/ownerId === auth.uid`.
 - Remote RTDB rules were deployed to Firebase project `temp-a1437` with `firebase deploy --only database --project temp-a1437`.
@@ -830,7 +836,7 @@ Live smoke proof:
 
 - `http://localhost:5173/lobby` loaded via Teacher quick-login.
 - Clicking Delete on Reading V2 master `Selected Reading Passages` opened `Remove Reading V2 master?` modal with both removal choices and frozen-assignment/result safety copy.
-- Remote rules readback after deploy showed the canonical ownership fallback in all active Material Catalog cleanup buckets.
+- Remote rules readback after deploy showed the canonical ownership fallback in all then-active Material Catalog cleanup buckets. Current active-list cleanup also requires universal MaterialSummary bucket coverage.
 
 ### Contract Update
 

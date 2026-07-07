@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDoc, setDoc } from 'firebase/firestore';
-import { set as setDatabaseValue, push, update as updateDatabaseValue } from 'firebase/database';
+import { push, update as updateDatabaseValue } from 'firebase/database';
 import {
   saveWritingDraft,
   publishWritingTest,
@@ -48,7 +48,6 @@ describe('writingTestService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (setDoc as any).mockResolvedValue(undefined);
-    (setDatabaseValue as any).mockResolvedValue(undefined);
     (updateDatabaseValue as any).mockResolvedValue(undefined);
     (push as any).mockReturnValue({ key: 'generated-test-id' });
   });
@@ -97,13 +96,17 @@ describe('writingTestService', () => {
 
     expect(result.success).toBe(true);
     expect(getDoc).not.toHaveBeenCalled();
-    expect(setDatabaseValue).toHaveBeenCalledOnce();
+    expect(updateDatabaseValue).toHaveBeenCalledOnce();
     expect(setDoc).toHaveBeenCalledOnce();
-    expect(setDatabaseValue).toHaveBeenCalledWith(
-      'tests/generated-test-id',
+    expect(updateDatabaseValue).toHaveBeenCalledWith(
+      undefined,
       expect.objectContaining({
-        isPublic: true,
-      })
+        'tests/generated-test-id': expect.objectContaining({
+          isPublic: true,
+        }),
+        'material_catalog/material_summary_indexes/v1/by_visibility/public/generated-test-id':
+          expect.objectContaining({ producerId: 'writing' }),
+      }),
     );
   });
 

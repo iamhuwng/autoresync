@@ -2,7 +2,7 @@
 
 > **Source PRD:** `documentation/tasks/0033-prd-teacher-lobby-refactor.md`
 > **Generated:** 2026-03-12
-> **Obsolete data-loading note:** Task 3.3 reflects the original extraction target and is no longer the current Teacher Lobby loading contract for normal teachers. Use `documentation/architecture/teacher-materials-listing-and-diagnostics.md` instead: normal My Content loads indexed `ownerId` + `createdBy`, Public Library loads indexed `isPublic`, and full `getAllTests()` is not allowed for normal teacher material cards.
+> **Obsolete data-loading note:** Task 3.3 reflects the original extraction target and is no longer the current Teacher Lobby loading contract. Use `documentation/architecture/teacher-materials-listing-and-diagnostics.md` instead: My Content reads `material_catalog/material_summary_indexes/v1/by_owner/{teacherId}`, Public Library reads `material_catalog/material_summary_indexes/v1/by_visibility/public`, and `/tests`/`getAllTests()` is not the Teacher Materials listing authority.
 > **Current UI/navigation note:** post-refactor Teacher Lobby chrome is governed by `documentation/architecture/teacher-lobby-authoring-and-navigation.md`: `Create New Test` opens `TestCreationModal`, narrow desktop uses compact teacher navigation, search uses the shared SVG icon, THCS setup stays inside the modal, and long material-card titles clamp to two lines with full-title tooltip.
 
 ## Relevant Files
@@ -389,7 +389,7 @@
     - Test 2: Ownership filter 'my' — returns only tests owned by userId.
     - Test 3: Ownership filter 'my' — includes legacy tests without ownerId.
     - Test 4: Ownership filter 'my' with super_admin role — returns ALL tests.
-    - Test 5: Ownership filter 'public' — returns only tests with `isPublic: true` NOT owned by userId.
+    - Historical Test 5: Ownership filter 'public' originally excluded owned rows. Current universal MaterialSummary contract includes all active public summaries, including owned public rows; use `src/hooks/__tests__/useTestFilters.test.ts` for current behavior.
     - Test 6: Search filter — case-insensitive title matching.
     - Test 7: Search filter — THCS tests match on `metadata.title` (not top-level `title`).
     - Test 8: Type filter 'THCS-THPT' — returns only THCS tests.

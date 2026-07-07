@@ -42,6 +42,10 @@ PRD-0043 adds an external/admin homework Writing import intake to `TeacherGradin
 
 The retired-material cleanup keeps completed results and result indexes. Retained rows may carry `sourceMaterialRemoved: true` after reviewed purge tooling removes retired source payload references. That marker is a source-loading/display contract only: `SharedSavedResultCore`, `ReviewTab`, `StudentTestResultsPage`, `TeacherTestResultsPage`, and `ResultDetailModal` continue to render saved answers and scores from permanent result data without creating a new result shell or changing the surface inventory below.
 
+## 2026-07-07 Teacher Materials Bulk Library Note
+
+The teacher-materials bulk-library branch adds Teacher Materials observability action names for selected-material assign/delete/archive controls and replaces the `useTestSubmission` failure-path `alert()` with the shared toast announcement. These result-related file touches do not add a new result shell, route owner, result domain, lifecycle role, data path, or result-view reader. `useTestSubmission` still writes canonical session/post-test results through the existing saved-result writer contract before marking a player submitted.
+
 ## Surface Inventory
 
 | Surface | Status | Domain | Writing lifecycle | Route / host | Primary data path | Owner / host contract | Coverage anchor | Resolution disposition | Notes |

@@ -380,6 +380,20 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(readRule).not.toContain("root.child('users').child(auth.uid).child('role').val() === 'student'");
   });
 
+  it('indexes and authorizes owned Teacher Lobby relationship queries at the queried parent', () => {
+    const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
+    const surfaceRules = readingV2Rules.relationship_indexes.$surface as Record<string, any>;
+    const rowRules = surfaceRules.$materialId as Record<string, any>;
+
+    expect(surfaceRules['.indexOn']).toEqual(
+      expect.arrayContaining(['snapshotVersionId', 'source', 'ownerId']),
+    );
+    expect(surfaceRules['.read']).toContain("$surface === 'teacher-lobby'");
+    expect(surfaceRules['.read']).toContain("query.orderByChild === 'ownerId'");
+    expect(surfaceRules['.read']).toContain('query.equalTo === auth.uid');
+    expect(rowRules['.indexOn']).toBeUndefined();
+  });
+
   it('does not allow broad teacher reads of the legacy tests bridge', () => {
     const testsRules = databaseRules.rules.tests as Record<string, any>;
     const parentReadRule = testsRules['.read'];
@@ -415,6 +429,51 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     if (testEnv) {
       await testEnv.cleanup();
     }
+  });
+
+  it('allows only owner-scoped Teacher Lobby relationship queries', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+
+      await db.ref('reading_v2/relationship_indexes/teacher-lobby').set({
+        'material-1': {
+          surface: 'teacher-lobby',
+          materialId: 'material-1',
+          snapshotVersionId: 'snapshot-1',
+          source: 'published-metadata',
+          ownerId: 'teacher-1',
+          deliveryEngine: 'reading-v2',
+        },
+        'material-2': {
+          surface: 'teacher-lobby',
+          materialId: 'material-2',
+          snapshotVersionId: 'snapshot-2',
+          source: 'published-metadata',
+          ownerId: 'teacher-2',
+          deliveryEngine: 'reading-v2',
+        },
+      });
+    });
+
+    const {
+      otherTeacher,
+      teacher,
+    } = makeReadingV2RuleContexts();
+    const ownedQuery = teacher.database()
+      .ref('reading_v2/relationship_indexes/teacher-lobby')
+      .orderByChild('ownerId')
+      .equalTo('teacher-1');
+    const crossOwnerQuery = otherTeacher.database()
+      .ref('reading_v2/relationship_indexes/teacher-lobby')
+      .orderByChild('ownerId')
+      .equalTo('teacher-1');
+
+    const ownedSnapshot = await assertSucceeds(ownedQuery.once('value'));
+    expect(Object.keys(ownedSnapshot.val() ?? {})).toEqual(['material-1']);
+    await assertFails(crossOwnerQuery.once('value'));
+    await assertFails(
+      teacher.database().ref('reading_v2/relationship_indexes/teacher-lobby').once('value'),
+    );
   });
 
   it('allows teacher-owned canonical drafts but denies students and other teachers', async () => {

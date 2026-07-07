@@ -35,13 +35,13 @@ describe('useTestFilters', () => {
     expect(ids).toContain('5'); // no owner = legacy
   });
 
-  it('filters "public" content excluding own tests', () => {
+  it('filters public content while retaining owned public materials', () => {
     const { result } = renderHook(() => useTestFilters(mockTests, { ...defaultFilters, contentFilter: 'public' }));
     const ids = result.current.filteredTests.map(t => t.id);
 
     expect(ids).not.toContain('1'); // not public
     expect(ids).toContain('2'); // public + not owner
-    expect(ids).not.toContain('3'); // public but owned by user-1
+    expect(ids).toContain('3'); // public and owned remains visible
     expect(ids).toContain('4'); // public + not owner
   });
 
@@ -118,13 +118,13 @@ describe('useTestFilters', () => {
     }
   });
 
-  it('super_admin sees all standard test content in "my" mode', () => {
+  it('super_admin My Content remains owner scoped', () => {
     const { result } = renderHook(() => useTestFilters(mockTests, {
       ...defaultFilters,
       userRole: 'super_admin',
     }));
 
-    expect(result.current.filteredTests.map(t => t.id)).toEqual(['1', '2', '3', '4', '5']);
+    expect(result.current.filteredTests.map(t => t.id)).toEqual(['1', '3', '5', '6', '7']);
   });
 
   it('returns empty array when tests is empty', () => {

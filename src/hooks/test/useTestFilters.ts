@@ -36,24 +36,22 @@ const matchesMaterialTab = (item: any, contentFilter: FilterParams['contentFilte
     return getMaterialKinds(item).some((kind) => bookKinds.has(kind));
   }
 
-  if (contentFilter === 'my' || contentFilter === 'public') {
-    const kinds = getMaterialKinds(item);
-    return !kinds.some((kind) => readingPassageKinds.has(kind) || bookKinds.has(kind));
-  }
-
   return true;
 };
 
+const materialTimestamp = (item: any): number => {
+  const value = item.updatedAt || item.publishedAt || item.createdAt || 0;
+  if (typeof value === 'number') {
+    return value;
+  }
+  return Date.parse(value) || 0;
+};
+
 export function useTestFilters(tests: any[], filters: FilterParams) {
-  const { userId, userRole, contentFilter, searchTerm, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter } = filters;
+  const { userId, contentFilter, searchTerm, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter } = filters;
 
   const filterByOwnership = useCallback((items: any[]) => {
     if (!userId) return items;
-
-    // Super admins see ALL content when "My Content" is selected
-    if (userRole === 'super_admin' && ownedContentFilters.has(contentFilter)) {
-      return items;
-    }
 
     if (ownedContentFilters.has(contentFilter)) {
       return items.filter(item => {
@@ -67,9 +65,9 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
       return [];
     }
 
-    // Public: only public content not owned by current user
-    return items.filter(item => item.isPublic === true && item.ownerId !== userId);
-  }, [userId, userRole, contentFilter]);
+    // Public Library includes every public active summary, including owned rows.
+    return items.filter(item => item.isPublic === true);
+  }, [userId, contentFilter]);
 
   const filteredTests = useMemo(() => {
     const ownershipFiltered = filterByOwnership(tests);
@@ -101,8 +99,8 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
     // Sort by publishedAt (newest first) in public library
     if (contentFilter === 'public') {
       searchFiltered.sort((a: any, b: any) => {
-        const aDate = a.publishedAt || a.createdAt || 0;
-        const bDate = b.publishedAt || b.createdAt || 0;
+        const aDate = materialTimestamp(a);
+        const bDate = materialTimestamp(b);
         return bDate - aDate;
       });
     }

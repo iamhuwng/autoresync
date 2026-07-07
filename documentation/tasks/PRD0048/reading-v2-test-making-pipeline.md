@@ -15,6 +15,13 @@ This file freezes the teacher test-making subpipeline for Reading V2 so implemen
 
 ---
 
+> **2026-07-07 listing update:** Any older publish-pipeline references to
+> `material_catalog/material_indexes` as the Teacher Materials active listing
+> authority are historical. Current active discovery uses
+> `material_catalog/material_summary_indexes/v1`; legacy material indexes may
+> still be written/read for compatibility, archive/repair, source-full-test
+> lookup, or bounded picker flows.
+
 ## 1. Pipeline Summary
 
 Reading V2 test making follows one ordered pipeline:

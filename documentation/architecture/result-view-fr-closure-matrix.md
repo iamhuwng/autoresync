@@ -25,6 +25,10 @@ PRD-0043 adds a Writing queue intake, not a new result-view closure phase. The W
 
 The retired-material cleanup does not reopen or change PRD-0040/PRD-0041 FR closure status. It preserves completed results and indexes while allowing result consumers to render saved answers/scores when retired source material is unavailable. Regression anchors added or reused for this cleanup include `resultSourceMaterialRemoval.test.ts`, `resultFeedbackPayload.service.test.ts`, `ReviewTab.test.tsx`, `SharedSavedResultCore.test.tsx`, `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx`, `ResultDetailModal.test.tsx`, and `AcademicRecordPage.test.tsx`.
 
+## 2026-07-07 Teacher Materials Bulk Library Note
+
+The teacher-materials bulk-library branch keeps every PRD-0040/PRD-0041 FR closure row at its prior status. The branch registers Teacher Materials bulk action telemetry and changes the failed canonical persistence announcement in `useTestSubmission` from `alert()` to `toast.error()`. The canonical writer-normalization row remains verified by `src/hooks/test/useTestSubmission.test.ts`; no result-view FR is reopened or newly closed.
+
 Status keys:
 - `planned`
 - `in-progress`

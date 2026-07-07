@@ -147,3 +147,22 @@ Current repo anchors:
 
 Related doc:
 - @doc/architecture/class-code-join-approval-gating
+
+## Legacy And Fixture Class Row Resilience
+
+Repo source: `documentation/architecture/course-class-management.md`.
+
+Teacher class list/detail pages must tolerate historical class rows and tagged
+live-proof fixtures that predate current normalized fields.
+
+Required rules:
+- `classManager.ts` normalizes class `status`, membership status, timestamps,
+  and session dates before page components render
+- missing class `status` defaults to an inactive-safe display state instead of
+  letting UI call string methods on `undefined`
+- invalid or absent timestamps render as absent metadata, not `Invalid Date`
+- fixture rows such as PRD-0055 live-proof classes must be visibly tagged in
+  data (`prd0055Fixture: true`) and treated as real database artifacts, not UI
+  mockups
+- cleanup or hiding of fixture rows is separate data governance; page stability
+  must not depend on fixture deletion

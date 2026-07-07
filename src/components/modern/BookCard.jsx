@@ -53,13 +53,28 @@ const BookCard = ({
   canOpenBookEditor = true,
   onOpenBook,
   onArchiveBook,
+  selection,
 }) => {
   const broken = hasBrokenRefs(book);
   const brokenRefCount = Number(book.brokenRefCount || 0);
   const brokenRefReasons = Array.isArray(book.brokenRefReasons) ? book.brokenRefReasons : [];
 
   return (
-    <article className="book-card" data-testid={`book-card-${book.bookId || book.id}`}>
+    <article
+      className={`book-card${selection?.checked ? ' book-card--selected' : ''}`}
+      data-testid={`book-card-${book.bookId || book.id}`}
+    >
+      {selection && (
+        <label className="book-card__selection">
+          <input
+            type="checkbox"
+            checked={selection.checked}
+            disabled={selection.disabled}
+            aria-label={selection.label}
+            onChange={selection.onChange}
+          />
+        </label>
+      )}
       <div className="book-card__cover">
         <BookCover book={book} />
       </div>

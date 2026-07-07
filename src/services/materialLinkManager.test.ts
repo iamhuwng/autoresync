@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { linkMaterialToModule, copyMaterialToModule } from './materialLinkManager';
-import { set } from 'firebase/database';
+import { set, update } from 'firebase/database';
 import { getTestFromFirebase } from './testStorage';
 
 vi.mock('./firebase', () => ({
@@ -15,6 +15,7 @@ vi.mock('firebase/database', () => ({
     query: vi.fn(),
     orderByChild: vi.fn(),
     equalTo: vi.fn(),
+    update: vi.fn(),
 }));
 
 vi.mock('./testStorage', () => ({
@@ -44,6 +45,7 @@ describe('materialLinkManager', () => {
         };
         (getTestFromFirebase as any).mockResolvedValue({ success: true, data: mockTest });
         (set as any).mockResolvedValue(true);
+        (update as any).mockResolvedValue(true);
 
         const result = await copyMaterialToModule('c1', 'm1', 't1', 'u1');
 
@@ -51,8 +53,23 @@ describe('materialLinkManager', () => {
         expect(result.isCopy).toBe(true);
         expect(result.originalMaterialId).toBe('t1');
 
-        // Verify set was called for both the test copy and the junction
-        expect(set).toHaveBeenCalledTimes(2);
+        expect(update).toHaveBeenCalledWith(
+            undefined,
+            expect.objectContaining({
+                'tests/test-copy-123': expect.objectContaining({
+                    id: 'test-copy-123',
+                    ownerId: 'u1',
+                    isPublic: false,
+                }),
+                'material_catalog/material_summary_indexes/v1/by_owner/u1/test-copy-123':
+                    expect.objectContaining({
+                        materialId: 'test-copy-123',
+                        ownerId: 'u1',
+                        visibility: 'private',
+                    }),
+            }),
+        );
+        expect(set).toHaveBeenCalledTimes(1);
     });
 
     it('removes material from module correctly', async () => {
@@ -90,7 +107,7 @@ describe('materialLinkManager', () => {
     });
 
     it('synchronizes copied material with original correctly', async () => {
-        const { get, set } = await import('firebase/database');
+        const { get, set, update } = await import('firebase/database');
         const { syncMaterialContentWithOriginal } = await import('./materialLinkManager');
 
         const mockLink = {
@@ -113,6 +130,8 @@ describe('materialLinkManager', () => {
             title: 'Copy Title',
             ownerId: 'u1',
             isPublic: false,
+            createdAt: 1_700_000_000_000,
+            updatedAt: 1_700_000_000_000,
             questions: [{ q: 'Old question?' }]
         };
 
@@ -128,16 +147,29 @@ describe('materialLinkManager', () => {
             .mockResolvedValueOnce({ success: true, data: mockCopy });
 
         (set as any).mockResolvedValue(true);
+        (update as any).mockResolvedValue(true);
 
         const result = await syncMaterialContentWithOriginal('link-123');
 
         expect(result.syncedAt).toBeDefined();
-        // Verify set was called for both the test update and the junction update
-        expect(set).toHaveBeenCalledTimes(2);
+        expect(update).toHaveBeenCalledWith(
+            undefined,
+            expect.objectContaining({
+                'tests/copy-123': expect.objectContaining({
+                    id: 'copy-123',
+                    ownerId: 'u1',
+                    isPublic: false,
+                }),
+                'material_catalog/material_summary_indexes/v1/by_owner/u1/copy-123':
+                    expect.objectContaining({
+                        materialId: 'copy-123',
+                        ownerId: 'u1',
+                    }),
+            }),
+        );
+        expect(set).toHaveBeenCalledTimes(1);
 
-        // Verify the second set call (junction update) has syncedAt
-        const junctionUpdate = (set as any).mock.calls[1][1];
+        const junctionUpdate = (set as any).mock.calls[0][1];
         expect(junctionUpdate.syncedAt).toBeDefined();
     });
 });
-

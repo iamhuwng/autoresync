@@ -12,7 +12,7 @@ Audited `HEAD`: `d0981111d6c05c5dd03863a10a59d6efe7bc5012`
 
 ## Verdict
 
-2026-06-03 status note: this audit is historical gap-finding evidence. Later gap-closure work selected `material_catalog/material_indexes` as the production Teacher Materials summary index family, marked `reading_v2/listing_indexes` compatibility-only for PRD-0052 QA, added architecture docs, and live-verified one Reading V2 full-test publish into generated Reading Passage rows plus single-passage homework/runtime/result review. Keep unresolved items here only when they are not superseded by the gap-closure evidence log.
+2026-06-03 status note, amended 2026-07-07: this audit is historical gap-finding evidence. Later gap-closure work selected `material_catalog/material_indexes` as the then-production Teacher Materials summary index family and marked `reading_v2/listing_indexes` compatibility-only for PRD-0052 QA. That 2026-06-03 index-family decision is now superseded for active Teacher Materials discovery by `material_catalog/material_summary_indexes/v1`; legacy material indexes remain helper/compatibility surfaces. Keep unresolved items here only when they are not superseded by later gap-closure or universal-summary evidence.
 
 PRD-0052 is not faithfully actualised.
 

@@ -10,12 +10,14 @@ const {
   mockGet,
   mockUpdate,
   mockTrackAntiCheatAction,
+  mockToastError,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockUseLocation: vi.fn(),
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
   mockTrackAntiCheatAction: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -50,6 +52,12 @@ vi.mock('../../services/autoMarking.service', () => ({
 
 vi.mock('../../services/testResults.service', () => ({
   saveTestResult: vi.fn(),
+}));
+
+vi.mock('../../components/modern', () => ({
+  toast: {
+    error: mockToastError,
+  },
 }));
 
 vi.mock('../../services/emailNotification.service', () => ({
@@ -271,8 +279,6 @@ describe('useTestSubmission', () => {
   });
 
   it('does not mark the player submitted when permanent result persistence fails', async () => {
-    const alertMock = vi.fn();
-    vi.stubGlobal('alert', alertMock);
     vi.mocked(saveTestResult).mockRejectedValueOnce(new Error('RTDB rejected undefined'));
 
     const { result } = renderHook(() =>
@@ -320,7 +326,7 @@ describe('useTestSubmission', () => {
         hasCompletedTest: true,
       }),
     );
-    expect(alertMock).toHaveBeenCalledWith(
+    expect(mockToastError).toHaveBeenCalledWith(
       'Failed to submit test. Please try again.'
     );
   });
