@@ -1,7 +1,7 @@
 # Upload And Storage Authority
 
 Status: Active
-Last Updated: 2026-06-30
+Last Updated: 2026-07-07
 Owner: Frontend Platform
 
 ## Decision
@@ -18,6 +18,53 @@ Required product truth:
 new uploads -> Cloudflare R2
 Google Drive -> obsolete implementation residue
 ```
+
+## Browser Endpoint Policy
+
+Decision date: 2026-07-07
+
+Firebase Hosting serves the static React application. It is not the upload backend and it does not proxy Listening/R2 upload traffic.
+
+Current production frontend:
+
+```text
+Firebase project: temp-a1437
+Hosting target: kahut1
+Hosting URL: https://kahut1.web.app
+```
+
+Current upload/listening Worker:
+
+```text
+Cloudflare Worker: r2-upload-signer
+Worker URL: https://r2-upload-signer.iamhuwng.workers.dev
+```
+
+All browser app builds, including local Vite runs and Firebase Hosting builds, must use the deployed Worker URL for R2 upload, Listening authoring, upload-session, live-delivery, solo-delivery, and result-review delivery calls unless an explicit non-local replacement Worker URL is intentionally supplied for a controlled test.
+
+The browser app must not fall back to `http://localhost:8787`. That local Worker URL is obsolete for app/runtime configuration. It may remain only in Worker-local contract tests, e2e fixtures, or manual Worker development notes that are clearly scoped to local Worker testing. Real users opening Firebase Hosting resolve `localhost` to their own computer, so a hosted bundle containing `localhost:8787` would break uploads for them.
+
+The 2026-07-07 teacher-lobby upload incident confirmed the failure mode: the Audio step surfaced `Failed to upload audio file. Please try again.` because the app targeted `http://localhost:8787`, nothing was listening there, and local Wrangler/workerd could not run on this Windows ARM64 machine (`Unsupported platform: win32 arm64 LE`). Remote Worker CORS accepted `http://localhost:5173`, so the approved repair was to use the deployed Worker endpoint everywhere in browser app configuration.
+
+Current app endpoint source owners:
+
+- `src/services/r2WorkerEndpoint.ts` owns `DEFAULT_R2_UPLOAD_WORKER_URL`.
+- `src/services/r2UploadClient.ts` resolves `VITE_R2_UPLOAD_WORKER_URL`, then falls back to the deployed Worker.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts` resolves `VITE_LISTENING_AUTHORING_WORKER_URL`, then `VITE_R2_UPLOAD_WORKER_URL`, then the deployed Worker.
+- Listening upload-session, live-delivery, solo-delivery, and result-review clients must follow the same deployed-default policy.
+
+Required browser env values for local dev and Firebase Hosting builds:
+
+```env
+VITE_R2_UPLOAD_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+VITE_LISTENING_AUTHORING_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+VITE_LISTENING_UPLOAD_SESSION_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+VITE_LISTENING_LIVE_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+VITE_LISTENING_SOLO_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+VITE_LISTENING_RESULT_REVIEW_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+```
+
+See `documentation/architecture/firebase-hosting-worker-endpoint-policy.md` for the shorter operational rule.
 
 ## Current Upload Authority
 

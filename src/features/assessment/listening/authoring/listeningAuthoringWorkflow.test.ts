@@ -5,6 +5,7 @@ import {
   resolveListeningAuthoringEndpoint,
 } from './listeningAuthoringWorkflow';
 import type { ListeningAuthoringDocumentV1 } from '../types/listeningAuthoring.types';
+import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../../../../services/r2WorkerEndpoint';
 
 const document: ListeningAuthoringDocumentV1 = {
   title: 'Draft Listening Test',
@@ -46,14 +47,14 @@ describe('Listening authoring HTTPS workflow facade', () => {
       VITE_LISTENING_AUTHORING_WORKER_URL: 'https://worker.example/base/',
       VITE_R2_UPLOAD_WORKER_URL: 'https://upload.example/base/',
     })).toBe('https://worker.example/base');
-    expect(resolveListeningAuthoringEndpoint({})).toBe('');
+    expect(resolveListeningAuthoringEndpoint({})).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
   });
 
-  it('uses the local Worker fallback only in Vite local development', () => {
-    expect(resolveListeningAuthoringEndpoint({ DEV: true }, 'localhost')).toBe('http://localhost:8787');
-    expect(resolveListeningAuthoringEndpoint({ DEV: true }, '127.0.0.1')).toBe('http://localhost:8787');
-    expect(resolveListeningAuthoringEndpoint({ DEV: false }, 'localhost')).toBe('');
-    expect(resolveListeningAuthoringEndpoint({ DEV: true }, 'teacher.example.com')).toBe('');
+  it('uses the deployed Worker fallback in local and hosted environments', () => {
+    expect(resolveListeningAuthoringEndpoint({ DEV: true }, 'localhost')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+    expect(resolveListeningAuthoringEndpoint({ DEV: true }, '127.0.0.1')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+    expect(resolveListeningAuthoringEndpoint({ DEV: false }, 'localhost')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
+    expect(resolveListeningAuthoringEndpoint({ DEV: true }, 'teacher.example.com')).toBe(DEFAULT_R2_UPLOAD_WORKER_URL);
   });
 
   it('sends save draft to the trusted Worker without browser-supplied owner authority', async () => {
