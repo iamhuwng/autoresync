@@ -803,6 +803,101 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
+  it('uses canonical metadata composition id when removing a Reading V2 master', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'master-canonical',
+        materialId: 'master-canonical',
+        title: 'Canonical Composition Master',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        compositionId: 'composition-master-canonical-edit-composition-master-canonical-snapshot-1',
+        ownerId: 'teacher-1',
+        testType: 'IELTS',
+        skill: 'Reading',
+        status: 'published',
+        isComplete: true,
+        publishedSnapshotVersionId: 'edit-composition-master-canonical-snapshot-1',
+        hasStudentSafeProjection: true,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.materialMetadata('master-canonical')] = {
+      materialId: 'master-canonical',
+      ownerId: 'teacher-1',
+      compositionId: 'composition-master-canonical-snapshot-1',
+      title: 'Canonical Composition Master',
+      visibility: 'public',
+      testTypeIds: ['ielts'],
+      publishedSnapshotVersionId: 'snapshot-canonical-1',
+      updatedAt: '2026-07-08T05:25:25.032Z',
+    };
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-master-canonical-snapshot-1')] = {
+      deliveryEngine: 'reading-v2',
+      plane: 'packaging',
+      schemaVersion: 1,
+      compositionId: 'composition-master-canonical-snapshot-1',
+      testMaterialId: 'master-canonical',
+      ownerId: 'teacher-1',
+      title: 'Canonical Composition Master',
+      visibility: 'public',
+      publishedVersionId: 'snapshot-canonical-1',
+      testTypeIds: ['ielts'],
+      skill: 'reading',
+      passageRefs: [
+        {
+          refId: 'ref-1',
+          passageMaterialId: 'passage-1',
+          materialId: 'passage-1',
+          ownerId: 'teacher-1',
+          titleSnapshot: 'Passage 1',
+          snapshotVersionId: 'snapshot-1',
+          questionCountSnapshot: 13,
+          testTypeIdsSnapshot: ['ielts'],
+          order: 1,
+        },
+      ],
+      questionCount: 13,
+      numbering: { totalQuestionCount: 13, passages: [] },
+      createdAt: '2026-07-08T05:20:25.032Z',
+      updatedAt: '2026-07-08T05:25:25.032Z',
+    };
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-master-canonical');
+    await user.click(within(row).getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Remove master only' }));
+
+    await waitFor(() => {
+      expect(mocks.dbWrites).toEqual(expect.arrayContaining([
+        {
+          path: 'reading_v2/full_test_compositions/composition-master-canonical-snapshot-1',
+          value: expect.objectContaining({
+            compositionId: 'composition-master-canonical-snapshot-1',
+            ownerId: 'teacher-1',
+            publishedVersionId: 'snapshot-canonical-1',
+            state: 'removed',
+          }),
+        },
+      ]));
+    });
+    expect(mocks.dbWrites.some((write) =>
+      write.path === 'reading_v2/full_test_compositions/composition-master-canonical-edit-composition-master-canonical-snapshot-1'
+    )).toBe(false);
+    expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+      'reading_v2_master_remove_preflight',
+      expect.objectContaining({
+        materialId: 'master-canonical',
+        cardCompositionId: 'composition-master-canonical-edit-composition-master-canonical-snapshot-1',
+        canonicalCompositionId: 'composition-master-canonical-snapshot-1',
+        compositionId: 'composition-master-canonical-snapshot-1',
+        publishedVersionId: 'snapshot-canonical-1',
+        ownerSource: 'canonical_metadata',
+      }),
+    );
+  });
+
   it('shows Assign HW for owned My Content IELTS Reading enriched with student-safe projection metadata', async () => {
     mocks.tests = [
       {
@@ -1336,8 +1431,12 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: `${readingV2StoragePaths.fullTestCompositions(compositionId)}/state`,
-          value: 'removed',
+          path: readingV2StoragePaths.fullTestCompositions(compositionId),
+          value: expect.objectContaining({
+            compositionId,
+            ownerId: 'teacher-1',
+            state: 'removed',
+          }),
         },
         {
           path: `${readingV2StoragePaths.materialMetadata(materialId)}/state`,
@@ -1459,8 +1558,13 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1/state',
-          value: 'removed',
+          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1',
+          value: expect.objectContaining({
+            compositionId: 'composition-master-1-snapshot-1',
+            ownerId: 'teacher-1',
+            publishedVersionId: 'snapshot-1',
+            state: 'removed',
+          }),
         },
         {
           path: 'reading_v2/material_metadata/master-1/state',

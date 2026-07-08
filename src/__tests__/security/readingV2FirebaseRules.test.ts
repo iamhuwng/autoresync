@@ -17,6 +17,7 @@ import {
   buildReadingV2TeacherSelectedPassageComposition,
   removeReadingV2MasterComposition,
 } from '../../services/reading-v2/readingV2TeacherComposition.service';
+import { createReadingV2FullTestMaterialSummary } from '../../services/materialCatalog/materialSummaryAdapters.service';
 
 const PROJECT_ID = 'demo-prd-0048-reading-v2-rules';
 const DATABASE_RULES = readFileSync('database.rules.json', 'utf8');
@@ -1053,6 +1054,321 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     await assertSucceeds(
       teacher.database().ref(`reading_v2/material_metadata/${composition.testMaterialId}`).once('value'),
     );
+  });
+
+  it('allows owners to soft-remove thin legacy Reading V2 masters without passage refs', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages: [
+        {
+          materialId: 'passage-thin-remove-1',
+          ownerId: 'teacher-1',
+          title: 'Thin Passage 1',
+          questionCount: 0,
+          durationMinutes: 20,
+          publishedSnapshotVersionId: 'snapshot-thin-passage-1',
+          currentVersionId: 'snapshot-thin-passage-1',
+          testTypeIds: ['ielts'],
+          visibility: 'private',
+        },
+      ],
+      now: '2026-06-16T05:30:00.000Z',
+    });
+    const storedComposition = JSON.parse(JSON.stringify({
+      compositionId: composition.compositionId,
+      testMaterialId: composition.testMaterialId,
+      ownerId: 'teacher-1',
+      title: composition.title,
+      visibility: 'private',
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+      durationMinutes: 20,
+      publishedVersionId: composition.publishedVersionId,
+      state: 'published',
+      updatedAt: composition.updatedAt,
+    }));
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      await db.ref(`reading_v2/full_test_compositions/${composition.compositionId}`).set(storedComposition);
+      await db.ref(`reading_v2/material_metadata/${composition.testMaterialId}`).set({
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        title: composition.title,
+        materialKind: 'full-test',
+        visibility: 'private',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        state: 'published',
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref(`tests/${composition.testMaterialId}`).set({
+        id: composition.testMaterialId,
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        title: composition.title,
+        skill: 'Reading',
+        materialKind: 'full-test',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        testTypeIds: ['ielts'],
+        updatedAt: composition.updatedAt,
+      });
+    });
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition: {
+        ...composition,
+        passageRefs: [],
+        questionCount: 0,
+      },
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (updates) => {
+          await assertSucceeds(teacher.database().ref().update(updates));
+        },
+      },
+      now: '2026-06-17T05:30:00.000Z',
+      correlationId: 'corr-thin-master-remove-rules',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+  });
+
+  it('allows owners to soft-remove public Reading V2 masters with active summary rows', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages: [
+        {
+          materialId: 'passage-public-remove-1',
+          ownerId: 'teacher-1',
+          title: 'Public Passage 1',
+          questionCount: 13,
+          durationMinutes: 20,
+          publishedSnapshotVersionId: 'snapshot-public-passage-1',
+          currentVersionId: 'snapshot-public-passage-1',
+          testTypeIds: ['ielts'],
+          visibility: 'public',
+        },
+      ],
+      now: '2026-06-16T21:10:18.690Z',
+    });
+    const activeSummary = createReadingV2FullTestMaterialSummary({
+      materialId: composition.testMaterialId,
+      ownerId: 'teacher-1',
+      title: composition.title,
+      visibility: 'public',
+      lifecycleState: 'active',
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+      questionCount: 13,
+      durationMinutes: 20,
+      sourceSnapshotVersionId: composition.publishedVersionId,
+      updatedAt: composition.updatedAt,
+    });
+    const legacyIndexRow = {
+      materialId: composition.testMaterialId,
+      ownerId: 'teacher-1',
+      title: composition.title,
+      visibility: 'public',
+      materialKind: 'full-test',
+      testTypeIds: ['ielts'],
+      testTypeMembership: { ielts: true },
+      updatedAt: composition.updatedAt,
+    };
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      await db.ref(`reading_v2/full_test_compositions/${composition.compositionId}`).set({
+        ...JSON.parse(JSON.stringify(composition)),
+        state: 'published',
+      });
+      await db.ref(`reading_v2/material_metadata/${composition.testMaterialId}`).set({
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: composition.title,
+        materialKind: 'full-test',
+        visibility: 'public',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        state: 'published',
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref(`tests/${composition.testMaterialId}`).set({
+        id: composition.testMaterialId,
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        contentEngine: 'reading-v2',
+        runtimeEngine: 'reading-v2',
+        title: composition.title,
+        testType: 'IELTS',
+        type: 'IELTS',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        duration: 20,
+        questionCount: 13,
+        isPublic: true,
+        materialKind: 'full-test',
+        productLabel: 'Reading V2',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        primaryTestTypeId: 'ielts',
+        testTypeIds: ['ielts'],
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref().update({
+        [`material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`]: legacyIndexRow,
+        [`material_catalog/material_indexes/by_visibility/public/${composition.testMaterialId}`]: legacyIndexRow,
+        [`material_catalog/material_indexes/by_material_kind/full-test/${composition.testMaterialId}`]: legacyIndexRow,
+        [`material_catalog/material_indexes/by_test_type/ielts/${composition.testMaterialId}`]: legacyIndexRow,
+        [`material_catalog/material_summary_indexes/v1/by_id/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_owner/teacher-1/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_visibility/public/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_material_kind/full-test/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_test_type/ielts/${composition.testMaterialId}`]: activeSummary,
+      });
+    });
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (updates) => {
+          await assertSucceeds(teacher.database().ref().update(updates));
+        },
+      },
+      now: '2026-06-17T05:30:00.000Z',
+      correlationId: 'corr-public-master-remove-rules',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+  });
+
+  it('allows owners to soft-remove canonical Reading V2 masters listed from summary rows', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages: [
+        {
+          materialId: 'passage-summary-card-remove-1',
+          ownerId: 'teacher-1',
+          title: 'Passage 1',
+          questionCount: 13,
+          durationMinutes: 20,
+          publishedSnapshotVersionId: 'snapshot-summary-card-passage-1',
+          currentVersionId: 'snapshot-summary-card-passage-1',
+          testTypeIds: ['ielts'],
+          visibility: 'private',
+        },
+      ],
+      now: '2026-06-16T05:30:00.000Z',
+    });
+    const activeSummary = createReadingV2FullTestMaterialSummary({
+      materialId: composition.testMaterialId,
+      ownerId: 'teacher-1',
+      title: composition.title,
+      visibility: 'private',
+      lifecycleState: 'active',
+      primaryTestTypeId: 'ielts',
+      testTypeIds: ['ielts'],
+      questionCount: 13,
+      durationMinutes: 20,
+      sourceSnapshotVersionId: composition.publishedVersionId,
+      updatedAt: composition.updatedAt,
+    });
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      await db.ref(`reading_v2/full_test_compositions/${composition.compositionId}`).set({
+        ...JSON.parse(JSON.stringify(composition)),
+        state: 'published',
+      });
+      await db.ref(`reading_v2/material_metadata/${composition.testMaterialId}`).set({
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: composition.title,
+        materialKind: 'full-test',
+        visibility: 'private',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        state: 'published',
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref(`tests/${composition.testMaterialId}`).set({
+        id: composition.testMaterialId,
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        contentEngine: 'reading-v2',
+        runtimeEngine: 'reading-v2',
+        title: composition.title,
+        testType: 'IELTS',
+        type: 'IELTS',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        duration: 20,
+        questionCount: 13,
+        isPublic: false,
+        materialKind: 'full-test',
+        productLabel: 'Reading V2',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        primaryTestTypeId: 'ielts',
+        testTypeIds: ['ielts'],
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref().update({
+        [`material_catalog/material_summary_indexes/v1/by_id/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_owner/teacher-1/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_visibility/private/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_material_kind/full-test/${composition.testMaterialId}`]: activeSummary,
+        [`material_catalog/material_summary_indexes/v1/by_test_type/ielts/${composition.testMaterialId}`]: activeSummary,
+      });
+    });
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (updates) => {
+          await assertSucceeds(teacher.database().ref().update(updates));
+        },
+      },
+      now: '2026-06-17T05:30:00.000Z',
+      correlationId: 'corr-summary-card-master-remove-rules',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
   });
 
   it('allows students to create/read their own attempts and denies cross-student attempts', async () => {

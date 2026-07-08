@@ -672,8 +672,15 @@ describe('readingV2TeacherComposition.service', () => {
 
     expect(writes).toEqual(expect.arrayContaining([
       {
-        path: `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
-        value: 'removed',
+        path: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
+        value: expect.objectContaining({
+          compositionId: composition.compositionId,
+          ownerId: 'teacher-1',
+          publishedVersionId: composition.publishedVersionId,
+          state: 'removed',
+          removedAt: '2026-06-03T00:00:00.000Z',
+          removedBy: 'teacher-1',
+        }),
       },
       {
         path: `${readingV2StoragePaths.materialMetadata(composition.testMaterialId)}/state`,
@@ -701,7 +708,7 @@ describe('readingV2TeacherComposition.service', () => {
       path.includes('published_snapshots'),
     )).toBe(false);
     expect(result.changedPaths).toEqual(expect.arrayContaining([
-      `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
+      readingV2StoragePaths.fullTestCompositions(composition.compositionId),
       `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
       `tests/${composition.testMaterialId}`,
     ]));

@@ -340,8 +340,11 @@ const resolveReadingV2MasterRemovePreflight = async ({
 }) => {
   const materialId = getReadingV2MasterMaterialId(master);
   const cardOwnerId = typeof master?.ownerId === 'string' ? master.ownerId : '';
+  const cardCompositionId = typeof master?.compositionId === 'string' ? master.compositionId : '';
   let canonicalMetadata = null;
   let canonicalLoadError = null;
+  let canonicalComposition = null;
+  let canonicalCompositionLoadError = null;
 
   if (materialId && repository?.read) {
     try {
@@ -355,22 +358,76 @@ const resolveReadingV2MasterRemovePreflight = async ({
   const canonicalOwnerId = typeof canonicalMetadata?.ownerId === 'string'
     ? canonicalMetadata.ownerId
     : '';
+  const canonicalCompositionId = typeof canonicalMetadata?.compositionId === 'string'
+    ? canonicalMetadata.compositionId
+    : '';
+  const cardPublishedVersionId =
+    master?.publishedVersionId ||
+    master?.publishedSnapshotVersionId ||
+    master?.sourceSnapshotVersionId ||
+    master?.metadata?.publishedVersionId ||
+    master?.metadata?.publishedSnapshotVersionId ||
+    '';
+  const canonicalPublishedVersionId =
+    canonicalMetadata?.publishedVersionId ||
+    canonicalMetadata?.publishedSnapshotVersionId ||
+    canonicalMetadata?.sourceSnapshotVersionId ||
+    '';
   const resolvedOwnerId = canonicalOwnerId || cardOwnerId;
+  const resolvedCompositionId = canonicalCompositionId || cardCompositionId;
+  const resolvedPublishedVersionId = canonicalPublishedVersionId || cardPublishedVersionId;
+  if (resolvedCompositionId && repository?.read) {
+    try {
+      const value = await repository.read(readingV2StoragePaths.fullTestCompositions(resolvedCompositionId));
+      canonicalComposition = isRecord(value) ? value : null;
+    } catch (error) {
+      canonicalCompositionLoadError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  const canonicalCompositionLoaded = isRecord(canonicalComposition);
+  const masterHasResolvedRefs = Array.isArray(master?.passageRefs)
+    && (!master?.compositionId || master.compositionId === resolvedCompositionId);
+  const hasCompositionPayload = canonicalCompositionLoaded || masterHasResolvedRefs;
   const ownerSource = canonicalOwnerId
     ? 'canonical_metadata'
     : cardOwnerId
       ? 'card'
       : 'missing';
-  const canRemove = actorRole === 'super_admin' || (Boolean(resolvedOwnerId) && resolvedOwnerId === userId);
+  const canRemoveByOwner = Boolean(resolvedOwnerId) && (
+    actorRole === 'super_admin' || resolvedOwnerId === userId
+  );
+  const ownerMismatch = Boolean(resolvedOwnerId) && !canRemoveByOwner;
+  const canRemove = Boolean(resolvedCompositionId)
+    && Boolean(resolvedPublishedVersionId)
+    && hasCompositionPayload
+    && canRemoveByOwner;
   const blockReason = canRemove
     ? null
-    : resolvedOwnerId
-      ? 'owner_mismatch'
-      : 'missing_owner_identity';
+    : !resolvedCompositionId
+      ? 'missing_composition_identity'
+      : !resolvedPublishedVersionId
+        ? 'missing_published_version_identity'
+        : !resolvedOwnerId
+          ? 'missing_owner_identity'
+          : ownerMismatch
+            ? 'owner_mismatch'
+            : 'missing_composition_payload';
 
   return {
     materialId,
-    compositionId: master?.compositionId || null,
+    compositionId: resolvedCompositionId || null,
+    cardCompositionId: cardCompositionId || null,
+    canonicalCompositionId: canonicalCompositionId || null,
+    canonicalComposition,
+    canonicalCompositionLoaded,
+    canonicalCompositionPassageCount: Array.isArray(canonicalComposition?.passageRefs)
+      ? canonicalComposition.passageRefs.length
+      : 0,
+    canonicalCompositionLoadError,
+    publishedVersionId: resolvedPublishedVersionId || null,
+    cardPublishedVersionId: cardPublishedVersionId || null,
+    canonicalPublishedVersionId: canonicalPublishedVersionId || null,
     cardOwnerId: cardOwnerId || null,
     canonicalOwnerId: canonicalOwnerId || null,
     resolvedOwnerId: resolvedOwnerId || null,
@@ -1438,7 +1495,6 @@ const TeacherLobbyPage = () => {
     }
 
     const actorRole = profile?.role === 'super_admin' ? 'super_admin' : 'teacher';
-    const passageRefs = getReadingV2MasterPassageRefs(master);
     if (includeLinkedPassages && !readingV2MasterRemoveAcknowledged) {
       return;
     }
@@ -1457,6 +1513,11 @@ const TeacherLobbyPage = () => {
       logTeacherMaterialsDiagnostic('reading_v2_master_remove_preflight', {
         materialId: removePreflight.materialId,
         compositionId: removePreflight.compositionId,
+        cardCompositionId: removePreflight.cardCompositionId,
+        canonicalCompositionId: removePreflight.canonicalCompositionId,
+        publishedVersionId: removePreflight.publishedVersionId,
+        cardPublishedVersionId: removePreflight.cardPublishedVersionId,
+        canonicalPublishedVersionId: removePreflight.canonicalPublishedVersionId,
         actorUserId: user.uid,
         actorRole,
         cardOwnerId: removePreflight.cardOwnerId,
@@ -1464,19 +1525,31 @@ const TeacherLobbyPage = () => {
         resolvedOwnerId: removePreflight.resolvedOwnerId,
         ownerSource: removePreflight.ownerSource,
         canonicalLoadError: removePreflight.canonicalLoadError,
+        canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
+        canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
+        canonicalCompositionLoadError: removePreflight.canonicalCompositionLoadError,
         linkedPassagesRequested: includeLinkedPassages,
-        passageCount: passageRefs.length,
+        passageCount: getReadingV2MasterPassageRefs(removePreflight.canonicalComposition || master).length,
       });
 
       if (!removePreflight.canRemove) {
         const message = removePreflight.blockReason === 'owner_mismatch'
           ? 'Only the owner can remove this Reading V2 master.'
-          : 'Could not verify ownership for this Reading V2 master. Refresh and try again.';
+          : removePreflight.blockReason === 'missing_composition_identity'
+            ? 'Could not verify the canonical composition for this Reading V2 master. Refresh and try again.'
+            : removePreflight.blockReason === 'missing_published_version_identity'
+              ? 'Could not verify the published version for this Reading V2 master. Refresh and try again.'
+              : removePreflight.blockReason === 'missing_composition_payload'
+                ? 'Could not load the canonical composition for this Reading V2 master. Refresh and try again.'
+                : 'Could not verify ownership for this Reading V2 master. Refresh and try again.';
         setReadingV2MasterRemoveError(message);
         setReadingV2MasterRemoveStatus('failed');
         logTeacherMaterialsDiagnostic('reading_v2_master_remove_blocked', {
           materialId: removePreflight.materialId,
           compositionId: removePreflight.compositionId,
+          cardCompositionId: removePreflight.cardCompositionId,
+          canonicalCompositionId: removePreflight.canonicalCompositionId,
+          publishedVersionId: removePreflight.publishedVersionId,
           actorUserId: user.uid,
           actorRole,
           cardOwnerId: removePreflight.cardOwnerId,
@@ -1484,11 +1557,16 @@ const TeacherLobbyPage = () => {
           resolvedOwnerId: removePreflight.resolvedOwnerId,
           ownerSource: removePreflight.ownerSource,
           reason: removePreflight.blockReason,
+          canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
+          canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
+          canonicalCompositionLoadError: removePreflight.canonicalCompositionLoadError,
         });
         toast.error(message);
         return;
       }
 
+      const compositionForRemoval = removePreflight.canonicalComposition || master;
+      const passageRefs = getReadingV2MasterPassageRefs(compositionForRemoval);
       const nonOwnedRefs = passageRefs.filter((passageRef) => {
         const ownerId = passageRef?.ownerId || removePreflight.resolvedOwnerId;
         return ownerId && ownerId !== user.uid;
@@ -1500,6 +1578,9 @@ const TeacherLobbyPage = () => {
         logTeacherMaterialsDiagnostic('reading_v2_master_remove_blocked', {
           materialId: removePreflight.materialId,
           compositionId: removePreflight.compositionId,
+          cardCompositionId: removePreflight.cardCompositionId,
+          canonicalCompositionId: removePreflight.canonicalCompositionId,
+          publishedVersionId: removePreflight.publishedVersionId,
           actorUserId: user.uid,
           actorRole,
           cardOwnerId: removePreflight.cardOwnerId,
@@ -1508,6 +1589,7 @@ const TeacherLobbyPage = () => {
           ownerSource: removePreflight.ownerSource,
           reason: 'non_owned_linked_passages',
           nonOwnedCount: nonOwnedRefs.length,
+          canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
         });
         toast.error(message);
         return;
@@ -1516,7 +1598,7 @@ const TeacherLobbyPage = () => {
       if (includeLinkedPassages) {
         trackAction('master_linked_passages_remove_requested', {
           materialId: master.testMaterialId || master.materialId || master.id,
-          compositionId: master.compositionId,
+          compositionId: removePreflight.compositionId,
           passageCount: passageRefs.length,
           source: 'teacher_materials_master_delete_modal',
         });
@@ -1540,7 +1622,7 @@ const TeacherLobbyPage = () => {
               usedElsewhere: true,
               usageCategories: ['master'],
             },
-            correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:linked:${archivePassage.materialId}`,
+            correlationId: `${user.uid}:${removePreflight.compositionId || removePreflight.materialId}:linked:${archivePassage.materialId}`,
             sourceFeatureId: 'teacher_materials_reading_master_and_linked_passages_removed',
             sourceRoute: '/lobby',
           });
@@ -1552,8 +1634,11 @@ const TeacherLobbyPage = () => {
         actorRole,
         composition: {
           ...master,
+          ...compositionForRemoval,
+          compositionId: removePreflight.compositionId,
           ownerId: removePreflight.resolvedOwnerId,
           testMaterialId: removePreflight.materialId,
+          publishedVersionId: removePreflight.publishedVersionId,
           title: removePreflight.title,
           visibility: removePreflight.visibility,
           testTypeIds: removePreflight.testTypeIds,
@@ -1561,7 +1646,7 @@ const TeacherLobbyPage = () => {
           passageRefs,
         },
         repository: readingV2CompositionRepository,
-        correlationId: `${user.uid}:${master.compositionId || master.testMaterialId}:remove`,
+        correlationId: `${user.uid}:${removePreflight.compositionId || removePreflight.materialId}:remove`,
         sourceFeatureId: includeLinkedPassages
           ? 'teacher_materials_reading_master_and_linked_passages_removed'
           : 'teacher_materials_reading_master_removed',
@@ -1574,14 +1659,18 @@ const TeacherLobbyPage = () => {
           : 'teacher_materials_reading_master_removed',
         {
           materialId: master.testMaterialId || master.materialId || master.id,
-          compositionId: master.compositionId,
+          compositionId: removePreflight.compositionId,
           passageCount: passageRefs.length,
           source: 'teacher_materials_master_delete_modal',
         },
       );
       logTeacherMaterialsDiagnostic('reading_v2_master_removed', {
         materialId: master.testMaterialId || master.materialId || master.id,
-        compositionId: master.compositionId,
+        compositionId: removePreflight.compositionId,
+        cardCompositionId: removePreflight.cardCompositionId,
+        canonicalCompositionId: removePreflight.canonicalCompositionId,
+        canonicalCompositionLoaded: removePreflight.canonicalCompositionLoaded,
+        canonicalCompositionPassageCount: removePreflight.canonicalCompositionPassageCount,
         linkedPassagesArchived: includeLinkedPassages,
         passageCount: passageRefs.length,
         ownerSource: removePreflight.ownerSource,
@@ -1602,7 +1691,12 @@ const TeacherLobbyPage = () => {
       setReadingV2MasterRemoveStatus('failed');
       logTeacherMaterialsDiagnostic('reading_v2_master_remove_failed', {
         materialId: master.testMaterialId || master.materialId || master.id,
-        compositionId: master.compositionId,
+        compositionId: removePreflight?.compositionId || master.compositionId,
+        cardCompositionId: removePreflight?.cardCompositionId || null,
+        canonicalCompositionId: removePreflight?.canonicalCompositionId || null,
+        canonicalCompositionLoaded: removePreflight?.canonicalCompositionLoaded || false,
+        canonicalCompositionPassageCount: removePreflight?.canonicalCompositionPassageCount || 0,
+        canonicalCompositionLoadError: removePreflight?.canonicalCompositionLoadError || null,
         linkedPassagesRequested: includeLinkedPassages,
         actorUserId: user.uid,
         actorRole,

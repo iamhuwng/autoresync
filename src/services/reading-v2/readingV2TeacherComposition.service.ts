@@ -1294,11 +1294,52 @@ export const removeReadingV2MasterComposition = async (input: {
   const changedPaths: string[] = [];
   const compositionPath = readingV2StoragePaths.fullTestCompositions(input.composition.compositionId);
   const metadataPath = readingV2StoragePaths.materialMetadata(input.composition.testMaterialId);
+  const compositionRecord = input.composition as typeof input.composition & {
+    readonly publishedSnapshotVersionId?: string;
+    readonly sourceSnapshotVersionId?: string;
+    readonly state?: string;
+    readonly removedAt?: string;
+    readonly removedBy?: string;
+    readonly mode?: string;
+  };
+  const publishedVersionId =
+    (typeof input.composition.publishedVersionId === 'string' && input.composition.publishedVersionId) ||
+    (typeof compositionRecord.publishedSnapshotVersionId === 'string' && compositionRecord.publishedSnapshotVersionId) ||
+    (typeof compositionRecord.sourceSnapshotVersionId === 'string' && compositionRecord.sourceSnapshotVersionId);
+  if (!publishedVersionId) {
+    throw new Error('Reading V2 master is missing published version identity.');
+  }
+
+  const passageQuestionCount = input.composition.passageRefs.reduce(
+    (total, passage) => total + Number(passage.questionCountSnapshot ?? 0),
+    0,
+  );
+  const removedComposition = omitUndefinedForFirebase({
+    deliveryEngine: input.composition.deliveryEngine || 'reading-v2',
+    plane: input.composition.plane || 'packaging',
+    schemaVersion: input.composition.schemaVersion || READING_V2_SCHEMA_VERSION,
+    compositionId: input.composition.compositionId,
+    testMaterialId: input.composition.testMaterialId,
+    title: input.composition.title,
+    primaryTestTypeId: input.composition.primaryTestTypeId,
+    testTypeIds: input.composition.testTypeIds,
+    skill: input.composition.skill || 'reading',
+    passageRefs: input.composition.passageRefs,
+    questionCount: input.composition.questionCount ?? passageQuestionCount,
+    numbering: input.composition.numbering,
+    durationMinutes: input.composition.durationMinutes,
+    visibility: input.composition.visibility,
+    ownerId: input.composition.ownerId,
+    publishedVersionId,
+    createdAt: input.composition.createdAt || removedAt,
+    updatedAt: removedAt,
+    mode: compositionRecord.mode,
+    state: 'removed',
+    removedAt,
+    removedBy: input.actorUserId,
+  });
   const materialStateWrites = [
-    { path: `${compositionPath}/state`, value: 'removed' },
-    { path: `${compositionPath}/removedAt`, value: removedAt },
-    { path: `${compositionPath}/removedBy`, value: input.actorUserId },
-    { path: `${compositionPath}/updatedAt`, value: removedAt },
+    { path: compositionPath, value: removedComposition },
     { path: `${metadataPath}/state`, value: 'removed' },
     { path: `${metadataPath}/removedAt`, value: removedAt },
     { path: `${metadataPath}/removedBy`, value: input.actorUserId },
@@ -1332,7 +1373,7 @@ export const removeReadingV2MasterComposition = async (input: {
     entityId: input.composition.compositionId,
     ownerId: input.composition.ownerId,
     materialId: input.composition.testMaterialId,
-    versionId: input.composition.publishedVersionId,
+    versionId: publishedVersionId,
     titleSnapshot: input.composition.title,
     after: {
       state: 'removed',
@@ -1356,7 +1397,7 @@ export const removeReadingV2MasterComposition = async (input: {
       0,
     ),
     durationMinutes: input.composition.durationMinutes,
-    sourceSnapshotVersionId: input.composition.publishedVersionId,
+    sourceSnapshotVersionId: publishedVersionId,
     updatedAt: input.composition.updatedAt,
   });
   const removedSummary = {
@@ -1364,7 +1405,7 @@ export const removeReadingV2MasterComposition = async (input: {
     lifecycleState: 'removed' as const,
     updatedAt: removedAt,
   };
-  const updatePayload: Record<string, unknown | null> = {
+  const updatePayload = sanitizeFirebaseUpdates({
     ...Object.fromEntries(materialStateWrites.map((write) => [write.path, write.value])),
     ...Object.fromEntries(
       listMaterialCatalogIndexPaths(indexSummary).map((path) => [path, null]),
@@ -1372,7 +1413,7 @@ export const removeReadingV2MasterComposition = async (input: {
     [legacyTestPath]: null,
     [auditPath]: event,
     ...buildMaterialSummaryUpdatePayload(removedSummary, activeSummary),
-  };
+  }) as Record<string, unknown | null>;
 
   if (input.repository.update) {
     await input.repository.update(updatePayload);

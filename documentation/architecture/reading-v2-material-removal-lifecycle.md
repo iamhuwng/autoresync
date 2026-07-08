@@ -18,7 +18,9 @@ Teacher Lobby delete for a Reading V2 master opens a modal with these choices:
 
 `Remove master only`:
 
-- sets `reading_v2/full_test_compositions/{compositionId}/state` to `removed`
+- rewrites `reading_v2/full_test_compositions/{compositionId}` as a sanitized
+  ref-only composition node with the original identity, owner, published
+  version, passage refs, numbering, and `state: removed`
 - sets `reading_v2/material_metadata/{masterMaterialId}/state` to `removed`
 - removes active universal MaterialSummary rows for the master and legacy helper
   rows where still present
@@ -26,6 +28,19 @@ Teacher Lobby delete for a Reading V2 master opens a modal with these choices:
 - writes append-only `reading_master_removed` audit event
 - does not archive linked Reading Passage materials
 - does not mutate assignments, frozen assignment payloads, runtime projections, immutable snapshots, published versions, or completed results
+
+Obsolete implementation detail retired 2026-07-08: writing
+`reading_v2/full_test_compositions/{compositionId}/state` as a child-path update.
+The deployed RTDB rule validates the full composition node at
+`full_test_compositions/{compositionId}`, so master removal must update that
+node boundary with the required ref-only fields intact. Metadata state children
+remain valid child-path writes.
+
+Compatibility note: active or published composition writes still require
+`passageRefs`. Removed composition writes may omit or carry an empty `passageRefs`
+array so older thin composition rows can be soft-removed instead of becoming
+undeletable. This relaxation applies only when `state === 'removed'` and does
+not allow embedded master payload fields.
 
 `Remove master and linked passages` first archives each linked Reading Passage that the actor owns, then removes the master as above.
 
@@ -92,7 +107,8 @@ Existing assigned work and saved results stay available from frozen snapshots/pr
 Changes touching this lifecycle must prove:
 
 - Reading V2 master delete opens the PRD-0054 modal rather than legacy `window.confirm`
-- master-only removal soft-removes the master and legacy `/tests` row
+- master-only removal rewrites the ref-only composition node as `state: removed`,
+  soft-removes metadata, and removes the legacy `/tests` row
 - linked-passage option archives only actor-owned linked passages
 - non-owned linked passage removal is blocked
 - universal summary and legacy helper stale/missing active-row cleanup is
