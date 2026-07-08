@@ -141,20 +141,20 @@ Representative highlights only. The authoritative surface inventory, domain taxo
 |--------|---------------------------|--------------------|------------------------|
 | Saved-result | There are three active saved-result shells only: `ResultSlidePanel`, `ResultDetailModal`, and `LegacyResultDetailView`. `ResultDetailPage` is a wrapper, not a fourth shell, and existing parent-owned entry pages are part of the contract. | `src/components/results/ResultSlidePanel.tsx`, `src/components/results/ResultDetailModal.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/pages/ResultDetailPage.tsx`, `src/pages/AcademicRecordPage.tsx`, `src/pages/StudentDashboardPage.jsx`, `src/pages/TeacherStudentHistoryPage.tsx` | `ResultDetailPage.test.tsx`, `AcademicRecordPage.test.tsx`, `TeacherStudentHistoryPage.test.tsx` |
 | Session / post-test | Session review remains distinct from saved-result work. `StudentWaitingRoomPage`, `TestResultsModal`, `StudentTestResultsPage`, `TeacherTestResultsPage`, `TeacherResultsPage`, `StudentResultsPage`, `TeacherResultsDashboard`, and feedback pages are not thin `resultId` wrappers. | `src/pages/StudentWaitingRoomPage.jsx`, `src/components/test/TestResultsModal.tsx`, `src/pages/StudentTestResultsPage.tsx`, `src/pages/TeacherTestResultsPage.tsx`, `src/pages/TeacherResultsPage.jsx`, `src/pages/TeacherResultsDashboard.jsx`, `src/pages/StudentResultsPage.jsx`, `src/pages/TeacherFeedbackPage.jsx`, `src/pages/StudentFeedbackPage.jsx` | `StudentTestResultsPage.test.tsx`, `TeacherTestResultsPage.test.tsx`, `resultsService.test.ts` |
-| Guest-result/claim | Guest lookup and claim are active but non-canonical. Public guest-result routing does not match backend read rules cleanly, claim writes through a non-canonical path, and current guest CTA buttons target invalid `/login` and `/register` routes. | `src/pages/GuestResultsPage.tsx`, `src/pages/ProfileCompletionPage.tsx`, `src/components/guest/ClaimResultsModal.tsx`, `src/services/guestResultsService.ts` | `guestResultsService.test.ts`, static audit docs |
+| Guest-result/claim | Guest lookup and claim are active adjacent-domain flows. Claims now promote guest rows into canonical `test_results/{resultId}` records and standard fan-out indexes; the public guest route vs auth-required backend read mismatch remains documented as accepted current behavior. | `src/pages/GuestResultsPage.tsx`, `src/pages/ProfileCompletionPage.tsx`, `src/components/guest/ClaimResultsModal.tsx`, `src/services/guestResultsService.ts` | `GuestResultsPage.test.tsx`, `ClaimResultsModal.test.tsx`, `guestResultsService.test.ts` |
 | Writing | Writing is a lifecycle spanning draft, monitor, queue, editor, result, and THCS inline grading. `SubmissionCompletePage` is an active bridge into result review, not a disposable confirmation screen. | `src/components/writing-student/*`, `src/components/writing-monitor/*`, `src/pages/TeacherGradingPage.tsx`, `src/pages/WritingGradingPage.tsx`, `src/pages/SubmissionCompletePage.tsx`, `src/components/writing-results/*`, `src/services/writingSubmissionService.ts`, `src/components/thcs-grading/InlineWritingGrader.tsx` | `WritingMonitorCard.test.tsx`, `thcsWritingGrading.service.test.ts`, static audit docs |
 | Live-monitoring | Teacher monitor flows remain their own domain and own release-adjacent operations, peek/reopen behavior, and THCS inline writing grading. | `src/pages/TeacherTestMonitorPage.tsx`, `src/components/writing-monitor/WritingMonitorCard.tsx`, `src/components/writing-monitor/WritingPeekModal.tsx`, `src/components/test/StudentDetailModal.tsx` | static audit docs |
-| Unwired/demo | Dormant writing redesign surfaces and public demo routes are explicitly classified rather than silently treated as active architecture. Current default triage is removal unless a named future task keeps them. | `src/components/writing-grading/WritingGradingModal.tsx`, `src/components/writing-results/StudentResultOverview.tsx`, `src/components/writing-results/StudentDetailedMarkup.tsx`, `src/pages/FeedbackComponentsDemo.tsx`, `src/pages/FeedbackDemoPage.tsx`, `src/pages/AcademicRecordDemoPage.tsx`, `src/pages/DemoIndexPage.tsx` | `result-view-map.md`, static audit docs |
+| Unwired/demo | Dormant writing redesign surfaces and historical public demo routes are explicitly classified rather than silently treated as active architecture. Demo pages were removed from runtime on 2026-03-25; remaining mentions are audit history. | `WritingGradingModal`, `StudentResultOverview`, `StudentDetailedMarkup`, historical `FeedbackComponentsDemo`, `FeedbackDemoPage`, `AcademicRecordDemoPage`, `DemoIndexPage` | `result-view-map.md`, static audit docs |
 
 ### Active High-Risk Findings
 
 - The student ownership path for `/result/:resultId` is not fully preserved today. The route is marked like an ownership-protected path in `src/config/routeSecurity.ts`, but student redirects and query-param openers can still bypass that intended contract if phase-1 work assumes route protection alone is sufficient.
 - `ResultSlidePanel` and `ResultDetailModal` still read `test_results/{resultId}` directly. Unlike `LegacyResultDetailView`, they do not visibly apply ownership validation themselves, so their safety currently depends on caller discipline and backend rules.
 - Live-session student review is currently more permissive than the phase-2 target. Any phase-2 restriction is a deliberate behavior change over existing `StudentTestResultsPage` / `TestResultsModal` behavior, not a brand-new capability.
-- Guest-result claim currently writes through a non-canonical storage/index path. Treat guest result recovery as an adjacent migration problem, not as part of the saved-result happy path.
-- `GuestResultsPage.tsx` currently navigates to `/login` and `/register`, but the app route evidence only mounts `/` for login and does not mount `/register`. Those guest CTAs appear invalid.
+- Historical note retired: the old non-canonical guest-claim write path is obsolete. Current `claimGuestResults()` writes canonical `test_results/{resultId}` records, rebuilds standard saved-result indexes, and retains `migrateLegacyClaimedGuestResults()` only for privileged/manual legacy cleanup.
+- `GuestResultsPage.tsx` CTA routing has been corrected to `/`; older `/login` and `/register` route-risk notes are historical audit residue.
 - Writing still has active lifecycle defects and toolchain splits. Those are preserved in Appendix A of [PRD-0040](./documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md#appendix-a-preserved-writing-toolchain-findings) and should not be normalized away by generic result-view refactors.
-- Public demo feedback routes remain reachable, and `FeedbackComponentsDemo.tsx` writes to live app paths. They should be classified explicitly as demo/public risk, not ignored because they are outside the saved-result shells.
+- Historical note retired: the public feedback demo pages and stale demo route/config/script residue were removed from runtime on 2026-03-25. Historical docs may still mention them for auditability only.
 
 ### Additional Verified Deltas
 
@@ -163,8 +163,8 @@ Representative highlights only. The authoritative surface inventory, domain taxo
 - `SubmissionCompletePage.tsx` is an active writing/result-adjacent bridge at `/submission-complete`, not just a cosmetic screen.
 - `StudentResultOverview.tsx` and `StudentDetailedMarkup.tsx` are currently unwired in runtime: no imports, no routes, and no test references were found in `src`.
 - `WritingGradingModal.tsx` is not runtime-reachable today. It is better classified as an `alternate/dormant` writing toolchain than as an active grading surface.
-- `DemoIndexPage.tsx` is publicly reachable and advertises demo links such as `/demo/profile`, `/demo/attendance`, and `/demo/badges` that do not appear to exist in `App.jsx` or `routeSecurity.ts`.
-- `StudentClassDetailPage.jsx` still produces an invalid `/student/results/${classId}/${assignment.id}` deep link, and `routeSecurity.ts` still contains config-only `/student/results/history` metadata with no mounted route.
+- Historical note retired: `DemoIndexPage.tsx` and the public demo result pages are no longer runtime-reachable.
+- `StudentClassDetailPage.jsx` now repairs missing class-assignment `resultId` values from existing student results before opening canonical `/result/:resultId`; the old config-only `/student/results/history` residue has been removed.
 - A focused Vitest slice passed on 2026-03-24 for `ResultDetailPage`, `TeacherStudentHistoryPage`, `StudentTestResultsPage`, `TeacherTestResultsPage`, and `routeAccess.test.ts`, which confirms several current contracts but does not replace runtime ownership verification.
 
 ### Exhaustiveness Status
@@ -176,8 +176,8 @@ What is verified:
 - the current split between advisory route security metadata and runtime ownership enforcement
 - the backend RTDB and Firestore rule reality for saved results, guest claim, session visibility, writing submissions, and demo writes
 - the session/post-test boundary and waiting-room-first post-test behavior
-- the guest/claim adjacency and public demo route risk
-- the invalid guest CTA routes and the stale hand-maintained route-access test model
+- the guest/claim adjacency, canonical claim promotion, and historical public demo removal
+- the corrected guest CTA route and the stale hand-maintained route-access test model
 - the teacher aggregate results dashboard and submission-complete bridge classification
 - the writing lifecycle boundary, grading queue/editor/result split, and THCS inline-writing separation
 - the major dormant/demo classifications, including unreachable writing redesign files, publicly mounted demo pages, and non-`src` backup/docs-only references
@@ -193,9 +193,9 @@ What still needs explicit closure before calling this area foolproof:
 
 What is now explicit rather than implied:
 - RTDB currently allows broader teacher and authenticated access than the PRD ownership/release-state language implies.
-- `GuestResultsPage` is publicly routed but backend guest-result reads still require `auth != null`, while guest-result child writes are unrestricted.
+- `GuestResultsPage` is publicly routed but backend guest-result reads still require `auth != null`; claim promotion now writes canonical saved-result records through `claimGuestResults()`.
 - `WritingGradingModal`, `StudentResultOverview`, and `StudentDetailedMarkup` are not active runtime surfaces even though they are heavily represented in `.knowns` history and design material.
-- Emulator-backed rules verification is technically prepared in the repo, but this machine currently lacks Java, so local `firebase emulators:exec` cannot start yet.
+- Emulator-backed rules verification requires Java 21. Current CI session-lifecycle proof installs Temurin 21 before running Firebase emulators; local runners must provide equivalent Java before `firebase emulators:exec`.
 
 When working on anything result-related, start with [PRD-0040](./documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md) and treat its domain boundaries as hard constraints.
 
@@ -220,7 +220,7 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | Database | Firebase Realtime Database |
 | Hosting | Firebase Hosting |
 | File Storage | Cloudflare R2 (via Workers) |
-| Trusted Backend | Cloudflare Worker (`r2-backup-worker`); Firebase Functions wrappers are deprecated/off-limit for new Reading V2 work |
+| Trusted Backend | Cloudflare Workers: `r2-upload-signer` for upload/Listening calls and `r2-backup-worker` for backup/trusted Reading V2 submit; Firebase Functions wrappers are deprecated/off-limit for new Reading V2 work |
 | Session Lifecycle | Direct Firebase RTDB/Auth/Rules only; no lifecycle Worker cron or scheduled Function |
 | AI Primary | Google Gemini 2.5 Flash (`@google/generative-ai`) |
 | AI Fallback | Groq Llama 3.1 70B (`groq-sdk`) |
@@ -287,11 +287,14 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    # AI (required for test extraction)
    VITE_GEMINI_API_KEY=
 
-   # Cloudflare R2 (optional, for file uploads)
-   VITE_R2_WORKER_URL=
-   VITE_R2_ACCESS_KEY_ID=
-   VITE_R2_SECRET_ACCESS_KEY=
-   VITE_R2_BUCKET_NAME=
+   # Cloudflare R2 / Listening Worker endpoints
+   # Use the deployed Worker URL for local dev and production builds.
+   VITE_R2_UPLOAD_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_LISTENING_AUTHORING_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_LISTENING_UPLOAD_SESSION_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_LISTENING_LIVE_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_LISTENING_SOLO_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
+   VITE_LISTENING_RESULT_REVIEW_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
 
    ```
 

@@ -2,7 +2,7 @@
 title: README
 description: Project overview, tech stack, key domains, and critical rules. The primary entry point for understanding this project.
 createdAt: '2026-02-27T15:56:46.139Z'
-updatedAt: '2026-07-07T15:12:12.695Z'
+updatedAt: '2026-07-08T00:00:00.000Z'
 tags:
   - core
   - overview
@@ -51,8 +51,13 @@ A **web-based educational platform** for English language teaching (IELTS + THCS
    - See @doc/prd/prd-student-dashboard, @doc/prd/prd-academic-record
 
 4. **Audio/Media** — Listening test audio, file uploads via R2
+   - Browser app upload/Listening calls use deployed `r2-upload-signer`; no app/runtime fallback to `localhost:8787`. See @doc/architecture/firebase-hosting-worker-endpoint-policy.
    - Retired: Google Drive upload/playback/import support is not active. See @doc/architecture/retired-features-current-state.
    - See @doc/prd/prd-unified-audio-architecture
+
+5. **Teacher Materials** - My Content, Public Library, Drafts, Reading Passage, and Book tabs
+   - Active listing authority is universal MaterialSummary indexes, not `/tests` or canonical Reading V2 payload hydration. See @doc/architecture/universal-material-summary-integration.
+   - Selected-material actions are tab-specific and governed by @doc/architecture/teacher-materials-bulk-selection-actions.
 
 ## Project Structure
 

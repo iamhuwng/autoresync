@@ -1,7 +1,7 @@
 ---
 title: Project README
 createdAt: '2026-02-27T15:25:16.583Z'
-updatedAt: '2026-07-07T16:20:00.000Z'
+updatedAt: '2026-07-08T00:00:00.000Z'
 description: 'Main project README with overview, setup instructions, and architecture'
 tags:
   - overview
@@ -15,6 +15,8 @@ This folder contains all the documentation for the project.
 ## Latest Updates
 
 *   **[July 7, 2026 - Firebase Hosting And Worker Endpoint Policy](./architecture/firebase-hosting-worker-endpoint-policy.md)** - Firebase Hosting serves the app; Listening/R2 upload, authoring, and delivery calls use the deployed `r2-upload-signer` Worker, with no browser fallback to `localhost:8787`.
+*   **[July 7, 2026 - Teacher Materials Bulk Selection Actions](./architecture/teacher-materials-bulk-selection-actions.md)** - Current Teacher Lobby selected-material action contract for My Content, Public Library, Drafts, Reading Passage, and Book tabs.
+*   **[July 7, 2026 - Universal Material Summary Integration](./architecture/universal-material-summary-integration.md)** - Current MaterialSummary catalog authority for Teacher Materials listing, lifecycle indexes, repair, and safe summary rows.
 *   **[July 7, 2026 - Teacher Class Management Lifecycle](./architecture/teacher-class-management-lifecycle.md)** - Current authority for class delete success, best-effort `student_classes` cleanup, and retired class-backed `game_sessions` delete writes.
 *   **[July 6, 2026 - Session Lifecycle Authority](./architecture/session-lifecycle-authority.md)** - Current authority for live-session expiry: derived status from canonical `game_sessions` plus RTDB server-time rules, owner-scoped `owner_session_index` discovery, no browser cleanup, no Firebase scheduled Functions, and no Cloudflare lifecycle cron.
 *   **[July 5, 2026 - Retired Features Current State](./architecture/retired-features-current-state.md)** - Current authority for retired Google Drive support, Reading V1, and Quiz. Active product flows use R2, Reading V2, test/Listening/Writing/THCS paths, retained academic results, and retirement notices where applicable.

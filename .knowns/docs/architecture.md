@@ -1,7 +1,7 @@
 ---
 title: ARCHITECTURE
 createdAt: '2026-02-27T15:56:50.657Z'
-updatedAt: '2026-02-27T15:57:15.032Z'
+updatedAt: '2026-07-08T00:00:00.000Z'
 description: >-
   System architecture overview: layers, data flow, tech decisions. Synthesized
   from architecture assessment.
@@ -22,6 +22,13 @@ canonical `game_sessions/{sessionCode}` plus RTDB server `now`; active teacher
 lists use `owner_session_index/{ownerId}/{sessionCode}` for owner-scoped
 discovery only. Browser cleanup, Firebase scheduled Functions, Cloudflare
 lifecycle cron, and `r2-backup-worker` lifecycle scans are obsolete.
+
+Teacher Materials listing authority lives in
+@doc/architecture/universal-material-summary-integration and
+@doc/architecture/teacher-materials-listing-and-diagnostics. My Content and
+Public Library read universal MaterialSummary indexes; `/tests` is runtime and
+legacy compatibility storage only. Selected-material actions are governed by
+@doc/architecture/teacher-materials-bulk-selection-actions.
 
 ## Architecture Layers
 
