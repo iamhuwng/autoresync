@@ -69,7 +69,7 @@ describe('useTeacherTests universal material summaries', () => {
     realtimeError = undefined;
   });
 
-  it('loads all owned private and public material kinds from one universal index', async () => {
+  it('loads owned test material kinds from the universal index without passages or books', async () => {
     values.set(
       'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
       {
@@ -77,6 +77,25 @@ describe('useTeacherTests universal material summaries', () => {
         publicTest: summary({
           materialId: 'public-test',
           visibility: 'public',
+        }),
+        writing: summary({
+          materialId: 'writing-1',
+          producerId: 'writing',
+          materialKind: 'writing-prompt',
+          skillId: 'writing',
+        }),
+        thcs: summary({
+          materialId: 'thcs-1',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+        }),
+        listening: summary({
+          materialId: 'listening-1',
+          producerId: 'listening',
+          materialKind: 'listening-part',
+          skillId: 'listening',
         }),
         passage: summary({
           materialId: 'passage-1',
@@ -101,17 +120,24 @@ describe('useTeacherTests universal material summaries', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.tests.map((row) => row.materialKind)).toEqual(expect.arrayContaining([
-      'book',
       'full-test',
+      'listening-part',
+      'thcs-thpt-test',
+      'writing-prompt',
+    ]));
+    expect(result.current.tests.map((row) => row.materialKind)).not.toEqual(expect.arrayContaining([
+      'book',
       'reading-passage',
     ]));
     expect(result.current.tests.map((row) => row.materialId)).toEqual(expect.arrayContaining([
       'material-1',
       'public-test',
-      'passage-1',
-      'book-1',
+      'writing-1',
+      'thcs-1',
+      'listening-1',
     ]));
     expect(result.current.tests.map((row) => row.visibility).sort()).toEqual([
+      'private',
       'private',
       'private',
       'private',

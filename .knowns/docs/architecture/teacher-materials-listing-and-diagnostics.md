@@ -1,6 +1,6 @@
 ---
 title: Teacher Materials Listing And Diagnostics
-description: 'Current Teacher Lobby materials listing contract: universal MaterialSummary v1 owner/public reads, scoped realtime, visible errors, and retired /tests discovery.'
+description: 'Current Teacher Lobby published-test listing contract: universal MaterialSummary v1 owner/public reads, scoped realtime, visible errors, and retired /tests discovery.'
 createdAt: '2026-05-11T17:23:18.736Z'
 updatedAt: '2026-07-07T00:00:00.000Z'
 tags:
@@ -33,15 +33,18 @@ Public Library reads:
 material_catalog/material_summary_indexes/v1/by_visibility/public
 ```
 
-My Content includes all owned active supported summaries, private and public.
-Public Library includes all public active summaries, including the current
-teacher's own public rows. Students and unauthenticated users cannot browse
-Teacher Materials summary indexes.
+My Content includes owned active published-test summaries, private and public.
+Public Library includes active public published-test summaries, including the
+current teacher's own public rows. Published-test material kinds are
+`full-test`, `listening-part`, `writing-prompt`, and `thcs-thpt-test`.
+Students and unauthenticated users cannot browse Teacher Materials summary
+indexes.
 
 Dedicated Reading Passage and Book active private/public views also begin from
-`material_summary_indexes/v1`. Legacy material/book indexes may remain for
-archive, review, or compatibility flows, but not active Teacher Materials
-discovery.
+`material_summary_indexes/v1`, but Reading Passage and Book rows do not render
+in My Content/Public Library because they have dedicated tabs. Legacy
+material/book indexes may remain for archive, review, or compatibility flows,
+but not active Teacher Materials discovery.
 
 ## Runtime Anchors
 
@@ -79,6 +82,8 @@ Do not reintroduce these for Teacher Materials cards:
 - full `/tests` scan plus client-side ownership filtering
 - full `/tests` scan plus client-side public filtering
 - `/tests` as universal material discovery
+- treating My Content/Public Library as all-material tabs after Reading Passage
+  and Book gained dedicated tabs
 - `reading_v2/listing_indexes` as production Teacher Materials proof
 - canonical payload hydration for card lists
 - legacy `/tests` delete alone for Reading V2 master removal
@@ -98,6 +103,9 @@ migration rewires readers, writers, rules, tests, docs, and browser proof.
 - Browser proof on `http://localhost:5173/lobby` after rules and approved repair
   showed My Content, Public Library, Reading Passage, and Book tabs rendering
   from expected scopes without permission errors or fake empty states.
+- 2026-07-08 product correction: My Content and Public Library are
+  published-test views. Reading Passage and Book rows remain discoverable via
+  their own tabs.
 - Reading V2 `/tests` bridge repair has a reviewed-report write gate and remains
   separate from Teacher Materials listing authority.
 - 2026-07-07 approved material-summary repair artifacts live under

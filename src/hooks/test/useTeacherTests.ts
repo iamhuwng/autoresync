@@ -67,15 +67,25 @@ const summarizeMaterialsForDiagnostics = (materials: any[]) => ({
   ),
 });
 
+const teacherTestMaterialKinds = new Set([
+  'full-test',
+  'listening-part',
+  'writing-prompt',
+  'thcs-thpt-test',
+]);
+
+const isTeacherTestSummary = (summary: { materialKind?: unknown }): boolean =>
+  teacherTestMaterialKinds.has(String(summary.materialKind || '').toLowerCase());
+
 const readMaterialSummaries = async (
   query: MaterialSummaryListQuery,
 ): Promise<any[]> => adaptMaterialSummariesToTeacherCards(
-  await listActiveMaterialSummaries(query, {
+  (await listActiveMaterialSummaries(query, {
     read: async (path) => {
       const snapshot = await get(ref(database, path));
       return snapshot.exists() ? snapshot.val() : null;
     },
-  }),
+  })).filter(isTeacherTestSummary),
 );
 
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {

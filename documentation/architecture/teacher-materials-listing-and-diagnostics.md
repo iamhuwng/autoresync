@@ -4,9 +4,9 @@
 
 This document defines the current Teacher Lobby materials-listing contract.
 
-The Teacher Materials list is backed by the shared universal MaterialSummary
-catalog. `/tests` is runtime and legacy compatibility storage only. It is not
-the Teacher Materials listing authority.
+The Teacher Materials published-test list is backed by the shared universal
+MaterialSummary catalog. `/tests` is runtime and legacy compatibility storage
+only. It is not the Teacher Materials listing authority.
 
 The detailed summary schema, producer registry, lifecycle, repair, and rollout
 contract is defined in
@@ -57,10 +57,18 @@ My Content reads active summaries from:
 material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
 ```
 
-This scope includes all supported active material kinds owned by that teacher,
-including private and public rows. The hook must not read all `/tests`, read
-another teacher's owner bucket, or convert permission/contract failures into an
-empty list.
+This scope includes private and public rows owned by that teacher, but the My
+Content tab presents published tests only. The published-test material kinds are:
+
+- `full-test`
+- `listening-part`
+- `writing-prompt`
+- `thcs-thpt-test`
+
+Reading Passage and Book rows must not render in My Content. They belong to
+their dedicated tabs. The hook must not read all `/tests`, read another
+teacher's owner bucket, or convert permission/contract failures into an empty
+list.
 
 ### Public Library
 
@@ -70,18 +78,21 @@ Public Library reads active public summaries from:
 material_catalog/material_summary_indexes/v1/by_visibility/public
 ```
 
-This scope includes all public active rows, including rows owned by the current
-teacher. It must not read private visibility buckets and must not read all
-canonical stores to filter public rows client-side.
+This scope includes active public rows, including rows owned by the current
+teacher, but the Public Library test view presents published tests only by the
+same material-kind allowlist as My Content. It must not read private visibility
+buckets and must not read all canonical stores to filter public rows
+client-side.
 
 ### Drafts, Reading Passage, And Book Tabs
 
 Drafts remain separate from the published-material list. `useTeacherDrafts`
 owns draft loading and should only run when the Drafts tab is active.
 
-Dedicated Reading Passage and Book views may keep their specialized UI and
-archive/editor behavior, but discoverability must remain connected to registered
-summary kinds. Active private/public listing rows start from
+Dedicated Reading Passage and Book views keep their specialized UI and
+archive/editor behavior. Their discoverability must remain connected to
+registered summary kinds, but they are not part of the My Content/Public Library
+published-test views. Active private/public listing rows start from
 `material_summary_indexes/v1`; legacy material/book indexes are not active
 Teacher Materials discovery authority.
 
@@ -160,6 +171,8 @@ These patterns are obsolete for Teacher Lobby material cards:
 - `queryOptimizer.getAllTests()` for normal Teacher Materials My Content
 - reading full `/tests` and filtering by ownership client-side
 - reading full `/tests` and filtering public rows client-side
+- treating My Content/Public Library as all-material tabs after Reading Passage
+  and Book gained dedicated tabs
 - treating `/tests` as the universal material discovery source
 - hydrating Reading V2 canonical documents or projections just to render cards
 - computing archive, restore, or broken-ref list badges by hydrating canonical
@@ -191,6 +204,9 @@ Local proof on 2026-07-07:
 - Browser proof on `http://localhost:5173/lobby` after rules and approved repair
   showed My Content, Public Library, Reading Passage, and Book tabs rendering
   from the expected scopes without permission errors or fake empty states.
+- 2026-07-08 product correction: My Content and Public Library are
+  published-test views. Reading Passage and Book rows remain discoverable via
+  their own tabs, not through My Content/Public Library.
 - Reading V2 `/tests` compatibility bridge repair is separate from Teacher
   Materials listing. It has a reviewed-report write gate and must not be used
   as listing authority.

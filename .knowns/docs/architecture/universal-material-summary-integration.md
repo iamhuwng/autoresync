@@ -18,6 +18,11 @@ Repo source: `documentation/architecture/universal-material-summary-integration.
 Teacher Materials active discovery uses
 `material_catalog/material_summary_indexes/v1`.
 
+2026-07-08 correction: My Content/Public Library are published-test views, not
+all-material views. They present only `full-test`, `listening-part`,
+`writing-prompt`, and `thcs-thpt-test` summaries. Reading Passage and Book rows
+remain summary-backed but render through their own tabs.
+
 My Content reads:
 
 ```text
@@ -45,12 +50,14 @@ Every supported producer needs:
 - tests proving unsafe fields, malformed rows, wrong bucket writes, and missing
   producer registration fail closed
 
-Visibility contract:
+Visibility and tab contract:
 
-- My Content is an owner query and includes private plus public active rows
-  owned by the teacher.
-- Public Library is a visibility query and includes all active public summaries,
-  including public rows owned by the current teacher.
+- My Content is an owner query and includes private plus public active
+  published-test rows owned by the teacher.
+- Public Library is a visibility query and includes active public
+  published-test summaries, including public rows owned by the current teacher.
+- Reading Passage and Book rows do not render in My Content/Public Library
+  after those families gained dedicated tabs.
 - Students and unauthenticated users cannot browse Teacher Materials summary
   indexes.
 - Super admin can read/write diagnostic and repair buckets.
@@ -71,6 +78,6 @@ Repair contract:
   zero remaining operations
 - approved Reading V2 `/tests` bridge repair prewrite planned 12 operations and
   postwrite reported zero remaining operations
-- browser proof on `http://localhost:5173/lobby` rendered My Content, Public
-  Library, Reading Passage, and Book tabs without permission errors or fake
-  empty states
+- browser proof on `http://localhost:5173/lobby` must verify My Content/Public
+  Library as published-test views and Reading Passage/Book as dedicated
+  summary-backed views, without permission errors or fake empty states

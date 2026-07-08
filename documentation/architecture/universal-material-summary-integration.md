@@ -34,10 +34,12 @@ Key directives captured from that log:
 
 - The original defect was missing materials in Teacher Lobby Materials after
   Reading V1, quiz, Google Drive, and session-tab cleanup.
-- My Content must represent all supported active material kinds owned by the
-  teacher, not only legacy `/tests` rows or Reading V2 full tests.
-- Public Library must represent all active public material summaries, including
-  public rows owned by the current teacher.
+- Superseded as a tab presentation rule on 2026-07-08: My Content was recorded
+  here as all supported active material kinds owned by the teacher, not only
+  legacy `/tests` rows or Reading V2 full tests.
+- Superseded as a tab presentation rule on 2026-07-08: Public Library was
+  recorded here as all active public material summaries, including public rows
+  owned by the current teacher.
 - The long-term fix is a producer registry plus shared MaterialSummary port,
   not another tab-specific loader patch.
 - Publishing, updating, archiving, restoring, removing, reconciliation, and
@@ -49,6 +51,33 @@ Key directives captured from that log:
   incident only.
 - The class-page regression found during this work was a legacy/fixture data
   normalization problem, not part of the material-summary authority model.
+
+## 2026-07-08 Product Correction
+
+The 2026-07-07 phrase "My Content must represent all supported active material
+kinds" is obsolete as a tab presentation rule. It remains true only at the
+summary-catalog authority layer: supported producers must write active
+summaries so each dedicated view can discover them.
+
+Teacher Lobby tab presentation is:
+
+- My Content: published tests owned by the teacher.
+- Public Library: published public tests.
+- Reading Passage: active or archived Reading Passage rows, according to the
+  tab's own visibility/archive controls.
+- Book: Book rows, according to the tab's own visibility controls.
+- Drafts: family-specific draft stores, separate from published materials.
+
+Published-test material kinds are:
+
+- `full-test`
+- `listening-part`
+- `writing-prompt`
+- `thcs-thpt-test`
+
+Reading Passage and Book rows must not appear in My Content/Public Library just
+because they are active owned or public summaries. Their own tabs remain
+summary-index consumers, not separate discovery authorities.
 
 ## Architecture
 
@@ -202,22 +231,26 @@ Restore:
 
 ## Consumer Contract
 
-My Content reads all active summaries at:
+My Content reads active owned summaries at:
 
 ```text
 material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
 ```
 
-Public Library reads all active public summaries at:
+It presents only published-test material kinds from that owner bucket.
+
+Public Library reads active public summaries at:
 
 ```text
 material_catalog/material_summary_indexes/v1/by_visibility/public
 ```
 
-Tabs, Test Types, skills, kinds, and search are filters over this summary
-collection. Dedicated Reading Passage and Book views may remain, but they must
-be derived views of registered summary kinds rather than independent discovery
-authorities.
+It presents only published-test material kinds from that public bucket.
+
+Tabs, Test Types, skills, kinds, and search are filters over summary
+collections. Dedicated Reading Passage and Book views must be derived views of
+registered summary kinds rather than independent discovery authorities, but
+they are not part of the My Content/Public Library published-test views.
 
 Teacher preferences control presentation order only. They never determine
 whether a material is discoverable.
@@ -365,8 +398,10 @@ canonical state changes.
 
 ## Current Closure Evidence
 
-- My Content reads `material_summary_indexes/v1/by_owner/{teacherId}` only.
-- Public Library reads `material_summary_indexes/v1/by_visibility/public` only.
+- My Content reads `material_summary_indexes/v1/by_owner/{teacherId}` only and
+  presents published-test material kinds only.
+- Public Library reads `material_summary_indexes/v1/by_visibility/public` only
+  and presents published-test material kinds only.
 - Active dedicated Reading Passage and Book tab discovery also starts from
   `material_summary_indexes/v1` and hydrates feature-owned safe projections only
   where the specialized tab needs extra display fields.
@@ -410,8 +445,9 @@ of these are true for that exact project:
    ```
 
 6. Post-write readback shows active owner/public summaries in v1 indexes.
-7. Browser QA proves My Content has all owned active supported materials and
-   Public Library has all public active supported materials.
+7. Browser QA proves My Content has owned active published tests, Public
+   Library has active public published tests, and Reading Passage/Book tabs show
+   their own rows from summary-backed discovery.
 8. Any required `/tests` compatibility bridge repair has a separate dry-run
    report, approval gate, post-write zero-op verification, and browser/runtime
    proof.
