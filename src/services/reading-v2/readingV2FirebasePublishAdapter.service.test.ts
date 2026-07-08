@@ -198,6 +198,20 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         passageRefCount: 1,
       }),
     });
+    expect(
+      firebaseUpdates.updates[
+        'material_catalog/material_summary_indexes/v1/by_id/material-firebase'
+      ],
+    ).toMatchObject({
+      materialId: 'material-firebase',
+      producerId: 'reading-v2-full-test',
+      questionCount: 2,
+      sourceSnapshotVersionId: 'snapshot-firebase',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
+    });
     expect(firebaseUpdates.updates[readingV2StoragePaths.relationshipIndexes('solo-launch', 'material-firebase')])
       .toMatchObject({
         ownerId: 'teacher-1',

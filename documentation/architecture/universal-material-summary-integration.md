@@ -169,9 +169,20 @@ Optional safe display/filter fields:
 - `sourceFullTestId`
 - `hasBrokenRefs`
 - `brokenRefCount`
+- `hasStudentSafeProjection`
+- `deliveryProjectionReady`
+- `studentSafeProjectionReady`
+- `passageRefCount`
 
 `materialId` is stable across indexes. Canonical identifiers and snapshot
 identifiers remain owned by the producer.
+
+Reading V2 full-test summaries must carry assignment-readiness facts from the
+published student-safe projection: `questionCount`, `sourceSnapshotVersionId`,
+`hasStudentSafeProjection`, `deliveryProjectionReady`,
+`studentSafeProjectionReady`, and `passageRefCount`. Teacher Materials cards use
+those summary facts to show question counts and enable `Assign HW` without
+hydrating Reading V2 canonical/projection payloads during list rendering.
 
 `testTypeMembership` is a derived map such as `{ "ielts": true }`. Producers
 may pass only `testTypeIds` to the port; the port normalizes and writes the
@@ -472,6 +483,19 @@ canonical state changes.
   view with 7 owned rows for the Teacher Test account: 5 Reading V2 full-test
   rows plus 2 Writing rows. Reading Passage/Book rows remained excluded from My
   Content.
+- 2026-07-08 Reading V2 assignment-readiness repair: summary-v1 now permits and
+  preserves student-safe readiness fields; Reading V2 full-test summary
+  producers and material-summary reconciliation derive them from
+  `reading_v2/projections/student_safe_tests`. RTDB rules for all five summary
+  buckets were deployed to `temp-a1437`, and 54 live Reading V2 full-test
+  summary paths were repaired from canonical/projection data. Postwrite dry-run
+  reported zero remaining `reading-v2-full-test` summary drift; remaining
+  drift was limited to Reading Passage and THCS summary rows.
+- Chrome proof on `http://localhost:5173/lobby` after the repair showed 13 My
+  Content rows, 5 Reading V2 rows, all Reading V2 rows with positive question
+  counts and `Assign HW`, no Reading Passage/Book kind rows, and no fresh
+  console warnings/errors after the Firestore `writing_drafts` index was
+  created.
 - Raw live repair reports and payloads can contain auth data, test bodies, or
   user content. Do not commit them unless a deliberately redacted artifact is
   needed for review.

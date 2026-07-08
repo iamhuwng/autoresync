@@ -46,6 +46,10 @@ export const adaptMaterialSummaryToTeacherCard = (
     sourceFullTestId: summary.sourceFullTestId,
     hasBrokenRefs: summary.hasBrokenRefs,
     brokenRefCount: summary.brokenRefCount,
+    hasStudentSafeProjection: summary.hasStudentSafeProjection,
+    deliveryProjectionReady: summary.deliveryProjectionReady,
+    studentSafeProjectionReady: summary.studentSafeProjectionReady,
+    passageRefCount: summary.passageRefCount,
     tags: summary.tags,
     ...(readingV2
       ? {
@@ -64,6 +68,10 @@ export const adaptMaterialSummaryToTeacherCard = (
       publishedSnapshotVersionId: summary.sourceSnapshotVersionId,
       hasBrokenRefs: summary.hasBrokenRefs,
       brokenRefCount: summary.brokenRefCount,
+      hasStudentSafeProjection: summary.hasStudentSafeProjection,
+      deliveryProjectionReady: summary.deliveryProjectionReady,
+      studentSafeProjectionReady: summary.studentSafeProjectionReady,
+      passageRefCount: summary.passageRefCount,
     },
   };
 };

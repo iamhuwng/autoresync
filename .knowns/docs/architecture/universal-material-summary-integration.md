@@ -2,7 +2,7 @@
 title: Universal Material Summary Integration
 description: Shared Teacher Materials discovery contract using MaterialSummary v1 owner/public indexes, producer registry, lifecycle synchronization, repair gates, and permission boundaries.
 createdAt: '2026-07-07T00:00:00.000Z'
-updatedAt: '2026-07-07T00:00:00.000Z'
+updatedAt: '2026-07-08T00:00:00.000Z'
 tags:
   - architecture
   - teacher-materials
@@ -49,6 +49,13 @@ Every supported producer needs:
 - reconciliation and repair proof
 - tests proving unsafe fields, malformed rows, wrong bucket writes, and missing
   producer registration fail closed
+
+Reading V2 full-test summaries must carry safe assignment-readiness facts from
+the published student-safe projection: `questionCount`,
+`sourceSnapshotVersionId`, `hasStudentSafeProjection`, `deliveryProjectionReady`,
+`studentSafeProjectionReady`, and `passageRefCount`. Teacher Materials uses
+these summary facts for row question counts and `Assign HW`; it must not
+hydrate Reading V2 canonical/projection payloads just to render cards.
 
 Visibility and tab contract:
 
@@ -125,5 +132,12 @@ Writing runtime bridge rule:
 - Chrome proof after owned-only correction for `hungnguyenzim@gmail.com` showed
   24 My Content materials, 13 owned THCS rows, no linked/use-as-is THCS rows, no
   `Retake`, no `Linked` badge, and no console warnings/errors
+- Reading V2 assignment-readiness repair deployed RTDB summary rules to
+  `temp-a1437`, repaired 54 live Reading V2 full-test summary paths, and
+  postwrite dry-run showed zero remaining `reading-v2-full-test` drift
+- Chrome proof after that repair showed 13 My Content rows, 5 Reading V2 rows,
+  all Reading V2 rows with positive question counts and `Assign HW`, no
+  Reading Passage/Book kind rows, and no fresh console warnings/errors after
+  creating the `writing_drafts(userId, updatedAt)` Firestore index
 - raw live repair reports/payloads can contain auth data, test bodies, or user
   content; keep local unless deliberately redacted

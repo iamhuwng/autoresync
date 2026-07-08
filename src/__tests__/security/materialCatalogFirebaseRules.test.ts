@@ -377,6 +377,10 @@ describe('Material Catalog Firebase rule contract', () => {
     expect(byIdRule.questionCount['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
     expect(byIdRule.durationMinutes['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
     expect(byIdRule.brokenRefCount['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
+    expect(byIdRule.hasStudentSafeProjection['.validate']).toBe('newData.isBoolean()');
+    expect(byIdRule.deliveryProjectionReady['.validate']).toBe('newData.isBoolean()');
+    expect(byIdRule.studentSafeProjectionReady['.validate']).toBe('newData.isBoolean()');
+    expect(byIdRule.passageRefCount['.validate']).toBe('newData.isNumber() && newData.val() >= 0');
     expect(byIdRule.testTypeMembership.$testTypeId['.validate']).toBe('newData.val() === true');
     expect(asText).toContain("newData.child('lifecycleState').val() === 'active'");
     expect(asText).toContain("newData.child('testTypeMembership').child($testTypeId).val() === true");

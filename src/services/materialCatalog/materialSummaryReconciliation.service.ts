@@ -1,5 +1,6 @@
 import type { MaterialBookMetadata } from '../../types/materialCatalog.types';
 import type { ReadingV2MaterialMetadata } from '../reading-v2/readingV2MaterialMetadata.service';
+import type { ReadingV2DerivedProjection } from '../reading-v2/readingV2Projection.service';
 import {
   createMaterialBookSummary,
   createReadingV2MaterialSummary,
@@ -17,6 +18,7 @@ import {
 export interface MaterialSummaryReconciliationInput {
   readonly legacyTests?: Readonly<Record<string, LegacyTestRecord>>;
   readonly readingV2Metadata?: Readonly<Record<string, ReadingV2MaterialMetadata>>;
+  readonly readingV2StudentSafeProjections?: Readonly<Record<string, unknown>>;
   readonly books?: Readonly<Record<string, MaterialBookMetadata>>;
   readonly currentIndex: unknown;
 }
@@ -138,6 +140,40 @@ const addSummary = (
   summaries.set(summary.materialId, summary);
 };
 
+const isStudentSafeProjectionForMetadata = (
+  value: unknown,
+  metadata: ReadingV2MaterialMetadata,
+): value is ReadingV2DerivedProjection =>
+  isRecord(value) &&
+  value.projectionKind === 'student-safe' &&
+  value.ownerId === metadata.ownerId &&
+  (value.materialId === undefined || value.materialId === metadata.materialId) &&
+  (
+    metadata.publishedSnapshotVersionId === undefined ||
+    value.sourceSnapshotVersionId === metadata.publishedSnapshotVersionId
+  ) &&
+  isRecord(value.content) &&
+  Array.isArray(value.content.sections) &&
+  Array.isArray(value.content.taskGroups);
+
+const readingV2ProjectionForMetadata = (
+  metadata: ReadingV2MaterialMetadata,
+  projections?: Readonly<Record<string, unknown>>,
+): ReadingV2DerivedProjection | null | undefined => {
+  if (!projections) {
+    return undefined;
+  }
+  const snapshotVersionId =
+    metadata.publishedSnapshotVersionId ?? metadata.sourceSnapshotVersionId;
+  if (!snapshotVersionId) {
+    return null;
+  }
+  const projection = projections[`${metadata.materialId}:${snapshotVersionId}`];
+  return isStudentSafeProjectionForMetadata(projection, metadata)
+    ? projection
+    : null;
+};
+
 export const buildExpectedMaterialSummaries = (
   input: Omit<MaterialSummaryReconciliationInput, 'currentIndex'>,
 ): readonly MaterialSummary[] => {
@@ -164,7 +200,13 @@ export const buildExpectedMaterialSummaries = (
 
   Object.entries(input.readingV2Metadata ?? {}).forEach(([materialId, metadata]) => {
     try {
-      const summary = createReadingV2MaterialSummary(metadata);
+      const summary = createReadingV2MaterialSummary(
+        metadata,
+        readingV2ProjectionForMetadata(
+          metadata,
+          input.readingV2StudentSafeProjections,
+        ),
+      );
       if (summary) {
         addSummary(summaries, summary, `reading_v2/material_metadata/${materialId}`);
       }

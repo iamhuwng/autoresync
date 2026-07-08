@@ -123,6 +123,13 @@ fields and canonical payload fields such as `content`, `document`, `questions`,
 `answerKey`, `studentAnswers`, `hiddenProvenance`, and `importEvidence` are
 rejected by rules and by the shared port.
 
+Reading V2 full-test summaries also carry list-safe assignment-readiness facts:
+`questionCount`, `sourceSnapshotVersionId`, `hasStudentSafeProjection`,
+`deliveryProjectionReady`, `studentSafeProjectionReady`, and
+`passageRefCount`. My Content uses those facts to show nonzero question counts
+and enable `Assign HW`; it must not hydrate Reading V2 canonical/projection
+payloads just to decide card actions.
+
 ## Realtime Contract
 
 Realtime listeners must match the active summary scope:
@@ -269,6 +276,16 @@ Local proof on 2026-07-07:
   7 rows: 5 Reading V2 full-test rows plus `Codex import live check writing`
   and `Inter - Task 1 - Lesson 2`; Reading Passage/Book rows stayed excluded
   and console reported zero errors/warnings.
+- 2026-07-08 Reading V2 assignment-readiness repair added summary-v1 fields for
+  student-safe projection readiness, deployed RTDB summary rules to
+  `temp-a1437`, and repaired 54 live Reading V2 full-test summary paths from
+  canonical/projection data. Postwrite dry-run reported zero remaining
+  `reading-v2-full-test` summary drift; 170 remaining stale operations were
+  Reading Passage and THCS summary rows outside this Assign HW bug.
+- Chrome proof after that repair showed 13 My Content rows, 5 Reading V2 rows,
+  every Reading V2 row with a positive question count and `Assign HW`, no
+  Reading Passage/Book kind rows, and no fresh console warnings/errors after
+  the missing `writing_drafts(userId, updatedAt)` Firestore index was created.
 - Raw live repair reports and payloads can contain teacher-auth data, test
   bodies, or user content. Keep them local unless a redacted artifact is created
   deliberately for review.

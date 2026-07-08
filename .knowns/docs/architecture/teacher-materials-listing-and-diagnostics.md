@@ -2,7 +2,7 @@
 title: Teacher Materials Listing And Diagnostics
 description: 'Current Teacher Lobby published-test listing contract: universal MaterialSummary v1 owner/public reads, scoped realtime, visible errors, and retired /tests discovery.'
 createdAt: '2026-05-11T17:23:18.736Z'
-updatedAt: '2026-07-07T00:00:00.000Z'
+updatedAt: '2026-07-08T00:00:00.000Z'
 tags:
   - architecture
   - teacher-lobby
@@ -65,6 +65,13 @@ payloads, questions, answer keys, scoring rules, student answers, import
 evidence, hidden provenance, draft bodies, or review payloads.
 
 Every row bucket is closed with `$other.validate=false`.
+
+Reading V2 full-test summaries carry safe assignment-readiness facts from the
+published student-safe projection: `questionCount`,
+`sourceSnapshotVersionId`, `hasStudentSafeProjection`, `deliveryProjectionReady`,
+`studentSafeProjectionReady`, and `passageRefCount`. My Content uses these
+summary fields for positive question counts and `Assign HW` without list-time
+canonical/projection hydration.
 
 ## Realtime And Errors
 
@@ -162,6 +169,13 @@ Writing drift repair:
   7 rows: 5 Reading V2 rows plus `Codex import live check writing` and
   `Inter - Task 1 - Lesson 2`; Reading Passage/Book rows stayed excluded and
   console had zero errors/warnings.
+- Reading V2 assignment-readiness repair deployed RTDB summary rules to
+  `temp-a1437`, repaired 54 live Reading V2 full-test summary paths, and
+  postwrite dry-run showed zero remaining `reading-v2-full-test` drift.
+- Chrome proof after that repair showed 13 My Content rows, 5 Reading V2 rows,
+  all Reading V2 rows with positive question counts and `Assign HW`, no
+  Reading Passage/Book kind rows, and no fresh console warnings/errors after
+  creating the `writing_drafts(userId, updatedAt)` Firestore index.
 - Raw live repair reports/payloads can contain auth data, test bodies, or user
   content. Keep local unless deliberately redacted.
 - The class-page regression in the same session was legacy/fixture class-row

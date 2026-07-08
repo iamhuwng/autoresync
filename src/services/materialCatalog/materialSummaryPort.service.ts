@@ -43,6 +43,10 @@ export interface MaterialSummary {
   readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
+  readonly hasStudentSafeProjection?: boolean;
+  readonly deliveryProjectionReady?: boolean;
+  readonly studentSafeProjectionReady?: boolean;
+  readonly passageRefCount?: number;
   readonly updatedAt: string;
 }
 
@@ -96,6 +100,10 @@ const MATERIAL_SUMMARY_FIELDS = new Set([
   'sourceFullTestId',
   'hasBrokenRefs',
   'brokenRefCount',
+  'hasStudentSafeProjection',
+  'deliveryProjectionReady',
+  'studentSafeProjectionReady',
+  'passageRefCount',
   'updatedAt',
 ]);
 
@@ -232,6 +240,19 @@ const isMaterialSummary = (value: unknown): value is MaterialSummary => {
     ) &&
     (value.hasBrokenRefs === undefined || typeof value.hasBrokenRefs === 'boolean') &&
     isOptionalNonNegativeNumber(value.brokenRefCount) &&
+    (
+      value.hasStudentSafeProjection === undefined ||
+      typeof value.hasStudentSafeProjection === 'boolean'
+    ) &&
+    (
+      value.deliveryProjectionReady === undefined ||
+      typeof value.deliveryProjectionReady === 'boolean'
+    ) &&
+    (
+      value.studentSafeProjectionReady === undefined ||
+      typeof value.studentSafeProjectionReady === 'boolean'
+    ) &&
+    isOptionalNonNegativeNumber(value.passageRefCount) &&
     isNonEmptyString(value.updatedAt)
   );
 };

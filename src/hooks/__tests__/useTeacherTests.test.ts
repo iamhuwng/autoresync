@@ -198,6 +198,51 @@ describe('useTeacherTests universal material summaries', () => {
     });
   });
 
+  it('preserves Reading V2 readiness fields so My Content rows can be assigned', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      {
+        readingV2: summary({
+          materialId: 'reading-v2-full',
+          producerId: 'reading-v2-full-test',
+          materialKind: 'full-test',
+          skillId: 'reading',
+          questionCount: 40,
+          sourceSnapshotVersionId: 'snapshot-v2',
+          hasStudentSafeProjection: true,
+          deliveryProjectionReady: true,
+          studentSafeProjectionReady: true,
+          passageRefCount: 3,
+        }),
+      },
+    );
+
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      realtime: false,
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.tests).toHaveLength(1);
+    expect(result.current.tests[0]).toMatchObject({
+      id: 'reading-v2-full',
+      deliveryEngine: 'reading-v2',
+      questionCount: 40,
+      publishedSnapshotVersionId: 'snapshot-v2',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 3,
+      metadata: {
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 3,
+      },
+    });
+    expect(result.current.error).toBeNull();
+  });
+
   it('loads Public Library from the public summary index', async () => {
     values.set(
       'material_catalog/material_summary_indexes/v1/by_visibility/public',

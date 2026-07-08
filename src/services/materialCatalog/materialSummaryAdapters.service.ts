@@ -122,6 +122,10 @@ export interface ReadingV2FullTestSummarySource {
   readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
+  readonly hasStudentSafeProjection?: boolean;
+  readonly deliveryProjectionReady?: boolean;
+  readonly studentSafeProjectionReady?: boolean;
+  readonly passageRefCount?: number;
   readonly updatedAt: string;
 }
 
@@ -153,6 +157,10 @@ export const createReadingV2FullTestMaterialSummary = (
   sourceFullTestId: source.sourceFullTestId,
   hasBrokenRefs: source.hasBrokenRefs,
   brokenRefCount: source.brokenRefCount,
+  hasStudentSafeProjection: source.hasStudentSafeProjection,
+  deliveryProjectionReady: source.deliveryProjectionReady,
+  studentSafeProjectionReady: source.studentSafeProjectionReady,
+  passageRefCount: source.passageRefCount,
   updatedAt: source.updatedAt,
 }) as unknown as MaterialSummary;
 
@@ -170,6 +178,19 @@ export const createReadingV2MaterialSummary = (
       (total, group) => total + group.interactions.length,
       0,
     );
+  const projectionReadiness =
+    projection === undefined
+      ? {}
+      : {
+          hasStudentSafeProjection: projection !== null,
+          deliveryProjectionReady: projection !== null,
+          studentSafeProjectionReady: projection !== null,
+          passageRefCount: projection?.content.sections.length,
+        };
+  const sourceSnapshotVersionId =
+    metadata.publishedSnapshotVersionId ??
+    metadata.sourceSnapshotVersionId ??
+    projection?.sourceSnapshotVersionId;
 
   if (materialKind === 'reading-passage') {
     return createReadingV2PassageMaterialSummary({
@@ -184,8 +205,7 @@ export const createReadingV2MaterialSummary = (
       tags: metadata.tags,
       questionCount,
       durationMinutes: metadata.durationMinutes,
-      sourceSnapshotVersionId:
-        metadata.publishedSnapshotVersionId ?? metadata.sourceSnapshotVersionId,
+      sourceSnapshotVersionId,
       sourceFullTestId: metadata.sourceFullTestId,
       hasBrokenRefs: metadata.hasBrokenRefs,
       brokenRefCount: metadata.brokenRefCount,
@@ -205,11 +225,11 @@ export const createReadingV2MaterialSummary = (
     tags: withFallback(metadata.tags, 'reading'),
     questionCount,
     durationMinutes: metadata.durationMinutes,
-    sourceSnapshotVersionId:
-      metadata.publishedSnapshotVersionId ?? metadata.sourceSnapshotVersionId,
+    sourceSnapshotVersionId,
     sourceFullTestId: metadata.sourceFullTestId,
     hasBrokenRefs: metadata.hasBrokenRefs,
     brokenRefCount: metadata.brokenRefCount,
+    ...projectionReadiness,
     updatedAt: metadata.updatedAt,
   });
 };

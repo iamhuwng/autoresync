@@ -475,6 +475,10 @@
                             "sourceFullTestId": { ".validate": "newData.isString()" },
                             "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
                             "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                            "hasStudentSafeProjection": { ".validate": "newData.isBoolean()" },
+                            "deliveryProjectionReady": { ".validate": "newData.isBoolean()" },
+                            "studentSafeProjectionReady": { ".validate": "newData.isBoolean()" },
+                            "passageRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                             "updatedAt": { ".validate": "newData.isString()" },
                             "$other": { ".validate": false }
                         }
@@ -515,6 +519,10 @@
                                 "sourceFullTestId": { ".validate": "newData.isString()" },
                                 "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
                                 "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "hasStudentSafeProjection": { ".validate": "newData.isBoolean()" },
+                                "deliveryProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "studentSafeProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "passageRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                                 "updatedAt": { ".validate": "newData.isString()" },
                                 "$other": { ".validate": false }
                             }
@@ -556,6 +564,10 @@
                                 "sourceFullTestId": { ".validate": "newData.isString()" },
                                 "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
                                 "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "hasStudentSafeProjection": { ".validate": "newData.isBoolean()" },
+                                "deliveryProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "studentSafeProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "passageRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                                 "updatedAt": { ".validate": "newData.isString()" },
                                 "$other": { ".validate": false }
                             }
@@ -597,6 +609,10 @@
                                 "sourceFullTestId": { ".validate": "newData.isString()" },
                                 "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
                                 "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "hasStudentSafeProjection": { ".validate": "newData.isBoolean()" },
+                                "deliveryProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "studentSafeProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "passageRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                                 "updatedAt": { ".validate": "newData.isString()" },
                                 "$other": { ".validate": false }
                             }
@@ -638,6 +654,10 @@
                                 "sourceFullTestId": { ".validate": "newData.isString()" },
                                 "hasBrokenRefs": { ".validate": "newData.isBoolean()" },
                                 "brokenRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                                "hasStudentSafeProjection": { ".validate": "newData.isBoolean()" },
+                                "deliveryProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "studentSafeProjectionReady": { ".validate": "newData.isBoolean()" },
+                                "passageRefCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                                 "updatedAt": { ".validate": "newData.isString()" },
                                 "$other": { ".validate": false }
                             }

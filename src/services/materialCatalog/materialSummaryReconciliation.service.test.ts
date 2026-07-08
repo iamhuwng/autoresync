@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  READING_V2_ENGINE,
+  READING_V2_PRODUCT_LABEL,
+} from '../../config/readingV2FeatureFlags';
+import { READING_V2_PROJECTION_FIXTURES } from '../reading-v2/fixtures/readingV2ProjectionFixtures';
+import {
   buildExpectedMaterialSummaries,
   buildMaterialSummaryParityReport,
   buildMaterialSummaryReconciliationUpdatePayload,
@@ -160,6 +165,51 @@ describe('materialSummaryReconciliation', () => {
       parity: false,
       missingIds: ['test-1'],
       orphanIds: ['orphan'],
+    });
+  });
+
+  it('rebuilds Reading V2 full-test summaries with student-safe readiness facts from projections', () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+    const materialId = 'reading-v2-full';
+    const [summary] = buildExpectedMaterialSummaries({
+      readingV2Metadata: {
+        [materialId]: {
+          materialId,
+          ownerId: 'teacher-1',
+          state: 'published',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: READING_V2_PRODUCT_LABEL,
+          title: 'Reading V2 Full Test',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'private',
+          testTypeIds: ['ielts'],
+          updatedAt: '2026-07-07T00:00:00.000Z',
+          relationshipSurfaces: [],
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+        },
+      },
+      readingV2StudentSafeProjections: {
+        [`${materialId}:${projection.sourceSnapshotVersionId}`]: {
+          ...projection,
+          materialId,
+          ownerId: 'teacher-1',
+        },
+      },
+    });
+
+    expect(summary).toMatchObject({
+      materialId,
+      producerId: 'reading-v2-full-test',
+      questionCount: 2,
+      sourceSnapshotVersionId: projection.sourceSnapshotVersionId,
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
     });
   });
 

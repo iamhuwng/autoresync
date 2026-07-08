@@ -274,9 +274,10 @@ export const runMaterialSummaryReconciliationCli = async (
       return null;
     }
   };
-  const [tests, readingMetadata, books, currentIndex] = await Promise.all([
+  const [tests, readingMetadata, readingProjections, books, currentIndex] = await Promise.all([
     read('tests'),
     read('reading_v2/material_metadata'),
+    read('reading_v2/projections/student_safe_tests'),
     read('material_catalog/books'),
     read('material_catalog/material_summary_indexes/v1'),
   ]);
@@ -287,6 +288,7 @@ export const runMaterialSummaryReconciliationCli = async (
       Object.entries(recordMap(readingMetadata))
         .map(([id, value]) => [id, normalizeReadingMetadata(value)]),
     ),
+    readingV2StudentSafeProjections: recordMap(readingProjections),
     books: Object.fromEntries(
       Object.entries(recordMap(books))
         .map(([id, value]) => [id, normalizeBook(value)]),
