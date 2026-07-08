@@ -3,7 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 
 const values = new Map<string, unknown>();
 const mockGet = vi.fn(async (target: { path?: string }) => {
-  const value = values.get(target.path ?? '');
+  const path = target.path ?? '';
+  const value = values.get(path);
   return {
     exists: () => value !== undefined && value !== null,
     val: () => value,
@@ -33,7 +34,11 @@ vi.mock('firebase/database', () => ({
 const deleteDoc = vi.fn().mockResolvedValue(undefined);
 vi.mock('firebase/firestore', () => ({
   deleteDoc: (...args: unknown[]) => deleteDoc(...args),
-  doc: (_db: unknown, collection: string, id: string) => ({ collection, id }),
+  doc: (_db: unknown, ...segments: string[]) => ({
+    collection: segments.slice(0, -1).join('/'),
+    id: segments[segments.length - 1],
+    path: segments.join('/'),
+  }),
 }));
 
 vi.mock('../../services/firebase', () => ({
@@ -149,6 +154,50 @@ describe('useTeacherTests universal material summaries', () => {
     });
   });
 
+  it('keeps My Content owned-only even when other teachers have public tests', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      {
+        owned: summary({
+          materialId: 'owned-thcs',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+        }),
+      },
+    );
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_visibility/public',
+      {
+        otherTeacher: summary({
+          materialId: 'other-public-thcs',
+          ownerId: 'teacher-2',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+          visibility: 'public',
+        }),
+      },
+    );
+
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      realtime: false,
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.tests.map((row) => row.materialId)).toEqual(['owned-thcs']);
+    expect(result.current.tests.map((row) => row.ownerId)).toEqual(['teacher-1']);
+    expect(mockGet).toHaveBeenCalledWith({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+    });
+    expect(mockGet).not.toHaveBeenCalledWith({
+      path: 'material_catalog/material_summary_indexes/v1/by_visibility/public',
+    });
+  });
+
   it('loads Public Library from the public summary index', async () => {
     values.set(
       'material_catalog/material_summary_indexes/v1/by_visibility/public',
@@ -261,10 +310,93 @@ describe('useTeacherTests universal material summaries', () => {
           expect.objectContaining({ lifecycleState: 'removed' }),
       }),
     );
-    expect(deleteDoc).toHaveBeenCalledWith({
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'writing_drafts',
       id: 'draft-1',
+    }));
+  });
+
+  it('keeps a THCS removal successful when Firestore sidecar cleanup is denied', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const current = {
+      id: 'thcs-1',
+      ownerId: 'teacher-1',
+      title: 'THCS',
+      testType: 'THCS-THPT',
+      skill: 'thcs',
+      sourceDraftId: 'draft-1',
+      updatedAt: 1_700_000_000_000,
+    };
+    values.set('tests/thcs-1', current);
+    deleteDoc.mockRejectedValueOnce(new Error('Permission denied'));
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
+
+    await act(async () => {
+      await result.current.deleteTest(current);
     });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: undefined },
+      expect.objectContaining({
+        'tests/thcs-1': null,
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/thcs-1':
+          null,
+        'material_catalog/material_summary_indexes/v1/by_id/thcs-1':
+          expect.objectContaining({ lifecycleState: 'removed' }),
+      }),
+    );
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_library',
+      id: 'thcs-1',
+    }));
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_drafts',
+      id: 'draft-1',
+    }));
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TeacherMaterials] Sidecar cleanup failed after material removal.',
+      expect.objectContaining({ materialId: 'thcs-1', failures: 1 }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('uses the runtime sourceDraftId when a THCS summary card omits it', async () => {
+    const current = {
+      id: 'thcs-2',
+      ownerId: 'teacher-1',
+      title: 'THCS',
+      testType: 'THCS-THPT',
+      skill: 'thcs',
+      sourceDraftId: 'runtime-draft-2',
+      updatedAt: 1_700_000_000_000,
+    };
+    values.set('tests/thcs-2', current);
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
+
+    await act(async () => {
+      await result.current.deleteTest({
+        id: 'thcs-2',
+        ownerId: 'teacher-1',
+        title: 'THCS',
+        testType: 'THCS-THPT',
+        skill: 'thcs',
+      });
+    });
+
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_library',
+      id: 'thcs-2',
+    }));
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_drafts',
+      id: 'runtime-draft-2',
+    }));
   });
 
   it('blocks legacy Listening deletion until the audited removal flow exists', async () => {

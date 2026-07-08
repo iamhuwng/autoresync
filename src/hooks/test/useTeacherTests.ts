@@ -5,7 +5,10 @@ import {
   ref,
   update as dbUpdate,
 } from 'firebase/database';
-import { doc, deleteDoc } from 'firebase/firestore';
+import {
+  doc,
+  deleteDoc,
+} from 'firebase/firestore';
 import { database, firestore as db } from '../../services/firebase';
 import {
   adaptMaterialSummariesToTeacherCards,
@@ -38,6 +41,23 @@ interface UseTeacherTestsOptions {
 
 const errorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
+
+const deleteMaterialSidecars = async (
+  deletes: Array<Promise<unknown>>,
+  materialId: string,
+) => {
+  if (deletes.length === 0) {
+    return;
+  }
+  const results = await Promise.allSettled(deletes);
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    console.warn('[TeacherMaterials] Sidecar cleanup failed after material removal.', {
+      materialId,
+      failures: failures.length,
+    });
+  }
+};
 
 const isListeningLegacyRuntimeRecord = (
   runtime: Record<string, unknown>,
@@ -260,6 +280,15 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       ...current,
       updatedAt: Date.now(),
     }, 'removed');
+    const runtimeSourceDraftId =
+      typeof current.sourceDraftId === 'string' && current.sourceDraftId.trim()
+        ? current.sourceDraftId.trim()
+        : undefined;
+    const sourceDraftId =
+      typeof test.sourceDraftId === 'string' && test.sourceDraftId.trim()
+        ? test.sourceDraftId.trim()
+        : runtimeSourceDraftId;
+
     await dbUpdate(ref(database), {
       [`tests/${test.id}`]: null,
       ...buildMaterialSummaryUpdatePayload(removedSummary, previousSummary),
@@ -269,14 +298,19 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       test?.testType === 'IELTS' &&
       String(test?.skill || '').toLowerCase() === 'writing';
     if (test.testType === 'THCS-THPT') {
-      await deleteDoc(doc(db, 'thcs_library', test.id));
-      if (test.sourceDraftId) {
-        await deleteDoc(doc(db, 'thcs_drafts', test.sourceDraftId));
+      const deletes: Array<Promise<unknown>> = [
+        deleteDoc(doc(db, 'thcs_library', test.id)),
+      ];
+      if (sourceDraftId) {
+        deletes.push(deleteDoc(doc(db, 'thcs_drafts', sourceDraftId)));
       }
+      await deleteMaterialSidecars(deletes, test.id);
       return;
     }
-    if (isWritingTest && test.sourceDraftId) {
-      await deleteDoc(doc(db, 'writing_drafts', test.sourceDraftId));
+    if (isWritingTest && sourceDraftId) {
+      await deleteMaterialSidecars([
+        deleteDoc(doc(db, 'writing_drafts', sourceDraftId)),
+      ], test.id);
     }
   };
 

@@ -65,6 +65,11 @@ Content tab presents published tests only. The published-test material kinds are
 - `writing-prompt`
 - `thcs-thpt-test`
 
+Public rows owned by other teachers, including THCS `Use as-is` or
+`thcs_linked_tests` references saved under the current user, must not be merged
+into My Content. A future Saved/Linked view should own those references if the
+product needs them.
+
 Reading Passage and Book rows must not render in My Content. They belong to
 their dedicated tabs. The hook must not read all `/tests`, read another
 teacher's owner bucket, or convert permission/contract failures into an empty
@@ -188,6 +193,31 @@ Old PRD-0033 and PRD-0052 references to `/tests` or
 `reading_v2/listing_indexes` are historical unless a future migration explicitly
 rewires readers, writers, rules, tests, docs, and browser proof.
 
+### THCS Historical Rows
+
+Firestore `thcs_library` is obsolete as a Teacher Materials listing source.
+Some historical THCS rows contain only metadata and `sectionSummary`; they do
+not contain runnable `sections/questions` and must not be shown as active My
+Content tests.
+
+When a published `thcs_drafts` row has full sections but `/tests/{testId}` is
+missing, use the gated `repair:thcs-runtime-bridges` flow. That repair writes
+the RTDB runtime row and MaterialSummary v1 rows together. Metadata-only
+`thcs_library` rows remain historical records until a complete source body is
+found. A MaterialSummary `by_id/{testId}` row with `lifecycleState: "removed"`
+is a tombstone: repair must not resurrect it from stale published draft or
+library sidecars, and may only clean stale active fan-outs for that test.
+
+### Writing Published Draft Drift
+
+Firestore `writing_drafts` is the Writing authoring source. A row with
+`status: "published"` and `publishedTestId` is not sufficient for My Content
+unless the Writing producer has also written the runtime `/tests/{testId}` row
+and MaterialSummary v1 fan-out. If those rows drift, repair the producer bridge
+with `repair:writing-runtime-bridges`; do not broaden My Content back to
+Firestore draft scans or full `/tests` scans. Removed MaterialSummary `by_id`
+tombstones also block Writing repair resurrection from stale published drafts.
+
 ## Current Evidence
 
 Local proof on 2026-07-07:
@@ -207,6 +237,13 @@ Local proof on 2026-07-07:
 - 2026-07-08 product correction: My Content and Public Library are
   published-test views. Reading Passage and Book rows remain discoverable via
   their own tabs, not through My Content/Public Library.
+- 2026-07-08 product correction: My Content means materials created/owned by
+  the current account only. THCS `Use as-is` / linked public tests are excluded
+  from My Content and require a future Saved/Linked surface if needed.
+- Google Chrome proof after the owned-only correction for
+  `hungnguyenzim@gmail.com` showed 24 My Content materials, 13 THCS rows,
+  zero linked/use-as-is THCS rows, no `Retake`, no `Linked` badge, and no
+  console warnings/errors.
 - Reading V2 `/tests` compatibility bridge repair is separate from Teacher
   Materials listing. It has a reviewed-report write gate and must not be used
   as listing authority.
@@ -216,6 +253,25 @@ Local proof on 2026-07-07:
 - The 2026-07-07 approved Reading V2 bridge repair artifacts live under
   `output/reading-v2-test-bridge-repair/`; prewrite planned 12 operations and
   postwrite verification reported zero remaining operations.
+- The 2026-07-08 approved THCS runtime bridge repair reports were generated
+  locally under `output/thcs-runtime-bridge-repair/`; prewrite planned 18 operations
+  (3 runtime writes and 15 MaterialSummary writes), the approved write
+  committed, a final-hardening corrective write committed 6 operations
+  (1 runtime write and 5 MaterialSummary writes), and final postwrite dry-run
+  reported zero remaining THCS bridge operations. The same report intentionally
+  left 17 Firestore `thcs_library` metadata-only rows unbackfillable.
+- The 2026-07-08 Writing runtime bridge repair reports were generated locally
+  under `output/writing-runtime-bridge-repair/`; prewrite planned 11 runtime writes
+  and 55 MaterialSummary writes, write committed with
+  `user-requested-proceed-2026-07-08`, and final postwrite dry-run reported
+  zero remaining Writing bridge operations.
+- Browser proof after the Writing repair showed Teacher Test My Content with
+  7 rows: 5 Reading V2 full-test rows plus `Codex import live check writing`
+  and `Inter - Task 1 - Lesson 2`; Reading Passage/Book rows stayed excluded
+  and console reported zero errors/warnings.
+- Raw live repair reports and payloads can contain teacher-auth data, test
+  bodies, or user content. Keep them local unless a redacted artifact is created
+  deliberately for review.
 - The class-page regression discovered during browser QA was caused by legacy
   class rows missing normalized status/date fields. That fix belongs to
   `documentation/architecture/course-class-management.md`; it is not a reason to
@@ -243,6 +299,7 @@ Local proof on 2026-07-07:
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/architecture/teacher-materials-bulk-selection-actions.md`
+- `documentation/architecture/thcs-runtime-bridge-repair.md`
 - `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 - `documentation/architecture/reading-v2-material-removal-lifecycle.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`

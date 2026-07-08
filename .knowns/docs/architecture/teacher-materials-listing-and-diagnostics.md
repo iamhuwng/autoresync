@@ -37,6 +37,9 @@ My Content includes owned active published-test summaries, private and public.
 Public Library includes active public published-test summaries, including the
 current teacher's own public rows. Published-test material kinds are
 `full-test`, `listening-part`, `writing-prompt`, and `thcs-thpt-test`.
+Public rows owned by other teachers, including THCS `Use as-is` /
+`thcs_linked_tests` references, are not My Content; a future Saved/Linked view
+should own those refs if needed.
 Students and unauthenticated users cannot browse Teacher Materials summary
 indexes.
 
@@ -87,9 +90,32 @@ Do not reintroduce these for Teacher Materials cards:
 - `reading_v2/listing_indexes` as production Teacher Materials proof
 - canonical payload hydration for card lists
 - legacy `/tests` delete alone for Reading V2 master removal
+- Firestore `thcs_library` fallback rows in My Content
 
 Old PRD-0033/0052 references to these paths are historical unless a future
 migration rewires readers, writers, rules, tests, docs, and browser proof.
+
+THCS historical repair:
+
+- `thcs_library` rows with only metadata and `sectionSummary` are historical
+  records, not active runnable tests.
+- Complete published `thcs_drafts` rows can be repaired through
+  `repair:thcs-runtime-bridges`, which writes `/tests` and MaterialSummary v1.
+- Metadata-only rows stay unbackfillable until a complete source body is found.
+- Removed MaterialSummary `by_id` tombstones block THCS repair resurrection from
+  stale draft/library sidecars; repair may only clean stale active fan-outs.
+
+Writing drift repair:
+
+- Firestore `writing_drafts` owns authoring state, not Teacher Materials
+  listing.
+- Published Writing drafts with `publishedTestId` must have `/tests/{testId}`
+  plus MaterialSummary v1 fan-out.
+- Use `repair:writing-runtime-bridges` for complete published Writing draft
+  drift. Do not restore Firestore draft scans or broad `/tests` scans in My
+  Content.
+- Removed MaterialSummary `by_id` tombstones block Writing repair resurrection
+  from stale published draft sidecars.
 
 ## Evidence
 
@@ -106,6 +132,11 @@ migration rewires readers, writers, rules, tests, docs, and browser proof.
 - 2026-07-08 product correction: My Content and Public Library are
   published-test views. Reading Passage and Book rows remain discoverable via
   their own tabs.
+- 2026-07-08 product correction: My Content means current-account owned
+  materials only. THCS linked/use-as-is refs are excluded.
+- Chrome proof after the owned-only correction for `hungnguyenzim@gmail.com`
+  showed 24 My Content materials, 13 THCS rows, zero linked/use-as-is THCS rows,
+  no `Retake`, no `Linked` badge, and no console warnings/errors.
 - Reading V2 `/tests` bridge repair has a reviewed-report write gate and remains
   separate from Teacher Materials listing authority.
 - 2026-07-07 approved material-summary repair artifacts live under
@@ -114,6 +145,25 @@ migration rewires readers, writers, rules, tests, docs, and browser proof.
 - 2026-07-07 approved Reading V2 bridge repair artifacts live under
   `output/reading-v2-test-bridge-repair/`; prewrite planned 12 operations and
   postwrite verification reported zero remaining operations.
+- 2026-07-08 approved THCS runtime bridge repair reports were generated locally
+  under `output/thcs-runtime-bridge-repair/`; prewrite planned 18 operations
+  (3 runtime writes and 15 summary writes), write committed, final-hardening
+  corrective write committed 6 operations, and final postwrite dry-run reported
+  zero remaining THCS bridge operations.
+- A later `tmp/tests-export.json` comparison restored 17 additional complete
+  THCS `/tests` rows plus MaterialSummary fan-out, excluding intentionally
+  deleted `Retake`; post-write dry-run selected 0 remaining rows.
+- 2026-07-08 Writing runtime bridge repair reports were generated locally under
+  `output/writing-runtime-bridge-repair/`; prewrite planned 11 runtime writes
+  and 55 summary writes, write committed with
+  `user-requested-proceed-2026-07-08`, and final postwrite dry-run reported
+  zero remaining Writing bridge operations.
+- Browser proof after Writing repair showed Teacher Test My Content with
+  7 rows: 5 Reading V2 rows plus `Codex import live check writing` and
+  `Inter - Task 1 - Lesson 2`; Reading Passage/Book rows stayed excluded and
+  console had zero errors/warnings.
+- Raw live repair reports/payloads can contain auth data, test bodies, or user
+  content. Keep local unless deliberately redacted.
 - The class-page regression in the same session was legacy/fixture class-row
   normalization. It does not weaken the fail-loud material-summary rule.
 

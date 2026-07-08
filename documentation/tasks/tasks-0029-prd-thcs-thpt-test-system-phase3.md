@@ -294,6 +294,11 @@
     - Two action buttons: `[📋 Use as-is]` and `[📄 Clone & Customize]`
     - Card styling consistent with existing test cards but with a distinguishing THCS badge/color
     - **Loading/Empty states:** Show skeleton cards during Firestore query loading. Show `"No tests found matching your filters."` when results are empty.
+  > 2026-07-08 supersession: linked/use-as-is THCS references are not My
+  > Content. The old merge requirement in 4.4.4 is retired. My Content is
+  > current-account owned MaterialSummary `by_owner/{uid}` rows only; linked
+  > references need a separate Saved/Linked surface if the product needs them.
+
   - [x] 4.4 **"Use as-is" Flow:** When teacher clicks "Use as-is":
     1. Show confirmation modal: "This test will be used as-is. You cannot modify it. The original teacher retains ownership."
     2. Two sub-options in the modal: "Start Live Session" → creates session with this test ID (reuse existing session creation flow). "Assign as Homework" → opens the homework assignment dialog (Task 2.3) with this test ID.

@@ -75,6 +75,10 @@ Published-test material kinds are:
 - `writing-prompt`
 - `thcs-thpt-test`
 
+THCS `Use as-is` / `thcs_linked_tests` references are not owned materials and
+must not be merged into My Content. If the product needs them as saved
+shortcuts, they belong in a separate Saved/Linked view.
+
 Reading Passage and Book rows must not appear in My Content/Public Library just
 because they are active owned or public summaries. Their own tabs remain
 summary-index consumers, not separate discovery authorities.
@@ -294,6 +298,28 @@ match the reviewed dry-run operations exactly before a root multi-location
 update is committed. Bridge repair keeps `/tests` runtime-compatible; it must
 not become listing authority.
 
+THCS runtime bridges are also separate from listing authority. Historical
+Firestore `thcs_library` rows are not a valid My Content fallback because they
+can contain only metadata and `sectionSummary`, with no runnable
+`sections/questions` body. Use `repair:thcs-runtime-bridges` to backfill only
+published `thcs_drafts` rows that have full sections into `/tests` plus
+MaterialSummary v1. Metadata-only `thcs_library` rows are reported as
+unbackfillable historical records, not shown as active tests. A removed
+MaterialSummary `by_id` tombstone blocks repair from resurrecting stale THCS
+draft or library sidecars; repair may only clean stale active fan-outs for that
+test.
+
+Writing runtime bridges follow the same boundary. Firestore `writing_drafts`
+owns authoring state, while `/tests/{publishedTestId}` remains the runtime
+compatibility row for published Writing tests and MaterialSummary v1 remains
+the listing authority. A published draft with `publishedTestId` but no runtime
+row and no summary fan-out is producer drift. Use
+`repair:writing-runtime-bridges` to rebuild only complete published Writing
+drafts into `/tests` plus MaterialSummary v1. Do not make My Content scan
+Firestore `writing_drafts` or broad `/tests` to compensate. Removed
+MaterialSummary `by_id` tombstones block repair from resurrecting stale Writing
+draft sidecars.
+
 ## Rules
 
 RTDB rules must:
@@ -400,6 +426,12 @@ canonical state changes.
 
 - My Content reads `material_summary_indexes/v1/by_owner/{teacherId}` only and
   presents published-test material kinds only.
+- My Content does not merge `users/{teacherId}/thcs_linked_tests`; linked or
+  use-as-is THCS refs are not owned materials.
+- Google Chrome proof after the owned-only correction for
+  `hungnguyenzim@gmail.com` showed 24 My Content materials, 13 owned THCS rows,
+  no linked/use-as-is THCS rows, no `Retake`, no `Linked` badge, and no console
+  warnings/errors.
 - Public Library reads `material_summary_indexes/v1/by_visibility/public` only
   and presents published-test material kinds only.
 - Active dedicated Reading Passage and Book tab discovery also starts from
@@ -420,9 +452,29 @@ canonical state changes.
   under `output/reading-v2-test-bridge-repair/`; the prewrite report planned 12
   bridge operations and postwrite verification reported zero remaining bridge
   operations.
+- Approved THCS `/tests` bridge repair on 2026-07-08 used local reports under
+  `output/thcs-runtime-bridge-repair/`; the prewrite report planned 3 runtime
+  writes and 15 MaterialSummary writes, the approved write committed, and
+  final-hardening corrective write committed 1 runtime write and 5
+  MaterialSummary writes. Final postwrite verification reported zero remaining
+  THCS bridge operations. Seventeen Firestore `thcs_library` metadata-only rows
+  remained unbackfillable because no full published draft sections were
+  available.
+- Writing `/tests` bridge repair on 2026-07-08 used local reports under
+  `output/writing-runtime-bridge-repair/`; the prewrite report planned 11
+  runtime writes and 55 MaterialSummary writes, the write committed with
+  `user-requested-proceed-2026-07-08`, and final postwrite verification
+  reported zero remaining Writing bridge operations.
 - Browser QA on `http://localhost:5173/lobby` after rules and approved repair
   showed My Content, Public Library, Reading Passage, and Book tabs rendering
   without permission errors or fake empty states.
+- Browser QA after the Writing repair showed My Content as a published-test
+  view with 7 owned rows for the Teacher Test account: 5 Reading V2 full-test
+  rows plus 2 Writing rows. Reading Passage/Book rows remained excluded from My
+  Content.
+- Raw live repair reports and payloads can contain auth data, test bodies, or
+  user content. Do not commit them unless a deliberately redacted artifact is
+  needed for review.
 - Browser QA on teacher class list/detail after the class normalization fix
   showed PRD-0055 fixture rows rendering without `Invalid Date` or
   `status.toUpperCase()` crashes.
@@ -451,3 +503,17 @@ of these are true for that exact project:
 8. Any required `/tests` compatibility bridge repair has a separate dry-run
    report, approval gate, post-write zero-op verification, and browser/runtime
    proof.
+
+THCS bridge repair command:
+
+```bash
+npm run repair:thcs-runtime-bridges -- --dry-run --project <project-id> --report <file>
+npm run repair:thcs-runtime-bridges -- --write --project <project-id> --approved <id> --from-report <file>
+```
+
+Writing bridge repair command:
+
+```bash
+npm run repair:writing-runtime-bridges -- --dry-run --project <project-id> --report <file>
+npm run repair:writing-runtime-bridges -- --write --project <project-id> --approved <id> --from-report <file>
+```

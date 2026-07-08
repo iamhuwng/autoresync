@@ -54,6 +54,8 @@ Visibility and tab contract:
 
 - My Content is an owner query and includes private plus public active
   published-test rows owned by the teacher.
+- THCS `Use as-is` / `thcs_linked_tests` refs are not owned materials and do
+  not merge into My Content; use a future Saved/Linked view if needed.
 - Public Library is a visibility query and includes active public
   published-test summaries, including public rows owned by the current teacher.
 - Reading Passage and Book rows do not render in My Content/Public Library
@@ -72,6 +74,29 @@ Repair contract:
 - bounded multi-location update
 - post-write readback and zero-op verification
 
+THCS runtime bridge rule:
+
+- Firestore `thcs_library` is not Teacher Materials authority
+- metadata-only `thcs_library` rows with `sectionSummary` but no full
+  `sections/questions` are historical records, not active runnable tests
+- `repair:thcs-runtime-bridges` may backfill only complete published
+  `thcs_drafts` rows into `/tests` plus MaterialSummary v1
+- removed MaterialSummary `by_id` tombstones block stale THCS draft/library
+  sidecar resurrection; repair may only clean stale active fan-outs
+- write mode needs `--write --approved <id> --from-report <dry-run-report>`
+
+Writing runtime bridge rule:
+
+- Firestore `writing_drafts` is authoring state, not My Content listing
+  authority
+- complete published Writing drafts with `publishedTestId` must have
+  `/tests/{testId}` plus MaterialSummary v1 fan-out
+- `repair:writing-runtime-bridges` may backfill only complete published
+  Writing drafts into `/tests` plus MaterialSummary v1
+- removed MaterialSummary `by_id` tombstones block stale Writing draft
+  sidecar resurrection
+- write mode needs `--write --approved <id> --from-report <dry-run-report>`
+
 2026-07-07 evidence:
 
 - approved summary repair prewrite planned 204 operations and postwrite reported
@@ -81,3 +106,24 @@ Repair contract:
 - browser proof on `http://localhost:5173/lobby` must verify My Content/Public
   Library as published-test views and Reading Passage/Book as dedicated
   summary-backed views, without permission errors or fake empty states
+
+2026-07-08 evidence:
+
+- approved THCS runtime bridge repair wrote 3 `/tests` rows and 15
+  MaterialSummary rows, final-hardening corrective write committed 1 runtime
+  row plus 5 MaterialSummary rows, then final postwrite reported zero remaining
+  THCS bridge operations
+- later `tmp/tests-export.json` comparison restored 17 additional complete THCS
+  `/tests` rows plus MaterialSummary fan-out, excluding intentionally deleted
+  `Retake`; post-write dry-run selected 0 remaining rows
+- Writing runtime bridge repair wrote 11 `/tests` rows and 55 MaterialSummary
+  rows with `user-requested-proceed-2026-07-08`, then final postwrite reported
+  zero remaining Writing bridge operations
+- browser proof after Writing repair showed Teacher Test My Content with
+  7 published-test rows: 5 Reading V2 rows plus 2 Writing rows; no Reading
+  Passage or Book rows rendered there
+- Chrome proof after owned-only correction for `hungnguyenzim@gmail.com` showed
+  24 My Content materials, 13 owned THCS rows, no linked/use-as-is THCS rows, no
+  `Retake`, no `Linked` badge, and no console warnings/errors
+- raw live repair reports/payloads can contain auth data, test bodies, or user
+  content; keep local unless deliberately redacted
