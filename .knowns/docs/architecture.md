@@ -30,6 +30,12 @@ Public Library read universal MaterialSummary indexes; `/tests` is runtime and
 legacy compatibility storage only. Selected-material actions are governed by
 @doc/architecture/teacher-materials-bulk-selection-actions.
 
+Book Activity planning authority lives in
+@doc/architecture/book-activity-runtime-and-assembly. PRD0062 extends the
+existing Book system; `ActivityBook`, whole-Book submission, bare `materialId`
+Course/Class resolution, and legacy PDF parser dependency are obsolete for this
+feature.
+
 ## Architecture Layers
 
 ```

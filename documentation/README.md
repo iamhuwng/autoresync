@@ -10,6 +10,7 @@ This folder contains all the documentation for the project.
 
 ## Latest Updates
 
+*   **[July 9, 2026 - Book Activity Runtime And Assembly Architecture](./architecture/book-activity-runtime-and-assembly.md)** - PRD0062 planning authority for Book Activity domain, Assembly Workspace, runtime, Book Homework, updates, delivery, and obsolete PDF parser boundaries.
 *   **[July 8, 2026 - Docs Changelog Architecture Split](./architecture/changelog/docs-changelog-architecture-split-2026-07-08.md)** - Moved primary repair, audit, ledger, and closure-history records out of `documentation/architecture/` and into the new changelog lane.
 *   **[July 7, 2026 - Firebase Hosting And Worker Endpoint Policy](./architecture/firebase-hosting-worker-endpoint-policy.md)** - Firebase Hosting serves the app; Listening/R2 upload, authoring, and delivery calls use the deployed `r2-upload-signer` Worker, with no browser fallback to `localhost:8787`.
 *   **[July 7, 2026 - Teacher Materials Bulk Selection Actions](./architecture/teacher-materials-bulk-selection-actions.md)** - Current Teacher Lobby selected-material action contract for My Content, Public Library, Drafts, Reading Passage, and Book tabs.

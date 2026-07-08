@@ -1,0 +1,134 @@
+# Task List: PRD0062 Component 07 - Cross-Feature Delivery And Results
+
+Status: Draft task list. Execute only through the master orchestration packet order.
+
+Source PRD:
+- `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Master orchestration:
+- `documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md`
+
+## Relevant Files
+
+- `src/services/book-delivery/bookDelivery.service.ts` - New Book-owned delivery module for Solo, Homework, Course, Class-linked Course, and future Live contracts.
+- `src/types/bookDelivery.types.ts` - New delivery request, placement binding, projection, access, schedule, draft, attempt, and result metadata contracts.
+- `src/pages/StudentPracticePage.tsx` - Existing shared asynchronous launcher.
+- `src/pages/StudentLibraryPage.tsx` - Existing student library surface for Solo Book Practice entry.
+- `src/pages/StudentCourseDetailPage.tsx` - Existing Course entry surface.
+- `src/types/course.types.ts` - Existing Course material contracts to extend with Book subtree/Activity placement bindings.
+- `src/services/courseMaterialAccessService.ts` - Existing Course material access owner; must not copy ambiguous bare `materialId` resolution for Book.
+- `src/services/courseSyncService.ts` - Existing Course sync prior art and integration boundary.
+- `src/services/materialLinkManager.ts` - Existing version/update prior art.
+- `src/components/results/AttemptHistory.tsx` - Existing attempt dropdown prior art.
+- `src/components/results/ResultSlidePanel.tsx` - Existing result panel surface.
+- `src/components/results/ResultDetailModal.tsx` - Existing result detail display surface.
+- `src/hooks/useTestAttempts.ts` - Existing attempt retrieval hook to inspect for extension or adapter points.
+- `src/services/testResults.service.ts` - Existing result attempt service to adapt or wrap for Activity attempts.
+- `src/services/resultVisibility.service.ts` - Existing visibility gate owner.
+- `src/services/resultOwnershipResolver.ts` - Existing teacher/student ownership resolver.
+- `src/services/academicRecordService.ts` - Existing academic record integration to preserve boundaries.
+- `src/pages/TestPageRouter.tsx` - Live Session prior art only; Book Live execution is not V1 scope.
+
+### Notes
+
+- Book Delivery owns access, pinned versions, source/page projection, schedule state, result state, and reload-safe launch restoration.
+- Callers pass context and intent. They do not inspect Book tree, manifest, Page Group, Source Version, Activity Version, or Review Checkpoint storage.
+- Book-originated integrations must reference a frozen Placement binding, not a bare Activity ID.
+- Result attempts group by `studentId + activityId`, while completion remains context-specific.
+- Course/Class must resolve exact placement/context, not ambiguous `materialId`.
+- Live Session data contract may be prepared, but Book Activity execution in Live is not V1.
+
+## Tasks
+
+- [ ] 1.0 Implement Book Delivery module interface
+  - [ ] 1.1 Define `resolveBookDelivery(request)` for Solo, Homework, Course, Class-linked Course, and future Live surface values.
+  - [ ] 1.2 Define `listDeliveryActivities(deliveryId)`.
+  - [ ] 1.3 Define `resolveActivityAttemptTarget(deliveryId, activityId)`.
+  - [ ] 1.4 Define `resolveDeliveryResultVisibility(deliveryId, viewerId)`.
+  - [ ] 1.5 Normalize caller context while keeping caller-owned IDs opaque to runtime.
+  - [ ] 1.6 Return student-safe runtime projection with authorized source slice, ordered Activities, pinned versions, access/deadline state, submission/result state, and update/review metadata.
+  - [ ] 1.7 Add tests proving callers cannot bypass Book Delivery by passing mismatched context/placement/student combinations.
+
+- [ ] 2.0 Implement lean Placement binding resolution
+  - [ ] 2.1 Define frozen Placement binding with `bookId`, `manifestVersionId`, `placementId`, `activityId`, `activityVersionId`, and `titleSnapshot`.
+  - [ ] 2.2 Resolve Book path, page group, visible order, source version, source page labels, and source-assisted context through `manifestVersionId` and Placement.
+  - [ ] 2.3 Reject bindings where Activity, Source, Manifest, or Placement versions do not match the delivery surface.
+  - [ ] 2.4 Ensure Book Delivery, Homework, Course, and future composition consume the same binding shape.
+  - [ ] 2.5 Add tests proving exact placement binding prevents ambiguous reuse.
+
+- [ ] 3.0 Implement context-owned access rules
+  - [ ] 3.1 Implement Solo access from Book solo/public visibility and archive status.
+  - [ ] 3.2 Implement Homework access from assignment target, open/scheduled access, deadlines, and per-student overrides.
+  - [ ] 3.3 Implement Course access from enrollment, module release, and exact Course material placement.
+  - [ ] 3.4 Implement Class-linked Course access from class-owned Course/Homework object.
+  - [ ] 3.5 Preserve archived Books for existing pinned deliveries while blocking new Solo launches and new placements.
+  - [ ] 3.6 Add tests for each access surface and archived Book behavior.
+
+- [ ] 4.0 Implement surface pinning and update policy
+  - [ ] 4.1 For Solo, pin current Activity and Source versions at attempt start; new attempt may use latest published version.
+  - [ ] 4.2 For Homework, use assignment-pinned Activity and Source versions until teacher applies selective update.
+  - [ ] 4.3 For Course/Class, pin selected Book subtree/Activity at Course material placement and update only through explicit sync/update.
+  - [ ] 4.4 Prepare future Live freeze contract without executing Book in Live Sessions.
+  - [ ] 4.5 For future composition, reference original by default and require fork/copy before mutation.
+  - [ ] 4.6 Add tests proving source edits do not silently mutate pinned deliveries.
+
+- [ ] 5.0 Implement context-scoped drafts, attempts, and completion
+  - [ ] 5.1 Define draft key dimensions: student ID, Activity ID, Activity Version ID, surface, and exact placement/delivery ID.
+  - [ ] 5.2 Prevent Solo drafts from overwriting Homework drafts.
+  - [ ] 5.3 Prevent Homework drafts from overwriting Course drafts.
+  - [ ] 5.4 Prevent two Course placements of the same Activity from sharing draft/progress state.
+  - [ ] 5.5 Prevent old version drafts from appearing inside a newer pinned version.
+  - [ ] 5.6 Keep attempt limits delivery-context scoped.
+  - [ ] 5.7 Keep Solo, Homework, Course, and Class completion records separate.
+  - [ ] 5.8 Add tests for draft isolation, attempt isolation, and completion isolation.
+
+- [ ] 6.0 Integrate Activity result attempts with existing result panels/dropdowns
+  - [ ] 6.1 Store each Activity submission as one immutable Activity attempt.
+  - [ ] 6.2 Group attempts by `studentId + activityId` for result panel/dropdown display.
+  - [ ] 6.3 Store surface, delivery context ID, placement ID, Activity Version ID, Source Version ID where source-assisted, submission time, and grading/regrading history per attempt.
+  - [ ] 6.4 Display each attempt's answers, corrections, score, feedback, version, and source context.
+  - [ ] 6.5 Keep separate Activities in separate result pages/panels.
+  - [ ] 6.6 Ensure Unit/Book/Course/Homework summaries aggregate progress only and link to Activity results.
+  - [ ] 6.7 Ensure result viewing never transfers completion across surfaces.
+  - [ ] 6.8 Add result grouping tests using the Solo Monday / Homework Wednesday example from the PRD.
+
+- [ ] 7.0 Preserve result visibility and ownership boundaries
+  - [ ] 7.1 Let students see their own permitted attempts.
+  - [ ] 7.2 Let teachers see only attempts created under teacher-owned Homework/Course/Class/Live authority.
+  - [ ] 7.3 Keep private Solo attempts private unless later policy changes.
+  - [ ] 7.4 Gate Homework attempt feedback by Homework feedback release timing.
+  - [ ] 7.5 Warn when delayed/manual-feedback Homework selects Activities that may already be visible through Solo or prior feedback.
+  - [ ] 7.6 Preserve warning-first policy; do not automatically lock Solo access.
+  - [ ] 7.7 Add tests proving teacher result visibility never exposes private Solo attempts.
+
+- [ ] 8.0 Add Course/Class Book placement support
+  - [ ] 8.1 Allow a Course material item to reference a selected Book subtree.
+  - [ ] 8.2 Allow a Course material item to reference a single Activity with required source context where applicable.
+  - [ ] 8.3 Resolve exact `courseMaterialId` or equivalent placement context, not bare `materialId`.
+  - [ ] 8.4 Mark Course item complete when required Activities under the selected Book placement are submitted.
+  - [ ] 8.5 Support optional Homework-created-from-Course progress credit only when placement explicitly enables it.
+  - [ ] 8.6 Ensure class-linked Course copies receive Book changes only through explicit sync/update.
+  - [ ] 8.7 Add tests for duplicate same-Activity Course placements and class-linked Course sync behavior.
+
+- [ ] 9.0 Add Content Catalog browse/resolve seams for future composition
+  - [ ] 9.1 Define `browseChildren(containerRef)`.
+  - [ ] 9.2 Define `resolveSelection(selection)`.
+  - [ ] 9.3 Hide RTDB/Firestore paths, Book tree storage shape, Placement resolution, version pinning, and source authorization from callers.
+  - [ ] 9.4 Return structured bundles for Unit/Chapter selection by default.
+  - [ ] 9.5 Allow future targets to preserve structure or flatten ordered Activities.
+  - [ ] 9.6 Implement reference-first behavior and newer-version awareness.
+  - [ ] 9.7 Implement revise-original versus customize-here/fork contract at the service boundary.
+  - [ ] 9.8 Add tests for structured selection and required/optional/no source context reuse rules.
+
+- [ ] 10.0 Preserve Live Session boundary
+  - [ ] 10.1 Inspect `TestPageRouter`, session manager, and live runtime prior art only as context.
+  - [ ] 10.2 Define future Live data contract requirements without enabling Book execution in Live.
+  - [ ] 10.3 Ensure no V1 UI offers Book Live Session launch.
+  - [ ] 10.4 Add tests or guardrails proving Book Live execution is not reachable in V1.
+
+- [ ] 11.0 Preserve cross-feature regressions
+  - [ ] 11.1 Prove Student Practice launcher dispatches Book without breaking existing material types.
+  - [ ] 11.2 Prove Reading V2 pinned assignment launch remains stable.
+  - [ ] 11.3 Prove result visibility and ownership behavior remains stable for existing result types.
+  - [ ] 11.4 Prove Course/Class existing materials still launch and sync.
+  - [ ] 11.5 Update findings with final Book Delivery, result, Course/Class, and Content Catalog owner paths.

@@ -17,6 +17,14 @@ Defines the current Book editor shell, tab ownership, interaction boundaries, an
 - `BookEditorPage` is compatibility/page presentation only.
 - Public projection presentation remains read-only.
 
+## PRD0062 Extension Boundary
+
+PRD0062 Book Activity work extends this Book system with Assembly Workspace, Activity Material placement, and student Book Runtime delivery. It must preserve the modal shell and route compatibility rules above unless a later approved architecture update explicitly replaces them.
+
+The Assembly Workspace belongs inside the existing Book product boundary. It is not a second `ActivityBook` product and must not use the retired route-first editor, peer `Assign` tab, or whole-Book homework/start shortcuts as a foundation.
+
+Durable Book Activity planning authority lives in `documentation/architecture/book-activity-runtime-and-assembly.md`.
+
 ## Tab Ownership
 
 The modal has exactly three tabs:
@@ -36,6 +44,7 @@ Retired:
 - body-owned real tabs under a decorative modal tab rail;
 - body-level `Save Book Structure`;
 - persistent modal footer/status strip.
+- using the legacy PDF parser path as Book Activity import or source-delivery infrastructure.
 
 ## Content Layout
 
