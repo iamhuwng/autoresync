@@ -13,6 +13,10 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { READING_V2_OPERATIONAL_MATRIX } from '../../services/reading-v2/readingV2OperationalMatrix';
+import {
+  buildReadingV2TeacherSelectedPassageComposition,
+  removeReadingV2MasterComposition,
+} from '../../services/reading-v2/readingV2TeacherComposition.service';
 
 const PROJECT_ID = 'demo-prd-0048-reading-v2-rules';
 const DATABASE_RULES = readFileSync('database.rules.json', 'utf8');
@@ -954,6 +958,101 @@ describeEmulator('Reading V2 Firebase rule emulator behavior', () => {
     };
 
     await assertSucceeds(teacher.database().ref().update(updates));
+  });
+
+  it('allows owners to soft-remove Reading V2 masters when material summary cleanup rows are absent', async () => {
+    const { teacher } = makeReadingV2RuleContexts();
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages: [
+        {
+          materialId: 'passage-remove-1',
+          ownerId: 'teacher-1',
+          title: 'Passage 1',
+          questionCount: 13,
+          durationMinutes: 20,
+          publishedSnapshotVersionId: 'snapshot-passage-1',
+          currentVersionId: 'snapshot-passage-1',
+          testTypeIds: ['ielts'],
+          visibility: 'private',
+        },
+      ],
+      now: '2026-06-16T05:30:00.000Z',
+    });
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      const persistedComposition = JSON.parse(JSON.stringify({
+        ...composition,
+        state: 'published',
+      }));
+
+      await db.ref(`reading_v2/full_test_compositions/${composition.compositionId}`).set(persistedComposition);
+      await db.ref(`reading_v2/material_metadata/${composition.testMaterialId}`).set({
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        productLabel: 'Reading V2',
+        title: composition.title,
+        materialKind: 'full-test',
+        visibility: 'private',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        state: 'published',
+        updatedAt: composition.updatedAt,
+      });
+      await db.ref(`tests/${composition.testMaterialId}`).set({
+        id: composition.testMaterialId,
+        materialId: composition.testMaterialId,
+        ownerId: 'teacher-1',
+        compositionId: composition.compositionId,
+        deliveryEngine: 'reading-v2',
+        contentEngine: 'reading-v2',
+        runtimeEngine: 'reading-v2',
+        title: composition.title,
+        testType: 'IELTS',
+        type: 'IELTS',
+        skill: 'Reading',
+        skillType: 'reading-v2',
+        duration: 20,
+        questionCount: 13,
+        isPublic: false,
+        materialKind: 'full-test',
+        productLabel: 'Reading V2',
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        primaryTestTypeId: 'ielts',
+        testTypeIds: ['ielts'],
+        updatedAt: composition.updatedAt,
+      });
+    });
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (updates) => {
+          await assertSucceeds(teacher.database().ref().update(updates));
+        },
+      },
+      now: '2026-06-17T05:30:00.000Z',
+      correlationId: 'corr-master-remove-rules',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+
+    await assertSucceeds(
+      teacher.database().ref(`reading_v2/full_test_compositions/${composition.compositionId}`).once('value'),
+    );
+    await assertSucceeds(
+      teacher.database().ref(`reading_v2/material_metadata/${composition.testMaterialId}`).once('value'),
+    );
   });
 
   it('allows students to create/read their own attempts and denies cross-student attempts', async () => {

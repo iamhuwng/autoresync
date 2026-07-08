@@ -706,4 +706,41 @@ describe('readingV2TeacherComposition.service', () => {
       `tests/${composition.testMaterialId}`,
     ]));
   });
+
+  it('sanitizes master removal audit paths when correlation ids include RTDB-forbidden timestamp characters', async () => {
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+    let updates: Record<string, unknown | null> = {};
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (nextUpdates) => {
+          updates = { ...nextUpdates };
+        },
+      },
+      now: '2026-07-08T04:43:48.660Z',
+      correlationId: 'teacher-1:composition-1:2026-07-08T04:43:48.660Z',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+
+    const auditPath = Object.keys(updates)
+      .find((path) => path.startsWith('reading_v2/audit_events/'));
+
+    expect(auditPath).toBeDefined();
+    expect(auditPath).toContain('2026-07-08T04:43:48-660Z');
+    expect(auditPath?.replace('reading_v2/audit_events/', '')).not.toMatch(/[.#$[\]/]/);
+  });
 });

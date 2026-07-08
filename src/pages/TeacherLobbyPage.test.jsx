@@ -746,6 +746,63 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
+  it('blocks Reading V2 master removal when canonical owner does not match the actor', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'foreign-master',
+        materialId: 'foreign-master',
+        title: 'Foreign Reading Master',
+        deliveryEngine: 'reading-v2',
+        materialKind: 'full-test',
+        compositionId: 'composition-foreign-master',
+        testType: 'IELTS',
+        skill: 'Reading',
+        status: 'published',
+        isComplete: true,
+        publishedSnapshotVersionId: 'snapshot-foreign-master',
+        hasStudentSafeProjection: true,
+      },
+    ];
+    mocks.dbReads[readingV2StoragePaths.materialMetadata('foreign-master')] = {
+      materialId: 'foreign-master',
+      ownerId: 'teacher-2',
+      title: 'Foreign Reading Master',
+      visibility: 'public',
+      testTypeIds: ['ielts'],
+      updatedAt: '2026-07-08T04:43:48.660Z',
+    };
+
+    renderTeacherLobbyWithToasts();
+
+    const row = await screen.findByTestId('material-list-row-foreign-master');
+    await user.click(within(row).getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByRole('dialog', { name: 'Remove Reading V2 master?' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove master only' }));
+
+    expect(await screen.findAllByText('Only the owner can remove this Reading V2 master.')).toHaveLength(2);
+    expect(mocks.dbWrites).toHaveLength(0);
+    expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+      'reading_v2_master_remove_preflight',
+      expect.objectContaining({
+        materialId: 'foreign-master',
+        actorUserId: 'teacher-1',
+        cardOwnerId: null,
+        canonicalOwnerId: 'teacher-2',
+        resolvedOwnerId: 'teacher-2',
+        ownerSource: 'canonical_metadata',
+      }),
+    );
+    expect(mocks.logDiagnostic).toHaveBeenCalledWith(
+      'reading_v2_master_remove_blocked',
+      expect.objectContaining({
+        materialId: 'foreign-master',
+        reason: 'owner_mismatch',
+      }),
+    );
+  });
+
   it('shows Assign HW for owned My Content IELTS Reading enriched with student-safe projection metadata', async () => {
     mocks.tests = [
       {

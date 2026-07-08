@@ -115,6 +115,11 @@ const sanitizeIdPart = (value: string): string => {
   return normalized || 'reading-test';
 };
 
+const auditEventIdPart = (value: string): string => {
+  const normalized = value.trim().replace(/[.#$[\]/]/g, '-');
+  return normalized || 'unknown';
+};
+
 const nowIso = (): string => new Date().toISOString();
 
 const unique = <T>(values: readonly T[]): T[] => Array.from(new Set(values));
@@ -1311,7 +1316,11 @@ export const removeReadingV2MasterComposition = async (input: {
   };
 
   const legacyTestPath = `tests/${input.composition.testMaterialId}`;
-  const eventId = `${input.correlationId}:reading_master_removed:${input.composition.compositionId}`;
+  const eventId = [
+    input.correlationId,
+    'reading_master_removed',
+    input.composition.compositionId,
+  ].map(auditEventIdPart).join(':');
   const auditPath = getReadingV2AuditEventPath(eventId);
   const event = buildReadingV2AuditEvent({
     eventId,

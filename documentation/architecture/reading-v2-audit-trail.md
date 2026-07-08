@@ -16,6 +16,8 @@ reading_v2/audit_events/{eventId}
 
 Writes are append-only. No update or delete is allowed after event creation.
 
+Event IDs are path segments. Build event IDs from sanitized parts only: replace RTDB-forbidden characters (`.`, `#`, `$`, `[`, `]`, `/`) before calling the audit path helper. Correlation IDs commonly include timestamps, so they must not be interpolated directly into the path.
+
 ## Required Event Shape
 
 Each event must include:

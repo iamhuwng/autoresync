@@ -86,6 +86,18 @@ List mode is not a widened card implementation. It must follow `documentation/ar
 
 Selected-material actions must stay inside the Materials content area. Do not move selection toolbar controls into `TeacherHeader`, and do not let bulk action state rewrite card/list loading contracts.
 
+## Reading V2 Master Removal Contract
+
+Teacher Lobby owns the Reading V2 master removal review modal, but it does not invent canonical ownership.
+
+Required rules:
+
+- Before removing a Reading V2 master, resolve `reading_v2/material_metadata/{materialId}` and prefer its `ownerId` over card/index ownership.
+- Never fall back from a missing card `ownerId` to the acting teacher UID for the removal write. A missing owner must block or use canonical metadata.
+- Emit `reading_v2_master_remove_preflight` before the write with actor, card owner, canonical owner, resolved owner, owner source, linked-passage intent, and canonical load error when present.
+- If ownership cannot be verified or does not match the actor, block before RTDB write, emit `reading_v2_master_remove_blocked`, and show the shared announcement error.
+- Linked passage removal still requires linked passage ownership review. Master removal and linked passage archive writes remain separate service calls and separate audit events.
+
 ## Teacher Header Responsive Contract
 
 `TeacherHeader` keeps teacher chrome visible while preventing tab overflow.

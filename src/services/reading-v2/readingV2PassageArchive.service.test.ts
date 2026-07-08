@@ -138,6 +138,28 @@ describe('readingV2PassageArchive.service', () => {
     ]));
   });
 
+  it('sanitizes audit event paths when correlation ids include RTDB-forbidden timestamp characters', async () => {
+    const repo = repository(lifecyclePreflightReadMap());
+
+    await archiveReadingV2PassageMaterial({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      passage: passage(),
+      repository: repo.adapter,
+      now: '2026-07-08T03:51:03.964Z',
+      correlationId: 'teacher-1:passage-1:2026-07-08T03:51:03.964Z',
+      sourceFeatureId: 'teacher_materials_reading_passage_archive',
+      sourceRoute: '/lobby',
+    });
+
+    const auditPath = Object.keys(repo.updates[0] ?? {})
+      .find((path) => path.startsWith('reading_v2/audit_events/'));
+
+    expect(auditPath).toBeDefined();
+    expect(auditPath).toContain('2026-07-08T03:51:03-964Z');
+    expect(auditPath?.replace('reading_v2/audit_events/', '')).not.toMatch(/[.#$[\]/]/);
+  });
+
   it('archives owned passages, writes a lightweight archive index, audits, and preserves immutable snapshots', async () => {
     const repo = repository({
       ...lifecyclePreflightReadMap(),

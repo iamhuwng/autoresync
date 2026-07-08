@@ -158,7 +158,7 @@ const auditEventIdPart = (value: string): string =>
   value.replace(/[.#$[\]/]/g, '-');
 
 const auditEventId = (correlationId: string, action: string, entityId: string, createdAt: string): string =>
-  `${correlationId}:${action}:${entityId}:${auditEventIdPart(createdAt)}`;
+  [correlationId, action, entityId, createdAt].map(auditEventIdPart).join(':');
 
 const buildArchiveIndexRow = (input: {
   readonly passage: ReadingV2PassageArchiveMaterial;
