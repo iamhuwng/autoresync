@@ -1,4 +1,4 @@
-﻿# Result View Permission Matrix
+# Result View Permission Matrix
 
 Canonical unified result-view permission matrix for the PRD-0040 shell architecture and the PRD-0041 Phase 1 visibility policy.
 
@@ -11,8 +11,12 @@ Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
 - `documentation/rules/result-visibility-review-checklist.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
+
+Changelog ID: `CL-20260325-RESULT-VIEW-PERMISSION-MATRIX`
+Moved from: `documentation/architecture/result-view-permission-matrix.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
 
 ## PRD-0049 Reconciliation Note
 

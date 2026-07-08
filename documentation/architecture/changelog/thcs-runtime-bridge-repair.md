@@ -1,5 +1,9 @@
 # THCS Runtime Bridge Repair
 
+Changelog ID: `CL-20260708-THCS-RUNTIME-BRIDGE-REPAIR`
+Moved from: `documentation/architecture/thcs-runtime-bridge-repair.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
+
 ## Purpose
 
 This document records the THCS-THPT historical data split found during the

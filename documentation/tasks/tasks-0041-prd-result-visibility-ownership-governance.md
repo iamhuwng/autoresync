@@ -1,4 +1,4 @@
-﻿## Relevant Files
+## Relevant Files
 
 - `documentation/tasks/0041-prd-result-visibility-ownership-governance.md` - Source PRD; every task below must satisfy its functional requirements and phase gates.
 - `documentation/architecture/results-academic-record.md` - Existing results architecture doc that must be updated to point to the canonical visibility standard.
@@ -6,8 +6,8 @@
 - `documentation/architecture/course-class-management.md` - Existing course and class ownership doc that must stay consistent with the visibility contract.
 - `documentation/architecture/ui-design-standards.md` - Teacher full-page shell standard that history and result detail must follow.
 - `documentation/architecture/result-visibility-ownership-governance.md` - Dedicated architecture doc to create for this policy; this is the primary technical source of truth.
-- `documentation/architecture/result-view-permission-matrix.md` - Matrix doc that must be updated to reflect the canonical teacher visibility policy.
-- `documentation/architecture/result-view-fr-closure-matrix.md` - Closure matrix doc that must be updated so every PRD requirement maps to implementation and tests.
+- `documentation/architecture/changelog/result-view-permission-matrix.md` - Matrix doc that must be updated to reflect the canonical teacher visibility policy.
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md` - Closure matrix doc that must be updated so every PRD requirement maps to implementation and tests.
 - `documentation/result-visibility-producer-consumer-contract.md` - Dedicated producer and consumer contract doc to create; lock required fields, lookup rules, and banned shortcuts here.
 - `documentation/rules/result-visibility-review-checklist.md` - Dedicated reviewer checklist to create; use it to block local filters, raw `teacherId` authority, and missing reconciliation coverage.
 - `documentation/tasks/findings-of-tasks-0041-prd-result-visibility-ownership-governance.md` - Running log of newly discovered scope, repo mismatches, and follow-up risks discovered during implementation.
@@ -112,8 +112,8 @@
   - [x] 1.2 Keep the explicit prerequisite order in this task list: finish `1.x`, then `2.x`, then `3.x`, then `4.x`, then `5.x`, then `6.x`; no consumer migration may start before schema and shared-service tasks are complete.
   - [x] 1.3 Create `documentation/architecture/result-visibility-ownership-governance.md` as the dedicated architecture doc for this policy; make it the primary technical source of truth.
   - [x] 1.4 Update `documentation/architecture/results-academic-record.md`, `documentation/architecture/homework-solo-practice-architecture.md`, and `documentation/architecture/course-class-management.md` so they all point back to the same canonical visibility contract instead of redefining ownership locally.
-  - [x] 1.5 Update `documentation/architecture/result-view-permission-matrix.md` so it records the exact teacher visibility rules, the outer access gate rule, the solo-practice rule, and the ban on original test authorship as a visibility signal.
-  - [x] 1.6 Update `documentation/architecture/result-view-fr-closure-matrix.md` so every Phase 1 PRD requirement is mapped to code files and tests.
+  - [x] 1.5 Update `documentation/architecture/changelog/result-view-permission-matrix.md` so it records the exact teacher visibility rules, the outer access gate rule, the solo-practice rule, and the ban on original test authorship as a visibility signal.
+  - [x] 1.6 Update `documentation/architecture/changelog/result-view-fr-closure-matrix.md` so every Phase 1 PRD requirement is mapped to code files and tests.
   - [x] 1.7 Create `documentation/result-visibility-producer-consumer-contract.md` and lock the exact required fields, authoritative-source lookups, reporting path, and banned shortcuts there.
   - [x] 1.8 Create `documentation/rules/result-visibility-review-checklist.md` and lock explicit reject conditions there: local page filters, raw `teacherId` authority, assignment-context promotion, missing unresolved reporting, and missing reindex handling.
   - [x] 1.9 Record the exact authoritative-source decision matrix in the docs: `homework`, `class_session`, `class-linked course_material`, `standalone course_material`, `writing_submission` linkage, and `solo_practice`, including the exact owner-field precedence for each, and derive those rules from the current source-of-truth files `src/services/homeworkManager.ts`, `src/services/sessionManager.js`, `src/services/classManager.ts`, `src/services/courseManager.ts`, and `src/services/writingSubmissionService.ts`.
@@ -221,7 +221,7 @@
 
 - [ ] 11.0 Harden later-phase governance artifacts and the full verification matrix so future work cannot drift.
   - [x] 11.1 Keep `documentation/architecture/result-visibility-ownership-governance.md` updated whenever the policy surface changes.
-  - [x] 11.2 Keep `documentation/architecture/result-view-permission-matrix.md` updated with one row per context type, exact lookup, owner field, fallback, include rule, exclude rule, and archived-source behavior.
+  - [x] 11.2 Keep `documentation/architecture/changelog/result-view-permission-matrix.md` updated with one row per context type, exact lookup, owner field, fallback, include rule, exclude rule, and archived-source behavior.
   - [x] 11.3 Keep `documentation/result-visibility-producer-consumer-contract.md` updated with required normalized fields, write-time lookup rules, report schema, and banned shortcuts.
   - [x] 11.4 Keep `documentation/rules/result-visibility-review-checklist.md` updated with explicit reject conditions for local filters, raw `teacherId` authority, assignment-context promotion, missing reconciliation coverage, and missing reindex handling.
   - [x] 11.5 Require the architecture doc, permission matrix, contract doc, and reviewer checklist to be updated together in every later-phase change set that touches the policy surface.

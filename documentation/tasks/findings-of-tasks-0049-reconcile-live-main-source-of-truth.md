@@ -156,7 +156,7 @@
 
 ## 2026-05-08 16:05 +07:00 - Phase 8 Durable Policy Docs
 
-- Created `documentation/architecture/repo-branch-source-of-truth.md`.
+- Created `documentation/rules/repo-branch-source-of-truth.md`.
 - Defined branch roles for `origin/main`, local `main`, `codex/*`, `backup/*`, and `wip/*`.
 - Defined post-reconcile new-worktree base: `origin/main` after `npm run branch:doctor` passes.
 - Defined pre-reconcile temporary exception: local `main` is safer than `origin/main` because it matches live Writing grading.

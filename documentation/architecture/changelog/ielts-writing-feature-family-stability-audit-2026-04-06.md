@@ -1,4 +1,8 @@
-﻿# IELTS Writing Feature-Family Stability Audit (2026-04-06)
+# IELTS Writing Feature-Family Stability Audit (2026-04-06)
+
+Changelog ID: `CL-20260406-IELTS-WRITING-FAMILY-STABILITY-AUDIT`
+Moved from: `documentation/architecture/ielts-writing/feature-family-stability-audit-2026-04-06.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
 
 ## Purpose
 This audit reviews the full IELTS Writing feature family against the current approved contracts and recent accepted UI/interaction decisions. It is report-only: no fixes are included in this document.

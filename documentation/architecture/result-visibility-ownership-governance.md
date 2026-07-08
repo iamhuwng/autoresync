@@ -6,10 +6,10 @@ Companion docs:
 - `documentation/tasks/0041-prd-result-visibility-ownership-governance.md`
 - `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 - `documentation/rules/result-visibility-review-checklist.md`
-- `documentation/architecture/result-view-permission-matrix.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 - `documentation/architecture/ui-design-standards.md`
 
 ## Binding Rule

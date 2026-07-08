@@ -105,7 +105,7 @@
 
 **0.1 — Preflight Ledger:**
 - Audited every surface touched by PRD-0040 via code search and file reads
-- Created `documentation/architecture/prd0040-preflight-ledger.md` with 30+ surfaces across 8 sections:
+- Created `documentation/architecture/changelog/prd0040-preflight-ledger.md` with 30+ surfaces across 8 sections:
   - 3 saved-result shells + 1 route wrapper
   - 6 entry owners (parent hosts)
   - 8 session/post-test surfaces
@@ -146,5 +146,5 @@
 Full change record with carried risks, phase sequence, and links to all artifacts.
 
 ### Files Created/Modified
-- Created: `documentation/architecture/prd0040-preflight-ledger.md` (602 lines)
+- Created: `documentation/architecture/changelog/prd0040-preflight-ledger.md` (602 lines)
 - Modified: `documentation/tasks/tasks-0040-prd-unified-result-view-architecture-and-governance.md` (all 0.x tasks marked [x])

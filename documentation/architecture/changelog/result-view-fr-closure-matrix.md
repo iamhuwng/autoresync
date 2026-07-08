@@ -1,4 +1,8 @@
-﻿# Result View FR Closure Matrix
+# Result View FR Closure Matrix
+
+Changelog ID: `CL-20260325-RESULT-VIEW-FR-CLOSURE-MATRIX`
+Moved from: `documentation/architecture/result-view-fr-closure-matrix.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
 
 Unified result-view closure mapping for the PRD-0040 architecture baseline and the currently active PRD-0041 Phase 1 visibility policy.
 
@@ -11,7 +15,7 @@ Companion docs:
 - `documentation/tasks/0041-prd-result-visibility-ownership-governance.md`
 - `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
 - `documentation/architecture/result-visibility-ownership-governance.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 
 ## PRD-0049 Reconciliation Note
 
@@ -51,7 +55,7 @@ Status keys:
 | `FR-060` to `FR-063` | Admin-only unresolved reconciliation and reporting | `src/services/resultVisibilityReporting.service.ts`, `src/services/reportingService.ts`, `src/pages/AdminReportsPage.tsx`, `database.rules.json` | `src/services/resultVisibilityReporting.service.test.ts`, `src/services/reportingService.test.ts`, `src/pages/AdminReportsPage.test.tsx`, `src/__tests__/security/firebaseRules.test.ts` | verified |
 | `FR-064` to `FR-067` | Live quiz canonical persistence and teacher-history completeness | `src/pages/StudentQuizPageNew.jsx`, `src/services/testResults.service.ts`, `src/services/resultOwnershipResolver.ts` | `src/pages/StudentQuizPageNew.test.jsx`, `src/services/testResults.service.test.ts`, `src/services/resultOwnershipResolver.test.ts` | verified |
 | `FR-068` to `FR-074` | Shared consumer adoption, teacher shell, result-detail shell, filter derivation, and solo-practice analytics exclusion | `src/pages/TeacherStudentHistoryPage.tsx`, `src/pages/ResultDetailPage.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/components/results/ResultFilters.tsx`, `src/pages/TeacherStudentsPage.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx`, `src/components/results/ResultFilters.test.tsx` | verified |
-| `FR-075` to `FR-080` | Governance deliverables and review law | `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/result-visibility-producer-consumer-contract.md`, `documentation/rules/result-visibility-review-checklist.md`, `documentation/architecture/result-view-permission-matrix.md` | doc review plus task-list completion | verified |
+| `FR-075` to `FR-080` | Governance deliverables and review law | `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/result-visibility-producer-consumer-contract.md`, `documentation/rules/result-visibility-review-checklist.md`, `documentation/architecture/changelog/result-view-permission-matrix.md` | doc review plus task-list completion | verified |
 
 ## Locked Test Matrix
 

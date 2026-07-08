@@ -3,7 +3,7 @@
 > **Date:** 2026-03-14
 > **Status:** Research / Planning
 >
-> **2026-06-15 Reading V2 status:** This file is historical research. For current Reading V2 live-session/homework integration, use `documentation/architecture/reading-v2-runtime-integrations.md`. Reading V2 now reuses the platform anti-cheat hook/config, passes optional `integrityReport` through trusted submit, and persists telemetry for review/monitoring. The gap and roadmap tables below still describe older/global surfaces unless a row explicitly says Reading V2.
+> **2026-06-15 Reading V2 status:** This file is historical research. For current Reading V2 live-session/homework integration, use `documentation/architecture/changelog/reading-v2-runtime-integrations.md`. Reading V2 now reuses the platform anti-cheat hook/config, passes optional `integrityReport` through trusted submit, and persists telemetry for review/monitoring. The gap and roadmap tables below still describe older/global surfaces unless a row explicitly says Reading V2.
 > **Scope:** All student assessment surfaces — Tests (IELTS), Quizzes, THCS Practice, Homework
 
 ---

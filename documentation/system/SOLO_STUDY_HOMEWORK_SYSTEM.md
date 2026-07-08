@@ -1,7 +1,7 @@
 # Solo Study & Homework System Architecture
 
-> **PRD Reference:** PRD-0016  
-> **Status:** Implementation Complete  
+> **PRD Reference:** PRD-0016
+> **Status:** Implementation Complete
 > **Last Updated:** 2026-02-03
 
 ---
@@ -218,7 +218,7 @@ interface ResultContext {
 
 ### Context Badge Colors
 - 🏫 **Live Session** - Blue
-- 📋 **Homework** - Orange  
+- 📋 **Homework** - Orange
 - 📖 **Practice** - Green
 - 📚 **Course Material** - Purple
 
@@ -226,7 +226,7 @@ interface ResultContext {
 
 ## 🔐 Access Control
 
-> Historical note (2026-05-10): this section is a coarse PRD-0016 system summary. Result-row teacher access is now governed by `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/architecture/result-view-permission-matrix.md`, and `documentation/architecture/homework-result-visibility-repair.md`. Do not use this section as canonical authority for `/test_results/{resultId}` ownership or teacher detail access.
+> Historical note (2026-05-10): this section is a coarse PRD-0016 system summary. Result-row teacher access is now governed by `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/architecture/result-view/visibility-policy.md`, and `documentation/architecture/changelog/homework-result-visibility-repair.md`. Do not use this section as canonical authority for `/test_results/{resultId}` ownership or teacher detail access.
 
 ### Teacher Visibility Rules
 1. Teachers can see results from all contexts for **assigned students only**

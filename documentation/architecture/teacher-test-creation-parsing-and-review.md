@@ -200,7 +200,7 @@ Operational consequence:
 - accepted Auto drafts carry source/generated summaries and publish-blocking diagnostics when the content remains reviewable but incomplete
 
 Durable companion:
-- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+- `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`
 
 ## 2026-04-10 Amendment - Question Extraction Resilience
 

@@ -2,8 +2,15 @@
 
 This folder contains all the documentation for the project.
 
+## Changelog
+
+*   **[Master Changelog](./architecture/master_changelog.md)** - Chronological index for durable change history, with detailed records under `./architecture/changelog/`.
+*   **[Changelog Rules](./architecture/changelog/README.md)** - Split rules for architecture docs vs repair, audit, ledger, closure, and rollout history.
+*   **[Changelog System Research](./architecture/changelog/changelog-system-research.md)** - Source-backed notes on changelog and docs maintenance practice.
+
 ## Latest Updates
 
+*   **[July 8, 2026 - Docs Changelog Architecture Split](./architecture/changelog/docs-changelog-architecture-split-2026-07-08.md)** - Moved primary repair, audit, ledger, and closure-history records out of `documentation/architecture/` and into the new changelog lane.
 *   **[July 7, 2026 - Firebase Hosting And Worker Endpoint Policy](./architecture/firebase-hosting-worker-endpoint-policy.md)** - Firebase Hosting serves the app; Listening/R2 upload, authoring, and delivery calls use the deployed `r2-upload-signer` Worker, with no browser fallback to `localhost:8787`.
 *   **[July 7, 2026 - Teacher Materials Bulk Selection Actions](./architecture/teacher-materials-bulk-selection-actions.md)** - Current Teacher Lobby selected-material action contract for My Content, Public Library, Drafts, Reading Passage, and Book tabs.
 *   **[July 7, 2026 - Universal Material Summary Integration](./architecture/universal-material-summary-integration.md)** - Current MaterialSummary catalog authority for Teacher Materials listing, lifecycle indexes, repair, and safe summary rows.

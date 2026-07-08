@@ -101,7 +101,7 @@ Complete ALL of the following before the commit is considered done:
 
 ### Reading V2 Audit Node
 
-For Reading V2 PRD-0054 audit work, use the dedicated RTDB path defined in `documentation/architecture/reading-v2-audit-trail.md`:
+For Reading V2 PRD-0054 audit work, use the dedicated RTDB path defined in `documentation/architecture/changelog/reading-v2-audit-trail.md`:
 
 ```text
 reading_v2/audit_events/{eventId}

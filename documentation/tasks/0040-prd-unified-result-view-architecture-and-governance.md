@@ -5,7 +5,7 @@
 > **Updated:** 2026-03-24
 > **Related Research:** `C:/Users/The Lord/Desktop/component_overlap_analysis.md`
 > **Related PRDs:** `0039-prd-test-results-slide-panel.md`, `0016-prd-rbac-security-hardening.md`
-> **Related Closure Docs:** `documentation/architecture/result-view-map.md`, `documentation/architecture/result-view-permission-matrix.md`, `documentation/rules/result-view-reuse.md`, `documentation/architecture/result-view-fr-closure-matrix.md`
+> **Related Closure Docs:** `documentation/architecture/changelog/result-view-map.md`, `documentation/architecture/changelog/result-view-permission-matrix.md`, `documentation/rules/result-view-reuse.md`, `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 > **Audience:** Junior developer implementing result-view architecture without inventing new patterns
 
 ---
@@ -150,8 +150,8 @@ If a fourth active saved-result shell is discovered during the pre-implementatio
 
 | ID | Requirement |
 |----|-------------|
-| FR-001 | Create `documentation/architecture/result-view-map.md` as the living structural map for all result surfaces. |
-| FR-002 | Create `documentation/architecture/result-view-permission-matrix.md` as the living access/action matrix for all roles and result shells. |
+| FR-001 | Create `documentation/architecture/changelog/result-view-map.md` as the living structural map for all result surfaces. |
+| FR-002 | Create `documentation/architecture/changelog/result-view-permission-matrix.md` as the living access/action matrix for all roles and result shells. |
 | FR-003 | Create `documentation/rules/result-view-reuse.md` as the reuse-before-new-view rule for all future result work. |
 | FR-004 | The result-view map must classify every known result-related surface as `active`, `legacy`, `unwired`, or `demo-only`. |
 | FR-005 | The result-view map must record domain type: saved-result, session/post-test, guest-result/claim, writing, live-monitoring, or unwired/demo. |
@@ -368,8 +368,8 @@ Phase 1 must preserve these working entry owners even when the shared core is ex
 
 | File | Purpose |
 |------|---------|
-| `documentation/architecture/result-view-map.md` | Permanent result architecture map |
-| `documentation/architecture/result-view-permission-matrix.md` | Permanent role/action matrix |
+| `documentation/architecture/changelog/result-view-map.md` | Permanent result architecture map |
+| `documentation/architecture/changelog/result-view-permission-matrix.md` | Permanent role/action matrix |
 | `documentation/rules/result-view-reuse.md` | Reuse-before-new-view rule |
 | Change record in conversation log and/or Knowns/Antigravity Knowledge | Required rationale trail |
 

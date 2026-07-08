@@ -1,9 +1,13 @@
 # Reading V2 Auto Source Ledger And Repair
 
+Changelog ID: `CL-20260514-READING-V2-AUTO-SOURCE-LEDGER-REPAIR`
+Moved from: `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
+
 > **Created:** 2026-05-14
 > **Scope:** Durable architecture note for Reading V2 Auto source-ledger, source-fidelity verification, targeted repair, and redacted Clippings harness behavior.
-> **Status:** Historical ledger/repair companion. Use `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md` as the canonical Auto V4 handoff and provider contract.
-> **Current companion:** `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`
+> **Status:** Historical ledger/repair companion. Use `documentation/architecture/changelog/reading-v2-auto-v4-provider-review-contract.md` as the canonical Auto V4 handoff and provider contract.
+> **Current companion:** `documentation/architecture/changelog/reading-v2-auto-v4-provider-review-contract.md`
 
 ## Ownership Contract
 
@@ -109,7 +113,7 @@ If verifier errors remain, classify them with the canonical Auto V4 handoff taxo
 
 When Auto succeeds with a reviewable draft, the candidate carries only redacted `autoImportDiagnostics` records: code, severity, teacher-safe message, passage number, and question number. Studio groups those records into source-structure, question-binding, task-type, option-bank, structured-layout, and publish-readiness repair categories. Raw source text, prompt text, and provider payloads are not stored in the candidate diagnostics.
 
-Teacher-facing warning navigation is defined in `documentation/architecture/reading-v2-studio-review-issues-contract.md`. Ledger/verifier warnings should become normalized Review Issues rows when Studio can open a canonical-safe editable draft.
+Teacher-facing warning navigation is defined in `documentation/architecture/changelog/reading-v2-studio-review-issues-contract.md`. Ledger/verifier warnings should become normalized Review Issues rows when Studio can open a canonical-safe editable draft.
 
 Local normalization owns stable canonical IDs and task ownership. For Auto Gemini structured payloads, local source name takes precedence over Gemini `sourceFile` when creating the ID stem. Explicit source question ranges own question grouping; Gemini `sectionInstructionId` is used only as a fallback when no local range exists.
 

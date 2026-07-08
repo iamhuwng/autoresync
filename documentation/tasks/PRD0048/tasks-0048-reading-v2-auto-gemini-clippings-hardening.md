@@ -166,7 +166,7 @@ Implemented primary files:
 - `src/components/reading-v2/studio/ReadingV2ImportReviewPanel.tsx` - Studio import diagnostics and teacher repair summary.
 - `src/services/reading-v2/fixtures/readingV2PasteImportFixtures.ts` - in-repo synthetic fixtures.
 - `scripts/reading-v2-clippings-harness.ts` - local-only redacted Clippings ledger scan harness.
-- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md` - durable source-ledger, verifier, repair-loop, harness, and operational settings note.
+- `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md` - durable source-ledger, verifier, repair-loop, harness, and operational settings note.
 - `documentation/tasks/PRD0048/completion-audit-reading-v2-auto-v3-pipeline.md` - prompt-to-artifact completion audit and remaining-gate map.
 - `documentation/tasks/PRD0048/diagnostic-log-reading-v2-auto-v3-pipeline.md` - blocker/error diagnostic log with root causes, evidence, and removal paths.
 - `documentation/tasks/PRD0048/findings-of-tasks-0048-reading-v2-auto-v3-pipeline.md` - current V3 implementation findings and verification evidence.

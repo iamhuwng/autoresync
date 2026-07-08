@@ -2,9 +2,9 @@
 
 Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 - `documentation/rules/result-visibility-review-checklist.md`
-- `documentation/architecture/result-view-permission-matrix.md`
+- `documentation/architecture/result-view/visibility-policy.md`
 
 ## Producer Contract
 

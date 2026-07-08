@@ -5,8 +5,8 @@ Reviewers block merge when any item below fails.
 Companion docs:
 - `documentation/architecture/result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
-- `documentation/architecture/result-view-permission-matrix.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 
 ## Absolute Rule
 
@@ -45,12 +45,12 @@ Result visibility is determined by teaching-context ownership and permitted solo
 
 ## Required Artifacts In The Same Change Set
 
-- Later-phase policy-surface changes must update the governance doc, permission matrix, producer-consumer contract, and this reviewer checklist together.
+- Later-phase policy-surface changes must update the governance doc, visibility policy, producer-consumer contract, and this reviewer checklist together.
 - updated `documentation/architecture/result-visibility-ownership-governance.md`
-- updated `documentation/architecture/result-view-permission-matrix.md`
+- updated `documentation/architecture/result-view/visibility-policy.md`
 - updated `documentation/result-visibility-producer-consumer-contract.md`
 - updated `documentation/rules/result-visibility-review-checklist.md`
-- updated `documentation/architecture/result-view-fr-closure-matrix.md` when closure mapping changes
+- updated `documentation/architecture/changelog/result-view-fr-closure-matrix.md` when closure mapping changes
 
 ## Grep Audit Prompts
 

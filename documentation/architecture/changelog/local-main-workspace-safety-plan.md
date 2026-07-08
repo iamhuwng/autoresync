@@ -1,7 +1,11 @@
 # Local Main Workspace Safety Plan
 
-Status: approved plan, implementation pending  
-Created: 2026-05-16  
+Changelog ID: `CL-20260516-LOCAL-MAIN-WORKSPACE-SAFETY-PLAN`
+Moved from: `documentation/architecture/local-main-workspace-safety-plan.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
+
+Status: approved plan, implementation pending
+Created: 2026-05-16
 Canonical project: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 
 ## Purpose

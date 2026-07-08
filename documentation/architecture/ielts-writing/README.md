@@ -60,7 +60,7 @@ Related shared architecture docs:
 - `../result-view/README.md`
 - `../results-academic-record.md`
 - `../result-visibility-ownership-governance.md`
-- `../result-view-permission-matrix.md`
+- `../changelog/result-view-permission-matrix.md`
 
 ## Update Rules
 

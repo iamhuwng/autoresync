@@ -158,4 +158,4 @@ New invariant:
 - `ensureResultVisibility()` and `rebuildTeacherResultIndexes()` must re-resolve unresolved historical rows before exclusion remains final.
 - UI fallback reads after `permission_denied` are forbidden; repair belongs in canonical visibility/indexing.
 
-Related doc: @doc/architecture/homework-result-visibility-repair
+Related history: @doc/architecture/changelog/homework-result-visibility-repair

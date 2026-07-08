@@ -165,5 +165,5 @@ Current focused tests:
 ## Related Reading V2 Contract
 
 See:
-- `documentation/architecture/reading-v2-material-publish-and-passage-library.md` for the PRD-0052 publish, Material Catalog, generated Reading Passage, homework, and review contract.
-- `documentation/architecture/reading-v2-runtime-integrations.md` for Reading V2 anti-cheat, trusted submit, feedback, and admin monitor integration.
+- `documentation/architecture/changelog/reading-v2-material-publish-and-passage-library.md` for the PRD-0052 publish, Material Catalog, generated Reading Passage, homework, and review contract.
+- `documentation/architecture/changelog/reading-v2-runtime-integrations.md` for Reading V2 anti-cheat, trusted submit, feedback, and admin monitor integration.

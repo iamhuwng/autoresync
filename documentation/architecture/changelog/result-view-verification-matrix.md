@@ -1,5 +1,9 @@
 # Result View Verification Matrix
 
+Changelog ID: `CL-20260325-RESULT-VIEW-VERIFICATION-MATRIX`
+Moved from: `documentation/architecture/result-view/verification-matrix.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
+
 This file records the current runtime state after the PRD-0040 and PRD-0041 consolidation work. It is traceability, not policy.
 
 | Slice | Status | Current State | Caveat |

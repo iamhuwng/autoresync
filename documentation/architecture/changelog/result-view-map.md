@@ -1,12 +1,12 @@
-﻿# Result View Map
+# Result View Map
 
 Source of truth for PRD-0040 surface classification. This document records what is currently active in the codebase, what domain each surface belongs to, and which surfaces are demo-only, unwired, or alternate.
 
 Companion docs:
 - `documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md`
-- `documentation/architecture/result-view-permission-matrix.md`
+- `documentation/architecture/changelog/result-view-permission-matrix.md`
 - `documentation/rules/result-view-reuse.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 
 Status keys:
 - `active`
@@ -29,6 +29,10 @@ Writing lifecycle keys:
 - `editor`
 - `result`
 - `alternate/dormant`
+
+Changelog ID: `CL-20260325-RESULT-VIEW-MAP`
+Moved from: `documentation/architecture/result-view-map.md`
+Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
 
 ## PRD-0049 Reconciliation Note
 
@@ -76,7 +80,7 @@ The session lifecycle recovery branch restores derived session expiry handling a
 | `GuestResultsPage` | active | guest-result/claim | - | `/guest-results` | RTDB `guest_results/{guestName}` | guest lookup/list page | `GuestResultsPage.test.tsx` | - | Public route; backend read requires auth (accepted mismatch per Finding F-5.3b). CTA routes are corrected to `/`, and the route is now tracked under the `results` feature surface in `App.jsx` / `featureRegistry.ts`. Mantine dependency remains documented (Finding F-5.1b). |
 | `ProfileCompletionPage` | active | guest-result/claim | - | `/profile/complete` | `checkClaimableResults(email)` | authenticated claim/recovery owner | none found | - | Opens claim modal when guest names are claimable. No focused page test exists yet. |
 | `ClaimResultsModal` | active | guest-result/claim | - | mounted by profile completion | `claimGuestResults(guestName, userId)` | guest claim executor | `ClaimResultsModal.test.tsx`, `guestResultsService.test.ts` | - | Claim flow now promotes guest rows into canonical `test_results/{resultId}` records, rebuilds the normal saved-result indexes, and preserves claim metadata. `migrateLegacyClaimedGuestResults()` remains a privileged/manual maintenance helper for older nested claim rows when present. |
-| `TeacherTestMonitorPage` | active | live-monitoring | monitor | `/teacher-test/:sessionCode` and related monitor routes | RTDB `game_sessions/{sessionId}` | live monitor owner | `TeacherTestMonitorPage.test.tsx` | - | Also owns writing monitor and release-adjacent flows. **Phase 2:** confirmed as operational control surface only Ã¢â‚¬â€ `FeedbackTab` absent (Finding F-4.6a). Owns release controls but does not display long-form feedback, and release-control behavior is now runtime-tested. |
+| `TeacherTestMonitorPage` | active | live-monitoring | monitor | `/teacher-test/:sessionCode` and related monitor routes | RTDB `game_sessions/{sessionId}` | live monitor owner | `TeacherTestMonitorPage.test.tsx` | - | Also owns writing monitor and release-adjacent flows. **Phase 2:** confirmed as operational control surface only â€” `FeedbackTab` absent (Finding F-4.6a). Owns release controls but does not display long-form feedback, and release-control behavior is now runtime-tested. |
 | `StudentDetailModal` | active | live-monitoring | - | mounted by monitor flows | RTDB session/player paths | live monitoring detail surface | static audit only | - | Not a result-view migration anchor. |
 | `WritingTestPage` | active | writing | draft | student writing test flow | RTDB `game_sessions/{sessionCode}/writing/...` | student writing draft/edit host | static audit only | - | Draft/autosave front door. |
 | `WritingMonitorCard` | active | writing | monitor | mounted by teacher monitor | RTDB live writing draft paths | teacher monitor card | `WritingMonitorCard.test.tsx` | - | Monitor-time operational surface. |
@@ -96,9 +100,9 @@ The session lifecycle recovery branch restores derived session expiry handling a
 | `AcademicRecordDemoPage` | demo-only | unwired/demo | - | historical `/demo/academic-record` route | local mock state | public demo route | none found | remove now | Page file removed from runtime, and the stale route-security residue was removed from the repo on 2026-03-25. |
 | `DemoIndexPage` | demo-only | unwired/demo | - | historical `/demo` route | public demo hub | public demo route | none found | remove now | Page file removed from runtime, and the stale route-security residue was removed from the repo on 2026-03-25. |
 
-## Phase 2: Release-State Governance (Tasks 4.1Ã¢â‚¬â€œ4.8)
+## Phase 2: Release-State Governance (Tasks 4.1â€“4.8)
 
-The three-state release model (`locked-review` Ã¢â€ â€™ `review-released` Ã¢â€ â€™ `feedback-released`) is verified and functional:
+The three-state release model (`locked-review` â†’ `review-released` â†’ `feedback-released`) is verified and functional:
 - **Enforcement**: UI-layer via `getReleaseVisibility()` in `src/types/releaseState.types.ts`.
 - **Data-layer**: RTDB does not support field-level restriction. `correctAnswer` is readable on the result record from submission time. Student-side AI generation is now delayed until `feedback-released` for live-session saved-result panels, but the data-layer posture is still weaker than the PRD ideal.
 - **Session vs saved-result**: Session surfaces are governed by release state. Student saved-result entry points that reuse `ResultSlidePanel` are also governed for `class_session` results by reading `game_sessions/{sessionCode}` and fail closed if that session context is missing or unreadable. Teacher/admin saved-result shells remain unrestricted.
@@ -133,13 +137,13 @@ The guest-result/claim domain is formally classified as an **adjacent domain**, 
 The writing domain is formally classified as a **cross-store lifecycle** architecturally separate from both the unified saved-result core and the session/post-test domain:
 
 ### Writing Lifecycle Architecture
-- **Draft** (RTDB): `WritingTestPage` Ã¢â€ â€™ `useWritingAutoSave` Ã¢â€ â€™ RTDB `game_sessions/{code}/writing/...`
-- **Monitor** (RTDB): `WritingMonitorCard`, `WritingPeekModal` Ã¢â€ â€™ live RTDB draft streams
-- **Bridge** (RTDBÃ¢â€ â€™Firestore): `autoSubmitFromRTDB()` in `writingSubmissionService.ts` Ã¢â‚¬â€ the ONLY promotion path
-- **Queue** (Firestore): `WritingGradingQueuePage` Ã¢â€ â€™ `writing_submissions` by `markingStatus === 'pending-review'`
+- **Draft** (RTDB): `WritingTestPage` â†’ `useWritingAutoSave` â†’ RTDB `game_sessions/{code}/writing/...`
+- **Monitor** (RTDB): `WritingMonitorCard`, `WritingPeekModal` â†’ live RTDB draft streams
+- **Bridge** (RTDBâ†’Firestore): `autoSubmitFromRTDB()` in `writingSubmissionService.ts` â€” the ONLY promotion path
+- **Queue** (Firestore): `WritingGradingQueuePage` â†’ `writing_submissions` by `markingStatus === 'pending-review'`
 - **Editor** (Firestore): `WritingGradingPage` (IELTS), `InlineWritingGrader` (THCS, separate workflow)
 - **Result** (Firestore): `WritingResultView`, `WritingResultDetailModal`, `WritingTestResultsSection`, `SubmissionCompletePage`
-- **Alternate/Dormant** (unwired): `WritingGradingModal`, `StudentResultOverview`, `StudentDetailedMarkup` Ã¢â€ â€™ all remove-now (Phase 8)
+- **Alternate/Dormant** (unwired): `WritingGradingModal`, `StudentResultOverview`, `StudentDetailedMarkup` â†’ all remove-now (Phase 8)
 
 ### Boundary Constraint
 Writing surfaces MUST NOT be folded into `SharedSavedResultCore`, `ResultSlidePanel`, `ResultDetailModal`, or `LegacyResultDetailView`. The writing lifecycle uses Firestore `writing_submissions` as its canonical store, not RTDB `test_results`.
@@ -148,7 +152,7 @@ Writing surfaces MUST NOT be folded into `SharedSavedResultCore`, `ResultSlidePa
 - **5 accepted current behavior**: #1 (queue front door), #4 (cross-store), #5 (monitor control loop), #6 (different artifacts), #9 (bidirectional loop), #12 (THCS separate)
 - **5 named follow-up tasks**: #2 (draft marking status), #3 (last-edit race), #7 (metadata persistence), #8 (tab-switch contract), #10 (audit trail)
 - **2 classified/documented**: #11 (two grading architectures)
-- Full dispositions: Findings F-6.4.1aÃ¢â‚¬â€œF-6.4.12a in the change record
+- Full dispositions: Findings F-6.4.1aâ€“F-6.4.12a in the change record
 
 ### Named Follow-Up Tasks
 1. Introduce `markingStatus: 'in-progress'` for draft saves (F-6.4.2a)
@@ -169,7 +173,7 @@ The live-monitoring domain is formally classified as an **operational control do
 - **Writing integration**: `WritingPeekModal` (RTDB live draft), `InlineWritingGrader` (THCS inline grading)
 
 ### Release-State Ownership
-- **Write (ownership)**: Exclusively `TeacherTestMonitorPage` Ã¢â€ â€™ `useMonitorControls.setReviewReleaseState()`
+- **Write (ownership)**: Exclusively `TeacherTestMonitorPage` â†’ `useMonitorControls.setReviewReleaseState()`
 - **Read (consumption)**: `StudentTestResultsPage`, `TestResultsModal`, `ResultSlidePanel` (for `class_session` saved results), `useTeacherEndRedirect`
 - **Boundary**: No result viewer writes release state. The shared `getReleaseVisibility()` is a pure function with no state or side effects.
 
@@ -180,12 +184,12 @@ The live-monitoring domain is formally classified as an **operational control do
 
 ## Phase 6: Unwired/Legacy/Demo Surface Triage (Task 8.0)
 
-### Removed surfaces (7) Ã¢â‚¬â€ git recovery: `ffb3747`
+### Removed surfaces (7) â€” git recovery: `ffb3747`
 | Surface | Former Route/Wiring | Removal Reason |
 |---|---|---|
-| `FeedbackComponentsDemo` | `/demo/feedback` (public) | Live RTDB writes on public route Ã¢â‚¬â€ production risk |
-| `FeedbackDemoPage` | `/demo/feedback-system` (public) | Unwired demo Ã¢â‚¬â€ local mock only |
-| `AcademicRecordDemoPage` | `/demo/academic-record` (public) | Unwired demo Ã¢â‚¬â€ local mock only |
+| `FeedbackComponentsDemo` | `/demo/feedback` (public) | Live RTDB writes on public route â€” production risk |
+| `FeedbackDemoPage` | `/demo/feedback-system` (public) | Unwired demo â€” local mock only |
+| `AcademicRecordDemoPage` | `/demo/academic-record` (public) | Unwired demo â€” local mock only |
 | `DemoIndexPage` | `/demo` (public) | Hub for removed demo routes |
 | `WritingGradingModal` | None (zero imports) | Dormant redesign artifact |
 | `StudentResultOverview` | None (zero imports) | Dormant redesign artifact |

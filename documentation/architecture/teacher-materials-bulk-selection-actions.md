@@ -21,7 +21,7 @@ Data-loading scope remains owned by `documentation/architecture/teacher-material
 
 List row geometry remains owned by `documentation/architecture/teacher-materials-list-view-contract.md`.
 
-Reading V2 master and linked-passage removal remains owned by `documentation/architecture/reading-v2-material-removal-lifecycle.md`.
+Reading V2 master and linked-passage removal remains owned by `documentation/architecture/changelog/reading-v2-material-removal-lifecycle.md`.
 
 ## Selection Scope
 

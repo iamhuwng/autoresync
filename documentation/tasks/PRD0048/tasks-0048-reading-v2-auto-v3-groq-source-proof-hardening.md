@@ -5,7 +5,7 @@
 > **Scope:** Follow-up batch for the existing Reading V2 Auto V3 pipeline. Focus on contract freeze, provenance/replay evidence, Groq transcript schema, source-proof evidence, group coverage, diagnostics, explicit repair, and regression verification.
 > **Primary source PRD:** `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 > **Parent Auto V3 task:** `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md`
-> **Architecture note:** `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+> **Architecture note:** `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`
 
 This task list supplements, but does not replace:
 
@@ -13,7 +13,7 @@ This task list supplements, but does not replace:
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-hardening.md`
 - `documentation/tasks/PRD0048/findings-of-tasks-0048-reading-v2-auto-v3-pipeline.md`
 - `documentation/tasks/PRD0048/diagnostic-log-reading-v2-auto-v3-pipeline.md`
-- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+- `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`
 
 ## Problem Statement
 
@@ -91,7 +91,7 @@ Likely implementation targets:
 - `src/services/reading-v2/fixtures/readingV2FixtureManifest.test.ts`
 - `src/services/reading-v2/fixtures/readingV2PasteImportFixtures.ts`
 - `scripts/reading-v2-clippings-harness.ts`
-- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+- `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`
 
 ## Phase 0: Contract Freeze And Replay Unit
 

@@ -316,7 +316,7 @@ Local proof on 2026-07-07:
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/architecture/teacher-materials-bulk-selection-actions.md`
-- `documentation/architecture/thcs-runtime-bridge-repair.md`
+- `documentation/architecture/changelog/thcs-runtime-bridge-repair.md`
 - `documentation/architecture/reading-v2-material-publish-and-passage-library.md`
 - `documentation/architecture/reading-v2-material-removal-lifecycle.md`
 - `documentation/tasks/0033-prd-teacher-lobby-refactor.md`

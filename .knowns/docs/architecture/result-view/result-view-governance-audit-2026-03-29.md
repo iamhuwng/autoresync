@@ -22,7 +22,7 @@ It documents the current runtime, the issues that were found on 2026-03-28, the 
 - `documentation/architecture/result-view/README.md`
 - `documentation/architecture/result-view/surface-map.md`
 - `documentation/architecture/result-view/visibility-policy.md`
-- `documentation/architecture/result-view/verification-matrix.md`
+- `documentation/architecture/changelog/result-view-verification-matrix.md`
 - `src/services/feedbackService.ts`
 - `src/pages/TeacherTestResultsPage.tsx`
 - `src/components/results/ResultDetailModal.tsx`

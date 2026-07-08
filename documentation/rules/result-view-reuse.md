@@ -4,15 +4,15 @@ Use this rule for every result-related task, PRD, or implementation. The goal is
 
 Companion docs:
 - `documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md`
-- `documentation/architecture/result-view-map.md`
-- `documentation/architecture/result-view-permission-matrix.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md`
+- `documentation/architecture/result-view/surface-map.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 
 ## 0. Review Gate
 
 Reviewers block merge for any result-related change if any required artifact is missing:
 - the updated result-view map
-- the updated permission matrix
+- the updated visibility policy
 - the updated FR closure matrix when PRD-0040 closure status changes
 - the required change record in `documentation`, Knowns, or Antigravity Knowledge when the work deviates from the PRD
 
@@ -105,9 +105,9 @@ If any answer is "yes", the task must call it out explicitly in the task doc or 
 ## 4. Required Docs To Update
 
 Result-related changes must update, in the same change set:
-- `documentation/architecture/result-view-map.md`
-- `documentation/architecture/result-view-permission-matrix.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md` when the change affects PRD-0040 closure status
+- `documentation/architecture/result-view/surface-map.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md` when the change affects PRD-0040 closure status
 - the governing PRD when architecture truth changes
 
 ## 5. Required Verification
@@ -160,4 +160,3 @@ Do not:
 - promote demo/public surfaces into production anchors
 - treat `.knowns`, `.backup`, or build-cache references as proof of runtime reachability
 - start writing architecture from result viewers only
-

@@ -37,16 +37,16 @@ const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
 
 const REQUIRED_RESULT_DOCS = [
-  'documentation/architecture/result-view-map.md',
-  'documentation/architecture/result-view-permission-matrix.md',
-  'documentation/architecture/result-view-fr-closure-matrix.md',
+  'documentation/architecture/result-view/surface-map.md',
+  'documentation/architecture/result-view/visibility-policy.md',
+  'documentation/architecture/changelog/result-view-fr-closure-matrix.md',
 ];
 
 const REQUIRED_RESULT_CHANGE_RECORDS = [
   'documentation/tasks/0040-prd-unified-result-view-architecture-and-governance.md',
   'documentation/tasks/tasks-0040-prd-unified-result-view-architecture-and-governance.md',
   'documentation/tasks/findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md',
-  'documentation/architecture/prd0040-preflight-ledger.md',
+  'documentation/architecture/changelog/prd0040-preflight-ledger.md',
 ];
 
 const RESULT_RELATED_PATH_PATTERNS = [
@@ -66,7 +66,8 @@ const RESULT_RELATED_PATH_PATTERNS = [
   /^src\/types\/class\.types\.ts$/,
   /^src\/types\/releaseState\.types\.ts$/,
   /^src\/config\/routeSecurity\.ts$/,
-  /^documentation\/architecture\/(prd0040-preflight-ledger|result-view-map|result-view-permission-matrix|result-view-fr-closure-matrix)\.md$/,
+  /^documentation\/architecture\/result-view\/(surface-map|visibility-policy)\.md$/,
+  /^documentation\/architecture\/changelog\/(prd0040-preflight-ledger|result-view-fr-closure-matrix|result-view-map|result-view-permission-matrix|result-view-verification-matrix)\.md$/,
   /^documentation\/tasks\/(0040-prd-unified-result-view-architecture-and-governance|tasks-0040-prd-unified-result-view-architecture-and-governance|findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance)\.md$/,
   /^documentation\/rules\/result-view-reuse\.md$/,
 ];

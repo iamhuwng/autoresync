@@ -60,7 +60,7 @@ Use `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-clippings-har
 - [x] Hardening 2026-05-14: added a local redacted Clippings harness via `npm run reading-v2:clippings-ledger -- --out output/reading-v2-clippings-ledger-report.json`; current ledger-only scan covered 276 files, found 91 supported full-test candidates, and produced 72 accepted / 20 reviewable / 7 rejected / 177 unsupported classifications without raw passage or answer-key text.
 - [x] Hardening 2026-05-14: added mocked-intermediate harness mode via `npm run reading-v2:clippings-ledger -- --mode mocked-intermediate --out output/reading-v2-clippings-ledger-report-mocked.json`; current mocked scan produced 64 accepted / 8 reviewable / 27 rejected / 177 unsupported classifications, 3439 generated interactions, 3062 bound answers, and redacted representative picks.
 - [x] Hardening 2026-05-14: added optional live Gemini harness mode behind `--mode live-gemini --allow-live-gemini`, with `--live-limit` and `--live-tags` for curated representative probes.
-- [x] Hardening 2026-05-14: documented source-ledger, verifier, repair-loop, harness modes, and operational knobs in `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`.
+- [x] Hardening 2026-05-14: documented source-ledger, verifier, repair-loop, harness modes, and operational knobs in `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`.
 
 Provider evidence:
 
