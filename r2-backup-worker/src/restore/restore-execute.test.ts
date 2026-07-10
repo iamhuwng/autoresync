@@ -456,4 +456,144 @@ describe('registry restore drill', () => {
       'version-live',
     );
   });
+
+  it('restores book_activity RTDB data through the approved restore inventory', async () => {
+    const backupRtdb = {
+      users: {
+        'teacher-1': { role: 'teacher' },
+      },
+      listening_authoring: {},
+      book_activity: {
+        materials: {
+          'activity-1': {
+            activityId: 'activity-1',
+            ownerId: 'teacher-1',
+          },
+        },
+        versions: {
+          'activity-1': {
+            'version-1': {
+              versionId: 'version-1',
+            },
+          },
+        },
+      },
+      z_misc: {
+        'misc-1': { ok: true },
+      },
+    };
+    const manifest = buildBackupManifest({
+      backupId: 'BK-book-activity-restore',
+      trigger: 'manual',
+      createdAt: '2026-07-09T00:00:00.000Z',
+      completedAt: '2026-07-09T00:01:00.000Z',
+      durationMs: 60_000,
+      status: 'complete',
+      includesFirestore: false,
+      firestoreSkipReason: null,
+      firestoreCollectionsIncluded: [],
+      firebaseProject: 'temp-a1437',
+      rtdbBytesRead: JSON.stringify(backupRtdb).length,
+      firestoreDocsRead: 0,
+      entityCounts: {
+        rtdb: {
+          users: 1,
+          listening_authoring: 0,
+          book_activity: 2,
+          z_misc: 1,
+        },
+        firestore: {},
+      },
+      totalSizeBytes: 0,
+      checksums: {},
+      previousBackupId: null,
+    });
+    const mediaManifest = buildMediaManifest([], manifest.backupId);
+    const { zipData } = await createBackupZip({
+      rtdb: backupRtdb,
+      firestore: null,
+      manifest,
+      mediaManifest,
+    });
+
+    const r2 = new FakeR2Client();
+    await r2.putObject('backups/BK-book-activity-restore.zip', zipData);
+
+    const liveRtdb = new Map<string, unknown>([
+      ['users', {}],
+      ['listening_authoring', {}],
+      ['book_activity', {}],
+      ['z_misc', {}],
+      ['system_flags', null],
+    ]);
+    const patchOrder: string[] = [];
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? 'GET';
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+
+      if (path === 'system_flags/restore_in_progress' && method === 'PUT') {
+        liveRtdb.set('system_flags', JSON.parse(String(init?.body ?? 'null')));
+        return json({ ok: true });
+      }
+
+      if (path === '' && method === 'GET' && url.searchParams.get('shallow') === 'true') {
+        return json(Object.fromEntries([...liveRtdb.keys()].filter((key) => key !== 'system_flags').map((key) => [key, true])));
+      }
+
+      if (method === 'GET' && url.searchParams.get('shallow') === 'true') {
+        const current = liveRtdb.get(path);
+        return json(current && typeof current === 'object'
+          ? Object.fromEntries(Object.keys(current as Record<string, unknown>).map((key) => [key, true]))
+          : null);
+      }
+
+      if (method === 'GET') {
+        return json(liveRtdb.get(path) ?? null);
+      }
+
+      if (method === 'PATCH') {
+        const patch = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        liveRtdb.set(path, {
+          ...((liveRtdb.get(path) as Record<string, unknown> | undefined) ?? {}),
+          ...patch,
+        });
+        patchOrder.push(path);
+        return json({ ok: true });
+      }
+
+      throw new Error(`Unexpected fetch ${method} ${url.toString()}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const tracker = new StatusTracker('restore');
+    const result = await executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, 'BK-book-activity-restore', {
+      scope: ['all'],
+      mode: 'smart_auto',
+    }, tracker);
+
+    expect(result.status).toBe('complete');
+    expect(result.details.book_activity).toEqual({
+      restored: 2,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(patchOrder).toEqual([
+      'users',
+      'book_activity',
+      'z_misc',
+    ]);
+    expect(liveRtdb.get('book_activity')).toMatchObject({
+      materials: {
+        'activity-1': {
+          ownerId: 'teacher-1',
+        },
+      },
+    });
+  });
 });

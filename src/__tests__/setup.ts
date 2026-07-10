@@ -117,4 +117,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
 afterEach(() => server.resetHandlers());
 
 // Clean up after all tests
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+  document.addEventListener = originalAddEventListener as typeof document.addEventListener;
+  window.addEventListener = originalWindowAddEventListener as typeof window.addEventListener;
+});

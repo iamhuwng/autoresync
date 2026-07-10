@@ -17,6 +17,7 @@ export type MaterialSummaryLifecycleState = 'active' | 'archived' | 'removed';
 export type MaterialSummarySurfaceFamily =
   | 'assessment'
   | 'passage'
+  | 'activity'
   | 'book'
   | 'draft'
   | 'resource';
@@ -142,6 +143,7 @@ const isOptionalNonNegativeNumber = (value: unknown): boolean =>
 const MATERIAL_SUMMARY_SURFACE_FAMILIES = new Set<MaterialSummarySurfaceFamily>([
   'assessment',
   'passage',
+  'activity',
   'book',
   'draft',
   'resource',

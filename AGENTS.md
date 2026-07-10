@@ -4,6 +4,14 @@
 
 When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
 
+## Live State Before Claims (MANDATORY)
+
+Before claiming repo state, task completion, blocker resolution, test proof, browser behavior, staging, commit readiness, or handoff readiness, inspect the current live source of truth: relevant files, current diff/status, task docs, and runtime behavior when the claim depends on product behavior.
+
+Do not rely only on memory, pasted summaries, old handoffs, old findings, prior reviewer PASS, taskboxes, or green unit tests. For user-facing UI, routing, auth, upload, assignment, student/teacher workflow, notifications, results, or browser-only behavior, verify the real browser flow unless explicitly scoped out or blocked by environment.
+
+If source, tests, browser behavior, task docs, findings, traceability, or handoff state disagree, report the disagreement instead of normalizing it away.
+
 ## Design Gate (MANDATORY)
 
 Before any UI or UX work, read [`documentation/architecture/ui-design-standards.md`](documentation/architecture/ui-design-standards.md) plus the matching rule-linked architecture doc for the surface being edited. If root [`DESIGN.md`](DESIGN.md) exists, read it first; if it is absent, do not block on it.
@@ -64,10 +72,11 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Creating a new component for use in another page | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
 | Before `git pull`, `git fetch + merge`, or sync operations | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Adding new RTDB node or Firestore collection | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Adding or modifying Firebase RTDB rules, nested write restrictions, or protected descendants under an allowed ancestor path | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Adding or modifying Reading V2 audit events, audit service, audit path, or audit rules | [`architecture/reading-v2-audit-trail.md`](documentation/architecture/reading-v2-audit-trail.md) |
 | Changing Reading V2 runtime host integration with anti-cheat, trusted submit, AI feedback payloads, or admin monitoring | [`architecture/reading-v2-runtime-integrations.md`](documentation/architecture/reading-v2-runtime-integrations.md) |
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
-| Building or modifying Cloudflare Workers (R2, backup, etc.) | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Building, testing, deploying, dry-running, or debugging Cloudflare Workers, Wrangler, workerd, R2 uploads, signed URLs, Worker bindings, or backup Workers | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing ANY `import` or touching UI code that already imports `@mantine/*` - `@mantine/*` is **banned** and encountered usage must be replaced | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
@@ -76,6 +85,8 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Creating a new page component or route | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying user-facing actions (buttons, forms, workflows) | [`rules/observability.md`](documentation/rules/observability.md) |
 | Adding or modifying create/save/update/publish/assign/enroll/restore/archive/remove/delete announcements | [`rules/announcements.md`](documentation/rules/announcements.md) |
+| Reporting test, build, emulator, Worker, or verification failure as product behavior | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Making deployed/current-state claims for Firebase, Hosting, Cloudflare Workers, Wrangler, R2, or remote data | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD/task-list packet planning, review, correction, handoff, closure, taskbox/findings/traceability/log/docs reconciliation, exact-path staging, RTK/PowerShell proof, or Cloudflare/Wrangler/R2 remote proof | [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
 | Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |

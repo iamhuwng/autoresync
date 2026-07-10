@@ -38,6 +38,25 @@ Master orchestration:
 - Teacher shell must keep `TeacherHeader` attached to the shell top edge; page padding belongs inside `main`.
 - New UI must use native/shared controls, not Mantine.
 - Existing Book metadata editing and existing test-based Book editing must remain available.
+- This foundation packet stops before Book/subtree Homework, Affected Homework Review, selective updates, Review Checkpoints, Course/Class delivery, public playable source-assisted Books, and integrity rollout.
+- If `bookEditor.service.ts` or another touched Book seam uses `// @ts-nocheck`, add a typed wrapper or remove the suppression before enforcing new PRD0062 invariants there.
+
+## Packet Contract And Closure Addendum
+
+Before source changes in this component:
+
+- [ ] Create or update `documentation/tasks/PRD0062/contracts-book-activity-packet-3.md` with storage, rules/security, UI, migration/compatibility, test, browser-proof, proof-classification, and authority-reconciliation sections.
+- [ ] Map every Assembly Workspace claim to PRD section, source owner, test title, negative proof where applicable, architecture/current-state doc, findings row, traceability row, and taskbox ID.
+- [ ] Classify proof separately as local source proof, typed-boundary proof, Book regression proof, browser proof, source-delivery integration proof, or not required for Packet 3.
+- [ ] Keep legacy Book behavior, new `unit` behavior, and teacher Assembly behavior as separate proof rows. Do not use one successful Unit import as proof that existing Book editor behavior remains safe.
+- [ ] Keep phase state explicit. A working import/preview path may move work to `IMPLEMENTED_UNREVIEWED`; it does not make the packet `CLOSED`.
+
+Before completing this component:
+
+- [ ] Run stale-claim scans over touched task docs, findings, traceability, and architecture/current-state docs for contradicted Assembly, Book editor, source-mapping, or `unit` readiness claims.
+- [ ] Request review only after source, tests, findings, traceability, and docs are updated and inspectable.
+- [ ] Record reviewer method, inspected files/diff, risk model, validation performed, tests not rerun, and residual risks.
+- [ ] Update the packet handoff with current live contract, historical/superseded evidence, verification commands, dirty-path classification, typed-boundary status, and unresolved blockers.
 
 ## Tasks
 
@@ -46,8 +65,9 @@ Master orchestration:
   - [ ] 1.2 Preserve existing `section`, `chapter`, `test`, and placeholder behavior.
   - [ ] 1.3 Preserve `BOOK_NODE_MAX_DEPTH = 5` unless Packet 0 finds a documented current alternative.
   - [ ] 1.4 Update Book validation to accept `unit` and reject cycles, missing parents, duplicate keys, and excessive depth.
-  - [ ] 1.5 Ensure assignable structural-node eligibility excludes placeholders and invalid/missing Units.
-  - [ ] 1.6 Add tests proving `unit` is accepted, legacy `test` remains accepted, and staged missing Units remain teacher-only.
+  - [ ] 1.5 Treat `unit` as a structural node in Book readiness/status derivation while preserving existing `test` readiness behavior.
+  - [ ] 1.6 Ensure assignable structural-node eligibility excludes placeholders and invalid/missing Units.
+  - [ ] 1.7 Add tests proving `unit` can become ready/publishable, legacy test-based Books remain ready/publishable, and staged missing Units remain teacher-only.
 
 - [ ] 2.0 Implement manifest candidate import and validation
   - [ ] 2.1 Define manifest schema for Book structure, stable logical keys, page labels, Activity slots, order, and Page Groups.
@@ -77,33 +97,35 @@ Master orchestration:
   - [ ] 4.8 Add atomic import tests.
 
 - [ ] 5.0 Implement reconciliation and manual repair workflows
-  - [ ] 5.1 Show added, removed, renamed, reordered, moved, page-mapping-changed, and unresolved items.
-  - [ ] 5.2 Implement exact-key identity matching.
-  - [ ] 5.3 Treat fuzzy matching as suggestion only, never automatic identity authority.
-  - [ ] 5.4 Preserve identity for rename/reorder when stable keys match.
-  - [ ] 5.5 Require explicit resolution for cross-Unit moves.
-  - [ ] 5.6 Implement source replacement reconciliation without reimporting unchanged Activities.
-  - [ ] 5.7 Revalidate after every repair.
-  - [ ] 5.8 Block publication while required reconciliation issues remain.
-  - [ ] 5.9 Add reconciliation tests for rename, reorder, move, source replacement, and rare unresolved cases.
+  - [ ] 5.1 Build the exact PRD reconciliation layout: `Current Content Tree | Proposed Content Tree | Resolution and Preview`.
+  - [ ] 5.2 Show summary counts, unresolved-only filter, category filter, source-page preview, current/proposed Activity preview, explicit resolution actions, revalidation status, and publish blocker list.
+  - [ ] 5.3 Show added, removed, renamed, reordered, moved, page-mapping-changed, and unresolved items.
+  - [ ] 5.4 Implement exact-key identity matching.
+  - [ ] 5.5 Treat fuzzy matching as suggestion only, never automatic identity authority.
+  - [ ] 5.6 Preserve identity for rename/reorder when stable keys match.
+  - [ ] 5.7 Require explicit resolution for cross-Unit moves.
+  - [ ] 5.8 Implement source replacement reconciliation without reimporting unchanged Activities.
+  - [ ] 5.9 Require teacher preview approval when a source-assisted Activity's page labels, physical indexes, crop/range, rotation, or Page Group changes even if stable Activity keys still match.
+  - [ ] 5.10 Revalidate after every repair.
+  - [ ] 5.11 Block publication while required reconciliation issues or preview approvals remain.
+  - [ ] 5.12 Add reconciliation tests for the three-column layout controls, rename, reorder, move, source replacement, source-assisted preview approval, and rare unresolved cases.
 
 - [ ] 6.0 Implement Unit preview and staged publication
   - [ ] 6.1 Generate actual student runtime preview from student-safe projection and authorized source rendition.
-  - [ ] 6.2 Implement Unit statuses: Published, Valid-ready-to-publish, Missing JSON, Invalid, Needs reconciliation, Draft changed, and Pending homework updates.
+  - [ ] 6.2 Implement foundation Unit statuses: Published, Valid-ready-to-publish, Missing JSON, Invalid, Needs reconciliation, and Draft changed. Defer `Pending homework updates` until Component 06.
   - [ ] 6.3 Publish one Unit atomically while later Units remain missing/teacher-only.
   - [ ] 6.4 Ensure students see only published Units.
-  - [ ] 6.5 Ensure whole-Book homework freezes only currently published eligible Activities.
-  - [ ] 6.6 Trigger Affected Homework Review awareness when publishing later Units affects active homework.
-  - [ ] 6.7 Add staged publication tests.
+  - [ ] 6.5 Add staged publication tests without implementing Homework or update behavior in this packet.
 
 - [ ] 7.0 Implement Copy Unit JSON Prompt and revision prompt flows
   - [ ] 7.1 Generate Copy Unit JSON Prompt after source PDF, manifest, and selected Unit are valid.
-  - [ ] 7.2 Include Book title, selected path, selected page list, mapped Activity keys/order, schema version, Task Profile format, supported interaction families/variants, context requirement, and presentation mode rules.
-  - [ ] 7.3 Explain structured versus source-assisted selection with examples.
-  - [ ] 7.4 Forbid unsupported visual approximation and forbidden identity/provenance fields.
-  - [ ] 7.5 Implement Copy Revision Prompt for full-content replacement.
-  - [ ] 7.6 Add fallback behavior when clipboard copy fails.
-  - [ ] 7.7 Add tests for prompt content and fallback behavior.
+  - [ ] 7.2 Include Book title, selected Section/Chapter/Unit path, selected page list, mapped Activity keys/order, current Activity schema version, optional namespaced Task Profile format, supported interaction families/variants, supported embedded stimulus kinds, existing media asset-reference forms, context requirement rules, and presentation mode rules.
+  - [ ] 7.3 Include the one-family/one-answer-rule constraint, source-assisted page/label requirements, answer/scoring requirements, Unit bundle envelope, no generic Task Groups/Task Sets/Resource entities rule, no system IDs rule, JSON-only requirement, and a complete valid example.
+  - [ ] 7.4 Explain structured versus source-assisted selection with examples and forbid unsupported visual approximation merely to choose `structured`.
+  - [ ] 7.5 Implement Copy Revision Prompt for full-content replacement with current editable content, supported schema/families/variants/stimulus kinds, one-family/one-answer-rule constraint, Task Profile naming rules, context-requirement rules, structured/source-assisted rubric, teacher correction instructions, JSON-only requirement, and instruction not to include IDs or Placement/provenance data.
+  - [ ] 7.6 Ensure Copy Revision Prompt excludes Activity/system IDs, Source/Manifest IDs, Book placement, ownership, student data, and published homework data.
+  - [ ] 7.7 Add fallback behavior when clipboard copy fails.
+  - [ ] 7.8 Add tests for Unit prompt content, revision prompt content, JSON-only/no-ID guards, complete example presence, media refs, answer/scoring requirements, and fallback behavior.
 
 - [ ] 8.0 Build Assembly Workspace UI, accessibility, route, and observability coverage
   - [ ] 8.1 Add or expand the existing Book editor route according to route/observability rules.
@@ -113,4 +135,5 @@ Master orchestration:
   - [ ] 8.5 Register new route and user actions in feature registry/observability.
   - [ ] 8.6 Use shared action announcements for create/save/update/publish/import outcomes.
   - [ ] 8.7 Add component tests and browser verification notes for teacher desktop Assembly Workspace.
-  - [ ] 8.8 Update findings with final route, component, and service ownership paths.
+  - [ ] 8.8 Add or verify a fully typed integration wrapper for touched legacy Book editor seams; no new PRD0062 module may use `// @ts-nocheck`.
+  - [ ] 8.9 Update findings with final route, component, service, and typed-boundary ownership paths.

@@ -34,6 +34,23 @@ Master orchestration:
 - Notification metadata must not include answer content, PDF content, or full diff payloads.
 - Review Checkpoint display follows existing homework feedback release policy.
 
+## Packet Contract And Closure Addendum
+
+Before source changes in this component:
+
+- [ ] Create or update `documentation/tasks/PRD0062/contracts-book-activity-packet-6.md` with storage, rules/security, UI, migration/compatibility, test, browser-proof, proof-classification, and authority-reconciliation sections.
+- [ ] Map every update/checkpoint/notification claim to PRD section, source owner, test title, negative proof where applicable, architecture/current-state doc, findings row, traceability row, and taskbox ID.
+- [ ] Classify proof separately as local source proof, semantic-diff proof, update-matrix proof, checkpoint proof, notification proof, browser proof, idempotency/retry proof, or not required for Packet 6.
+- [ ] Keep teacher review UI proof separate from selective-update authority proof. A visible modal is not proof that updates are atomic, idempotent, or fail-closed.
+- [ ] Keep phase state explicit. A green subset of update cases may move work to `IMPLEMENTED_UNREVIEWED`; it does not make the packet `CLOSED`.
+
+Before completing this component:
+
+- [ ] Run stale-claim scans over touched task docs, findings, traceability, and architecture/current-state docs for contradicted update, checkpoint, notification, deadline, or feedback-visibility claims.
+- [ ] Request review only after source, tests, findings, traceability, and docs are updated and inspectable.
+- [ ] Record reviewer method, inspected files/diff, risk model, validation performed, tests not rerun, and residual risks.
+- [ ] Update the packet handoff with current live contract, historical/superseded evidence, verification commands, dirty-path classification, matrix coverage gaps, and unresolved blockers.
+
 ## Tasks
 
 - [ ] 1.0 Implement affected-homework lookup after Activity/Book publication
@@ -53,16 +70,19 @@ Master orchestration:
   - [ ] 2.5 Default all force-update targets to unselected.
   - [ ] 2.6 Allow teacher to select homework targets and deselect individual proposed redo/addition items where valid.
   - [ ] 2.7 Require teacher reason before confirm.
-  - [ ] 2.8 Require replacement deadlines for new or redo-required work under expired effective deadlines.
-  - [ ] 2.9 Use shared announcements for success/failure outcomes.
-  - [ ] 2.10 Add component tests for review content, default unselected state, reason requirement, and deadline replacement validation.
+  - [ ] 2.8 Evaluate replacement-deadline requirements against each student's effective deadline, including per-student extensions.
+  - [ ] 2.9 Show how many students require a replacement deadline because their effective deadline has expired.
+  - [ ] 2.10 Support one replacement deadline applied to selected homework targets with explicit per-homework override.
+  - [ ] 2.11 Use shared announcements for success/failure outcomes.
+  - [ ] 2.12 Add component tests for review content, default unselected state, reason requirement, per-student deadline counts, selected-homework replacement deadline, per-homework override, and replacement validation.
 
 - [ ] 3.0 Implement pending update awareness
   - [ ] 3.1 If the teacher closes review without applying updates, retain pending update awareness.
   - [ ] 3.2 Show pending update count on Book/Activity surfaces.
   - [ ] 3.3 Allow teacher to reopen Affected Homework Review later.
   - [ ] 3.4 Clear pending state only when selected updates are applied or source change no longer affects active homework.
-  - [ ] 3.5 Add tests for close/reopen and pending count behavior.
+  - [ ] 3.5 Add `Pending homework updates` to Unit status only in this packet, after Homework/update data exists.
+  - [ ] 3.6 Add tests for close/reopen, Unit status, and pending count behavior.
 
 - [ ] 4.0 Implement selective Activity binding updates
   - [ ] 4.1 Create update action audit record for every confirmed update.
@@ -73,8 +93,11 @@ Master orchestration:
   - [ ] 4.6 Apply source/page binding changes only where selected and valid.
   - [ ] 4.7 Exclude removed Activities from current required scope without deleting historical records.
   - [ ] 4.8 Recalculate completion after update.
-  - [ ] 4.9 Ensure retry does not reopen work twice or duplicate state transitions.
-  - [ ] 4.10 Add idempotency tests.
+  - [ ] 4.9 Guarantee reorder-only updates do not create Review Checkpoints, redo work, grading changes, action-required notifications, or student reset; only display ordering/numbering may recalculate.
+  - [ ] 4.10 Guarantee structural-addition-only updates keep existing homework frozen unless the teacher selects active homework targets; existing student work remains valid, no old-work checkpoint is created, and schedule/deadline review is required before adding new required work.
+  - [ ] 4.11 Ensure retry does not reopen work twice or duplicate state transitions.
+  - [ ] 4.12 When a removed Activity has pending teacher review, remove it from current pending-review workload, retain it in historical/excluded view, preserve existing feedback, and mark it excluded by update/removal.
+  - [ ] 4.13 Add idempotency, reorder-only no-op, structural-addition-only no-silent-mutation, and removed-pending-review tests.
 
 - [ ] 5.0 Implement Review Checkpoint creation and Previous Versions display
   - [ ] 5.1 For not-started students, bind latest selected version and create no checkpoint.
@@ -96,7 +119,8 @@ Master orchestration:
   - [ ] 6.4 Store old/new grading result in audit history.
   - [ ] 6.5 Send score-updated notification when a published student score changes.
   - [ ] 6.6 Do not send action-required wording when no student action is required.
-  - [ ] 6.7 Add tests for answer-key-only and point-only examples from the PRD.
+  - [ ] 6.7 Show an audit-visible correction note in current result/review when changed answers, rubric, or feedback were already visible to the student.
+  - [ ] 6.8 Add tests for answer-key-only and point-only examples plus previously visible correction-note behavior.
 
 - [ ] 7.0 Implement persistent case-specific student notifications
   - [ ] 7.1 Create one Notification Bell record per student per update action, not one per Activity.
@@ -112,9 +136,9 @@ Master orchestration:
 
 - [ ] 8.0 Enforce deadline and feedback visibility rules during updates
   - [ ] 8.1 Keep future deadlines unchanged where valid.
-  - [ ] 8.2 Require replacement deadlines for new or redo-required work under expired deadlines.
+  - [ ] 8.2 Require replacement deadlines for new or redo-required work according to each student's expired effective deadline.
   - [ ] 8.3 Do not require new deadlines for regrade-only, reorder-only, or removal-only updates.
-  - [ ] 8.4 Preserve per-student extensions where applicable.
+  - [ ] 8.4 Preserve and evaluate per-student extensions.
   - [ ] 8.5 Always show student’s own previous answers in checkpoints.
   - [ ] 8.6 Show score, correct answers, teacher feedback, and marking details only when release policy permits.
   - [ ] 8.7 Add tests proving force update does not reveal hidden answers early.
@@ -125,10 +149,11 @@ Master orchestration:
   - [ ] 9.3 Test redo-required Activity for not-started, in-progress, and submitted students.
   - [ ] 9.4 Test new Activity addition.
   - [ ] 9.5 Test removed Activity exclusion.
-  - [ ] 9.6 Test reorder and move behavior.
-  - [ ] 9.7 Test new Unit addition.
+  - [ ] 9.6 Test reorder and move behavior, including reorder-only no-checkpoint/no-redo/no-grade-change/no-action-notification guarantees.
+  - [ ] 9.7 Test new Unit/Chapter/Section addition, including frozen-by-default existing homework, no old-work checkpoint, valid existing student work, teacher-selected target behavior, and required schedule/deadline review.
   - [ ] 9.8 Test expired deadline handling.
-  - [ ] 9.9 Assert unchanged work remains valid, only affected Activities reopen, retry creates no duplicates, and notification metadata/wording matches each case.
+  - [ ] 9.9 Test mixed students whose default deadline is expired but personal extensions differ.
+  - [ ] 9.10 Assert unchanged work remains valid, only affected Activities reopen, retry creates no duplicates, correction notes appear when required, removed pending-review work becomes historical/excluded, and notification metadata/wording matches each case.
 
 - [ ] 10.0 Preserve audit and regression boundaries
   - [ ] 10.1 Ensure update action is audited with teacher ID, reason, selected targets, selected Activities, old/new bindings, deadline decisions, and idempotency key.

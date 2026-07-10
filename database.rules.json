@@ -1,7 +1,7 @@
 {
     "rules": {
         ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val() && newData.child('quizzes').val() === data.child('quizzes').val()",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val() && newData.child('book_activity').val() === data.child('book_activity').val() && newData.child('quizzes').val() === data.child('quizzes').val()",
         "users": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$uid": {
@@ -420,6 +420,85 @@
         "course_types": {
             ".read": "auth != null",
             ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        },
+        "book_activity": {
+            ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+            ".write": "false",
+            "materials": {
+                ".indexOn": [
+                    "ownerId",
+                    "lifecycleState",
+                    "materialKind"
+                ],
+                "$activityId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth != null && newData.exists() && ((!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && data.child('ownerId').val() === auth.uid && newData.child('ownerId').val() === data.child('ownerId').val())))",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['activityId', 'materialId', 'materialKind', 'ownerId', 'title', 'lifecycleState', 'createdAt', 'updatedAt']) && newData.child('activityId').val() === $activityId && newData.child('materialId').val() === $activityId && newData.child('materialKind').val() === 'interactive-activity' && newData.child('ownerId').isString() && newData.child('title').isString() && (newData.child('lifecycleState').val() === 'draft' || newData.child('lifecycleState').val() === 'published' || newData.child('lifecycleState').val() === 'archived') && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('hiddenInteractionId').exists())"
+                }
+            },
+            "drafts": {
+                ".indexOn": [
+                    "ownerId",
+                    "activityId",
+                    "updatedAt"
+                ],
+                "$activityId": {
+                    "$draftId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": "auth != null && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth != null && newData.exists() && newData.child('activityId').val() === $activityId && ((!data.exists() && newData.child('ownerId').val() === auth.uid && (!root.child('book_activity').child('materials').child($activityId).exists() || root.child('book_activity').child('materials').child($activityId).child('ownerId').val() === auth.uid)) || (data.exists() && data.child('ownerId').val() === auth.uid && newData.child('ownerId').val() === data.child('ownerId').val())))",
+                        ".validate": "!newData.exists() || (newData.hasChildren(['activityId', 'draftId', 'ownerId', 'editableContent', 'normalizedContent', 'draftRevision', 'validationState', 'createdAt', 'updatedAt']) && newData.child('activityId').val() === $activityId && newData.child('draftId').val() === $draftId && newData.child('ownerId').isString() && newData.child('draftRevision').isNumber() && newData.child('validationState').val() === 'valid' && !newData.child('editableContent').child('activityId').exists() && !newData.child('editableContent').child('materialId').exists() && !newData.child('editableContent').child('versionId').exists() && !newData.child('editableContent').child('placementId').exists() && !newData.child('editableContent').child('ownerId').exists())"
+                    }
+                }
+            },
+            "candidates": {
+                ".indexOn": [
+                    "ownerId",
+                    "status",
+                    "targetActivityId"
+                ],
+                "$candidateId": {
+                    ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                    ".write": "auth != null && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth != null && newData.exists() && ((!data.exists() && newData.child('ownerId').val() === auth.uid && (!root.child('book_activity').child('materials').child(newData.child('targetActivityId').val()).exists() || root.child('book_activity').child('materials').child(newData.child('targetActivityId').val()).child('ownerId').val() === auth.uid)) || (data.exists() && data.child('ownerId').val() === auth.uid && newData.child('ownerId').val() === data.child('ownerId').val())))",
+                    ".validate": "!newData.exists() || (newData.hasChildren(['candidateId', 'targetActivityId', 'ownerId', 'replacementContent', 'status', 'errors', 'createdAt']) && newData.child('candidateId').val() === $candidateId && newData.child('ownerId').isString() && (newData.child('status').val() === 'valid' || newData.child('status').val() === 'invalid') && !newData.child('replacementContent').child('activityId').exists() && !newData.child('replacementContent').child('materialId').exists() && !newData.child('replacementContent').child('versionId').exists() && !newData.child('replacementContent').child('placementId').exists() && !newData.child('replacementContent').child('ownerId').exists() && !newData.child('replacementContent').child('hiddenInteractionId').exists())"
+                }
+            },
+            "versions": {
+                ".indexOn": [
+                    "ownerId",
+                    "publishedAt"
+                ],
+                "$activityId": {
+                    "$versionId": {
+                        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": false,
+                        ".validate": "!newData.exists() || (newData.hasChildren(['activityId', 'versionId', 'ownerId', 'materialKind', 'content', 'publishedAt', 'publishedBy']) && newData.child('activityId').val() === $activityId && newData.child('versionId').val() === $versionId && newData.child('materialKind').val() === 'interactive-activity' && newData.child('ownerId').isString())"
+                    }
+                }
+            },
+            "student_safe_projections": {
+                ".indexOn": [
+                    "activityId",
+                    "versionId",
+                    "projectionKind"
+                ],
+                "$activityId": {
+                    "$versionId": {
+                        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'student' || data.child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                        ".write": false,
+                        ".validate": "!newData.exists() || (newData.hasChildren(['projectionKind', 'activityId', 'versionId', 'ownerId', 'title', 'presentationMode', 'contextRequirement', 'interactions', 'generatedAt']) && newData.child('projectionKind').val() === 'student-safe' && newData.child('activityId').val() === $activityId && newData.child('versionId').val() === $versionId && !newData.child('answerRule').exists() && !newData.child('answerKey').exists() && !newData.child('answerKeys').exists() && !newData.child('correctAnswers').exists() && !newData.child('teacherNotes').exists() && !newData.child('authoringData').exists() && !newData.child('candidates').exists() && !newData.child('provenance').exists() && !newData.child('hiddenInteractionId').exists() && !newData.child('publishedBy').exists())",
+                        "interactions": {
+                            "$interactionIndex": {
+                                "answerRule": { ".validate": false },
+                                "answerKey": { ".validate": false },
+                                "answerKeys": { ".validate": false },
+                                "correctAnswers": { ".validate": false },
+                                "hiddenInteractionId": { ".validate": false },
+                                "teacherNotes": { ".validate": false }
+                            }
+                        }
+                    }
+                }
+            }
         },
         "material_catalog": {
             "test_types": {

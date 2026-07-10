@@ -28,7 +28,7 @@ import { pruneBackupHistory } from './retention';
 // ─── Constants ─────────────────────────────────────────────────────────
 
 const RTDB_EXCLUDE = ['system_flags'];
-const RTDB_REQUIRED_NODES = ['listening_authoring'];
+const RTDB_REQUIRED_NODES = ['listening_authoring', 'book_activity'];
 const FIRESTORE_EXCLUDE = ['parsingCache'];
 
 const SPECIAL_HANDLERS: Record<string, (data: Record<string, unknown>) => Record<string, unknown>> = {

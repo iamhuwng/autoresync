@@ -25,23 +25,34 @@ Primary component task lists:
 Findings file:
 - `documentation/tasks/PRD0062/findings-book-activity-baseline.md`
 
+Traceability file:
+- `documentation/tasks/PRD0062/traceability-book-activity-v1.md`
+
+Packet contract template:
+- `documentation/tasks/PRD0062/contracts-book-activity-packet-template.md`
+
 ## Purpose
 
 - [ ] Use this master task list to split the PRD0062 implementation across multiple conversations without losing dependency order.
-- [ ] Treat component task lists as the source of truth for exact implementation tasks.
-- [ ] Treat this file as the source of truth for conversation boundaries, entry criteria, exit criteria, packet order, and handoffs.
+- [ ] Treat the PRD as the sole product and architecture requirements authority.
+- [ ] Treat component task lists as subordinate execution checklists. If a task conflicts with or weakens the PRD, stop and reconcile the task before implementation.
+- [ ] Treat this file as the sequencing authority for conversation boundaries, entry criteria, exit criteria, packet order, and handoffs only.
 - [ ] Do not replace, weaken, or skip any component task-list task from this file.
 - [ ] Do not mark a master packet complete unless the mapped component parent acceptance is also satisfied.
 - [ ] Keep the implementation aligned with the PRD authority statement: extend the existing Book system; do not create a second `ActivityBook` product.
 
 ## Execution Model
 
-- [ ] Use one long-lived implementation branch or worktree for the package unless the user explicitly chooses separate branches.
+- [ ] Use one packet-scoped implementation branch or worktree at a time. A separate integration branch may collect completed packet commits only after packet exit criteria pass; do not implement all phases directly in one long-lived branch.
 - [ ] Implement one packet per conversation by default.
 - [ ] A conversation may stop mid-packet only with a handoff note that records exact remaining subtasks.
-- [ ] Each new conversation must start by reading this master task list, the relevant component task list, the PRD, AGENTS.md, and the latest findings/handoff notes.
+- [ ] Each new conversation must start by reading this master task list, the relevant component task list, the PRD, AGENTS.md, `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md`, and the latest findings/handoff notes.
 - [ ] Each implementation conversation must also read `documentation/architecture/book-activity-runtime-and-assembly.md` before changing PRD0062 code or architecture docs.
 - [ ] Keep findings append-only. Do not rewrite old implementation narrative as if it was always current.
+- [ ] Label evidence as `Historical evidence`, `Current live contract`, `Superseded claim`, or `Open blocker` when updating findings, handoffs, traceability, or architecture notes.
+- [ ] Do not collapse implementation, review, verification, closure, commit, rollout, or next-packet approval into one status.
+- [ ] Track every packet with this phase state: `PLANNED`, `IMPLEMENTING`, `IMPLEMENTED_UNREVIEWED`, `REVIEW_BLOCKED`, `VERIFIED`, `CLOSURE_BLOCKED`, or `CLOSED`.
+- [ ] Do not start a dependent packet while the current packet is `IMPLEMENTED_UNREVIEWED`, `REVIEW_BLOCKED`, or `CLOSURE_BLOCKED`, unless the dependency is explicitly severed in a handoff and approved by the user.
 - [ ] Keep commits packet-scoped where practical:
   - one commit for Activity domain/security foundation;
   - one commit for source PDF delivery;
@@ -51,19 +62,54 @@ Findings file:
   - one commit for update/checkpoint/notification flows;
   - one commit for cross-feature delivery/results;
   - one commit for pilot hardening and release closure.
-- [ ] Never use a commit boundary as proof of completion. Tests, findings, and acceptance criteria are required.
+- [ ] Never use a commit boundary as proof of completion. Tests, findings, traceability, architecture/current-state docs, and acceptance criteria are required.
+
+## Mandatory Pre-Code Packet Contract
+
+Before source changes begin in any implementation packet, create:
+
+- [ ] `documentation/tasks/PRD0062/contracts-book-activity-packet-[N].md` from `documentation/tasks/PRD0062/contracts-book-activity-packet-template.md`
+
+Each packet contract must define:
+
+- [ ] Mission ledger: original mission, current slice, in-scope work, out-of-scope work, completion boundary, separate approval gates, blockers, next dependency, and non-actions.
+- [ ] Storage contract, including paths/stores touched, ownership, student-safe projection boundary, and per-store negative security tests.
+- [ ] Rules/security contract, including positive and negative authorization proof.
+- [ ] UI contract, or an explicit `not applicable` rationale.
+- [ ] Migration/compatibility contract for existing data and behavior.
+- [ ] Focused, adjacent, regression, and boundary test contract.
+- [ ] Browser-proof checklist, or an explicit `not applicable` rationale.
+- [ ] Proof classification table with rows for local source proof, local integration proof, type/build proof, emulator/rules proof, browser proof, remote/deployed proof, rollback/recovery proof, and proof explicitly not required for this packet.
+- [ ] Authority reconciliation table using this shape:
+
+```text
+| Requirement / invariant | PRD section | Source owner path | Rules/security boundary | Test file + test title | Negative/mutation proof | Architecture/current-state doc | Findings row | Traceability row | Taskbox ID | Status |
+```
+
+- [ ] Evidence acceptance table for every verification claim:
+
+```text
+| Claim | Command | Working directory | Runner/config | Exit code | Files/tests in scope | Tests actually executed | Product failure or harness failure | Result |
+```
+
+Packet 0 must also create a storage-design packet covering Activity materials, drafts, candidates, versions, student-safe projections, source versions, manifest versions, Page Groups, Placements, Book Homework manifests, attempts, autosave drafts, Review Checkpoints, integrity logs, update audits, notifications, and public projections. For every store/path, record owning service, immutable/mutable fields, indexes, read/write authority, student-safe projection boundary, migration behavior, deletion/archive behavior, backup coverage, per-store negative security tests, and the local integration proof that exercises the store through its owning service rather than by direct fixture-only mutation.
 
 ## Dirty Workspace Policy
 
-- [ ] Start every packet by recording `git status --short --branch`, `git status --short --untracked-files=all`, and `git rev-parse HEAD`.
+- [ ] Start every packet by recording `rtk git status --short --branch`, `rtk git status --short --untracked-files=all`, and `rtk git rev-parse HEAD`; `No hook installed` is a warning, not a failure.
+- [ ] Also record `git diff --name-only` and `git diff --cached --name-only` before writing.
+- [ ] Classify every dirty or untracked path as `owned by this packet`, `pre-existing staged work`, `pre-existing unstaged work`, `user-owned unrelated work`, `generated artifact`, or `must-not-touch`.
 - [ ] Stop before writing feature code if dirty paths are unrelated to the packet or cannot be fenced.
-- [ ] Do not stage, rewrite, or normalize unrelated existing dirty files.
+- [ ] Do not stage, rewrite, normalize, or format unrelated existing dirty files.
 - [ ] Record allowed dirty paths in the packet handoff.
 - [ ] Use exact-path staging if a packet reaches commit scope.
+- [ ] Never use `git add .` or `git add -A` for PRD0062 packet closure.
+- [ ] Verify staged paths with `git diff --cached --name-only` before commit.
 
 ## Global Stop Conditions
 
 - [ ] Stop if the PRD, this master task list, a required component task list, or `AGENTS.md` is missing or unreadable.
+- [ ] Stop if `documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md` is unread or contradicted by the packet plan.
 - [ ] Stop if a triggered rule document conflicts with this task list. Record the conflict and ask for direction.
 - [ ] Stop if implementation would create a parallel Book product instead of extending the existing Book system.
 - [ ] Stop if implementation would import, call, extend, or depend on the obsolete PDF parser path:
@@ -74,10 +120,28 @@ Findings file:
 - [ ] Stop if Book Runtime starts accumulating Homework, Course, Class, or Solo access rules instead of consuming Book Delivery projections.
 - [ ] Stop if new RTDB nodes, Firestore collections, R2/Worker paths, routes, user actions, or notifications lack rules, indexes where needed, backup coverage where needed, observability, and tests.
 - [ ] Stop if cross-system operations require fake RTDB/Firestore/Cloudflare atomicity.
+- [ ] Stop if local proof is used to close a deployed/current-state claim without remote evidence such as Worker version/bindings, R2 object proof, Firebase/Hosting state, Cloudflare REST, or Wrangler dry-run.
 - [ ] Stop if source delivery cannot prove excerpt-only access, private source input, authorization binding, and negative access cases.
 - [ ] Stop if Course/Class integration cannot resolve exact Course material placement/context.
 - [ ] Stop if tests are replaced by screenshots, console logs, or visual inspection for security, rules, versioning, update, or permission behavior.
-- [ ] Stop if taskboxes, findings, source behavior, tests, and implementation state disagree.
+- [ ] Stop if a test claim omits command, working directory, runner/config, exit code, or proof that relevant tests actually executed.
+- [ ] Stop if reviewer PASS omits method, inspected scope, risk model, validation, or residual-risk notes.
+- [ ] Stop if taskboxes, findings, source behavior, tests, implementation logs, traceability, architecture/current-state docs, and implementation state disagree.
+- [ ] Stop if stale claims such as `docs-only`, `no source/tests changed`, `only wrapper`, old proof counts, old line counts, or contradicted design claims remain uncorrected in active docs.
+- [ ] Stop if the current packet contract is missing, incomplete, or contradicted by proposed source changes.
+- [ ] Stop before any Packet 1 source change unless all Packet 1-relevant traceability rows have exact source owner path or explicit N/A, rules/security boundary or explicit N/A, test file plus exact test title or explicit N/A, negative/mutation proof requirement, architecture/current-state doc target, findings row target, completed Packet 1 contract, completed storage-design packet, and Packet 0 findings rows resolved or explicitly marked blocked.
+
+## Review And Closure Protocol
+
+- [ ] Request independent review only after the current diff, packet contract, findings, traceability, and authority docs are inspectable.
+- [ ] Give reviewers the exact changed-file list, exact packet scope, required PRD sections, known dirty-path cautions, and explicit non-scope.
+- [ ] Reviewer PASS is scoped evidence only. It cannot close uninspected files, tests not rerun, remote proof not gathered, or docs not reconciled.
+- [ ] If a reviewer times out, hits usage limits, omits inspected scope, omits risk model, or says tests were not rerun, record it as weak or unusable evidence.
+- [ ] Main agent owns final PASS/BLOCKED judgment after inspecting the actual diff and verification evidence.
+- [ ] Before closure, run stale-claim scans over touched PRD0062 docs, findings, handoffs, traceability, and architecture/current-state docs for obsolete proof language.
+- [ ] Before closure, reconcile every completed taskbox against source path, test proof, findings row, traceability row, and architecture/current-state doc.
+- [ ] Mark packet `VERIFIED` only after accepted review and fresh proof after the final edit.
+- [ ] Mark packet `CLOSED` only when verified implementation plus docs, findings, traceability, handoff, dirty-path scope, and separate approval gates agree.
 
 ## Mandatory Packet Handoff File
 
@@ -92,9 +156,12 @@ Required handoff sections:
 - [ ] `# Handoff`
 - [ ] `## Working Folder`
   - Packet id and status: `COMPLETE`, `PARTIAL`, or `BLOCKED`.
+  - Phase state: `PLANNED`, `IMPLEMENTING`, `IMPLEMENTED_UNREVIEWED`, `REVIEW_BLOCKED`, `VERIFIED`, `CLOSURE_BLOCKED`, or `CLOSED`.
   - Date/time.
   - Worktree path.
   - Branch, commit, and `git status --short` summary.
+- [ ] `## Mission Ledger`
+  - Original mission, current slice, in scope, out of scope, completion boundary, separate approval gates, blockers, next dependency, and non-actions.
 - [ ] `## Next Session Focus`
   - Exact next packet to run, or blocker-resolution focus.
 - [ ] `## Current State`
@@ -102,14 +169,20 @@ Required handoff sections:
   - Component task-list phases/subtasks completed.
   - Files changed.
   - Findings files updated.
+  - Current live contract versus historical/superseded evidence.
 - [ ] `## Decisions And Constraints`
   - Decisions made.
   - Stop conditions, scope constraints, and deferred packet boundaries.
 - [ ] `## Verification`
   - Tests/commands run with pass/fail summary.
   - Browser proof artifacts, if any.
+  - Local proof, emulator/rules proof, browser proof, remote/deployed proof, and proof explicitly not required.
+- [ ] `## Review Evidence`
+  - Reviewer method, inspected files/diff, risk model, validation performed, tests not rerun, and residual risks.
+- [ ] `## Authority Reconciliation`
+  - Requirement/source/test/negative-proof/docs/findings/traceability/taskbox mapping for completed work.
 - [ ] `## Remaining Work`
-  - Blockers, unresolved risks, or deferred residue.
+  - Blockers, unresolved risks, inherited unverified claims, failed or unusable attempts, or deferred residue.
 - [ ] `## Copy-Paste Prompt For Next Codex App Conversation`
   - Copy-paste prompt for the next conversation, or blocker-resolution prompt.
 - [ ] `## Suggested Skills`
@@ -117,11 +190,14 @@ Required handoff sections:
 
 Final response must include:
 
-- [ ] Packet status.
+- [ ] Packet status and phase state.
 - [ ] Handoff file path.
 - [ ] Findings files updated.
+- [ ] Authority reconciliation status.
+- [ ] Verification commands/proof classes completed.
+- [ ] Review evidence status.
 - [ ] Blockers, if any.
-- [ ] Next recommended packet.
+- [ ] Next recommended packet or explicit closure blocker.
 
 ## Conversation Kickoff Template
 
@@ -140,9 +216,14 @@ Follow:
 - the packet entry criteria
 - mapped PRD0062 component task list
 - existing findings/handoff notes
+- documentation/tasks/PRD0062/contracts-book-activity-packet-[N].md
 
+Start by recording state proof and dirty-path classification.
+Use the phase state model from the master task list.
+Keep local proof, emulator/rules proof, browser proof, remote/deployed proof, and closure proof separate.
 Do not implement later packets.
 Do not skip tests.
+Do not use screenshots or console logs as substitutes for security/rules/versioning/update proof.
 Stop and report if packet stop conditions trigger.
 Before final response, create or update documentation/tasks/PRD0062/handoff-book-activity-packet-[N].md using the mandatory handoff format from the master task list.
 ```
@@ -155,10 +236,11 @@ Packet 0 Baseline
   │   ├─ Packet 2 Source PDF Delivery
   │   │   └─ Packet 3 Assembly Workspace
   │   │       └─ Packet 4 Activity Runtime
-  │   │           └─ Packet 5 Book Homework
-  │   │               └─ Packet 6 Updates / Checkpoints / Notifications
-  │   │                   └─ Packet 7 Cross-feature Delivery / Results
-  │   │                       └─ Packet 8 Pilot / Hardening / Release
+  │   │           └─ Foundation Pilot Gate
+  │   │               └─ Packet 5 Book Homework
+  │   │                   └─ Packet 6 Updates / Checkpoints / Notifications
+  │   │                       └─ Packet 7 Cross-feature / Public Delivery / Results
+  │   │                           └─ Packet 8 Full V1 Validation / Hardening / Release
 ```
 
 ## Packet 0 - Baseline And Ownership Map
@@ -177,6 +259,9 @@ Scope:
 - [ ] Record exact missing owners and technical spikes.
 - [ ] Record which existing tests must be preserved as regression coverage.
 - [ ] Confirm the obsolete PDF parser remains excluded from all proposed implementation paths.
+- [ ] Create the storage-design packet with every required store/path contract from the PRD.
+- [ ] Create or update `documentation/tasks/PRD0062/traceability-book-activity-v1.md` with initial requirement rows for all PRD V1 acceptance criteria and packet-owned invariants.
+- [ ] Reconcile all component task lists against the current PRD before Packet 1 starts.
 
 Do not:
 - [ ] Do not write feature code.
@@ -186,6 +271,12 @@ Do not:
 Exit criteria:
 - [ ] `findings-book-activity-baseline.md` contains baseline evidence.
 - [ ] Every component task list has confirmed likely owner paths or explicit unknowns.
+- [ ] Storage-design packet exists and covers ownership, authority, migration, backup, archive/deletion, indexes, and negative tests for every planned store.
+- [ ] Traceability file exists and maps PRD acceptance criteria plus Packet 1 invariants to initial packet owners.
+- [ ] Packet 1-relevant traceability rows have exact source owner path or explicit N/A, rules/security boundary or explicit N/A, test file plus exact test title or explicit N/A, negative/mutation proof requirement, architecture/current-state doc target, and findings row target.
+- [ ] Storage-design packet exists and is complete enough for Packet 1 source paths and security boundaries.
+- [ ] Baseline findings TBD/shell rows relevant to Packet 1 are resolved or explicitly marked blocked.
+- [ ] Packet 1 pre-code contract exists and contains all mandatory contract sections.
 - [ ] Next packet can start without rediscovering current owners.
 - [ ] `documentation/tasks/PRD0062/handoff-book-activity-packet-0.md` exists and contains the copy-paste prompt for Packet 1 or blocker-resolution work.
 
@@ -197,6 +288,10 @@ Mapped task list:
 Entry criteria:
 - [ ] Packet 0 complete.
 - [ ] Dirty workspace paths are fenced or clean.
+- [ ] Packet 1-relevant traceability rows have exact source owner path or explicit N/A, rules/security boundary or explicit N/A, test file plus exact test title or explicit N/A, negative/mutation proof requirement, architecture/current-state doc target, and findings row target.
+- [ ] Storage-design packet is complete for Packet 1 source paths and security boundaries.
+- [ ] Packet 0 findings TBD/shell rows relevant to Packet 1 are resolved or explicitly marked blocked.
+- [ ] Packet 1 pre-code contract is complete and consistent with the PRD.
 
 Scope:
 - [ ] Implement generic `interactive-activity` material kind and central capability registry.
@@ -224,10 +319,11 @@ Mapped task list:
 Entry criteria:
 - [ ] Packet 0 complete.
 - [ ] Packet 1 complete, or source metadata interfaces are explicitly stubbed and documented as blocked from production use.
+- [ ] Packet 2 pre-code contract is complete and consistent with the PRD.
 
 Scope:
 - [ ] Implement immutable Source Version metadata and upload/version creation path.
-- [ ] Select a backend PDF excerpt engine behind an adapter.
+- [ ] Complete the required PDF edge-case spike and select a backend PDF excerpt engine behind an adapter before production source-delivery implementation.
 - [ ] Implement authorized Unit rendition generation/cache and safe delivery grants.
 - [ ] Add positive and negative source-delivery security tests.
 
@@ -249,6 +345,7 @@ Mapped task list:
 Entry criteria:
 - [ ] Packet 1 complete.
 - [ ] Packet 2 complete enough to provide Source Version and page-bound validation contracts.
+- [ ] Packet 3 pre-code contract is complete and consistent with the PRD.
 
 Scope:
 - [ ] Add `unit` Book node support while preserving legacy `test` behavior.
@@ -259,6 +356,8 @@ Do not:
 - [ ] Do not remove existing Book editor capabilities.
 - [ ] Do not add Mantine.
 - [ ] Do not let invalid import mutate current draft or publication.
+- [ ] Do not implement Book Homework, Affected Homework Review, or selective update behavior.
+- [ ] Do not enforce new Book Activity invariants inside an untyped `// @ts-nocheck` seam without a typed wrapper or cleanup.
 
 Exit criteria:
 - [ ] Book structure, manifest, reconciliation, and Assembly Workspace tests pass.
@@ -274,9 +373,11 @@ Mapped task list:
 Entry criteria:
 - [ ] Packet 1 complete.
 - [ ] Packet 2 complete.
-- [ ] Packet 3 complete enough to provide Book Delivery projection fixtures.
+- [ ] Packet 3 complete enough to provide published Unit, source, Placement, and Page Group contracts.
+- [ ] Packet 4 pre-code contract is complete and consistent with the PRD.
 
 Scope:
+- [ ] Implement the minimum Book-owned Solo/preview delivery resolver and student-safe runtime projection required by the foundation pilot.
 - [ ] Implement shared Activity renderer for V1 interaction families.
 - [ ] Implement desktop split runtime, structured/source-assisted modes, single-page PDF navigation, sticky navigator, autosave, Activity submission/review, and mobile tabs.
 - [ ] Launch through the existing asynchronous student entry pattern with one thin Book dispatch branch.
@@ -288,9 +389,23 @@ Do not:
 
 Exit criteria:
 - [ ] Runtime component tests pass.
-- [ ] Autosave/reload tests pass.
+- [ ] Autosave/reload and stale-binding rejection tests pass.
 - [ ] Existing Reading, Listening, Writing, THCS, and Reading V2 StudentPracticePage launch regressions pass.
-- [ ] Packet 4 handoff exists and contains the prompt for Packet 5.
+- [ ] Foundation Pilot Gate passes before Packet 5 starts.
+- [ ] Packet 4 handoff exists and contains the foundation-pilot result plus the prompt for Packet 5 or blocker-resolution work.
+
+## Foundation Pilot Gate - After Packet 4
+
+Scope:
+- [ ] Run one representative Unit from one supplied source through immutable upload, manifest import, Unit Activity JSON import, mapping repair, Assembly preview, Unit publication, desktop/mobile Solo or preview runtime, server-backed autosave, and Activity-level submission/result.
+- [ ] Record correction rate, unsupported interaction patterns, import errors, runtime issues, teacher effort, automated test proof, and browser proof.
+
+Do not:
+- [ ] Do not implement or exercise Book/subtree Homework, selective updates, Review Checkpoints, Course/Class delivery, public playable source-assisted Books, or integrity rollout inside this gate.
+
+Exit criteria:
+- [ ] Foundation pilot behavior, tests, browser proof, findings, taskboxes, and dirty paths agree.
+- [ ] Pilot blockers are resolved or explicitly block Packet 5.
 
 ## Packet 5 - Book Homework
 
@@ -299,9 +414,12 @@ Mapped task list:
 
 Entry criteria:
 - [ ] Packet 4 complete.
+- [ ] Foundation Pilot Gate complete.
+- [ ] Packet 5 pre-code contract is complete and consistent with the PRD.
 
 Scope:
 - [ ] Implement Book Homework target selection, frozen assignment manifest, per-Activity bindings, nested deadlines, scheduled access, Activity-level submission/completion/progress, and per-Activity homework settings mapping.
+- [ ] Implement explicit `accountable`/`practice` assignment intent and Book-specific signals-only integrity behavior.
 - [ ] Update teacher and student homework surfaces.
 
 Do not:
@@ -322,6 +440,7 @@ Mapped task list:
 
 Entry criteria:
 - [ ] Packet 5 complete.
+- [ ] Packet 6 pre-code contract is complete and consistent with the PRD.
 
 Scope:
 - [ ] Implement Affected Homework Review, semantic update planning, selective update application, Review Checkpoints, regrade-only flows, persistent notifications, audit, idempotent retry, and deadline validation.
@@ -344,10 +463,12 @@ Mapped task list:
 
 Entry criteria:
 - [ ] Packet 6 complete.
+- [ ] Packet 7 pre-code contract is complete and consistent with the PRD.
 
 Scope:
-- [ ] Implement Book Delivery for Solo, Homework, Course, and Class contexts.
+- [ ] Extend the foundation Book Delivery module for Homework, Course, Class, and public contexts.
 - [ ] Implement exact Placement binding, context-scoped drafts/attempts/completion, Activity result grouping, Course/Class placement support, and Content Catalog browse/resolve seams.
+- [ ] Implement Public Library source-rights states, public-safe projections, and blocked/allowed launch behavior.
 
 Do not:
 - [ ] Do not resolve Course/Class Book access by bare `materialId`.
@@ -360,20 +481,21 @@ Exit criteria:
 - [ ] Course/Class exact placement tests pass.
 - [ ] Packet 7 handoff exists and contains the prompt for Packet 8.
 
-## Packet 8 - Pilot, Hardening, Release
+## Packet 8 - Full V1 Validation, Hardening, Release
 
 Mapped task list:
 - `documentation/tasks/PRD0062/tasks-book-activity-08-pilot-hardening-release.md`
 
 Entry criteria:
 - [ ] Packets 1 through 7 complete.
+- [ ] Packet 8 pre-code contract is complete and consistent with the PRD.
 
 Scope:
-- [ ] Complete rules/emulator coverage, observability, announcements, regression testing, browser verification, pilot Units, acceptance criteria reconciliation, and release closure notes.
+- [ ] Complete rules/emulator coverage, observability, announcements, regression testing, browser verification, full-V1 validation Units, acceptance criteria reconciliation, and release closure notes.
 
 Do not:
 - [ ] Do not mark PRD0062 accepted while any acceptance criterion lacks source/test/browser/findings evidence.
-- [ ] Do not treat pilot screenshots as substitutes for automated security/versioning tests.
+- [ ] Do not treat validation screenshots as substitutes for automated security/versioning tests.
 
 Exit criteria:
 - [ ] All PRD V1 acceptance criteria pass or are explicitly deferred with owner approval.

@@ -37,6 +37,7 @@ export const MATERIAL_CATALOG_MATERIAL_KINDS = [
   'writing-prompt',
   'vocabulary-set',
   'grammar-worksheet',
+  'interactive-activity',
   'video',
   'file-attachment',
   'thcs-thpt-test',

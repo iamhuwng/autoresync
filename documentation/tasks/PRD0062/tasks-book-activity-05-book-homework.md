@@ -31,7 +31,25 @@ Master orchestration:
 - Student submits each Activity independently. There is no `Submit Entire Book` button.
 - V1 must not show an aggregate Book academic grade.
 - Browsing/Solo progress and Homework progress remain separate unless a future explicit product rule changes that.
-- Anti-cheat/integrity mode is ON by default for Book Homework and applies per Activity attempt.
+- Teacher must choose `accountable` or `practice` assignment intent. Integrity defaults ON for accountable work and OFF for practice; an explicit assignment setting may override the default.
+- Book integrity is signals-only. Reused detection hooks must sit behind a Book-specific adapter that cannot auto-submit, auto-lock, auto-zero, nullify attempts, or block completion.
+
+## Packet Contract And Closure Addendum
+
+Before source changes in this component:
+
+- [ ] Create or update `documentation/tasks/PRD0062/contracts-book-activity-packet-5.md` with storage, rules/security, UI, migration/compatibility, test, browser-proof, proof-classification, and authority-reconciliation sections.
+- [ ] Map every Book Homework claim to PRD section, source owner, test title, negative proof where applicable, architecture/current-state doc, findings row, traceability row, and taskbox ID.
+- [ ] Classify proof separately as local source proof, homework service proof, schedule proof, integrity-signal proof, browser proof, regression proof, or not required for Packet 5.
+- [ ] Keep Book Homework completion/progress proof separate from academic score proof. Progress aggregation must not be represented as an aggregate grade.
+- [ ] Keep phase state explicit. A successful assignment creation flow may move work to `IMPLEMENTED_UNREVIEWED`; it does not make the packet `CLOSED`.
+
+Before completing this component:
+
+- [ ] Run stale-claim scans over touched task docs, findings, traceability, and architecture/current-state docs for contradicted homework, schedule, integrity, progress, score, or assignment claims.
+- [ ] Request review only after source, tests, findings, traceability, and docs are updated and inspectable.
+- [ ] Record reviewer method, inspected files/diff, risk model, validation performed, tests not rerun, and residual risks.
+- [ ] Update the packet handoff with current live contract, historical/superseded evidence, verification commands, dirty-path classification, grade-boundary proof, and unresolved blockers.
 
 ## Tasks
 
@@ -67,7 +85,8 @@ Master orchestration:
   - [ ] 4.6 Implement Open Access as default.
   - [ ] 4.7 Implement Scheduled Access release inheritance: nearest ancestor release or assignment `availableFrom`.
   - [ ] 4.8 Ensure deadlines do not hide content and released content remains accessible after deadline according to late policy.
-  - [ ] 4.9 Add schedule tests for inheritance, mutation, releases, deadline visibility, and per-student extensions.
+  - [ ] 4.9 Enforce V1 no-prerequisite/unlock rule: release dates and deadlines remain separate, and the runtime must not require completing one Chapter/Unit/Activity before another unlocks.
+  - [ ] 4.10 Add schedule tests for inheritance, mutation, releases, deadline visibility, per-student extensions, and absence of prerequisite unlock behavior.
 
 - [ ] 5.0 Implement Activity-level submission, completion, and progress aggregation
   - [ ] 5.1 Store unfinished Activity work as drafts.
@@ -77,7 +96,9 @@ Master orchestration:
   - [ ] 5.5 Display progress as required Activities submitted / required Activities total.
   - [ ] 5.6 Display pending review count and per-Activity score where allowed.
   - [ ] 5.7 Mark removed historical rows as excluded without deleting old result records.
-  - [ ] 5.8 Add progress aggregation tests.
+  - [ ] 5.8 Never write Book completion progress into legacy `HomeworkSubmission.percentage`, `score`, `maxScore`, `bandScore`, or academic-record grade fields.
+  - [ ] 5.9 Keep assigned completion placement-scoped by student, assignment/Course material, Placement, Activity, and Activity Version; one placement must not complete another.
+  - [ ] 5.10 Add tests for progress aggregation, legacy score-field isolation, and the same Activity appearing in two placements.
 
 - [ ] 6.0 Adapt homework settings per Activity
   - [ ] 6.1 Apply `maxAttempts` per Activity attempt within the Book Homework delivery context.
@@ -88,20 +109,22 @@ Master orchestration:
   - [ ] 6.6 Add tests proving feedback timing and late policy are Activity/delivery scoped.
 
 - [ ] 7.0 Implement Book Homework anti-cheat/integrity mapping
-  - [ ] 7.1 Default Book Homework anti-cheat/integrity mode to ON.
-  - [ ] 7.2 Permit teacher to disable anti-cheat only through explicit casual-practice assignment setting.
-  - [ ] 7.3 Save disabled anti-cheat state in assignment metadata.
-  - [ ] 7.4 Record focus/tab/paste/session events per Activity attempt.
-  - [ ] 7.5 Warn student immediately after a recorded event.
-  - [ ] 7.6 Escalate integrity severity for repeated events.
-  - [ ] 7.7 Ensure anti-cheat never auto-submits, auto-locks, auto-zeroes, or prevents completion.
-  - [ ] 7.8 Show Activity integrity report to teacher after submission.
-  - [ ] 7.9 Do not add live teacher integrity monitoring for Book Homework V1.
-  - [ ] 7.10 Do not expose post-submission integrity log/status/count/severity to students.
-  - [ ] 7.11 Add integrity mapping tests.
+  - [ ] 7.1 Require teacher to choose or confirm `accountable` or `practice` assignment intent.
+  - [ ] 7.2 Default integrity ON for accountable work and OFF for practice.
+  - [ ] 7.3 Allow override only through an explicit assignment setting and store intent, default, override, and effective state in assignment metadata.
+  - [ ] 7.4 Put reused detection hooks behind a Book-specific adapter that forces auto-submit, auto-lock, auto-zero, remaining-attempt nullification, and completion blocking OFF.
+  - [ ] 7.5 Record focus/tab/paste/session events per Activity attempt.
+  - [ ] 7.6 Warn student immediately after a recorded event.
+  - [ ] 7.7 Escalate integrity severity for repeated events without applying automatic academic consequences.
+  - [ ] 7.8 Use `recorded events` and `integrity signals` language; never claim cheating is proven or the workflow is cheat-proof/proctored.
+  - [ ] 7.9 Show Activity integrity report and explicit severity display to teacher after submission.
+  - [ ] 7.10 Do not add live teacher integrity monitoring for Book Homework V1.
+  - [ ] 7.11 Do not add special post-homework consequence workflows or built-in action buttons for flagged work.
+  - [ ] 7.12 Do not expose post-submission integrity log/status/count/severity to students.
+  - [ ] 7.13 Add tests proving intent defaults/overrides, severity display, no post-homework consequence/buttons, and that integrity can never auto-submit, auto-lock, auto-zero, nullify attempts, or prevent completion.
 
 - [ ] 8.0 Update teacher and student homework surfaces
-  - [ ] 8.1 Update HomeworkCreateModal for Book/subtree target selection, preview, nested deadlines, scheduled access, and casual-practice anti-cheat toggle.
+  - [ ] 8.1 Update HomeworkCreateModal for Book/subtree target selection, preview, nested deadlines, scheduled access, visible assignment-intent selection before the integrity control, and explicit integrity override.
   - [ ] 8.2 Update TeacherHomeworkDetailPage with Book progress, per-Activity status, pending review, excluded rows, and integrity report after submission.
   - [ ] 8.3 Update StudentHomeworkListPage with Book Homework progress and status.
   - [ ] 8.4 Update StudentHomeworkDetailPage with Book outline, schedule state, Activity status, and launch links.

@@ -1,6 +1,6 @@
 # Task List: PRD0062 Component 01 - Domain And Security Foundation
 
-Status: Draft task list. Execute only through the master orchestration packet order.
+Status: Packet 1 CLOSED.
 
 Source PRD:
 - `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
@@ -33,76 +33,100 @@ Master orchestration:
 - The generic Activity schema MUST NOT add generic Task Group, Task Set, or first-class Resource layers.
 - Activity revision JSON MUST NOT accept `activityId`, `materialId`, `versionId`, `placementId`, `bookId`, `nodeId`, source provenance, owner identity, or publish timestamps.
 - Student-safe projections must exclude hidden answers, authoring data, source provenance, hidden Interaction IDs where not needed by the client, and teacher-only fields.
+- New Book Activity logic must be fully typed. Do not place new invariants inside a legacy `// @ts-nocheck` seam without a typed wrapper or cleanup.
 - Use `npm test -- [path]` or `npm run test -- [path]` according to the repo's Vitest setup after Packet 0 confirms exact commands.
+
+## Packet Contract And Closure Addendum
+
+Before source changes in this component:
+
+- [x] Create or update `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` with storage, rules/security, UI, migration/compatibility, test, browser-proof, proof-classification, and authority-reconciliation sections.
+- [x] Map every implemented requirement to PRD section, source owner, test title, negative proof where applicable, architecture/current-state doc, findings row, traceability row, and taskbox ID.
+- [x] Classify proof separately as local source proof, type/build proof, emulator/rules proof, browser proof, remote/deployed proof, or not required for Packet 1.
+- [x] Keep phase state explicit. Tests passing may move work to `IMPLEMENTED_UNREVIEWED`; they do not make the packet `CLOSED`.
+
+Before completing this component:
+
+- [x] Run stale-claim scans over touched task docs, findings, traceability, and architecture/current-state docs for contradicted proof language.
+- [x] Request review only after source, tests, findings, traceability, and docs are updated and inspectable.
+- [x] Record reviewer method, inspected files/diff, risk model, validation performed, tests not rerun, and residual risks.
+- [x] Update the packet handoff with current live contract, historical/superseded evidence, verification commands, dirty-path classification, and unresolved blockers.
 
 ## Tasks
 
-- [ ] 1.0 Extend Material Catalog for generic Activity Materials
-  - [ ] 1.1 Add `interactive-activity` to the canonical material kind list.
-  - [ ] 1.2 Add or deepen a central capability registry with `playable`, `assignable`, `embeddable`, `gradable`, and `supportsSourceContext` capabilities.
-  - [ ] 1.3 Replace any new proposed direct kind checks with capability lookups.
-  - [ ] 1.4 Confirm existing `grammar-worksheet` and `vocabulary-set` declarations remain compatible and are not treated as proof of runtime support.
-  - [ ] 1.5 Add tests proving capability lookup returns expected capabilities for `interactive-activity` and preserves existing material behavior.
+- [x] 1.0 Extend Material Catalog for generic Activity Materials
+  - [x] 1.1 Add `interactive-activity` to the canonical material kind list.
+  - [x] 1.2 Add or deepen a central capability registry with `playable`, `assignable`, `embeddableInBook`, `gradable`, `supportsSourceContext`, and `supportsPlacementScopedProgress`, plus launch, assignment, result, and projection adapter IDs where applicable.
+  - [x] 1.3 Replace any new proposed direct kind checks with capability lookups across picker filtering, publish validation, assignment eligibility, student launch routing, result ownership, and security/student-safe projection decisions.
+  - [x] 1.4 Confirm existing `grammar-worksheet` and `vocabulary-set` declarations remain compatible and are not treated as proof of runtime support.
+  - [x] 1.5 Add tests proving every required capability/adapter lookup returns expected behavior for `interactive-activity`, fails closed when missing, and preserves existing material behavior.
 
-- [ ] 2.0 Define Activity schema, candidate, draft, and published version contracts
-  - [ ] 2.1 Define the revisionable Activity JSON contract with `schemaVersion`, `title`, `taskProfile`, `presentationMode`, `contextRequirement`, `instructions`, `interaction`, `answerRule`, `stimulus`, `assetRefs`, `interactions`, and `scoring`.
-  - [ ] 2.2 Define immutable origin provenance separately from editable revision JSON.
-  - [ ] 2.3 Define candidate records for imported replacement content awaiting validation and Save Draft.
-  - [ ] 2.4 Define mutable draft records and immutable published version records.
-  - [ ] 2.5 Define supported V1 interaction families: `choice`, `text-entry`, `matching`, `ordering`, and `long-response`.
-  - [ ] 2.6 Define Task Profile registry shape with namespaced `taxonomyId`, `typeId`, and `taxonomyVersion`.
-  - [ ] 2.7 Define `structured` and `source-assisted` presentation modes only.
-  - [ ] 2.8 Define `none`, `optional`, and `required` context requirement modes only.
-  - [ ] 2.9 Add tests proving unsupported families, modes, context requirements, and forbidden fields fail closed.
+- [x] 2.0 Define Activity schema, candidate, draft, and published version contracts
+  - [x] 2.1 Define the revisionable Activity JSON contract with `schemaVersion`, `title`, `taskProfile`, `presentationMode`, `contextRequirement`, `instructions`, `interaction`, `answerRule`, `stimulus`, `assetRefs`, `interactions`, and `scoring`.
+  - [x] 2.2 Define immutable origin provenance separately from editable revision JSON.
+  - [x] 2.3 Define candidate records for imported replacement content awaiting validation and Save Draft.
+  - [x] 2.4 Define mutable draft records and immutable published version records.
+  - [x] 2.5 Define supported V1 interaction families: `choice`, `text-entry`, `matching`, `ordering`, and `long-response`.
+  - [x] 2.6 Define Task Profile registry shape with namespaced `taxonomyId`, `typeId`, and `taxonomyVersion`.
+  - [x] 2.7 Define `structured` and `source-assisted` presentation modes only.
+  - [x] 2.8 Define `none`, `optional`, and `required` context requirement modes only.
+  - [x] 2.9 Define minimum source-assisted response metadata: question label, `accessiblePrompt`, response shape, and relationship to visible source exercise/part labels.
+  - [x] 2.10 Add tests proving unsupported families, modes, context requirements, missing source-assisted accessibility metadata, and forbidden fields fail closed.
 
-- [ ] 3.0 Implement Activity validation and hidden Interaction ID assignment
-  - [ ] 3.1 Validate one Activity has one coherent interaction family and one shared answer rule.
-  - [ ] 3.2 Validate embedded stimulus is distinct from interaction family.
-  - [ ] 3.3 Validate Task Profiles accept registered namespaced taxonomies and permit ordinary Activities to use `taskProfile: null`.
-  - [ ] 3.4 Validate source-assisted mode requires source context and mapped Book pages before publish.
-  - [ ] 3.5 Reject generic Task Group, Task Set, and first-class Resource payloads in V1 schema.
-  - [ ] 3.6 Reject editable JSON that includes hidden Interaction IDs or placement/provenance fields.
-  - [ ] 3.7 Generate hidden Interaction IDs when an Activity is first saved.
-  - [ ] 3.8 Preserve hidden Interaction IDs only when a revision is exact-structure safe by position.
-  - [ ] 3.9 Generate new IDs and classify redo-required when interactions are added, removed, reordered, or materially changed.
-  - [ ] 3.10 Add tests for hidden ID generation, safe preservation, forbidden exported IDs, and redo-required ID replacement.
+- [x] 3.0 Implement Activity validation and hidden Interaction ID assignment
+  - [x] 3.1 Validate one Activity has one coherent interaction family and one shared answer rule.
+  - [x] 3.2 Validate embedded stimulus is distinct from interaction family.
+  - [x] 3.3 Validate Task Profiles accept registered namespaced taxonomies and permit ordinary Activities to use `taskProfile: null`.
+  - [x] 3.4 Validate source-assisted mode requires source context and complete accessible prompt/label/response-shape metadata before publish; concrete Book page mapping is deferred to Packet 3 placement repair.
+  - [x] 3.5 Reject generic Task Group, Task Set, and first-class Resource payloads in V1 schema.
+  - [x] 3.6 Reject editable JSON that includes hidden Interaction IDs or placement/provenance fields.
+  - [x] 3.7 Generate hidden Interaction IDs when an Activity is first saved.
+  - [x] 3.8 Preserve hidden Interaction IDs only when a revision is exact-structure safe by position.
+  - [x] 3.9 Generate new IDs and classify redo-required when interactions are added, removed, reordered, or materially changed.
+  - [x] 3.10 Add tests for hidden ID generation, safe preservation, forbidden exported IDs, and redo-required ID replacement.
 
-- [ ] 4.0 Implement candidate, draft, and publish operations
-  - [ ] 4.1 Implement `stageActivityCandidate(targetActivityId, replacementContent)`.
-  - [ ] 4.2 Implement `validateActivityCandidate(candidate)`.
-  - [ ] 4.3 Implement `saveActivityDraft(candidateId)` as full-content replacement, not partial field merge.
-  - [ ] 4.4 Implement `publishActivityRevision(activityId, expectedDraftRevision)` with immutable version creation.
-  - [ ] 4.5 Ensure invalid candidates leave the current draft and published versions untouched.
-  - [ ] 4.6 Ensure published versions cannot be mutated.
-  - [ ] 4.7 Add tests for candidate failure, full-content replacement, optimistic concurrency, and immutable publish behavior.
+- [x] 4.0 Implement candidate, draft, and publish operations
+  - [x] 4.1 Implement `stageActivityCandidate(targetActivityId, replacementContent)`.
+  - [x] 4.2 Implement `validateActivityCandidate(candidate)`.
+  - [x] 4.3 Implement `saveActivityDraft(candidateId)` as full-content replacement, not partial field merge.
+  - [x] 4.4 Implement `publishActivityRevision(activityId, expectedDraftRevision)` with immutable version creation.
+  - [x] 4.5 Ensure invalid candidates leave the current draft and published versions untouched.
+  - [x] 4.6 Ensure published versions cannot be mutated.
+  - [x] 4.7 Add tests for candidate failure, full-content replacement, optimistic concurrency, and immutable publish behavior.
 
-- [ ] 5.0 Implement student-safe Activity projections
-  - [ ] 5.1 Define the student-safe projection shape for runtime use.
-  - [ ] 5.2 Exclude answer keys until permitted through result/review policy.
-  - [ ] 5.3 Exclude teacher notes, authoring data, provenance internals, candidate data, and publish-only metadata.
-  - [ ] 5.4 Include only runtime-required interaction identity plumbing in a safe form.
-  - [ ] 5.5 Add projection tests proving hidden and authoring fields are absent.
-  - [ ] 5.6 Add negative security tests proving students cannot read authoring records directly.
+- [x] 5.0 Implement student-safe Activity projections
+  - [x] 5.1 Define the student-safe projection shape for runtime use.
+  - [x] 5.2 Exclude answer keys until permitted through result/review policy.
+  - [x] 5.3 Exclude teacher notes, authoring data, provenance internals, candidate data, and publish-only metadata.
+  - [x] 5.4 Include only runtime-required interaction identity plumbing in a safe form.
+  - [x] 5.5 Add projection tests proving hidden and authoring fields are absent.
+  - [x] 5.6 Add negative security tests proving students cannot read authoring records directly.
 
-- [ ] 6.0 Implement semantic diff and grading/regrading classification
-  - [ ] 6.1 Implement `classifyActivityChange(oldVersion, newVersion)`.
-  - [ ] 6.2 Classify title/description/formatting/layout changes as no redo.
-  - [ ] 6.3 Classify same prompt/options plus point-value change as recalculation without redo.
-  - [ ] 6.4 Classify same prompt/options plus answer-key change as regrade without redo.
-  - [ ] 6.5 Classify rubric changes as teacher regrade without redo where applicable.
-  - [ ] 6.6 Classify prompt, choices, response shape, required source context, or interaction structure changes as redo-required where specified.
-  - [ ] 6.7 Add tests covering the PRD change table and examples.
+- [x] 6.0 Implement semantic diff and grading/regrading classification
+  - [x] 6.1 Implement `classifyActivityChange(oldVersion, newVersion)`.
+  - [x] 6.2 Classify title/description/formatting/layout changes as no redo.
+  - [x] 6.3 Classify same prompt/options plus point-value change as recalculation without redo.
+  - [x] 6.4 Classify same prompt/options plus answer-key change as regrade without redo.
+  - [x] 6.5 Classify rubric changes as teacher regrade without redo where applicable.
+  - [x] 6.6 Classify prompt, choices, response shape, required source context, or interaction structure changes as redo-required where specified.
+  - [x] 6.7 Add tests covering the PRD change table and examples.
 
-- [ ] 7.0 Add rules, indexes, backup coverage, and observability for new Activity data
-  - [ ] 7.1 Identify every new RTDB node or Firestore collection before writing data.
-  - [ ] 7.2 Add rules for owner-only authoring access and student-only projection access.
-  - [ ] 7.3 Add malicious cross-owner and cross-student read/write tests.
-  - [ ] 7.4 Add indexes where queries require them.
-  - [ ] 7.5 Add backup coverage where required by the repo infrastructure rule.
-  - [ ] 7.6 Register feature/action observability for candidate save, draft save, publish, validation failure, and projection generation.
+- [x] 7.0 Add rules, indexes, backup coverage, and observability for new Activity data
+  - [x] 7.1 Identify every new RTDB node or Firestore collection before writing data.
+  - [x] 7.2 Add rules for owner-only authoring access and student-safe projection access.
+  - [x] 7.3 Add malicious cross-owner and cross-student read/write tests.
+  - [x] 7.4 Add indexes where queries require them.
+  - [x] 7.5 Add backup coverage where required by the repo infrastructure rule.
+  - [x] 7.6 Observability registry is N/A for Packet 1 because no UI routes, user-facing actions, or analytics-emitting workflows were added; service validation/publish/projection events remain pure domain operations until Packet 3+ UI/runtime integration.
 
-- [ ] 8.0 Preserve regression boundaries
-  - [ ] 8.1 Prove existing Book create/edit/publish behavior still works.
-  - [ ] 8.2 Prove existing Reading V2 and Listening code do not import from or depend on the new Book Activity module.
-  - [ ] 8.3 Prove existing material list/picker behavior remains stable for pre-existing material kinds.
-  - [ ] 8.4 Update `findings-book-activity-baseline.md` with final owner paths, test names, and unresolved risks.
+- [x] 8.0 Enforce typed integration boundaries
+  - [x] 8.1 Inventory touched Book/Material Catalog seams that currently use `// @ts-nocheck`.
+  - [x] 8.2 Add a fully typed wrapper or remove the suppression before enforcing new Activity, Placement, manifest, source, or homework invariants through that seam.
+  - [x] 8.3 Prohibit `// @ts-nocheck` in new Book Activity modules.
+  - [x] 8.4 Run focused typechecking and tests proving typed boundaries reject invalid contract shapes.
+
+- [x] 9.0 Preserve regression boundaries
+  - [x] 9.1 Prove existing Book create/edit/publish behavior still works.
+  - [x] 9.2 Prove existing Reading V2 and Listening code do not import from or depend on the new Book Activity module.
+  - [x] 9.3 Prove existing material list/picker behavior remains stable for pre-existing material kinds.
+  - [x] 9.4 Update `findings-book-activity-baseline.md` with final owner paths, test names, and unresolved risks.

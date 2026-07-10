@@ -174,6 +174,24 @@ describe('data backup RTDB step', () => {
         });
       }
 
+      if (path === 'book_activity') {
+        return json({
+          materials: {
+            'activity-1': {
+              activityId: 'activity-1',
+              ownerId: 'teacher-1',
+            },
+          },
+          versions: {
+            'activity-1': {
+              'version-1': {
+                versionId: 'version-1',
+              },
+            },
+          },
+        });
+      }
+
       if (path === 'tests') {
         return json({
           'legacy-test-1': {
@@ -263,6 +281,20 @@ describe('data backup RTDB step', () => {
           }),
         },
       },
+      book_activity: {
+        materials: {
+          'activity-1': expect.objectContaining({
+            ownerId: 'teacher-1',
+          }),
+        },
+        versions: {
+          'activity-1': {
+            'version-1': expect.objectContaining({
+              versionId: 'version-1',
+            }),
+          },
+        },
+      },
       tests: {
         'legacy-test-1': expect.objectContaining({
           authoringVersioning: expect.objectContaining({
@@ -282,7 +314,73 @@ describe('data backup RTDB step', () => {
       media_asset_metrics: 1,
       media_asset_sweeps: 1,
       listening_authoring: 4,
+      book_activity: 2,
       tests: 1,
+    });
+  });
+
+  it('includes book_activity in RTDB backup coverage', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+
+      if (path === '' && url.searchParams.get('shallow') === 'true') {
+        return json({
+          users: true,
+        });
+      }
+
+      if (path === 'users') {
+        return json({
+          'teacher-1': { role: 'teacher' },
+        });
+      }
+
+      if (path === 'listening_authoring') {
+        return json({});
+      }
+
+      if (path === 'book_activity') {
+        return json({
+          materials: {
+            'activity-1': {
+              activityId: 'activity-1',
+              ownerId: 'teacher-1',
+            },
+          },
+          versions: {
+            'activity-1': {
+              'version-1': {
+                versionId: 'version-1',
+              },
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected fetch ${url.toString()}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r2 = new FakeR2Client();
+    const tracker = new StatusTracker('backup');
+    tracker.setR2Client(r2 as never);
+
+    await executeStep1_RTDB({
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, 'manual', tracker);
+
+    const savedData = await r2.getObjectAsJson<Record<string, unknown>>(`steps/${tracker.state.id}/rtdb.json`);
+    const savedMeta = await r2.getObjectAsJson<{
+      entityCounts: {
+        rtdb: Record<string, number>;
+      };
+    }>(`steps/${tracker.state.id}/meta.json`);
+
+    expect(savedData).toHaveProperty('book_activity.materials.activity-1.ownerId', 'teacher-1');
+    expect(savedMeta?.entityCounts.rtdb).toMatchObject({
+      book_activity: 2,
     });
   });
 });

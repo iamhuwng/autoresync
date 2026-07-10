@@ -27,7 +27,7 @@ import { filterGdprEntities } from './gdpr-filter';
 /** Known dependency order for RTDB restore (PRD §4.16.3) */
 const RTDB_RESTORE_ORDER = [
     'users', 'media_asset_upload_sessions', 'media_assets', 'media_asset_events',
-    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'tests', 'quizzes', 'classes', 'courses',
+    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'book_activity', 'tests', 'quizzes', 'classes', 'courses',
     'course_enrollments', 'class_course_links', 'course_materials', 'course_progress',
     'test_results', 'game_sessions', 'deleted_users', 'guest_results',
     'invitations', 'badges', 'course_attendance', 'audit_logs',
@@ -35,7 +35,7 @@ const RTDB_RESTORE_ORDER = [
     'test_results_by_course', 'test_results_by_class',
 ];
 
-const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring'];
+const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring', 'book_activity'];
 
 /** Nodes excluded from restore by default (prevent spam) */
 const RTDB_SKIP_ON_RESTORE = ['notifications'];
