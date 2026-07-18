@@ -262,6 +262,54 @@ export class MaterialSummaryContractError extends Error {
   }
 }
 
+const READING_V2_DELIVERY_METADATA_FIELDS = new Set([
+  'hasStudentSafeProjection',
+  'studentSafeProjectionReady',
+  'deliveryProjectionReady',
+  'passageRefCount',
+]);
+
+const normalizeReadingV2DeliveryMetadataForRead = (
+  value: unknown,
+): unknown => {
+  if (
+    !isRecord(value) ||
+    value.producerId !== 'reading-v2-full-test' ||
+    value.materialKind !== 'full-test'
+  ) {
+    return value;
+  }
+
+  const booleanFields = [
+    'hasStudentSafeProjection',
+    'studentSafeProjectionReady',
+    'deliveryProjectionReady',
+  ];
+  const hasInvalidBoolean = booleanFields.some((field) =>
+    Object.hasOwn(value, field) && typeof value[field] !== 'boolean',
+  );
+  const passageRefCount = value.passageRefCount;
+  const hasInvalidPassageRefCount =
+    Object.hasOwn(value, 'passageRefCount') &&
+    (
+      typeof passageRefCount !== 'number' ||
+      !Number.isFinite(passageRefCount) ||
+      passageRefCount < 0
+    );
+
+  if (hasInvalidBoolean || hasInvalidPassageRefCount) {
+    throw new MaterialSummaryContractError(
+      'Reading V2 delivery metadata violates the compatibility contract.',
+    );
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([field]) => !READING_V2_DELIVERY_METADATA_FIELDS.has(field),
+    ),
+  );
+};
+
 const isMaterialSummaryInput = (value: unknown): value is MaterialSummaryInput => {
   if (isMaterialSummary(value)) {
     return true;
@@ -446,8 +494,9 @@ export const listActiveMaterialSummaries = async (
   }
 
   const summaries = Object.values(value).map((candidate) => {
-    assertMaterialSummary(candidate);
-    return normalizeMaterialSummary(candidate);
+    const compatibleCandidate = normalizeReadingV2DeliveryMetadataForRead(candidate);
+    assertMaterialSummary(compatibleCandidate);
+    return normalizeMaterialSummary(compatibleCandidate);
   });
 
   const invalidScopeRow = summaries.find((summary) =>
