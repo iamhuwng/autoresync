@@ -226,6 +226,49 @@ describe('materialSummaryPort.service', () => {
     expect(rows.map((row) => row.materialId)).toEqual(['public-owned', 'second', 'first']);
   });
 
+  it('strips valid Reading V2 delivery metadata at the read compatibility boundary', async () => {
+    const rows = await listActiveMaterialSummaries(
+      { scope: 'owned', ownerId: 'teacher-1' },
+      {
+        read: async () => ({
+          reading: {
+            ...summary(),
+            hasStudentSafeProjection: true,
+            studentSafeProjectionReady: true,
+            deliveryProjectionReady: false,
+            passageRefCount: 3,
+          },
+        }),
+      },
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toHaveProperty('hasStudentSafeProjection');
+    expect(rows[0]).not.toHaveProperty('studentSafeProjectionReady');
+    expect(rows[0]).not.toHaveProperty('deliveryProjectionReady');
+    expect(rows[0]).not.toHaveProperty('passageRefCount');
+  });
+
+  it.each([
+    ['hasStudentSafeProjection', 'true'],
+    ['studentSafeProjectionReady', 1],
+    ['deliveryProjectionReady', null],
+    ['passageRefCount', -1],
+    ['passageRefCount', Number.NaN],
+  ])('rejects malformed Reading V2 delivery metadata in %s', async (field, fieldValue) => {
+    await expect(listActiveMaterialSummaries(
+      { scope: 'owned', ownerId: 'teacher-1' },
+      {
+        read: async () => ({
+          reading: {
+            ...summary(),
+            [field]: fieldValue,
+          },
+        }),
+      },
+    )).rejects.toThrow(/delivery metadata violates/i);
+  });
+
   it('fails loudly on malformed or cross-scope rows instead of returning empty', async () => {
     await expect(listActiveMaterialSummaries(
       { scope: 'public' },

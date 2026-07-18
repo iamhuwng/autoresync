@@ -415,6 +415,67 @@ describe('materialBooks.service', () => {
     expect(repo.listBookNodes).not.toHaveBeenCalled();
   });
 
+  it('keeps Book listing available when Reading V2 summaries include delivery metadata', async () => {
+    const book = metadata({
+      bookId: materialCatalogIds.bookId('stable-book'),
+      title: 'Stable Book',
+    });
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/material_summary_indexes/v1/by_owner/teacher-1') {
+        return {
+          'stable-book': createMaterialBookSummary(book),
+          'reading-full-test': {
+            schemaVersion: 1,
+            materialId: 'reading-full-test',
+            producerId: 'reading-v2-full-test',
+            materialKind: 'full-test',
+            surfaceFamily: 'assessment',
+            ownerId: 'teacher-1',
+            title: 'Reading Full Test',
+            visibility: 'private',
+            lifecycleState: 'active',
+            skillId: 'reading',
+            primaryTestTypeId: 'ielts',
+            testTypeIds: ['ielts'],
+            testTypeMembership: { ielts: true },
+            tags: ['reading'],
+            questionCount: 40,
+            durationMinutes: 60,
+            sourceSnapshotVersionId: 'snapshot-1',
+            hasStudentSafeProjection: true,
+            studentSafeProjectionReady: true,
+            deliveryProjectionReady: true,
+            passageRefCount: 3,
+            updatedAt: NOW,
+          },
+        };
+      }
+
+      if (path === 'material_catalog/books/stable-book') {
+        return book;
+      }
+
+      return null;
+    });
+    const repository = createMaterialBooksRepository({
+      read,
+      write: vi.fn(),
+      remove: vi.fn(),
+    });
+
+    await expect(listTeacherBooks({
+      teacherId: 'teacher-1',
+      scope: 'private',
+      repository,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    })).resolves.toEqual([
+      expect.objectContaining({
+        bookId: 'stable-book',
+        title: 'Stable Book',
+      }),
+    ]);
+  });
+
   it('fails loudly when an owned Book summary has no canonical Book record', async () => {
     const book = metadata({ bookId: materialCatalogIds.bookId('missing-book') });
     const repo: MaterialBooksRepository = {
