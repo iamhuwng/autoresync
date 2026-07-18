@@ -1,3 +1,7 @@
+> **DORMANT PRD0062 HISTORICAL EVIDENCE - NOT CURRENT IMPLEMENTATION AUTHORITY**
+>
+> Preserved for possible future reimplementation. Read the [PRD0062b dormant status](PRD0062b/DORMANT-STATUS-2026-07-18.md) first. The body below records dated approval history; it does not describe current implementation, deployment, task closure, or mutation authority. Reuse requires fresh baseline validation and separate approval.
+
 # Approved Amendment: Book-Based Interactive Activity Runtime and Assembly Workspace
 
 ## 0. Authority

@@ -1,6 +1,8 @@
 # PRD0062b Full-V1 Foundation Traceability
 
-Status: `ACTIVE` — P1 `VERIFIED`; P2 `CLOSURE_BLOCKED`
+> **DORMANT_AFTER_CODE_RESET:** Read [DORMANT-STATUS-2026-07-18.md](DORMANT-STATUS-2026-07-18.md) first. Every status, classification, proof, and current-state row below is dated historical evidence or retained future design intent. Revalidate it against the live baseline before reuse.
+
+Historical status at retirement: `ACTIVE` — P1 `VERIFIED`; P2 `CLOSURE_BLOCKED`
 
 Canonical wording owners: root Components 01–08 plus the explicit approved replacements in `canonical-task-overrides.json`. This local traceability owner replaces historical PRD0062 execution pointers without modifying them.
 

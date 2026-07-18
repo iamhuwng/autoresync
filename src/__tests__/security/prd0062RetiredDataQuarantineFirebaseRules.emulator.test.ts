@@ -13,18 +13,23 @@ const databaseRules = JSON.parse(rulesText) as {
 };
 const hasDatabaseEmulator = Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST);
 const describeEmulator = hasDatabaseEmulator ? describe : describe.skip;
+const retiredExpansionRoots = [
+  'book_activity',
+  'book_source',
+  'book_assembly',
+  'book_delivery',
+  'book_runtime',
+] as const;
 let testEnv: RulesTestEnvironment;
 
 describe('retired PRD0062 data quarantine', () => {
-  it('defines no feature authority and freezes historical book_activity data at the root boundary', () => {
-    expect(databaseRules.rules).not.toHaveProperty('book_activity');
-    expect(databaseRules.rules).not.toHaveProperty('book_source');
-    expect(databaseRules.rules).not.toHaveProperty('book_assembly');
-    expect(databaseRules.rules).not.toHaveProperty('book_delivery');
-    expect(databaseRules.rules).not.toHaveProperty('book_runtime');
-    expect(rulesText).toContain(
-      "newData.child('book_activity').val() === data.child('book_activity').val()",
-    );
+  it('defines no feature authority and freezes every retired expansion root', () => {
+    for (const root of retiredExpansionRoots) {
+      expect(databaseRules.rules).not.toHaveProperty(root);
+      expect(rulesText).toContain(
+        `newData.child('${root}').val() === data.child('${root}').val()`,
+      );
+    }
     expect(databaseRules.rules).toHaveProperty('material_catalog');
     expect(databaseRules.rules).toHaveProperty('listening_authoring');
   });
@@ -47,30 +52,42 @@ describe('retired PRD0062 data quarantine', () => {
         const db = context.database();
         await db.ref('users/admin-1/role').set('super_admin');
         await db.ref('users/teacher-1/role').set('teacher');
-        await db.ref('book_activity/materials/historical-1').set({
-          ownerId: 'teacher-1',
-          title: 'Retired historical data',
-        });
+        for (const root of retiredExpansionRoots) {
+          await db.ref(`${root}/historical-1`).set({
+            ownerId: 'teacher-1',
+            title: `Retired historical ${root} data`,
+          });
+        }
       });
     });
 
-    it('allows forensic admin read but denies every browser mutation shape', async () => {
+    it('allows forensic admin reads but denies every browser mutation shape for every retired root', async () => {
       const admin = testEnv.authenticatedContext('admin-1').database();
       const teacher = testEnv.authenticatedContext('teacher-1').database();
-      const historicalPath = 'book_activity/materials/historical-1';
+      const unauthenticated = testEnv.unauthenticatedContext().database();
 
-      await assertSucceeds(admin.ref(historicalPath).once('value'));
-      await assertFails(teacher.ref(historicalPath).once('value'));
-      await assertFails(admin.ref(historicalPath).update({ title: 'rewritten' }));
-      await assertFails(admin.ref('book_activity').remove());
-      await assertFails(admin.ref('book_activity/materials/historical-2').set({
-        ownerId: 'admin-1',
-        title: 'recreated',
-      }));
-      await assertFails(admin.ref().update({
-        'book_activity/materials/historical-1/title': 'root rewrite',
-      }));
-      await assertFails(admin.ref().update({ book_activity: null }));
+      for (const root of retiredExpansionRoots) {
+        const historicalPath = `${root}/historical-1`;
+
+        await assertSucceeds(admin.ref(historicalPath).once('value'));
+        await assertFails(teacher.ref(historicalPath).once('value'));
+        await assertFails(unauthenticated.ref(historicalPath).once('value'));
+        await assertFails(admin.ref(historicalPath).set({
+          ownerId: 'admin-1',
+          title: 'overwritten historical expansion record',
+        }));
+        await assertFails(admin.ref(historicalPath).remove());
+        await assertFails(admin.ref(historicalPath).update({ title: 'rewritten' }));
+        await assertFails(admin.ref(root).remove());
+        await assertFails(admin.ref(`${root}/historical-2`).set({
+          ownerId: 'admin-1',
+          title: 'recreated',
+        }));
+        await assertFails(admin.ref().update({
+          [`${root}/historical-1/title`]: 'root rewrite',
+        }));
+        await assertFails(admin.ref().update({ [root]: null }));
+      }
     });
   });
 });

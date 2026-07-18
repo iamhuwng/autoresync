@@ -9,6 +9,15 @@ test('preserves PRD0062b as a dormant future plan without restoring product code
   const status = read('documentation/tasks/PRD0062b/DORMANT-STATUS-2026-07-18.md');
   const readme = read('documentation/tasks/PRD0062b/README.md');
   const authority = read('documentation/tasks/PRD0062b/authority-and-provenance.md');
+  const traceability = read(
+    'documentation/tasks/PRD0062b/traceability-book-activity-v1.md',
+  );
+  const historicalPrd = read(
+    'documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md',
+  );
+  const historicalAmendment = read(
+    'documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly-approved-amendment-2026-07-09.md',
+  );
   const postCleanupPlan = read(
     'documentation/tasks/PRD0062b/evidence/P2-post-cleanup-r2-proof-execution-plan-20260718.md',
   );
@@ -23,6 +32,16 @@ test('preserves PRD0062b as a dormant future plan without restoring product code
   assert.doesNotMatch(readme, /Status: APPROVED_ACTIVE/);
   assert.doesNotMatch(readme, /Active production direction/);
   assert.match(authority, /DORMANT_AFTER_CODE_RESET/);
+  assert.match(traceability, /DORMANT_AFTER_CODE_RESET/);
+  assert.match(traceability, /Historical status at retirement:/);
+  assert.doesNotMatch(traceability, /^Status: `ACTIVE`/m);
+  for (const historicalDocument of [historicalPrd, historicalAmendment]) {
+    assert.match(
+      historicalDocument,
+      /DORMANT PRD0062 HISTORICAL EVIDENCE - NOT CURRENT IMPLEMENTATION AUTHORITY/,
+    );
+    assert.match(historicalDocument, /PRD0062b\/DORMANT-STATUS-2026-07-18\.md/);
+  }
   assert.doesNotMatch(postCleanupPlan, /— authorized now/);
   assert.match(fullDocumentDecision, /complete immutable student-safe PDF/);
   assert.match(fullDocumentDecision, /Browser Run, page rasterization, PDF splitting/);
