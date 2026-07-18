@@ -1,7 +1,7 @@
 {
     "rules": {
         ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val() && newData.child('quizzes').val() === data.child('quizzes').val()",
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' && newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val() && newData.child('media_assets').val() === data.child('media_assets').val() && newData.child('media_asset_events').val() === data.child('media_asset_events').val() && newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val() && newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val() && newData.child('listening_authoring').val() === data.child('listening_authoring').val() && newData.child('book_activity').val() === data.child('book_activity').val() && newData.child('quizzes').val() === data.child('quizzes').val()",
         "users": {
             ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
             "$uid": {
