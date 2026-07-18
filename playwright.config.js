@@ -1,16 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config';
 
+const workerCount = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '1', 10);
+
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: process.env.PLAYWRIGHT_FULLY_PARALLEL === 'true',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: Number.isFinite(workerCount) && workerCount > 0 ? workerCount : 1,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:5173',
-    trace: 'on-first-retry',
+    trace: process.env.PLAYWRIGHT_TRACE || (process.env.CI ? 'on-first-retry' : 'off'),
   },
   projects: [
     {

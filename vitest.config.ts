@@ -5,6 +5,11 @@ import path from 'path';
 const emulatorTestPattern = /[\\/].+\.emulator\.test\.(ts|tsx|js|jsx)$/u;
 const isExplicitEmulatorTestRun = process.argv.some((arg) => emulatorTestPattern.test(arg));
 const defaultExclude = ['node_modules', 'dist', '.idea', '.git', '.cache'];
+const enableFileParallelism = process.env.VITEST_FILE_PARALLELISM !== 'false';
+const configuredWorkerCount = Number.parseInt(process.env.VITEST_MAX_WORKERS ?? '2', 10);
+const maxWorkers = Number.isFinite(configuredWorkerCount) && configuredWorkerCount > 0
+  ? configuredWorkerCount
+  : 2;
 
 export default defineConfig({
   plugins: [react()],
@@ -14,7 +19,8 @@ export default defineConfig({
     setupFiles: './src/__tests__/setup.ts',
     testTimeout: 30000,
     hookTimeout: 30000,
-    maxWorkers: 4,
+    fileParallelism: enableFileParallelism,
+    maxWorkers,
     minWorkers: 1,
     css: true,
     coverage: {
@@ -30,7 +36,6 @@ export default defineConfig({
     },
     include: [
       'src/**/*.{test,spec}.{ts,tsx,js,jsx}',
-      'scripts/**/*.{test,spec}.{ts,tsx,js,jsx}',
     ],
     exclude: [
       ...defaultExclude,

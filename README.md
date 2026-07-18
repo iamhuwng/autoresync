@@ -312,7 +312,10 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 | `npm run dev` | Start Vite dev server |
 | `npm run build` | Direct Vite production build plus bundle-budget check |
 | `npm run deploy:hosting` | Run `npm run build`, then deploy Hosting target `kahut1` |
-| `npm test` | Run Vitest unit tests |
+| `npm test` | Run app Vitest unit tests with memory-safe worker settings |
+| `npm run test:scripts` | Run script tests in Node and Vitest |
+| `npm run test:r2` | Run `r2-backup-worker` tests |
+| `npm run test:all` | Run app, script, and R2 test suites sequentially |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run lint` | ESLint check |
 | `npm run lint:mantine` | Check changed source for banned `@mantine/*` imports |
@@ -448,6 +451,18 @@ kahoot/
 ```bash
 # Unit tests (Vitest + React Testing Library)
 npm test
+
+# Node-only script tests
+npm run test:scripts
+
+# Worker tests
+npm run test:r2
+
+# All test suites, sequential to avoid local OOM
+npm run test:all
+
+# App test memory knobs: set VITEST_MAX_WORKERS=1 or VITEST_FILE_PARALLELISM=false
+# before npm test on very memory-constrained machines.
 
 # E2E tests (Playwright)
 npm run test:e2e
