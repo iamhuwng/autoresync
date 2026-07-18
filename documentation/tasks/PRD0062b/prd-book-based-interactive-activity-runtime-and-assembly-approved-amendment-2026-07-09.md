@@ -1,6 +1,6 @@
-> **DORMANT PRD0062 HISTORICAL EVIDENCE - NOT CURRENT IMPLEMENTATION AUTHORITY**
+> **APPROVED AMENDMENT / ACTIVE CONFLICT AUTHORITY**
 >
-> Preserved for possible future reimplementation. Read the [PRD0062b dormant status](PRD0062b/DORMANT-STATUS-2026-07-18.md) first. The body below records dated approval history; it does not describe current implementation, deployment, task closure, or mutation authority. Reuse requires fresh baseline validation and separate approval.
+> Verbatim recovered body from Git object `043a6d9b1f96a76f200ea753ca353e0376be65a7:documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly-approved-amendment-2026-07-09.md`. It is PRD0062b conflict authority; active execution mapping lives in this directory.
 
 # Approved Amendment: Book-Based Interactive Activity Runtime and Assembly Workspace
 

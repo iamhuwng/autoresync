@@ -52,7 +52,11 @@ const CONFIG = {
         'src/__tests__/security/prd0056a-upload-session-rules.emulator.test.ts',
         'src/__tests__/security/prd0057-listening-authoring-rules.emulator.test.ts',
         'src/__tests__/security/prd0058-media-asset-rules.emulator.test.ts',
+        'src/__tests__/security/prd0062RetiredDataQuarantineFirebaseRules.emulator.test.ts',
         'src/__tests__/security/retired-material-rules.emulator.test.ts',
+    ],
+    requiredTestPaths: [
+        'src/__tests__/security/prd0062RetiredDataQuarantineFirebaseRules.emulator.test.ts',
     ],
     // Output format for CI/CD
     outputFormat: process.env.CI ? 'junit' : 'verbose',
@@ -138,7 +142,7 @@ function buildVitestCommandString(args) {
     ].join(' ');
 }
 
-function collectExistingPaths(paths) {
+export function collectExistingPaths(paths, requiredPaths = new Set()) {
     const existing = [];
 
     for (const testPath of paths) {
@@ -146,6 +150,9 @@ function collectExistingPaths(paths) {
         if (fs.existsSync(fullPath)) {
             existing.push(testPath);
         } else {
+            if (requiredPaths.has(testPath)) {
+                throw new Error(`Required security test path not found: ${testPath}`);
+            }
             log(`Warning: Test path not found: ${testPath}`, 'yellow');
         }
     }
@@ -252,7 +259,10 @@ async function runSecurityTests() {
     ];
 
     const regularTestPaths = collectExistingPaths(CONFIG.testPaths);
-    const emulatorTestPaths = collectExistingPaths(CONFIG.emulatorTestPaths);
+    const emulatorTestPaths = collectExistingPaths(
+        CONFIG.emulatorTestPaths,
+        new Set(CONFIG.requiredTestPaths),
+    );
 
     let exitCode = 0;
     let totals = { passed: 0, failed: 0, skipped: 0 };
@@ -320,11 +330,13 @@ async function runSecurityTests() {
 // RUN
 // =============================================================================
 
-runSecurityTests()
-    .then((exitCode) => {
-        process.exit(exitCode);
-    })
-    .catch((error) => {
-        log(`Unexpected error: ${error.message}`, 'red');
-        process.exit(2);
-    });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    runSecurityTests()
+        .then((exitCode) => {
+            process.exit(exitCode);
+        })
+        .catch((error) => {
+            log(`Unexpected error: ${error.message}`, 'red');
+            process.exit(2);
+        });
+}
