@@ -21,6 +21,7 @@ import {
 import { handleListeningUploadSessionGrant } from './src/upload-worker/listening-upload-session-grant.ts';
 import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
+import { createListeningUploadSessionSweepHandler } from './src/upload-worker/listening-upload-session-sweep.ts';
 import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
 
 /**
@@ -70,6 +71,7 @@ export function createUploadWorker({
   now = () => Date.now(),
   listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
+  listeningUploadSessionSweepHandler = createListeningUploadSessionSweepHandler(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
 } = {}) {
   return {
@@ -161,6 +163,15 @@ export function createUploadWorker({
           }));
         }
 
+        if (request.method === 'POST' && url.pathname === '/cancelListeningUploadSession') {
+          return respond(await listeningUploadSessionHandlers.cancelSession({
+            request,
+            env,
+            uid,
+            now,
+          }));
+        }
+
         if (request.method === 'POST' && url.pathname === '/listening-authoring/save-draft') {
           return respond(await listeningAuthoringHandlers.saveDraft({
             request,
@@ -245,6 +256,12 @@ export function createUploadWorker({
         console.error('Worker request failed');
         return json({ error: 'Internal server error' }, { status: 500 });
       }
+    },
+    async scheduled(controller, env, ctx) {
+      ctx.waitUntil(listeningUploadSessionSweepHandler.scheduled({
+        env,
+        cron: controller.cron,
+      }));
     },
   };
 }

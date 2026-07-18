@@ -1,8 +1,12 @@
 import { SignJWT, importPKCS8 } from 'jose';
 import type {
+  ListeningUploadAssetReference,
   ListeningUploadAssetRecord,
+  ListeningUploadSessionMetricRecord,
   ListeningUploadSessionRecord,
   ListeningUploadSessionRepository,
+  ListeningUploadSessionSweepCandidate,
+  ListeningUploadSessionSweepRecord,
 } from './listening-upload-session-types.ts';
 
 const OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -152,6 +156,7 @@ const findByCreationHash = (
 export class FirebaseRestListeningUploadSessionRepository implements ListeningUploadSessionRepository {
   private readonly fetchImpl: typeof fetch;
   private readonly maxRetries: number;
+  private readonly durableReferenceRootCache = new Map<string, unknown>();
 
   constructor(
     private readonly options: {
@@ -191,6 +196,22 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
     return { data: body as T, etag };
   }
 
+  private async readPath<T>(path: string): Promise<T> {
+    const response = await this.fetchImpl(rtdbUrl(this.options.env, path), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${await this.accessToken()}`,
+      },
+    });
+    const body = parseJsonBody(await response.text());
+    if (!response.ok) {
+      throw new Error(
+        `firebase_rtdb_get_failed:${path || '/'}:${response.status}:${firebaseErrorMessage(body)}`,
+      );
+    }
+    return body as T;
+  }
+
   private async writeIfMatch<T>(
     path: string,
     value: unknown,
@@ -213,6 +234,23 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
       );
     }
     return { matched: true, data: body as T };
+  }
+
+  private async writePath(path: string, value: unknown): Promise<void> {
+    const response = await this.fetchImpl(rtdbUrl(this.options.env, path), {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${await this.accessToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(value),
+    });
+    const body = parseJsonBody(await response.text());
+    if (!response.ok) {
+      throw new Error(
+        `firebase_rtdb_put_failed:${path || '/'}:${response.status}:${firebaseErrorMessage(body)}`,
+      );
+    }
   }
 
   private ownerPath(ownerId: string): string {
@@ -269,6 +307,17 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
     return asSessionRecord(data);
   }
 
+  async isRestoreInProgress(): Promise<boolean> {
+    const value = await this.readPath<unknown>('system_flags/restore_in_progress');
+    return value === true || (
+      value !== null
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && 'active' in value
+      && value.active === true
+    );
+  }
+
   async issueAsset(input: {
     ownerId: string;
     uploadSessionId: string;
@@ -312,5 +361,158 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
     if (!session) return null;
     const asset = session.assetRequests?.[input.assetRequestIdHash];
     return asset ? { session, asset } : null;
+  }
+
+  async findDurableAssetReferences(input: {
+    ownerId: string;
+    assetIds: readonly string[];
+    tempKeys: readonly string[];
+  }): Promise<ListeningUploadAssetReference[]> {
+    const references: ListeningUploadAssetReference[] = [];
+    for (const assetId of input.assetIds) {
+      const asset = await this.readPath<unknown>(`media_assets/${assetId}`);
+      if (asset !== null) {
+        references.push({ assetId, source: `media_assets/${assetId}` });
+      }
+    }
+
+    const roots = [
+      'listening_authoring/drafts',
+      'listening_authoring/versions',
+      'tests',
+      'results',
+      'assignments',
+      'sessions',
+    ];
+    const searchable = input.assetIds.map((assetId, index) => ({
+      assetId,
+      needles: [assetId, input.tempKeys[index]].filter((value): value is string =>
+        typeof value === 'string' && value.length > 0),
+    }));
+
+    for (const root of roots) {
+      let value: unknown;
+      if (this.durableReferenceRootCache.has(root)) {
+        value = this.durableReferenceRootCache.get(root);
+      } else {
+        value = await this.readPath<unknown>(root);
+        this.durableReferenceRootCache.set(root, value);
+      }
+      if (value === null) continue;
+      const serialized = JSON.stringify(value);
+      for (const target of searchable) {
+        if (target.needles.some((needle) => serialized.includes(needle))) {
+          references.push({ assetId: target.assetId, source: root });
+        }
+      }
+    }
+
+    return references;
+  }
+
+  async markCleanupState(input: {
+    ownerId: string;
+    uploadSessionId: string;
+    status: 'abandoned' | 'cleanup-queued';
+    reason: string;
+    cleanupQueuedAt: number;
+    completedAt?: number;
+    deletedAssetIds: readonly string[];
+    preservedAssetIds: readonly string[];
+  }): Promise<ListeningUploadSessionRecord | null> {
+    const path = this.sessionPath(input.ownerId, input.uploadSessionId);
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
+      const current = await this.readWithEtag<ListeningUploadSessionRecord | null>(path);
+      const session = asSessionRecord(current.data);
+      if (!session || session.ownerId !== input.ownerId || session.uploadSessionId !== input.uploadSessionId) {
+        return null;
+      }
+
+      const nextSession: ListeningUploadSessionRecord = {
+        ...session,
+        status: input.status,
+        abandonmentReason: input.reason,
+        cleanupQueuedAt: input.cleanupQueuedAt,
+        ...(input.completedAt !== undefined ? { completedAt: input.completedAt } : {}),
+        deletedAssetIds: {
+          ...(session.deletedAssetIds ?? {}),
+          ...Object.fromEntries(input.deletedAssetIds.map((assetId) => [assetId, true])),
+        },
+        preservedAssetIds: {
+          ...(session.preservedAssetIds ?? {}),
+          ...Object.fromEntries(input.preservedAssetIds.map((assetId) => [assetId, true])),
+        },
+      };
+      const write = await this.writeIfMatch<ListeningUploadSessionRecord>(
+        path,
+        nextSession,
+        current.etag,
+      );
+      if (!write.matched) continue;
+      return asSessionRecord(write.data) ?? nextSession;
+    }
+
+    return this.get(input.ownerId, input.uploadSessionId);
+  }
+
+  async listExpiredCleanupCandidates(input: {
+    now: number;
+    notBeforeMs: number;
+    maxOwners: number;
+    maxSessions: number;
+  }): Promise<ListeningUploadSessionSweepCandidate[]> {
+    const root = await this.readPath<Record<string, Record<string, ListeningUploadSessionRecord>> | null>(
+      'media_asset_upload_sessions',
+    );
+    const candidates: ListeningUploadSessionSweepCandidate[] = [];
+    if (!root || typeof root !== 'object' || Array.isArray(root)) return candidates;
+
+    if (input.maxOwners <= 0 || input.maxSessions <= 0) return candidates;
+    const ownerIds = Object.keys(root).sort();
+    let eligibleOwnerCount = 0;
+    for (const ownerId of ownerIds) {
+      const sessions = normalizeOwnerSessions(root[ownerId]);
+      let ownerHasCandidate = false;
+      for (const uploadSessionId of Object.keys(sessions).sort()) {
+        if (candidates.length >= input.maxSessions) return candidates;
+        const session = asSessionRecord(sessions[uploadSessionId]);
+        if (!session || session.ownerId !== ownerId || session.uploadSessionId !== uploadSessionId) {
+          continue;
+        }
+        if (session.purpose !== 'listening-authoring') continue;
+        if (session.status !== 'active' && session.status !== 'cleanup-queued') continue;
+        if (!Number.isFinite(session.createdAt) || session.createdAt < input.notBeforeMs) continue;
+        if (
+          Number.isFinite(session.maxEligibilityExpiresAt)
+          && session.maxEligibilityExpiresAt > input.now
+        ) {
+          continue;
+        }
+        candidates.push({
+          ownerId,
+          uploadSessionId,
+          status: session.status,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+          maxEligibilityExpiresAt: session.maxEligibilityExpiresAt,
+          assetCount: Object.keys(session.assetRequests ?? {}).length,
+        });
+        ownerHasCandidate = true;
+      }
+      if (ownerHasCandidate) {
+        eligibleOwnerCount += 1;
+        if (eligibleOwnerCount >= input.maxOwners) return candidates;
+      }
+    }
+    return candidates;
+  }
+
+  async writeSweepRecord(record: ListeningUploadSessionSweepRecord): Promise<void> {
+    await this.writePath(`media_asset_sweeps/${record.sweepId}`, record);
+  }
+
+  async writeMetricRecord(record: ListeningUploadSessionMetricRecord): Promise<void> {
+    await this.writePath(`media_asset_metrics/${record.metricEventId}`, record);
   }
 }
