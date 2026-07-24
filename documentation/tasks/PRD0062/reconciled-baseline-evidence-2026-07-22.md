@@ -3698,3 +3698,64 @@ for both mode paths were clean and are the authoritative Ticket 02 proof.
 Ticket 02 is now acceptance-ready for formal GitHub closure. No 50A capability
 was enabled, no 03B behavior changed, and no repository commit has been made
 before live issue closure.
+
+### Ticket 04 final closure evidence — 2026-07-25
+
+Ticket 04 / GitHub #29 was reselected as the sole Foundation primary after a
+fresh 112-ticket transitive dependency graph. Its direct and transitive
+prerequisites were formally CLOSED; the selection snapshot records graph
+frontier, candidate rejection reasons, roadmap phase, leverage, acceptance
+readiness, and authority. The #25/#118 generated-rule boundary remains
+preserved. #50A remains all-six-deny/default-deny and #03B remains disabled.
+
+Final implementation and remediation proof:
+
+- Materials/source-capacity domain paths preserve immutable Source Version
+  identity, bounded normalized display filenames, trusted CAS transactions,
+  replacement overlap accounting, provider-total derivation, RTDB-safe keys,
+  and fail-closed state validation.
+- Browser Firebase Web SDK transactions were removed from the canonical ledger
+  path. The trusted backend REST adapter uses service-account OAuth and ETag
+  compare-and-set.
+- New account state must be provisioned from trusted provider reconciliation;
+  caller-supplied initial capacity is not accepted. Firebase omission of an
+  empty operations map is normalized to the canonical empty map.
+- Reservation and completion recheck trusted time inside the CAS callback.
+  Exact-expiry, future, pre-reservation, invalid-clock, expired-completion, and
+  persisted out-of-window completion cases fail closed.
+- Root focused suites: 5 files, 29 tests passed. Worker suites: 3 files, 22
+  tests passed. Firebase emulator rule proof: 2 tests passed, including the
+  actual deny branch. Scoped root and Worker TypeScript checks passed;
+  focused ESLint passed; production Vite build passed for 9,332 modules; the
+  bundle budget passed with root entry 233 KB and public preloads within
+  budget.
+- Independent re-review after all remediation: no actionable findings.
+
+Trusted remote proof:
+
+- Google service account
+  `book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com` uses the
+  database-only `roles/firebasedatabase.admin` platform role; code restricts
+  the Worker read to the canonical `book_source_upload_accounts/book_b2_primary`
+  path. The newly created key ID is
+  `50bb67a49bca9560aa9fe5f780ea2f34a35b0cc7`; no key value is recorded here.
+- The canonical RTDB row was read as null only after independently confirming
+  the configured B2 account totals were zero, then provisioned with revision
+  zero, zero tracked bytes, zero temporary bytes, and no operations. Firebase
+  readback showed the expected empty-map omission; the Worker normalization
+  handles that representation.
+- Exact current source deployment:
+  `luyentap-book-source-capacity-s0`, version
+  `446d72f6-5f6f-4060-bc71-00064506e052`, live response
+  `{ "state": "complete", "status": "healthy" }` at
+  `https://luyentap-book-source-capacity-s0.iamhuwng.workers.dev`.
+- Approved rollback drill remains proven: enabled version
+  `3783f566-a1b0-45cd-bbba-8481e0d9f2bb` was healthy; disabled version
+  `ee5db07b-7abc-4690-b10f-d2f70909d75f` returned 503/unavailable; restored
+  version `52c2a930-f15a-4706-a63b-ce1db48cba3a` returned healthy. The latest
+  exact deployment is healthy after the final source normalization.
+- All 11 required Cloudflare secret names are present. Secure combined-secret
+  scan checked 8 credential values and found zero repository matches.
+
+Ticket 04 is acceptance-ready for formal GitHub closure. No 50A capability was
+enabled, no 03B behavior changed, and the full 112-ticket goal remains open.

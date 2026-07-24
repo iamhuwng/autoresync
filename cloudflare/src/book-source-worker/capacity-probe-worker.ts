@@ -1,0 +1,290 @@
+import { createCapacityProbeProviderFromEnv } from './capacity-probe-provider';
+import { readProviderTotalsWorkUnit, type ProviderReconciliationCursor } from './provider-reconciliation';
+import {
+  createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
+} from '../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction';
+import {
+  getBookSourceUploadProviderTotals,
+} from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository';
+
+const PATH = '/internal/book-source-capacity/reconciliation-page';
+const MAX_BODY_BYTES = 64 * 1_024;
+const MAX_LEDGER_RESPONSE_BYTES = 32 * 1024 * 1024;
+const BODY_READ_TIMEOUT_MS = 5_000;
+const TOKEN_TTL_MS = 10 * 60 * 1_000;
+const TOKEN_VERSION = 'book-source-capacity-v1';
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+interface ExpectedTotals { readonly totalBytes: number; readonly objectCount: number; }
+interface ContinuationPayload { readonly v: string; readonly exp: number; readonly expected: ExpectedTotals; readonly cursor: ProviderReconciliationCursor; }
+type ExpectedTotalsReader = (env: Record<string, unknown>) => Promise<ExpectedTotals>;
+
+export const getCanonicalCapacityExpectedTotals = (state: unknown): ExpectedTotals => {
+  if (state === null) throw new Error('invalid');
+  return getBookSourceUploadProviderTotals(state);
+};
+
+const noStore = (status: number, value: Record<string, string>): Response => new Response(JSON.stringify(value), {
+  status, headers: { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' },
+});
+const unavailable = (status: number): Response => noStore(status, { code: 'unavailable' });
+const isSafeCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const record = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+const base64Url = (bytes: Uint8Array): string => {
+  let raw = ''; for (const byte of bytes) raw += String.fromCharCode(byte);
+  return btoa(raw).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/gu, '');
+};
+const decodeBase64Url = (value: string): Uint8Array | null => {
+  if (!/^[A-Za-z0-9_-]{1,65536}$/u.test(value) || value.length % 4 === 1) return null;
+  try {
+    const raw = atob(value.replace(/-/gu, '+').replace(/_/gu, '/').padEnd(Math.ceil(value.length / 4) * 4, '='));
+    return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+  } catch { return null; }
+};
+const required = (env: Record<string, unknown>, name: string): string => {
+  const value = env[name]; if (typeof value !== 'string' || !value.trim()) throw new Error('invalid'); return value.trim();
+};
+const readBoundedResponse = async (response: Response): Promise<unknown> => {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength !== null
+    && (!/^\d+$/u.test(declaredLength) || Number(declaredLength) > MAX_LEDGER_RESPONSE_BYTES)
+    || !response.body) {
+    throw new Error('invalid');
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > MAX_LEDGER_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error('invalid');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(decoder.decode(bytes)) as unknown;
+  } catch {
+    throw new Error('invalid');
+  }
+};
+const createDefaultExpectedTotalsReader = (
+  fetchImpl: typeof fetch,
+): ExpectedTotalsReader => async (env) => {
+  const databaseUrl = new URL(required(env, 'FIREBASE_DATABASE_URL'));
+  if (databaseUrl.protocol !== 'https:'
+    || databaseUrl.search
+    || databaseUrl.hash
+    || databaseUrl.username
+    || databaseUrl.password) {
+    throw new Error('invalid');
+  }
+  const accountId = required(env, 'BOOK_SOURCE_CAPACITY_ACCOUNT_ID');
+  if (!/^[A-Za-z0-9_:@-]{1,256}$/u.test(accountId)) throw new Error('invalid');
+  const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
+    serviceAccountEmail: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL'),
+    serviceAccountPrivateKey: required(env, 'BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY'),
+    fetchImpl,
+  });
+  const response = await fetchImpl(
+    `${databaseUrl.toString().replace(/\/$/u, '')}/book_source_upload_accounts/${accountId}.json`,
+    {
+      headers: {
+        Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}`,
+      },
+    },
+  );
+  if (!response.ok) throw new Error('invalid');
+  const state = await readBoundedResponse(response);
+  return getCanonicalCapacityExpectedTotals(state);
+};
+const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
+  const actual = Object.keys(value).sort(); const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+const SAFE_FAILURE_CODES = new Set([
+  'aborted', 'timeout', 'not_found', 'conflict', 'unauthorized',
+  'checksum_mismatch', 'metadata_mismatch', 'provider_drift',
+  'invalid_provider_totals', 'reconciliation_bound_exceeded',
+]);
+const SAFE_FAILURE_PHASES = new Set(['authorize', 'list']);
+const SAFE_FAILURE_KINDS = new Set(['http', 'network', 'response']);
+const safeFailure = (error: unknown): Record<string, string | number> => {
+  const value = record(error);
+  const code = value?.code;
+  const phase = value?.phase;
+  const kind = value?.kind;
+  const status = value?.status;
+  return {
+    code: typeof code === 'string' && SAFE_FAILURE_CODES.has(code) ? code : 'internal',
+    ...(typeof phase === 'string' && SAFE_FAILURE_PHASES.has(phase) ? { phase } : {}),
+    ...(typeof kind === 'string' && SAFE_FAILURE_KINDS.has(kind) ? { kind } : {}),
+    ...(typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
+      ? { status }
+      : {}),
+  };
+};
+const reportFailure = (error: unknown): void => {
+  console.error(JSON.stringify({
+    event: 'book_source_capacity_probe_failure',
+    ...safeFailure(error),
+  }));
+};
+
+const constantTimeBearer = async (request: Request, secret: string): Promise<boolean> => {
+  const authorization = request.headers.get('authorization');
+  if (!authorization?.startsWith('Bearer ')) return false;
+  const candidate = authorization.slice(7);
+  const [candidateDigest, secretDigest] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(candidate)), crypto.subtle.digest('SHA-256', encoder.encode(secret)),
+  ]);
+  const left = new Uint8Array(candidateDigest); const right = new Uint8Array(secretDigest);
+  let difference = 0; for (let index = 0; index < left.length; index += 1) difference |= left[index]! ^ right[index]!;
+  return difference === 0;
+};
+const cursorValid = (value: unknown): value is ProviderReconciliationCursor => {
+  const cursor = record(value);
+  const keys = cursor?.continuation === undefined
+    ? ['storageLocationId', 'privateBucketId', 'accumulatedBytes', 'accumulatedObjectCount', 'pagesRead', 'seenContinuationFingerprints']
+    : ['storageLocationId', 'privateBucketId', 'continuation', 'accumulatedBytes', 'accumulatedObjectCount', 'pagesRead', 'seenContinuationFingerprints'];
+  return cursor !== null && exactKeys(cursor, keys)
+    && typeof cursor.storageLocationId === 'string' && typeof cursor.privateBucketId === 'string'
+    && (cursor.continuation === undefined || typeof cursor.continuation === 'string')
+    && isSafeCount(cursor.accumulatedBytes) && isSafeCount(cursor.accumulatedObjectCount)
+    && isSafeCount(cursor.pagesRead) && Array.isArray(cursor.seenContinuationFingerprints)
+    && cursor.seenContinuationFingerprints.every((fingerprint) =>
+      typeof fingerprint === 'string' && /^[a-f0-9]{64}$/u.test(fingerprint));
+};
+const payloadValid = (value: unknown): value is ContinuationPayload => {
+  const payload = record(value); const expected = record(payload?.expected);
+  return payload !== null && exactKeys(payload, ['v', 'exp', 'expected', 'cursor'])
+    && payload.v === TOKEN_VERSION && isSafeCount(payload.exp) && expected !== null
+    && exactKeys(expected, ['totalBytes', 'objectCount'])
+    && isSafeCount(expected.totalBytes) && isSafeCount(expected.objectCount) && cursorValid(payload.cursor);
+};
+const keyFor = async (secret: string): Promise<CryptoKey> => {
+  const raw = decodeBase64Url(secret);
+  if (!raw || ![16, 24, 32].includes(raw.byteLength)) throw new Error('invalid');
+  const keyBytes = raw.slice().buffer as ArrayBuffer;
+  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+};
+const seal = async (secret: string, payload: ContinuationPayload): Promise<string> => {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(TOKEN_VERSION) }, await keyFor(secret), encoder.encode(JSON.stringify(payload))));
+  const combined = new Uint8Array(iv.length + encrypted.length); combined.set(iv); combined.set(encrypted, iv.length);
+  return base64Url(combined);
+};
+const unseal = async (secret: string, token: string, now: number): Promise<ContinuationPayload | null> => {
+  const combined = decodeBase64Url(token); if (!combined || combined.byteLength <= 12) return null;
+  try {
+    const value = JSON.parse(decoder.decode(await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: combined.slice(0, 12), additionalData: encoder.encode(TOKEN_VERSION) }, await keyFor(secret), combined.slice(12),
+    )));
+    return payloadValid(value) && value.exp > now && value.exp <= now + TOKEN_TTL_MS ? value : null;
+  } catch { return null; }
+};
+const readJson = async (
+  request: Request,
+  timeoutMs: number,
+): Promise<Record<string, unknown> | null> => {
+  if (request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
+    return null;
+  }
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null && (!/^\d+$/u.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) return null;
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  const timeout = setTimeout(() => { void reader.cancel(); }, timeoutMs);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try { return record(JSON.parse(decoder.decode(bytes))); } catch { return null; }
+};
+
+export interface CapacityProbeWorkerOptions {
+  readonly now?: () => number;
+  readonly bodyReadTimeoutMs?: number;
+  readonly fetchImpl?: typeof fetch;
+  readonly readExpectedTotals?: ExpectedTotalsReader;
+  /** Test-only observation seam. Production default never logs caught errors. */
+  readonly onError?: (error: unknown) => void;
+}
+
+export const createCapacityProbeWorker = (
+  options: CapacityProbeWorkerOptions = {},
+) => {
+  const readExpectedTotals = options.readExpectedTotals
+    ?? createDefaultExpectedTotalsReader(options.fetchImpl ?? fetch);
+  return {
+  async fetch(request: Request, env: Record<string, unknown>): Promise<Response> {
+    try {
+      // State is a secret: absence never activates this internal probe.
+      if (env.BOOK_SOURCE_CAPACITY_PROBE_STATE !== 'enabled') return unavailable(503);
+      if (env.BOOK_SOURCE_CAPACITY_ENVIRONMENT !== 'staging') return unavailable(503);
+      const url = new URL(request.url);
+      if (request.method !== 'POST' || url.pathname !== PATH || url.search) return unavailable(404);
+      const bearer = required(env, 'BOOK_SOURCE_CAPACITY_PROBE_TOKEN');
+      if (!await constantTimeBearer(request, bearer)) return unavailable(401);
+      const body = await readJson(
+        request,
+        options.bodyReadTimeoutMs ?? BODY_READ_TIMEOUT_MS,
+      );
+      if (!body) return unavailable(400);
+      const now = (options.now ?? Date.now)();
+      const cursorSecret = required(env, 'BOOK_SOURCE_CAPACITY_CURSOR_KEY');
+      let expected: ExpectedTotals; let cursor: ProviderReconciliationCursor;
+      if (exactKeys(body, [])) {
+        expected = await readExpectedTotals(env);
+        cursor = Object.freeze({ storageLocationId: required(env, 'BOOK_SOURCE_B2_STORAGE_LOCATION_ID'), privateBucketId: required(env, 'BOOK_SOURCE_B2_PRIVATE_BUCKET_ID'), accumulatedBytes: 0, accumulatedObjectCount: 0, pagesRead: 0, seenContinuationFingerprints: [] });
+      } else if (exactKeys(body, ['continuationToken']) && typeof body.continuationToken === 'string') {
+        const continuation = await unseal(cursorSecret, body.continuationToken, now); if (!continuation) return unavailable(400);
+        expected = continuation.expected; cursor = continuation.cursor;
+      } else return unavailable(400);
+      const work = await readProviderTotalsWorkUnit({ provider: createCapacityProbeProviderFromEnv(env), cursor });
+      if (work.state === 'continue') {
+        const continuationToken = await seal(cursorSecret, { v: TOKEN_VERSION, exp: now + TOKEN_TTL_MS, expected, cursor: work.cursor });
+        return noStore(200, { state: 'continue', continuationToken });
+      }
+      const healthy = work.totals.totalBytes === expected.totalBytes && work.totals.objectCount === expected.objectCount;
+      return noStore(200, { state: 'complete', status: healthy ? 'healthy' : 'drift' });
+    } catch (error) {
+      if (options.onError) options.onError(error);
+      else reportFailure(error);
+      return unavailable(503);
+    }
+  },
+  };
+};
+
+export default createCapacityProbeWorker();

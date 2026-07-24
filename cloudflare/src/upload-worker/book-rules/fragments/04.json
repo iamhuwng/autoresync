@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "04",
+  "owner": {
+    "ticketId": "04",
+    "issue": 29,
+    "generatedRuleLocations": [
+      "book_source_upload_accounts/.read",
+      "book_source_upload_accounts/.write"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_source_upload_accounts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_source_upload_accounts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    }
+  ]
+}

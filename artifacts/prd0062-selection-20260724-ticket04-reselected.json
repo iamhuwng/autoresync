@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-07-24",
+  "event": "cloudflare-media-authority-restored",
+  "roadmapPhase": "foundation",
+  "primary": 29,
+  "primaryTitle": "PRD0062 04 — Reserve Source Version capacity",
+  "graph": {
+    "ticketCount": 112,
+    "open": 98,
+    "closed": 14,
+    "edgeCount": 309,
+    "missingReferences": 0,
+    "cycles": 0,
+    "topologicalTraversal": "112/112",
+    "transitiveChainsCalculatedForEveryOpenTicket": true,
+    "graphClearFrontier": [29, 35, 38, 39, 40, 41, 42, 69, 129, 130, 131, 132, 133]
+  },
+  "selection": {
+    "directPrerequisites": [25, 27],
+    "transitivePrerequisites": [25, 26, 27],
+    "closedPrerequisites": [25, 26, 27],
+    "downstreamLeverage": 85,
+    "acceptanceReadiness": [
+      "Ticket 04 implementation and focused verification already exist in the current dirty worktree",
+      "named Wrangler media profile is active under x64 Node/Wrangler",
+      "media profile readback lists sentinel bucket kahoot-media",
+      "capacity-probe Worker has an active deployment and all ten expected secret bindings",
+      "least-privilege B2 credential/probe material remains outside the repository"
+    ],
+    "requiredAuthority": [
+      "read-only Cloudflare deployment and secret-name readback through profile media",
+      "authenticated read-only deployed capacity reconciliation",
+      "local focused tests, lint, type checking, emulator, dry-run, and build"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "ticket": 35,
+      "reason": "Lower downstream leverage and later root than #29; select exactly one primary."
+    },
+    {
+      "tickets": [38, 39, 40, 41],
+      "reason": "Required ticket 22B runtime-shell/browser acceptance remains unavailable; graph-clear does not make these acceptance-ready."
+    },
+    {
+      "ticket": 42,
+      "reason": "Operations roadmap phase."
+    },
+    {
+      "ticket": 69,
+      "reason": "Lower leverage and trusted disposable-successor deployment proof requires separate authority."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "reason": "Final Closure phase and positive acceptance remains behind the preserved #50A/#126 boundary."
+    }
+  ],
+  "decision": "#29 is the sole Foundation primary because every transitive prerequisite is CLOSED, its acceptance gates are now executable, and it has the strongest downstream leverage."
+}
