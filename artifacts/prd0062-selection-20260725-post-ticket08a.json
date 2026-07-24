@@ -2,7 +2,7 @@
   "generatedAt": "2026-07-24T19:28:56.599Z",
   "event": "ticket-08a-closed-live-graph-rebuild",
   "roadmapPhase": "foundation",
-  "primary": null,
+  "primary": 31,
   "graph": {
     "ticketCount": 112,
     "open": 96,
@@ -9346,10 +9346,10 @@
     },
     {
       "ticket": 31,
-      "status": "GRAPH_CLEAR_REQUIRES_READINESS_REVIEW",
-      "reason": "Graph-clear does not establish eligibility. Foundation phase, executable acceptance gates, ownership, authority, critical-path leverage, and one-primary selection still require explicit review.",
+      "status": "SELECTED",
+      "reason": "Selected as the sole Foundation primary: direct and transitive prerequisites #30, #25, #26, #29, and #27 are formally CLOSED; acceptance gates are executable under current authority; downstream leverage is 73 tickets; and it is the earliest eligible trusted-delivery enabler. #35 remains a rejected independent candidate because #31 has the stronger immediate foundation sequencing and trusted-delivery unblock value.",
       "openPrerequisites": []
     }
   ],
-  "decision": "Recomputed after #29 closure. Select exactly one new primary only after reviewing this complete graph and the deterministic roadmap contract."
+  "decision": "Recomputed after #30 closure: 112 tickets, 96 open, 16 closed, 309 edges, no missing references or cycles, and complete transitive chains. Select #31 as the sole Foundation primary. #35 is graph-clear but rejected for this selection because #31 is the earlier trusted-delivery enabler; all other candidates are rejected by transitive prerequisites, phase, or readiness review. Preserve 50A all-six-deny/default-deny and 03B disabled."
 }
