@@ -181,6 +181,25 @@
   position: relative;
 }
 
+.book-editor-modal__load-state {
+  margin: 24px;
+  border-radius: 12px;
+  padding: 16px;
+  background: #ecfeff;
+  color: #155e75;
+  font-weight: 700;
+}
+
+.book-editor-modal__load-state.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.book-editor-modal__load-state p {
+  margin: 8px 0 0;
+  font-weight: 500;
+}
+
 .book-editor-modal__confirm-backdrop,
 .book-editor-workspace__confirm-backdrop {
   position: absolute;

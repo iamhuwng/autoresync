@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   startSession: vi.fn(),
   listReadingPassages: vi.fn(),
   listTeacherBooks: vi.fn(),
+  readBook: vi.fn(),
   listBookNodes: vi.fn(),
   createBookDraft: vi.fn(),
   updateBookMetadata: vi.fn(),
@@ -91,7 +92,17 @@ vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
 });
 
 vi.mock('../services/materialCatalog/materialBooks.service', () => ({
-  createMaterialBooksRepository: vi.fn(() => ({ repositoryKind: 'mock-books-repository', listBookNodes: mocks.listBookNodes })),
+  createMaterialBooksRepository: vi.fn(() => ({
+    repositoryKind: 'mock-books-repository',
+    readBook: mocks.readBook,
+    readPublicBookProjection: vi.fn(async () => null),
+    listBookNodes: mocks.listBookNodes,
+    listBookSummaries: vi.fn(async () => []),
+    listBooksByIndex: vi.fn(async () => []),
+    write: vi.fn(),
+    remove: vi.fn(),
+    update: vi.fn(),
+  })),
   listTeacherBooks: (...args) => mocks.listTeacherBooks(...args),
   createBookDraft: (...args) => mocks.createBookDraft(...args),
   updateBookMetadata: (...args) => mocks.updateBookMetadata(...args),
@@ -467,6 +478,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.closeUseAsIs.mockReset();
     mocks.listReadingPassages.mockResolvedValue([]);
     mocks.listTeacherBooks.mockResolvedValue([]);
+    mocks.readBook.mockResolvedValue(null);
     mocks.listBookNodes.mockResolvedValue([]);
     mocks.createBookDraft.mockReset();
     mocks.updateBookMetadata.mockReset();
@@ -1737,6 +1749,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     const createdBook = {
       id: 'book-ielts',
       bookId: 'book-ielts',
+      bookMode: 'materials',
       ownerId: 'teacher-1',
       title: 'IELTS Reading Pack',
       authors: [],
@@ -1757,8 +1770,14 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       createdBy: 'teacher-1',
       updatedBy: 'teacher-1',
     });
+    mocks.readBook.mockResolvedValue({
+      ...createdBook,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+    });
 
-    render(<TeacherLobbyPage />);
+    renderTeacherLobbyWithToasts();
 
     await user.click(screen.getByRole('tab', { name: 'Book' }));
     await user.click(await screen.findByRole('button', { name: 'Create New Book' }));
@@ -1770,6 +1789,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect.objectContaining({ source: 'teacher_lobby_book_tab' }),
     );
 
+    await user.click(screen.getByLabelText('Materials'));
     await user.type(screen.getByLabelText('Title'), 'IELTS Reading Pack');
     await user.click(screen.getByLabelText('IELTS'));
     await user.click(screen.getByRole('button', { name: 'Save Book' }));
@@ -1791,6 +1811,9 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
 
     expect(await screen.findByTestId('book-card-book-ielts')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'IELTS Reading Pack' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Content' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Created "IELTS Reading Pack".');
     expect(screen.queryByTestId('legacy-lazy-component')).not.toBeInTheDocument();
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
@@ -1832,6 +1855,22 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
   it('opens Book cards in the Teacher Materials modal and omits whole-Book student actions', async () => {
     const user = userEvent.setup();
+    mocks.readBook.mockResolvedValue({
+      bookId: 'book-action',
+      bookMode: 'materials',
+      ownerId: 'teacher-1',
+      title: 'Book Actions',
+      authors: ['A. Nguyen'],
+      publisher: 'Practice Press',
+      visibility: 'private',
+      status: 'draft-empty',
+      testTypeIds: ['ielts'],
+      tags: [],
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+    });
     mocks.listTeacherBooks.mockResolvedValue([
       {
         id: 'book-action',
@@ -1879,7 +1918,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect.anything(),
       expect.anything(),
     );
-    const dialog = screen.getByRole('dialog', { name: /Book Actions/i });
+    const dialog = await screen.findByRole('dialog', { name: /Book Actions/i });
     expect(dialog).toBeInTheDocument();
     const modalTabRail = dialog.querySelector('.book-editor-modal__tabs');
     expect(modalTabRail).toHaveAttribute('role', 'tablist');
@@ -1919,6 +1958,43 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         source: 'teacher_materials_book_card',
       }),
     );
+  });
+
+  it('opens a stored PDF Book card in the separate read-only Assembly shell', async () => {
+    const user = userEvent.setup();
+    const pdfBook = {
+      id: 'book-pdf',
+      bookId: 'book-pdf',
+      bookMode: 'pdf',
+      ownerId: 'teacher-1',
+      title: 'PDF Assembly Book',
+      authors: ['A. Nguyen'],
+      visibility: 'private',
+      status: 'draft-empty',
+      testTypeIds: ['ielts'],
+      testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
+      tags: [],
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      createdBy: 'teacher-1',
+      updatedBy: 'teacher-1',
+      isOwner: true,
+    };
+    mocks.listTeacherBooks.mockResolvedValue([pdfBook]);
+    mocks.readBook.mockResolvedValue(pdfBook);
+
+    render(<TeacherLobbyPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Book' }));
+    const card = await screen.findByTestId('book-card-book-pdf');
+    await user.click(within(card).getByRole('button', { name: 'Edit' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
+    expect(within(dialog).getByText('PDF Assembly')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(mocks.listBookNodes).not.toHaveBeenCalled();
   });
 
   it('archives selected Books from the bulk toolbar', async () => {
@@ -2006,8 +2082,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('opens Book editor modal once from legacy route state and preserves Book tab scope after close', async () => {
-    const user = userEvent.setup();
+  it('ignores legacy route state because stored mode dispatch owns direct Book routes', async () => {
     mocks.locationState = {
       teacherMaterialsOpenBookId: 'book-route',
       teacherMaterialsOpenBookSource: 'legacy-book-route',
@@ -2032,20 +2107,17 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     render(<TeacherLobbyPage />);
 
-    expect(await screen.findByRole('dialog', { name: /Route Book/i })).toBeInTheDocument();
-    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
-    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(screen.getByRole('button', { name: /Close Book editor/i }));
-
+    expect(await screen.findByRole('tab', { name: 'Book' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('tablist', { name: 'Teacher lobby content tabs' })).toHaveAttribute('data-active-tab', 'book');
-    expect(screen.getByRole('button', { name: 'Private' })).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(screen.getByRole('tab', { name: 'My Content' }));
-    await user.click(screen.getByRole('tab', { name: 'Book' }));
-
-    expect(screen.queryByRole('dialog', { name: /Route Book/i })).not.toBeInTheDocument();
+    expect(mocks.trackAction).not.toHaveBeenCalledWith(
+      'openBook',
+      expect.objectContaining({ source: 'legacy-book-route' }),
+    );
+    expect(mocks.navigateTo).not.toHaveBeenCalledWith(
+      'LOBBY',
+      {},
+      expect.objectContaining({ reason: 'teacher_materials_book_route_state_consumed' }),
+    );
   });
 
   it('uses live admin Test Type config for Teacher Materials blocks before falling back to defaults', async () => {

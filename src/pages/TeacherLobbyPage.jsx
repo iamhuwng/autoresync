@@ -6,6 +6,10 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import {
+  BOOK_ACTIVITY_ROLLOUT_GATES,
+  isBookActivityRolloutGateEnabled,
+} from '../config/bookActivityRolloutGates';
 import { buildRoute } from '../constants/routes';
 import {
   getTeacherMaterialsCapabilities,
@@ -491,7 +495,6 @@ const TeacherLobbyPage = () => {
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
   const testTypeConfigsRef = useRef(DEFAULT_MATERIAL_TEST_TYPES);
-  const consumedRouteBookOpenRef = useRef(null);
   const bookEditorLauncherRef = useRef(null);
 
   // ---------- Hooks ----------
@@ -980,40 +983,6 @@ const TeacherLobbyPage = () => {
     teacherMaterialsCapabilities.canUseMaterialBooks,
     testTypeConfigs,
     user?.uid,
-  ]);
-
-  useEffect(() => {
-    const routeBookId = location.state?.teacherMaterialsOpenBookId;
-
-    if (!routeBookId || consumedRouteBookOpenRef.current === routeBookId) {
-      return;
-    }
-
-    consumedRouteBookOpenRef.current = routeBookId;
-    setContentFilter('book');
-    setBookScope('private');
-    setBookEditorBookId(routeBookId);
-    bookEditorLauncherRef.current = null;
-    setBookEditorOpen(true);
-    trackAction('openBook', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    trackAction('teacher_materials_book_editor_opened', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    navigateTo('LOBBY', {}, {
-      reason: 'teacher_materials_book_route_state_consumed',
-      replace: true,
-      force: true,
-      state: {},
-    });
-  }, [
-    location.state?.teacherMaterialsOpenBookId,
-    location.state?.teacherMaterialsOpenBookSource,
-    navigateTo,
-    trackAction,
   ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
@@ -2036,9 +2005,17 @@ const TeacherLobbyPage = () => {
       throw new Error('You must be signed in to create a Book.');
     }
 
+    if (
+      value.bookMode === 'pdf' &&
+      !isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)
+    ) {
+      throw new Error('PDF Book creation is safely unavailable right now.');
+    }
+
     const createdBook = await createBookDraft(
       {
         ...value,
+        bookMode: value.bookMode,
         ownerId: user.uid,
       },
       materialBooksRepository,
@@ -2046,20 +2023,31 @@ const TeacherLobbyPage = () => {
     );
     trackAction('createBook', {
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeIds: value.testTypeIds,
       visibility: value.visibility,
     });
     trackAction('teacher_materials_book_created', {
       bookId: createdBook.bookId,
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeCount: value.testTypeIds.length,
       visibility: value.visibility,
     });
+    toast.success(`Created "${createdBook.title}".`);
 
     setCreateBookModalOpen(false);
     setContentFilter('book');
     setBookScope(value.visibility === 'private' ? 'private' : 'public');
     setBookListVersion((version) => version + 1);
+    setBookEditorBookId(createdBook.bookId);
+    bookEditorLauncherRef.current = null;
+    setBookEditorOpen(true);
+    trackAction('teacher_materials_book_editor_opened', {
+      bookId: createdBook.bookId,
+      bookMode: createdBook.bookMode,
+      source: 'teacher_materials_book_created',
+    });
   }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid]);
 
   const handleOpenBook = useCallback((book, launcher) => {
@@ -3522,6 +3510,10 @@ const TeacherLobbyPage = () => {
           title="Create Book"
           testTypes={testTypeConfigs}
           onClose={handleCloseCreateBookModal}
+          onModeSelect={(bookMode) => trackAction('teacher_materials_book_mode_selected', {
+            bookMode,
+            source: 'teacher_materials_book_modal',
+          })}
           onSave={handleSaveBook}
         />
 

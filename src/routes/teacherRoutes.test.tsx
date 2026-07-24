@@ -44,7 +44,7 @@ describe('teacherRoutes', () => {
     }))).toContain('/teacher/materials/books/:bookId');
   });
 
-  it('redirects enabled Material Book editor navigation to Teacher Materials with modal-open route state', () => {
+  it('mounts the persisted-mode Book editor resolver directly for enabled navigation', () => {
     const route = findRoute(
       createTeacherRoutes({
         exposeMaterialBookEditorRoutes: true,
@@ -55,6 +55,7 @@ describe('teacherRoutes', () => {
     const redirect = findElementByTypeName(route?.element, 'TeacherMaterialBookRedirect');
 
     expect(redirect?.props).toEqual({});
+    expect(findElementByTypeName(route?.element, 'Navigate')).toBeNull();
   });
 
   it('redirects disabled Material Book editor navigation to Teacher Materials with a visible notice state', () => {

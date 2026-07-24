@@ -1,0 +1,18 @@
+{
+  "ticket": 45,
+  "state": "OPEN",
+  "blockerFamily": "chrome-browser-availability",
+  "owner": "User-approved Chrome launch",
+  "requiredAction": "Approve launching the configured Chrome profile, then rerun authenticated Teacher proof against the deployed preview.",
+  "evidence": {
+    "previewUrl": "https://kahut1--prd0062-ticket02-20260724-0760tbq0.web.app",
+    "deployment": "Firebase Hosting channel deploy succeeded; clean unauthenticated app load has zero console errors.",
+    "localProductionPreview": "Teacher quick-login reaches Materials at http://localhost:4173; only Firebase Analytics fetch errors remain.",
+    "resolvedRemoteAuthFailure": "The prior auth/requests-from-referer failure is no longer reproducible.",
+    "keyPolicy": "Existing browser-key referrers remain preserved; exact preview origin and wildcard are active.",
+    "authorizedDomains": "Firebase Auth authorizedDomains readback includes kahut1--prd0062-ticket02-20260724-0760tbq0.web.app.",
+    "identityToolkitProbe": "A signInWithPassword request carrying the exact preview Referer now reaches Firebase Auth and returns INVALID_LOGIN_CREDENTIALS for deliberately invalid probe credentials, proving the referrer is accepted.",
+    "browserAvailability": "Chrome, the ChatGPT Chrome Extension, and the native host are installed/configured, but Chrome is not currently running. Launch requires explicit user permission."
+  },
+  "impact": "#45 deployment acceptance still lacks the required authenticated remote browser flow; ticket remains OPEN. No commit or descendant selection."
+}
