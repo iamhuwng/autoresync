@@ -3810,3 +3810,67 @@ Rollback is read-only compatibility: stop producing v1 bindings while
 immutable records remain parseable; no inferred browser authority is added.
 No 50A capability was enabled, no 03B behavior changed, and the full 112-ticket
 goal remains open.
+
+### Ticket 08B blocker and independent-primary decision — 2026-07-25
+
+Ticket 08B / GitHub #31 was selected after #30 closure as the earliest trusted
+Book Delivery enabler. Its local persistence/lifecycle seam now has immutable
+record handling, current-pointer CAS, idempotent operation receipts,
+supersession, revocation, bounded recipient resolution, context gating, a
+trusted Worker contract, and an owned 08B rule fragment.
+
+Local proof passed:
+
+- Book Delivery focused suite: 30 tests;
+- Worker-handler focused suite: 2 tests;
+- root scoped TypeScript: PASS;
+- Cloudflare-owned TypeScript: PASS;
+- WSL Wrangler 4.103.0 dry-run: PASS, 92.60 KiB / 20.06 KiB gzip, no
+  bindings, no remote writes.
+
+Formal #31 closure is blocked. The issue requires active deployed-rules and
+scoped-service-identity readback before issuance is enabled. That proof belongs
+to the unresolved #118 / 09E generated-rule owner. Owner: #118. Required
+action: compose and deploy generated Book RTDB rules, then read back the
+active rules hash/version and scoped Book Delivery service identity. Impact:
+#31 and its trusted-delivery descendants cannot formally close. #35 was
+rejected as the same blocker family and was not started.
+
+The fresh post-blocker graph remains complete: 112 tickets, 96 open, 16
+closed, 309 edges, zero missing references, zero cycles, and 112/112
+topological traversal. #42 / 39A was selected as the sole independent
+Foundation enabler because its pure contract has no runtime identity, generated
+rules, or mutation authority.
+
+### Ticket 39A final closure evidence — 2026-07-25
+
+Ticket 39A / GitHub #42 was selected as the sole independent Foundation
+enabler after #31's #118 blocker was recorded. Its direct and transitive
+prerequisites are formally CLOSED; #35 was explicitly rejected for sharing the
+same unresolved generated-rules boundary.
+
+Final proof:
+
+- Pure impact classification covers unchanged, display-only, regrade,
+  redo-required, add, remove, interaction reorder, placement reorder, move,
+  mapping/source context, successor, invalidation, and unsupported effects.
+- Frozen old/new inputs remain unchanged. Cross-Book comparisons, malformed
+  successor references, and mode changes without an explicit successor fail
+  closed.
+- Versioned adapter declarations require immutable inputs, supported effects,
+  explicit source-replacement policy, answer-safe output, verified conformance,
+  current versions, and unique IDs. Missing, uncertain, stale, incompatible,
+  duplicate, or authority-bearing declarations are rejected.
+- Focused 39A tests: 11 tests passed.
+- Consolidated current Book Delivery tests: 30 tests passed.
+- Scoped TypeScript: PASS.
+- Focused ESLint: PASS.
+- Production Vite/bundle proof for the unchanged reachable application surface:
+  PASS, 9,332 modules; root entry 233 KB and public preloads within budget.
+- No browser proof is independently required. No runtime identity, mutation
+  authority, generated rule, secret, or remote state was used.
+
+Rollback disables impact-classification consumers; publications, contexts,
+adapter declarations, and delivery state remain unchanged. No 50A capability
+was enabled, no 03B behavior changed, and the full 112-ticket goal remains
+open.
