@@ -3759,3 +3759,54 @@ Trusted remote proof:
 
 Ticket 04 is acceptance-ready for formal GitHub closure. No 50A capability was
 enabled, no 03B behavior changed, and the full 112-ticket goal remains open.
+
+### Ticket 08A final closure evidence — 2026-07-25
+
+Ticket 08A / GitHub #30 was selected as the sole Foundation primary only after
+the fresh live 112-ticket graph confirmed that #25, #26, and #29 were formally
+CLOSED. The selection snapshot records the complete graph, graph-clear
+frontier, candidate rejection reasons, roadmap phase, critical-path leverage,
+acceptance readiness, and required authority. No descendant was started while
+an ownership or authority boundary remained unresolved. The #25/#118
+generated-rule boundary remains preserved; #50A remains all-six-deny/default-
+deny and #03B remains disabled.
+
+Final implementation proof:
+
+- Added the immutable Book Delivery v2 binding types and strict schema for
+  binding identity/revision/status, issuer and recipient ownership, PDF Book
+  publication revision, structural and placement scope, ordered placements,
+  activity versions, source strategy and source lifecycle/readiness, contexts,
+  and future-live draft-only semantics.
+- Added strict recipient-specific public publication projection and a pure
+  entitlement factory. Caller objects are cloned; returned authority records
+  are recursively frozen; no storage, provider, browser, or capability
+  provisioning is performed.
+- Added an explicit read-only legacy v1 adapter. It accepts only the exact
+  legacy shape, rejects private/unknown/version-2 fields and malformed
+  descriptors, and never rewrites legacy records.
+- Schema validation is fail-closed for unknown, private, duplicate,
+  contradictory, malformed, cyclic, accessor, hidden, sparse, cross-source,
+  cross-identity, and invalid page/scope data. Full-PDF bindings require the
+  `all` scope; placement scopes require the exact placement set.
+
+Verification:
+
+- Book Delivery suite: PASS, 4 files / 23 tests.
+- Scoped root TypeScript: PASS.
+- Focused ESLint on all six Ticket 08A files: PASS.
+- Production Vite build: PASS, 9,332 modules; bundle budget PASS with root
+  entry 233 KB and public preloads within budget.
+- Worker dry-run bundle: PASS, 19.25 KiB total / 4.76 KiB gzip; no bindings and
+  no remote writes.
+- Root TypeScript reaches an unrelated pre-existing harness error at
+  `src/test/test-utils.tsx:51` (`TS2742` referencing the preserved linked
+  worktree's `@testing-library/dom`). All Ticket 08A paths pass the scoped
+  check.
+- Independent review after remediation: no actionable findings.
+
+No browser proof was independently required by the published #30 contract.
+Rollback is read-only compatibility: stop producing v1 bindings while
+immutable records remain parseable; no inferred browser authority is added.
+No 50A capability was enabled, no 03B behavior changed, and the full 112-ticket
+goal remains open.
