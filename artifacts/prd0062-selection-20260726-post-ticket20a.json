@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-07-26T05:25:00+07:00",
+  "governingContract": "Deterministic roadmap plus complete transitive prerequisite gate",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket20a.json",
+  "graphHash": "7f607d0353f44c6bcbb52ac274628eaea5c0f47b9868c830eb7dc88bb90dc917",
+  "graphSummary": {
+    "issues": 112,
+    "open": 92,
+    "closed": 20,
+    "rawEdges": 309,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [38, 39, 40, 41, 47, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Foundation",
+  "selectedPrimary": {
+    "issue": 47,
+    "ticket": "06A",
+    "title": "Control trusted direct-B2 upload begin and completion",
+    "directPrerequisites": [27, 29, 44, 46],
+    "completeTransitivePrerequisites": [25, 26, 27, 29, 44, 45, 46],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 82,
+    "rootOrEnablerReason": "Earliest unresolved storage/security/trusted-upload enabler in Foundation and strongest frontier leverage.",
+    "acceptanceReadiness": {
+      "ready": true,
+      "reason": "Ticket requires local service/repository/Worker/security proof plus media-profile Wrangler dry-run; it explicitly requires no independent browser proof and dry-run must issue no live upload authority or mutate B2.",
+      "rolloutConstraint": "Keep 50A all-six-deny/default-deny. Tests may inject enabled ingress state; no deployed gate change is authorized.",
+      "requiredAuthority": [
+        "ticket-scoped local implementation",
+        "focused tests and security tests",
+        "x64 Wrangler media-profile dry-run",
+        "read-only account/profile verification"
+      ],
+      "unavailableAuthority": []
+    },
+    "ownership": {
+      "ticket47": "metadata-only begin/complete control protocol, trusted command/repository behavior, provider metadata verification, rollback gate behavior",
+      "ticket48_06B": "browser direct-to-B2 transport proof",
+      "ticket50_07": "failed/abandoned operation reconciliation",
+      "ticket118_09E": "assembled generated database rules proof where applicable"
+    },
+    "blockerFamily": null
+  },
+  "candidateRejections": [
+    {
+      "issues": [38, 39, 40, 41],
+      "graphClear": true,
+      "downstreamLeverageEach": 66,
+      "reason": "Runtime renderer/adapter tickets. Eligible by prerequisites but deferred because unresolved Foundation storage/security enabler #47 has stronger leverage and current roadmap phase precedence."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "graphClear": true,
+      "downstreamLeverageEach": 2,
+      "reason": "Final-closure suites. Ineligible in Foundation phase despite graph-clear status; required runtime, workflow, operations, fixture, deployment, and final-suite phase readiness is not yet complete."
+    },
+    {
+      "issue": 128,
+      "graphClear": false,
+      "reason": "Positive pilot teacher-authoring suite remains blocked by open #126/50B and shares controlled activation boundary; not a candidate."
+    }
+  ],
+  "wip": {
+    "primaryCount": 1,
+    "primaryIssue": 47,
+    "descendantBypass": false
+  }
+}
