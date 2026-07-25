@@ -3874,3 +3874,51 @@ Rollback disables impact-classification consumers; publications, contexts,
 adapter declarations, and delivery state remain unchanged. No 50A capability
 was enabled, no 03B behavior changed, and the full 112-ticket goal remains
 open.
+
+### Ticket 08B contract-transfer correction and closure evidence — 2026-07-25
+
+The ownership boundary was corrected before #31 closure. The live transfer
+ledger is recorded on #31, #35, #59, and #118. #31/#35 retain functional
+lifecycle, CAS, authorization, repository, Worker-handler, fragment, negative
+test, and domain service-identity work. #118 now explicitly owns generated
+`database.rules.json`, complete assembled-rules emulator proof, active hash and
+readback, legacy-rule preservation, and the rules rollback artifact. #59 now
+explicitly owns live top-level route composition and deployed Worker-to-Firebase
+identity integration. Final launch/runtime behavior remains with its existing
+owner.
+
+Ticket 08B local implementation proof:
+
+- Immutable Book Delivery records, current pointers, scoped binding indexes,
+  recipient/context-bounded resolution, lifecycle CAS, supersession, revoke,
+  and durable idempotency receipts are implemented.
+- Production repository mutations use one ETag-guarded recipient/context
+  scope write for record/current-pointer/operation changes. No broad
+  `book_delivery` root scan is used.
+- Exact binding indexes resolve a binding to its bounded scope. Malformed,
+  oversized, unknown, cross-scope, and invalid persisted data fails closed.
+- Replays compare canonical request fingerprints; exact replays return replay
+  results and conflicting operation IDs return `idempotency-conflict`.
+- The 08B fragment declares browser-deny ancestor roots plus scoped
+  service-only descendant boundaries. Fragment-level tests do not claim
+  assembled generated-rules enforcement.
+- Worker handlers enforce owner identity and active-role authorization,
+  reject forged owners and `future_live`, and expose only the domain seams.
+
+Verification:
+
+- Root focused Book Delivery/security suite: 31 tests passed.
+- Cloudflare Worker/repository suite: 9 tests passed, including exact-path
+  query checks, one-scope CAS transitions, exact/conflicting replay, and
+  current-pointer removal on revoke.
+- Root scoped TypeScript: PASS.
+- Cloudflare-owned TypeScript: PASS.
+- Focused ESLint: PASS.
+- WSL Wrangler 4.103.0 Worker dry-run: PASS, 99.95 KiB / 21.54 KiB gzip,
+  no bindings, no remote writes.
+
+Transferred gates are not claimed here: assembled/generated rules proof,
+active rules hash/readback, legacy-path preservation, rules rollback artifact,
+live top-level route composition, and deployed Worker-to-Firebase identity
+integration remain open under #118/#59. No 50A capability was enabled, no
+03B behavior changed, and the full 112-ticket goal remains open.
