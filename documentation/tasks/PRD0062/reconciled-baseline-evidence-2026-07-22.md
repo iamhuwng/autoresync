@@ -3922,3 +3922,70 @@ active rules hash/readback, legacy-path preservation, rules rollback artifact,
 live top-level route composition, and deployed Worker-to-Firebase identity
 integration remain open under #118/#59. No 50A capability was enabled, no
 03B behavior changed, and the full 112-ticket goal remains open.
+
+### Ticket 12C / #35 current closure evidence — 2026-07-25
+
+#35 is the sole selected Foundation primary after a fresh complete graph:
+112 tickets, 94 open, 18 closed, 309 edges, zero cycles, zero missing
+references, and 112/112 topological traversal. Direct and transitive
+prerequisites #34, #33, and #25 are formally CLOSED.
+
+Owned seam progress:
+
+- Activity-candidate stage, reload, validate, replacement save, discard, owner
+  authorization, optimistic revision checks, idempotent operation fingerprints,
+  and owner-scoped ETag CAS remain Worker/repository-owned.
+- Candidate records now retain legacy evidence refs plus separately typed
+  `sourceEvidenceRefs` and `answerEvidenceRefs` through stage, reload,
+  validation, replacement, and save.
+- Discard revalidates retained candidate content and target ownership before
+  writing a tombstone; poisoned retained candidates fail closed with no write.
+- Student authoring reads remain denied; unrelated-owner reads remain
+  owner-scoped and answer-bearing candidate content is not exposed through the
+  authoring read seam.
+- Repository reads are allowlisted to `users/$ownerId` and
+  `book_activity_authoring/owners/$ownerId`; arbitrary database paths fail
+  closed.
+- `12C.json` declares root browser-deny boundaries plus owner-scoped trusted
+  service read/write expressions and least-privilege paths. It does not claim
+  assembled generated-rules enforcement.
+
+Current verification:
+
+- Focused root suite: 5 files / 24 tests passed.
+- Cloudflare Worker suite: 18 tests passed, including rollback mutation
+  disablement with retained owner-read and published-state isolation.
+- Focused ESLint: passed.
+- WSL Wrangler 4.103.0 dry-run: passed, 21.41 KiB / 5.39 KiB gzip, no
+  bindings or remote writes.
+- Scoped TypeScript: passed after a safe discriminated-union narrowing fix in
+  `src/services/book-rollout/bookRolloutGate.policy.ts`; no #35 source errors.
+
+Ticket 12C / #35 browser closure proof — 2026-07-25:
+
+- Canonical Firebase web-app config was obtained read-only through Firebase CLI
+  for project `temp-a1437`; browser used `http://localhost:5173` and the
+  repository-mandated teacher quick-login path.
+- Browser proof passed in
+  `e2e/prd0062-ticket12c-browser.spec.ts`: teacher quick-login; fixture-backed
+  candidate stage; page reload and candidate recovery; stale-revision
+  conflict; current-revision validation; discard tombstone; published
+  activity state unchanged.
+- Evidence artifact:
+  `artifacts/prd0062-ticket-12c/browser/workflow.json`.
+- Root focused suite: 5 files / 24 tests PASS.
+- Cloudflare Worker suite: 1 file / 18 tests PASS.
+- Focused ESLint PASS; repository TypeScript PASS; production build PASS
+  (`9,332` modules; bundle budget PASS); esbuild preflight PASS with host/native
+  `0.25.11`, Windows ARM64 package, in-repository resolution, and handshake
+  `ok`; `git diff --check` PASS.
+- WSL Wrangler dry-run remains PASS from the isolated x64 verification lane.
+- Proof boundary remains explicit: fixture-backed browser proof validates #35
+  domain behavior only; #118 owns generated/assembled rules proof and #59
+  owns live top-level route/identity integration.
+
+Generated/assembled rules, active rules hash/readback, legacy-path
+preservation, rules rollback artifact, live top-level route composition, and
+deployed Worker-to-Firebase identity integration remain transferred to #118/#59.
+No 50A capability was enabled, no 03B behavior changed, and the full 112-ticket
+goal remains open.
