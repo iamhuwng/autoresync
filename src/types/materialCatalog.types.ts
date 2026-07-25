@@ -98,11 +98,45 @@ export const MATERIAL_BOOK_STATUSES = [
 
 export type MaterialBookStatus = (typeof MATERIAL_BOOK_STATUSES)[number];
 
+export const MATERIAL_BOOK_MODES = ['materials', 'pdf'] as const;
+
+export type MaterialBookMode = (typeof MATERIAL_BOOK_MODES)[number];
+
+export const isMaterialBookMode = (value: unknown): value is MaterialBookMode =>
+  typeof value === 'string' && MATERIAL_BOOK_MODES.includes(value as MaterialBookMode);
+
+export const resolveMaterialBookMode = (value: unknown): MaterialBookMode => {
+  if (value === undefined) {
+    return 'materials';
+  }
+
+  if (isMaterialBookMode(value)) {
+    return value;
+  }
+
+  throw new Error(`Invalid Material Book mode: ${String(value)}`);
+};
+
 export type MaterialBookPublicReviewStatus =
   | 'pending-review'
   | 'approved'
   | 'rejected'
   | 'returned-private';
+
+export interface MaterialBookModeSuccessorLineage {
+  readonly kind: 'mode-successor';
+  readonly predecessorBookId: MaterialBookId;
+  readonly fromMode: MaterialBookMode;
+  readonly toMode: MaterialBookMode;
+  readonly reason: string;
+  readonly actorId: string;
+  readonly createdAt: string;
+}
+
+export interface MaterialBookReusedActivityRef {
+  readonly activityId: string;
+  readonly versionId: string;
+}
 
 export interface MaterialBookPublicReviewState {
   readonly status: MaterialBookPublicReviewStatus;
@@ -115,6 +149,12 @@ export interface MaterialBookPublicReviewState {
 
 export interface MaterialBookMetadata {
   readonly bookId: MaterialBookId;
+  /** Optional only for legacy records; repository reads resolve it to `materials`. */
+  readonly bookMode?: MaterialBookMode;
+  /** Trusted-command provenance. Browser clients cannot create or retarget it. */
+  readonly modeSuccessorLineage?: MaterialBookModeSuccessorLineage;
+  /** Identity/version only; never carries predecessor placement or delivery state. */
+  readonly reusedActivityRefs?: readonly MaterialBookReusedActivityRef[];
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -223,6 +263,8 @@ export interface MaterialBookPublicProjectionNode {
 
 export interface MaterialBookPublicProjection {
   readonly bookId: MaterialBookId;
+  /** Optional only for legacy records; repository reads resolve it to `materials`. */
+  readonly bookMode?: MaterialBookMode;
   readonly title: string;
   readonly subtitle?: string;
   readonly authors: readonly string[];

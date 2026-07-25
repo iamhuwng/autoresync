@@ -38,6 +38,7 @@ import {
   listTeacherBooks,
   updateBookMetadata,
 } from '../services/materialCatalog/materialBooks.service';
+import { createBookSuccessorClient } from '../services/materialCatalog/bookSuccessor.service';
 import { database } from '../services/firebase';
 import {
   archiveReadingV2PassageMaterial,
@@ -88,6 +89,7 @@ import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
 import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal';
 import CreateBookModal from '../components/books/CreateBookModal';
+import CreateBookSuccessorModal from '../components/books/CreateBookSuccessorModal';
 import BookEditorModal from '../components/books/BookEditorModal';
 import './TeacherLobbyPage.css';
 
@@ -488,6 +490,7 @@ const TeacherLobbyPage = () => {
   const [bookError, setBookError] = useState(null);
   const [bookListVersion, setBookListVersion] = useState(0);
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
+  const [bookSuccessorPredecessor, setBookSuccessorPredecessor] = useState(null);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
   const [, setBookEditorDirty] = useState(false);
@@ -593,6 +596,17 @@ const TeacherLobbyPage = () => {
       await updateDb(ref(database), payload);
     },
   }), []);
+  const bookSuccessorClient = useMemo(() => createBookSuccessorClient({
+    baseUrl: import.meta.env.VITE_BOOK_SUCCESSOR_WORKER_URL
+      || import.meta.env.VITE_R2_UPLOAD_WORKER_URL
+      || '',
+    getIdToken: async () => {
+      if (typeof user?.getIdToken !== 'function') {
+        throw new Error('Book successor authorization is unavailable.');
+      }
+      return user.getIdToken();
+    },
+  }), [user]);
   const activeBookEditorBook = useMemo(
     () => bookRows.find((book) => (book.bookId || book.id) === bookEditorBookId) ?? null,
     [bookEditorBookId, bookRows],
@@ -2073,6 +2087,71 @@ const TeacherLobbyPage = () => {
     setBookEditorOpen(false);
   }, []);
 
+  const handleOpenBookSuccessor = useCallback((book) => {
+    if (!book?.isOwner) {
+      return;
+    }
+    setBookSuccessorPredecessor(book);
+    trackAction('teacher_materials_book_successor_opened', {
+      bookId: book.bookId || book.id,
+      fromMode: book.bookMode || 'materials',
+      source: 'teacher_materials_book_card',
+    });
+  }, [trackAction]);
+
+  const handleCloseBookSuccessor = useCallback(() => {
+    if (bookSuccessorPredecessor) {
+      trackAction('teacher_materials_book_successor_canceled', {
+        bookId: bookSuccessorPredecessor.bookId || bookSuccessorPredecessor.id,
+        source: 'teacher_materials_book_successor_modal',
+      });
+    }
+    setBookSuccessorPredecessor(null);
+  }, [bookSuccessorPredecessor, trackAction]);
+
+  const handleCreateBookSuccessor = useCallback(async ({ reason, targetMode }) => {
+    const predecessor = bookSuccessorPredecessor;
+    const predecessorBookId = predecessor?.bookId || predecessor?.id;
+    if (!predecessorBookId || !predecessor?.updatedAt) {
+      throw new Error('The original Book must be reloaded before changing mode.');
+    }
+
+    try {
+      const result = await bookSuccessorClient.create({
+        predecessorBookId,
+        expectedUpdatedAt: predecessor.updatedAt,
+        targetMode,
+        reason,
+        operationId: crypto.randomUUID(),
+      });
+      trackAction('teacher_materials_book_successor_created', {
+        predecessorBookId,
+        successorBookId: result.successor.bookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        replayed: result.status === 'replayed',
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.success(`Created "${result.successor.title}" as a ${targetMode === 'pdf' ? 'PDF source' : 'Materials'} successor.`);
+      setBookSuccessorPredecessor(null);
+      setContentFilter('book');
+      setBookScope('private');
+      setBookListVersion((version) => version + 1);
+      setBookEditorBookId(result.successor.bookId);
+      bookEditorLauncherRef.current = null;
+      setBookEditorOpen(true);
+    } catch (error) {
+      trackAction('teacher_materials_book_successor_failed', {
+        predecessorBookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.error(error instanceof Error ? error.message : 'Could not create the successor Book.');
+      throw error;
+    }
+  }, [bookSuccessorClient, bookSuccessorPredecessor, trackAction]);
+
   const handleArchiveBook = useCallback(async (book) => {
     const bookId = book?.bookId || book?.id;
     if (!bookId) {
@@ -3133,6 +3212,7 @@ const TeacherLobbyPage = () => {
                         isBookSelectable={canBulkSelectBook}
                         onToggleBookSelection={handleToggleBookSelection}
                         onOpenBook={handleOpenBook}
+                        onCreateSuccessor={handleOpenBookSuccessor}
                         onArchiveBook={handleArchiveBook}
                       />
                     )
@@ -3515,6 +3595,13 @@ const TeacherLobbyPage = () => {
             source: 'teacher_materials_book_modal',
           })}
           onSave={handleSaveBook}
+        />
+
+        <CreateBookSuccessorModal
+          opened={Boolean(bookSuccessorPredecessor)}
+          predecessor={bookSuccessorPredecessor}
+          onClose={handleCloseBookSuccessor}
+          onCreate={handleCreateBookSuccessor}
         />
 
         <BookEditorModal

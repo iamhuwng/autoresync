@@ -163,6 +163,7 @@ describe('materialBooks.service', () => {
     const book = await createBookDraft(
       {
         bookId: materialCatalogIds.bookId('book-1'),
+        bookMode: 'materials',
         ownerId: 'teacher-1',
         title: 'Cambridge IELTS 18',
         authors: ['Cambridge'],
@@ -191,6 +192,7 @@ describe('materialBooks.service', () => {
     const book = await createBookDraft(
       {
         bookId: materialCatalogIds.bookId('book-1'),
+        bookMode: 'materials',
         ownerId: 'teacher-1',
         title: 'Book with section',
         authors: [],
@@ -205,6 +207,170 @@ describe('materialBooks.service', () => {
     expect(book.status).toBe('ready');
     expect(repo.writes).toEqual([]);
     expect(Object.keys(repo.updates[0])).toContain('material_catalog/book_nodes/book-1/node-1');
+  });
+
+  it('persists declared materials and pdf Book modes', async () => {
+    const repo = createRepo();
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    };
+
+    const materialsBook = await createBookDraft(
+      {
+        bookId: materialCatalogIds.bookId('materials-book'),
+        bookMode: 'materials',
+        ownerId: 'teacher-1',
+        title: 'Materials Book',
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        now: () => NOW,
+      },
+      repo,
+      context,
+    );
+    const pdfBook = await createBookDraft(
+      {
+        bookId: materialCatalogIds.bookId('pdf-book'),
+        bookMode: 'pdf',
+        ownerId: 'teacher-1',
+        title: 'PDF Book',
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        now: () => NOW,
+      },
+      repo,
+      context,
+    );
+
+    expect(materialsBook.bookMode).toBe('materials');
+    expect(pdfBook.bookMode).toBe('pdf');
+    expect(repo.updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        'material_catalog/books/materials-book': expect.objectContaining({ bookMode: 'materials' }),
+      }),
+      expect.objectContaining({
+        'material_catalog/books/pdf-book': expect.objectContaining({ bookMode: 'pdf' }),
+      }),
+    ]));
+  });
+
+  it('resolves missing legacy Book mode in read and list paths', async () => {
+    const legacyBook = metadata({
+      bookId: materialCatalogIds.bookId('legacy-book'),
+      visibility: 'public-library-pending-review',
+    });
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/books/legacy-book') {
+        return legacyBook;
+      }
+
+      if (path === 'material_catalog/book_indexes/by_visibility/public-library-pending-review') {
+        return { 'legacy-book': legacyBook };
+      }
+
+      return null;
+    });
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    await expect(repo.readBook('legacy-book')).resolves.toMatchObject({ bookMode: 'materials' });
+    await expect(repo.listBooksByIndex({
+      teacherId: 'teacher-1',
+      scope: 'public-review-pending',
+    })).resolves.toEqual([
+      expect.objectContaining({ bookId: 'legacy-book', bookMode: 'materials' }),
+    ]);
+  });
+
+  it('does not persist the resolved fallback while updating legacy metadata', async () => {
+    const legacyBook = metadata();
+    const read = vi.fn(async (path: string) => (
+      path === 'material_catalog/books/book-1' ? legacyBook : null
+    ));
+    const update = vi.fn(async () => undefined);
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn(), update });
+
+    await expect(updateBookMetadata(
+      'book-1',
+      { title: 'Legacy renamed' },
+      repo,
+      {
+        actorId: 'teacher-1',
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        now: () => NOW,
+      },
+    )).resolves.toMatchObject({ bookMode: 'materials', title: 'Legacy renamed' });
+
+    const canonicalWrite = update.mock.calls[0]?.[0]?.['material_catalog/books/book-1'];
+    expect(canonicalWrite).toMatchObject({ title: 'Legacy renamed' });
+    expect(canonicalWrite).not.toHaveProperty('bookMode');
+  });
+
+  it('rejects malformed persisted Book modes', async () => {
+    const read = vi.fn(async () => metadata({ bookMode: 'invalid' as never }));
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    await expect(repo.readBook('book-1')).rejects.toThrow('Invalid Material Book mode: invalid');
+  });
+
+  it('rejects every attempted Book mode update without changing the original Book', async () => {
+    const repo = createRepo([metadata({ bookMode: 'materials' })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    for (const bookMode of ['materials', 'pdf'] as const) {
+      await expect(updateBookMetadata(
+        'book-1',
+        { bookMode } as never,
+        repo,
+        context,
+      )).rejects.toThrow('Material Book mode is immutable. Create a successor Book instead.');
+    }
+
+    await expect(repo.readBook('book-1')).resolves.toMatchObject({ bookMode: 'materials' });
+    expect(repo.updates).toEqual([]);
+  });
+
+  it('rejects successor-lineage retargeting without changing the original Book', async () => {
+    const repo = createRepo([metadata({
+      modeSuccessorLineage: {
+        kind: 'mode-successor',
+        predecessorBookId: 'book-before',
+        fromMode: 'pdf',
+        toMode: 'materials',
+        reason: 'Rebuild with material references',
+        actorId: 'teacher-1',
+        createdAt: NOW,
+      },
+    })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    await expect(updateBookMetadata(
+      'book-1',
+      {
+        modeSuccessorLineage: {
+          kind: 'mode-successor',
+          predecessorBookId: 'retargeted',
+          fromMode: 'materials',
+          toMode: 'pdf',
+          reason: 'retarget',
+          actorId: 'attacker',
+          createdAt: 'later',
+        },
+      } as never,
+      repo,
+      context,
+    )).rejects.toThrow('successor lineage is immutable');
+    expect(repo.updates).toEqual([]);
   });
 
   it('updates metadata and cleans stale visibility/Test Type indexes', async () => {

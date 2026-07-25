@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "20A",
+  "owner": {
+    "ticketId": "20A",
+    "issue": 69,
+    "generatedRuleLocations": [
+      "material_catalog/books/.write",
+      "material_catalog/books/$bookId/.write",
+      "material_catalog/books/$bookId/.validate",
+      "material_catalog/book_successor_operations/.write",
+      "material_catalog/book_successor_operations/$ownerId/$operationId/.write"
+    ],
+    "serviceIdentity": "material_book_successor_service",
+    "leastPrivilegePaths": [
+      "material_catalog/books/$bookId",
+      "material_catalog/book_successor_operations/$ownerId/$operationId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "material_catalog/books",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/books/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization",
+      "requiresExistingRule": true,
+      "expression": "(!data.child('modeSuccessorLineage').exists() && !newData.child('modeSuccessorLineage').exists()) || (auth != null && auth.token.material_book_successor_service == true && auth.token.material_book_successor_ownerId == newData.child('ownerId').val() && ((!data.exists() && newData.child('visibility').val() == 'private' && newData.child('status').val() == 'draft-empty' && newData.child('modeSuccessorLineage').child('kind').val() == 'mode-successor' && newData.child('modeSuccessorLineage').child('actorId').val() == newData.child('ownerId').val() && (newData.child('modeSuccessorLineage').child('fromMode').val() == 'materials' || newData.child('modeSuccessorLineage').child('fromMode').val() == 'pdf') && (newData.child('modeSuccessorLineage').child('toMode').val() == 'materials' || newData.child('modeSuccessorLineage').child('toMode').val() == 'pdf') && newData.child('bookMode').val() == newData.child('modeSuccessorLineage').child('toMode').val() && newData.child('modeSuccessorLineage').child('fromMode').val() != newData.child('modeSuccessorLineage').child('toMode').val()) || (data.exists() && data.child('modeSuccessorLineage').val() == newData.child('modeSuccessorLineage').val() && data.child('ownerId').val() == newData.child('ownerId').val() && data.child('bookMode').val() == newData.child('bookMode').val() && data.child('visibility').val() == 'private' && newData.child('visibility').val() == 'private' && data.child('createdAt').val() == newData.child('createdAt').val() && data.child('createdBy').val() == newData.child('createdBy').val() && (data.child('status').val() == 'draft-empty' || data.child('status').val() == 'draft-in-progress' || data.child('status').val() == 'needs-repair') && newData.child('status').val() == 'archived')))"
+    },
+    {
+      "path": "material_catalog/books/$bookId",
+      "rule": ".validate",
+      "merge": "conjoin-existing-validation-preserving-delete",
+      "requiresExistingRule": true,
+      "expression": "!newData.child('modeSuccessorLineage').exists() || (newData.child('modeSuccessorLineage').child('kind').val() == 'mode-successor' && newData.child('modeSuccessorLineage').child('predecessorBookId').isString() && (newData.child('modeSuccessorLineage').child('fromMode').val() == 'materials' || newData.child('modeSuccessorLineage').child('fromMode').val() == 'pdf') && (newData.child('modeSuccessorLineage').child('toMode').val() == 'materials' || newData.child('modeSuccessorLineage').child('toMode').val() == 'pdf') && newData.child('modeSuccessorLineage').child('fromMode').val() != newData.child('modeSuccessorLineage').child('toMode').val() && newData.child('modeSuccessorLineage').child('toMode').val() == newData.child('bookMode').val() && newData.child('modeSuccessorLineage').child('reason').isString() && newData.child('modeSuccessorLineage').child('actorId').val() == newData.child('ownerId').val() && newData.child('modeSuccessorLineage').child('createdAt').isString() && (!data.child('modeSuccessorLineage').exists() || newData.child('modeSuccessorLineage').val() == data.child('modeSuccessorLineage').val()))"
+    },
+    {
+      "path": "material_catalog/book_successor_operations",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/book_successor_operations/$ownerId/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.material_book_successor_service == true && auth.token.material_book_successor_ownerId == $ownerId && newData.child('ownerId').val() == $ownerId && !data.exists()"
+    }
+  ]
+}

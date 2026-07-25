@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "r2-upload-signer-prd0062-ticket20a-preview" generated at 2026-07-25T22:13:32.193Z.

@@ -1,0 +1,111 @@
+{
+  "ticket": "20A",
+  "issue": 69,
+  "verifiedAt": "2026-07-25T21:51:02.687Z",
+  "browser": {
+    "url": "http://localhost:5173/lobby",
+    "accountRole": "super_admin",
+    "cancelledSuccessorCount": 0,
+    "recentConsoleErrors": []
+  },
+  "preview": {
+    "worker": "r2-upload-signer",
+    "profile": "media",
+    "remotePreviewUrl": "http://localhost:8788",
+    "successfulCreateRequests": [
+      {
+        "direction": "materials-to-pdf",
+        "status": 200,
+        "durationMs": 4274
+      },
+      {
+        "direction": "pdf-to-materials",
+        "status": 200,
+        "durationMs": 2749
+      }
+    ],
+    "candidateVersion": "e742cc82-1fd7-4e1a-9ef1-6cd214ac8017",
+    "candidateTrafficPercentageDuringOverrideProbe": 0,
+    "productionTrafficPercentageDuringPreview": 100,
+    "productionVersionDuringPreview": "1cb4452a-3efd-4822-9156-2490196a3acf",
+    "finalDeployment": {
+      "versions": [
+        {
+          "versionId": "1cb4452a-3efd-4822-9156-2490196a3acf",
+          "percentage": 100
+        }
+      ]
+    }
+  },
+  "fixtures": {
+    "predecessor": {
+      "bookId": "book-ms0vv78m",
+      "bookMode": "materials",
+      "status": "draft-empty",
+      "visibility": "private",
+      "createdAt": "2026-07-25T21:30:39.334Z",
+      "updatedAtBefore": "2026-07-25T21:30:39.334Z",
+      "updatedAtAfter": "2026-07-25T21:30:39.334Z",
+      "lineage": null,
+      "editorAfterReload": "materials"
+    },
+    "pdfSuccessor": {
+      "bookId": "book-23d0f20d-16c2-4a0b-976c-b18f0e96e4d3",
+      "bookMode": "pdf",
+      "statusAfterRollback": "archived",
+      "visibility": "private",
+      "lineage": {
+        "kind": "mode-successor",
+        "predecessorBookId": "book-ms0vv78m",
+        "fromMode": "materials",
+        "toMode": "pdf",
+        "reason": "PRD0062 #69 browser acceptance Materials to PDF",
+        "actorId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "createdAt": "2026-07-25T21:46:47.852Z"
+      },
+      "editorAfterReload": "pdf"
+    },
+    "materialsSuccessor": {
+      "bookId": "book-791b68b5-6fb1-43c3-8fea-6129695a0411",
+      "bookMode": "materials",
+      "statusAfterRollback": "archived",
+      "visibility": "private",
+      "lineage": {
+        "kind": "mode-successor",
+        "predecessorBookId": "book-23d0f20d-16c2-4a0b-976c-b18f0e96e4d3",
+        "fromMode": "pdf",
+        "toMode": "materials",
+        "reason": "PRD0062 #69 browser acceptance PDF to Materials",
+        "actorId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+        "createdAt": "2026-07-25T21:47:47.219Z"
+      },
+      "editorAfterReload": "materials"
+    },
+    "safeMetadataCopied": {
+      "title": "PRD0062 20A browser 1785015032053",
+      "authors": [
+        "PRD0062 QA"
+      ],
+      "testTypeIds": [
+        "ielts"
+      ]
+    },
+    "incompatibleFieldsAbsentFromBothSuccessors": [
+      "book_nodes",
+      "sourceStrategy",
+      "sourceVersionId",
+      "mappings"
+    ]
+  },
+  "rollback": {
+    "archivedOnlyUnpublishedSuccessors": true,
+    "predecessorRemainedActive": true,
+    "remainingVisibleBooksWithFixtureTitle": 1
+  },
+  "boundaries": {
+    "databaseRulesDeployed": false,
+    "ticket50AChanged": false,
+    "ticket03BChanged": false,
+    "newSecretValuesProvisioned": false
+  }
+}
