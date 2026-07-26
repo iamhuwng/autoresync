@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-07-27",
+  "roadmapPhase": "runtime",
+  "primaryTicket": 52,
+  "selectionStatus": "selected",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket51-storage-identity-repaired.json",
+    "issueHash": "be79b284af7c24ca17263192de338f8c7b28a3e26b3972acb3fc80c6381a686a",
+    "issueCount": 112,
+    "openCount": 85,
+    "closedCount": 27,
+    "uniqueEdges": 307,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [40, 49, 50, 52, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "selected": {
+    "ticket": 52,
+    "title": "PRD0062 09B — Stream bounded private B2 PDF ranges",
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47, 48, 51],
+    "openTransitivePrerequisites": [],
+    "graphClear": true,
+    "downstreamLeverage": 65,
+    "acceptanceReadiness": {
+      "previewDeploymentAuthority": "approved by user on 2026-07-27",
+      "threeB": "disabled; no activation merely for proof",
+      "fiftyA": "all-six-deny/default-deny"
+    },
+    "requiredAuthority": [
+      "media Wrangler profile",
+      "x64 Node/Wrangler toolchain",
+      "explicitly approved preview deployment/probe"
+    ]
+  },
+  "candidateRejections": {
+    "40": "Acceptance blocker: unsupported long-response coverage remains unresolved.",
+    "49": "Operations phase; later than current Runtime phase.",
+    "50": "Operations phase; later than current Runtime phase.",
+    "56": "Teacher-workflow phase; later than current Runtime phase.",
+    "64": "Teacher-workflow phase; later than current Runtime phase.",
+    "129": "Final-closure phase and shared #50A boundary.",
+    "130": "Final-closure phase and shared #50A boundary.",
+    "131": "Final-closure phase and shared #50A boundary.",
+    "132": "Final-closure phase and shared #50A boundary.",
+    "133": "Final-closure phase and shared #50A boundary."
+  },
+  "scope": {
+    "preserve112Tickets": true,
+    "completionDeclared": false
+  }
+}

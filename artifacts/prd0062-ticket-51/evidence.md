@@ -10,7 +10,7 @@
   zero missing references, duplicate edges, or cycles, topological coverage
   112.
 - Graph artifact:
-  `artifacts/prd0062-graph-20260727-ticket51-ownership-repair.json`
+  `artifacts/prd0062-graph-20260727-post-ticket51-storage-identity-repaired.json`
 - Issue hash:
   `451815f16841550a2b8f89d7916d09ba4d1abed69da839be42df94d6c52567c2`
 - Selection snapshot:
@@ -33,7 +33,9 @@
   all query parameters fail closed.
 - The in-process decision contains the server-only facts needed by 09B:
   binding, Book/publication revisions, pinned source version IDs, strategy,
-  scope, and exact provider locations. The HTTP seam returns only generic
+  scope, and the complete immutable storage identity for each exact provider
+  location (`storageLocationId`, provider/bucket identity, object key, file and
+  version IDs, checksum, and byte size). The HTTP seam returns only generic
   `{status:"authorized"}` and never serializes that decision.
 - Each request re-resolves live publication status, schedule state, source
   version set, revocation set, and provider locations.
@@ -45,6 +47,10 @@
   #51 does not claim #59-owned route registration, deployed reachability,
   active Worker readback, deployed identity integration, or deployed negative
   probes. #59 retains those gates open until its own closure.
+- #51 was narrowly reopened on 2026-07-27 after dependent #52 exposed a
+  concrete contract gap: the original decision omitted complete storage
+  identity. The repaired decision validates and carries the complete pinned
+  identity server-side; browser-safe output remains generic.
 
 ## Verification
 

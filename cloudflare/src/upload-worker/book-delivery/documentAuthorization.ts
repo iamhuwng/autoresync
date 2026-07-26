@@ -6,6 +6,7 @@ import type {
   BookDeliveryRepository,
   BookDeliveryResolvedEntitlement,
 } from '../../../../src/services/book-delivery/bookDelivery.entitlement.ts';
+import type { BookSourceVersionStorageIdentity } from '../../../../src/types/bookSource.types.ts';
 
 const SAFE_ID = /^[A-Za-z0-9._~-]{1,160}$/u;
 const SAFE_OBJECT_KEY =
@@ -27,15 +28,14 @@ export interface BookDocumentAuthorizationDecision {
   readonly publicationRevision: number;
   readonly sourceStrategy: BookDeliveryResolvedEntitlement['record']['binding']['sourceSet']['strategy'];
   readonly sourceVersionIds: readonly string[];
-  readonly sourceLocations: readonly {
-    readonly sourceVersionId: string;
-    readonly provider: 'b2';
-    readonly bucket: string;
-    readonly objectKey: string;
-    readonly providerFileId: string;
-    readonly providerFileVersionId: string;
-  }[];
+  readonly sourceLocations: readonly BookDocumentAuthorizedSource[];
   readonly scope: BookDeliveryResolvedEntitlement['record']['binding']['scope'];
+}
+
+export interface BookDocumentAuthorizedSource extends BookSourceVersionStorageIdentity {
+  readonly provider: 'b2';
+  readonly bucket: string;
+  readonly objectKey: string;
 }
 
 export interface LiveBookDocumentAuthority {
@@ -43,7 +43,7 @@ export interface LiveBookDocumentAuthority {
   readonly scheduleOpen: boolean;
   readonly sourceVersionIds: readonly string[];
   readonly revokedSourceVersionIds: readonly string[];
-  readonly sourceLocations: readonly BookDocumentAuthorizationDecision['sourceLocations'][number][];
+  readonly sourceLocations: readonly BookDocumentAuthorizedSource[];
 }
 
 export type BookDocumentAuthorizationFailureCode =
@@ -160,10 +160,19 @@ export const authorizeBookDocumentRequest = async (input: {
       expectedSourceIds.join('\u0000') ||
     authority.sourceLocations.some((location) =>
       !safeId(location.sourceVersionId) ||
+      !safeId(location.storageLocationId) ||
+      location.providerKind !== 'backblaze-b2-s3' ||
+      !safeId(location.privateBucketId) ||
       !safeId(location.bucket) ||
       !safeObjectKey(location.objectKey) ||
       !safeId(location.providerFileId) ||
       !safeId(location.providerFileVersionId) ||
+      location.providerObjectKey !== location.objectKey ||
+      location.checksum.algorithm !== 'sha-256' ||
+      !/^[a-f0-9]{64}$/u.test(location.checksum.value) ||
+      !Number.isSafeInteger(location.byteSize) ||
+      location.byteSize < 1 ||
+      location.byteSize > 500 * 1024 * 1024 ||
       location.provider !== 'b2')
   ) {
     return {
