@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-07-26T06:10:00+07:00",
+  "governingContract": "Deterministic roadmap plus complete transitive prerequisite gate",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket06a.json",
+  "graphHash": "ed3c916460d21817f522d1da7a37d12deda780c3251e7580146c49394634c761",
+  "graphSummary": {
+    "issues": 112,
+    "open": 91,
+    "closed": 21,
+    "rawEdges": 309,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [
+      38,
+      39,
+      40,
+      41,
+      48,
+      51,
+      129,
+      130,
+      131,
+      132,
+      133
+    ]
+  },
+  "roadmapPhase": "Foundation",
+  "selectedPrimary": {
+    "issue": 48,
+    "ticket": "06B",
+    "title": "Upload PDF bytes directly from the teacher browser to private B2",
+    "directPrerequisites": [
+      45,
+      47
+    ],
+    "completeTransitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      44,
+      45,
+      46,
+      47
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 80,
+    "rootOrEnablerReason": "Highest-leverage eligible frontier ticket and remaining direct-B2 storage-transport enabler before activation and later teacher workflow descendants.",
+    "acceptanceReadiness": {
+      "ready": true,
+      "reason": "Local client/component/transport/CSP proof, generated 500 MiB boundary proof, localhost teacher browser acceptance, and preview integration are executable. Live B2 mutation remains owned by 06C and is not required.",
+      "rolloutConstraint": "Keep 50A all-six-deny/default-deny. Use injected or preview authority only; do not enable deployed begin.",
+      "requiredAuthority": [
+        "ticket-scoped local implementation",
+        "focused tests, generated large-file harness, and production build",
+        "Chrome localhost:5173 browser acceptance with logged-in super-admin session",
+        "preview-only CSP and CORS integration without live B2 mutation"
+      ],
+      "browserApproval": "User permanently approved Chrome launch/use for this acceptance class."
+    }
+  },
+  "candidateRejections": [
+    {
+      "issues": [
+        38,
+        39,
+        40,
+        41
+      ],
+      "reason": "Eligible by dependencies but deferred to Runtime renderer/adaptor work; each has leverage 66, below selected storage-foundation enabler #48."
+    },
+    {
+      "issues": [
+        51
+      ],
+      "reason": "Eligible by dependencies but belongs to Runtime trusted document authorization; leverage 72 is below #48 and the storage transport boundary closes first."
+    },
+    {
+      "issues": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "reason": "Final-closure suites are phase-ineligible and their positive acceptance still shares the preserved #50A deny boundary; #127 closure alone is insufficient."
+    }
+  ],
+  "wip": {
+    "primaryCount": 1,
+    "primaryIssue": 48,
+    "independentFallbackSelected": false
+  }
+}

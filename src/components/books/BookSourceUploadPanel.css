@@ -1,0 +1,110 @@
+.book-source-upload {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--color-border, #d9e0eb);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+  padding: 24px;
+}
+
+.book-source-upload__heading,
+.book-source-upload__progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.book-source-upload__eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-text-secondary, #5d687b);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.book-source-upload h2,
+.book-source-upload p {
+  margin: 0;
+}
+
+.book-source-upload__immutable,
+.book-source-upload__inline,
+.book-source-upload__success,
+.book-source-upload__error {
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.book-source-upload__immutable,
+.book-source-upload__inline {
+  background: #fff7df;
+  color: #694c00;
+}
+
+.book-source-upload__success {
+  background: #eaf8ef;
+  color: #176b39;
+}
+
+.book-source-upload__error {
+  background: #fff0f0;
+  color: #9e1c1c;
+}
+
+.book-source-upload__state {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.book-source-upload__state div {
+  min-width: 0;
+  border-radius: 12px;
+  background: var(--color-surface-subtle, #f4f7fb);
+  padding: 12px;
+}
+
+.book-source-upload__state dt {
+  color: var(--color-text-secondary, #5d687b);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.book-source-upload__state dd {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+}
+
+.book-source-upload__progress {
+  display: grid;
+  gap: 10px;
+}
+
+.book-source-upload__progress progress {
+  width: 100%;
+}
+
+.book-source-upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.book-source-upload button {
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .book-source-upload__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .book-source-upload__state {
+    grid-template-columns: 1fr;
+  }
+}

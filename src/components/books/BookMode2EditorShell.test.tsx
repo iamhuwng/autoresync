@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { materialCatalogIds, type MaterialBookMetadata } from '../../types/materialCatalog.types';
 import BookMode2EditorShell from './BookMode2EditorShell';
+import type { SourceUploadBrowserWorkflow } from '../../services/book-source-delivery/sourceUpload.browserWorkflow';
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
@@ -48,5 +49,27 @@ describe('BookMode2EditorShell', () => {
 
     expect(screen.queryByRole('heading', { name: 'Inspect source PDF' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to upload' })).not.toBeInTheDocument();
+  });
+
+  it('keeps upload default-deny while preserving restored operation UI', async () => {
+    const uploadWorkflow: SourceUploadBrowserWorkflow = {
+      load: vi.fn(async () => null),
+      start: vi.fn(),
+      retryBytes: vi.fn(),
+      retryCompletion: vi.fn(),
+      requestCancellation: vi.fn(),
+    };
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={book}
+        presentation="page-compat"
+        uploadWorkflow={uploadWorkflow}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Continue to upload' })).toBeDisabled();
+    expect(await screen.findByText(/New upload authorization is disabled/iu))
+      .toBeInTheDocument();
   });
 });

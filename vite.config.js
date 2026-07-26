@@ -3,9 +3,12 @@ import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createBookSourcePreviewCsp } from './src/services/book-source-delivery/sourceUpload.browserPolicy';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
+
+const bookSourcePreviewCsp = createBookSourcePreviewCsp(process.env);
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -18,6 +21,13 @@ export default defineConfig({
   },
   preview: {
     port: 5173,
+    ...(bookSourcePreviewCsp
+      ? {
+          headers: {
+            'Content-Security-Policy': bookSourcePreviewCsp,
+          },
+        }
+      : {}),
   },
   resolve: {
     alias: {

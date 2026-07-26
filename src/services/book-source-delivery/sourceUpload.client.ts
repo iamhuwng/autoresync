@@ -1,4 +1,5 @@
 import type { BookSourceUploadKind } from '../../types/bookSource.types';
+import { sessionStore } from '../../core/platform/storage';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 
 export const BOOK_SOURCE_UPLOAD_ROUTE = '/v1/book-source/books';
@@ -35,6 +36,37 @@ export interface CompleteSourceUploadResult {
   readonly sourceVersionId: string;
 }
 
+export interface CancelSourceUploadCommand {
+  readonly bookId: string;
+  readonly reservationId: string;
+}
+
+export interface SourceUploadSafeOperationState {
+  readonly schemaVersion: 1;
+  readonly bookId: string;
+  readonly operationId: string;
+  readonly reservationId: string;
+  readonly sourceVersionId: string;
+  readonly sourceKey: string;
+  readonly kind: BookSourceUploadKind;
+  readonly displayFilename: string;
+  readonly exactByteSize: number;
+  readonly sha256Hex: string;
+  readonly phase:
+    | 'reserved'
+    | 'completion_pending'
+    | 'cancel_requested'
+    | 'verified';
+  readonly providerFileId?: string;
+  readonly providerFileVersionId?: string;
+}
+
+export interface SourceUploadStatePort {
+  load(bookId: string): Promise<SourceUploadSafeOperationState | null>;
+  save(state: SourceUploadSafeOperationState): Promise<void>;
+  clear(bookId: string): Promise<void>;
+}
+
 export class SourceUploadClientError extends Error {
   constructor(
     public readonly code: string,
@@ -52,6 +84,26 @@ export interface SourceUploadClientOptions {
 }
 
 const trimBaseUrl = (value: string): string => value.trim().replace(/\/+$/u, '');
+
+const controlBaseUrl = (value: string): string => {
+  const trimmed = trimBaseUrl(value);
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new SourceUploadClientError('unavailable', 0);
+  }
+  if (
+    url.protocol !== 'https:'
+    || url.username !== ''
+    || url.password !== ''
+    || url.search !== ''
+    || url.hash !== ''
+  ) {
+    throw new SourceUploadClientError('unavailable', 0);
+  }
+  return url.href.replace(/\/$/u, '');
+};
 
 const record = (value: unknown): Record<string, unknown> | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -75,8 +127,7 @@ const request = async (
   body: unknown,
   operationId?: string,
 ): Promise<Record<string, unknown>> => {
-  const baseUrl = trimBaseUrl(options.baseUrl);
-  if (!baseUrl) throw new SourceUploadClientError('unavailable', 0);
+  const baseUrl = controlBaseUrl(options.baseUrl);
 
   const token = (await options.getIdToken()).trim();
   if (!token) throw new SourceUploadClientError('unauthorized', 401);
@@ -87,11 +138,17 @@ const request = async (
   };
   if (operationId) headers['Idempotency-Key'] = operationId;
 
-  const response = await (options.fetchImpl ?? globalThis.fetch)(`${baseUrl}${path}`, {
+  const requestUrl = `${baseUrl}${path}`;
+  const response = await (options.fetchImpl ?? globalThis.fetch)(requestUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    credentials: 'omit',
+    redirect: 'error',
   });
+  if (response.redirected || (response.url !== '' && response.url !== requestUrl)) {
+    throw new SourceUploadClientError('response_binding_mismatch', 502);
+  }
   const responseBody = await readBody(response);
   if (!response.ok) {
     throw new SourceUploadClientError(
@@ -101,6 +158,100 @@ const request = async (
   }
   return responseBody;
 };
+
+const safeId = (value: unknown): value is string =>
+  nonEmpty(value) && /^[A-Za-z0-9._:-]{1,512}$/u.test(value);
+
+const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationState | null => {
+  const candidate = record(value);
+  if (!candidate || candidate.schemaVersion !== 1 || candidate.bookId !== bookId) return null;
+  const allowedKeys = new Set([
+    'schemaVersion',
+    'bookId',
+    'operationId',
+    'reservationId',
+    'sourceVersionId',
+    'sourceKey',
+    'kind',
+    'displayFilename',
+    'exactByteSize',
+    'sha256Hex',
+    'phase',
+    'providerFileId',
+    'providerFileVersionId',
+  ]);
+  if (
+    !Object.keys(candidate).every((key) => allowedKeys.has(key))
+    || !safeId(candidate.bookId)
+    || !safeId(candidate.operationId)
+    || !safeId(candidate.reservationId)
+    || !safeId(candidate.sourceVersionId)
+    || !safeId(candidate.sourceKey)
+    || (candidate.kind !== 'initial' && candidate.kind !== 'replacement')
+    || !nonEmpty(candidate.displayFilename)
+    || !Number.isSafeInteger(candidate.exactByteSize)
+    || (candidate.exactByteSize as number) < 1
+    || typeof candidate.sha256Hex !== 'string'
+    || !/^[a-f0-9]{64}$/u.test(candidate.sha256Hex)
+    || !['reserved', 'completion_pending', 'cancel_requested', 'verified']
+      .includes(String(candidate.phase))
+  ) {
+    return null;
+  }
+  const identityRequired = candidate.phase === 'completion_pending' || candidate.phase === 'verified';
+  const hasProviderFileId = candidate.providerFileId !== undefined;
+  const hasProviderVersionId = candidate.providerFileVersionId !== undefined;
+  if (
+    hasProviderFileId !== hasProviderVersionId
+    || (
+      (identityRequired || hasProviderFileId)
+      && (!safeId(candidate.providerFileId) || !safeId(candidate.providerFileVersionId))
+    )
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    bookId: candidate.bookId,
+    operationId: candidate.operationId,
+    reservationId: candidate.reservationId,
+    sourceVersionId: candidate.sourceVersionId,
+    sourceKey: candidate.sourceKey,
+    kind: candidate.kind,
+    displayFilename: candidate.displayFilename,
+    exactByteSize: candidate.exactByteSize,
+    sha256Hex: candidate.sha256Hex,
+    phase: candidate.phase,
+    ...(hasProviderFileId
+      ? {
+          providerFileId: candidate.providerFileId,
+          providerFileVersionId: candidate.providerFileVersionId,
+        }
+      : {}),
+  } as SourceUploadSafeOperationState);
+};
+
+const stateKey = (bookId: string): string =>
+  `prd0062:book-source-upload:v1:${encodeURIComponent(bookId)}`;
+
+/** Session-scoped metadata only. Never stores bytes, ID tokens, signed URLs, or headers. */
+export const createSourceUploadSessionStatePort = (): SourceUploadStatePort => ({
+  async load(bookId) {
+    const key = stateKey(bookId);
+    const value = await sessionStore.get(key);
+    const state = safeState(value, bookId);
+    if (value !== null && !state) await sessionStore.remove(key);
+    return state;
+  },
+  async save(state) {
+    const validated = safeState(state, state.bookId);
+    if (!validated) throw new SourceUploadClientError('invalid_state', 0);
+    await sessionStore.set(stateKey(state.bookId), validated);
+  },
+  async clear(bookId) {
+    await sessionStore.remove(stateKey(bookId));
+  },
+});
 
 const requiredHeaders = (value: unknown): Readonly<Record<string, string>> | undefined => {
   const candidate = record(value);
@@ -206,5 +357,20 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       reservationId: command.reservationId,
       sourceVersionId: body.sourceVersionId,
     };
+  },
+
+  /**
+   * Browser-side request seam for Ticket 07 cleanup. A response confirms only
+   * request receipt; it never claims provider deletion.
+   */
+  async requestCancellation(command: CancelSourceUploadCommand): Promise<void> {
+    const body = await request(
+      options,
+      `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/upload/${encodeURIComponent(command.reservationId)}/cancel`,
+      {},
+    );
+    if (body.status !== 'cancellation_requested' && body.status !== 'released') {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
   },
 });
