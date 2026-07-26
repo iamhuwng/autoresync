@@ -40,6 +40,15 @@ describe('Ticket #38 renderer registrations', () => {
     expect(activityRendererManifest.registrations.map(key).sort()).toEqual(
       activityRendererRegistrations.map(key).sort(),
     );
-    expect(bookActivityRendererRegistry.registrations()).toHaveLength(32);
+    expect(bookActivityRendererRegistry.registrations()).toHaveLength(33);
+    expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(1);
+    expect(activityRendererRegistrations.find((entry) => entry.family === 'long-response')?.taskProfile).toBeUndefined();
+    expect(activityRendererManifest.registrations.find((entry) =>
+      entry.family === 'long-response' && entry.variant === 'v1')).toMatchObject({
+      profile: null,
+      responseCodec: 'long-response-v1',
+      rendererId: 'long-response-v1',
+      codecId: 'long-response-v1',
+    });
   });
 });

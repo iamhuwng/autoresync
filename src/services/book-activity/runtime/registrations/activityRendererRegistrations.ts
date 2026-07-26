@@ -5,6 +5,7 @@ import {
   SingleChoiceRenderer,
 } from '../../../../components/book-runtime/interactions/choice';
 import { TextEntryRenderer } from '../../../../components/book-runtime/interactions/text-entry';
+import { LongResponseRenderer } from '../../../../components/book-runtime/interactions/long-response';
 import {
   choiceMultipleResponseCodec,
   choiceSingleResponseCodec,
@@ -15,6 +16,10 @@ import {
   textEntryResponseCodec,
   TEXT_ENTRY_RESPONSE_CODEC_ID,
 } from '../codecs/textEntryResponseCodec';
+import {
+  longResponseResponseCodec,
+  LONG_RESPONSE_RESPONSE_CODEC_ID,
+} from '../codecs/longResponseResponseCodec';
 import { matchingOrderingRendererRegistrations } from './matchingOrderingRendererRegistrations';
 type SupportedFamily = 'choice' | 'text-entry';
 type SupportedMode = 'structured' | 'source-assisted';
@@ -231,4 +236,18 @@ export const ticket23ActivityRendererRegistrations: readonly ActivityRendererReg
 export const activityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] = [
   ...ticket23ActivityRendererRegistrations,
   ...matchingOrderingRendererRegistrations,
+  {
+    family: 'long-response',
+    variant: 'v1',
+    presentationMode: 'structured',
+    responseCodec: LONG_RESPONSE_RESPONSE_CODEC_ID,
+    rendererId: 'long-response-v1',
+    codecId: LONG_RESPONSE_RESPONSE_CODEC_ID,
+    renderer: asUnknownRenderer(LongResponseRenderer),
+    codec: asUnknownCodec(longResponseResponseCodec),
+  },
+];
+
+export const ticket25LongResponseRendererRegistration = activityRendererRegistrations[
+  activityRendererRegistrations.length - 1
 ];

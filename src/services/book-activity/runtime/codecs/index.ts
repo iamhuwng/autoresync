@@ -28,3 +28,8 @@ export {
   type OrderingResponse,
   type OrderingResponseCodecOptions,
 } from './orderingResponseCodec';
+export {
+  LONG_RESPONSE_RESPONSE_CODEC_ID,
+  longResponseResponseCodec,
+  type LongResponseResponse,
+} from './longResponseResponseCodec';

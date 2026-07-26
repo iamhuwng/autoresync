@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-07-27",
+  "roadmapPhase": "foundation",
+  "primaryTicket": 40,
+  "selectionStatus": "selected",
+  "selectionReason": "Earliest unresolved Foundation enabler with all direct/transitive prerequisites formally CLOSED, executable local acceptance gates after #37 validator repair, available local authority, and strongest verified closure leverage among current Foundation candidates.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-52-closed.json",
+    "issueHash": "b7a1fb52012ee8c3b6645fb3bc54dc1f91e1d58576a1db7f7d676867900ceef8",
+    "issueCount": 112,
+    "openCount": 84,
+    "closedCount": 28,
+    "rawEdges": 308,
+    "uniqueEdges": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [40, 49, 50, 53, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "selected": {
+    "ticket": 40,
+    "title": "PRD0062 25 — Run long-response renderer and codec",
+    "transitivePrerequisites": [25, 33, 34, 36, 37],
+    "openTransitivePrerequisites": [],
+    "graphClear": true,
+    "downstreamLeverage": 47,
+    "acceptanceReadiness": {
+      "genericLongResponseContract": "executable through repaired #37/#36 generic profile:null boundary",
+      "integratedStudentBrowserProof": "destination-owned by #73",
+      "objectiveScoring": "must remain denied; #34 review-required semantics preserved",
+      "requiredAuthority": "repository, local focused tests, production build; no 03B/50A activation"
+    }
+  },
+  "candidateRejections": {
+    "49": "Operations phase; later than current Foundation phase.",
+    "50": "Operations phase; later than current Foundation phase.",
+    "53": "Student workflow/integration phase; later than current Foundation phase.",
+    "56": "Teacher workflow phase; later than current Foundation phase.",
+    "64": "Teacher workflow/publication phase; later than current Foundation phase.",
+    "129": "Final-closure phase; shares preserved #50A boundary and must not bypass unresolved foundation/runtime proof.",
+    "130": "Final-closure phase; shares preserved #50A boundary and must not bypass unresolved foundation/runtime proof.",
+    "131": "Final-closure phase; shares preserved #50A boundary and must not bypass unresolved foundation/runtime proof.",
+    "132": "Final-closure phase; shares preserved #50A boundary and must not bypass unresolved foundation/runtime proof.",
+    "133": "Final-closure phase; shares preserved #50A boundary and must not bypass unresolved foundation/runtime proof."
+  },
+  "scope": {
+    "preserve112Tickets": true,
+    "completionDeclared": false
+  }
+}

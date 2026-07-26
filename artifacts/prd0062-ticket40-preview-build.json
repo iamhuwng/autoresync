@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-07-27",
+  "ticket": 40,
+  "purpose": "Minimal production bundle proving generic long-response registration loads through the shared registry without objective-scoring projection.",
+  "harness": {
+    "location": "C:\\Users\\The Lord\\AppData\\Local\\Temp\\codex-prd0062-build-x64",
+    "node": "C:\\Users\\The Lord\\Tools\\node-x64\\node.exe",
+    "vite": "7.1.11",
+    "dependencies": "isolated npm ci from repository package-lock.json",
+    "sharedRepositoryNodeModulesChanged": false
+  },
+  "command": "node node_modules/vite/bin/vite.js build --config ticket40-preview-vite.config.mjs",
+  "result": "PASS",
+  "outputs": {
+    "javascript": {
+      "path": "ticket40-preview-dist/ticket40-preview.js",
+      "bytes": 121098,
+      "sha256": "b7ab530be881d01e0d2d6bf6a4f7bdcecbcb9d4954ebdc36bc3a860771999ad4"
+    },
+    "css": {
+      "path": "ticket40-preview-dist/kahoot.css",
+      "bytes": 4301,
+      "sha256": "832e47cca6f7f9f43ca87a306689932e8e0193494e64198e2575bccfcc6bb"
+    }
+  },
+  "assertions": [
+    "Manifest contains profile:null long-response/v1 registration.",
+    "Shared registry exposes long-response/v1.",
+    "Bundle contains long-response-v1 and no objective score/correctness projection from this registration."
+  ],
+  "relatedVerification": {
+    "focusedVitest": "19/19 passed",
+    "coverageValidator": "19/19 node tests passed",
+    "coverageBase": "32 rows PASS",
+    "coverageRelease": "32 rows PASS"
+  },
+  "scope": {
+    "integratedStudentBrowserProof": "#73-owned",
+    "deployedRouteProof": "#59-owned",
+    "generatedRulesProof": "#118-owned",
+    "preserve112Tickets": true
+  }
+}
