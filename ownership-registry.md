@@ -155,6 +155,13 @@ Moved to #118:
   proof, and native-domain regressions. #73 owns assembled Book-shell loading,
   Delivery/authenticated transport, route/CSP integration, quick-login, and
   browser responsive proof for adapted fixtures.
+- #51 owns the server-only document authorization decision: current Firebase
+  identity/profile, current Delivery/pinned Source Version resolution,
+  publication/context/revocation denials, and document-ledger retirement.
+  #59 owns top-level route composition and deployed Worker identity/config
+  readback; #09B/#54/#73 own byte transport, viewer, and assembled browser
+  proof. #51 never returns provider storage identity, credentials, signed
+  authority, or PDF bytes to browser-safe payloads.
 
 ## Dependency repair ledger
 
