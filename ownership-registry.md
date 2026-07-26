@@ -162,6 +162,17 @@ Moved to #118:
   readback; #09B/#54/#73 own byte transport, viewer, and assembled browser
   proof. #51 never returns provider storage identity, credentials, signed
   authority, or PDF bytes to browser-safe payloads.
+- #53 owns browser-only document transport implementation and transport-local
+  role-port fixture proof: Firebase token per HEAD/GET/range/retry, metadata
+  validation before stream exposure, bounded range streaming, abort/timeout/
+  source-switch cleanup, redacted typed failures, no token/provider/PDF byte
+  storage, and no direct B2, bearer URL, iframe, or whole-buffer fallback. #59
+  owns deployed canonical document-route composition, live route reachability,
+  active Worker readback, route rollback, and deployed #52 document-byte probes.
+  #73 owns assembled student-runtime proof through #53/#54 transport/viewer,
+  Delivery projection, production route/CSP, quick-login, redacted network
+  behavior, retry/abort/resume, copied/anonymous/direct-B2 denial, and console
+  review.
 
 ## Dependency repair ledger
 
