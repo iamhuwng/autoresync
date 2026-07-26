@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-07-26",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket23-transfer.json",
+  "issueHash": "d7ddbf1359d7dbd559497d2d09f2957d9cc775bb7859e01f52ea628d8dc783e2",
+  "issueCount": 112,
+  "openCount": 89,
+  "closedCount": 23,
+  "roadmapPhase": "runtime",
+  "selectedTicket": 38,
+  "closedPrerequisites": [25, 33, 34, 36, 37],
+  "transitivePrerequisiteChain": [25, 33, 34, 36, 37],
+  "downstreamLeverage": 66,
+  "acceptanceReadiness": {
+    "status": "executable",
+    "retainedProof": [
+      "choice/text-entry renderers and codecs",
+      "registry and coverage-matrix checks",
+      "keyboard and screen-reader component tests",
+      "read-only, review, malformed-input, normalization, and serialization tests",
+      "responsive CSS checks at 200% zoom",
+      "production build and unsupported-registration denial"
+    ],
+    "destinationOwnedProof": {
+      "ticket": 73,
+      "proof": [
+        "Student quick-login browser run at localhost:5174",
+        "full runtime-shell structured/source-assisted fixtures",
+        "desktop/mobile navigation and browser 200% zoom",
+        "production route, Delivery projection, PDF transport, and registry integration"
+      ]
+    },
+    "requiredAuthority": ["ticket 22A renderer registry", "ticket 26 supported coverage matrix"],
+    "unavailableAuthority": []
+  },
+  "candidateDecisions": [
+    {"ticket": 38, "decision": "selected", "reason": "Earliest runtime producer with closed chain, executable retained gates, and destination-first integrated-proof transfer to #73."},
+    {"ticket": 39, "decision": "rejected", "reason": "Eligible peer; one-primary rule selects earlier #38."},
+    {"ticket": 40, "decision": "rejected", "reason": "Eligible peer; one-primary rule selects earlier #38."},
+    {"ticket": 41, "decision": "rejected", "reason": "Eligible peer; one-primary rule selects earlier #38."},
+    {"ticket": 49, "decision": "rejected", "reason": "Remote private-B2 provisioning is capability-gated and not current producer priority."},
+    {"ticket": 50, "decision": "rejected", "reason": "Operations phase; not current runtime producer priority."},
+    {"ticket": 51, "decision": "rejected", "reason": "Trusted route/deployment authority is not current producer priority."},
+    {"ticket": 56, "decision": "blocked", "reason": "Missing browser-safe Source Version/current-revision/candidate readback authority."},
+    {"ticket": 129, "decision": "rejected", "reason": "Final-phase suite; unresolved acceptance boundary and shared #50A constraints."},
+    {"ticket": 130, "decision": "rejected", "reason": "Final-phase suite; unresolved acceptance boundary and shared #50A constraints."},
+    {"ticket": 131, "decision": "rejected", "reason": "Final-phase suite; unresolved acceptance boundary and shared #50A constraints."},
+    {"ticket": 132, "decision": "rejected", "reason": "Final-phase suite; unresolved acceptance boundary and shared #50A constraints."},
+    {"ticket": 133, "decision": "rejected", "reason": "Final-phase suite; unresolved acceptance boundary and shared #50A constraints."}
+  ]
+}
