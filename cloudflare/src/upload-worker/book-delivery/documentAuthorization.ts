@@ -279,7 +279,7 @@ export const createBookDocumentAuthorizationHost = (
         profile,
         readCurrentAuthority: options.readCurrentAuthority,
       });
-      if (!result.ok) {
+      if (result.ok === false) {
         return json(
           { code: result.code },
           result.code === 'not-found' ? 404 : 403,

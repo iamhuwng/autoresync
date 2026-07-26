@@ -14,16 +14,18 @@ export const bookDeliveryRouteDescriptors = [
 export const bookDocumentAuthorizationRouteDescriptor = {
   method: 'GET|HEAD',
   path: '/v1/book-delivery/document/:opaqueRouteKey',
-  handler: 'authorizeDocument',
+  handler: 'serveAuthorizedDocument',
   serverOnly: true,
-  owner: '#51 / 09A',
+  owner: '#51 / 09A authorization; #52 / 09B byte response',
+  authorizationOwner: '#51 / 09A',
+  byteResponseOwner: '#52 / 09B',
   destination: '#59 / 09D top-level composition',
   auth: 'firebase-id-token-before-lookup',
   rateClass: '09D-owned',
   gate: '50A-all-deny-until-50B-activation',
   requestBodyBytes: 0,
-  responseLimitBytes: 4096,
-  response: 'generic-status-only',
+  responseLimitBytes: 500 * 1024 * 1024,
+  response: 'bounded-streamed-pdf-or-head',
 } as const;
 
 export const bookDocumentRouteDescriptors = [

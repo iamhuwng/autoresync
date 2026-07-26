@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-book-source-b2",
+  "main": "src/book-source-worker/backblaze-b2-provider-worker.ts",
+  "compatibility_date": "2026-07-22",
+  "workers_dev": false,
+  "vars": {
+    "BOOK_SOURCE_B2_PROVIDER_STATE": "disabled"
+  }
+
+  // Deployment-only bindings required before an approved enablement:
+  // BOOK_SOURCE_B2_ENDPOINT
+  // BOOK_SOURCE_B2_REGION
+  // BOOK_SOURCE_B2_STORAGE_LOCATION_ID
+  // BOOK_SOURCE_B2_PRIVATE_BUCKET_ID
+  // BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME
+  // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID
+  // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY
+  // BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID
+  // BOOK_SOURCE_B2_METADATA_APPLICATION_KEY
+  // BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID
+  // BOOK_SOURCE_B2_READ_APPLICATION_KEY
+}

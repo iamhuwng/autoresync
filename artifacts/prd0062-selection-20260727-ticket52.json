@@ -4,12 +4,12 @@
   "primaryTicket": 52,
   "selectionStatus": "selected",
   "graph": {
-    "artifact": "artifacts/prd0062-graph-20260727-post-ticket51-storage-identity-repaired.json",
-    "issueHash": "be79b284af7c24ca17263192de338f8c7b28a3e26b3972acb3fc80c6381a686a",
+    "artifact": "artifacts/prd0062-graph-20260727-post-27-reclosed-transfer-repair.json",
+    "issueHash": "49df95aabae9f85d299ce02780394859842682822aa9bb16446fd3719b9922aa",
     "issueCount": 112,
     "openCount": 85,
     "closedCount": 27,
-    "uniqueEdges": 307,
+    "uniqueEdges": 308,
     "missingReferences": 0,
     "duplicateEdges": 0,
     "cycles": 0,
@@ -35,7 +35,8 @@
     ]
   },
   "candidateRejections": {
-    "40": "Acceptance blocker: unsupported long-response coverage remains unresolved.",
+    "27": "Repaired and formally CLOSED after distinct provider file/version identity proof; no longer a rejection or open prerequisite.",
+    "40": "Eligible foundation/runtime enabler after #37 repair, but not selected: #52 is current Runtime primary and has stronger verified downstream leverage (65 vs 47); one-primary rule forbids parallel primary work.",
     "49": "Operations phase; later than current Runtime phase.",
     "50": "Operations phase; later than current Runtime phase.",
     "56": "Teacher-workflow phase; later than current Runtime phase.",

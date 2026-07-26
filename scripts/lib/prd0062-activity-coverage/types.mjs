@@ -39,6 +39,12 @@ export const CANONICAL_VARIANTS_BY_FAMILY = Object.freeze({
   ]),
 });
 
+export const CANONICAL_GENERIC_VARIANTS_BY_FAMILY = Object.freeze({
+  ...CANONICAL_VARIANTS_BY_FAMILY,
+  ordering: Object.freeze(['v1']),
+  'long-response': Object.freeze(['v1']),
+});
+
 export const CANONICAL_COVERAGE_ROW_KEYS = Object.freeze([
   'ielts-reading|sentence-completion|1|text-entry|inline-blank',
   'ielts-reading|summary-completion-text|1|text-entry|summary-blank',

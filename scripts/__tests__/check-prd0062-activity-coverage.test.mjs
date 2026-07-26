@@ -162,13 +162,21 @@ test('registration cross-check rejects unmatched renderers and missing registere
   assert.ok(found.has('registration-without-supported-row'));
 });
 
-test('release mode refuses planned supported rows even with an empty valid manifest', async () => {
-  const result = await loadAndValidateCoverageMatrix({ rootDir, release: true });
+test('release mode refuses registered rows when the runtime manifest is empty', async () => {
+  const result = await loadAndValidateCoverageMatrix({
+    rootDir,
+    release: true,
+    registryManifest: {
+      schemaVersion: 1,
+      kind: 'prd0062-activity-runtime-registration-manifest',
+      registrations: [],
+    },
+  });
   assert.equal(result.ok, false);
-  assert.ok(codes(result).has('release-planned-row'));
+  assert.ok(codes(result).has('release-missing-registration'));
 });
 
-test('generic manifest registrations satisfy matching profiled rows without IELTS branching', async () => {
+test('generic manifest registrations do not falsely close profiled IELTS rows', async () => {
   const base = await matrix();
   base.rows.forEach((row) => {
     row.runtimeImplementationState = 'registered';
@@ -207,7 +215,55 @@ test('generic manifest registrations satisfy matching profiled rows without IELT
       registrations: [...registrations.values()],
     },
   });
+  assert.equal(result.ok, false);
+  assert.ok(codes(result).has('registration-mismatch'));
+  assert.ok(codes(result).has('release-missing-registration'));
+});
+
+test('generic long-response registration is valid without an IELTS matrix row', async () => {
+  const base = await matrix();
+  base.rows.forEach((row) => {
+    row.runtimeImplementationState = 'planned';
+  });
+  const result = await validateCoverageMatrix(base, {
+    rootDir,
+    registryManifest: {
+      schemaVersion: 1,
+      kind: 'prd0062-activity-runtime-registration-manifest',
+      registrations: [{
+        profile: null,
+        family: 'long-response',
+        variant: 'v1',
+        presentationMode: 'structured',
+        responseCodec: 'long-response-v1',
+        rendererId: 'long-response-v1',
+        codecId: 'long-response-v1',
+      }],
+    },
+  });
   assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
+});
+
+test('invented profiled IELTS long-response registration remains rejected', async () => {
+  const base = await matrix();
+  const result = await validateCoverageMatrix(base, {
+    rootDir,
+    registryManifest: {
+      schemaVersion: 1,
+      kind: 'prd0062-activity-runtime-registration-manifest',
+      registrations: [{
+        profile: { taxonomyId: 'ielts-reading', typeId: 'long-response', taxonomyVersion: 1 },
+        family: 'long-response',
+        variant: 'v1',
+        presentationMode: 'structured',
+        responseCodec: 'long-response-v1',
+        rendererId: 'long-response-v1',
+        codecId: 'long-response-v1',
+      }],
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.ok(codes(result).has('registration-without-supported-row'));
 });
 
 test('manifest rejects overlapping generic selectors even when mode or codec differs', async () => {
@@ -319,7 +375,7 @@ test('fixture checker rejects scoring-mode drift', async () => {
   assert.equal(run.stderr, '');
 });
 
-test('CLI reads Ticket 22A manifest by default and release fails until rows register', () => {
+test('CLI reads Ticket 22A manifest by default and release passes registered rows', () => {
   execFileSync(process.execPath, ['scripts/check-prd0062-activity-coverage.mjs'], {
     cwd: rootDir,
     stdio: 'pipe',
@@ -328,8 +384,8 @@ test('CLI reads Ticket 22A manifest by default and release fails until rows regi
     cwd: rootDir,
     encoding: 'utf8',
   });
-  assert.notEqual(release.status, 0);
-  assert.match(release.stderr, /release-planned-row/);
+  assert.equal(release.status, 0, release.stderr);
+  assert.match(release.stdout, /PRD0062 activity coverage: PASS/);
 });
 
 test('CLI rejects duplicate and malformed flags', () => {

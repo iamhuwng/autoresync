@@ -7,6 +7,7 @@ import {
 } from './canonical-taxonomy.mjs';
 import {
   CANONICAL_COVERAGE_ROW_KEYS,
+  CANONICAL_GENERIC_VARIANTS_BY_FAMILY,
   CANONICAL_VARIANTS_BY_FAMILY,
   RESPONSE_CODECS,
   RUNTIME_IMPLEMENTATION_STATES,
@@ -18,7 +19,6 @@ const isRecord = (value) => typeof value === 'object' && value !== null && !Arra
 const text = (value) => typeof value === 'string' && value.trim().length > 0;
 const issue = (issues, code, pathName, message) => issues.push({ code, path: pathName, message });
 const keyFor = (entry) => `${entry.profile.taxonomyId}/${entry.profile.typeId}@${entry.profile.taxonomyVersion}:${entry.interaction.family}:${entry.interaction.variant}:${entry.presentationMode}:${entry.responseCodec}`;
-const genericKeyFor = (entry) => `${entry.interaction.family}:${entry.interaction.variant}:${entry.presentationMode}:${entry.responseCodec}`;
 const profileKey = (profile) => `${profile.taxonomyId}/${profile.typeId}@${profile.taxonomyVersion}`;
 const manifestSelectorKeyFor = (entry) =>
   `${entry.profile === null ? '*' : profileKey(entry.profile)}:${entry.family}:${entry.variant}`;
@@ -110,6 +110,28 @@ function validateRegistryManifest(manifest, issues) {
     ) {
       issue(issues, 'invalid-registration', entryPath, 'Registration family, variant, presentationMode, and responseCodec are required.');
       return;
+    }
+    if (
+      registration.profile === null
+      && !CANONICAL_GENERIC_VARIANTS_BY_FAMILY[registration.family]?.includes(registration.variant)
+    ) {
+      issue(
+        issues,
+        'invalid-generic-variant',
+        `${entryPath}.variant`,
+        'Generic registration variant is not declared by the canonical family contract.',
+      );
+    }
+    if (
+      registration.profile === null
+      && RESPONSE_CODECS[registration.responseCodec] !== registration.family
+    ) {
+      issue(
+        issues,
+        'generic-codec-mismatch',
+        `${entryPath}.responseCodec`,
+        'Generic registration codec must match the canonical interaction family.',
+      );
     }
     const key = manifestSelectorKeyFor(registration);
     if (
@@ -240,34 +262,19 @@ export async function validateCoverageMatrix(matrix, options = {}) {
         responseCodec: entry.responseCodec,
       })),
   );
-  const genericRegistrationKeys = new Set(
-    validRegistrations
-      .filter((entry) => entry.profile === null)
-      .map((entry) => genericKeyFor({
-        interaction: { family: entry.family, variant: entry.variant },
-        presentationMode: entry.presentationMode,
-        responseCodec: entry.responseCodec,
-      })),
-  );
   validRegistrations.forEach((entry, index) => {
     const hasSupportedRow = entry.profile === null
-      ? supportedRows.some((row) => genericKeyFor(row) === genericKeyFor({
-        interaction: { family: entry.family, variant: entry.variant },
-        presentationMode: entry.presentationMode,
-        responseCodec: entry.responseCodec,
-      }))
-      : isRecord(entry.profile) && matrixKeys.has(keyFor({
+      || (isRecord(entry.profile) && matrixKeys.has(keyFor({
         profile: entry.profile,
         interaction: { family: entry.family, variant: entry.variant },
         presentationMode: entry.presentationMode,
         responseCodec: entry.responseCodec,
-      }));
+      })));
     if (!hasSupportedRow) issue(issues, 'registration-without-supported-row', `$registry.registrations[${index}]`, 'Runtime registration has no matching supported matrix row.');
   });
   supportedEntries.forEach(({ row, index }) => {
     const registryKey = keyFor(row);
-    const hasRegistration = exactRegistrationKeys.has(registryKey)
-      || genericRegistrationKeys.has(genericKeyFor(row));
+    const hasRegistration = exactRegistrationKeys.has(registryKey);
     if (row.runtimeImplementationState === 'registered' && !hasRegistration) issue(issues, 'registration-mismatch', `$.rows[${index}]`, 'Registered matrix row is absent from runtime manifest.');
     if (release && row.runtimeImplementationState !== 'registered') issue(issues, 'release-planned-row', `$.rows[${index}]`, 'Release mode requires supported row to be registered.');
     if (release && !hasRegistration) issue(issues, 'release-missing-registration', `$.rows[${index}]`, 'Release mode requires matching runtime registration.');
