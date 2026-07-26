@@ -13,6 +13,8 @@ Published issue bodies remain authoritative. Update both when ownership moves.
 | Top-level Worker route composition, live route reachability, deployed Worker identity/config integration, route rollback | #59 / 09D |
 | Feature-specific browser behavior on an already-owned shell | Feature ticket |
 | Structural Book Runtime shell, shell navigation, launch/reload structure | #73 / 22B |
+| Deployed integrated drills and pre-pilot decision | #134 / 51E |
+| Controlled pilot evidence and release decision | #136 / 52B |
 | Final cross-ticket browser/security/recovery suites | #128–#133 / 51B1–51D2 |
 | Capability activation and positive trusted-action proof | Published activation owner |
 
@@ -105,12 +107,30 @@ Moved to #118:
 - generated-rules rollback artifact;
 - legacy-path preservation after Assembly fragment composition.
 
-## Current unresolved ownership checks
+## Current ownership checks
 
 - #56 owns hierarchy/source workspace behavior and local 13A-client proof.
-  #59 owns deployed route composition. #118 owns assembled rules. Browser-safe
-  verified Source Version/current-revision/candidate discovery needs one
-  published owner before #56 closure.
+  #56 also owns browser-safe Source Version, current Book/source-set revision,
+  and candidate discovery/readback in its fixture-backed workspace. #59 owns
+  deployed canonical route composition. #118 owns assembled rules.
+- #54 owns the reusable PDF viewer/viewer-host seam, viewer-local lifecycle,
+  accessibility, focus, abort/retry/revocation, security, and memory proof.
+  #73 owns assembled student launch, Delivery, canonical route/CSP, and
+  integrated PDF transport proof.
+- #59 owns fixed route-manifest/top-level dispatcher composition, generic
+  auth/rate/CORS/gate enforcement, seam registration, and Worker identity
+  readback. #86 owns Book Homework saga behavior and its route-specific
+  teacher/student/deployment/rollback proof.
+- #63 owns teacher candidate-preview projection/host/input and read-only
+  preview proof. It consumes the shared frame/registry and viewer seams; it
+  does not own the structural student runtime shell.
+- #64 owns the strategy-neutral publication primitive and adapter-neutral
+  common Worker-boundary proof. #65/#66 own teacher-facing adapter publication
+  proof; #72 owns server-side Book Delivery projection resolution and
+  pinned-identity contracts; #73 owns the assembled student proof for the #64
+  current-pointer/student-safe projection and publication/binding visibility
+  from #65/#66/#67/#68/#71. Those source tickets retain teacher workflows,
+  adapter contracts, immutable-record tests, and no student-shell launch claim.
 - #38 owns choice/text-entry renderers, codecs, registrations, and their focused
   accessibility tests, read-only/review/malformed-input behavior,
   normalization/serialization proof, component responsive CSS/200% zoom
@@ -125,3 +145,23 @@ Moved to #118:
   #39's transferred integrated browser proof: Student quick-login, assembled
   shell fixtures, pointer/keyboard/touch runtime operation, navigation, and
   browser-level 200% zoom.
+- #40 remains blocked: the canonical coverage matrix has no supported
+  long-response row, while #40 requires long-response registration and #37
+  rejects unresearched registration. #37/coverage authority must publish a
+  profile or #40/#73 must be revised to a dormant-renderer contract before work
+  begins.
+- #41 owns Reading V2/Listening public-export adapters, exact supported-matrix
+  conversion, authorization-reference preservation, dependency-direction
+  proof, and native-domain regressions. #73 owns assembled Book-shell loading,
+  Delivery/authenticated transport, route/CSP integration, quick-login, and
+  browser responsive proof for adapted fixtures.
+
+## Dependency repair ledger
+
+- #64 consumes a typed preview-approval contract; #63 is a contributing
+  producer and is not a hard prerequisite for the common publication
+  primitive.
+- #68 depends on #64 for strategy-neutral publication and does not depend on
+  #65's full-PDF initial-publication workflow.
+- #71 depends on #65, #66, and #70; #67's separate mapping-repair workflow is
+  not a hard prerequisite for successor publication.

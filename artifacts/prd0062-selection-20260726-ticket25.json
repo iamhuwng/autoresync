@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-07-26",
-  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket24-transfer.json",
-  "issueHash": "8e237a1a9ef0871163ba30d0e11e0402233386e3aa2b7f17385212c0cba217ba",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-contract-repair.json",
+  "issueHash": "cfb4fd1c14040cd83bf8f4aa208950df51c2dd4433985eba0b2969191d07394e",
   "issueCount": 112,
   "openCount": 87,
   "closedCount": 25,
@@ -9,7 +9,7 @@
   "selectedTicket": 40,
   "closedPrerequisites": [25, 33, 34, 36, 37],
   "transitivePrerequisiteChain": [25, 33, 34, 36, 37],
-  "downstreamLeverage": 66,
+  "downstreamLeverage": 46,
   "acceptanceReadiness": {
     "status": "executable",
     "retainedProof": [
@@ -63,7 +63,12 @@
     {
       "ticket": 56,
       "decision": "rejected",
-      "reason": "Teacher workflow lane; browser-safe Source Version/current-revision/candidate authority remains unresolved."
+      "reason": "Higher-leverage Teacher Workflow root; current roadmap phase remains Runtime, so the earlier unresolved Runtime renderer producer is selected."
+    },
+    {
+      "ticket": 64,
+      "decision": "rejected",
+      "reason": "Graph-clear student binding lane after contract repair; Student Workflow follows completion of the current Runtime producer phase."
     },
     {
       "ticket": 129,
