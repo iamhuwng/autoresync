@@ -15,6 +15,7 @@ import {
   textEntryResponseCodec,
   TEXT_ENTRY_RESPONSE_CODEC_ID,
 } from '../codecs/textEntryResponseCodec';
+import { matchingOrderingRendererRegistrations } from './matchingOrderingRendererRegistrations';
 type SupportedFamily = 'choice' | 'text-entry';
 type SupportedMode = 'structured' | 'source-assisted';
 type SupportedProfile = { taxonomyId: string; typeId: string; taxonomyVersion: 1 };
@@ -224,7 +225,10 @@ const createRegistration = (
     : asUnknownCodec(textEntryResponseCodec),
 });
 
-export const activityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] =
+export const ticket23ActivityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] =
   supportedRegistrationSpecs.map(createRegistration);
 
-export const ticket23ActivityRendererRegistrations = activityRendererRegistrations;
+export const activityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] = [
+  ...ticket23ActivityRendererRegistrations,
+  ...matchingOrderingRendererRegistrations,
+];

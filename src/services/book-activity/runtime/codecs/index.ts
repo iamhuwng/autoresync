@@ -13,3 +13,18 @@ export {
   textEntryResponseCodec,
   type TextEntryResponse,
 } from './textEntryResponseCodec';
+export {
+  createMatchingResponseCodec,
+  MATCHING_RESPONSE_CODEC_ID,
+  matchingResponseCodec,
+  type MatchingPairResponse,
+  type MatchingResponse,
+  type MatchingResponseCodecOptions,
+} from './matchingResponseCodec';
+export {
+  createOrderingResponseCodec,
+  ORDERING_RESPONSE_CODEC_ID,
+  orderingResponseCodec,
+  type OrderingResponse,
+  type OrderingResponseCodecOptions,
+} from './orderingResponseCodec';
