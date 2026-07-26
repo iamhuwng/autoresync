@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-07-26T06:01:31.777Z",
+  "generatedAt": "2026-07-26T07:33:27.926Z",
   "source": "live GitHub issue bodies via gh issue list --state all --limit 500",
   "issueHash": "8e237a1a9ef0871163ba30d0e11e0402233386e3aa2b7f17385212c0cba217ba",
   "issueCount": 112,
-  "openCount": 88,
-  "closedCount": 24,
+  "openCount": 87,
+  "closedCount": 25,
   "rawEdgeCount": 309,
   "uniqueEdgeCount": 309,
   "missingReferences": [],
@@ -12,7 +12,6 @@
   "cycles": [],
   "topologicalCoverage": 112,
   "graphClearFrontier": [
-    39,
     40,
     41,
     49,
@@ -257,7 +256,7 @@
     {
       "number": 39,
       "title": "PRD0062 24 — Run matching and ordering renderers and codecs",
-      "state": "OPEN",
+      "state": "CLOSED",
       "url": "https://github.com/iamhuwng/autoresync/issues/39",
       "directPrerequisites": [
         36,
@@ -904,7 +903,6 @@
       "directPrerequisites": [
         36,
         38,
-        39,
         40,
         41,
         60,
@@ -945,7 +943,6 @@
         62
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1007,7 +1004,6 @@
         63
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1070,7 +1066,6 @@
         64
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1135,7 +1130,6 @@
         64
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1200,7 +1194,6 @@
         64
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1267,7 +1260,6 @@
         65
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1391,7 +1383,6 @@
         70
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1465,7 +1456,6 @@
         66
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1538,7 +1528,6 @@
         72
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1613,7 +1602,6 @@
         72
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1692,7 +1680,6 @@
         74
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1770,7 +1757,6 @@
         75
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1849,7 +1835,6 @@
         76
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -1928,7 +1913,6 @@
         75
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2009,7 +1993,6 @@
         78
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2093,7 +2076,6 @@
         79
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2174,7 +2156,6 @@
         72
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2248,7 +2229,6 @@
         81
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2323,7 +2303,6 @@
         82
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2402,7 +2381,6 @@
         83
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2483,7 +2461,6 @@
         84
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2568,7 +2545,6 @@
         85
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2661,7 +2637,6 @@
         86
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2758,7 +2733,6 @@
         87
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2863,7 +2837,6 @@
         87
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -2964,7 +2937,6 @@
         89
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3065,7 +3037,6 @@
         86
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3168,7 +3139,6 @@
         91
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3259,7 +3229,6 @@
         74
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3335,7 +3304,6 @@
         93
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3412,7 +3380,6 @@
         94
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3504,7 +3471,6 @@
         94
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3595,7 +3561,6 @@
         94
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3691,7 +3656,6 @@
         97
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3804,7 +3768,6 @@
         98
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -3919,7 +3882,6 @@
         99
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4035,7 +3997,6 @@
         89
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4140,7 +4101,6 @@
         95
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4244,7 +4204,6 @@
         95
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4349,7 +4308,6 @@
         103
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4447,7 +4405,6 @@
         72
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4539,7 +4496,6 @@
         105
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4650,7 +4606,6 @@
         106
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4778,7 +4733,6 @@
         107
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -4912,7 +4866,6 @@
         108
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5054,7 +5007,6 @@
         109
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5204,7 +5156,6 @@
         110
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5357,7 +5308,6 @@
         110
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5509,7 +5459,6 @@
         110
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5662,7 +5611,6 @@
         110
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         51,
@@ -5809,7 +5757,6 @@
         109
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -5963,7 +5910,6 @@
         115
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -6127,7 +6073,6 @@
         116
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -6316,7 +6261,6 @@
         117
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -6486,7 +6430,6 @@
         117
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -6656,7 +6599,6 @@
         119
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -6829,7 +6771,6 @@
         120
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7003,7 +6944,6 @@
         121
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7179,7 +7119,6 @@
         122
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7358,7 +7297,6 @@
         123
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7539,7 +7477,6 @@
         124
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7731,7 +7668,6 @@
         125
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -7941,7 +7877,6 @@
         127
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -8228,7 +8163,6 @@
         133
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         50,
@@ -8419,7 +8353,6 @@
         118
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         49,
@@ -8613,7 +8546,6 @@
         135
       ],
       "openTransitivePrerequisites": [
-        39,
         40,
         41,
         49,
