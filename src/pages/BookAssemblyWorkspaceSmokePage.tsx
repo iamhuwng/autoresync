@@ -1,8 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BookMode2EditorShell from '../components/books/BookMode2EditorShell';
+import { toast } from '../components/modern';
+import { createFullPdfPublicationCommand } from '../services/book-assembly/fullPdfPublication.command';
+import {
+  InMemoryBookAssemblyPublicationRepository,
+  type BookAssemblyPublicationScope,
+} from '../services/book-assembly/publicationRepository';
+import type { BookAssemblyPublicationResult } from '../services/book-assembly/publicationTransaction.service';
 import type { UnitAssemblyRepository } from '../services/book-assembly/unitAssembly.repository';
 import type {
+  BookAssemblyBookAuthority,
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../services/book-assembly/unitAssembly.types';
@@ -154,6 +162,32 @@ const ticket63Manifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket65Manifest: BookAssemblyManifestCandidate = {
+  ...initialManifest,
+  nodes: [
+    { nodeKey: 'section-fixture', parentNodeKey: null, nodeType: 'section', order: 1 },
+    { nodeKey: 'unit-fixture', parentNodeKey: 'section-fixture', nodeType: 'unit', order: 1 },
+    { nodeKey: 'unit-later-incomplete', parentNodeKey: 'section-fixture', nodeType: 'unit', order: 2 },
+  ],
+  units: [{
+    unitKey: 'unit-fixture',
+    activitySlots: [{
+      activityKey: 'activity-ticket65',
+      order: 1,
+      contextRequirement: 'required',
+      pageGroupKeys: ['pages-ticket65'],
+    }],
+    pageGroups: [{
+      pageGroupKey: 'pages-ticket65',
+      sourceKey: 'full',
+      pages: [2, 3],
+      defaultPhysicalPageNumber: 2,
+      activityKeys: ['activity-ticket65'],
+      mode: 'activity',
+    }],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -161,7 +195,7 @@ const createCandidate = (
   bookId: BOOK_ID,
   bookRevision: 7,
   candidateId: 'candidate-ticket56',
-  lifecycle: manifest === ticket63Manifest ? 'validated' : 'draft',
+  lifecycle: manifest === ticket63Manifest || manifest === ticket65Manifest ? 'validated' : 'draft',
   manifest,
   ownerId: OWNER_ID,
   revision,
@@ -174,6 +208,43 @@ const createCandidate = (
 const encodeCandidate = (candidate: BookAssemblyCandidateRecord): string =>
   encodeURIComponent(JSON.stringify(candidate));
 
+type Ticket65PublicationSummary = {
+  readonly publicationId: string | null;
+  readonly versionCount: number;
+  readonly activityVersionCount: number;
+  readonly placementCount: number;
+  readonly unitProjectionCount: number;
+  readonly deliveryPlanCount: number;
+  readonly laterUnitPublished: boolean;
+};
+
+const emptyTicket65PublicationSummary: Ticket65PublicationSummary = {
+  publicationId: null,
+  versionCount: 0,
+  activityVersionCount: 0,
+  placementCount: 0,
+  unitProjectionCount: 0,
+  deliveryPlanCount: 0,
+  laterUnitPublished: false,
+};
+
+const summarizePublicationScope = (
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+): Ticket65PublicationSummary => ({
+  publicationId: scope.current?.publicationId ?? null,
+  versionCount: Object.keys(scope.versions ?? {}).length,
+  activityVersionCount: Object.keys(scope.activityVersions ?? {}).length,
+  placementCount: Object.keys(scope.placements ?? {}).length,
+  unitProjectionCount: Object.keys(scope.unitProjections ?? {}).length,
+  deliveryPlanCount: Object.keys(scope.deliveryPlans ?? {}).length,
+  laterUnitPublished: Object.values(scope.unitProjections ?? {})
+    .some((projection) => projection.unitKey === 'unit-later-incomplete'),
+});
+
+const encodePublicationSummary = (
+  summary: Ticket65PublicationSummary,
+): string => encodeURIComponent(JSON.stringify(summary));
+
 const decodeCandidate = (value: string | null): BookAssemblyCandidateRecord | null => {
   if (!value) return null;
   try {
@@ -181,6 +252,26 @@ const decodeCandidate = (value: string | null): BookAssemblyCandidateRecord | nu
     return parsed?.bookId === BOOK_ID && parsed.manifest ? parsed : null;
   } catch {
     return null;
+  }
+};
+
+const decodePublicationSummary = (
+  value: string | null,
+): Ticket65PublicationSummary => {
+  if (!value) return emptyTicket65PublicationSummary;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as Partial<Ticket65PublicationSummary>;
+    return {
+      publicationId: typeof parsed.publicationId === 'string' ? parsed.publicationId : null,
+      versionCount: Number.isSafeInteger(parsed.versionCount) ? parsed.versionCount : 0,
+      activityVersionCount: Number.isSafeInteger(parsed.activityVersionCount) ? parsed.activityVersionCount : 0,
+      placementCount: Number.isSafeInteger(parsed.placementCount) ? parsed.placementCount : 0,
+      unitProjectionCount: Number.isSafeInteger(parsed.unitProjectionCount) ? parsed.unitProjectionCount : 0,
+      deliveryPlanCount: Number.isSafeInteger(parsed.deliveryPlanCount) ? parsed.deliveryPlanCount : 0,
+      laterUnitPublished: parsed.laterUnitPublished === true,
+    };
+  } catch {
+    return emptyTicket65PublicationSummary;
   }
 };
 
@@ -195,6 +286,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket62Fixture = fixture.startsWith('ticket62');
   const ticket62ComponentFixture = fixture === 'ticket62-component';
   const ticket63Fixture = fixture === 'ticket63-preview';
+  const ticket65Fixture = fixture === 'ticket65-full-pdf';
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
@@ -206,6 +298,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
         ? createCandidate(ticket62Manifest, 1)
       : ticket63Fixture
         ? createCandidate(ticket63Manifest, 1)
+      : ticket65Fixture
+        ? createCandidate(ticket65Manifest, 1)
       : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
@@ -216,6 +310,11 @@ export default function BookAssemblyWorkspaceSmokePage() {
       : candidateFixture;
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(() =>
     decodeCandidate(searchParams.get('candidate')) ?? defaultCandidate);
+  const [publicationScope, setPublicationScope] = useState<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>({});
+  const [publicationSummary, setPublicationSummary] = useState<Ticket65PublicationSummary>(() =>
+    decodePublicationSummary(searchParams.get('publication')));
+  const [previewApproval, setPreviewApproval] = useState<string | null>(null);
+  const [publicationMessage, setPublicationMessage] = useState<string | null>(null);
   const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   const [stagedActivities, setStagedActivities] = useState<Array<{ activityKey?: string; evidenceRefs?: string[] }>>([]);
@@ -262,8 +361,22 @@ export default function BookAssemblyWorkspaceSmokePage() {
 
   const persistCandidate = useCallback((next: BookAssemblyCandidateRecord) => {
     setCandidate(next);
-    setSearchParams({ fixture, candidate: encodeCandidate(next) }, { replace: true });
-  }, [fixture, setSearchParams]);
+    const nextParams: Record<string, string> = { fixture, candidate: encodeCandidate(next) };
+    if (publicationSummary.publicationId) {
+      nextParams.publication = encodePublicationSummary(publicationSummary);
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [fixture, publicationSummary, setSearchParams]);
+
+  const persistPublicationScope = useCallback((scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => {
+    setPublicationScope(scope);
+    const summary = summarizePublicationScope(scope);
+    setPublicationSummary(summary);
+    const nextParams: Record<string, string> = { fixture };
+    if (candidate) nextParams.candidate = encodeCandidate(candidate);
+    nextParams.publication = encodePublicationSummary(summary);
+    setSearchParams(nextParams, { replace: true });
+  }, [candidate, fixture, setSearchParams]);
 
   const repository = useMemo<UnitAssemblyRepository>(() => {
     const mutationResult = (
@@ -381,6 +494,63 @@ export default function BookAssemblyWorkspaceSmokePage() {
   }), [fixture]);
 
   const fixtureTitle = ticket63Fixture ? 'PRD0062 Ticket 63 Candidate Preview Fixture' : smokeBook.title;
+  const publishFullPdfUnit = async () => {
+    if (!ticket65Fixture || !candidate || !candidate.manifest || !previewApproval) return;
+    const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>({
+      [BOOK_ID]: publicationScope,
+    });
+    const authority: BookAssemblyBookAuthority = {
+      bookId: BOOK_ID,
+      ownerId: OWNER_ID,
+      bookMode: 'pdf',
+      bookRevision: 7,
+      sourceSetRevision: 4,
+      sourceSet: candidate.manifest.sourceSet,
+      sourceVersionAuthority: {
+        getSourceVersion: (sourceVersionId) =>
+          sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
+      },
+    };
+    const command = createFullPdfPublicationCommand({
+      readAuthority: async () => authority,
+      readCandidate: async () => candidate,
+      readLineage: async () => ({}),
+      publish: async (input) => {
+        const service = await import('../services/book-assembly/publicationTransaction.service');
+        return service.createBookAssemblyPublicationService(repository).publish(input);
+      },
+      allocateOperationId: () => globalThis.crypto.randomUUID(),
+      allocateId: (kind, key) => `${kind}:${key}:ticket65`,
+      now: () => NOW,
+    });
+    try {
+      const receipt = await command({
+        ownerId: OWNER_ID,
+        bookId: BOOK_ID,
+        unitKey: 'unit-fixture',
+        candidateId: candidate.candidateId,
+        expectedCandidateRevision: candidate.revision,
+        expectedCurrentPublicationId: publicationSummary.publicationId,
+        expectedBookRevision: 7,
+        expectedSourceSetRevision: 4,
+        previewApproval: {
+          approvalId: previewApproval,
+          approvalRevision: 1,
+          approvedAt: '2026-07-26T00:00:00.000Z',
+          expiresAt: '2026-07-28T00:00:00.000Z',
+        },
+      });
+      const nextScope = await repository.readScope(BOOK_ID);
+      persistPublicationScope(nextScope);
+      const message = `Published full-PDF Unit ${receipt.publicationId}.`;
+      setPublicationMessage(message);
+      toast.success(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Full-PDF publication failed.';
+      setPublicationMessage(message);
+      toast.error('Full-PDF publication failed.');
+    }
+  };
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
@@ -437,6 +607,47 @@ export default function BookAssemblyWorkspaceSmokePage() {
           <p>Published state: unchanged</p>
           <p>Staged Activity count: {stagedActivities.length}</p>
           <p>Staged Activity evidence: {stagedActivities.flatMap((entry) => entry.evidenceRefs ?? []).join(', ') || 'none'}</p>
+        </section>
+      )}
+      {ticket65Fixture && (
+        <section aria-label="Ticket 65 publication state">
+          <h2>Full-PDF publication fixture</h2>
+          <p>Trusted command layer allocates operation and publication IDs before adapter execution.</p>
+          <p data-testid="ticket65-current-publication">
+            Current publication: {publicationSummary.publicationId ?? 'none'}
+          </p>
+          <p data-testid="ticket65-version-count">
+            Manifest Versions: {publicationSummary.versionCount}
+          </p>
+          <p data-testid="ticket65-activity-version-count">
+            Activity Versions: {publicationSummary.activityVersionCount}
+          </p>
+          <p data-testid="ticket65-placement-count">
+            Placements: {publicationSummary.placementCount}
+          </p>
+          <p data-testid="ticket65-unit-projection-count">
+            Unit projections: {publicationSummary.unitProjectionCount}
+          </p>
+          <p data-testid="ticket65-delivery-plan-count">
+            Delivery publication plans: {publicationSummary.deliveryPlanCount}
+          </p>
+          <p data-testid="ticket65-later-unit-state">
+            Later Unit published: {publicationSummary.laterUnitPublished ? 'yes' : 'no'}
+          </p>
+          <p data-testid="ticket65-publication-message">{publicationMessage ?? 'No publication attempted.'}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setPreviewApproval('ticket65-preview-approval');
+              setPublicationMessage('Full-PDF preview approved.');
+              toast.info('Full-PDF preview approved.');
+            }}
+          >
+            Preview full PDF Unit
+          </button>
+          <button type="button" disabled={!previewApproval} onClick={() => void publishFullPdfUnit()}>
+            Publish full PDF Unit
+          </button>
         </section>
       )}
       <BookMode2EditorShell
