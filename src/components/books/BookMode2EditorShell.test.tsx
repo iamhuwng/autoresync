@@ -72,4 +72,31 @@ describe('BookMode2EditorShell', () => {
     expect(await screen.findByText(/New upload authorization is disabled/iu))
       .toBeInTheDocument();
   });
+
+  it('keeps Assembly mutation controls hidden while safe reads remain in rollback state', () => {
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={book}
+        presentation="page-compat"
+        uploadWorkflow={null}
+        uploadPresentationEnabled={false}
+        assemblyRepository={null}
+        assemblySourceVersions={[
+          {
+            bookId: 'pdf-book',
+            physicalPageCount: 12,
+            sourceVersionId: 'source-ready',
+            verifiedUsable: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Inspect source PDF' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Assembly is read-only' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Verified Source Versions' })).not.toBeInTheDocument();
+    expect(screen.getByText(/will never fall back to the materials editor/iu)).toBeInTheDocument();
+  });
 });

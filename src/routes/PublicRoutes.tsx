@@ -10,6 +10,7 @@ const BlockedUserPage = lazyWithRetry(() => import('../pages/BlockedUserPage'));
 const TeacherInvitePage = lazyWithRetry(() => import('../pages/TeacherInvitePage.jsx'));
 const AuthenticatedRoutes = lazyWithRetry(() => import('./AuthenticatedRoutes'));
 const BookEditorSmokePage = lazyWithRetry(() => import('../pages/BookEditorSmokePage'));
+const BookAssemblyWorkspaceSmokePage = lazyWithRetry(() => import('../pages/BookAssemblyWorkspaceSmokePage'));
 const BookPdfViewerSmokePage = lazyWithRetry(() => import('../pages/BookPdfViewerSmokePage'));
 const ReadingV2StudioSmokePage = lazyWithRetry(() => import('../pages/ReadingV2StudioSmokePage'));
 const ReadingV2VerticalLoopSmokePage = lazyWithRetry(() => import('../pages/ReadingV2VerticalLoopSmokePage'));
@@ -50,6 +51,9 @@ export default function PublicRoutes() {
     routes.splice(routes.length - 1, 0, {
       path: '/__smoke/book-editor',
       element: withTrackedRoute(<BookEditorSmokePage />, 'testCreation'),
+    }, {
+      path: '/__smoke/book-assembly',
+      element: withTrackedRoute(<BookAssemblyWorkspaceSmokePage />, 'readingV2Studio'),
     }, {
       path: '/__smoke/book-viewer',
       element: withTrackedRoute(<BookPdfViewerSmokePage />, 'testCreation'),

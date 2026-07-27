@@ -1,0 +1,20 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket56",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "consoleErrors": [],
+  "overflow": {
+    "clientWidth": 375,
+    "scrollWidth": 375
+  },
+  "proof": [
+    "teacher quick-login",
+    "full_pdf candidate save and reload",
+    "component_pdfs ownership/order",
+    "stale CAS conflict reload/retry/discard choices",
+    "200% zoom visible controls"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "project": "desktop",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket56",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "consoleErrors": [],
+  "overflow": {
+    "clientWidth": 1440,
+    "scrollWidth": 1440
+  },
+  "proof": [
+    "teacher quick-login",
+    "full_pdf candidate save and reload",
+    "component_pdfs ownership/order",
+    "stale CAS conflict reload/retry/discard choices",
+    "200% zoom visible controls"
+  ]
+}

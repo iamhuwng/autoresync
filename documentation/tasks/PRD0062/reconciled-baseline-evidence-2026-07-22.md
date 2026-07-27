@@ -3811,6 +3811,68 @@ immutable records remain parseable; no inferred browser authority is added.
 No 50A capability was enabled, no 03B behavior changed, and the full 112-ticket
 goal remains open.
 
+### Ticket 13B / #56 closure evidence - 2026-07-27
+
+#56 was selected as the sole Teacher workflow root/enabler after a fresh live
+112-ticket graph rebuild: 112 issues, 81 open, 31 closed, 308 unique edges, no
+missing references, no duplicate edges, no cycles, and 112/112 topological
+coverage. Direct prerequisites #45, #32, and #55 were formally CLOSED.
+
+Owned implementation proof:
+
+- The Assembly Workspace now normalizes dirty snapshots against the exact
+  strategy/node/source draft, so existing and reloaded candidates start clean
+  and saved drafts return clean.
+- Tree rendering preserves nested hierarchy order with native `tree`/
+  `treeitem` roles, `aria-level`, keyboard Home/End/Arrow navigation, and focus
+  restoration after add, reorder, and delete.
+- Source binding accepts only verified Source Versions, normalizes Book-level
+  component order after bind/move/remove, tracks owner/order/remove actions,
+  and keeps component ownership tied to structural nodes only.
+- Save through the 13A repository handles saved, pending, conflict, retry,
+  reload, discard-local, validation, permission-loss, and typed failure states
+  without silent overwrite.
+- Rollback/default-deny state hides hierarchy/source mutation controls while
+  retaining safe read/inspection state. No Mode 1 controls, Mantine imports,
+  direct browser database writes, provider storage authority, bearer URLs,
+  deployed route composition, or assembled-rules claims were introduced.
+
+Verification:
+
+- Focused component/shell suite: `2` files / `11` tests PASS.
+- Broader #56 and Mode 1 regression suite: `7` files / `57` tests PASS,
+  including Book editor mode dispatch/modal/page/workspace, Assembly
+  manifest/source-set validation, and material Book validation.
+- Repository TypeScript with `--noEmit --skipLibCheck`: PASS.
+- Focused ESLint over #56 component, smoke page, route, and browser spec:
+  PASS.
+- Production Vite build: PASS, `9,353` modules transformed.
+- `git diff --check`: PASS.
+
+Browser proof:
+
+- `playwright.prd0062-ticket56.config.mjs` passed `2/2` projects at
+  `http://localhost:5173`: desktop `1440x1000` and `375x900`.
+- Browser used the repository teacher dev quick-login path, fixture-backed
+  `__smoke/book-assembly` page, and local mutation-presentation gate only.
+- Proof covered full-PDF candidate save/reload, component-PDF ownership/order,
+  disabled invalid source binding, stale CAS conflict with reload/retry/discard
+  choices, 200% zoom visible controls, and zero console/page errors after
+  filtering the known Firebase Analytics dynamic-config fetch warning.
+- Evidence artifacts:
+  `artifacts/prd0062-ticket-56/browser/desktop.json`,
+  `artifacts/prd0062-ticket-56/browser/desktop.png`,
+  `artifacts/prd0062-ticket-56/browser/mobile-375.json`, and
+  `artifacts/prd0062-ticket-56/browser/mobile-375.png`.
+
+Transferred/destination-owned proof remains open under #59/#118: canonical
+deployed Assembly route composition, deployed hierarchy/source save/reload,
+Worker-to-Firebase identity/config readback, route rollback, generated
+`database.rules.json`, assembled-rules emulator enforcement, active rules
+deployment/hash/readback, generated-rules rollback, and legacy-path
+preservation. No 50A capability was enabled, no 03B behavior changed, and the
+full 112-ticket goal remains open.
+
 ### Ticket 08B blocker and independent-primary decision — 2026-07-25
 
 Ticket 08B / GitHub #31 was selected after #30 closure as the earliest trusted
