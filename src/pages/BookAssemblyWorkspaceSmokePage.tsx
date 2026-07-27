@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BookMode2EditorShell from '../components/books/BookMode2EditorShell';
 import { toast } from '../components/modern';
+import { createComponentPdfPublicationCommand } from '../services/book-assembly/componentPdfPublication.command';
 import { createFullPdfPublicationCommand } from '../services/book-assembly/fullPdfPublication.command';
 import {
   InMemoryBookAssemblyPublicationRepository,
@@ -188,6 +189,57 @@ const ticket65Manifest: BookAssemblyManifestCandidate = {
   }],
 };
 
+const ticket66Manifest: BookAssemblyManifestCandidate = {
+  bookId: BOOK_ID,
+  sourceSet: {
+    sourceStrategy: 'component_pdfs',
+    sources: [
+      { sourceKey: 'component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a' },
+      { sourceKey: 'component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-a' },
+    ],
+  },
+  nodes: [
+    { nodeKey: 'section-component-a', parentNodeKey: null, nodeType: 'section', order: 1 },
+    { nodeKey: 'unit-component-a', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 1 },
+    { nodeKey: 'unit-later-incomplete', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 2 },
+  ],
+  units: [{
+    unitKey: 'unit-component-a',
+    activitySlots: [
+      {
+        activityKey: 'activity-ticket66-a',
+        order: 1,
+        contextRequirement: 'required',
+        pageGroupKeys: ['pages-ticket66-a'],
+      },
+      {
+        activityKey: 'activity-ticket66-b',
+        order: 2,
+        contextRequirement: 'required',
+        pageGroupKeys: ['pages-ticket66-b'],
+      },
+    ],
+    pageGroups: [
+      {
+        pageGroupKey: 'pages-ticket66-a',
+        sourceKey: 'component-a',
+        pages: [1],
+        defaultPhysicalPageNumber: 1,
+        activityKeys: ['activity-ticket66-a'],
+        mode: 'activity',
+      },
+      {
+        pageGroupKey: 'pages-ticket66-b',
+        sourceKey: 'component-b',
+        pages: [1],
+        defaultPhysicalPageNumber: 1,
+        activityKeys: ['activity-ticket66-b'],
+        mode: 'activity',
+      },
+    ],
+  }],
+};
+
 const createCandidate = (
   manifest: BookAssemblyManifestCandidate,
   revision: number,
@@ -195,7 +247,7 @@ const createCandidate = (
   bookId: BOOK_ID,
   bookRevision: 7,
   candidateId: 'candidate-ticket56',
-  lifecycle: manifest === ticket63Manifest || manifest === ticket65Manifest ? 'validated' : 'draft',
+  lifecycle: manifest === ticket63Manifest || manifest === ticket65Manifest || manifest === ticket66Manifest ? 'validated' : 'draft',
   manifest,
   ownerId: OWNER_ID,
   revision,
@@ -287,6 +339,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket62ComponentFixture = fixture === 'ticket62-component';
   const ticket63Fixture = fixture === 'ticket63-preview';
   const ticket65Fixture = fixture === 'ticket65-full-pdf';
+  const ticket66Fixture = fixture === 'ticket66-component-pdf';
   const ticket58Fixture = fixture.startsWith('ticket58-');
   const candidateFixture = componentFixture
     ? createCandidate(componentMappingManifest, 1)
@@ -300,6 +353,8 @@ export default function BookAssemblyWorkspaceSmokePage() {
         ? createCandidate(ticket63Manifest, 1)
       : ticket65Fixture
         ? createCandidate(ticket65Manifest, 1)
+      : ticket66Fixture
+        ? createCandidate(ticket66Manifest, 1)
       : fixture === 'ticket57-full' || ticket58Fixture
       ? createCandidate(initialManifest, 1)
       : null;
@@ -551,6 +606,63 @@ export default function BookAssemblyWorkspaceSmokePage() {
       toast.error('Full-PDF publication failed.');
     }
   };
+  const publishComponentPdfUnit = async () => {
+    if (!ticket66Fixture || !candidate || !candidate.manifest || !previewApproval) return;
+    const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>({
+      [BOOK_ID]: publicationScope,
+    });
+    const authority: BookAssemblyBookAuthority = {
+      bookId: BOOK_ID,
+      ownerId: OWNER_ID,
+      bookMode: 'pdf',
+      bookRevision: 7,
+      sourceSetRevision: 4,
+      sourceSet: candidate.manifest.sourceSet,
+      sourceVersionAuthority: {
+        getSourceVersion: (sourceVersionId) =>
+          sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
+      },
+    };
+    const command = createComponentPdfPublicationCommand({
+      readAuthority: async () => authority,
+      readCandidate: async () => candidate,
+      readLineage: async () => ({}),
+      publish: async (input) => {
+        const service = await import('../services/book-assembly/publicationTransaction.service');
+        return service.createBookAssemblyPublicationService(repository).publish(input);
+      },
+      allocateOperationId: () => globalThis.crypto.randomUUID(),
+      allocateId: (kind, key) => `${kind}:${key}:ticket66`,
+      now: () => NOW,
+    });
+    try {
+      const receipt = await command({
+        ownerId: OWNER_ID,
+        bookId: BOOK_ID,
+        unitKey: 'unit-component-a',
+        candidateId: candidate.candidateId,
+        expectedCandidateRevision: candidate.revision,
+        expectedCurrentPublicationId: publicationSummary.publicationId,
+        expectedBookRevision: 7,
+        expectedSourceSetRevision: 4,
+        previewApproval: {
+          approvalId: previewApproval,
+          approvalRevision: 1,
+          approvedAt: '2026-07-26T00:00:00.000Z',
+          expiresAt: '2026-07-28T00:00:00.000Z',
+        },
+      });
+      const nextScope = await repository.readScope(BOOK_ID);
+      persistPublicationScope(nextScope);
+      const message = `Published component-PDF Unit ${receipt.publicationId}.`;
+      setPublicationMessage(message);
+      toast.success(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Component-PDF publication failed.';
+      setPublicationMessage(message);
+      toast.error('Component-PDF publication failed.');
+    }
+  };
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
@@ -647,6 +759,54 @@ export default function BookAssemblyWorkspaceSmokePage() {
           </button>
           <button type="button" disabled={!previewApproval} onClick={() => void publishFullPdfUnit()}>
             Publish full PDF Unit
+          </button>
+        </section>
+      )}
+      {ticket66Fixture && (
+        <section aria-label="Ticket 66 publication state">
+          <h2>Component-PDF publication fixture</h2>
+          <p>Trusted command layer allocates operation and publication IDs before adapter execution.</p>
+          <p data-testid="ticket66-component-order">Component order: component-a, component-b</p>
+          <p data-testid="ticket66-component-owners">
+            Component owners: component-a=section-component-a, component-b=section-component-a
+          </p>
+          <p data-testid="ticket66-source-pins">
+            Source Versions: source-component-a, source-component-b
+          </p>
+          <p data-testid="ticket66-current-publication">
+            Current publication: {publicationSummary.publicationId ?? 'none'}
+          </p>
+          <p data-testid="ticket66-version-count">
+            Manifest Versions: {publicationSummary.versionCount}
+          </p>
+          <p data-testid="ticket66-activity-version-count">
+            Activity Versions: {publicationSummary.activityVersionCount}
+          </p>
+          <p data-testid="ticket66-placement-count">
+            Placements: {publicationSummary.placementCount}
+          </p>
+          <p data-testid="ticket66-unit-projection-count">
+            Unit projections: {publicationSummary.unitProjectionCount}
+          </p>
+          <p data-testid="ticket66-delivery-plan-count">
+            Delivery publication plans: {publicationSummary.deliveryPlanCount}
+          </p>
+          <p data-testid="ticket66-later-unit-state">
+            Later Unit published: {publicationSummary.laterUnitPublished ? 'yes' : 'no'}
+          </p>
+          <p data-testid="ticket66-publication-message">{publicationMessage ?? 'No publication attempted.'}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setPreviewApproval('ticket66-preview-approval');
+              setPublicationMessage('Component-PDF preview approved.');
+              toast.info('Component-PDF preview approved.');
+            }}
+          >
+            Preview component PDF Unit
+          </button>
+          <button type="button" disabled={!previewApproval} onClick={() => void publishComponentPdfUnit()}>
+            Publish component PDF Unit
           </button>
         </section>
       )}
