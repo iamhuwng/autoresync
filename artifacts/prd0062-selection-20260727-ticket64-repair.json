@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-07-27T12:44:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-post-ticket64-reopen.json",
+  "issueHash": "9532ae6bb10e93119ca147fa1330016ca9e69de1f9f97c7eb71a44fafb997b31",
+  "issueCount": 112,
+  "openCount": 73,
+  "closedCount": 39,
+  "uniqueEdgeCount": 308,
+  "graphClearFrontier": [49, 50, 64, 70, 129, 130, 131, 132, 133],
+  "roadmapPhase": "Runtime",
+  "selectedPrimary": {
+    "issue": 64,
+    "title": "PRD0062 16A - Provide the trusted common publication primitive",
+    "closedPrerequisites": [25, 26, 27, 29, 30, 31],
+    "downstreamLeverage": 64,
+    "acceptanceReadiness": "Executable under current local authority: common schema, transaction, Worker-boundary fixture, and rule-fragment proof. No trusted-action, #50A, #03B, private-B2, deployed route, or assembled generated-rules activation required.",
+    "requiredAuthority": "Local source/tests plus live GitHub issue reopen/close comments. No repository-external deployment mutation."
+  },
+  "candidateRejections": [
+    {
+      "issue": 65,
+      "reason": "Dependency-ineligible after #64 reopen: direct prerequisite #64 is OPEN, so #65 has openTransitivePrerequisites [64]."
+    },
+    {
+      "issue": 49,
+      "reason": "Graph-clear but lower current critical-path leverage than reopened #64 common publication primitive repair."
+    },
+    {
+      "issue": 50,
+      "reason": "Graph-clear but lower current critical-path leverage than reopened #64 common publication primitive repair."
+    },
+    {
+      "issue": 70,
+      "reason": "Graph-clear but lower current critical-path leverage than reopened #64 common publication primitive repair."
+    },
+    {
+      "issue": 129,
+      "reason": "Final/regression ticket; not current roadmap phase and not acceptance-ready before runtime/teacher/student chain closure."
+    },
+    {
+      "issue": 130,
+      "reason": "Final/regression ticket; not current roadmap phase and not acceptance-ready before runtime/teacher/student chain closure."
+    },
+    {
+      "issue": 131,
+      "reason": "Final/regression ticket; not current roadmap phase and not acceptance-ready before runtime/teacher/student chain closure."
+    },
+    {
+      "issue": 132,
+      "reason": "Final/regression ticket; not current roadmap phase and not acceptance-ready before runtime/teacher/student chain closure."
+    },
+    {
+      "issue": 133,
+      "reason": "Final/regression ticket; not current roadmap phase and not acceptance-ready before runtime/teacher/student chain closure."
+    }
+  ]
+}

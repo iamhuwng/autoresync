@@ -1,7 +1,12 @@
 import type {
+  BookAssemblyActivitySafeProjectionRecord,
+  BookAssemblyActivityVersionRecord,
+  BookAssemblyDeliveryPublicationPlan,
   BookAssemblyImmutableManifestVersion,
+  BookAssemblyPlacementRecord,
   BookAssemblyPublicationAuditRecord,
   BookAssemblyPublicationPointer,
+  BookAssemblyPublishedUnitProjectionRecord,
 } from '../../types/bookAssembly.types';
 
 export interface BookAssemblyPublicationOperationRecord<Result> {
@@ -13,6 +18,11 @@ export interface BookAssemblyPublicationOperationRecord<Result> {
 
 export interface BookAssemblyPublicationScope<Result = unknown> {
   readonly versions?: Record<string, BookAssemblyImmutableManifestVersion>;
+  readonly activityVersions?: Record<string, BookAssemblyActivityVersionRecord>;
+  readonly activitySafeProjections?: Record<string, BookAssemblyActivitySafeProjectionRecord>;
+  readonly placements?: Record<string, BookAssemblyPlacementRecord>;
+  readonly unitProjections?: Record<string, BookAssemblyPublishedUnitProjectionRecord>;
+  readonly deliveryPlans?: Record<string, BookAssemblyDeliveryPublicationPlan>;
   readonly current?: BookAssemblyPublicationPointer;
   readonly operations?: Record<string, BookAssemblyPublicationOperationRecord<Result>>;
   readonly audits?: Record<string, BookAssemblyPublicationAuditRecord>;

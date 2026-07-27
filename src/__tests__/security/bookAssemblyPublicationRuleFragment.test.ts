@@ -20,6 +20,16 @@ describe('Book Assembly publication 16A rule fragment', () => {
       'book_assembly_publications/books/$bookId/.write',
       'book_assembly_publications/books/$bookId/versions/$manifestVersionId/.read',
       'book_assembly_publications/books/$bookId/versions/$manifestVersionId/.write',
+      'book_assembly_publications/books/$bookId/activity_versions/$activityVersionId/.read',
+      'book_assembly_publications/books/$bookId/activity_versions/$activityVersionId/.write',
+      'book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId/.read',
+      'book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId/.write',
+      'book_assembly_publications/books/$bookId/placements/$placementId/.read',
+      'book_assembly_publications/books/$bookId/placements/$placementId/.write',
+      'book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId/.read',
+      'book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId/.write',
+      'book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId/.read',
+      'book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId/.write',
       'book_assembly_publications/books/$bookId/current/.read',
       'book_assembly_publications/books/$bookId/current/.write',
       'book_assembly_publications/books/$bookId/audits/$auditId/.read',
@@ -54,6 +64,35 @@ describe('Book Assembly publication 16A rule fragment', () => {
     expect(versionWrite?.expression).toContain("newData.child('createdByCommandId').isString()");
     expect(pointerWrite?.expression).toContain("newData.child('updatedByCommandId').isString()");
     expect(pointerWrite?.expression).not.toContain('auth.uid');
+  });
+
+  it('covers Activity Versions, Placements, Unit projections, and Delivery plans as service-only create paths', () => {
+    const activityWrite = fragment.operations.find((operation) =>
+      operation.path === 'book_assembly_publications/books/$bookId/activity_versions/$activityVersionId'
+      && operation.rule === '.write');
+    const projectionWrite = fragment.operations.find((operation) =>
+      operation.path === 'book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId'
+      && operation.rule === '.write');
+    const placementWrite = fragment.operations.find((operation) =>
+      operation.path === 'book_assembly_publications/books/$bookId/placements/$placementId'
+      && operation.rule === '.write');
+    const unitWrite = fragment.operations.find((operation) =>
+      operation.path === 'book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId'
+      && operation.rule === '.write');
+    const deliveryWrite = fragment.operations.find((operation) =>
+      operation.path === 'book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId'
+      && operation.rule === '.write');
+
+    for (const operation of [activityWrite, projectionWrite, placementWrite, unitWrite, deliveryWrite]) {
+      expect(operation?.expression).toContain('auth.token.book_assembly_publication_service == true');
+      expect(operation?.expression).toContain('!data.exists()');
+      expect(operation?.expression).not.toContain('auth.uid');
+    }
+    expect(activityWrite?.expression).toContain("newData.child('activityVersionId').isString()");
+    expect(projectionWrite?.expression).toContain("!newData.child('answerKey').exists()");
+    expect(placementWrite?.expression).toContain("newData.child('placementId').isString()");
+    expect(unitWrite?.expression).toContain("newData.child('unitProjectionId').isString()");
+    expect(deliveryWrite?.expression).toContain("!newData.child('providerAuthority').exists()");
   });
 
   it('keeps audit payload bounded away from obvious private publication data', () => {

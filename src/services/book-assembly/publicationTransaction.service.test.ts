@@ -37,10 +37,99 @@ const manifest = (): BookAssemblyManifestCandidate => ({
   }],
 });
 
+const atomicWrites = (
+  body: BookAssemblyManifestCandidate,
+  publicationId: string,
+  publicationRevision: number,
+  operationId: string,
+) => ({
+  activityVersions: [{
+    schemaVersion: 1 as const,
+    activityId: 'activity-1',
+    activityVersionId: `${publicationId}:activity-1:v${publicationRevision}`,
+    activityVersion: publicationRevision,
+    ownerId: 'teacher-1',
+    bookId: body.bookId,
+    manifestVersionId: `manifest-v${publicationRevision}`,
+    publicationId,
+    publicationRevision,
+    unitKey: 'unit-1',
+    activityKey: 'activity-1',
+    createdByCommandId: operationId,
+    createdAt: '2026-07-27T00:00:00.000Z',
+    sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-1', physicalPageNumber: 1 }],
+    payloadFingerprint: `fnv1a64:activity000${publicationRevision}`,
+  }],
+  activitySafeProjections: [{
+    schemaVersion: 1 as const,
+    projectionId: `${publicationId}:activity-1:safe`,
+    activityId: 'activity-1',
+    activityVersionId: `${publicationId}:activity-1:v${publicationRevision}`,
+    ownerId: 'teacher-1',
+    bookId: body.bookId,
+    manifestVersionId: `manifest-v${publicationRevision}`,
+    publicationId,
+    publicationRevision,
+    placementIds: [`${publicationId}:placement-1`],
+    sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-1', physicalPageNumber: 1 }],
+    payloadFingerprint: `fnv1a64:safe0000000${publicationRevision}`,
+  }],
+  placements: [{
+    schemaVersion: 1 as const,
+    placementId: `${publicationId}:placement-1`,
+    ownerId: 'teacher-1',
+    bookId: body.bookId,
+    manifestVersionId: `manifest-v${publicationRevision}`,
+    publicationId,
+    publicationRevision,
+    unitKey: 'unit-1',
+    nodeKey: 'unit-1',
+    activityKey: 'activity-1',
+    activityId: 'activity-1',
+    activityVersionId: `${publicationId}:activity-1:v${publicationRevision}`,
+    order: 1,
+    pageGroupKeys: ['pages-1'],
+    sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-1', physicalPageNumber: 1 }],
+  }],
+  unitProjections: [{
+    schemaVersion: 1 as const,
+    unitProjectionId: `${publicationId}:unit-1`,
+    ownerId: 'teacher-1',
+    bookId: body.bookId,
+    manifestVersionId: `manifest-v${publicationRevision}`,
+    publicationId,
+    publicationRevision,
+    unitKey: 'unit-1',
+    placementIds: [`${publicationId}:placement-1`],
+    sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-1', physicalPageNumber: 1 }],
+    createdByCommandId: operationId,
+    createdAt: '2026-07-27T00:00:00.000Z',
+  }],
+  deliveryPlans: [{
+    schemaVersion: 1 as const,
+    deliveryPlanId: `${publicationId}:delivery`,
+    ownerId: 'teacher-1',
+    bookId: body.bookId,
+    manifestVersionId: `manifest-v${publicationRevision}`,
+    publicationId,
+    publicationRevision,
+    sourceStrategy: 'full_pdf' as const,
+    sourceSet: body.sourceSet,
+    placementIds: [`${publicationId}:placement-1`],
+    unitProjectionIds: [`${publicationId}:unit-1`],
+    createdByCommandId: operationId,
+    createdAt: '2026-07-27T00:00:00.000Z',
+  }],
+});
+
 const adapterPlan = (
   overrides: Partial<BookAssemblyPublicationAdapterPlan> = {},
+  options: { readonly operationId?: string; readonly publicationId?: string; readonly publicationRevision?: number } = {},
 ): BookAssemblyPublicationAdapterPlan => {
   const baseManifest = manifest();
+  const publicationId = options.publicationId ?? 'publication-1';
+  const publicationRevision = options.publicationRevision ?? 1;
+  const operationId = options.operationId ?? op('1');
   return {
     strategy: 'full_pdf',
     planId: 'plan-1',
@@ -56,12 +145,13 @@ const adapterPlan = (
     studentSafeProjection: {
       schemaVersion: 1,
       bookId: 'book-1',
-      publicationId: 'publication-1',
-      publicationRevision: 1,
+      publicationId,
+      publicationRevision,
       sourceStrategy: 'full_pdf',
       sourceSet: baseManifest.sourceSet,
       units: baseManifest.units,
     },
+    atomicWrites: atomicWrites(baseManifest, publicationId, publicationRevision, operationId),
     ...overrides,
   };
 };
@@ -105,9 +195,39 @@ describe('Book Assembly publication transaction service', () => {
     });
     const scope = await repository.readScope('book-1');
     expect(Object.keys(scope.versions ?? {})).toEqual(['manifest-v1']);
+    expect(Object.keys(scope.activityVersions ?? {})).toEqual(['publication-1:activity-1:v1']);
+    expect(Object.keys(scope.activitySafeProjections ?? {})).toEqual(['publication-1:activity-1:safe']);
+    expect(Object.keys(scope.placements ?? {})).toEqual(['publication-1:placement-1']);
+    expect(Object.keys(scope.unitProjections ?? {})).toEqual(['publication-1:unit-1']);
+    expect(Object.keys(scope.deliveryPlans ?? {})).toEqual(['publication-1:delivery']);
     expect(scope.current?.publicationId).toBe('publication-1');
     expect(Object.keys(scope.operations ?? {})).toEqual([op('1')]);
     expect(JSON.stringify(scope.audits)).not.toMatch(/answer|credential|private_key|pdfBytes/iu);
+  });
+
+  it('rejects adapter plans that do not carry the complete atomic write set', async () => {
+    const repository = new InMemoryBookAssemblyPublicationRepository();
+    const service = createBookAssemblyPublicationService(repository);
+    const incomplete = adapterPlan({
+      atomicWrites: {
+        ...adapterPlan().atomicWrites,
+        deliveryPlans: [],
+      },
+    });
+
+    await expect(service.publish({
+      operationId: op('10'),
+      expectedCurrentPublicationId: null,
+      manifestVersionId: 'manifest-v1',
+      publicationId: 'publication-1',
+      publicationRevision: 1,
+      plan: incomplete,
+      now: '2026-07-27T00:00:00.000Z',
+    })).resolves.toMatchObject({
+      status: 'invalid',
+      failureCode: 'invalid-publication-plan',
+    });
+    await expect(repository.readScope('book-1')).resolves.toEqual({});
   });
 
   it('replays exact publish commands and rejects conflicting idempotency payloads', async () => {
@@ -119,7 +239,7 @@ describe('Book Assembly publication transaction service', () => {
       manifestVersionId: 'manifest-v1',
       publicationId: 'publication-1',
       publicationRevision: 1,
-      plan: adapterPlan(),
+      plan: adapterPlan({}, { operationId: op('2') }),
       now: '2026-07-27T00:00:00.000Z',
     };
 
@@ -127,7 +247,8 @@ describe('Book Assembly publication transaction service', () => {
     await expect(service.publish(input)).resolves.toMatchObject({ status: 'replayed' });
     await expect(service.publish({
       ...input,
-      manifestVersionId: 'manifest-v2',
+      publicationId: 'publication-conflict',
+      plan: adapterPlan({}, { operationId: op('2'), publicationId: 'publication-conflict' }),
     })).resolves.toMatchObject({
       status: 'idempotency-conflict',
       failureCode: 'idempotency-conflict',
@@ -145,7 +266,7 @@ describe('Book Assembly publication transaction service', () => {
       manifestVersionId: 'manifest-v1',
       publicationId: 'publication-1',
       publicationRevision: 1,
-      plan: adapterPlan(),
+      plan: adapterPlan({}, { operationId: op('3') }),
       now: '2026-07-27T00:00:00.000Z',
     });
 
@@ -161,7 +282,7 @@ describe('Book Assembly publication transaction service', () => {
           publicationId: 'publication-2',
           publicationRevision: 2,
         },
-      }),
+      }, { operationId: op('4'), publicationId: 'publication-2', publicationRevision: 2 }),
       now: '2026-07-27T00:01:00.000Z',
     })).resolves.toMatchObject({
       status: 'conflict',
@@ -181,7 +302,10 @@ describe('Book Assembly publication transaction service', () => {
       manifestVersionId: 'manifest-v2',
       publicationId: 'publication-2',
       publicationRevision: 2,
-      plan: mixedStrategy,
+      plan: {
+        ...mixedStrategy,
+        atomicWrites: atomicWrites(manifest(), 'publication-2', 2, op('5')),
+      },
       now: '2026-07-27T00:02:00.000Z',
     })).resolves.toMatchObject({
       status: 'invalid',
@@ -201,7 +325,7 @@ describe('Book Assembly publication transaction service', () => {
             publicationId: 'publication-2',
             publicationRevision: 2,
           },
-        }),
+        }, { operationId: op('6'), publicationId: 'publication-2', publicationRevision: 2 }),
         answerKey: 'do-not-store',
       } as unknown as BookAssemblyPublicationAdapterPlan,
       now: '2026-07-27T00:03:00.000Z',
@@ -220,7 +344,7 @@ describe('Book Assembly publication transaction service', () => {
       manifestVersionId: 'manifest-v1',
       publicationId: 'publication-1',
       publicationRevision: 1,
-      plan: adapterPlan(),
+      plan: adapterPlan({}, { operationId: op('7') }),
       now: '2026-07-27T00:00:00.000Z',
     });
     await service.publish({
@@ -235,7 +359,7 @@ describe('Book Assembly publication transaction service', () => {
           publicationId: 'publication-2',
           publicationRevision: 2,
         },
-      }),
+      }, { operationId: op('8'), publicationId: 'publication-2', publicationRevision: 2 }),
       now: '2026-07-27T00:01:00.000Z',
     });
 
@@ -255,5 +379,13 @@ describe('Book Assembly publication transaction service', () => {
     });
     const scope = await repository.readScope('book-1');
     expect(Object.keys(scope.versions ?? {}).sort()).toEqual(['manifest-v1', 'manifest-v2']);
+    expect(Object.keys(scope.activityVersions ?? {}).sort()).toEqual([
+      'publication-1:activity-1:v1',
+      'publication-2:activity-1:v2',
+    ]);
+    expect(Object.keys(scope.deliveryPlans ?? {}).sort()).toEqual([
+      'publication-1:delivery',
+      'publication-2:delivery',
+    ]);
   });
 });

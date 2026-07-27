@@ -11,6 +11,16 @@
       "book_assembly_publications/books/$bookId/.write",
       "book_assembly_publications/books/$bookId/versions/$manifestVersionId/.read",
       "book_assembly_publications/books/$bookId/versions/$manifestVersionId/.write",
+      "book_assembly_publications/books/$bookId/activity_versions/$activityVersionId/.read",
+      "book_assembly_publications/books/$bookId/activity_versions/$activityVersionId/.write",
+      "book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId/.read",
+      "book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId/.write",
+      "book_assembly_publications/books/$bookId/placements/$placementId/.read",
+      "book_assembly_publications/books/$bookId/placements/$placementId/.write",
+      "book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId/.read",
+      "book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId/.write",
+      "book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId/.read",
+      "book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId/.write",
       "book_assembly_publications/books/$bookId/current/.read",
       "book_assembly_publications/books/$bookId/current/.write",
       "book_assembly_publications/books/$bookId/audits/$auditId/.read",
@@ -64,6 +74,76 @@
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('lifecycle').val() == 'published' && newData.child('createdByCommandId').isString() && newData.child('inputFingerprint').isString()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/activity_versions/$activityVersionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == data.child('ownerId').val()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/activity_versions/$activityVersionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('manifestVersionId').isString() && newData.child('publicationId').isString() && newData.child('activityId').isString() && newData.child('activityVersionId').isString() && newData.child('createdByCommandId').isString() && !newData.child('answerKey').exists() && !newData.child('credentials').exists()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == data.child('ownerId').val()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/activity_safe_projections/$projectionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('projectionId').isString() && newData.child('activityVersionId').isString() && newData.child('payloadFingerprint').isString() && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('credentials').exists()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/placements/$placementId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == data.child('ownerId').val()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/placements/$placementId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('placementId').isString() && newData.child('activityVersionId').isString() && newData.child('unitKey').isString()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == data.child('ownerId').val()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/unit_projections/$unitProjectionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('unitProjectionId').isString() && newData.child('unitKey').isString() && newData.child('createdByCommandId').isString()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == data.child('ownerId').val()"
+    },
+    {
+      "path": "book_assembly_publications/books/$bookId/delivery_plans/$deliveryPlanId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_publication_service == true && auth.token.book_assembly_publication_bookId == $bookId && auth.token.book_assembly_publication_ownerId == newData.child('ownerId').val() && !data.exists() && newData.child('deliveryPlanId').isString() && newData.child('sourceStrategy').isString() && newData.child('createdByCommandId').isString() && !newData.child('providerAuthority').exists() && !newData.child('credentials').exists()"
     },
     {
       "path": "book_assembly_publications/books/$bookId/current",

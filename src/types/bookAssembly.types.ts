@@ -190,6 +190,96 @@ export interface BookAssemblyStudentSafePublicationProjection {
   readonly units: readonly BookUnitCandidate[];
 }
 
+export interface BookAssemblyActivityVersionRecord {
+  readonly schemaVersion: 1;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly activityVersion: number;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly unitKey: string;
+  readonly activityKey: string;
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+  readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  readonly payloadFingerprint: string;
+}
+
+export interface BookAssemblyActivitySafeProjectionRecord {
+  readonly schemaVersion: 1;
+  readonly projectionId: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly placementIds: readonly string[];
+  readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  readonly payloadFingerprint: string;
+}
+
+export interface BookAssemblyPlacementRecord {
+  readonly schemaVersion: 1;
+  readonly placementId: string;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly unitKey: string;
+  readonly nodeKey: string;
+  readonly activityKey: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly order: number;
+  readonly pageGroupKeys: readonly string[];
+  readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+}
+
+export interface BookAssemblyPublishedUnitProjectionRecord {
+  readonly schemaVersion: 1;
+  readonly unitProjectionId: string;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly unitKey: string;
+  readonly placementIds: readonly string[];
+  readonly sourcePages: readonly SourceQualifiedPageIdentity[];
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+}
+
+export interface BookAssemblyDeliveryPublicationPlan {
+  readonly schemaVersion: 1;
+  readonly deliveryPlanId: string;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly manifestVersionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly sourceStrategy: BookSourceStrategy;
+  readonly sourceSet: SourceSetCandidate;
+  readonly placementIds: readonly string[];
+  readonly unitProjectionIds: readonly string[];
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+}
+
+export interface BookAssemblyPublicationAtomicWriteSet {
+  readonly activityVersions: readonly BookAssemblyActivityVersionRecord[];
+  readonly activitySafeProjections: readonly BookAssemblyActivitySafeProjectionRecord[];
+  readonly placements: readonly BookAssemblyPlacementRecord[];
+  readonly unitProjections: readonly BookAssemblyPublishedUnitProjectionRecord[];
+  readonly deliveryPlans: readonly BookAssemblyDeliveryPublicationPlan[];
+}
+
 export interface BookAssemblyPublicationAdapterPlan {
   readonly strategy: BookSourceStrategy;
   readonly planId: string;
@@ -203,6 +293,7 @@ export interface BookAssemblyPublicationAdapterPlan {
   readonly sourceSet: SourceSetCandidate;
   readonly manifest: BookAssemblyManifestCandidate;
   readonly studentSafeProjection: BookAssemblyStudentSafePublicationProjection;
+  readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
   readonly previewApproval?: BookAssemblyPreviewApprovalReference;
 }
 
