@@ -1,11 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { BookRuntimeShell, type BookRuntimeViewerAdapter } from '../components/book-runtime';
+import { toast } from '../components/modern';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useAuth } from '../hooks/useAuth';
 import { bookActivityRendererRegistry } from '../services/book-activity/runtime/activityRendererRegistry';
+import { createBookRuntimeClient } from '../services/book-activity/activityRuntime.browser';
+import { useBookActivityRuntime } from '../hooks/book-runtime/useBookActivityRuntime';
+import { storage } from '../core/platform/storage';
 import type { BookRuntimeDeliveryProjection } from '../services/book-delivery/bookDelivery.types';
 import type { BookRuntimeNavigationState } from '../hooks/book-runtime/useBookRuntimeNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
@@ -161,6 +165,76 @@ const fixtureActivities = [
   { activityId: 'activity-long', projection: longResponseProjection, label: 'Written response' },
 ];
 
+type FixtureRuntimeMode = 'none' | 'failure' | 'conflict';
+let fixtureRuntimeMode: FixtureRuntimeMode = 'none';
+
+const FIXTURE_RUNTIME_STORE_KEY = 'prd0062-book-runtime-worker-fixture-v1';
+
+const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
+  const requestUrl = new URL(input instanceof Request ? input.url : String(input));
+  if (!requestUrl.pathname.startsWith('/book-runtime/')) {
+    return new Response(JSON.stringify({ code: 'book_route_not_found' }), { status: 404 });
+  }
+  if (requestUrl.pathname === '/book-runtime/commands' && init?.method === 'POST') {
+    if (fixtureRuntimeMode === 'failure') {
+      fixtureRuntimeMode = 'none';
+      return new Response(JSON.stringify({ code: 'book_route_unavailable' }), { status: 503 });
+    }
+    const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+    const key = [payload.contextId, payload.placementId, payload.interactionId].join(':');
+    const records = await storage.get<Record<string, Record<string, unknown>>>(FIXTURE_RUNTIME_STORE_KEY) ?? {};
+    const current = records[key];
+    if (fixtureRuntimeMode === 'conflict') {
+      fixtureRuntimeMode = 'none';
+      records[key] = {
+        ...(current ?? {}),
+        revision: Number(current?.revision ?? 0) + 1,
+        response: { interactionId: payload.interactionId, text: 'server version changed' },
+        updatedByOperationId: '00000000-0000-4000-8000-000000000099',
+        updatedAt: new Date().toISOString(),
+      };
+      await storage.set(FIXTURE_RUNTIME_STORE_KEY, records);
+      return new Response(JSON.stringify({ code: 'runtime_cas_conflict', currentRevision: records[key].revision }), { status: 409 });
+    }
+    const revision = Number(current?.revision ?? 0) + 1;
+    records[key] = {
+      schemaVersion: 1,
+      bindingId: payload.bindingId,
+      recipientId: deliveryProjection.recipientId,
+      contextId: payload.contextId,
+      placementId: payload.placementId,
+      activityId: payload.activityId,
+      activityVersion: payload.activityVersion,
+      interactionId: payload.interactionId,
+      revision,
+      response: payload.response,
+      updatedByOperationId: payload.operationId,
+      updatedAt: new Date().toISOString(),
+    };
+    await storage.set(FIXTURE_RUNTIME_STORE_KEY, records);
+    return new Response(JSON.stringify({
+      status: 'accepted',
+      receipt: {
+        operationId: payload.operationId,
+        status: 'accepted',
+        bindingId: payload.bindingId,
+        draftRevision: revision,
+        createdAt: new Date().toISOString(),
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (requestUrl.pathname.startsWith('/book-runtime/drafts/') && init?.method === 'GET') {
+    const parts = requestUrl.pathname.split('/').filter(Boolean).slice(2);
+    const key = [parts[2], parts[3], parts[6]].join(':');
+    const records = await storage.get<Record<string, Record<string, unknown>>>(FIXTURE_RUNTIME_STORE_KEY) ?? {};
+    return new Response(JSON.stringify({ draft: records[key] ?? null }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  return new Response(JSON.stringify({ code: 'book_route_not_found' }), { status: 404 });
+};
+
 const viewer: BookRuntimeViewerAdapter = {
   title: 'Reference PDF',
   status: { state: 'ready', message: 'Reference PDF ready.' },
@@ -186,7 +260,10 @@ export default function BookRuntimeShellSmokePage() {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [responses, setResponses] = useState<Readonly<Record<string, unknown>>>({});
+  const [activeActivityId, setActiveActivityId] = useState(
+    searchParams.get('activity') ?? fixtureActivities[0]!.activityId,
+  );
+  const previousPersistenceStatus = useRef<string | null>(null);
   const requestedBookId = searchParams.get('bookId');
   const requestedUnitKey = searchParams.get('unitKey');
   const requestedActivityId = searchParams.get('activity');
@@ -195,11 +272,62 @@ export default function BookRuntimeShellSmokePage() {
   const requestedPageGroupExists = deliveryProjection.activities.some(
     (activity) => activity.nodeKey === requestedPageGroupKey,
   );
+  const activeFixtureActivity = fixtureActivities.find(
+    (activity) => activity.activityId === activeActivityId,
+  ) ?? fixtureActivities[0]!;
+  const activePlacement = deliveryProjection.activities.find(
+    (activity) => activity.activityId === activeFixtureActivity.activityId,
+  ) ?? deliveryProjection.activities[0]!;
+  const activeInteractionIds = useMemo(() => (
+    Array.isArray((activeFixtureActivity.projection as { interactions?: unknown }).interactions)
+      ? ((activeFixtureActivity.projection as { interactions: Array<{ interactionId: string }> }).interactions)
+        .map((interaction) => interaction.interactionId)
+      : []
+  ), [activeFixtureActivity]);
+  const runtimeAddress = useMemo(() => ({
+    bindingId: deliveryProjection.bindingId,
+    bindingRevision: deliveryProjection.bindingRevision,
+    contextId: deliveryProjection.context.contextId,
+    placementId: activePlacement.placementId,
+    activityId: activePlacement.activityId,
+    activityVersion: activePlacement.activityVersion,
+  }), [activePlacement]);
+  const runtimeClient = useMemo(() => createBookRuntimeClient({
+    baseUrl: typeof window === 'undefined' ? 'http://localhost:5174' : window.location.origin,
+    getIdToken: async () => 'student-fixture-token',
+    fetchImpl: fixtureRuntimeFetch,
+  }), []);
+  const serializeResponse = useCallback((interactionId: string, response: unknown) => {
+    const resolution = bookActivityRendererRegistry.resolve(
+      activeFixtureActivity.projection,
+      {
+        mode: 'editable',
+        sourceContext: activePlacement.sourceContext,
+        surface: 'student-runtime',
+      },
+    );
+    if (!resolution.supported) throw new Error(`Activity renderer unavailable: ${interactionId}`);
+    return resolution.registration.codec.serialize(response);
+  }, [activeFixtureActivity, activePlacement]);
+  const runtime = useBookActivityRuntime({
+    client: runtimeClient,
+    recipientId: deliveryProjection.recipientId,
+    address: runtimeAddress,
+    interactionIds: activeInteractionIds,
+    serializeResponse,
+    onMetric: (metric) => trackAction('bookRuntimeMetricRecorded', {
+      event: metric.event,
+      ...(metric.attempt === undefined ? {} : { attempt: metric.attempt }),
+      ...(metric.durationMs === undefined ? {} : { durationMs: metric.durationMs }),
+      ...(metric.payloadBytes === undefined ? {} : { payloadBytes: metric.payloadBytes }),
+    }),
+  });
   const initialNavigation = useMemo<Partial<BookRuntimeNavigationState>>(() => ({
     activityId: searchParams.get('activity') ?? undefined,
     pageGroupKey: searchParams.get('pageGroup') ?? undefined,
   }), [searchParams]);
   const onNavigationStateChange = useCallback((state: BookRuntimeNavigationState) => {
+    setActiveActivityId(state.activityId);
     const next = new URLSearchParams(searchParams);
     next.set('bookId', deliveryProjection.book.bookId);
     next.set('unitKey', 'unit-fixture');
@@ -208,8 +336,25 @@ export default function BookRuntimeShellSmokePage() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   const onResponseChange = useCallback((interactionId: string, response: unknown) => {
-    setResponses((current) => ({ ...current, [interactionId]: response }));
-  }, []);
+    runtime.change(interactionId, response);
+  }, [runtime]);
+  const onFlushBeforeNavigate = useCallback(async () => {
+    const result = await runtime.flush('navigation');
+    if (!result.safeToLeave) throw new Error('Activity response is not safely saved.');
+  }, [runtime]);
+  useEffect(() => {
+    if (requestedActivityId && fixtureActivities.some((activity) => activity.activityId === requestedActivityId)) {
+      setActiveActivityId(requestedActivityId);
+    }
+  }, [requestedActivityId]);
+  useEffect(() => {
+    const key = `${runtime.status}:${runtime.message}`;
+    if (previousPersistenceStatus.current === key) return;
+    previousPersistenceStatus.current = key;
+    if (runtime.status === 'conflict' || runtime.status === 'error' || runtime.status === 'unsafe-to-leave') {
+      toast.error(runtime.message);
+    }
+  }, [runtime.message, runtime.status]);
   const shellData = useMemo(() => ({
     enrolledClasses: [],
     classLiveSessions: [],
@@ -258,15 +403,50 @@ export default function BookRuntimeShellSmokePage() {
       shellData={shellData}
       sidebar={<StudentSidebar activePage="library" />}
     >
+      <div aria-label="Runtime proof controls" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => { fixtureRuntimeMode = 'failure'; }}
+          style={{ minHeight: 44 }}
+          type="button"
+        >
+          Force next Worker failure
+        </button>
+        <button
+          onClick={() => { fixtureRuntimeMode = 'conflict'; }}
+          style={{ minHeight: 44 }}
+          type="button"
+        >
+          Force stale conflict
+        </button>
+      </div>
       <BookRuntimeShell
         activities={fixtureActivities}
         deliveryProjection={deliveryProjection}
         initialNavigation={initialNavigation}
         onAction={(action, metadata) => trackAction(action, metadata)}
+        onFlushBeforeNavigate={onFlushBeforeNavigate}
         onNavigationStateChange={onNavigationStateChange}
         onResponseChange={onResponseChange}
         registry={bookActivityRendererRegistry}
-        responses={responses}
+        persistence={{
+          status: runtime.status,
+          message: runtime.message,
+          isDirty: runtime.isDirty,
+          conflict: runtime.conflict,
+          onRetry: () => {
+            trackAction('bookRuntimeAutosaveRetry');
+            return runtime.retry().then(() => undefined);
+          },
+          onReload: () => {
+            trackAction('bookRuntimeAutosaveReload');
+            return runtime.reload();
+          },
+          onDiscardLocal: () => {
+            trackAction('bookRuntimeAutosaveDiscard');
+            return runtime.discardLocal();
+          },
+        }}
+        responses={runtime.responses}
         viewer={viewer}
       />
     </StudentLayout>

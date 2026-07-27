@@ -97,6 +97,47 @@
   background: var(--runtime-muted);
 }
 
+.book-runtime-shell__persistence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--runtime-outline) 32%, transparent);
+  border-radius: 8px;
+  background: var(--runtime-muted);
+  color: var(--runtime-body);
+  font-size: 0.8125rem;
+}
+
+.book-runtime-shell__persistence--conflict,
+.book-runtime-shell__persistence--error,
+.book-runtime-shell__persistence--unsafe-to-leave {
+  border-color: #b44545;
+  background: #fff0f0;
+  color: #7b2020;
+}
+
+.book-runtime-shell__persistence--offline,
+.book-runtime-shell__persistence--retrying {
+  border-color: #9a6b18;
+  background: #fff8e8;
+  color: #6e4d11;
+}
+
+.book-runtime-shell__persistence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.book-runtime-shell__persistence-actions button {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
 .book-runtime-shell__workspace {
   display: grid;
   grid-template-columns: minmax(56px, 0.22fr) minmax(0, 1.35fr) minmax(280px, 0.9fr);

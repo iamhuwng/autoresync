@@ -11,7 +11,7 @@ const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(25);
+    expect(contributorRoutes).toHaveLength(26);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
@@ -19,10 +19,10 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#71')).toHaveLength(1);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(25);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(26);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -158,6 +158,18 @@ describe('canonical Book route contract catalog', () => {
       owner: '#74',
       domain: 'runtime',
       handler: 'bookRuntime.command',
+      firebaseAuth: 'firebase-id-token-student',
+      gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
+      identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
+      contributorTicket: '#74',
+    }));
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.runtime.readDraft')).toEqual(expect.objectContaining({
+      methods: ['GET'],
+      pathTemplate: '/book-runtime/drafts/:bindingId/:bindingRevision/:contextId/:placementId/:activityId/:activityVersion/:interactionId',
+      owner: '#74',
+      domain: 'runtime',
+      handler: 'bookRuntime.readDraft',
       firebaseAuth: 'firebase-id-token-student',
       gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
       identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',

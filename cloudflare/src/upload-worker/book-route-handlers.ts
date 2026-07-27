@@ -117,6 +117,15 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, assemblyMappingRevision,
     ['publish'], 'bookAssemblyMappingRevision', () => []);
   addFactoryHandlers(handlers, runtime, ['command'], 'bookRuntime', () => []);
+  addFactoryHandlers(handlers, runtime, ['readDraft'], 'bookRuntime', () => [
+    'bindingId',
+    'bindingRevision',
+    'contextId',
+    'placementId',
+    'activityId',
+    'activityVersion',
+    'interactionId',
+  ]);
 
   const documentHandler = options.documentHandler ?? unavailableDocumentHandler;
   const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();

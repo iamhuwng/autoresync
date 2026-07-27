@@ -153,4 +153,40 @@ describe('Ticket 28A runtime Worker boundary', () => {
     });
     expect(repository.snapshot()).toMatchObject({ drafts: {}, attempts: {}, operations: {} });
   });
+
+  it('reads only the authorized Activity draft through the Worker boundary', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      now: () => '2026-07-27T00:00:00.000Z',
+    });
+    await handlers.command({
+      request: request(body()),
+      env: {},
+      uid: 'student-1',
+    });
+
+    await expect(parse(await handlers.readDraft({
+      request: new Request('https://worker.test/book-runtime/drafts/binding-1/1/context-1/placement-1/activity-1/1/interaction-1'),
+      env: {},
+      uid: 'student-1',
+      bindingId: 'binding-1',
+      bindingRevision: '1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: '1',
+      interactionId: 'interaction-1',
+    }))).resolves.toMatchObject({
+      status: 200,
+      body: {
+        draft: expect.objectContaining({
+          recipientId: 'student-1',
+          response: { text: 'draft' },
+          revision: 1,
+        }),
+      },
+    });
+  });
 });

@@ -241,6 +241,14 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   service-identity proof. #75/#76 own browser autosave/submission workflows,
   #73 owns assembled student-shell proof, #118 owns assembled generated rules,
   and #134 owns deployed/canary runtime identity, cleanup, and rollback drills.
+- #75 transfer ledger: #75 retains the browser client/hook draft state machine,
+  codec-only serialization, platform-storage recovery, localhost:5174 browser
+  proof, local Worker contract tests, and local rollback behavior. #134 owns
+  the transferred deployed/canary authenticated Worker CAS against disposable
+  runtime rows, production-shaped autosave frequency/ack latency/payload/retry
+  measurements, active Worker/Firebase/config/generated-rules readback, and
+  deployed runtime rollback that disables new launches/autosave while safe
+  read/resume remains available. #75 makes no deployed/canary claim.
 - #38 owns choice/text-entry renderers, codecs, registrations, and their focused
   accessibility tests, read-only/review/malformed-input behavior,
   normalization/serialization proof, component responsive CSS/200% zoom
@@ -249,6 +257,10 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   `BookRuntimeShell` structured/source-assisted fixtures, desktop/mobile shell
   navigation and browser 200% zoom, plus production route, Delivery projection,
   PDF transport, and assembled registry integration.
+- #130 owns the later assembled Student evidence suite, including the
+  integrated all-family choice/text-entry/matching/ordering/long-response and
+  Book-owned Reading/Listening adapter save/restore/review journeys transferred
+  from #75, with machine-readable network/trace/screenshot evidence.
 - #39 owns matching and ordering renderers/codecs, component-level accessibility
   and responsive proof, canonical validation/serialization, supported-row
   registration, unsupported-registration denial, and local rollback. #73 owns

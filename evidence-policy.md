@@ -118,6 +118,21 @@ Candidate-preview boundary:
   #134 proves positive deployed/canary preview drills. Neither is a hard
   prerequisite of #63 producer closure.
 
+Runtime autosave boundary:
+
+- #75 proves the browser autosave/resume state machine, registered-codec
+  serialization, one-in-flight/CAS/retry/conflict behavior, approved local
+  recovery storage, localhost:5174 browser flow, local Worker contract, and
+  local rollback. It does not claim deployed or canary behavior.
+- #134 owns the destination proof transferred from #75: authenticated
+  deployed/canary Worker CAS against disposable runtime rows, production-shaped
+  write/ack/payload/retry measurements, active identity/configuration and
+  generated-rules readback, and deployed rollback that disables new launches or
+  autosave while safe read/resume and local recovery remain available.
+- #130 owns the later assembled all-family Student browser suite transferred
+  from #75; #75's local browser proof remains limited to its focused fixture and
+  client/state-machine contract.
+
 ## Browser cadence
 
 - Teacher flows use `http://localhost:5173`.

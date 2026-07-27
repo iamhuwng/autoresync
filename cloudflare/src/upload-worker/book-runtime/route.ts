@@ -4,4 +4,9 @@
  */
 export const bookRuntimeRouteDescriptors = [
   { method: 'POST', path: '/book-runtime/commands', handler: 'command' },
+  {
+    method: 'GET',
+    path: '/book-runtime/drafts/:bindingId/:bindingRevision/:contextId/:placementId/:activityId/:activityVersion/:interactionId',
+    handler: 'readDraft',
+  },
 ] as const;

@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-07-28T06:18:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket41-closed.json",
+  "issueHash": "58f68cbe2831eea2d4577bd1e5f2825303b1920a2586afb583c7b8d98637be5a",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 63,
+    "closedCount": 49,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 75, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow",
+  "mandatoryGateAudit": {
+    "unresolvedTicketsAudited": 63,
+    "ineligibleByOpenTransitivePrerequisite": 52,
+    "graphClearCandidates": 11,
+    "authorityBlockedCandidates": [49, 50],
+    "selectedCandidates": [75],
+    "phaseRejectedCandidates": [81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "selection": {
+    "primaryTicket": 75,
+    "title": "PRD0062 28B — Persist browser autosave and resume through Worker",
+    "status": "reselected-student-workflow-enabler",
+    "directClosedPrerequisites": [38, 39, 40, 41, 73, 74],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 44,
+    "acceptanceReadiness": "Local browser client/hook, focused codec response-shape, Worker read-route, local rollback, and localhost:5174 Student fixture gates are executable. Deployed/canary runtime proof is destination-owned by #134; integrated all-family assembled browser proof is destination-owned by #130. #118/#134 authority is not required for this local closure and remains disabled.",
+    "requiredAuthority": [
+      "closed renderer, codec, adapter, Delivery, canonical route, publication, Student shell, runtime command, and repaired adapter-registration prerequisites",
+      "Student dev quick-login at localhost:5174",
+      "local x64 test/build harness",
+      "trusted actions disabled; preserve #50A all-six-deny/default-deny, #03B disabled, and private-B2 disabled"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; keep private-B2 disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; keep private-B2 disabled."
+    },
+    {
+      "ticket": 75,
+      "decision": "selected",
+      "reason": "Earliest unresolved Student-workflow autosave/resume enabler with every direct and transitive prerequisite formally CLOSED, repaired #41 adapter boundary, executable local/browser acceptance, and downstream leverage 43."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later Homework/assignment workflow; do not bypass Student persistence enabler #75."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later Operations/notification phase."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public-access/catalog phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure assembled Student evidence; it consumes #75 and must not bypass the implementation enabler."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation."
+    }
+  ],
+  "transferLedger": {
+    "to130": ["integrated all-family assembled Student browser proof"],
+    "to134": ["deployed/canary authenticated Worker CAS, production-shaped metrics, identity/config/hash readback, and deployed runtime rollback"],
+    "retainedBy75": ["browser client/hook state machine, codec-only serialization, local recovery, focused localhost:5174 proof, local Worker contract tests, local rollback"]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": [41]
+  }
+}

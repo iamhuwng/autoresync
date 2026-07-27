@@ -40,6 +40,18 @@ describe('Ticket #41 adapter registrations', () => {
         'features/assessment/listening/public',
       ]));
     expect(bookActivityAdapterRegistrations.map(key).sort())
-      .toEqual(activityRendererManifest.registrations.map(key).sort());
+      .toEqual(activityRendererManifest.registrations
+        .filter((registration) => registration.profile !== null)
+        .map(key)
+        .sort());
+  });
+
+  it('keeps generic profile:null renderers out of native adapter ownership', () => {
+    expect(activityRendererManifest.registrations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ family: 'long-response', profile: null }),
+    ]));
+    expect(bookActivityAdapterRegistrations).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ family: 'long-response' }),
+    ]));
   });
 });

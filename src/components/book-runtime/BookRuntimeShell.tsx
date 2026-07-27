@@ -12,6 +12,10 @@ import {
   type BookRuntimeNavigationReason,
   type BookRuntimeNavigationState,
 } from '../../hooks/book-runtime/useBookRuntimeNavigation';
+import type {
+  BookActivityRuntimeStatus,
+  BookRuntimeConflict,
+} from '../../hooks/book-runtime/useBookActivityRuntime';
 import { ActivityRendererHost } from './interactions/ActivityRendererHost';
 import './BookRuntimeShell.css';
 
@@ -67,6 +71,15 @@ export interface BookRuntimeShellProps {
   ) => void;
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
   readonly onAction?: (action: BookRuntimeAction, metadata?: Record<string, unknown>) => void;
+  readonly persistence?: {
+    readonly status: BookActivityRuntimeStatus;
+    readonly message: string;
+    readonly isDirty: boolean;
+    readonly conflict: BookRuntimeConflict | null;
+    readonly onRetry: () => void | Promise<void>;
+    readonly onReload: () => void | Promise<void>;
+    readonly onDiscardLocal: () => void | Promise<void>;
+  };
 }
 
 interface ResolvedRuntimeActivity extends BookRuntimeShellActivity {
@@ -177,6 +190,7 @@ const BookRuntimeShellReady = ({
   onNavigationStateChange,
   onNavigationError,
   onAction,
+  persistence,
 }: BookRuntimeShellReadyProps) => {
   const navigationActivities = useMemo(
     () => activities.map(({ activityId, pageGroupKey }) => ({ activityId, pageGroupKey })),
@@ -242,6 +256,29 @@ const BookRuntimeShellReady = ({
           <span>{deliveryProjection.actionFlags.canSubmit ? 'Local response state' : 'Reference-only'}</span>
         </div>
       </header>
+
+      {persistence ? (
+        <section
+          aria-label="Activity save status"
+          className={`book-runtime-shell__persistence book-runtime-shell__persistence--${persistence.status}`}
+          data-dirty={persistence.isDirty}
+          data-status={persistence.status}
+          data-testid="book-runtime-persistence"
+          role={['conflict', 'error', 'unsafe-to-leave'].includes(persistence.status) ? 'alert' : 'status'}
+        >
+          <span>{persistence.message || persistence.status}</span>
+          {persistence.conflict ? <span>Local response retained.</span> : null}
+          {['conflict', 'error', 'offline', 'retrying', 'unsafe-to-leave'].includes(persistence.status) ? (
+            <div className="book-runtime-shell__persistence-actions">
+              <button onClick={() => void persistence.onRetry()} type="button">Retry</button>
+              {persistence.conflict ? (
+                <button onClick={() => void persistence.onReload()} type="button">Reload current</button>
+              ) : null}
+              <button onClick={() => void persistence.onDiscardLocal()} type="button">Discard local</button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="book-runtime-shell__mobile-tabs" role="tablist" aria-label="Book runtime panels">
         <button

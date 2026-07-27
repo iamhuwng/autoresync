@@ -7,8 +7,11 @@ const isFamily = (
   ['choice', 'text-entry', 'matching', 'ordering', 'long-response'].includes(value);
 
 export const bookActivityAdapterRegistrations: readonly BookActivityAdapterRegistration[] =
-  activityRendererManifest.registrations.map((registration) => {
-    if (!registration.profile || !isFamily(registration.family)) {
+  activityRendererManifest.registrations.flatMap((registration) => {
+    if (!registration.profile) {
+      return [];
+    }
+    if (!isFamily(registration.family)) {
       throw new TypeError('Book Activity adapter registration requires one profiled family.');
     }
     const adapterId = registration.profile.taxonomyId === 'ielts-reading'
@@ -19,7 +22,7 @@ export const bookActivityAdapterRegistrations: readonly BookActivityAdapterRegis
     if (!adapterId) {
       throw new TypeError('Book Activity adapter registration requires a supported native taxonomy.');
     }
-    return {
+    return [{
       profile: {
         taxonomyId: registration.profile.taxonomyId,
         typeId: registration.profile.typeId,
@@ -33,7 +36,7 @@ export const bookActivityAdapterRegistrations: readonly BookActivityAdapterRegis
       publicExport: registration.profile.taxonomyId === 'ielts-reading'
         ? 'services/reading-v2/public'
         : 'features/assessment/listening/public',
-    };
+    }];
   });
 
 export const ticket27BookActivityAdapterRegistrations =

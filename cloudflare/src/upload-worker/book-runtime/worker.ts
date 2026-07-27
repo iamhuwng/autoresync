@@ -1,9 +1,11 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import {
+  authorizeRuntimeDraftRead,
   authorizeRuntimeCommand,
   BookRuntimeAuthorizationError,
   soloOnlyBookRuntimeSchedulePolicy,
   type BookRuntimeActor,
+  type BookRuntimeDraftReadInput,
   type BookRuntimeSchedulePolicy,
 } from './authorization.ts';
 import {
@@ -140,7 +142,66 @@ export const createBookRuntimeWorkerHandlers = (
     }
   };
 
-  return { command };
+  const readDraft = async (input: {
+    readonly request: Request;
+    readonly env: BookRuntimeWorkerEnv;
+    readonly uid: string;
+    readonly bindingId: string;
+    readonly bindingRevision: string;
+    readonly contextId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: string;
+    readonly interactionId: string;
+  }) => {
+    try {
+      if (!options.repository || !options.resolveBinding) {
+        throw new BookRuntimeWorkerError('book_runtime_repository_unavailable', 503);
+      }
+      const bindingRevision = Number(input.bindingRevision);
+      const activityVersion = Number(input.activityVersion);
+      const readInput: BookRuntimeDraftReadInput = {
+        bindingId: input.bindingId,
+        bindingRevision,
+        contextId: input.contextId,
+        placementId: input.placementId,
+        activityId: input.activityId,
+        activityVersion,
+        interactionId: input.interactionId,
+      };
+      if (!Number.isSafeInteger(bindingRevision) || bindingRevision <= 0
+        || !Number.isSafeInteger(activityVersion) || activityVersion <= 0) {
+        throw new BookRuntimeWorkerError('runtime_draft_address_invalid', 400);
+      }
+      const [actor, binding] = await Promise.all([
+        readActor({ uid: input.uid, env: input.env }),
+        options.resolveBinding({
+          bindingId: input.bindingId,
+          recipientId: input.uid,
+          contextId: input.contextId,
+          env: input.env,
+        }),
+      ]);
+      const context = await authorizeRuntimeDraftRead(actor, readInput, binding, now());
+      const draft = await options.repository.readDraft({
+        recipientId: context.actorUid,
+        contextId: input.contextId,
+        placementId: input.placementId,
+        interactionId: input.interactionId,
+      });
+      return json({ draft });
+    } catch (error) {
+      if (error instanceof BookRuntimeAuthorizationError || error instanceof BookRuntimeWorkerError) {
+        return json({ code: error.code }, error.status);
+      }
+      if (error instanceof BookRuntimeRepositoryError) {
+        return json({ code: error.code }, 409);
+      }
+      return json({ code: 'book_runtime_draft_read_failed' }, 500);
+    }
+  };
+
+  return { command, readDraft };
 };
 
 export default createBookRuntimeWorkerHandlers;
