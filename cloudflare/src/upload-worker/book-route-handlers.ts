@@ -3,6 +3,7 @@ import {
 } from './book-delivery/worker.ts';
 import { createBookActivityAuthoringWorkerHandlers } from './book-activity-authoring/worker.ts';
 import { createBookAssemblyWorkerHandlers } from './book-assembly/worker.ts';
+import { createBookRuntimeWorkerHandlers } from './book-runtime/worker.ts';
 import { createTeacherAssemblyPreviewWorker } from './book-delivery/teacher-assembly-preview-worker.js';
 import type {
   BookRouteParams,
@@ -59,6 +60,7 @@ export interface BookRouteHandlersOptions {
   readonly deliveryHandlers?: Record<string, unknown>;
   readonly activityAuthoringHandlers?: Record<string, unknown>;
   readonly assemblyHandlers?: Record<string, unknown>;
+  readonly runtimeHandlers?: Record<string, unknown>;
   readonly documentHandler?: BookRouteHandler;
   readonly teacherDocumentHandler?: BookRouteHandler;
   readonly futureHandlers?: BookRouteHandlerMap;
@@ -80,6 +82,7 @@ export const createBookRouteHandlers = (
   const activity = options.activityAuthoringHandlers
     ?? createBookActivityAuthoringWorkerHandlers();
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
+  const runtime = options.runtimeHandlers ?? createBookRuntimeWorkerHandlers();
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -90,6 +93,7 @@ export const createBookRouteHandlers = (
   addFactoryHandlers(handlers, assembly,
     ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => []);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
+  addFactoryHandlers(handlers, runtime, ['command'], 'bookRuntime', () => []);
 
   const documentHandler = options.documentHandler ?? unavailableDocumentHandler;
   const teacherPreviewWorker = createTeacherAssemblyPreviewWorker();

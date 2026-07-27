@@ -114,6 +114,30 @@ Moved to #118:
 - generated-rules rollback artifact;
 - legacy-path preservation after Assembly fragment composition.
 
+### #74 Book Runtime commands
+
+Kept in #74:
+
+- strict runtime command schema;
+- authenticated actor and Delivery binding revalidation;
+- injectable schedule-policy seam, including explicit unscheduled Solo behavior
+  and missing Homework policy fail-closed behavior;
+- runtime repository CAS drafts, immutable attempts/results, idempotency,
+  bounded indexed reads, and privacy-safe receipts;
+- `28A.json` fragment and fragment-level negative proof;
+- disabled route descriptor under the #59 dispatcher seam;
+- local Worker, route, repository, authorization, schedule, and service-identity
+  proof.
+
+Moved to #134:
+
+- deployed negative suite proving only configured Worker identity can mutate
+  disposable runtime rows;
+- browser tokens, wrong service claims, stale bindings, malformed commands, and
+  sensitive-metadata logging denial in deployed/canary environment;
+- active deployed route/config/readback and runtime command rollback drill after
+  activation/provisioning authority.
+
 ## Current ownership checks
 
 - #56 owns hierarchy/source workspace behavior and local 13A-client proof.
@@ -146,6 +170,12 @@ Moved to #118:
   current-pointer/student-safe projection and publication/binding visibility
   from #65/#66/#67/#68/#71. Those source tickets retain teacher workflows,
   adapter contracts, immutable-record tests, and no student-shell launch claim.
+- #74 owns the Book Runtime trusted command seam: strict schemas, actor and
+  Delivery binding revalidation, schedule policy, local repository CAS/append/
+  idempotency, route descriptor, disabled gate, fragment, and local Worker/
+  service-identity proof. #75/#76 own browser autosave/submission workflows,
+  #73 owns assembled student-shell proof, #118 owns assembled generated rules,
+  and #134 owns deployed/canary runtime identity, cleanup, and rollback drills.
 - #38 owns choice/text-entry renderers, codecs, registrations, and their focused
   accessibility tests, read-only/review/malformed-input behavior,
   normalization/serialization proof, component responsive CSS/200% zoom

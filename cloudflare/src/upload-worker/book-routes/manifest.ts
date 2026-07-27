@@ -5,6 +5,9 @@ import {
   bookAssemblyRouteDescriptors,
 } from '../book-assembly/route.ts';
 import {
+  bookRuntimeRouteDescriptors,
+} from '../book-runtime/route.ts';
+import {
   bookDeliveryRouteDescriptors,
   bookDocumentAuthorizationRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
@@ -128,6 +131,23 @@ const assemblyRoutes = bookAssemblyRouteDescriptors.map((route) => contributor({
   identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
   contributorTicket: '#55',
+}));
+
+const runtimeRoutes = bookRuntimeRouteDescriptors.map((route) => contributor({
+  id: `book.runtime.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: '#74',
+  domain: 'runtime',
+  handler: `bookRuntime.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-student',
+  rateClass: 'book-control',
+  gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
+  requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
+  contributorTicket: '#74',
 }));
 
 const documentRoute = contributor({
@@ -262,6 +282,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...deliveryRoutes,
   ...activityAuthoringRoutes,
   ...assemblyRoutes,
+  ...runtimeRoutes,
   documentRoute,
   teacherAssemblyDocumentRoute,
   ...futureRoutes,
@@ -379,7 +400,7 @@ export const validateBookRouteManifest = (manifest: unknown): BookRouteManifest 
       throw new Error(`book_route_contributor_missing:${descriptor.id}`);
     }
     if (descriptor.source === 'contributor'
-      && ['#31', '#35', '#55'].includes(descriptor.contributorTicket ?? '')
+      && ['#31', '#35', '#55', '#74'].includes(descriptor.contributorTicket ?? '')
       && (!descriptor.identityEnv || !descriptor.credentialEnv)) {
       throw new Error(`book_route_dedicated_credentials_missing:${descriptor.id}`);
     }

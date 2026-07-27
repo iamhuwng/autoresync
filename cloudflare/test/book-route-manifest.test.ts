@@ -1,26 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import wranglerSource from '../wrangler.jsonc?raw';
 import {
   canonicalBookRouteManifest,
   normalizeBookRouteTemplate,
   validateBookRouteManifest,
 } from '../src/upload-worker/book-routes/manifest.ts';
 
-const wranglerConfig = () => JSON.parse(readFileSync(fileURLToPath(
-  new URL('../wrangler.jsonc', import.meta.url),
-), 'utf8')) as { vars: Record<string, string> };
+const wranglerConfig = () => JSON.parse(wranglerSource) as { vars: Record<string, string> };
 
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(17);
+    expect(contributorRoutes).toHaveLength(18);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(17);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(18);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -52,6 +50,23 @@ describe('canonical Book route contract catalog', () => {
     expect(new Set(forTicket('#35').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY']));
     expect(new Set(forTicket('#55').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_ASSEMBLY_SERVICE_IDENTITY']));
     expect(new Set(forTicket('#55').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_ASSEMBLY_GOOGLE_SA_KEY']));
+    expect(new Set(forTicket('#74').map((route) => route.identityEnv))).toEqual(new Set(['BOOK_RUNTIME_SERVICE_IDENTITY']));
+    expect(new Set(forTicket('#74').map((route) => route.credentialEnv))).toEqual(new Set(['BOOK_RUNTIME_GOOGLE_SA_KEY']));
+  });
+
+  it('registers runtime command route as a disabled student contributor seam', () => {
+    expect(canonicalBookRouteManifest.find((route) => route.id === 'book.runtime.command')).toEqual(expect.objectContaining({
+      methods: ['POST'],
+      pathTemplate: '/book-runtime/commands',
+      owner: '#74',
+      domain: 'runtime',
+      handler: 'bookRuntime.command',
+      firebaseAuth: 'firebase-id-token-student',
+      gateEnv: 'BOOK_RUNTIME_ROUTES_ENABLED',
+      identityEnv: 'BOOK_RUNTIME_SERVICE_IDENTITY',
+      credentialEnv: 'BOOK_RUNTIME_GOOGLE_SA_KEY',
+      contributorTicket: '#74',
+    }));
   });
 
   it('registers document routes with exact GET/HEAD methods and bounded document response limits', () => {
