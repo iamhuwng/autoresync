@@ -208,6 +208,18 @@ disposable migration, identity/readback, cleanup, or operational rollback drill;
   assembled generated-rules proof; #134 owns deployed/canary mapping proof;
   #73 owns assembled student binding/runtime proof. #67 makes no durable
   production, deployed, trusted-action, private-B2, #50A, or #03B claim.
+- #68 owns Activity-revision behavior and local proof: full replacement import,
+  candidate/CAS/conflict recovery, semantic diff and bounded impact, exact
+  source-assisted preview, immutable old/new Activity Versions, stable Activity
+  and compatible Placement lineage, projection/security, local Worker/rules
+  fragment, teacher localhost browser, and local rollback proof. #118 owns the
+  generated revision fragment composition, complete assembled emulator,
+  active-rules hash/readback, generated-rules rollback, and legacy preservation.
+  #134 owns approved-activation deployed/canary revision publication,
+  identity/config/version readback, cleanup, recovery, and emergency gate
+  rollback. #73 owns assembled Student old-version/current-context proof. #68
+  makes no generated-root, assembled-rules, deployed, activated, or operational
+  rollback claim.
 - #63 owns teacher candidate-preview projection/host/input, approval record,
   local Worker/security proof, fixture-safe component/browser proof, and
   preview-control rollback. It consumes the shared frame/registry and viewer

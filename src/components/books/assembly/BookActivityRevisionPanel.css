@@ -1,0 +1,27 @@
+.book-activity-revision { display: grid; gap: 1rem; min-width: 0; border: 1px solid #cfd8e3; border-radius: .55rem; padding: 1rem; background: #f8fbff; color: #17212b; }
+.book-activity-revision__heading, .book-activity-revision__section-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
+.book-activity-revision__heading h2, .book-activity-revision h3 { margin: .15rem 0 .45rem; }
+.book-activity-revision__heading p, .book-activity-revision__prompt p { margin: 0; color: #435466; }
+.book-activity-revision__eyebrow { margin: 0; color: #5d6b78; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.book-activity-revision__heading > span { color: #334155; font-size: .85rem; font-weight: 700; }
+.book-activity-revision__facts, .book-activity-revision__preview dl { display: grid; gap: .45rem; margin: 0; }
+.book-activity-revision__facts div, .book-activity-revision__preview dl div { display: flex; justify-content: space-between; gap: 1rem; }
+.book-activity-revision__facts dt, .book-activity-revision__preview dt { color: #5d6b78; }
+.book-activity-revision__facts dd, .book-activity-revision__preview dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; text-align: end; }
+.book-activity-revision__prompt, .book-activity-revision__preview { display: grid; gap: .65rem; min-width: 0; border: 1px solid #d4dce3; border-radius: .4rem; padding: .8rem; background: #fff; }
+.book-activity-revision__prompt pre { max-height: 14rem; overflow: auto; margin: 0; padding: .75rem; background: #f1f5f9; color: #243447; white-space: pre-wrap; overflow-wrap: anywhere; }
+.book-activity-revision__editor { display: grid; gap: .35rem; color: #334155; font-weight: 700; }
+.book-activity-revision__editor textarea { width: 100%; min-height: 15rem; box-sizing: border-box; border: 1px solid #697786; border-radius: .375rem; padding: .75rem; background: #fff; color: #17212b; font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.book-activity-revision__editor textarea:focus-visible, .book-activity-revision button:focus-visible { outline: 3px solid #b8d9f2; outline-offset: 2px; }
+.book-activity-revision__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.book-activity-revision button { min-height: 2.6rem; border: 1px solid #697786; border-radius: .375rem; padding: .5rem .8rem; background: #fff; color: inherit; cursor: pointer; }
+.book-activity-revision button:first-child, .book-activity-revision button:nth-child(2) { background: #1e5d8f; border-color: #1e5d8f; color: #fff; }
+.book-activity-revision button:disabled { cursor: not-allowed; opacity: .55; }
+.book-activity-revision__error { margin: 0; border: 1px solid #c2410c; border-radius: .4rem; padding: .65rem; background: #fff7ed; color: #7c2d12; }
+@media (max-width: 700px) {
+  .book-activity-revision { padding: .8rem; overflow-x: clip; }
+  .book-activity-revision__heading, .book-activity-revision__section-heading { flex-direction: column; }
+  .book-activity-revision__facts div, .book-activity-revision__preview dl div { display: grid; gap: .15rem; }
+  .book-activity-revision__facts dd, .book-activity-revision__preview dd { text-align: start; }
+  .book-activity-revision__actions button { flex: 1 1 10rem; min-height: 44px; }
+}

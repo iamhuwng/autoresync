@@ -3,6 +3,7 @@ import type {
   BookUnitCandidate,
   TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
+import type { EditableActivity } from '../../types/bookActivity.types';
 
 export const UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION = 'prd0062.unit_activity_import.v1' as const;
 export const UNIT_ACTIVITY_IMPORT_PROMPT_VERSION = 'book-unit-json-v1' as const;
@@ -12,6 +13,12 @@ export interface UnitPromptInput {
   readonly manifest: BookAssemblyManifestCandidate;
   readonly unitKey: string;
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
+}
+
+export interface ActivityRevisionPromptInput {
+  readonly current: EditableActivity;
+  readonly sourceEvidenceRefs: readonly string[];
+  readonly answerEvidenceRefs: readonly string[];
 }
 
 const nodeLabel = (manifest: BookAssemblyManifestCandidate, nodeKey: string): string => {
@@ -157,3 +164,25 @@ export const buildUnitActivityImportPrompt = ({
     '- Do not include hidden IDs, editable IDs, sourceVersionId, provider object keys, provider URLs, credentials, private source authority, teacher notes, guessed offsets, unsupported visual approximation, or accepted answers from unrelated sources.',
   ].join('\n');
 };
+
+/** Revision prompt adapter. Editable JSON is explicit; identity/provenance stays outside it. */
+export const buildActivityRevisionPrompt = ({
+  current,
+  sourceEvidenceRefs,
+  answerEvidenceRefs,
+}: ActivityRevisionPromptInput): string => [
+  'Replace the complete Activity JSON. Do not merge selected fields.',
+  'Current editable Activity JSON:',
+  JSON.stringify(current, null, 2),
+  '',
+  'Requirements:',
+  `schemaVersion: ${current.schemaVersion}`,
+  `taskProfile: ${current.taskProfile ? `${current.taskProfile.taxonomyId}/${current.taskProfile.typeId}@${current.taskProfile.taxonomyVersion}` : 'null or a registered profile'}`,
+  `presentationMode: ${current.presentationMode} (change only in this complete replacement)`,
+  `contextRequirement: ${current.contextRequirement.mode}/${current.contextRequirement.acceptedKinds.join(',') || 'none'}`,
+  `interaction family/variant: ${current.interaction.family}/${current.interaction.variant}`,
+  `source evidence references: ${sourceEvidenceRefs.join(', ') || 'none'}`,
+  `answer evidence references: ${answerEvidenceRefs.join(', ') || 'none'}`,
+  'Return only editable Activity fields. Do not include IDs, owner, placement, source-page, answer-key, or provenance fields.',
+  'Manual-copy fallback: if clipboard access is unavailable, select and copy the visible prompt text above.',
+].join('\n');

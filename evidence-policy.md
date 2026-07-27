@@ -92,6 +92,21 @@ Published mapping-revision boundary:
   recovery; #73 owns assembled Student mapping/runtime proof. Each transferred
   gate remains destination-owned exactly once.
 
+Activity-revision boundary:
+
+- #68 owns local Activity-revision behavior and proof: complete replacement
+  import, candidate/CAS/conflict recovery, semantic diff, source-assisted
+  preview, immutable Activity Versions, stable Activity/Placement lineage,
+  answer-safe projection, security, local Worker and fragment proof, teacher
+  browser proof at `http://localhost:5173`, and local revision rollback.
+- #118 owns the generated revision fragment, complete assembled emulator,
+  active generated-rules hash/readback, generated-rules rollback, and legacy
+  preservation. #134 owns the approved-activation deployed/canary revision
+  publication, identity/config/version readback, cleanup, recovery, and
+  emergency gate rollback. #73 owns assembled Student old-version/current-
+  context proof. #68 does not claim deployed, activated, generated-root, or
+  assembled-rules proof.
+
 Candidate-preview boundary:
 
 - #63 proves candidate-scoped answer-safe projection/approval behavior, shared

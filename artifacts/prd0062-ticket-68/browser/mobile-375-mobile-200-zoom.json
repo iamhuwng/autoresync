@@ -1,0 +1,19 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly-activity-revision?fixture=ticket68",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "teacher quick-login",
+    "mobile viewport 375x900",
+    "revision editor and controls remain visible at 200% browser zoom",
+    "no horizontal document overflow"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}
