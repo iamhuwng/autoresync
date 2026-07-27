@@ -3828,6 +3828,14 @@ Closure reproducibility correction later on 2026-07-27:
   79 open, 33 closed, 308 unique edges, no missing references, duplicate
   edges, or cycles, and 112/112 topological coverage. #57 became the sole
   selected primary for post-prerequisite reverification.
+- #57 then passed fresh retained proof: 5 files / 34 tests, repository
+  TypeScript, focused ESLint, local Playwright 3/3 at 1440px/375px/320px,
+  refreshed Firebase acceptance-preview deployment, and deployed Playwright
+  1/1. The acceptance preview used the ticket's documented Vite test mode and
+  mutation-presentation gate; production build proof remained separate.
+- #57 was formally re-closed. The next complete graph returned 78 open,
+  34 closed, 308 unique edges, no graph defects, and 112/112 topological
+  coverage. #58 / 09C became the selected primary.
 
 #56 was selected as the sole Teacher workflow root/enabler after a fresh live
 112-ticket graph rebuild: 112 issues, 81 open, 31 closed, 308 unique edges, no
